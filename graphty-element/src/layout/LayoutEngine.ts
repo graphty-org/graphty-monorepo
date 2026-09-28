@@ -225,6 +225,8 @@ export const layoutEngineInternals = {} as {
     removeEdge(engine: LayoutEngine, e: Edge): void;
     /** See `LayoutEngine.attachPositions`. */
     attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
+    /** See `LayoutEngine.edgeProblems`. */
+    edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
 };
 
 /**
@@ -248,6 +250,37 @@ export const layoutEngineInternals = {} as {
  * is inexpressible and a frame allocates once per node. With the coordinates in one shared array,
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
+/**
+ * The edges an engine holds against the edges drawn: each drawn edge held exactly once, and
+ * nothing held that is not drawn.
+ * @param held - What the engine holds.
+ * @param drawn - What the element draws.
+ * @returns One sentence per problem.
+ */
+export function heldEdgeProblems(held: Iterable<Edge>, drawn: ReadonlyMap<string, Edge>): string[] {
+    const problems: string[] = [];
+    const seen = new Set<Edge>();
+    for (const edge of held) {
+        if (seen.has(edge)) {
+            problems.push(`edge ${edge.id} is held twice`);
+        }
+
+        seen.add(edge);
+        if (drawn.get(edge.id) !== edge) {
+            problems.push(`edge ${edge.id} is held but not drawn`);
+        }
+    }
+
+    for (const edge of drawn.values()) {
+        if (!seen.has(edge)) {
+            problems.push(`edge ${edge.id} is drawn but not held`);
+        }
+    }
+
+    return problems;
+}
+
+/** The base every layout engine extends: how the element adds, places, steps and removes. */
 export abstract class LayoutEngine {
     static {
         layoutEngineInternals.setNodePosition = (engine, n, p) => {
@@ -260,6 +293,7 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.edgeProblems = (engine, drawn) => engine.edgeProblems(drawn);
         layoutEngineInternals.addNode = (engine, n) => {
             engine.addNode(n);
         };
@@ -451,6 +485,18 @@ export abstract class LayoutEngine {
      */
     dispose(): void {
         // An engine that holds no worker, no timer and no listener has nothing to release.
+    }
+
+    /**
+     * Strict state: what is wrong with this engine's hold on the drawn edges, checked after every
+     * derivation pass. An engine that keeps a copy of the edges must hold every drawn edge once
+     * and nothing else, or a redraw asks it for a position it cannot give. Reads nothing lazily:
+     * the check must not change what it checks.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem; empty when there is none.
+     */
+    protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        return heldEdgeProblems(this.edges, drawn);
     }
 
     /**

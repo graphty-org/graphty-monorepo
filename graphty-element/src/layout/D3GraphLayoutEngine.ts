@@ -13,7 +13,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
-import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for D3 Force Layout
@@ -365,6 +365,17 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Take the position array as this engine's own. Nodes still waiting for the next refresh are
+     * taken into the simulation first: undo and rollback rebuild the nodes they bring back, and a
+     * node left waiting would be placed by d3's own initial layout at its first tick -- over the
+     * coordinates the restore wrote for it.
+     */
+    override loadArrangement(): void {
+        this.refresh();
+        super.loadArrangement();
+    }
+
+    /**
      * Get the position of an edge based on its endpoint positions
      * @param e - The edge to get position for
      * @returns The edge's source and destination positions
@@ -488,6 +499,24 @@ export class D3GraphEngine extends LayoutEngine {
         this.edgeMapping.delete(e);
         this.newEdgeMap.delete(e);
         this.reheat = true;
+    }
+
+    /**
+     * Strict state: {@link LayoutEngine.edgeProblems} over the links and the edges still waiting
+     * for the next refresh, each once, with both endpoints held.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem.
+     */
+    protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        const problems = heldEdgeProblems([...this.edgeMapping.keys(), ...this.newEdgeMap.keys()], drawn);
+        const nodes = new Set<unknown>(this.nodeMapping.values());
+        for (const [edge, link] of this.edgeMapping) {
+            if (!nodes.has(link.source) || !nodes.has(link.target)) {
+                problems.push(`edge ${edge.id} links a node the simulation no longer holds`);
+            }
+        }
+
+        return problems;
     }
 
     private _getMappedNode(n: Node): D3Node {

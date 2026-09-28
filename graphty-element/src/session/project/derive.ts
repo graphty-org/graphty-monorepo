@@ -18,6 +18,7 @@
  */
 
 import type { ProjectState } from "./state";
+import { reportCaught } from "./strict";
 
 /** A slice of project state, as the lane marks and derives it. */
 type DerivedSlice = keyof ProjectState;
@@ -99,6 +100,11 @@ export class DerivationLane {
     private restoreCause: "undo" | "redo" | "restore" | "rollback" = "restore";
     /** Moves on every restore, so a pass clears the flag only for restores made before it began. */
     private restores = 0;
+    /**
+     * Strict state's invariant check, run at the end of every pass with the state it derived; what
+     * it throws goes where hook errors go. Null outside strict state.
+     */
+    afterPass: ((target: ProjectState) => void) | null = null;
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: "command" | "undo" | "redo" | "restore" | "rollback" = "command";
 
@@ -113,6 +119,7 @@ export class DerivationLane {
         this.onError =
             options.onError ??
             ((error) => {
+                reportCaught(error);
                 queueMicrotask(() => {
                     throw error;
                 });
@@ -266,6 +273,14 @@ export class DerivationLane {
             }
 
             this.shown = target;
+            if (this.afterPass !== null) {
+                try {
+                    this.afterPass(target);
+                } catch (error) {
+                    this.onError(error);
+                }
+            }
+
             this.current = null;
             pass.resolve();
         }

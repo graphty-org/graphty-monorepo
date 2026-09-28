@@ -128,7 +128,8 @@ import type { SessionCommand } from "./session/planning";
 import { cancelReasonOf, type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
 import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
-import type { LayoutChoice } from "./session/project/state";
+import type { GraphSlice, LayoutChoice } from "./session/project/state";
+import { reportCaught, strictStateEnabled, strictViolation } from "./session/project/strict";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
@@ -332,23 +333,14 @@ export class Graph implements GraphContext {
      * instead: the store's `stale` is true both before the first freeze and after a later edit.
      */
     #resident: GraphSnapshot | null = null;
-    /**
-     * Queued `data-add` and `data-remove` operations dispatching now, whose paint their queue
-     * trigger brings.
-     */
-    #queuedAdds = 0;
+    /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
+    #importsReading = 0;
 
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
     /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
     #dataGeneration = new AbortController();
-
-    /** Bumped by every finished `data-add`; the post-load repaint compares it to the next. */
-    #dataAdds = 0;
-
-    /** The value of `#dataAdds` the last post-load repaint painted. */
-    #dataAddsPainted = 0;
 
     /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
     #suggestionsStacked: Promise<void> = Promise.resolve();
@@ -523,7 +515,7 @@ export class Graph implements GraphContext {
                 });
             },
             loading: (active) => {
-                this.#queuedAdds += active ? 1 : -1;
+                this.#importsReading += active ? 1 : -1;
                 if (!active) {
                     dispatcherOf(this.session).graph.touch("import:settled");
                 }
@@ -547,17 +539,23 @@ export class Graph implements GraphContext {
             }
 
             if (cause === "command" && (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED))) {
-                this.layoutManager.running = true;
                 this.statsManager.startLayoutSession();
+                // The layout places the newcomers HERE, inside the pass, and never on the
+                // operation queue: queued work ran after the add's step had sealed, or inside a
+                // later undo before its `arrangement` hook, and moved an arrangement being
+                // restored. Placing them starts the layout.
+                await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+                this.layoutManager.running = true;
                 if (dirty.has(NODES_ADDED)) {
                     this.autoFrame();
                 }
             }
 
-            // An add that took its turn on the queue is painted by the `data-add` trigger once its
-            // operation ends; everything else -- undo, redo, a rollback, an edit, a session verb --
-            // is painted here.
-            if (this.#queuedAdds === 0 || cause !== "command") {
+            // While an import reads, the pass after each chunk builds what arrived but does not
+            // paint; the pass its end schedules paints the whole graph once. Everything else --
+            // an add, a removal, undo, redo, a rollback, an edit, a session verb -- is painted
+            // here, in its own pass.
+            if (this.#importsReading === 0 || cause !== "command") {
                 await this.repaintFromSession();
             }
         });
@@ -689,6 +687,17 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
 
+        // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
+        // way, and the layout engine can place every drawn edge.
+        if (strictStateEnabled()) {
+            lane.afterPass = (target) => {
+                // A pass that ends after teardown has nothing drawn left to compare.
+                if (!this.#teardown.signal.aborted) {
+                    this.checkDrawn(target.graph);
+                }
+            };
+        }
+
         // The `layout` hook: the engine, the scene's dimension and the camera follow the `layout`
         // slice, forward and on undo, redo and rollback. `layout.set` and `view.dimension` run it
         // inline in their slot, with pre-steps; a pass after undo runs it with none, and leaves
@@ -711,6 +720,7 @@ export class Graph implements GraphContext {
                 // A failure is reported on the element's error channel by the layout itself.
                 if (!isAbort(error)) {
                     console.error("[graphty] The layout could not follow the project.", error);
+                    reportCaught(error);
                 }
             });
         });
@@ -747,66 +757,9 @@ export class Graph implements GraphContext {
             }
         });
 
-        // Bring the session's paint up to date once the rows a queued add wrote exist. A style pass
-        // is over a dense index space, so it cannot paint a node the store has not taken yet; this
-        // is the first moment it can, and it is the "everything changed, because the graph did"
-        // boundary that no layer edit describes.
-        //
-        // ONE REPAINT PER RUN OF LOADS, NOT ONE PER LOAD. Every finished add queues this, but only
-        // the first to run after an add paints: it covers every add before it, and the rest find
-        // nothing new and return. Otherwise `addEdge` in a loop -- or a load of N records queued
-        // one at a time -- ran N whole-graph passes, which is quadratic. The check is made when
-        // the repaint RUNS, and recorded only once it has painted, so a repaint that something
-        // obsoletes or cancels cannot leave the next load unpainted.
-        this.operationQueue.registerTrigger("data-add", () => {
-            this.#dataAdds++;
-
-            return {
-                category: "style-apply",
-                execute: async (context) => {
-                    const adds = this.#dataAdds;
-
-                    if (this.#dataAddsPainted === adds) {
-                        return;
-                    }
-
-                    if (await this.repaintFromSession(context.signal)) {
-                        this.#dataAddsPainted = adds;
-                    }
-                },
-                description: "Repaint from the session style stack after data add",
-            };
-        });
-
-        // The same boundary from the other side. Removing a node freezes a snapshot with a new
-        // dense index space, and both the record of what each layer painted and each element's
-        // paint are kept by index -- so until a full pass rebuilds them, a later layer or run
-        // removal has nothing to take back and every node after the removed one shows its
-        // predecessor's paint.
-        this.operationQueue.registerTrigger("data-remove", () => ({
-            category: "style-apply",
-            execute: async () => {
-                await this.repaintFromSession();
-            },
-            description: "Repaint from the session style stack after data remove",
-        }));
-
         // A run's measurements reach the paint through the session's `runs` hook, in the pass
         // that records the run: a layer bound to `results.<runId>.<field>` is repainted there,
         // forward and on undo and redo, so nothing here repaints after a run.
-
-        // Register layout-update trigger to handle positioning nodes when data is added
-        this.operationQueue.registerTrigger("data-add", () => ({
-            category: "layout-update",
-            execute: async () => {
-                // Get all nodes for positioning
-                const nodes = Array.from(this.dataManager.nodes.values());
-                if (nodes.length > 0 && this.layoutManager.layoutEngine) {
-                    await this.layoutManager.updatePositions(nodes);
-                }
-            },
-            description: "Update layout positions after data add",
-        }));
 
         // Initialize UpdateManager
         this.updateManager = new UpdateManager(
@@ -1864,7 +1817,6 @@ export class Graph implements GraphContext {
         options?: QueueableOptions,
     ): Promise<void> {
         await this.applyData(
-            "data-add",
             { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
             options,
         );
@@ -1921,7 +1873,6 @@ export class Graph implements GraphContext {
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
         await this.applyData(
-            "data-add",
             {
                 kind: "add-edges",
                 records: edges,
@@ -2511,7 +2462,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void> {
-        await this.applyData("data-remove", { kind: "remove-nodes", ids: nodeIds }, options);
+        await this.applyData({ kind: "remove-nodes", ids: nodeIds }, options);
     }
 
     /**
@@ -2522,7 +2473,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void> {
-        await this.applyData("data-remove", { kind: "remove-edges", ids: edgeIds }, options);
+        await this.applyData({ kind: "remove-edges", ids: edgeIds }, options);
     }
 
     /**
@@ -2536,7 +2487,6 @@ export class Graph implements GraphContext {
         options?: QueueableOptions,
     ): Promise<void> {
         await this.applyData(
-            "data-update",
             { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
         );
@@ -2551,7 +2501,6 @@ export class Graph implements GraphContext {
      */
     async updateEdges(updates: { id: string; [key: string]: unknown }[], options?: QueueableOptions): Promise<void> {
         await this.applyData(
-            "data-update",
             { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
         );
@@ -2599,15 +2548,10 @@ export class Graph implements GraphContext {
      * Dispatch one `data.apply`, or a batch of them. It takes its turn on the operation queue,
      * which keeps an add ordered against the loads and layouts queued before it, or starts at once
      * with `skipQueue`.
-     * @param category - The queue category the command takes its turn under.
      * @param mutation - The mutation, or the batch.
      * @param options - Queue options.
      */
-    private async applyData(
-        category: "data-add" | "data-update" | "data-remove",
-        mutation: DataMutation | BatchCommand,
-        options?: QueueableOptions,
-    ): Promise<void> {
+    private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
         if (options?.skipQueue === true) {
@@ -2615,16 +2559,7 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // The `data-add` and `data-remove` triggers paint once the command's turn on the queue
-        // ends, so the graph hook's pass does not. Called through a plugin's graph facade, the
-        // change joins the running command at once and takes no turn of its own.
-        const trigger = category === "data-update" || dispatcher.routing ? 0 : 1;
-        this.#queuedAdds += trigger;
-        try {
-            await dispatcher.dispatch(command);
-        } finally {
-            this.#queuedAdds -= trigger;
-        }
+        await dispatcher.dispatch(command);
     }
 
     /**
@@ -2975,6 +2910,23 @@ export class Graph implements GraphContext {
         }
 
         return true;
+    }
+
+    /**
+     * Strict state: the drawn maps are keyed exactly like the `graph` slice, and the layout engine
+     * holds each drawn edge once, where it can place it.
+     * @param slice - The `graph` slice the pass derived.
+     */
+    private checkDrawn(slice: GraphSlice): void {
+        const problems = this.dataManager.sliceProblems(slice);
+        const engine = this.layoutManager.layoutEngine;
+        if (engine !== undefined && !this.layoutManager.building) {
+            problems.push(...layoutEngineInternals.edgeProblems(engine, this.dataManager.edges));
+        }
+
+        if (problems.length > 0) {
+            throw strictViolation(`after a derivation pass, ${problems.slice(0, 5).join("; ")}`);
+        }
     }
 
     /**
@@ -5536,7 +5488,7 @@ export class Graph implements GraphContext {
             return;
         }
 
-        this.applyData("data-add", {
+        this.applyData({
             op: "batch",
             label: "Set the graph data",
             steps: steps.map((mutation) => ({ op: "data.apply", mutation })),

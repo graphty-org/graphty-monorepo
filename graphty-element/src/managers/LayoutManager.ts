@@ -28,6 +28,7 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
+import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { Styles } from "../Styles";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -483,6 +484,28 @@ export class LayoutManager implements Manager {
      * outside it is held, including one that arrives later.
      */
     private members: ReadonlySet<NodeIdType> | null = null;
+
+    /**
+     * Strict state: something asked to step the layout while the lane was restoring, which only a
+     * forward change may. Refused either way; strict state reports it, because the caller is
+     * running outside the derivation lane's order.
+     * @param what - What asked.
+     */
+    private reportRestoringStep(what: string): void {
+        if (this.#strict) {
+            reportCaught(strictViolation(`${what} while the lane was restoring`));
+        }
+    }
+
+    readonly #strict = strictStateEnabled();
+
+    /**
+     * Whether a layout is being built now, spending its own pre-steps.
+     * @returns True while one is.
+     */
+    get building(): boolean {
+        return this.#building > 0;
+    }
 
     /**
      * Gets the running state of the layout
@@ -1461,7 +1484,11 @@ export class LayoutManager implements Manager {
     step(): void {
         // An engine being built spends its own pre-steps; a frame stepping it meanwhile would
         // publish what a cancelled build computed.
-        if (this.#building > 0) {
+        //
+        // Nothing steps while undo, redo, a restore or a rollback is on its way to the position
+        // array either: the `arrangement` hook places the restored coordinates, and a step before
+        // it has run would move the arrangement being restored. The frames after it step again.
+        if (this.#building > 0 || this.restoring()) {
             return;
         }
 
@@ -1586,7 +1613,15 @@ export class LayoutManager implements Manager {
      * @returns A promise that resolves once the newcomers have been placed.
      */
     updatePositions(nodes: Node[]): Promise<void> {
-        if (!this.layoutEngine || nodes.length === 0) {
+        // An engine being built takes every node there is and spends its own pre-steps.
+        if (!this.layoutEngine || nodes.length === 0 || this.#building > 0) {
+            return Promise.resolve();
+        }
+
+        // Only a forward add places newcomers; while a restore is on its way, the rows it brings
+        // back are placed by the `arrangement` hook, where they were.
+        if (this.restoring()) {
+            this.reportRestoringStep("newcomers were placed");
             return Promise.resolve();
         }
 

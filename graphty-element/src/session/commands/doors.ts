@@ -1067,6 +1067,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ),
             ),
             snapshotStale: READ,
+            // Strict state's check after every derivation pass.
+            sliceProblems: READ,
             beginLoad: IN_FLIGHT,
             supersedeLoads: IN_FLIGHT,
             throwIfSuperseded: READ,
@@ -1089,6 +1091,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             init: LIFECYCLE,
             dispose: LIFECYCLE,
             isCurrent: READ,
+            building: READ,
             loadArrangement: DERIVED,
             dimension: READ,
             step: TRANSPORT,

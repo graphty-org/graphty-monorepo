@@ -1,8 +1,9 @@
 /**
  * @file The random-sequence model of the history (`test/session/history/random-model.ts`), run
- * on a real `Graph` with a real `SimulationLayoutEngine` instead of a headless session with a
- * fake layout, so the arrangement rules the model checks are checked against the engine the fake
- * stands in for. See design/undo/undo-design.md section 12.5.
+ * on a real `Graph` with real layout engines instead of a headless session with a fake layout, so
+ * the arrangement rules the model checks are checked against the engines the fake stands in for:
+ * the spring simulation, and ngraph and d3, which keep a graph of their own. See
+ * design/undo/undo-design.md section 12.5.
  *
  * The same generators, fewer and shorter runs: each command here costs real meshes and real
  * layout passes. Three things are held still so a failure replays from its seed:
@@ -23,6 +24,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { Scheduler } from "../../src/session/project/Dispatcher";
+import { guardedAsyncProperty } from "../helpers/caught-errors";
 import { fakeClock, heldScheduler } from "../session/history/fakes";
 import {
     baselineModel,
@@ -45,15 +47,30 @@ const SEED_TIMEOUT_MS = 120_000;
 const SETTLE_FRAMES = 300;
 
 /**
- * The engines the generated layout choices are drawn with here: each one a simulation, which
- * moves nodes only when a frame is stepped. A one-shot layout places every node again when one
- * is added, on the operation queue's own time, which is not a move the model can follow.
+ * The engines each sequence is run under: the spring simulation, which moves nodes only when a
+ * frame is stepped and reads the graph from the snapshot, and ngraph (the default) and d3, which
+ * keep a copy of the graph of their own and place newcomers by stepping as an add is derived.
  */
-const SIMULATIONS: Readonly<Record<string, { readonly id: string; readonly engine: string }>> = {
-    circular: { id: "force", engine: "forceatlas2" },
-    spiral: { id: "force", engine: "spring" },
-    force: { id: "force", engine: "spring" },
-};
+const ENGINES = ["spring", "ngraph", "d3"] as const;
+
+/**
+ * The engines the generated layout choices are drawn with under each: each one moves nodes only
+ * when a frame is stepped or an add is derived. A one-shot layout places every node again whenever
+ * it is read, which is not a move the model can follow.
+ * @param engine - The engine the run is under.
+ * @returns The choice each generated layout id stands for.
+ */
+function simulations(
+    engine: (typeof ENGINES)[number],
+): Readonly<Record<string, { readonly id: string; readonly engine: string }>> {
+    return engine === "spring"
+        ? {
+              circular: { id: "force", engine: "forceatlas2" },
+              spiral: { id: "force", engine: "spring" },
+              force: { id: "force", engine: "spring" },
+          }
+        : { circular: { id: "force", engine }, spiral: { id: "force", engine }, force: { id: "force", engine } };
+}
 
 const cleanups: (() => void)[] = [];
 
@@ -92,11 +109,12 @@ function realLayout(graph: Graph): ModelLayout {
 }
 
 /**
- * A real graph holding `n1 -> n2 -> n3`, with a degree run and a route, laid out by the spring
- * simulation and at rest, with its history cleared.
+ * A real graph holding `n1 -> n2 -> n3`, with a degree run and a route, laid out by one engine
+ * and at rest, with its history cleared.
+ * @param engine - The engine.
  * @returns The system and the model.
  */
-async function begin(): Promise<{ real: Real; model: Model }> {
+async function begin(engine: (typeof ENGINES)[number]): Promise<{ real: Real; model: Model }> {
     const container = document.createElement("div");
     container.style.width = "400px";
     container.style.height = "300px";
@@ -108,7 +126,7 @@ async function begin(): Promise<{ real: Real; model: Model }> {
     });
     await graph.init();
     graph.engine.stopRenderLoop();
-    await graph.setLayout("spring");
+    await graph.setLayout(engine);
     const session = graph.getSession();
     const dispatcher = dispatcherOf(session);
     const clock = fakeClock();
@@ -126,17 +144,23 @@ async function begin(): Promise<{ real: Real; model: Model }> {
     const layout = realLayout(graph);
     await layout.settle();
     session.history.clear();
-    const real: Real = { session, clock, layout, queue, layoutFor: (id) => SIMULATIONS[id] ?? SIMULATIONS.force };
+    const real: Real = {
+        session,
+        clock,
+        layout,
+        queue,
+        layoutFor: (id) => simulations(engine)[id] ?? simulations(engine).force,
+    };
     return { real, model: baselineModel(real) };
 }
 
-describe("random sequences on a real graph with a real layout", () => {
+describe.each(ENGINES)("random sequences on a real graph under %s", (engine) => {
     for (const seed of SEEDS) {
         it(
             `holds for seed ${String(seed)}`,
             async () => {
                 await fc.assert(
-                    fc.asyncProperty(
+                    guardedAsyncProperty(
                         fc.scheduler(),
                         fc.commands(COMMANDS, { maxCommands: MAX_COMMANDS, size: "max" }),
                         async (s, commands) => {
@@ -144,7 +168,7 @@ describe("random sequences on a real graph with a real layout", () => {
                             await fc.scheduledModelRun(
                                 s,
                                 async () => {
-                                    begun = await begin();
+                                    begun = await begin(engine);
                                     return begun;
                                 },
                                 commands,

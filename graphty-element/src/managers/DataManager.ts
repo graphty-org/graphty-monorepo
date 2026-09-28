@@ -544,6 +544,42 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Strict state: the drawn maps keyed exactly like the `graph` slice. An edge the slice holds
+     * may instead be waiting for an endpoint that has not arrived.
+     * @param slice - The slice the last pass derived.
+     * @returns One sentence per problem; empty when there is none.
+     */
+    sliceProblems(slice: GraphSlice): string[] {
+        const problems: string[] = [];
+        const waiting = new Set(this.pendingEdges.map((entry) => entry.edgeId));
+        for (const id of this.nodes.keys()) {
+            if (!slice.nodes.has(id)) {
+                problems.push(`node ${JSON.stringify(id)} is drawn but not in the slice`);
+            }
+        }
+
+        for (const id of slice.nodes.keys()) {
+            if (!this.nodes.has(id)) {
+                problems.push(`node ${JSON.stringify(id)} is in the slice but not drawn`);
+            }
+        }
+
+        for (const id of this.edges.keys()) {
+            if (!slice.edges.has(id)) {
+                problems.push(`edge ${JSON.stringify(id)} is drawn but not in the slice`);
+            }
+        }
+
+        for (const id of slice.edges.keys()) {
+            if (!this.edges.has(id) && !waiting.has(edgeCounterOf(id))) {
+                problems.push(`edge ${JSON.stringify(id)} is in the slice but neither drawn nor waiting`);
+            }
+        }
+
+        return problems;
+    }
+
+    /**
      * Bring the render objects in line with the `graph` slice: what the derivation lane's `graph`
      * hook runs, forward and on undo, redo and rollback alike. A node or edge the slice holds and
      * nothing draws is built; one drawn that the slice no longer holds is torn down; one whose
@@ -582,7 +618,7 @@ export class DataManager implements Manager {
         // Torn down together: one pass over the edges for all of them, not one per node, and the
         // nodes in the order they were built, which is the order the scene holds their meshes in.
         if (doomed.size > 0) {
-            removedEdges.push(...this.dropRenderNodes(doomed));
+            removedEdges.push(...this.dropRenderNodes(doomed, slice));
             removedNodes.push(...doomed);
         }
 
@@ -641,13 +677,34 @@ export class DataManager implements Manager {
      * Tear down nodes' render objects and every render edge attached to one of them, leaving the
      * store alone: the store already reflects the state being drawn.
      * @param ids - The nodes.
-     * @returns The ids of the edges torn down with them.
+     * @param slice - The slice being drawn, which may still hold an edge of a node going.
+     * @returns The ids of the edges torn down with them and not left waiting.
      */
-    private dropRenderNodes(ids: ReadonlySet<NodeIdType>): EdgeId[] {
+    private dropRenderNodes(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
         const removed: EdgeId[] = [];
         for (const edge of [...this.edges.values()]) {
             if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
+                // An edge the slice still holds outlives its endpoint's render object: it goes
+                // back to waiting, as it waited before the endpoint arrived, so the redo that
+                // brings the endpoint back draws it again.
+                const record = slice.edges.get(edge.id);
+                const counter = edgeCounterOf(edge.id);
+                const row = this.store.edgeIndexOf(counter);
+                const { srcId, dstId } = edge;
                 this.teardownEdge(edge, edge.index);
+                if (record !== undefined && row !== INVALID_INDEX) {
+                    const pending: PendingEdge = {
+                        record: record as Record<string, unknown>,
+                        sourceId: srcId,
+                        targetId: dstId,
+                        edgeIndex: row,
+                        edgeId: counter,
+                    };
+                    this.pendingEdges.push(pending);
+                    this.rememberPending(pending);
+                    continue;
+                }
+
                 removed.push(edge.id);
             }
         }

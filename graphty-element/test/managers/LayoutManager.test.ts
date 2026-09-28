@@ -468,6 +468,36 @@ describe("LayoutManager", () => {
         });
     });
 
+    describe("while the lane is restoring", () => {
+        it("neither a frame nor newcomers step the layout", async () => {
+            const dataManager = graph.getDataManager();
+            dataManager.addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            dataManager.addEdges([{ src: "a", dst: "b" }] as Record<string, unknown>[]);
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
+            const at = (): string => JSON.stringify(layoutManager.getNodePosition(dataManager.getNode("a")!));
+            layoutManager.running = true;
+            const {restoring} = layoutManager;
+            layoutManager.restoring = () => true;
+            // Strict state reports the placement it refuses; this test asks only that it refuses.
+            const report = (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__;
+            const reported: unknown[] = [];
+            (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__ = (error) => {
+                reported.push(error);
+            };
+            try {
+                const before = at();
+                layoutManager.step();
+                assert.strictEqual(at(), before, "a frame does not step it");
+                await layoutManager.updatePositions([dataManager.getNode("a")!]);
+                assert.strictEqual(at(), before, "newcomers do not step it");
+                assert.lengthOf(reported, 1, "strict state reports the placement");
+            } finally {
+                (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__ = report;
+                layoutManager.restoring = restoring;
+            }
+        });
+    });
+
     describe("catalogue ids", () => {
         it("setLayout accepts every id catalog.layouts() publishes, and engine names still work", async () => {
             graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);

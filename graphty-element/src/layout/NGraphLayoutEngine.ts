@@ -7,7 +7,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node } from "../Node";
-import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for NGraph Force Layout
@@ -425,6 +425,29 @@ export class NGraphEngine extends LayoutEngine {
         this.ngraph.removeLink(link);
         this.edgeMapping.delete(e);
         this._settled = false;
+    }
+
+    /**
+     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge its own link, which ngraph
+     * still holds.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem.
+     */
+    protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        const problems = heldEdgeProblems(this.edgeMapping.keys(), drawn);
+        const links = new Set<NGraphLink>();
+        for (const [edge, link] of this.edgeMapping) {
+            if (links.has(link)) {
+                problems.push(`edge ${edge.id} shares a link with another edge`);
+            }
+
+            links.add(link);
+            if (this.ngraph.getLinkById(link.id) !== link) {
+                problems.push(`edge ${edge.id} maps to a link its graph no longer holds`);
+            }
+        }
+
+        return problems;
     }
 
     private _getMappedNode(n: Node): NGraphNode {

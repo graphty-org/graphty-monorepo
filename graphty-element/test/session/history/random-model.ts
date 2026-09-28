@@ -182,7 +182,12 @@ type Command = fc.AsyncCommand<Model, Real>;
  * @returns The digest.
  */
 export function live(real: Real): string {
-    return stateDigest(dispatcherOf(real.session).state, { snapshot: real.session.snapshot() });
+    const read = (): string => stateDigest(dispatcherOf(real.session).state, { snapshot: real.session.snapshot() });
+    // Read twice: a read must not change what the next read sees. A lazily built snapshot that
+    // served a stale graph on its first read after a history move was found this way.
+    const first = read();
+    assert.strictEqual(read(), first, "a second read of the state digest agrees with the first");
+    return first;
 }
 
 /**
@@ -588,6 +593,10 @@ async function edit(
         before = laneOf(real);
     }
 
+    // Where the lane is before the edit, to see whether an edit that reshapes the graph moved it:
+    // an add under a layout that places newcomers by stepping (ngraph, d3) moves every node as it
+    // is derived.
+    const laneBefore = laneOf(real);
     let refused = false;
     try {
         await act();
@@ -607,7 +616,7 @@ async function edit(
             // Sealed at its commit, or where the layout came to rest while it was open.
             model.steps[model.position].arr = laneOf(real);
             model.moved = false;
-        } else if (before !== null && moved(before, laneOf(real))) {
+        } else if ((before !== null || shapeOf(real) !== shape) && moved(before ?? laneBefore, laneOf(real))) {
             // A layout that placed the nodes as the command ran: at rest, that is where its step
             // ends; still running, the nodes are in flight, and the next seal gives them to it.
             if (real.layout.running) {
@@ -639,8 +648,16 @@ async function edit(
     followEviction(model, real, label);
     assert.strictEqual(history.position, model.position, `${label} moved the cursor by more than one`);
     assert.lengthOf(history.steps, model.steps.length - 1, `${label} changed the history without recording`);
+    // Work dispatched after the top step and still pending keeps the edit out of it (design
+    // section 5.2): merged, the step would reach back across that work.
+    const topAt = model.steps[model.position].recordedAt;
+    const pendingSinceTop = model.pending.some((item) => item.seq > topAt);
     const coalesces =
-        merges.key !== null && model.mergeable && model.mergeKey === merges.key && now - model.lastAt < COALESCE_MS;
+        merges.key !== null &&
+        !pendingSinceTop &&
+        model.mergeable &&
+        model.mergeKey === merges.key &&
+        now - model.lastAt < COALESCE_MS;
     const amends =
         merges.into !== undefined &&
         merges.into !== null &&
@@ -930,9 +947,12 @@ class UndoThenSettle implements Command {
     async run(model: Model, real: Real): Promise<void> {
         expectSealed(model, real, "before undo then settle");
         if (model.position === 0) {
-            // Nothing to undo, so the settle is a rest point like any other.
+            // Nothing to undo, so the settle is a rest point like any other -- and like any other,
+            // it seals only when the layout moved the lane on its way to rest.
             await real.session.undo();
+            const before = laneOf(real);
             await real.layout.settle();
+            model.moved ||= moved(before, laneOf(real));
             sealModel(model, real);
             followEviction(model, real, "the rest point");
             return;
@@ -1407,6 +1427,8 @@ class WriteTransaction implements Command {
         await tx.written;
         tx.wrote = true;
         tx.wroteAt = model.tick++;
+        // An add under a layout that places newcomers by stepping moves the lane as it is derived.
+        model.moved ||= moved(tx.before, laneOf(real));
         expectSealed(model, real, "after the transaction wrote");
     }
 

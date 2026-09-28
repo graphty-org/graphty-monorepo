@@ -128,7 +128,7 @@ export const GEXF_ISSUE = Object.freeze({
     VIZ_SKIPPED: VIZ_SKIPPED_CODE,
     /** A 1.2 dynamic viz element whose bounds were dropped. */
     VIZ_DYNAMIC_DROPPED: VIZ_DYNAMIC_CODE,
-    /** A 1.2 startopen / endopen spell stored closed. */
+    /** Deprecated and no longer recorded: open spells are kept in the spells.open column. */
     SPELL_OPEN_DROPPED: SPELL_OPEN_CODE,
     /** A viz value that could not be read. */
     VIZ_VALUE: VIZ_VALUE_CODE,

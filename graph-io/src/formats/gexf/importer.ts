@@ -10,9 +10,11 @@
  * forward reference is legal; element lifetimes (`start` / `end` / `timestamp`, `<spells>`, 1.3
  * `timestamps` / `intervals`, 1.2 `startopen` / `endopen` holding the open bound's time) become
  * the temporal role columns; dynamic attribute values go into the temporal extension tables of
- * design section 5.10; the graph header's `mode`, `timeformat`, `timerepresentation` and `idtype`
- * land in the graph meta (`idtype` is informational: Gephi writes `idtype="string"` for every
- * file, so ids follow the `ids` rule, canonical by default).
+ * design section 5.10, and a spell's open bounds go to the spells.open column; the graph header's
+ * `mode`, `timeformat`, `timerepresentation` and `idtype` land in the graph meta, and its
+ * `defaultedgetype`, `start`, `end` and `timestamp` as written in `meta.extra.gexf` (`idtype` is
+ * informational: Gephi writes `idtype="string"` for every file, so ids follow the `ids` rule,
+ * canonical by default).
  *
  * Direction follows design section 8.4: `defaultedgetype` (undirected when absent, per the spec and
  * the `defaultDirected` option) sets the sink's direction once, and every per-edge `type` override,
@@ -136,7 +138,10 @@ export const WEIGHT_IGNORED_CODE = "W_GEXF_WEIGHT_IGNORED";
 export const VIZ_SKIPPED_CODE = "W_GEXF_VIZ_SKIPPED";
 /** Issue code: a 1.2 dynamic viz element (its bounds are dropped, the value kept). */
 export const VIZ_DYNAMIC_CODE = "W_GEXF_VIZ_DYNAMIC_DROPPED";
-/** Issue code: `startopen` / `endopen` on a `<spell>` (the spells column has no open bits). */
+/**
+ * Issue code: `startopen` / `endopen` on a `<spell>` stored closed. No longer recorded: the open
+ * bits of each spell are kept in the spells.open column. Kept so the exported code table is stable.
+ */
 export const SPELL_OPEN_CODE = "W_GEXF_SPELL_OPEN_DROPPED";
 /** Issue code: a viz element with a value that does not parse (the element is skipped). */
 export const VIZ_VALUE_CODE = "W_GEXF_VIZ_VALUE";
@@ -351,6 +356,7 @@ interface DomainColumns {
     readonly end: TemporalColumn;
     readonly timestamp: TemporalColumn;
     readonly spells: LazyColumn;
+    readonly spellsOpen: LazyColumn;
     readonly timestamps: LazyColumn;
     readonly open: LazyColumn;
     readonly color: LazyColumn;
@@ -502,6 +508,9 @@ class GexfReader implements XmlHandler {
 
     private spellPairs: number[][] | null = null;
 
+    /** The open bits of each spell in spellPairs, in the same order. */
+    private spellOpen: number[] = [];
+
     private spellsWhere: IssueLocation | null = null;
 
     private parentIds: NodeId[] | null = null;
@@ -532,6 +541,7 @@ class GexfReader implements XmlHandler {
             end: new TemporalColumn("node", NODE_DECLS.end),
             timestamp: new TemporalColumn("node", NODE_DECLS.timestamp),
             spells: new LazyColumn("node", NODE_DECLS.spells),
+            spellsOpen: new LazyColumn("node", NODE_DECLS.spellsOpen),
             timestamps: new LazyColumn("node", NODE_DECLS.timestamps),
             open: new LazyColumn("node", NODE_DECLS.open),
             color: new LazyColumn("node", NODE_DECLS.color),
@@ -543,6 +553,7 @@ class GexfReader implements XmlHandler {
             end: new TemporalColumn("edge", EDGE_DECLS.end),
             timestamp: new TemporalColumn("edge", EDGE_DECLS.timestamp),
             spells: new LazyColumn("edge", EDGE_DECLS.spells),
+            spellsOpen: new LazyColumn("edge", EDGE_DECLS.spellsOpen),
             timestamps: new LazyColumn("edge", EDGE_DECLS.timestamps),
             open: new LazyColumn("edge", EDGE_DECLS.open),
             color: new LazyColumn("edge", EDGE_DECLS.color),
@@ -846,7 +857,7 @@ class GexfReader implements XmlHandler {
             }
         }
         const extra: Record<string, unknown> = {};
-        for (const key of ["start", "end", "timestamp"]) {
+        for (const key of ["defaultedgetype", "start", "end", "timestamp"]) {
             const value = attrs.get(key);
             if (value !== undefined) {
                 extra[key] = value;
@@ -1256,6 +1267,7 @@ class GexfReader implements XmlHandler {
                 return;
             case "spells":
                 this.spellPairs = [];
+                this.spellOpen = [];
                 this.spellsWhere = frame.where;
                 this.ctx.push(Ctx.Spells);
                 return;
@@ -1525,6 +1537,7 @@ class GexfReader implements XmlHandler {
                 return;
             case "spells":
                 this.spellPairs = [];
+                this.spellOpen = [];
                 this.spellsWhere = edge.where;
                 this.ctx.push(Ctx.Spells);
                 return;
@@ -1970,36 +1983,34 @@ class GexfReader implements XmlHandler {
         const where = this.spellsWhere ?? { line };
         try {
             const bounds = this.readBounds(attrs, where);
-            if (bounds.open !== 0) {
-                this.report.warnOnce(
-                    "unsupported",
-                    SPELL_OPEN_CODE,
-                    "startopen / endopen on a <spell> cannot be kept; the spell is stored closed",
-                    where,
-                );
-            }
             this.spellPairs?.push([bounds.start.value, bounds.end.value]);
+            this.spellOpen.push(bounds.open);
         } catch (err) {
             this.report.recordError(err, where);
         }
     }
 
-    /** Close `<spells>`: write the pairs into the open element's spells column. */
+    /**
+     * Close `<spells>`: write the pairs into the open element's spells column, and their open bits
+     * into the spells.open column when any spell has an open bound.
+     */
     private finishSpells(): void {
         const pairs = this.spellPairs;
+        const open = this.spellOpen;
         const where = this.spellsWhere ?? undefined;
         this.spellPairs = null;
+        this.spellOpen = [];
         this.spellsWhere = null;
         if (pairs === null) {
             return;
         }
         try {
-            if (this.edge !== null) {
-                this.edgeColumns.spells.set(this.sink, this.report, this.edge.index, pairs, where);
-            } else {
-                const frame = this.nodeStack[this.nodeStack.length - 1];
-                if (frame.index !== INVALID_INDEX) {
-                    this.nodeColumns.spells.set(this.sink, this.report, frame.index, pairs, where);
+            const columns = this.edge === null ? this.nodeColumns : this.edgeColumns;
+            const { index } = this.edge ?? this.nodeStack[this.nodeStack.length - 1];
+            if (index !== INVALID_INDEX) {
+                columns.spells.set(this.sink, this.report, index, pairs, where);
+                if (open.some((bits) => bits !== 0)) {
+                    columns.spellsOpen.set(this.sink, this.report, index, open, where);
                 }
             }
         } catch (err) {

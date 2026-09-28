@@ -129,6 +129,9 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/layout` | `layout/` | 1.10.3 | Graph layout algorithms (NetworkX TypeScript port) |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
 | `@graphty/graphty` | `graphty/` | 0.8.16 | React wrapper application (private, Mantine UI) |
+| `@graphty/remote-logger` | `remote-logger/` | 1.3.9 | Remote logging client and server for browser debugging |
+| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.9 | Compact size variants for Mantine UI components, for dense UIs |
+| `@graphty/visual-review` | `visual-review/` | 0.0.0 | Visual review of Storybook stories: capture in CI, compare with baselines in git, accept in a local page (private) |
 
 ## Monorepo Structure
 

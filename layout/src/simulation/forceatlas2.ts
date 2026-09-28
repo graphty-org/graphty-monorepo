@@ -42,8 +42,15 @@ import {
 import { resolveNodeVector, resolveWeights } from "./inputs";
 import type { ForceAtlas2Options, LayoutSimulation } from "./types";
 
-/** The constructor's options: the FA2 options of design 9.3 plus the force-law mode of D5. */
-export type ForceAtlas2SimulationOptions = ForceAtlas2Options & { readonly compat?: "paper" | "networkx" | undefined };
+/** The options of the ForceAtlas2Simulation constructor: every ForceAtlas2Options field, plus `compat`. */
+export type ForceAtlas2SimulationOptions = ForceAtlas2Options & {
+    /**
+     * Which ForceAtlas2 variant to run. `"paper"` (the default) is the published algorithm: gravity pulls toward the
+     * centroid and the swing and traction sums are recomputed every iteration. `"networkx"` reproduces NetworkX 3.4.2's
+     * `forceatlas2_layout`, so positions match a NetworkX run on the same input.
+     */
+    readonly compat?: "paper" | "networkx" | undefined;
+};
 
 /** The options after FA2_DEFAULTS and validation (design 7.14). */
 interface ResolvedOptions {

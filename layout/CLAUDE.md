@@ -154,7 +154,7 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   diff by formula. `compat: "paper"` (the default) is the published algorithm (centroid gravity, fresh global sums
   each iteration); `compat: "networkx"` reproduces NetworkX 3.4.2 `forceatlas2_layout` and is checked against the
   NetworkX fixtures under `test/simulation/fixtures/networkx/`. `compat` is the `ForceAtlas2Simulation` constructor's
-  own option (a module-private `ForceAtlas2Options & { compat? }`), absent from the exported `ForceAtlas2Options` and
+  own option (the exported `ForceAtlas2SimulationOptions`, `ForceAtlas2Options & { compat? }`), absent from the exported `ForceAtlas2Options` and
   therefore not reachable through `createSimulation`'s typed options: `new ForceAtlas2Simulation({ compat: "networkx" })`. Mass is `nodeMass`, else the role-`mass` column,
   else `outDegree + 1`; `weight: true` uses the snapshot's arc weights, a string names an edge column. `nodeSize`,
   `dissuadeHubs`, `seed` and `maxInFlight` are accepted and unused: the CALLER seeds the array with

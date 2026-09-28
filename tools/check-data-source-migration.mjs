@@ -26,12 +26,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Problems the element still has; each is removed by the change that fixes it. */
-const PENDING = [
-    "graphty-element/src/data/CSVDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/CSVDataSource.ts: imports papaparse",
-    "graphty-element/src/data/JsonDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/csv-variant-detection.ts: exists",
-];
+const PENDING = [];
 
 const DATA_DIR = "graphty-element/src/data";
 const SRC_DIR = "graphty-element/src";

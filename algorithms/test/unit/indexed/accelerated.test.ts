@@ -1,4 +1,4 @@
-import { expandEdges, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { expandEdges, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
@@ -1034,6 +1034,15 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
             expect(got.size).toBe(3);
             expect(got.size).toBe(want.size);
             expect([...got.matching]).toEqual([...want.matching]);
+
+            // Explicit sides are passed through: only a and x take part, so one pair, not three.
+            const left = makeMask(s.nodeCount);
+            const right = makeMask(s.nodeCount);
+            maskSet(left, s.ids.indexOf("a"), true);
+            maskSet(right, s.ids.indexOf("x"), true);
+            const sided = await d.maximumBipartiteMatching(s, { left, right });
+            expect(sided.size).toBe(1);
+            expect(sided.matching[s.ids.indexOf("a")]).toBe(s.ids.indexOf("x"));
         });
 
         it("turns a port's throw into a rejection", async () => {

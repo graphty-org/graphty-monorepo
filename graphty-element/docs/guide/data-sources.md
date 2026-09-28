@@ -81,12 +81,17 @@ the source's `errorLimit` has read only part of the file, so it fails with `E_PA
 keeps the current graph.
 
 GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
-cannot be read at all -- a GML list or DOT brace still open when the text ends, a DOT file that
-does not open with `graph` or `digraph`, a Pajek file with no `*Vertices` section -- fails with
+cannot be read at all -- a GML list or DOT brace still open when the text ends, a Pajek file with
+no `*Vertices` section -- fails with
 `E_PARSE_FAILED` instead of loading whatever came before the break. The `data-loading-error` event
 carries `context: "parsing"` and, when the reader can name one, the `line` where the problem
 starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
 malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
+
+GML is read as NetworkX reads it, so three things the element's 2.x reader accepted fail with
+`E_PARSE_FAILED` naming the line: an unquoted word as a value (`id A`; quote it, `id "A"`), a
+`directed` written as `true` or `false` (write `1` or `0`), and a string that runs onto the next
+line (write the line break as `&#10;`).
 
 When loads overlap, the one that STARTED last wins. Once a replacing load has started, every
 load started before it adds nothing more and rejects with `E_SUPERSEDED`, even if its source
@@ -137,15 +142,15 @@ Most graph formats state whether their edges point, and the importer reports wha
 A GML file with no `directed` key, a GEXF file with no `defaultedgetype`, is not silent: both
 formats define that omission as undirected, and so does graphty-element.
 
-| Format  | Where it states direction                                             | When it states nothing                                                          |
-| ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge                   | An absent attribute means undirected, unless the edges themselves say otherwise |
-| GraphML | `edgedefault` on `<graph>`, and `directed` per edge                   | An absent attribute states nothing; GraphML requires it                         |
-| GML     | the `directed` key, 1 or 0 (a quoted `"1"` is read too)               | An absent key means undirected                                                  |
-| DOT     | the opening `graph` or `digraph` keyword                              | -- (a file without one does not load)                                           |
-| Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                      |
-| CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                              |
-| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                    |
+| Format  | Where it states direction                                             | When it states nothing                                                                            |
+| ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge                   | An absent attribute means undirected, unless the edges themselves say otherwise                   |
+| GraphML | `edgedefault` on `<graph>`, and `directed` per edge                   | An absent attribute states nothing; GraphML requires it                                           |
+| GML     | the `directed` key, 1 or 0 (a quoted `"1"` is read too)               | An absent key means undirected                                                                    |
+| DOT     | the opening `graph` or `digraph` keyword                              | A body with no keyword (`{ a -> b }`) states nothing; each edge's operator sets its own direction |
+| Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                                        |
+| CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                                                |
+| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                                      |
 
 Read it back from the session:
 
@@ -166,21 +171,58 @@ subject, and any directed edge among them makes the graph directed. That asymmet
 losing one direction of an undirected edge is countable, and counted, while reading a directed edge
 as undirected invents a reverse path the file denies.
 
-Either way each edge keeps its own direction on its record, and the element logs a warning naming
-how many edges it overrode. Direction is settled once per graph: a second file loaded into a graph
+Either way an edge whose own direction differs from the graph's keeps it on its record -- a GEXF
+edge as `type` (`"directed"`, `"undirected"`, or `"mutual"`, which is always kept), a GraphML edge
+as `directed` -- and the element logs a warning naming how many edges it overrode. An edge whose
+own `type` or `directed` agrees with the graph carries no such key: it is drawn like every other
+edge. GEXF keywords are read in any case, so `defaultedgetype="Directed"` is directed. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
+
+## GEXF and GraphML Records
+
+GEXF and GraphML files are read by `@graphty/graph-io`, and each node and edge record carries the
+attributes the file declared, under their titles (GEXF) or `attr.name` (GraphML), typed by their
+declared type:
+
+- a GEXF `liststring` (or GEXF 1.3 `list<...>`) attribute is an array of its items;
+- a GEXF `date` or `dateTime` attribute is its ISO text;
+- a GraphML key declared `for="all"` applies to nodes and edges alike;
+- a value that does not parse as its declared type -- `3.7` for an `int` key, a GraphML `<data>`
+  holding XML elements rather than text -- is left off the record and reported as a loading error;
+- a node id declared twice is one node, with the later declaration's values winning.
+
+The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
+`viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
+loads nothing and reports a loading error.
+
+## CSV, JSON, GML, DOT and Pajek Records
+
+These are read by `@graphty/graph-io` too, and each record keeps the keys the file wrote:
+
+- a CSV cell is typed on its own, as before: `true` and `false` are booleans and a number is a
+  number, so one `NA` in a `weight` column leaves the other weights numbers. Node ids and
+  endpoints stay the text the file wrote;
+- a JSON record graph-io cannot read under the id and endpoint keys the element resolved -- a node
+  without the key or repeating an earlier id, an edge without both keys -- reaches the element as
+  the file wrote it, and the element reads it with its own keys;
+- a GML node or Pajek vertex declared twice keeps its first declaration, as the element keeps the
+  first record of a repeated id; a DOT node written in several statements has the attributes of
+  all of them, the later ones winning, as Graphviz draws it;
+- a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
+  wrote.
 
 ## Dynamic GEXF
 
 A GEXF file with `mode="dynamic"` keeps its time data on each node's and edge's data, as the
 strings the file wrote:
 
-| In the file                                    | On the record                                              |
-| ---------------------------------------------- | ---------------------------------------------------------- |
-| `start`, `end`, `timestamp` on a node or edge  | `start`, `end`, `timestamp`                                |
-| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true`  |
-| `<spells><spell .../></spells>`                | `spells`: a list of `{ start, end }`                       |
-| several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices |
+| In the file                                    | On the record                                                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `start`, `end`, `timestamp` on a node or edge  | `start`, `end`, `timestamp`                                                                                                |
+| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true`                                                                  |
+| `<spells><spell .../></spells>`                | `spells`: a list of `{ start, end }`, each with `startOpen` / `endOpen` for an open bound                                  |
+| several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices; an untimed `<attvalue>` among them comes first, as `{ value }` |
 
 An attribute with no timed `attvalue` keeps its plain value, so a static file reads as it always
 has. Timed `viz:*` elements (a position, colour or size that changes over time) are not read.

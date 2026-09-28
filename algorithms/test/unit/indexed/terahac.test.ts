@@ -162,7 +162,10 @@ describe("indexed.teraHAC", () => {
                     (g) => portShape(g, config),
                 );
                 for (const { graph } of fixtures) {
-                    expectSamePartition(legacyTeraHAC(numbered(graph), config).clusters, teraHAC(toSnapshot(graph), config).labels);
+                    expectSamePartition(
+                        legacyTeraHAC(numbered(graph), config).clusters,
+                        teraHAC(toSnapshot(graph), config).labels,
+                    );
                 }
             });
         }
@@ -181,7 +184,10 @@ describe("indexed.teraHAC", () => {
                 (g) => portShape(g, config),
             );
             for (const { graph } of fixtures) {
-                expectSamePartition(legacyTeraHAC(numbered(graph), config).clusters, teraHAC(toSnapshot(graph), config).labels);
+                expectSamePartition(
+                    legacyTeraHAC(numbered(graph), config).clusters,
+                    teraHAC(toSnapshot(graph), config).labels,
+                );
             }
         }
     });

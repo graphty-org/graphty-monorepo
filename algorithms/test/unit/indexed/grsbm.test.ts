@@ -189,6 +189,29 @@ describe("indexed.grsbm", () => {
         expect(legacyGrsbm(graph).modularityScores[0]).not.toBeCloseTo(0, 6);
     });
 
+    it("leaves self-loops out of the bisection vector", () => {
+        // Two 5-cliques joined by the edge 4-5.
+        const barbell = (loops: number[]): ReturnType<GraphBuilder["freeze"]> => {
+            const b = new GraphBuilder({ directed: false });
+            for (const base of [0, 5]) {
+                for (let i = 0; i < 5; i++) {
+                    for (let j = i + 1; j < 5; j++) {
+                        b.addEdge(base + i, base + j);
+                    }
+                }
+            }
+            b.addEdge(4, 5);
+            for (const i of loops) {
+                b.addEdge(i, i);
+            }
+            return b.freeze();
+        };
+        const plain = grsbm(barbell([])).clusters[0].split?.spectralValues;
+        const looped = grsbm(barbell([2, 7])).clusters[0].split?.spectralValues;
+        expect(plain).toBeDefined();
+        expect(Array.from(looped ?? [])).toEqual(Array.from(plain ?? []));
+    });
+
     it("scores the whole directed graph as one community 0 when weighted, legacy's -0.5 when not", () => {
         const { builder, graph } = loopedCycle(true);
         const s = builder.freeze();

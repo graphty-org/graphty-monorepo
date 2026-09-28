@@ -100,7 +100,14 @@ interface MutableCluster {
  * @returns The leaf partition and the hierarchy
  */
 export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult {
-    const { maxDepth = 10, minClusterSize = 2, tolerance = 1e-6, maxIterations = 100, seed = 42, weighted = true } = options;
+    const {
+        maxDepth = 10,
+        minClusterSize = 2,
+        tolerance = 1e-6,
+        maxIterations = 100,
+        seed = 42,
+        weighted = true,
+    } = options;
     const n = s.nodeCount;
     if (n === 0) {
         throw new Error("Cannot cluster empty graph");
@@ -111,7 +118,9 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         for (let a = 0; a < arcWeights.length; a++) {
             const w = arcWeights[a];
             if (!(w >= 0) || w === Infinity) {
-                throw new RangeError(`arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`);
+                throw new RangeError(
+                    `arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`,
+                );
             }
         }
     }

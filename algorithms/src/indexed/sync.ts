@@ -4,7 +4,7 @@ import { SeededRandom } from "../utils/math-utilities.js";
 
 /** Options of the index-based SynC clustering, matching the legacy `syncClustering`. @public */
 export interface SyncClusteringOptions {
-    /** Number of cluster centres, in `[1, nodeCount]`. */
+    /** Number of cluster centres: an integer in `[1, nodeCount]` (legacy rounds a fraction up; the port throws). */
     readonly numClusters: number;
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
@@ -68,7 +68,14 @@ function distance(a: F64, i: number, b: F64, j: number, dim: number): number {
  * @returns Assignments, embeddings and convergence
  */
 export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions): SyncClusteringResult {
-    const { numClusters, maxIterations = 100, tolerance = 1e-6, seed = 42, learningRate = 0.01, lambda = 0.1 } = options;
+    const {
+        numClusters,
+        maxIterations = 100,
+        tolerance = 1e-6,
+        seed = 42,
+        learningRate = 0.01,
+        lambda = 0.1,
+    } = options;
     const n = s.nodeCount;
     if (n === 0) {
         return {
@@ -81,7 +88,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
             converged: true,
         };
     }
-    if (numClusters <= 0 || numClusters > n) {
+    if (!Number.isInteger(numClusters) || numClusters <= 0 || numClusters > n) {
         throw new Error(`Invalid number of clusters: ${String(numClusters)}. Must be between 1 and ${String(n)}`);
     }
     const random = SeededRandom.createGenerator(seed);

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { syncClustering } from "../../../src/indexed/sync.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { syncClustering as legacySync,type SynCConfig } from "../../../src/research/sync.js";
+import { syncClustering as legacySync, type SynCConfig } from "../../../src/research/sync.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
@@ -50,6 +50,17 @@ describe("indexed.syncClustering", () => {
             "Invalid number of clusters: 0. Must be between 1 and 2",
         );
         expect(() => syncClustering(toSnapshot(g), { numClusters: 3 })).toThrow("Must be between 1 and 2");
+    });
+
+    it("refuses a cluster count that is not an integer with the same message", () => {
+        const g = new Graph({ directed: false });
+        for (let i = 0; i < 6; i++) {
+            g.addEdge(i, (i + 1) % 6);
+        }
+        expect(() => syncClustering(toSnapshot(g), { numClusters: 1.5 })).toThrow(
+            "Invalid number of clusters: 1.5. Must be between 1 and 6",
+        );
+        expect(() => syncClustering(toSnapshot(g), { numClusters: NaN })).toThrow("Invalid number of clusters: NaN");
     });
 
     it("leaves Math.random alone", () => {
@@ -118,7 +129,10 @@ describe("indexed.syncClustering", () => {
         // than it ran when it hits maxIterations. The port reports the last loss it computed and the
         // iterations it ran, so the two agree up to the convergence tolerance and that off-by-one.
         for (const { graph } of fixtures) {
-            for (const config of [{ numClusters: 2, tolerance: 1e-3 }, { numClusters: 3, maxIterations: 3 }]) {
+            for (const config of [
+                { numClusters: 2, tolerance: 1e-3 },
+                { numClusters: 3, maxIterations: 3 },
+            ]) {
                 const legacy = legacySync(graph, config);
                 const port = syncClustering(toSnapshot(graph), config);
                 expect(port.converged).toBe(legacy.converged);

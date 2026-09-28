@@ -18,13 +18,7 @@ export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
-export {
-    grsbm,
-    type GrsbmCluster,
-    type GrsbmOptions,
-    type GrsbmResult,
-    type GrsbmSplit,
-} from "./grsbm.js";
+export { grsbm, type GrsbmCluster, type GrsbmOptions, type GrsbmResult, type GrsbmSplit } from "./grsbm.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";

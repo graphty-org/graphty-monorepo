@@ -86,10 +86,18 @@ export { accelerated } from "./indexed/accelerator.js";
 export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
 // `Indexed` prefix: the flat BellmanFordResult is the legacy function's.
 export type { BellmanFordResult as IndexedBellmanFordResult } from "./indexed/bellman-ford.js";
+export type {
+    BetweennessOptions,
+    EdgeBetweennessOptions,
+    EdgeScoresResult,
+    ScoresResult,
+} from "./indexed/betweenness.js";
 export type { ArcOrderOption, BfsOptions, BfsResult, DirectionOptimizedBfsOptions } from "./indexed/bfs.js";
 export type { BipartiteOptions, BipartiteResult } from "./indexed/bipartite.js";
+export type { ClosenessOptions } from "./indexed/closeness.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";
+export type { DegreeCentralityOptions } from "./indexed/degree.js";
 export type { DfsOptions, DfsResult } from "./indexed/dfs.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,

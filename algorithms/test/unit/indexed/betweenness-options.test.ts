@@ -30,11 +30,20 @@ describe("BetweennessCentralityOptions sources / k", () => {
         expect(() => edgeBetweennessCentrality(g, { sources: [0] })).toThrow(/node INDICES/);
     });
 
-    it("points at something that exists: the accelerator's own method, not a dispatcher member", () => {
-        // The dispatcher returned by accelerated() has no betweennessCentrality member yet, so a
-        // message sending the caller there would send them to a TypeError.
-        expect(() => betweennessCentrality(path(), { k: 1 })).toThrow(/AlgorithmAccelerator/);
-        expect(() => betweennessCentrality(path(), { k: 1 })).not.toThrow(/accelerated\(/);
+    it("points at the two entry points that take them, and both exist", async () => {
+        const message = (() => {
+            try {
+                betweennessCentrality(path(), { k: 1 });
+            } catch (error) {
+                return (error as Error).message;
+            }
+            return "";
+        })();
+        expect(message).toMatch(/indexed\.betweennessCentrality\(snapshot, options\)/);
+        expect(message).toMatch(/accelerated\(accelerator\)\.betweennessCentrality\(snapshot, options\)/);
+        const pkg = await import("../../../src/index.js");
+        expect(typeof pkg.indexed.betweennessCentrality).toBe("function");
+        expect(typeof pkg.accelerated(null).betweennessCentrality).toBe("function");
     });
 
     it("leaves the existing three members working exactly as before", () => {

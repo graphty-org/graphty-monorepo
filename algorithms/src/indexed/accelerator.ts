@@ -15,7 +15,9 @@ import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph
 
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
+import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
 import type { BfsOptions } from "./bfs.js";
+import type { ClosenessOptions } from "./closeness.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
@@ -203,6 +205,15 @@ export interface BetweennessAcceleratorOptions {
  * `Float32Array`: an accelerator narrows the override to f32, so an f64 one -- the exact weights a
  * legacy facade passes -- would be answered for different weights. Its result gets the same
  * `pathTo` / `pathEdges` decoration as `sssp`.
+ *
+ * The three path centralities route the same way. `betweennessCentrality` and
+ * `edgeBetweennessCentrality` go to the accelerator unless the snapshot is a multigraph (the port
+ * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
+ * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
+ * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
+ * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
+ * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
+ * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
  * @public
  */
 export interface AcceleratedAlgorithms {
@@ -220,6 +231,41 @@ export interface AcceleratedAlgorithms {
     louvain(s: GraphSnapshot, options?: LouvainOptions): Promise<CommunityResultLike>;
     labelPropagation(s: GraphSnapshot, options?: LabelPropagationOptions): Promise<LabelResultLike>;
     allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
+    betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
+    edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
+    closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ScoresResultLike>;
+}
+
+/**
+ * Betweenness options with the sources the port would run spelled out, and no `k`. `endpoints` is never
+ * forwarded: a call that sets it runs the port.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns The options for the accelerator
+ */
+function explicitSources(
+    s: GraphSnapshot,
+    options: BetweennessOptions | EdgeBetweennessOptions | undefined,
+): BetweennessAcceleratorOptions {
+    return {
+        normalized: options?.normalized,
+        sources: resolveSources(s.nodeCount, options?.sources, options?.k),
+    };
+}
+
+/**
+ * Whether the accelerator's closeness member answers the port's question: only the plain
+ * `1 / sum(distance)` score over the snapshot's own weights.
+ * @param options - The caller's port options
+ * @returns True when the call may go to the accelerator
+ */
+function acceleratorAnswersCloseness(options: ClosenessOptions | undefined): boolean {
+    return (
+        options?.normalized !== true &&
+        options?.harmonic !== true &&
+        options?.cutoff === undefined &&
+        options?.weights === undefined
+    );
 }
 
 /**
@@ -317,6 +363,18 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.allPairsShortestPath !== undefined && acceleratorAnswersApsp(s, options)
                 ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
+        betweennessCentrality: (s, options) =>
+            acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
+                ? acc.betweennessCentrality(s, explicitSources(s, options))
+                : Promise.resolve(indexed.betweennessCentrality(s, options)),
+        edgeBetweennessCentrality: (s, options) =>
+            acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
+                ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
+                : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
+        closenessCentrality: (s, options) =>
+            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(options)
+                ? acc.closenessCentrality(s, { weighted: options?.weighted === true })
+                : Promise.resolve(indexed.closenessCentrality(s, options)),
         labelPropagation: (s, options) =>
             acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)

@@ -466,6 +466,26 @@ const centrality = nodeWeightedClosenessCentrality(graph, nodeId, {
 // Returns: number
 ```
 
+##### Index-based degree, closeness and betweenness
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const degree = indexed.degreeCentrality(s, { normalized: true }); // Float64Array, one score per node index
+const closeness = indexed.closenessCentrality(s, { weighted: true }).scores;
+const one = indexed.nodeClosenessCentrality(s, s.ids.requireIndex("a"));
+const betweenness = indexed.betweennessCentrality(s, { k: 100 }).scores; // 100 sampled sources
+const edges = indexed.edgeBetweennessCentrality(s).scores; // one score per edge index
+```
+
+These return the legacy functions' scores in typed arrays indexed by node (or edge) index. A multigraph
+counts each pair's parallel edges once, and weighted closeness takes the lightest of them. Weighted
+closeness reads the snapshot's f32 weights; pass the f64 weights as `weights` for the exact legacy sums.
+Betweenness takes explicit `sources` or a deterministic draw of `k` of them, and a sampled result is
+the unscaled sum over those sources. `edgeBetweennessCentrality` takes an `alive` edge mask that treats
+the cleared edges as deleted.
+
 #### PageRank
 
 ```typescript

@@ -6,14 +6,19 @@ import { describe, expect, it } from "vitest";
 import type {
     ArcOrderOption,
     AstarResult,
+    BetweennessOptions,
     BfsOptions,
     BfsResult,
     BipartiteOptions,
     BipartiteResult,
+    ClosenessOptions,
     CondensationResult,
+    DegreeCentralityOptions,
     DfsOptions,
     DfsResult,
     DirectionOptimizedBfsOptions,
+    EdgeBetweennessOptions,
+    EdgeScoresResult,
     IndexedApspOptions,
     IndexedApspResult,
     IndexedBellmanFordResult,
@@ -24,6 +29,7 @@ import type {
     PathResult,
     PrimOptions,
     PrimResult,
+    ScoresResult,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -121,5 +127,27 @@ describe("indexed path and tree exports", () => {
         const primOptions: PrimOptions = { forest: true };
         const prim: PrimResult = pkg.indexed.primMST(s, primOptions);
         expect(prim.totalWeight).toBe(5);
+    });
+});
+
+describe("indexed path centrality exports", () => {
+    it("reaches the four ports and their flat types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge(0, 1);
+        b.addEdge(1, 2);
+        const s = b.freeze();
+        const betweenness: BetweennessOptions = { normalized: false, sources: [0, 1, 2] };
+        const node: ScoresResult = pkg.indexed.betweennessCentrality(s, betweenness);
+        expect(Array.from(node.scores)).toEqual([0, 1, 0]);
+        const edge: EdgeBetweennessOptions = { normalized: false };
+        const edges: EdgeScoresResult = pkg.indexed.edgeBetweennessCentrality(s, edge);
+        expect(Array.from(edges.scores)).toEqual([2, 2]);
+        const closeness: ClosenessOptions = { harmonic: false };
+        expect(Array.from(pkg.indexed.closenessCentrality(s, closeness).scores)).toEqual([1 / 3, 1 / 2, 1 / 3]);
+        expect(pkg.indexed.nodeClosenessCentrality(s, 1, closeness)).toBe(1 / 2);
+        const degree: DegreeCentralityOptions = { normalized: true };
+        expect(Array.from(pkg.indexed.degreeCentrality(s, degree))).toEqual([0.5, 1, 0.5]);
     });
 });

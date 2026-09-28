@@ -41,7 +41,8 @@ algorithms/
 `indexed` namespace: BFS, direction-optimized BFS, DFS, cycle detection, topological sort,
 bipartite check, strongly connected components and condensation, Dijkstra, Bellman-Ford,
 bidirectional Dijkstra, A*, connected components, Kruskal and Prim MST, PageRank, HITS, Katz,
-common neighbours, k-core, Louvain, label propagation and all-pairs shortest paths. Each lands
+common neighbours, k-core, Louvain, label propagation, all-pairs shortest paths, and degree,
+closeness, betweenness and edge betweenness centrality. Each lands
 beside its legacy function; tests live in `test/unit/indexed/` and before/after timings in
 `benchmarks/port-bench.ts`. Some legacy functions now delegate to their port and keep only their
 signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and

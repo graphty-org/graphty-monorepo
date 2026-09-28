@@ -69,6 +69,8 @@ Measure node importance.
 - `pageRank()` - Link analysis
 - `hits()` - Hub/Authority scores
 - `katzCentrality()` - Influence with base score
+- `indexed.degreeCentrality()`, `indexed.closenessCentrality()`, `indexed.nodeClosenessCentrality()` - Degree and closeness over a snapshot, as typed arrays
+- `indexed.betweennessCentrality()`, `indexed.edgeBetweennessCentrality()` - Brandes betweenness over a snapshot, exact or sampled, with an optional alive-edge mask
 
 [Centrality functions in the generated TypeDoc](./generated/index/)
 

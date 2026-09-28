@@ -818,9 +818,9 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * Base class for static layout engines: an arrangement computed in one pass whenever the graph
  * changes, rather than stepped frame by frame.
  *
- * TWO WAYS TO WRITE ONE. The element's own engines read {@link SimpleLayoutEngine.graph} -- the
+ * TWO WAYS TO WRITE ONE. The element's own engines read the protected `graph` -- the
  * element's undirected graph snapshot, whose row `i` is the node whose `index` is `i` -- and assign
- * an index-based `@graphty/layout` result to {@link SimpleLayoutEngine.result} in `doLayout`. An
+ * an index-based `@graphty/layout` result to the protected `result` in `doLayout`. An
  * engine written before that existed fills the id-keyed {@link SimpleLayoutEngine.positions} record
  * instead, and still works. Either way the base class scales the answer into the element's shared
  * position array, never over a pinned row.
@@ -836,9 +836,9 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     protected _nodes: Node[] = [];
     protected _edges: Edge[] = [];
     stale = true;
-    /** What an engine that does not read {@link SimpleLayoutEngine.graph} computed, keyed by node id, in layout units. */
+    /** What an engine that does not read the protected `graph` computed, keyed by node id, in layout units. */
     positions: Record<string | number, number[]> = {};
-    /** What an engine that reads {@link SimpleLayoutEngine.graph} computed: row `i` is row `i` of that graph. */
+    /** What an engine that reads the protected `graph` computed: row `i` is row `i` of that graph. */
     protected result: LayoutResult | null = null;
     scalingFactor = 100;
 
@@ -920,7 +920,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
     /**
      * The coordinates to start this run from, in layout units, `dim` values per row of
-     * {@link SimpleLayoutEngine.graph}: the element's current coordinates when the run follows an
+     * the protected `graph`: the element's current coordinates when the run follows an
      * add, otherwise null. An unplaced row is NaN.
      * @param dim - components per row
      * @returns the start rows, or null
@@ -935,7 +935,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * The row of a node named in an option, in {@link SimpleLayoutEngine.graph}.
+     * The row of a node named in an option, in the protected `graph`.
      *
      * A key of an options record is always a string, so a string that misses is tried again as the
      * number it spells: `{ 1: [...] }` names the node whose id is the number 1.
@@ -966,7 +966,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
     /**
      * Rows of an option that gives coordinates by node id, `dim` values per row of
-     * {@link SimpleLayoutEngine.graph}; a node the record does not give is NaN.
+     * the protected `graph`; a node the record does not give is NaN.
      * @param record - the coordinates by node id, in layout units, or null
      * @param dim - components per row
      * @returns the rows, or null for no record
@@ -1154,7 +1154,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
     readonly isSettled = true;
 
-    /** Compute the layout: assign {@link SimpleLayoutEngine.result} from `graph`, or fill `positions`. */
+    /** Compute the layout: assign the protected `result` from `graph`, or fill `positions`. */
     abstract doLayout(): void;
 
     /**
@@ -1199,7 +1199,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Read the graph this run arranges. See {@link SimpleLayoutEngine.graph}.
+     * Read the graph this run arranges. See the protected `graph`.
      * @returns the loaded graph
      */
     #load(): LoadedGraph {

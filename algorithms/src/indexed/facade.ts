@@ -67,6 +67,22 @@ export function exactArcWeights(s: GraphSnapshot): NumericVector | undefined {
 }
 
 /**
+ * Per-node scores to the legacy `Record<string, number>` keyed by `String(id)`, in index order. A
+ * plain object, as the legacy functions return: `ids.toRecord` gives a null-prototype one, which a
+ * caller's `result.hasOwnProperty(id)` cannot call.
+ * @param ids - The snapshot's id map
+ * @param scores - One score per node index
+ * @returns The keyed scores
+ */
+export function scoresToRecord(ids: NodeIdMap, scores: ArrayLike<number>): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (let i = 0; i < ids.size; i++) {
+        out[String(ids.idOf(i))] = scores[i];
+    }
+    return out;
+}
+
+/**
  * Labels to the legacy `NodeId[][]` (components, communities): one group per label in label order,
  * members in index order. A node labelled `INVALID_INDEX` belongs to no group.
  * @param ids - The snapshot's id map

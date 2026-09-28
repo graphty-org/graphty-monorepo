@@ -12,6 +12,7 @@ import {
     labelsToGroups,
     maskToStringSet,
     resolveNode,
+    scoresToRecord,
     ssspToShortestPaths,
 } from "../../../src/indexed/facade.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
@@ -61,6 +62,20 @@ describe("resolveNode", () => {
     it("returns INVALID_INDEX for a missing id and on the empty graph", () => {
         expect(resolveNode(toSnapshot(numeric()).ids, "nope")).toBe(INVALID_INDEX);
         expect(resolveNode(toSnapshot(empty()).ids, "1")).toBe(INVALID_INDEX);
+    });
+});
+
+describe("scoresToRecord", () => {
+    it("keys each score by String(id) on a plain object, as the legacy records are", () => {
+        const s = toSnapshot(numeric()); // indices 0..5 hold ids 1, 2, 3, 4, 7, 9
+        const record = scoresToRecord(s.ids, Float64Array.of(0.5, 1, 1.5, 2, 0, 3));
+        expect(record).toEqual({ "1": 0.5, "2": 1, "3": 1.5, "4": 2, "7": 0, "9": 3 });
+        expect(Object.getPrototypeOf(record)).toBe(Object.prototype);
+        expect(Object.prototype.hasOwnProperty.call(record, "9")).toBe(true);
+    });
+
+    it("gives an empty object on the empty graph", () => {
+        expect(scoresToRecord(toSnapshot(empty()).ids, new Float64Array(0))).toEqual({});
     });
 });
 

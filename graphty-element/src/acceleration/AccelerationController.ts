@@ -554,17 +554,15 @@ export class AccelerationController {
         }
 
         if (work.forwarded === false || typeof accelerator[work.capability] !== "function") {
+            const reason =
+                work.forwarded === false
+                    ? `the element does not route "${work.capability}" to an accelerator`
+                    : `the ${accelerator.name} accelerator does not implement "${work.capability}"`;
             if (required) {
-                throw this.#noAcceleratorError(work);
+                throw this.#noAcceleratorError(work, reason);
             }
 
-            return {
-                accelerated: false,
-                reason:
-                    work.forwarded === false
-                        ? `the element does not route "${work.capability}" to an accelerator`
-                        : `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
-            };
+            return { accelerated: false, reason };
         }
 
         // Last, after the feature test: a floor is a statement about a capability the accelerator
@@ -1070,10 +1068,11 @@ export class AccelerationController {
     /**
      * The error a `"required"` policy produces when the work cannot be accelerated.
      * @param work - The work that could not be accelerated, when there was one.
+     * @param reason - Why, when an accelerator is attached but cannot take this work.
      * @returns The error to throw.
      */
-    #noAcceleratorError(work?: AcceleratedWork): GraphtyError {
-        const detail = this.#reason ?? this.#missingAcceleratorReason();
+    #noAcceleratorError(work?: AcceleratedWork, reason?: string): GraphtyError {
+        const detail = reason ?? this.#reason ?? this.#missingAcceleratorReason();
         return new GraphtyError({
             code: "E_NO_ACCELERATOR",
             message: `acceleration is required and unavailable: ${detail}`,

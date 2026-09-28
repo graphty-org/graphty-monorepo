@@ -40,6 +40,16 @@ const TWO_TRIANGLES: MockGraphOpts = {
     ],
 };
 
+/** A ring of eight: every node ties between its two neighbours, so the seed decides the groups. */
+const RING: MockGraphOpts = {
+    nodes: Array.from({ length: 8 }, (_, i) => ({ id: `n${String(i)}` })),
+    edges: Array.from({ length: 8 }, (_, i) => ({
+        srcId: `n${String(i)}`,
+        dstId: `n${String((i + 1) % 8)}`,
+        weight: 1,
+    })),
+};
+
 /**
  * Run a declared algorithm and hand back what it published.
  * @param algorithm - The algorithm to run.
@@ -210,6 +220,25 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
 
         assert.deepStrictEqual(first.nodes, second.nodes);
         assert.strictEqual(first.caveats.seed, 7);
+    });
+
+    it("hands the seed to the run, so a different seed can give a different partition", async () => {
+        const graph = await createMockGraph(RING);
+        const groups = async (randomSeed: number): Promise<unknown[]> =>
+            (await computed(new LabelPropagationAlgorithm(graph, { randomSeed }))).nodes?.map(
+                (node) => node.values.group,
+            ) ?? [];
+
+        // Worked out on the port: seed 42 settles the ring into one group, seed 2 into two.
+        assert.deepStrictEqual(await groups(42), [0, 0, 0, 0, 0, 0, 0, 0]);
+        assert.deepStrictEqual(await groups(2), [0, 0, 0, 0, 1, 1, 0, 0]);
+    });
+
+    it("hands maxIterations to the run, so a capped run stops there unconverged", async () => {
+        const output = await computed(new LabelPropagationAlgorithm(await createMockGraph(RING), { maxIterations: 1 }));
+
+        assert.strictEqual(output.caveats.iterations, 1);
+        assert.strictEqual(output.caveats.converged, false);
     });
 
     it("runs on the CPU port with an accelerator that implements the member attached", async () => {

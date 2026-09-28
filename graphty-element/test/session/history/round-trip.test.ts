@@ -113,6 +113,29 @@ describe("what the random sequences found, each pinned on its own", () => {
         session.dispose();
     });
 
+    it("a transaction that restores nothing of the arrangement leaves a moving layout moving", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        layout.play();
+        layout.step();
+
+        await session
+            .transaction("Styled", async (tx) => {
+                await tx.styles.add({
+                    name: "red",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "#ff0000" },
+                });
+                throw new Error("The message failed on purpose.");
+            })
+            .catch(() => undefined);
+        await dispatcherOf(session).lane.settled();
+
+        assert.isTrue(layout.running, "its moves stay in flight, to be sealed where it comes to rest");
+        session.dispose();
+    });
+
     it("undoing a placement that sealed a capture puts a row no earlier capture held back to unplaced", async () => {
         const session = await fixtureSession();
         await session.data.clear();

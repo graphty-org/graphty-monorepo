@@ -2142,7 +2142,13 @@ export class Dispatcher {
                 this.lane.restore("rollback");
             }
 
-            this.arrangement.restore(ops);
+            // A group that neither took a before-arrangement nor wrote rows or the graph -- a
+            // style transaction that threw -- has nothing of the arrangement to put back, and
+            // stopping the layout for it would drop a moving layout's next rest point: the moves
+            // stay in flight and are sealed where the layout comes to rest, as without the group.
+            if (ops.length > 0 || slices.includes("graph")) {
+                this.arrangement.restore(ops);
+            }
         }
 
         this.reverted(slices);

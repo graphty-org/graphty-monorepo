@@ -122,7 +122,7 @@ describe("PresentPanel", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
 
-            expect(await screen.findByRole("textbox", { name: "Data format" })).toHaveValue("");
+            expect(await screen.findByRole("combobox", { name: "Data format" })).toHaveValue("");
         });
     });
 

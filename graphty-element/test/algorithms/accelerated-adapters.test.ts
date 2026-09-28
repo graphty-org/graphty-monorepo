@@ -673,6 +673,41 @@ describe("the traversal, path and tree adapters answer what the reference implem
         });
     }
 
+    it("depth-first search with recursive set stops at the target as the iterative walk does", async () => {
+        const graph = await graphWith(DECLARED_ORDER);
+        const iterative = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E" }));
+        const recursive = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E", recursive: true }));
+
+        assert.deepStrictEqual(recursive.nodes, iterative.nodes);
+        assert.deepStrictEqual(
+            [...valuesOf(recursive.nodes)].filter(([, value]) => value.visited === true).map(([id]) => id),
+            ["A", "D", "E"],
+        );
+    });
+
+    it("a post-order depth-first walk never reads its target, so one the graph lacks is no error", async () => {
+        const graph = await graphWith(DECLARED_ORDER);
+        const output = await computed(new DFSAlgorithm(graph, { source: "A", preOrder: false, targetNode: "Z" }));
+
+        assert.strictEqual([...valuesOf(output.nodes).values()].filter((value) => value.visited === true).length, 6);
+    });
+
+    it("a node option the graph lacks is refused as the option it came from", async () => {
+        const graph = await graphWith(DECLARED_ORDER);
+
+        for (const [algorithm, option] of [
+            [new BFSAlgorithm(graph, { source: "A", targetNode: "Z" }), "targetNode"],
+            [new DFSAlgorithm(graph, { source: "Z" }), "source"],
+            [new DFSAlgorithm(graph, { source: "A", targetNode: "Z" }), "targetNode"],
+            [new BellmanFordAlgorithm(graph, { source: "A", target: "Z" }), "target"],
+            [new PrimAlgorithm(graph, { startNode: "Z" }), "startNode"],
+        ] as const) {
+            const error = await rejection(() => algorithm.compute(detachedRunContext()));
+            assert.strictEqual(error.code, "E_OPTION_RANGE", option);
+            assert.deepInclude(error.details, { option, value: "Z" });
+        }
+    });
+
     it("strongly connected components number the pieces as the reference does", async () => {
         const graph = await graphWith(STRONG);
         const output = await computed(new StronglyConnectedComponentsAlgorithm(graph));
@@ -687,14 +722,43 @@ describe("the traversal, path and tree adapters answer what the reference implem
         assert.strictEqual(reference.length, 3);
     });
 
-    it("strongly connected components of an undirected graph are its connected pieces", async () => {
-        const graph = await graphWith({ ...STRONG, directed: false });
+    it("strongly connected components number the pieces in the order their edges were declared", async () => {
+        // A's edge to C is declared before its edge to B, so C's piece closes first; in node order
+        // B's would.
+        const graph = await graphWith({
+            nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
+            edges: [
+                { srcId: "A", dstId: "C" },
+                { srcId: "A", dstId: "B" },
+            ],
+        });
         const output = await computed(new StronglyConnectedComponentsAlgorithm(graph));
 
-        // Every edge can be crossed both ways, so A to F are one piece.
+        const reference = stronglyConnectedComponents(toAlgorithmGraph(graph.getDataManager(), "directed"));
         const values = valuesOf(output.nodes);
-        assert.deepStrictEqual(new Set([...values.values()].map((value) => value.group)), new Set([0]));
-        assert.strictEqual(values.size, 6);
+        assert.deepStrictEqual(
+            reference.map((piece) => piece.map((id) => values.get(id)?.group)),
+            reference.map((piece, group) => piece.map(() => group)),
+        );
+        assert.deepStrictEqual(reference[0], ["C"]);
+    });
+
+    it("strongly connected components of an undirected graph are its connected pieces", async () => {
+        const graph = await graphWith({ ...TWO_PIECES, directed: false });
+        const output = await computed(new StronglyConnectedComponentsAlgorithm(graph));
+
+        // Every edge can be crossed both ways, so each connected piece is one strong piece.
+        const values = valuesOf(output.nodes);
+        const group = (id: string): unknown => values.get(id)?.group;
+        assert.deepStrictEqual(["A", "B", "C", "X", "Y"].map(group), [
+            group("A"),
+            group("A"),
+            group("A"),
+            group("X"),
+            group("X"),
+        ]);
+        assert.notStrictEqual(group("A"), group("X"));
+        assert.strictEqual(output.caveats.direction, "undirected");
     });
 
     it("bellman-ford", async () => {
@@ -825,6 +889,71 @@ describe("the traversal, path and tree adapters answer what the reference implem
                 assert.strictEqual(result.summary().caveats.iterations, reference.iterations);
             });
         }
+
+        it("a personalization naming only nodes outside the graph says the jump lands anywhere", async () => {
+            const graph = await graphWith(DANGLING);
+            const plain = new PageRankAlgorithm(graph);
+            const outside = new PageRankAlgorithm(graph, { personalization: new Map([["Z", 1]]) });
+            await plain.run();
+            await outside.run();
+
+            assert.isDefined(plain.result);
+            assert.isDefined(outside.result);
+            for (const id of graph.getDataManager().nodes.keys()) {
+                // The plain run stops on the summed change and this one on the largest, so they
+                // agree to the tolerance rather than to the bit.
+                assert.approximately(
+                    outside.result.node(id)?.value as number,
+                    plain.result.node(id)?.value as number,
+                    1e-5,
+                    `rank of ${String(id)}`,
+                );
+            }
+
+            const { notes } = outside.result.summary().caveats;
+            assert.isFalse(
+                notes.some((note) => note.includes("personalization vector's nodes")),
+                notes.join(" | "),
+            );
+            assert.isTrue(
+                notes.some((note) => note.includes("lands on any node")),
+                notes.join(" | "),
+            );
+            assert.isTrue(
+                notes.some((note) => note.includes("1 personalization entry names a node outside this graph")),
+                notes.join(" | "),
+            );
+        });
+
+        it("a personalization entry naming a node outside the graph is left out, and the rest share the jump", async () => {
+            const graph = await graphWith(DANGLING);
+            const withOutside = new PageRankAlgorithm(graph, {
+                personalization: new Map([...personalization, ["Z", 5]]),
+            });
+            const without = new PageRankAlgorithm(graph, { personalization });
+            await withOutside.run();
+            await without.run();
+
+            assert.isDefined(withOutside.result);
+            assert.isDefined(without.result);
+            for (const id of graph.getDataManager().nodes.keys()) {
+                assert.strictEqual(
+                    withOutside.result.node(id)?.value,
+                    without.result.node(id)?.value,
+                    `rank of ${String(id)}`,
+                );
+            }
+
+            const { notes } = withOutside.result.summary().caveats;
+            assert.isTrue(
+                notes.some((note) => note.includes("personalization vector's nodes")),
+                notes.join(" | "),
+            );
+            assert.isTrue(
+                notes.some((note) => note.includes("1 personalization entry names a node outside this graph")),
+                notes.join(" | "),
+            );
+        });
 
         it("an undirected graph carries rank both ways along every edge", async () => {
             const graph = await graphWith({ ...DANGLING, directed: false });

@@ -57,7 +57,7 @@ const pageRankOptionsSchema = defineOptions({
         schema: z.boolean().default(true),
         meta: {
             label: "Use Delta Optimization",
-            description: "Use delta-based optimization for faster convergence on large graphs",
+            description: "Accepted and ignored: every run is a plain power iteration",
             advanced: true,
         },
     },
@@ -168,7 +168,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             type: "boolean",
             default: true,
             label: "Use Delta Optimization",
-            description: "Use delta-based optimization for faster convergence on large graphs",
+            description: "Accepted and ignored: every run is a plain power iteration",
             advanced: true,
         },
         // Note: initialRanks and personalization are Map types - programmatic only, not in schema
@@ -219,7 +219,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
-        const { dampingFactor, maxIterations, tolerance, weight, useDelta } = this.zodOptions;
+        const { dampingFactor, maxIterations, tolerance, weight } = this.zodOptions;
         // Map types are programmatic-only (not in schema) - kept from the constructor's arguments
         const initialRanks = this.programmaticOptions.initialRanks ?? undefined;
         const personalization = this.programmaticOptions.personalization ?? undefined;
@@ -286,17 +286,27 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         }
 
         if (personalization !== undefined) {
-            notes.push("The random jump lands on the personalization vector's nodes, in proportion to their values.");
+            /* An entry naming a node outside this run's graph -- outside a scope, say -- has no
+               node to land on, so it is left out and the rest share the jump. When nothing is
+               left, the port jumps anywhere, as an unpersonalized run does, and the notes say
+               that rather than claiming a personalization that never applied. */
+            const outside = [...personalization.keys()].filter((id) => ids.indexOf(id) === INVALID_INDEX).length;
+            const applies = perNode(snapshot, personalization, 0).some((share) => share > 0);
+            notes.push(
+                applies
+                    ? "The random jump lands on the personalization vector's nodes, in proportion to their values."
+                    : "No personalization entry gives a node of this graph a positive share, so the random jump lands on any node.",
+            );
+
+            if (outside > 0) {
+                notes.push(
+                    `${String(outside)} personalization ${outside === 1 ? "entry names a node" : "entries name nodes"} outside this graph, left out of the random jump.`,
+                );
+            }
         }
 
         if (weight === null) {
             notes.push("Edge weights are not read.");
-        }
-
-        if (useDelta) {
-            notes.push(
-                "Power iteration ran: the delta optimisation is the CPU reference implementation's own and has no index-based counterpart, so it was not taken.",
-            );
         }
 
         return {

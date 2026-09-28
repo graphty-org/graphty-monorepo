@@ -92,6 +92,7 @@ Identify node communities.
 - `louvain()` - Fast modularity optimization
 - `girvanNewman()` - Edge betweenness removal
 - `labelPropagation()` - Near-linear time detection
+- `indexed.labelPropagation()` - Seeded fast label propagation over a snapshot, as a typed-array partition
 - `kCliqueCommunities()` - Overlapping communities
 - `modularity()` - Partition quality measure
 

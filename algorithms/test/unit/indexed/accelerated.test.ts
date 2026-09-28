@@ -278,6 +278,9 @@ describe("accelerated(acc)", () => {
         const direct = indexed.labelPropagation(s, { randomSeed: 7 });
         expect([...viaDispatcher.labels]).toEqual([...direct.labels]);
         expect(viaDispatcher.count).toBe(direct.count);
+        // maxIterations 0 leaves every node in its own community; the default run merges them.
+        expect(indexed.labelPropagation(s).count).toBe(1);
+        expect((await accelerated(null).labelPropagation(s, { maxIterations: 0 })).count).toBe(3);
     });
 
     it("hands label propagation to an accelerator with the same snapshot and options object", async () => {

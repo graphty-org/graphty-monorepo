@@ -828,7 +828,8 @@ GML:
 
 - Two-walk import over one token list (typed arrays, 17 bytes per token): schema first, typed
   declarations with `origin.type` second. Nodes are pushed before edges.
-- Non-integer node ids / endpoints are `E_GML_ID_TYPE` (element skipped); under `nodeIdFrom`
+- A string node id / endpoint is kept under the `ids` rule with one `W_GML_STRING_ID` per file;
+  a real or record id is `E_GML_ID_TYPE` (element skipped); under `nodeIdFrom`
   `label` / `index` the integer ids are not kept as a column (`W_GML_ID_DROPPED`).
 - `graphics [ x y z ]` becomes an f64 x3 position column (z = 0 when absent, renamed
   `position#graphics` on collision) and the remaining keys stay a `graphics` json column

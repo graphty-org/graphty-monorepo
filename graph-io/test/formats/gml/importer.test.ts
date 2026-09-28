@@ -322,6 +322,16 @@ describe("gmlImporter: structure and flags", () => {
         expect(bad.report.issues[0]).toMatchObject({ code: FLAG_TYPE_CODE, severity: "error", element: "directed" });
     });
 
+    it("reads a flag written as a quoted integer, with a warning", async () => {
+        const quoted = await importGml('graph [ directed "1" edge [ source 1 target 2 ] ]');
+        expect(quoted.snapshot.directed).toBe(true);
+        expect(quoted.report.issues).toEqual([
+            expect.objectContaining({ code: FLAG_VALUE_CODE, severity: "warning", element: "directed" }),
+        ]);
+        expect(quoted.snapshot.meta.extra).toEqual({ gml: { directed: "1" } });
+        expect((await importGml('graph [ directed "0" ]', { defaultDirected: true })).snapshot.directed).toBe(false);
+    });
+
     it("records the directed key as the file wrote it in meta.extra.gml, and nothing when it is absent", async () => {
         expect((await importGml("graph [ directed 1 ]")).snapshot.meta.extra).toEqual({ gml: { directed: "1" } });
         expect((await importGml("graph [ directed 0 ]")).snapshot.meta.extra).toEqual({ gml: { directed: "0" } });

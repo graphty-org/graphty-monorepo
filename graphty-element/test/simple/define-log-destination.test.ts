@@ -17,8 +17,9 @@ import {
     isGraphtyError,
     type LogDestinationDefinition,
     type PlainLogRecord,
+    registerLogSink,
 } from "../../extend";
-import { GraphtyLogger, LogLevel } from "../../logging";
+import { GraphtyLogger, LOG_LEVEL_TO_NAME, LogLevel } from "../../logging";
 
 /** The logger a test speaks through, as a plugin of the element would. */
 const logger = (): ReturnType<typeof GraphtyLogger.getLogger> => GraphtyLogger.getLogger(["graphty", "acme", "test"]);
@@ -426,6 +427,76 @@ describe("defineLogDestination", () => {
 
             assert.isUndefined(logSinkDescriptor("acme-refused"));
             assert.isFalse(GraphtyLogger.getSinks().some((sink) => sink.name === "acme-refused"));
+        });
+    });
+    describe("the defaults the element fills in, and parity with the advanced tier", () => {
+        it("names the destination from its id, or from name when given, and leaves no description empty-handed", () => {
+            define({ id: "acme-bare", attach: false, write: () => undefined });
+            define({ id: "acme-named", name: "Acme errors", attach: false, write: () => undefined });
+
+            assert.deepStrictEqual(logSinkDescriptor("acme-bare"), {
+                id: "acme-bare",
+                plainName: "Acme bare",
+                description: "",
+                options: [],
+            });
+            assert.strictEqual(logSinkDescriptor("acme-named")?.plainName, "Acme errors");
+        });
+
+        it("takes every category when none is named", () => {
+            const categories: string[] = [];
+            define({ id: "acme-everything", level: "info", write: (record) => void categories.push(record.category) });
+
+            GraphtyLogger.getLogger(["graphty", "layout"]).info("l");
+            GraphtyLogger.getLogger(["graphty", "data"]).info("d");
+
+            assert.deepStrictEqual(categories, ["graphty.layout", "graphty.data"]);
+        });
+
+        it("builds the same catalogue entry and receives the same records as a hand-written advanced registration", async () => {
+            const simple: string[] = [];
+            const advanced: string[] = [];
+            define({
+                id: "acme-simple-twin",
+                description: "Layout warnings.",
+                categories: ["layout"],
+                attach: false,
+                write: (record) => void simple.push(`${record.level} ${record.category} ${record.message}`),
+            });
+            registerLogSink({
+                descriptor: {
+                    id: "acme-advanced-twin",
+                    plainName: "Acme advanced twin",
+                    description: "Layout warnings.",
+                    options: [],
+                },
+                create: () => ({
+                    name: "acme-advanced-twin",
+                    level: LogLevel.WARN,
+                    categories: ["layout"],
+                    write: (record) =>
+                        void advanced.push(
+                            `${LOG_LEVEL_TO_NAME[record.level].toLowerCase()} ${record.category.join(".")} ${record.message}`,
+                        ),
+                }),
+            });
+            detachers.push(
+                () => GraphtyLogger.removeSink("acme-simple-twin"),
+                () => GraphtyLogger.removeSink("acme-advanced-twin"),
+            );
+
+            await GraphtyLogger.configure({ sinks: [{ use: "acme-simple-twin" }, { use: "acme-advanced-twin" }] });
+            const layout = GraphtyLogger.getLogger(["graphty", "layout", "ngraph"]);
+            layout.info("quiet");
+            layout.warn("slow");
+            layout.error("stuck");
+            logger().error("elsewhere");
+
+            const { id: _simpleId, plainName: _simpleName, ...simpleRest } = logSinkDescriptor("acme-simple-twin") ?? {};
+            const { id: _advId, plainName: _advName, ...advancedRest } = logSinkDescriptor("acme-advanced-twin") ?? {};
+            assert.deepStrictEqual(simpleRest, advancedRest, "the same entry, apart from the id and its name");
+            assert.deepStrictEqual(simple, advanced, "the same records");
+            assert.deepStrictEqual(simple, ["warn graphty.layout.ngraph slow", "error graphty.layout.ngraph stuck"]);
         });
     });
 });

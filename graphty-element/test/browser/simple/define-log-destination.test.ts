@@ -11,7 +11,7 @@
  * examples turn logging on themselves, and one test here proves the rule.
  */
 
-import { afterAll, afterEach, assert, beforeEach, describe, it, type MockInstance, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, type MockInstance, vi } from "vitest";
 
 import { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "../../../catalog";
 import { showLayoutLog } from "../../../docs/examples/simple-tier/log-destination-panel";
@@ -115,15 +115,13 @@ describe("defineLogDestination on a real graph", () => {
         }
 
         GraphtyLogger.removeSink("acme-telemetry");
+        // After every test, so one test's registration (the telemetry example's) is not another's.
+        clearRegisteredLogSinksForTesting();
         await GraphtyLogger.configure({ enabled: false, level: LogLevel.INFO });
         vi.unstubAllGlobals();
         for (const spy of consoleSpies) {
             spy.mockRestore();
         }
-    });
-
-    afterAll(() => {
-        clearRegisteredLogSinksForTesting();
     });
 
     it("sends the element's own errors to the telemetry endpoint, and nothing less severe (telemetry example)", async () => {

@@ -3,7 +3,12 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { IndexedLabelPropagationOptions, IndexedLabelPropagationResult } from "../../../src/index.js";
+import type {
+    IndexedApspOptions,
+    IndexedApspResult,
+    IndexedLabelPropagationOptions,
+    IndexedLabelPropagationResult,
+} from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
 // import.meta.url to an http: URL (test/helpers/performance-regression.ts:46 locates its file the same way).
@@ -36,5 +41,19 @@ describe("indexed label propagation exports", () => {
         const s = new format.GraphBuilder({ directed: false }).freeze();
         const r: IndexedLabelPropagationResult = pkg.indexed.labelPropagation(s, options);
         expect(r.count).toBe(0);
+    });
+});
+
+describe("indexed all-pairs shortest path exports", () => {
+    it("reaches indexed.allPairsShortestPath and its flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        expect(typeof pkg.indexed.allPairsShortestPath).toBe("function");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: true });
+        b.addEdge(0, 1, 2);
+        const options: IndexedApspOptions = { method: "floyd-warshall" };
+        const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
+        expect(r.n).toBe(2);
+        expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
     });
 });

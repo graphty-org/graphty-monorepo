@@ -1,0 +1,253 @@
+# Palette extension point
+
+Status: draft specification against graphty-element 2.6.1. Shared rules (registration policy,
+identifiers, versioning, options, parity, isolation, conformance kit) are in `README.md`; this
+document adds what is specific to palettes.
+
+Normative files: `palette.d.ts` (shapes), `descriptors.schema.json#/$defs/PaletteDescriptor` and
+`#/$defs/PublishedPaletteDescriptor` (serialised form), and this document (behaviour).
+
+## 1. What a palette is
+
+A palette is a named, ordered list of colour anchors that a style layer's colour binding ramps
+through. A third party brings a palette so that a style layer, a legend, a picker and a saved style
+document can all name it -- for example a lab's house colours, a journal's required scheme, or a
+diverging ramp built for fold-change data.
+
+A palette is DATA. Nothing in the element ever asks a palette for behaviour: the categorical index
+path, the continuous interpolation, the step table, the over-subscription refusal, the legend and
+the reversal are all element code that reads the descriptor. The whole extension is one
+`PaletteDescriptor`. A palette therefore never executes code, and loading one from a file is safe
+(README section 9.2).
+
+Grounding: the owner's list of official points (2026-09-21); `design/graphty-element/extension-points.md`
+section "Palette" (kept); the design studio's need for shareable lab styles and a
+colour-blind-safe preset (`design/designloom/workflows/W20.yaml`, `W21.yaml`,
+`design/designloom/capabilities/style-presets.yaml`).
+
+## 2. Data model
+
+`PaletteDescriptor` (`palette.d.ts`) -- kind: implemented by extensions.
+
+| Member | Required when authored | Rule |
+| --- | --- | --- |
+| `id` | yes | Non-empty string; not a built-in id (`KNOWN_PALETTE_IDS`); permanent |
+| `plainName` | yes | Non-empty string |
+| `kind` | yes | `"sequential"`, `"diverging"` or `"categorical"` |
+| `colors` | yes | Non-empty array; every entry a colour the element can parse |
+| `capacity` | no | Derived: `colors.length` for categorical, `null` otherwise. If present it MUST equal the derived value |
+| `colorblindSafe` | no | Subset of `"deuteranopia"`, `"protanopia"`, `"tritanopia"`; absent means `[]` (no claim) |
+
+Normalisation at registration (the element MUST do all of these before publishing):
+
+1. Every anchor is converted to six-digit upper-case hex (`#RRGGBB`). An author MAY write
+   `oklch(...)`, `rgb(...)`, `hsl(...)`, a named CSS colour or hex. Alpha is discarded.
+2. `capacity` is set to its derived value.
+3. `colorblindSafe` is set to `[]` when absent.
+4. The published descriptor and its arrays are frozen.
+
+The element's own palettes are not normalised the same way: some are written in upper case
+(`okabe-ito`) and some in lower case (`viridis`, `red-blue`). A reader of a descriptor (a legend,
+a document comparison, a conformance check) MUST therefore compare anchors case-insensitively.
+
+Authoring guidance (SHOULD, not enforced):
+
+- A sequential palette SHOULD have at least two anchors and SHOULD be monotonic in lightness.
+- A diverging palette SHOULD have an odd number of anchors, at least three, with the neutral colour
+  in the middle, because a binding's `midpoint` places the middle of the ramp at that value.
+- A categorical palette SHOULD have anchors that are distinguishable from each other and from the
+  canvas background in both the light and dark themes.
+- A `colorblindSafe` claim SHOULD be checked with the element's `isPaletteSafe` before it is
+  published. The element takes the claim on trust and does not verify it at registration: refusing
+  an author's palette over a claim would be the element overruling the author, and a picker that
+  wants a verified answer computes it.
+
+## 3. Registration
+
+```ts
+registerPalette(descriptor: PaletteDescriptor, options?: RegisterOptions): void
+```
+
+1. Synchronous; the palette is usable by the next repaint.
+2. Validation, in order, each failure an `E_BAD_COMMAND` with `source: "registry"` and
+   `details = { kind: "palette", name: <id>, field: <member> }`:
+   - descriptor is not an object -> `field: "descriptor"`
+   - `plainName` missing or empty -> `"plainName"`
+   - `kind` not one of the three -> `"kind"`
+   - `colors` not a non-empty array -> `"colors"`
+   - an anchor that does not parse as a colour -> `"colors"`, message names the anchor
+   - `capacity` present and not the derived value -> `"capacity"`
+   - `id` missing or empty -> `"id"` (from the shared policy)
+3. A built-in id -> `E_DUPLICATE_PLUGIN`, `details.builtIn: true`.
+4. **Sameness is by content.** Two registrations are the same palette when their normalised
+   descriptors are equal (compared as JSON), not when they are the same object. Re-registering an
+   equal palette is a no-op. This differs from the class-shaped points on purpose: a palette is
+   usually written as an object literal that is rebuilt on every module evaluation.
+5. A different palette under a taken id replaces it with one warning, or throws
+   `E_DUPLICATE_PLUGIN` under `{ strict: true }`.
+
+## 4. What the built-in palettes do, and parity
+
+Each row is something a built-in palette can do. A registered palette MUST be able to do the same,
+by the same route. The "pinned by" column names the test in
+`graphty-element/test/browser/extensions/palette-extension.test.ts` that holds the element to it.
+
+| Capability | Route | Pinned by |
+| --- | --- | --- |
+| Listed beside the built-ins, with its plain name, kind and claim | `session.catalog.palettes()` | "is offered by the session beside the element's own..." |
+| Offered to a picker filtered by kind | catalogue, filtered on `kind` | "is offered to a picker that has already decided what kind..." |
+| Named by a colour binding | `encode: { "node.color": { by, palette: "<id>" } }` | "ramps a measurement onto its anchors..." |
+| Named when encoding a run | `session.styles.encode({ run, channel, palette })` | "is the palette an analysis layer paints with..." |
+| Continuous interpolation between anchors | sequential and diverging kinds | "mixes a colour between two anchors..." |
+| One anchor per group, never interpolated | categorical kind | "names each group with one anchor..." |
+| Reversal | binding `reverse: true` | "sends the smallest value to the far end..." |
+| A named colour for missing values | binding `missing: { value }` | "paints a missing value a named colour..." |
+| Refusing to wrap a categorical palette past its capacity | `E_CAP_EXCEEDED`, or binding `overflow` | "never wraps a fifth group round onto its first colour" |
+| Unknown name refused before painting | `E_UNKNOWN_PALETTE` with `details.available` and `details.candidates` | "is refused before anything is painted..." |
+| A legend: swatches per group, or a ramp with its direction | legend API | the two "tells the legend..." tests |
+| Travelling in a saved style document | `session.styles.toDocument()` writes the descriptor of every non-built-in palette a layer names | "paints the same colours again when the document... is reopened" |
+| Passing the form check before Apply | the style form's validation | "passes the check a form runs..." |
+
+Properties that belong to the BINDING, not the palette -- scale, domain, clamp, midpoint, reverse,
+missing, bins, overflow -- apply to a registered palette exactly as to a built-in one. That is why
+a palette takes no options (section 6).
+
+## 5. Addressing and persistence
+
+1. A palette is addressed by its `id` everywhere: in a binding's `palette`, in `encode`, in a
+   `StyleDocument`, in a legend.
+2. `toDocument()` MUST write, in `StyleDocument.palettes`, the full published descriptor of every
+   registered (non-built-in) palette that any layer in the document names, and MUST NOT write
+   built-in palettes. A document is thereby self-describing: it carries everything needed to paint
+   it again except the element itself.
+3. Applying a document (today): every palette it carries MUST already be registered with equal
+   content, or the document is refused as a whole with `E_UNKNOWN_PALETTE` -- never half-applied.
+   A document that carries a palette whose id is registered with DIFFERENT content is refused too.
+4. Applying a document (proposed, open decision 10 in `README.md`): the carried palettes are
+   registered as part of applying it, under the policy in `palette.d.ts` `DocumentPalettePolicy`
+   `"register"`. The motivating case is the owner's "load style" / "load recipe" task (2026-09-27):
+   a community shares a starting point without sharing its data, and the receiving reader should
+   not have to register anything by hand first. Registering data from a document is safe because a
+   palette is data only.
+5. A registered palette is not scoped to a document: once registered it is global for the page.
+   Two documents that carry different palettes under the same id conflict, and the second is
+   refused (item 3). A per-document palette scope is a deliberate limit of this version.
+
+## 6. Options
+
+A palette takes none, and `PaletteDescriptor` is the only descriptor with no `options` member.
+Every knob a reader might want -- scale, domain, clamp, midpoint, reverse, missing colour, bins --
+belongs to the binding, and no built-in palette takes configuration either, so an options surface
+would create a parity gap rather than close one. A variant (a darker version, a reversed version)
+is a second palette with its own id.
+
+## 7. Errors
+
+| Code | When | Raised by |
+| --- | --- | --- |
+| `E_BAD_COMMAND` | malformed registration (section 3) | `registerPalette` |
+| `E_DUPLICATE_PLUGIN` | built-in id; different palette under a taken id with `strict` | `registerPalette` |
+| `E_UNKNOWN_PALETTE` | a binding, `encode` call or document names an unregistered palette | styles API |
+| `E_CAP_EXCEEDED` | a categorical binding has more groups than the named palette's capacity and no `overflow` | repaint |
+
+**(not yet met)** `E_CAP_EXCEEDED` is reported through the repaint engine's problem list, which
+`./session` does not publish, so a consumer cannot observe it; only its consequence (the groups
+beyond capacity keep the colour the layers below painted) is visible. This is true of built-in
+palettes too.
+
+## 8. Versioning and compatibility
+
+- `PaletteDescriptor` is implemented by extensions: adding a required member is a major release.
+- The anchor normalisation rule (six-digit hex) is part of the contract; a document written by one
+  version MUST paint the same colours in a later version of the same major.
+- A reader of a `StyleDocument` that meets a palette descriptor member it does not know MUST ignore
+  it (README section 6.3).
+- The built-in ids and their colours are part of the contract. Changing the colours of a built-in
+  id is a breaking change because saved documents name it; a new default palette gets a new id.
+
+## 9. Security
+
+A palette is data. Registering one, and applying a document that carries one, MUST NOT execute
+code, fetch a resource or read anything outside the descriptor. Anchor strings are parsed as
+colours only; a string that is not a colour is refused, never evaluated.
+
+## 10. Conformance checks
+
+Run by `checkPalette(descriptor)` in the proposed kit (README section 11.2). All run in Node except
+the last two, which need the kit's browser configuration.
+
+| Check | Passes when |
+| --- | --- |
+| descriptor is valid | the descriptor validates against `#/$defs/PaletteDescriptor` and `registerPalette` accepts it |
+| id is not reserved | the id is not in `KNOWN_PALETTE_IDS` |
+| id follows the recommended grammar | the id matches README section 4.3's pattern (a warning, not a failure, until open decision 4) |
+| anchors normalise | every published anchor of the registered palette matches `^#[0-9A-F]{6}$` and the count is unchanged |
+| capacity is derived | published `capacity` equals the derived value |
+| re-registration is idempotent | registering an equal descriptor object again changes nothing and warns nothing |
+| catalogue lists it | `registeredPaletteDescriptors()` contains the published descriptor |
+| safety claim holds | every deficiency in `colorblindSafe` passes `isPaletteSafe` (a warning, not a failure: the claim is the author's) |
+| paints a ramp | a sequential or diverging palette bound to a numeric attribute paints the lowest value with the first anchor and the highest with the last (browser) |
+| survives a document round trip | `toDocument()` carries the descriptor, and applying it to a fresh element with the palette registered paints the same colours (browser) |
+
+## 11. Worked examples
+
+A diverging fold-change palette for gene expression, with grey for missing values supplied by the
+binding (the need in `design/designloom/workflows/W20.yaml`):
+
+```ts
+import { registerPalette } from "@graphty/graphty-element/extend";
+
+registerPalette({
+    id: "acmelab-fold-change",
+    plainName: "Fold change (blue - white - red)",
+    kind: "diverging",
+    colors: ["#2166ac", "#67a9cf", "#f7f7f7", "#ef8a62", "#b2182b"],
+    colorblindSafe: ["deuteranopia", "protanopia"],
+});
+
+await session.styles.add({
+    name: "Fold change",
+    target: "node",
+    selector: { match: "everything" },
+    encode: {
+        "node.color": {
+            by: "data.log2fc",
+            palette: "acmelab-fold-change",
+            midpoint: 0,                       // the neutral anchor sits at zero
+            domain: [-4, 4],
+            clamp: [-4, 4],                    // skewed values do not stretch the ramp
+            missing: { value: "#bdbdbd" },     // genes with no measurement
+        },
+    },
+});
+```
+
+A malformed registration and what the author sees:
+
+```ts
+registerPalette({ id: "acme-bad", plainName: "Bad", kind: "categorical", colors: ["#fff", "nope"], capacity: 2 });
+// throws GraphtyError { code: "E_BAD_COMMAND", source: "registry",
+//   details: { kind: "palette", name: "acme-bad", field: "colors" },
+//   message: '"nope" in the palette "acme-bad" is not a colour' }
+```
+
+## 12. Known gaps
+
+- `E_CAP_EXCEEDED` is unobservable to a consumer (section 7).
+- A palette carried by a document is refused unless registered first (open decision 10).
+- A registered palette is global, not scoped to the document that carried it.
+- The published parameter type of `registerPalette` requires `capacity` and `colorblindSafe`
+  although the run time derives or defaults them; `PaletteRegistration` in `palette.d.ts` is the
+  accurate shape.
+- Unknown descriptor members are republished rather than dropped (README section 6.3 item 3).
+- Built-in anchors mix upper- and lower-case hex while registered anchors are upper case; the
+  built-in tables should be normalised the same way.
+
+## 13. Who this serves
+
+| Need | Source |
+| --- | --- |
+| A lab style with its own palettes, rebuilt by each member today, shared as a file | `design/designloom/workflows/W20.yaml`, `design/designloom/personas/genomics-cytoscape-user.yaml` |
+| Cluster colours exported with a legend | `design/designloom/workflows/W21.yaml` |
+| Colour-blind-safe, print and high-contrast presets | `design/designloom/capabilities/style-presets.yaml` |
+| Sharing a starting point without sharing data | owner, 2026-09-27, notes on top tasks |

@@ -1,0 +1,16 @@
+{
+  "//": "Type-checks the normative declaration files in this directory: pnpm exec tsc -p design/extensions",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024", "DOM"],
+    "skipLibCheck": true,
+    "types": [],
+    "baseUrl": "../..",
+    "paths": { "@graphty/graph-format": ["graph-format/src/index.ts"] }
+  },
+  "files": ["common.d.ts", "palette.d.ts", "file-format.d.ts", "camera.d.ts", "layout.d.ts", "algorithm.d.ts", "logging.d.ts"]
+}

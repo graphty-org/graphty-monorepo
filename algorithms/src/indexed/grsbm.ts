@@ -90,7 +90,11 @@ interface MutableCluster {
  *
  * Modularity uses `weightedDegree()` (a self-loop counts twice) against `totalWeight()`, or
  * `degree()` against the edge count when unweighted. Like legacy's, a split's modularity sums only
- * the two halves of the cluster being split.
+ * the two halves of the cluster being split. A self-loop follows the standard convention (left out
+ * of the Laplacian, twice in the degree), so on a graph with self-loops the result differs from
+ * legacy's, which scores the whole graph as one community above 0. On a directed graph the
+ * unweighted path keeps legacy's halving of internal arcs; the weighted path does not, so there the
+ * whole graph as one community scores 0. Weights must be finite and non-negative (RangeError).
  * @param s - The snapshot
  * @param options - {@link GrsbmOptions}
  * @returns The leaf partition and the hierarchy
@@ -103,9 +107,21 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
     }
     const random = SeededRandom.createGenerator(seed);
     const arcWeights = weighted ? s.weights : null;
+    if (arcWeights !== null) {
+        for (let a = 0; a < arcWeights.length; a++) {
+            const w = arcWeights[a];
+            if (!(w >= 0) || w === Infinity) {
+                throw new RangeError(`arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`);
+            }
+        }
+    }
     const degree = weighted ? s.weightedDegree() : s.degree();
     const m = weighted ? s.totalWeight() : s.edgeCount;
     const loopFactor = s.directed ? 1 : 2;
+    // An undirected edge is stored as two arcs, so the internal sum counts it twice. A directed arc is
+    // stored once; legacy halves it anyway (the whole graph as one community scores -0.5), and the
+    // unweighted path keeps that for parity.
+    const halveInternal = !s.directed || !weighted;
     const { rowPtr, colIdx } = s;
 
     // side[u]: the community of u in the split being scored, -1 outside the cluster.
@@ -124,7 +140,9 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
                 }
             }
         }
-        internal /= 2;
+        if (halveInternal) {
+            internal /= 2;
+        }
         return (internal - (total * total) / (4 * m)) / m;
     };
     const modularity = (groups: readonly ArrayLike<number>[]): number => {
@@ -233,7 +251,7 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         scores.push(best);
     }
 
-    // Leaves numbered left first, as legacy numbers its flat clusters.
+    // One label per leaf, renumbered by each leaf's lowest node index.
     const leafOf = new Uint32Array(n);
     let leaves = 0;
     const stack = [0];

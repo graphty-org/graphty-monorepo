@@ -49,6 +49,17 @@ function portShape(g: Graph, options: GrsbmOptions): GRSBMResult {
         }
     };
     walk(0);
+    // The published labels must be the same partition as the leaves, whatever their numbering. Legacy
+    // can split off an empty cluster; it is a leaf of the hierarchy but carries no label.
+    const occupied = r.clusters.filter((c) => c.left === INVALID_INDEX && c.members.length > 0).length;
+    expect(r.count).toBe(occupied);
+    const labelOfLeaf = new Map<number, number>();
+    for (let i = 0; i < s.nodeCount; i++) {
+        const leafOfNode = clusters.get(idOf(i)) ?? -1;
+        expect(labelOfLeaf.get(leafOfNode) ?? r.labels[i]).toBe(r.labels[i]);
+        labelOfLeaf.set(leafOfNode, r.labels[i]);
+    }
+    expect(new Set(labelOfLeaf.values()).size).toBe(occupied);
     const explanation = r.clusters.flatMap((cluster) => {
         const { split } = cluster;
         if (split === null) {
@@ -117,8 +128,8 @@ describe("indexed.grsbm", () => {
         );
     });
 
-    it("gives an unweighted snapshot the same result weighted or not", () => {
-        for (const { graph } of fixtures) {
+    it("gives an unweighted undirected snapshot the same result weighted or not", () => {
+        for (const { graph } of undirectedFixtures()) {
             if ([...graph.edges()].every((e) => e.weight === 1)) {
                 const s = toSnapshot(graph);
                 expect(leafSets(grsbm(s))).toEqual(leafSets(grsbm(s, { weighted: false })));
@@ -148,6 +159,60 @@ describe("indexed.grsbm", () => {
         expect(Array.from(grsbm(s).modularityScores)).not.toEqual(
             Array.from(grsbm(s, { weighted: false }).modularityScores),
         );
+        // The root's bisection vector comes from the Laplacian alone, so this pins its weights.
+        expect(Array.from(grsbm(s).clusters[0].split?.spectralValues ?? [])).not.toEqual(
+            Array.from(grsbm(s, { weighted: false }).clusters[0].split?.spectralValues ?? []),
+        );
+    });
+
+    /** An 8-cycle with self-loops on nodes 0 and 4. */
+    function loopedCycle(directed: boolean): { builder: GraphBuilder; graph: Graph } {
+        const builder = new GraphBuilder({ directed });
+        const graph = new Graph({ directed });
+        for (let i = 0; i < 8; i++) {
+            builder.addEdge(i, (i + 1) % 8);
+            graph.addEdge(i, (i + 1) % 8);
+        }
+        for (const i of [0, 4]) {
+            builder.addEdge(i, i);
+            graph.addEdge(i, i);
+        }
+        return { builder, graph };
+    }
+
+    it("scores the whole undirected graph as one community 0, self-loops counted twice", () => {
+        const { builder, graph } = loopedCycle(false);
+        const s = builder.freeze();
+        expect(grsbm(s).modularityScores[0]).toBeCloseTo(0, 12);
+        expect(grsbm(s, { weighted: false }).modularityScores[0]).toBeCloseTo(0, 12);
+        // Legacy counts a self-loop once in the degree and half in the internal edges, so it does not.
+        expect(legacyGrsbm(graph).modularityScores[0]).not.toBeCloseTo(0, 6);
+    });
+
+    it("scores the whole directed graph as one community 0 when weighted, legacy's -0.5 when not", () => {
+        const { builder, graph } = loopedCycle(true);
+        const s = builder.freeze();
+        expect(grsbm(s).modularityScores[0]).toBeCloseTo(0, 12);
+        expect(grsbm(s, { weighted: false }).modularityScores[0]).toBeCloseTo(-0.5, 12);
+        const plain = new Graph({ directed: true });
+        for (let i = 0; i < 8; i++) {
+            plain.addEdge(i, (i + 1) % 8);
+        }
+        expect(legacyGrsbm(plain).modularityScores[0]).toBeCloseTo(-0.5, 12);
+        expect(graph.nodeCount).toBe(8);
+    });
+
+    it("refuses a negative or infinite weight when weighted, and ignores it when not", () => {
+        // NaN never reaches grsbm: the builder refuses it.
+        for (const bad of [-5, Infinity]) {
+            const b = new GraphBuilder({ directed: false });
+            for (let i = 0; i < 8; i++) {
+                b.addEdge(i, (i + 1) % 8, i === 3 ? bad : 1);
+            }
+            const s = b.freeze();
+            expect(() => grsbm(s)).toThrow(RangeError);
+            expect(() => grsbm(s, { weighted: false })).not.toThrow();
+        }
     });
 
     it("counts a parallel edge as weight when weights are ignored", () => {

@@ -1,8 +1,9 @@
 import { GraphBuilder, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { edgeBetweennessCentrality } from "../../../src/algorithms/centrality/betweenness.js";
 import { Graph } from "../../../src/core/graph.js";
-import { dijkstra } from "../../../src/indexed/dijkstra.js";
+import { dijkstra, type SsspResult } from "../../../src/indexed/dijkstra.js";
 import {
     edgeScoresToPairMap,
     edgesToLegacy,
@@ -137,7 +138,27 @@ describe("ssspToShortestPaths", () => {
                 [9, null],
             ]),
         );
-        expect(out.get(4)?.predecessor).toBe(pred); // shared, not copied per node
+        expect(out.get(4)?.predecessor).toEqual(pred);
+    });
+
+    it("gives each entry its own predecessor Map, as legacy dijkstra does", () => {
+        const s = toSnapshot(numeric());
+        const out = ssspToShortestPaths(s, dijkstra(s, resolveNode(s.ids, 1)));
+        const first = out.get(1)?.predecessor;
+        expect(out.get(4)?.predecessor).not.toBe(first);
+        first?.set(4, 1);
+        expect(out.get(4)?.predecessor.get(4)).toBe(3);
+    });
+
+    it("gives the empty map for a search that reached nothing, the only result an empty graph has", () => {
+        const s = toSnapshot(empty());
+        const none: SsspResult = {
+            dist: new Float64Array(0),
+            predArc: new Uint32Array(0),
+            pathTo: () => new Uint32Array(0),
+            pathEdges: () => new Uint32Array(0),
+        };
+        expect(ssspToShortestPaths(s, none).size).toBe(0);
     });
 
     it("gives only the source for an isolated source", () => {
@@ -168,15 +189,42 @@ describe("edgesToLegacy", () => {
 });
 
 describe("edgeScoresToPairMap", () => {
-    it("keys each edge's score as source-target in declared orientation", () => {
+    it("keys each edge as source-target, then its reverse on an undirected graph", () => {
         const s = toSnapshot(numeric());
-        expect(edgeScoresToPairMap(s, Float64Array.of(0.5, 1, 1.5))).toEqual(
-            new Map([
-                ["1-2", 0.5],
-                ["2-3", 1],
-                ["3-4", 1.5],
-            ]),
-        );
+        expect([...edgeScoresToPairMap(s, Float64Array.of(0.5, 1, 1.5))]).toEqual([
+            ["1-2", 0.5],
+            ["2-3", 1],
+            ["3-4", 1.5],
+            ["2-1", 0.5],
+            ["3-2", 1],
+            ["4-3", 1.5],
+        ]);
+    });
+
+    it("keys only the declared orientation on a directed graph", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge(1, 2);
+        g.addEdge(3, 2);
+        expect([...edgeScoresToPairMap(toSnapshot(g), Float64Array.of(1, 2))]).toEqual([
+            ["1-2", 1],
+            ["3-2", 2],
+        ]);
+    });
+
+    it("has the key set and values of legacy edgeBetweennessCentrality on an undirected graph", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("b", "a");
+        g.addEdge("c", "b");
+        g.addEdge("c", "d");
+        const legacy = edgeBetweennessCentrality(g);
+        const s = toSnapshot(g);
+        const { src, dst } = s.edgeList();
+        const scores = Float64Array.from({ length: s.edgeCount }, (_, e) => {
+            return legacy.get(`${String(s.ids.idOf(src[e]))}-${String(s.ids.idOf(dst[e]))}`) ?? Number.NaN;
+        });
+        const out = edgeScoresToPairMap(s, scores);
+        expect(legacy.size).toBe(6);
+        expect(new Map([...out].sort())).toEqual(new Map([...legacy].sort()));
     });
 
     it("gives the empty map on the empty graph and on isolated nodes", () => {

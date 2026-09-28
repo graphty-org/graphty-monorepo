@@ -99,4 +99,106 @@ describe("expectFacadeMatchesLegacy", () => {
             { tolerance: 1e-9 },
         );
     });
+
+    const one = (): FacadeFixture[] => [{ name: "path", graph: numericWeighted() }];
+
+    it("fails on a discrete difference with no tolerance", () => {
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => [[1, 2]],
+                () => [[2, 1]],
+            );
+        }).toThrow();
+    });
+
+    it("fails on a different Map or Set iteration order", () => {
+        const pairs: [number, number][] = [
+            [1, 1],
+            [2, 2],
+        ];
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => new Map(pairs),
+                () => new Map([...pairs].reverse()),
+            );
+        }).toThrow(/keys in order/);
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => new Set(["a", "b"]),
+                () => new Set(["b", "a"]),
+            );
+        }).toThrow();
+    });
+
+    it("fails on a property set to undefined against a missing one, and on a different prototype", () => {
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => ({ source: 1, data: undefined }),
+                () => ({ source: 1 }),
+            );
+        }).toThrow(/keys/);
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => [1, 2],
+                () => Float64Array.of(1, 2),
+            );
+        }).toThrow(/prototype/);
+    });
+
+    it("fails on an infinite number against a finite one whatever the tolerance", () => {
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => new Map([[1, 0.5]]),
+                () => new Map([[1, Infinity]]),
+                { tolerance: 1e-9 },
+            );
+        }).toThrow();
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => [0],
+                () => [-Infinity],
+                { tolerance: 1e-9 },
+            );
+        }).toThrow();
+        expectFacadeMatchesLegacy(
+            one(),
+            () => [Infinity, Number.NaN],
+            () => [Infinity, Number.NaN],
+            { tolerance: 1e-9 },
+        );
+    });
+
+    it("fails when the facade mutates the graph", () => {
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => 0,
+                (g) => {
+                    g.addNode("added");
+                    return 0;
+                },
+            );
+        }).toThrow(/mutated/);
+    });
+
+    it("fails when the facade writes into the shared snapshot", () => {
+        expect(() => {
+            expectFacadeMatchesLegacy(
+                one(),
+                () => 0,
+                (g) => {
+                    const { colIdx } = toSnapshot(g);
+                    colIdx[0] = colIdx.length - 1;
+                    return 0;
+                },
+            );
+        }).toThrow(/checksum/i);
+    });
 });

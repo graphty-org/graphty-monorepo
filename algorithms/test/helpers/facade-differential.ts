@@ -1,7 +1,8 @@
 /**
  * The facade parity check: a legacy function and the facade that replaces it run on the same
  * fixtures and must give the same answer -- exactly for discrete results, within a relative
- * tolerance for f64 scores. A facade delegates only when this passes.
+ * tolerance for finite f64 scores, and in the same Map and Set iteration order. A facade delegates
+ * only when this passes.
  */
 
 import { expect } from "vitest";
@@ -18,29 +19,45 @@ export interface FacadeFixture {
 /** Options of {@link expectFacadeMatchesLegacy}. */
 interface FacadeParityOptions {
     /**
-     * Relative tolerance for numbers: `|a - b| <= tolerance * max(1, |a|, |b|)`. Default 0, which
-     * compares with `toEqual`. Use 1e-9 for f64 scores.
+     * Relative tolerance for finite numbers: `|a - b| <= tolerance * max(1, |a|, |b|)`. Default 0,
+     * which requires equal numbers. Use 1e-9 for f64 scores. A non-finite number (an infinite
+     * distance) must match exactly whatever the tolerance.
      */
     readonly tolerance?: number;
 }
 
-function expectNear(actual: unknown, expected: unknown, tolerance: number, at: string): void {
+/**
+ * Compare `actual` with `expected` structurally, including what `toEqual` ignores and a legacy
+ * caller can observe: Map and Set iteration order, a property set to undefined against a missing
+ * one, and the prototype (an array is not a typed array). Object property order is not compared.
+ */
+function expectSame(actual: unknown, expected: unknown, tolerance: number, at: string): void {
     if (typeof expected === "number" && typeof actual === "number") {
-        if (actual !== expected && !(Number.isNaN(actual) && Number.isNaN(expected))) {
-            const bound = tolerance * Math.max(1, Math.abs(actual), Math.abs(expected));
-            expect(Math.abs(actual - expected), `${at}: ${String(actual)} vs ${String(expected)}`).toBeLessThanOrEqual(
-                bound,
-            );
+        if (actual === expected || (Number.isNaN(actual) && Number.isNaN(expected))) {
+            return;
+        }
+        const message = `${at}: ${String(actual)} vs ${String(expected)}`;
+        expect(Number.isFinite(actual) && Number.isFinite(expected), message).toBe(true);
+        const bound = tolerance * Math.max(1, Math.abs(actual), Math.abs(expected));
+        expect(Math.abs(actual - expected), message).toBeLessThanOrEqual(bound);
+        return;
+    }
+    if (expected === null || typeof expected !== "object") {
+        expect(actual, at).toBe(expected);
+        return;
+    }
+    expect(actual !== null && typeof actual === "object", `${at} is an object`).toBe(true);
+    expect(Object.getPrototypeOf(actual), `${at} prototype`).toBe(Object.getPrototypeOf(expected));
+    if (expected instanceof Map) {
+        const map = actual as Map<unknown, unknown>;
+        expect([...map.keys()], `${at} keys in order`).toEqual([...expected.keys()]);
+        for (const [key, value] of expected) {
+            expectSame(map.get(key), value, tolerance, `${at}.get(${String(key)})`);
         }
         return;
     }
-    if (expected instanceof Map) {
-        expect(actual, at).toBeInstanceOf(Map);
-        const map = actual as Map<unknown, unknown>;
-        expect([...map.keys()].map(String).sort(), `${at} keys`).toEqual([...expected.keys()].map(String).sort());
-        for (const [key, value] of expected) {
-            expectNear(map.get(key), value, tolerance, `${at}.get(${String(key)})`);
-        }
+    if (expected instanceof Set) {
+        expectSame([...(actual as Set<unknown>)], [...expected], tolerance, `${at} in order`);
         return;
     }
     if (Array.isArray(expected) || ArrayBuffer.isView(expected)) {
@@ -48,20 +65,16 @@ function expectNear(actual: unknown, expected: unknown, tolerance: number, at: s
         const other = actual as ArrayLike<unknown>;
         expect(other.length, `${at}.length`).toBe(list.length);
         for (let i = 0; i < list.length; i++) {
-            expectNear(other[i], list[i], tolerance, `${at}[${String(i)}]`);
+            expectSame(other[i], list[i], tolerance, `${at}[${String(i)}]`);
         }
         return;
     }
-    if (expected !== null && typeof expected === "object" && !(expected instanceof Set)) {
-        const record = expected as Record<string, unknown>;
-        const other = actual as Record<string, unknown>;
-        expect(Object.keys(other).sort(), `${at} keys`).toEqual(Object.keys(record).sort());
-        for (const key of Object.keys(record)) {
-            expectNear(other[key], record[key], tolerance, `${at}.${key}`);
-        }
-        return;
+    const record = expected as Record<string, unknown>;
+    const other = actual as Record<string, unknown>;
+    expect(Object.keys(other).sort(), `${at} keys`).toEqual(Object.keys(record).sort());
+    for (const key of Object.keys(record)) {
+        expectSame(other[key], record[key], tolerance, `${at}.${key}`);
     }
-    expect(actual, at).toEqual(expected);
 }
 
 /**
@@ -85,11 +98,7 @@ export function expectFacadeMatchesLegacy<R>(
         const mutations = graph.mutationCount;
         const expected = legacy(graph);
         const actual = facade(graph);
-        if (tolerance === 0) {
-            expect(actual, name).toEqual(expected);
-        } else {
-            expectNear(actual, expected, tolerance, name);
-        }
+        expectSame(actual, expected, tolerance, name);
         expect(graph.mutationCount, `${name}: the graph was mutated`).toBe(mutations);
         s.validate({ checksum: true });
     }

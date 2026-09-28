@@ -100,8 +100,9 @@ export function maskToStringSet(ids: NodeIdMap, mask: NodeMask): Set<string> {
 
 /**
  * An `SsspResult` to the legacy `Map<NodeId, ShortestPathResult>`: an entry per reached node in
- * index order. Every entry shares ONE predecessor Map over every node (null for the source and
- * the unreached) instead of the legacy copy per node, which was O(n^2).
+ * index order. Each entry gets its own copy of the predecessor Map over every node (null for the
+ * source and the unreached), as legacy `dijkstra` does, so a caller that mutates one entry's Map
+ * does not change the others. That copy is O(n) per reached node, the legacy cost.
  * @param s - The snapshot the search ran on
  * @param result - The port's result
  * @returns The legacy result
@@ -118,15 +119,17 @@ export function ssspToShortestPaths(s: GraphSnapshot, result: SsspResult): Map<N
         const distance = result.dist[v];
         if (distance < Infinity) {
             const path = Array.from(result.pathTo(v), (i) => ids.idOf(i));
-            out.set(ids.idOf(v), { distance, path, predecessor });
+            out.set(ids.idOf(v), { distance, path, predecessor: new Map(predecessor) });
         }
     }
     return out;
 }
 
 /**
- * Logical edge indices to legacy `Edge` objects (MST), in the given order, each in its declared
- * orientation with its exact f64 weight (1 on an unweighted snapshot).
+ * Logical edge indices to legacy `Edge` objects, in the given order, each in the orientation the
+ * snapshot stores (the declared one) with its exact f64 weight (1 on an unweighted snapshot). That
+ * is the orientation legacy `kruskalMST` reports. Legacy `primMST` reports tree edges in traversal
+ * orientation instead, so a Prim facade must orient its edges itself.
  * @param s - The snapshot
  * @param edges - Logical edge indices
  * @returns `{ source, target, weight }` per edge
@@ -142,17 +145,26 @@ export function edgesToLegacy(s: GraphSnapshot, edges: U32): Edge[] {
 }
 
 /**
- * Per-edge scores to the legacy `Map<string, number>` keyed `"source-target"` (edge betweenness),
- * in declared orientation and edge order.
+ * Per-edge scores to the legacy `Map<string, number>` keyed `"source-target"` (edge betweenness):
+ * every edge in declared orientation and edge order, then -- on an undirected snapshot -- every
+ * edge again reversed, with the same score, in edge order. Legacy `edgeBetweennessCentrality`
+ * returns both orientations of an undirected edge with equal values; it adds the reversed keys in
+ * the order its searches first cross them, which this converter does not reproduce.
  * @param s - The snapshot
  * @param scores - One score per logical edge
  * @returns The keyed scores
  */
 export function edgeScoresToPairMap(s: GraphSnapshot, scores: F64): Map<string, number> {
     const { src, dst } = s.edgeList();
+    const key = (from: number, to: number): string => `${String(s.ids.idOf(from))}-${String(s.ids.idOf(to))}`;
     const out = new Map<string, number>();
     for (let e = 0; e < s.edgeCount; e++) {
-        out.set(`${String(s.ids.idOf(src[e]))}-${String(s.ids.idOf(dst[e]))}`, scores[e]);
+        out.set(key(src[e], dst[e]), scores[e]);
+    }
+    if (!s.directed) {
+        for (let e = 0; e < s.edgeCount; e++) {
+            out.set(key(dst[e], src[e]), scores[e]);
+        }
     }
     return out;
 }

@@ -20,6 +20,7 @@ import {
     ingestEdge,
     ingestNode,
     isStorableId,
+    resolveEdgeCapacity,
     resolveEdgeWeight,
 } from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
@@ -1022,6 +1023,7 @@ export class DataManager implements Manager {
                 dstNodeId,
                 weight.weight,
                 isStorableRecordId(recordId) ? recordId : undefined,
+                resolveEdgeCapacity(edge),
             );
             if (edgeIndex === INVALID_INDEX) {
                 // graph-format will not hold an edge between these ids -- most often because the
@@ -1243,6 +1245,7 @@ export class DataManager implements Manager {
         this.store.touch();
 
         if (decision.replaceRecord) {
+            this.store.builder.setEdgeValue(this.store.capacityColumn, known.edgeIndex, resolveEdgeCapacity(record));
             if (known.edge) {
                 replaceAttributes(this.inputs.edges, known.edge, record as AdHocData);
             } else if (known.pending) {

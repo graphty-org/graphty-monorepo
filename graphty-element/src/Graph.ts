@@ -241,6 +241,9 @@ export class Graph implements GraphContext {
     /** The value of `#dataAdds` the last post-load repaint painted. */
     #dataAddsPainted = 0;
 
+    /** The value of `#dataAdds` when the load-time algorithm list last started. */
+    #dataAddsRun = 0;
+
     /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
     #suggestionsStacked: Promise<void> = Promise.resolve();
 
@@ -699,10 +702,6 @@ export class Graph implements GraphContext {
             });
         });
 
-        // Note: Algorithm running is handled in the data-added event listener below
-        // rather than through operation queue triggers, because data sources bypass
-        // the operation queue when adding data
-
         // Listen for data-added events to manage running state
         this.eventManager.addListener("data-added", (event) => {
             if (event.type === "data-added") {
@@ -715,16 +714,21 @@ export class Graph implements GraphContext {
                 if (event.shouldZoomToFit) {
                     this.autoFrame();
                 }
+            }
+        });
 
-                // Run algorithms if runAlgorithmsOnLoad is true. Each is queued, not awaited.
-                const { algorithms } = this.styles.config.data;
-                if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
-                    for (const entry of algorithms) {
-                        void this.runOnLoad(entry).catch((error: unknown) => {
-                            console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
-                        });
-                    }
-                }
+        // The load-time algorithm list starts ONCE PER LOAD, not off `data-added`, which fires per
+        // chunk and per kind: that started every algorithm once per chunk, over a graph that was
+        // still arriving. A data source bypasses the queue and ends in `data-loading-complete`;
+        // records pushed through the API are queued `data-add` operations, and every one pushed
+        // before the queue next drains is covered by one start there.
+        this.eventManager.addListener("data-loading-complete", () => {
+            this.startAlgorithmsOnLoad();
+        });
+        this.eventManager.addListener("operation-queue-idle", () => {
+            if (this.#dataAddsRun !== this.#dataAdds) {
+                this.#dataAddsRun = this.#dataAdds;
+                this.startAlgorithmsOnLoad();
             }
         });
 
@@ -861,6 +865,23 @@ export class Graph implements GraphContext {
         const copy = undirected ?? this.dataManager.undirected(snapshot).snapshot;
         if (copy !== snapshot) {
             free(copy);
+        }
+    }
+
+    /**
+     * Start every entry of the load-time algorithm list, when `runAlgorithmsOnLoad` is set. Each is
+     * queued, not awaited.
+     */
+    private startAlgorithmsOnLoad(): void {
+        const { algorithms } = this.styles.config.data;
+        if (!this.runAlgorithmsOnLoad || !algorithms) {
+            return;
+        }
+
+        for (const entry of algorithms) {
+            void this.runOnLoad(entry).catch((error: unknown) => {
+                console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
+            });
         }
     }
 

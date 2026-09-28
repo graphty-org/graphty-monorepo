@@ -44,7 +44,7 @@ Bellman-Ford, bidirectional Dijkstra, A*, connected components, Kruskal MST, Pri
 personalized PageRank, the delta PageRank engines (`deltaPageRank`, `DeltaPageRank`,
 `PriorityDeltaPageRank`), HITS, Katz, eigenvector centrality, degree centrality, closeness
 centrality, betweenness centrality, edge betweenness centrality, common neighbours, k-core,
-Louvain, label propagation, all-pairs shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum cuts, the bipartite flow network. Each lands
+Louvain, label propagation, all-pairs shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum cuts, the bipartite flow network, Adamic-Adar link prediction. Each lands
 beside its legacy function; tests live in `test/unit/indexed/` and before/after timings in
 `benchmarks/port-bench.ts`. Some legacy functions now delegate to their port and keep only their
 signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and

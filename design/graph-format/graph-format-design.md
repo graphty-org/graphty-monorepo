@@ -4355,8 +4355,11 @@ export function commonNeighborsScore(s: GraphSnapshot, u: number, v: number, o: 
 }
 ```
 
-Adamic-Adar adds `1 / Math.log(outDegree()[z])` per common `z`; the
-`Prediction` variants use `hasArc` (binary search) for `includeExisting`.
+Adamic-Adar adds `1 / Math.log(degree)` per distinct common `z`, snapped to a multiple
+of 2^-36 so that a pair's sum is exact and independent of the order its terms are added
+in. The legacy function keeps its unsnapped, visit-order sums, so the port matches its
+scores within 1e-9 and its rankings up to the order of tied pairs; it stays on legacy code
+rather than delegating (section 14.1, rule 1); the `Prediction` variants use `hasArc` (binary search) for `includeExisting`.
 
 ### 14.3 @graphty/layout
 

@@ -135,6 +135,14 @@ export type {
 } from "./indexed/min-cut.js";
 export type { MstOptions, MstResult, PrimOptions, PrimResult } from "./indexed/mst.js";
 export type { CondensationResult } from "./indexed/scc.js";
+// Aliased: the flat LinkPredictionOptions names the legacy functions' options.
+export type {
+    CandidateOptions as IndexedCandidateOptions,
+    LinkPredictionOptions as IndexedLinkPredictionOptions,
+    LinkPredictionMetrics,
+    LinkPredictionResult,
+    NodePairs,
+} from "./indexed/link-prediction.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {
     PageRankOptions as IndexedPageRankOptions,

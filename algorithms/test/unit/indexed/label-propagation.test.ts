@@ -268,7 +268,11 @@ describe("indexed.labelPropagation: options and trivial results", () => {
 });
 
 describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", () => {
-    const REFERENCE_FIXTURES = ["Zachary's karate club", "random 40 nodes, 120 edges", "random 80 nodes, 320 weighted edges"];
+    const REFERENCE_FIXTURES = [
+        "Zachary's karate club",
+        "random 40 nodes, 120 edges",
+        "random 80 nodes, 320 weighted edges",
+    ];
 
     it("matches the reference FLPA label for label, and the wrong tie rules do not", () => {
         let retainDiffers = false;

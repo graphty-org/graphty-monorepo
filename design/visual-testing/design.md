@@ -156,16 +156,20 @@ for this milestone", gives the reason for each.
   (`tsc --checkJs`, not strict). The CI workflow semantics are proven only by a run of the pull
   request itself (above).
 - **Capture is at device scale factor 2, cropped to the content, as Chromatic's.** Each story and
-  mode renders in a 1200 x 900 viewport at scale 2, and the PNG is cropped to the union of every
-  visible element's box (portals such as tooltips and popovers are elements of the body too),
-  each cut to the ancestors whose overflow clips it (so rows hidden in a scroll area do not
+  mode renders in a 1200 x 900 viewport at scale 2, and the PNG is cropped to the union of the
+  story's ink: each text run's own box, each replaced element (image, SVG, canvas, form control)
+  and each element that paints something of its own (a background other than the page's, a
+  border, a shadow, an outline). A block that only lays out, such as the story root or a
+  full-width wrapper, adds nothing, so a single button is cropped to the button. Portals such as
+  tooltips and popovers are elements of the body too and count. Each box is cut to the ancestors whose overflow clips it (so rows hidden in a scroll area do not
   stretch it; a fixed element escapes them), plus a 32 CSS-pixel margin, within the page; a taller story is captured past the viewport. A canvas
   project (`canvas: true` in `projects.json`: graphty-element, and algorithms and layout when they
   join) keeps the viewport: its full width, and the content's height plus the margin, never past
   the viewport, since a larger capture can resize the Babylon canvas and clear it. results.json
   records `scale: 2` (a file without it is read as 1), and each review record copies it into its
-  `subject`. A block-level wrapper spans the page, so most compact-mantine captures are the full
-  width and cropped only in height (for example 2400 x 192 for an AdvancedButton row).
+  `subject`. A first version took every element's box; since the story root and full-width
+  wrappers span the page, 976 of 994 compact-mantine captures came out the full 2400 px wide
+  even for a single button, which the ink rule fixes.
 - **Determinism at scale 2, cropped (measured 2026-09-27).** Two full captures back to back of
   each project on the development server (i9-14900KF, no baselines, so every item was also
   captured twice within each run, while other agents kept the load average between about 30 and
@@ -175,8 +179,14 @@ for this milestone", gives the reason for each.
   `glyphs-glyph-gallery--field-glyphs.light` in the second compact-mantine run, by a single
   anti-aliased glyph pixel (73,80,87 against 127,133,138), so it was reported `unstable`; its
   first capture matched the other run's. An earlier pair of runs, before the crop stopped counting
-  what a scroll area hides, was byte-identical as well. This is one machine; runner to runner is
-  still unmeasured (section 6).
+  what a scroll area hides, was byte-identical as well. A third pair, with the ink crop below and
+  the load average near 70: compact-mantine 822 of 828 byte-identical, five differing in bytes but
+  in no pixel over the threshold, and the glyph gallery's one pixel again; graphty-element 173 of
+  174 identical, `ai-control--default` unstable (known, section 6), and the two
+  `layout-gpu--*-fake` stories failed in both runs on Playwright's 30 s screenshot timeout. On pull
+  request #409's Storybook, adding the wait for web fonts (section 6, item 4) cut the captures that
+  differed between two runs, or within one, from about 230 of 994 to 26. This is one machine;
+  runner to runner is still unmeasured (section 6).
 - **The stories with their own `diffThreshold`.** 21 graphty-element captures set one, all with
   `diffIncludeAntiAliasing: true`: the ten Layout/3D stories (0.3 from the component, D3 0.8),
   Styles/Graph Skybox (0.3) and ten Styles/Label stories (0.25 to 0.5). Chromatic's per-story
@@ -201,8 +211,11 @@ for this milestone", gives the reason for each.
 
 - **The review page shows real size.** One CSS pixel of the page per CSS pixel the story was drawn
   at (the image's width divided by its scale), each image scrolling in its own frame, with 2x, 4x
-  and 8x (hard pixels from 4x), and "next changed box", which scrolls every frame to the next
-  region of changed pixels. Views: side by side; flash, which alternates the two images
+  and 8x (hard pixels from 4x), and "next changed box", which scrolls every frame until the next
+  region of changed pixels is in view (its top left first when it is larger than the frame) and
+  outlines it inside the image, so a region at an edge keeps all four sides. A frame opens at the
+  top left of its image, scrolling only to show a changed region smaller than the frame that
+  would otherwise be out of sight. Views: side by side; flash, which alternates the two images
   themselves at about 1.5 Hz, and hold Space to flash; highlight; and spotlight, the new image
   dimmed to 65/255 except around the changed pixels grown by 10 image pixels (Chromatic's focus
   mask). The client-side crop to a background-coloured box is gone: capture crops now.
@@ -427,13 +440,18 @@ that environment, so every measurement is rerun under them before a seed.
    `parameters`, where Storybook never reads it. So the capture then calls `waitForStableFrame()`
    on every `graphty-element` in the story and waits for one more animation frame. A rejection, a
    timeout, or any "Graph settled timeout" console warning makes the item `failed`, never a
-   picture, and its console output goes into `results.json`. Then wait the story's `delay`.
+   picture, and its console output goes into `results.json`. Before that, wait for
+   `document.fonts.ready`, one animation frame and `document.fonts.ready` again: a web font is
+   fetched only when text first needs it, which can be after the render completed, and a capture
+   taken before it arrives draws the fallback face, a different crop, and anything placed beside
+   the text elsewhere. On pull request #409 (which bundles Inter) this alone made roughly 230 of
+   994 captures differ between two runs on a loaded machine. Then wait the story's `delay`.
 5. **Settings.** Read the story's settings file; for a story with none, take `disableSnapshot`,
    `diffThreshold` and `diffIncludeAntiAliasing` from its parameters and propose a new settings
    file. A parameter that later differs from the file is proposed as a settings item.
 6. Screenshot a 1200 x 900 viewport at device scale factor 2 (as Chromatic), `caret: "hide"`,
-   `animations: "disabled"`, cropped to the story's content box (every visible element) plus 32
-   CSS pixels. **Viewport only, full width** for canvas projects (graphty-element, algorithms,
+   `animations: "disabled"`, cropped to the story's ink (text, replaced elements and whatever
+   paints a background, border or shadow; section 1a) plus 32 CSS pixels. **Viewport only, full width** for canvas projects (graphty-element, algorithms,
    layout; cropped only in height): a full-page capture can resize the Babylon canvas, which
    clears it and redraws on a later frame the settle wait never saw. Other projects may extend past
    the viewport when their content does; the two-run measurement in section 1a covers it. `animations: "disabled"` fast-forwards finite CSS and Web

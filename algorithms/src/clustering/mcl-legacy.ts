@@ -465,7 +465,10 @@ function extractClusters(
  * @param graph - The original graph that was clustered
  * @param communities - Array of communities (each community is an array of node IDs)
  * @returns Modularity score between -0.5 and 1.0
- * @deprecated Use `indexed.modularity` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
+ * @deprecated Removed in algorithms 3.0.0, with no drop-in replacement. `indexed.modularity` computes standard
+ *   modularity, which gives a different number: this function subtracts the null-model term once per edge whatever
+ *   the partition, and ignores edge weights. For the unweighted standard value, pass unit weights to
+ *   `indexed.modularity`.
  */
 export function calculateMCLModularity(graph: Graph, communities: NodeId[][]): number {
     const m = graph.totalEdgeCount;

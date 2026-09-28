@@ -91,11 +91,28 @@ describe("legacy entry points are deprecated", () => {
         expect(reused.length).toBeGreaterThanOrEqual(13);
         const silent = reused.filter((name) => {
             const text = tags.get(name) ?? "";
+            const replacement: unknown = (algorithms.indexed as Record<string, unknown>)[name];
+            const kind =
+                typeof replacement === "function" && Function.prototype.toString.call(replacement).startsWith("class")
+                    ? "class"
+                    : "function";
             return (
-                !text.includes(`At algorithms 3.0.0 the name \`${name}\` becomes that function`) ||
+                !text.includes(`At algorithms 3.0.0 the name \`${name}\` becomes that ${kind}`) ||
                 !text.includes("its result type changes")
             );
         });
         expect(silent).toEqual([]);
+    });
+
+    it("warns where the replacement does not compute the same thing", () => {
+        // The legacy value subtracts the null-model term once per edge and ignores weights, so the
+        // standard modularity is a different number.
+        expect(tags.get("calculateMCLModularity")).toContain("no drop-in replacement");
+        // indexed.bellmanFord sees only the cycles reachable from its one source.
+        expect(tags.get("hasNegativeCycle")).toContain("search again from every node no earlier search reached");
+    });
+
+    it("tags the barrel's PageRankOptions, which no function reads", () => {
+        expect(tags.get("PageRankOptions")).toContain("Removed in algorithms 3.0.0.");
     });
 });

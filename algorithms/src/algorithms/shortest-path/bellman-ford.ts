@@ -214,8 +214,9 @@ export function bellmanFordPath(graph: Graph, source: NodeId, target: NodeId): S
  * Check if graph has negative cycles using Bellman-Ford
  * @param graph - The graph to check for negative cycles
  * @returns True if the graph contains a negative cycle
- * @deprecated Use `indexed.bellmanFord` over a `GraphSnapshot`, and read `hasNegativeCycle`. Removed in algorithms
- *   3.0.0.
+ * @deprecated Use `indexed.bellmanFord` over a `GraphSnapshot`, and read `hasNegativeCycle`. That flag covers only the
+ *   cycles reachable from one source, so to check the whole graph, search again from every node no earlier search
+ *   reached. Removed in algorithms 3.0.0.
  */
 export function hasNegativeCycle(graph: Graph): boolean {
     // A -Infinity weight: legacy's answer depends on where its |V| - 1 rounds stopped, so keep that walk.

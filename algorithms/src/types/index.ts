@@ -97,6 +97,11 @@ export interface CentralityOptions {
     mode?: "in" | "out" | "total"; // For directed graphs
 }
 
+/**
+ * Options no function reads: `pageRank` takes the `PageRankOptions` of its own module, which spells the damping
+ * factor `dampingFactor`.
+ * @deprecated Use `indexed.PageRankOptions` with `indexed.pageRank`. Removed in algorithms 3.0.0.
+ */
 export interface PageRankOptions {
     alpha?: number; // Damping factor (default: 0.85)
     maxIterations?: number; // Maximum iterations (default: 100)

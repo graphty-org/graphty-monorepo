@@ -14,8 +14,7 @@ import { UiGlyph } from "../../icons";
  * which is the check column, plus the checked state.
  */
 export interface MenuCheckItemProps
-    extends Omit<MenuItemProps, "leftSection">,
-        Omit<ComponentPropsWithoutRef<"button">, keyof MenuItemProps | "role"> {
+    extends Omit<MenuItemProps, "leftSection">, Omit<ComponentPropsWithoutRef<"button">, keyof MenuItemProps | "role"> {
     /** Whether the row is checked: the white check shows in the 16px column. */
     checked: boolean;
     /** Render a `menuitemradio` (one of a set) instead of a `menuitemcheckbox`. */

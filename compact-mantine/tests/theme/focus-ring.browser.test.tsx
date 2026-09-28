@@ -75,7 +75,12 @@ const CONTROLS: [string, ReactElement][] = [
     ["Textarea", <Textarea key="c" aria-label="Notes" />],
     ["Select", <Select key="c" aria-label="Kind" data={["One", "Two"]} />],
     ["Button", <Button key="c">Run</Button>],
-    ["Button (default variant)", <Button key="c" variant="default">Run</Button>],
+    [
+        "Button (default variant)",
+        <Button key="c" variant="default">
+            Run
+        </Button>,
+    ],
     [
         "ActionIcon",
         <ActionIcon key="c" aria-label="Reset">

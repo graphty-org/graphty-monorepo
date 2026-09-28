@@ -158,7 +158,12 @@ export const States: Story = {
     parameters: BOTH_SCHEMES,
     render: () => (
         <Stack gap={0}>
-            <DataRowHeader label="Most connected" unit="links" sortDirection="descending" onSortChange={() => undefined} />
+            <DataRowHeader
+                label="Most connected"
+                unit="links"
+                sortDirection="descending"
+                onSortChange={() => undefined}
+            />
             <DataRow name="Rest" value="4" onClick={() => undefined} />
             <Forced state="hover">
                 <DataRow name="Hover" value="4" onClick={() => undefined} />
@@ -171,7 +176,12 @@ export const States: Story = {
                 <DataRow name="Keyboard focus" value="2" onClick={() => undefined} />
             </Forced>
             <DataRow name="Inert" value="2" />
-            <DataRow name="With an icon" icon={<FieldGlyph name="attribute" />} value="Number" onClick={() => undefined} />
+            <DataRow
+                name="With an icon"
+                icon={<FieldGlyph name="attribute" />}
+                value="Number"
+                onClick={() => undefined}
+            />
             <DataRow name="With a rank" value={<RankChip>#6</RankChip>} onClick={() => undefined} />
             <DataRow
                 name="With a trailing button"
@@ -182,7 +192,8 @@ export const States: Story = {
         </Stack>
     ),
     // Selected + hover is drawn as selected (Figma's layer rows).
-    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-data-row[data-state="hover"]:has([aria-current])'] }),
+    play: ({ canvasElement }) =>
+        expectStatesApply(canvasElement, { unchanged: ['.cm-data-row[data-state="hover"]:has([aria-current])'] }),
 };
 
 /**

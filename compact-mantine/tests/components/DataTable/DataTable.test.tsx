@@ -485,9 +485,7 @@ describe("DataTable selection", () => {
     });
 
     it("draws the selection the caller gives it", () => {
-        renderTable(
-            <DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} selectedIds={["c2", "c4"]} />,
-        );
+        renderTable(<DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} selectedIds={["c2", "c4"]} />);
 
         expect(rowNamed("Chonky")).toHaveAttribute("aria-selected", "true");
         expect(rowNamed("Nibbles")).toHaveAttribute("aria-selected", "true");
@@ -497,9 +495,7 @@ describe("DataTable selection", () => {
     it("reports the row that was activated, and whether a pointer or a key did it", async () => {
         const user = userEvent.setup();
         const handleRowClick = vi.fn();
-        renderTable(
-            <DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} onRowClick={handleRowClick} />,
-        );
+        renderTable(<DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} onRowClick={handleRowClick} />);
 
         await user.click(cellIn("Nibbles"));
 

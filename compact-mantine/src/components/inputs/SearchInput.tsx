@@ -13,8 +13,10 @@ const SEARCH_ICON = 16;
 const LINGER_MS = 100;
 
 /** Props for SearchInput. Every other TextInput prop is passed through. */
-export interface SearchInputProps
-    extends Omit<TextInputProps, "value" | "defaultValue" | "onChange" | "size" | "leftSection" | "rightSection"> {
+export interface SearchInputProps extends Omit<
+    TextInputProps,
+    "value" | "defaultValue" | "onChange" | "size" | "leftSection" | "rightSection"
+> {
     /** The search text, when you drive the field from your own state. */
     value?: string;
     /** The text the field starts with when it keeps its own state. */

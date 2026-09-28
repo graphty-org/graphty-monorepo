@@ -6,7 +6,11 @@ import { ShortcutSheet, type ShortcutSheetTab } from "../../../src";
 import { renderShell } from "./render";
 
 const TABS: ShortcutSheetTab[] = [
-    { value: "essential", label: "Essential", groups: [{ shortcuts: [{ label: "Actions", keys: ["Ctrl", "K"], highlighted: true }] }] },
+    {
+        value: "essential",
+        label: "Essential",
+        groups: [{ shortcuts: [{ label: "Actions", keys: ["Ctrl", "K"], highlighted: true }] }],
+    },
     { value: "tools", label: "Tools", groups: [{ title: "Tools", shortcuts: [{ label: "Frame tool", keys: ["F"] }] }] },
     { value: "view", label: "View", groups: [] },
 ];

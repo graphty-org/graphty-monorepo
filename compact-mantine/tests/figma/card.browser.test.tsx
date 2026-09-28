@@ -6,7 +6,16 @@
 import { Card } from "@mantine/core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { drive, expectMeasured, figmaAvailable, figmaElement, figmaSpec, part, renderFigma, resetHarness } from "./harness";
+import {
+    drive,
+    expectMeasured,
+    figmaAvailable,
+    figmaElement,
+    figmaSpec,
+    part,
+    renderFigma,
+    resetHarness,
+} from "./harness";
 
 afterEach(resetHarness);
 

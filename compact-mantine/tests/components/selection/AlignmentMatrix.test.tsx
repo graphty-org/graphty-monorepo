@@ -19,10 +19,12 @@ function renderMatrix(props: AlignmentMatrixProps = {}): ReturnType<typeof rende
 }
 
 function checkedValue(): string | undefined {
-    return screen
-        .getAllByRole("radio")
-        .find((radio) => (radio as HTMLInputElement).checked)
-        ?.getAttribute("value") ?? undefined;
+    return (
+        screen
+            .getAllByRole("radio")
+            .find((radio) => (radio as HTMLInputElement).checked)
+            ?.getAttribute("value") ?? undefined
+    );
 }
 
 describe("AlignmentMatrix", () => {

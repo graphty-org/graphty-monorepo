@@ -143,17 +143,13 @@ const CASES: ReasonCase[] = [
 describe("disabledReason", () => {
     describe.each(CASES)("$name", (testCase: ReasonCase) => {
         it("appends its disabledReason to its title after a full stop", () => {
-            render(
-                <TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>,
-            );
+            render(<TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>);
 
             expect(screen.getByTitle(`${testCase.label}. ${testCase.reason}`)).toBeInTheDocument();
         });
 
         it("puts the reason in the accessible description", () => {
-            render(
-                <TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>,
-            );
+            render(<TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>);
 
             expect(testCase.described()).toHaveAccessibleDescription(testCase.reason);
         });
@@ -225,7 +221,7 @@ describe("bound toggles", () => {
             </TestWrapper>,
         );
 
-        expect(container.querySelector("[data-glyph=\"attribute\"]")).toHaveAttribute("data-filled", "true");
+        expect(container.querySelector('[data-glyph="attribute"]')).toHaveAttribute("data-filled", "true");
         expect(screen.getByTestId("toggle-row")).toHaveAttribute("data-bound", "true");
         expect(screen.getByRole("checkbox", { name: "Labels" })).toHaveAccessibleDescription(
             "Bound to a data attribute",
@@ -241,11 +237,9 @@ describe("bound toggles", () => {
             </TestWrapper>,
         );
 
-        expect(container.querySelector("[data-glyph=\"attribute\"]")).toHaveAttribute("data-filled", "true");
+        expect(container.querySelector('[data-glyph="attribute"]')).toHaveAttribute("data-filled", "true");
         expect(screen.getByTestId("toggle-with-content")).toHaveAttribute("data-bound", "true");
-        expect(screen.getByRole("checkbox", { name: "Glow" })).toHaveAccessibleDescription(
-            "Bound to a data attribute",
-        );
+        expect(screen.getByRole("checkbox", { name: "Glow" })).toHaveAccessibleDescription("Bound to a data attribute");
     });
 
     it("draws no marker and says nothing when the value is set by hand", () => {
@@ -255,7 +249,7 @@ describe("bound toggles", () => {
             </TestWrapper>,
         );
 
-        expect(container.querySelector("[data-glyph=\"attribute\"]")).toBeNull();
+        expect(container.querySelector('[data-glyph="attribute"]')).toBeNull();
         expect(screen.getByTestId("toggle-row")).not.toHaveAttribute("data-bound");
         expect(screen.getByRole("checkbox", { name: "Labels" })).toHaveAccessibleDescription("");
     });

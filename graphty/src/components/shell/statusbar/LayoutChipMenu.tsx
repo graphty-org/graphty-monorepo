@@ -165,12 +165,7 @@ export function LayoutChipMenu(props: LayoutChipMenuProps): React.JSX.Element {
         >
             <Menu.Target>
                 {/* Hidden while the menu is open: both open upward, so it would cover the items. */}
-                <Tooltip
-                    disabled={opened}
-                    label={LAYOUT_MENU_LABEL}
-                    position="top"
-                    withinPortal
-                >
+                <Tooltip disabled={opened} label={LAYOUT_MENU_LABEL} position="top" withinPortal>
                     <button
                         aria-expanded={opened}
                         aria-haspopup="menu"

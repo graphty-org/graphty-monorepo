@@ -149,7 +149,8 @@ const preview: Preview = {
         // No toolbar: set by the Chromatic modes below (and by a `globals=schemes:single` URL),
         // so a BOTH_SCHEMES story is captured as one real, un-nested render per mode.
         schemes: {
-            description: "auto: a BOTH_SCHEMES story renders light and dark side by side; single: it renders once, in the theme global's scheme",
+            description:
+                "auto: a BOTH_SCHEMES story renders light and dark side by side; single: it renders once, in the theme global's scheme",
         },
         direction: {
             description: "Text direction every component follows",

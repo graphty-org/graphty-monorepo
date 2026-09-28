@@ -55,11 +55,20 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} /> },
-                { state: "hover", node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} data-state="hover" /> },
-                { state: "focus", node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} data-state="focus" /> },
+                {
+                    state: "hover",
+                    node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} data-state="focus" />,
+                },
                 { state: "disabled", node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} disabled /> },
                 { state: "invalid", node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} error /> },
-                { state: "outlined", node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} variant="outlined" /> },
+                {
+                    state: "outlined",
+                    node: <Textarea aria-label="Textarea" defaultValue="Notes" w={184} variant="outlined" />,
+                },
                 { state: "with label", node: <Textarea label="Label" defaultValue="Notes" w={184} /> },
             ]}
         />

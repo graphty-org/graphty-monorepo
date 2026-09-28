@@ -55,7 +55,12 @@ export const States: Story = {
             columns={260}
             cells={[
                 ["rest", <Pagination total={5} />],
-                ["focus", <div data-story-focus><Pagination total={5} defaultValue={2} /></div>],
+                [
+                    "focus",
+                    <div data-story-focus>
+                        <Pagination total={5} defaultValue={2} />
+                    </div>,
+                ],
                 ["disabled", <Pagination total={5} disabled />],
             ]}
         />

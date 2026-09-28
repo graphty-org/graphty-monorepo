@@ -115,7 +115,7 @@ describe("Progress - All CSS Values (Browser)", () => {
                         <Progress.Section value={50}>
                             <Progress.Label>50%</Progress.Label>
                         </Progress.Section>
-                    </Progress.Root>
+                    </Progress.Root>,
                 );
                 const label = container.querySelector(".mantine-Progress-label");
                 const style = label ? getComputedStyle(label) : null;
@@ -153,11 +153,7 @@ describe("RingProgress - Numeric Size (Browser)", () => {
 
         it("compact equivalent is size={48}", () => {
             const { container } = renderWithTheme(
-                <RingProgress
-                    size={48}
-                    thickness={4}
-                    sections={[{ value: 50, color: "blue" }]}
-                />
+                <RingProgress size={48} thickness={4} sections={[{ value: 50, color: "blue" }]} />,
             );
             const root = container.querySelector(".mantine-RingProgress-root");
             const style = root ? getComputedStyle(root) : null;

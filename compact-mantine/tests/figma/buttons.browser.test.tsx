@@ -80,7 +80,11 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             expectMeasured(button, figmaSpec(figma, [...exact, ...BOX, ...TYPE, ...FILL, ...(v.edged ? RING : [])]));
             // The label carries the inset (margin 0 8px): it sits 8px in, and the button is the
             // label plus the two insets.
-            expectMeasured(label, { ...figmaSpec(figmaLabel, [...exact, "color"]), x: figmaLabel.box[0] - figma.box[0] }, { origin: button });
+            expectMeasured(
+                label,
+                { ...figmaSpec(figmaLabel, [...exact, "color"]), x: figmaLabel.box[0] - figma.box[0] },
+                { origin: button },
+            );
             expect(button.getBoundingClientRect().width - label.getBoundingClientRect().width).toBeCloseTo(
                 figma.box[2] - figmaLabel.box[2],
                 1,
@@ -141,7 +145,10 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
 
         it("a shortcut follows the label 4px on, in the secondary ink", async () => {
             const path = "bc/btn-primary-md-shortcut--default";
-            const [figma, shortcut] = await Promise.all([specimen(path), figmaElement(path, { cls: "button__shortcut" })]);
+            const [figma, shortcut] = await Promise.all([
+                specimen(path),
+                figmaElement(path, { cls: "button__shortcut" }),
+            ]);
             const { container } = await renderFigma(<Button rightSection={shortcut.text}>Button</Button>);
             const button = part(container, "button");
             const section = part(button, '.cm-button-section[data-position="right"]');
@@ -149,19 +156,28 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             // around it -- where it starts and its 4px lead. Figma's specimen ends it flush with
             // the button's edge, its last letter touching the fill; it keeps the label's 8px inset.
             expectMeasured(button, figmaSpec(figma, ["height"]));
-            expectMeasured(section, { ...figmaSpec(shortcut, ["color", "paddingLeft", ...TYPE]), x: shortcut.box[0] - figma.box[0] }, { origin: button });
+            expectMeasured(
+                section,
+                { ...figmaSpec(shortcut, ["color", "paddingLeft", ...TYPE]), x: shortcut.box[0] - figma.box[0] },
+                { origin: button },
+            );
             expect(button.getBoundingClientRect().right - section.getBoundingClientRect().right).toBeCloseTo(8, 1);
         });
 
         it.each(["secondary", "ghost", "destructiveSecondary", "inverse"])("the %s shortcut ink", async (figmaName) => {
             const v = TEXT_VARIANTS.find((t) => t.figma === figmaName) as Variant;
-            const shortcut = await figmaElement(`bc/btn-${figmaName}-md-shortcut--default`, { cls: "button__shortcut" });
+            const shortcut = await figmaElement(`bc/btn-${figmaName}-md-shortcut--default`, {
+                cls: "button__shortcut",
+            });
             const { container } = await renderFigma(
                 <Button {...v.props} rightSection={shortcut.text}>
                     Button
                 </Button>,
             );
-            expectMeasured(part(container, '.cm-button-section[data-position="right"]'), figmaSpec(shortcut, ["color"]));
+            expectMeasured(
+                part(container, '.cm-button-section[data-position="right"]'),
+                figmaSpec(shortcut, ["color"]),
+            );
         });
 
         it("loading keeps the width, shows progress, and centers a 16px spinner", async () => {
@@ -191,7 +207,12 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                 { scheme: "dark" },
             );
             const button = part(container, "button");
-            const drives: Record<string, DriveState> = { default: "rest", hover: "hover", pressed: "press", focus: "focus" };
+            const drives: Record<string, DriveState> = {
+                default: "rest",
+                hover: "hover",
+                pressed: "press",
+                focus: "focus",
+            };
             await drive(button, drives[state]);
             expectMeasured(button, figmaSpec(figma, ["width", "height", "borderRadius", ...TYPE, ...FILL, ...RING]));
         });
@@ -236,9 +257,12 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                     figmaElement(`${base}--${capture}`, { tag: "button", aria: "Add fill" }),
                     figmaElement(`${base}--${capture}`, { tag: "path", nth: 0 }),
                 ]);
-                const { container, unmount } = await renderFigma(<ActionIcon aria-label="Add fill">{glyph}</ActionIcon>, {
-                    scheme,
-                });
+                const { container, unmount } = await renderFigma(
+                    <ActionIcon aria-label="Add fill">{glyph}</ActionIcon>,
+                    {
+                        scheme,
+                    },
+                );
                 const button = part(container, "button");
                 await drive(button, state);
                 expectMeasured(button, {
@@ -272,18 +296,27 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             );
             const button = part(container, "button");
             await drive(button, "hover");
-            expectMeasured(button, { ...figmaSpec(figma, ["width", "height", "backgroundColor"]), color: path.style.fill });
+            expectMeasured(button, {
+                ...figmaSpec(figma, ["width", "height", "backgroundColor"]),
+                color: path.style.fill,
+            });
         });
 
-        it.each(["light", "dark"] as const)("secondary disabled takes the disabled edge, as the text button does, %s", async (scheme) => {
-            const { container } = await renderFigma(
-                <ActionIcon variant="default" aria-label="Present" disabled>
-                    {glyph}
-                </ActionIcon>,
-                { scheme },
-            );
-            expectMeasured(part(container, "button"), { outline: `${CM_COLORS["border-disabled"][scheme]} solid 1px`, outlineOffset: "-1px" });
-        });
+        it.each(["light", "dark"] as const)(
+            "secondary disabled takes the disabled edge, as the text button does, %s",
+            async (scheme) => {
+                const { container } = await renderFigma(
+                    <ActionIcon variant="default" aria-label="Present" disabled>
+                        {glyph}
+                    </ActionIcon>,
+                    { scheme },
+                );
+                expectMeasured(part(container, "button"), {
+                    outline: `${CM_COLORS["border-disabled"][scheme]} solid 1px`,
+                    outlineOffset: "-1px",
+                });
+            },
+        );
 
         it.each(["light", "dark"] as const)("open (aria-expanded) and open + hover, %s", async (scheme) => {
             const { container } = await renderFigma(
@@ -293,7 +326,10 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                 { scheme },
             );
             const button = part(container, "button");
-            expectMeasured(button, { backgroundColor: CM_COLORS["bg-selected"][scheme], color: CM_COLORS["icon-brand"][scheme] });
+            expectMeasured(button, {
+                backgroundColor: CM_COLORS["bg-selected"][scheme],
+                color: CM_COLORS["icon-brand"][scheme],
+            });
             await drive(button, "hover");
             expectMeasured(button, { backgroundColor: CM_COLORS["bg-selected-secondary"][scheme] });
         });
@@ -408,7 +444,13 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                 // Figma draws a disabled toggle exactly like an enabled one, pointer states included.
                 const ink = iconInk.style.fill;
                 const { container, unmount } = await renderFigma(
-                    <ToggleIconButton label="Lock aspect ratio" icon={lock} checked={checked} disabled={disabled} withTooltip={false} />,
+                    <ToggleIconButton
+                        label="Lock aspect ratio"
+                        icon={lock}
+                        checked={checked}
+                        disabled={disabled}
+                        withTooltip={false}
+                    />,
                 );
                 const button = part(container, "button");
                 if (state === "press") {
@@ -429,7 +471,9 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
 
         it("focus draws the 1px ring 1px outside (bc/toggle-icon-off--focus)", async () => {
             const label = await figmaElement("bc/toggle-icon-off--focus", { tag: "label" });
-            const { container } = await renderFigma(<ToggleIconButton label="Lock aspect ratio" icon={lock} withTooltip={false} />);
+            const { container } = await renderFigma(
+                <ToggleIconButton label="Lock aspect ratio" icon={lock} withTooltip={false} />,
+            );
             const button = part(container, "button");
             await drive(button, "focus");
             expectMeasured(button, figmaSpec(label, RING));
@@ -437,9 +481,12 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
 
         it.each(["hover", "pressed"] as const)("dark off %s (dt/dark-toggle-aspect-lock)", async (capture) => {
             const label = await figmaElement(`dt/dark-toggle-aspect-lock--${capture}`, { tag: "label" });
-            const { container } = await renderFigma(<ToggleIconButton label="Lock aspect ratio" icon={lock} withTooltip={false} />, {
-                scheme: "dark",
-            });
+            const { container } = await renderFigma(
+                <ToggleIconButton label="Lock aspect ratio" icon={lock} withTooltip={false} />,
+                {
+                    scheme: "dark",
+                },
+            );
             const button = part(container, "button");
             button.addEventListener("pointerdown", (e) => e.stopImmediatePropagation(), { capture: true });
             await drive(button, capture === "hover" ? "hover" : "press");
@@ -449,7 +496,12 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
         it("toggles on pointer DOWN, once per press, and from the keyboard with Space", async () => {
             const seen: boolean[] = [];
             const { container } = await renderFigma(
-                <ToggleIconButton label="Lock aspect ratio" icon={lock} onChange={(c) => seen.push(c)} withTooltip={false} />,
+                <ToggleIconButton
+                    label="Lock aspect ratio"
+                    icon={lock}
+                    onChange={(c) => seen.push(c)}
+                    withTooltip={false}
+                />,
             );
             const button = part(container, "button");
             await drive(button, "press");
@@ -464,7 +516,9 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
         });
 
         it("a disabled toggle ignores a press", async () => {
-            const { container } = await renderFigma(<ToggleIconButton label="Lock aspect ratio" icon={lock} disabled withTooltip={false} />);
+            const { container } = await renderFigma(
+                <ToggleIconButton label="Lock aspect ratio" icon={lock} disabled withTooltip={false} />,
+            );
             const button = part(container, "button");
             await drive(button, "press");
             await commands.mouseUp();
@@ -539,7 +593,11 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             const [m, c] = root.querySelectorAll("button");
             expectMeasured(root, figmaSpec(group, ["width", "height", "gap"]));
             expectMeasured(m, figmaSpec(main, ["width", ...BOX, "backgroundColor", ...RING]));
-            expectMeasured(c, { ...figmaSpec(chevron, ["width", ...BOX, "backgroundColor"]), x: chevron.box[0] - group.box[0] }, { origin: root });
+            expectMeasured(
+                c,
+                { ...figmaSpec(chevron, ["width", ...BOX, "backgroundColor"]), x: chevron.box[0] - group.box[0] },
+                { origin: root },
+            );
         });
 
         it.each([
@@ -559,7 +617,10 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
         });
 
         it("the chevron shows the selected ground and a brand caret while its menu is open", async () => {
-            const chevron = await figmaElement("header-and-modes/present-dropdown-open", { tag: "button", aria: "Prototype view" });
+            const chevron = await figmaElement("header-and-modes/present-dropdown-open", {
+                tag: "button",
+                aria: "Prototype view",
+            });
             const caret = await figmaElement("header-and-modes/present-dropdown-open", { cls: "_4enxrr5" });
             const { container } = await renderFigma(split);
             const [, c] = container.querySelectorAll<HTMLElement>('[role="group"] button');
@@ -598,7 +659,10 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             figma.forEach((f, i) => {
                 expectMeasured(
                     buttons[i],
-                    { ...figmaSpec(f, ["width", "height", "borderRadius", "backgroundColor"]), x: f.box[0] - figma[0].box[0] },
+                    {
+                        ...figmaSpec(f, ["width", "height", "borderRadius", "backgroundColor"]),
+                        x: f.box[0] - figma[0].box[0],
+                    },
                     { origin: group },
                 );
             });
@@ -636,7 +700,13 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
         it.each(["light", "dark"] as const)("a 24 ghost button with a 10 x 10 X, %s", async (scheme) => {
             const { container } = await renderFigma(<CloseButton aria-label="Close" />, { scheme });
             const button = part(container, "button");
-            expectMeasured(button, { width: 24, height: 24, borderRadius: "5px", backgroundColor: "#00000000", color: CM_COLORS.icon[scheme] });
+            expectMeasured(button, {
+                width: 24,
+                height: 24,
+                borderRadius: "5px",
+                backgroundColor: "#00000000",
+                color: CM_COLORS.icon[scheme],
+            });
             expectMeasured(part(button, "svg"), { width: 10, height: 10 });
             await drive(button, "hover");
             expectMeasured(button, { backgroundColor: CM_COLORS["bg-transparent-hover"][scheme] });

@@ -8,7 +8,14 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { InlineRename, PageList, ResultRow, Tree, type TreeMove, type TreeNodeData } from "../../../src/components/tree";
+import {
+    InlineRename,
+    PageList,
+    ResultRow,
+    Tree,
+    type TreeMove,
+    type TreeNodeData,
+} from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
 afterEach(resetHarness);
@@ -262,8 +269,7 @@ describe("Tree: keyboard move", () => {
         );
     }
 
-    const order = (): (string | null)[] =>
-        screen.getAllByRole("treeitem").map((item) => item.getAttribute("data-id"));
+    const order = (): (string | null)[] => screen.getAllByRole("treeitem").map((item) => item.getAttribute("data-id"));
 
     it("moves the focused item one place with Alt+ArrowDown / Alt+ArrowUp, focus following", async () => {
         const onMove = vi.fn();
@@ -391,7 +397,10 @@ describe("Tree: pointer", () => {
 });
 
 describe("Tree: virtualization", () => {
-    const many: TreeNodeData[] = Array.from({ length: 2000 }, (_, i) => ({ id: `n${String(i)}`, name: `Node ${String(i)}` }));
+    const many: TreeNodeData[] = Array.from({ length: 2000 }, (_, i) => ({
+        id: `n${String(i)}`,
+        name: `Node ${String(i)}`,
+    }));
 
     it("draws only the rows on screen above 200 rows, and End still reaches the last", async () => {
         await renderThemed(<Tree items={many} height={320} />);

@@ -2,7 +2,15 @@ import { Box, DirectionProvider, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React, { useState } from "react";
 
-import { AdvancedButton, ControlSection, FieldRow, LabelsProvider, PANEL_GRID, PanelField, UiGlyph } from "../../../src";
+import {
+    AdvancedButton,
+    ControlSection,
+    FieldRow,
+    LabelsProvider,
+    PANEL_GRID,
+    PanelField,
+    UiGlyph,
+} from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";

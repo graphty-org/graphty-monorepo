@@ -33,18 +33,18 @@ works in light and dark schemes, and works in right-to-left languages.
 - [Quick start](#quick-start)
 - [The compact theme](#the-compact-theme)
 - [The components](#the-components)
-  - [Panels and rows](#panels-and-rows)
-  - [Inputs](#inputs)
-  - [Selection](#selection)
-  - [Color](#color)
-  - [Actions](#actions)
-  - [Floating panels](#floating-panels)
-  - [Other overlays](#other-overlays)
-  - [Lists and trees](#lists-and-trees)
-  - [Data display](#data-display)
-  - [The editor shell](#the-editor-shell)
-  - [Glyphs](#glyphs)
-  - [Themed Mantine components](#themed-mantine-components)
+    - [Panels and rows](#panels-and-rows)
+    - [Inputs](#inputs)
+    - [Selection](#selection)
+    - [Color](#color)
+    - [Actions](#actions)
+    - [Floating panels](#floating-panels)
+    - [Other overlays](#other-overlays)
+    - [Lists and trees](#lists-and-trees)
+    - [Data display](#data-display)
+    - [The editor shell](#the-editor-shell)
+    - [Glyphs](#glyphs)
+    - [Themed Mantine components](#themed-mantine-components)
 - [A worked example](#a-worked-example)
 - [The panel grid](#the-panel-grid)
 - [Handling events](#handling-events)
@@ -89,7 +89,7 @@ export function App() {
             <Button>Save</Button>
 
             {/* This package's own components, for a 240px panel. */}
-            <div style={{width: 240}}>
+            <div style={{ width: 240 }}>
                 <ControlSection label="Node size">
                     <FieldRow>
                         <PanelField label="Smallest" glyph="sizeSmallest" defaultValue="1.0" />
@@ -119,13 +119,13 @@ Light and dark are Mantine's own color scheme (`defaultColorScheme`,
 `forceColorScheme`, `useMantineColorScheme`); one theme serves both, and the dark
 scheme uses Figma's neutral grays (#2c2c2c panels, #383838 fields).
 
-| Token | Values |
-|-------|--------|
-| `fontSizes` / `lineHeights` | xs 9/14, sm 11/16, md 13/22, lg 15/25, xl 24/32 |
-| `spacing` | xs 4px, sm 8px, md 8px, lg 12px, xl 16px |
-| `radius` | xs 2px, sm 5px, md 5px, lg 13px, xl 13px |
-| `shadows` | xs to xl map onto Figma's five elevations |
-| `primaryColor` | `brand`: #0d99ff for filled surfaces, #007be5 for links |
+| Token                       | Values                                                  |
+| --------------------------- | ------------------------------------------------------- |
+| `fontSizes` / `lineHeights` | xs 9/14, sm 11/16, md 13/22, lg 15/25, xl 24/32         |
+| `spacing`                   | xs 4px, sm 8px, md 8px, lg 12px, xl 16px                |
+| `radius`                    | xs 2px, sm 5px, md 5px, lg 13px, xl 13px                |
+| `shadows`                   | xs to xl map onto Figma's five elevations               |
+| `primaryColor`              | `brand`: #0d99ff for filled surfaces, #007be5 for links |
 
 Every color is a CSS custom property named `--cm-*` (for example `--cm-bg`,
 `--cm-text-secondary`, `--cm-bg-brand`), written with the CSS `light-dark()`
@@ -211,16 +211,16 @@ imported before this package's stylesheet as in the quick start.
 Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
 and you get larger sizes back.
 
-| Group | Components |
-|-------|------------|
-| Inputs | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
-| Buttons | Button, ActionIcon, CloseButton |
-| Controls | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl |
-| Color | ColorSwatch, ColorPicker, HueSlider, AlphaSlider |
-| Display | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill |
-| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger |
-| Feedback | Loader, Progress, RingProgress, Notification |
-| Overlays | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, ScrollArea |
+| Group      | Components                                                                                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs     | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
+| Buttons    | Button, ActionIcon, CloseButton                                                                                                                                             |
+| Controls   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                              |
+| Color      | ColorSwatch, ColorPicker, HueSlider, AlphaSlider                                                                                                                            |
+| Display    | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill                                                                                                          |
+| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                                          |
+| Feedback   | Loader, Progress, RingProgress, Notification                                                                                                                                |
+| Overlays   | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, ScrollArea                                                                                                         |
 
 A few defaults are worth knowing: `Badge` defaults to the outlined look
 (`variant="filled"` and `"light"` are the brand looks); `Kbd` is Figma's dark key
@@ -236,9 +236,12 @@ Merge your own theme on top of the compact one:
 import { createTheme, MantineProvider, mergeMantineTheme } from "@mantine/core";
 import { compactTheme } from "@graphty/compact-mantine";
 
-const theme = mergeMantineTheme(compactTheme, createTheme({
-    primaryColor: "teal",
-}));
+const theme = mergeMantineTheme(
+    compactTheme,
+    createTheme({
+        primaryColor: "teal",
+    }),
+);
 
 <MantineProvider theme={theme}>{children}</MantineProvider>;
 ```
@@ -251,7 +254,7 @@ If you already build your theme from several overrides, take
 import { createTheme, mergeThemeOverrides } from "@mantine/core";
 import { compactThemeOverride } from "@graphty/compact-mantine";
 
-const override = mergeThemeOverrides(compactThemeOverride, createTheme({primaryColor: "teal"}));
+const override = mergeThemeOverrides(compactThemeOverride, createTheme({ primaryColor: "teal" }));
 ```
 
 Merge component extensions with care: `mergeThemeOverrides` replaces a
@@ -269,7 +272,7 @@ make one region dense -- which is the common case for a sidebar or an inspector.
     <TextInput label="Normal size" />
 
     <MantineProvider theme={compactTheme}>
-        <aside style={{width: 240}}>
+        <aside style={{ width: 240 }}>
             <TextInput label="Compact" />
         </aside>
     </MantineProvider>
@@ -293,39 +296,39 @@ your editor. The groups below match the Storybook sidebar, and each group has an
 The containers a property panel is built from, and the row layout every other component agrees
 with. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`ControlSection`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsection--docs) | a run of controls needs a name, a rule and a chevron that folds it away. The workhorse container for a property panel. It can show a dot when something inside it is non-default, an empty state with a single "+", an explanation bubble, and buttons of its own in the header. |
-| [`ControlGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlgroup--docs) | the same, but it must never fold, or it sits in a padded container such as a pop-out. |
-| [`ControlSubGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsubgroup--docs) | a handful of rarely-opened settings belong under a section you already have. Quieter than a section. |
-| [`FieldRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-fieldrow--docs) | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up. |
-| [`CompoundRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-compoundrow--docs) | two or three values are one thing seen several ways -- a color and its opacity, a width and its unit -- and must read as one control. |
-| [`TrailingSlot`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-trailingslot--docs) | you are laying out a row by hand and need the fixed 24px slot every row ends with. |
-| [`ResizeHandle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-resizehandle--docs) | a panel's edge can be dragged: pointer, arrow keys, or a double-click back to the default size. |
+| Component                                                                                                                       | Reach for it when                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`ControlSection`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsection--docs)   | a run of controls needs a name, a rule and a chevron that folds it away. The workhorse container for a property panel. It can show a dot when something inside it is non-default, an empty state with a single "+", an explanation bubble, and buttons of its own in the header. |
+| [`ControlGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlgroup--docs)       | the same, but it must never fold, or it sits in a padded container such as a pop-out.                                                                                                                                                                                            |
+| [`ControlSubGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsubgroup--docs) | a handful of rarely-opened settings belong under a section you already have. Quieter than a section.                                                                                                                                                                             |
+| [`FieldRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-fieldrow--docs)               | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up.                                                                                                                                                                                   |
+| [`CompoundRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-compoundrow--docs)         | two or three values are one thing seen several ways -- a color and its opacity, a width and its unit -- and must read as one control.                                                                                                                                            |
+| [`TrailingSlot`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-trailingslot--docs)       | you are laying out a row by hand and need the fixed 24px slot every row ends with.                                                                                                                                                                                               |
+| [`ResizeHandle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-resizehandle--docs)       | a panel's edge can be dragged: pointer, arrow keys, or a double-click back to the default size.                                                                                                                                                                                  |
 
 ### Inputs
 
 Values the reader types or picks. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`PanelField`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-panelfield--docs) | a value is typed, picked from a list or dragged in a panel row. A 24px text box, number box or select whose caption is a 16px drawing inside the box instead of a word above it. |
-| [`Select` and `StyleSelect`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs) | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a dark list; `StyleSelect` adds a reset, for a choice where `undefined` means "inherit the default". |
-| [`StyleNumberInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-stylenumberinput--docs) | a number with a sensible default, where the panel should show at a glance whether the reader has overridden it. |
-| [`SearchInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-searchinput--docs) | a filter or find box: a leading magnifier, a clear button and Escape to clear. |
-| [`ComboInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-comboinput--docs) | a value you can type, with a chevron that opens a list of presets over the field (font size, gap, export scale). |
-| [`VariablePill`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-variablepill--docs) | a value bound to a named variable, drawn as a pill inside a field, with a Detach button. |
+| Component                                                                                                                | Reach for it when                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`PanelField`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-panelfield--docs)             | a value is typed, picked from a list or dragged in a panel row. A 24px text box, number box or select whose caption is a 16px drawing inside the box instead of a word above it.        |
+| [`Select` and `StyleSelect`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs)   | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a dark list; `StyleSelect` adds a reset, for a choice where `undefined` means "inherit the default". |
+| [`StyleNumberInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-stylenumberinput--docs) | a number with a sensible default, where the panel should show at a glance whether the reader has overridden it.                                                                         |
+| [`SearchInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-searchinput--docs)           | a filter or find box: a leading magnifier, a clear button and Escape to clear.                                                                                                          |
+| [`ComboInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-comboinput--docs)             | a value you can type, with a chevron that opens a list of presets over the field (font size, gap, export scale).                                                                        |
+| [`VariablePill`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-variablepill--docs)         | a value bound to a named variable, drawn as a pill inside a field, with a Detach button.                                                                                                |
 
 ### Selection
 
 Yes or no, and one of a few. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`ToggleRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglerow--docs) | a setting is a plain yes or no that no picture could stand for. |
-| [`ToggleRowGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglerowgroup--docs) | you have two or more of those. It packs them and warns in development if you give it only one. |
-| [`ToggleWithContent`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglewithcontent--docs) | a yes or no brings its own settings with it; turning it off takes them off the screen. |
-| [`AlignmentMatrix`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-alignmentmatrix--docs) | the 3 x 3 alignment grid: nine radios with two-dimensional arrow keys. |
+| Component                                                                                                                     | Reach for it when                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`ToggleRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglerow--docs)                 | a setting is a plain yes or no that no picture could stand for.                                |
+| [`ToggleRowGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglerowgroup--docs)       | you have two or more of those. It packs them and warns in development if you give it only one. |
+| [`ToggleWithContent`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglewithcontent--docs) | a yes or no brings its own settings with it; turning it off takes them off the screen.         |
+| [`AlignmentMatrix`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-alignmentmatrix--docs)     | the 3 x 3 alignment grid: nine radios with two-dimensional arrow keys.                         |
 
 Two to six options whose difference can be drawn are a themed Mantine `SegmentedControl` with a
 glyph and a visually hidden word in each segment; its
@@ -336,22 +339,22 @@ row. (`IconGroupRow` did this until 0.9.)
 
 [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`CompactColorInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-compactcolorinput--docs) | a color and its opacity, on one 24px line, with Figma's picker in a pop-out. Needs a [`PopoutManager`](#floating-panels). |
-| [`ColorPickerPanel`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-colorpickerpanel--docs) | you want Figma's picker itself on a surface of your own: paint type, saturation field, hue and alpha, eyedropper, swatches. |
-| [`GradientEditor`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-gradienteditor--docs) | a multi-stop linear gradient: a bar with stop handles, one picker for the selected stop, positions and angle. Alone, or in `ColorPickerPanel`'s `gradient` slot. |
-| [`RampRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-ramprow--docs) | a range is better drawn than described: a size wedge or a color ramp with its two endpoints. |
+| Component                                                                                                                 | Reach for it when                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`CompactColorInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-compactcolorinput--docs) | a color and its opacity, on one 24px line, with Figma's picker in a pop-out. Needs a [`PopoutManager`](#floating-panels).                                        |
+| [`ColorPickerPanel`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-colorpickerpanel--docs)   | you want Figma's picker itself on a surface of your own: paint type, saturation field, hue and alpha, eyedropper, swatches.                                      |
+| [`GradientEditor`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-gradienteditor--docs)       | a multi-stop linear gradient: a bar with stop handles, one picker for the selected stop, positions and angle. Alone, or in `ColorPickerPanel`'s `gradient` slot. |
+| [`RampRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-ramprow--docs)                     | a range is better drawn than described: a size wedge or a color ramp with its two endpoints.                                                                     |
 
 ### Actions
 
 [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`ToggleIconButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-toggleiconbutton--docs) | an icon button stays pressed (`aria-pressed`): a lock, a visibility eye. Drag across a column of them to set them all. |
-| [`SplitButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-splitbutton--docs) | a main action and a chevron that opens a menu of related choices. |
-| [`AdvancedButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-advancedbutton--docs) | a row or a section has settings most people never change. It marks itself when something behind it is no longer default. |
+| Component                                                                                                                 | Reach for it when                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`ToggleIconButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-toggleiconbutton--docs) | an icon button stays pressed (`aria-pressed`): a lock, a visibility eye. Drag across a column of them to set them all.   |
+| [`SplitButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-splitbutton--docs)           | a main action and a chevron that opens a menu of related choices.                                                        |
+| [`AdvancedButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-advancedbutton--docs)     | a row or a section has settings most people never change. It marks itself when something behind it is no longer default. |
 
 Variants the theme adds to Mantine buttons (pass them as `variant`): `Button` `danger`,
 `danger-outline`, `inverse`, `success`; `ActionIcon` `joined` (inside a themed
@@ -378,7 +381,7 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
             <Popout.Trigger>
                 <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Display settings" />
             </Popout.Trigger>
-            <Popout.Panel width={240} header={{variant: "title", title: "Display settings"}}>
+            <Popout.Panel width={240} header={{ variant: "title", title: "Display settings" }}>
                 <Popout.Content>{/* anything */}</Popout.Content>
             </Popout.Panel>
         </Popout>
@@ -386,14 +389,14 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
 </PopoutManager>;
 ```
 
-| Component | What it is |
-|-----------|------------|
-| `PopoutManager` | The shared floating layer. Required, once, near the root. |
-| [`Popout`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-popout--docs) | One pop-out: `Popout.Trigger` wraps the element that opens it, `Popout.Panel` is the panel (a width, an optional header or tab strip, its content), and `Popout.Anchor` wraps a sidebar so every panel opened inside it lines up with that sidebar's edge. |
-| [`PopoutButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-popoutbutton--docs) | An icon button that stays lit while its panel is open. |
-| [`InfoCircle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-infocircle--docs) | A circled "i" that reveals an explanation on hover, focus or tap. |
-| `usePopoutManager` | A hook returning `closeAll()` and `hasOpenPopouts()`, for closing every pop-out from a route a click-outside does not cover: a keyboard shortcut, a command palette row, a full-page sheet. |
-| `PopoutRegion`, `usePopoutRegion` | `PopoutRegion id="..."` names a part of your shell (a panel, an inspector); `usePopoutRegion()` reads that name from anywhere inside it, including a pop-out opened there. It does not change which pop-outs may be open together. |
+| Component                                                                                                          | What it is                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PopoutManager`                                                                                                    | The shared floating layer. Required, once, near the root.                                                                                                                                                                                                  |
+| [`Popout`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-popout--docs)             | One pop-out: `Popout.Trigger` wraps the element that opens it, `Popout.Panel` is the panel (a width, an optional header or tab strip, its content), and `Popout.Anchor` wraps a sidebar so every panel opened inside it lines up with that sidebar's edge. |
+| [`PopoutButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-popoutbutton--docs) | An icon button that stays lit while its panel is open.                                                                                                                                                                                                     |
+| [`InfoCircle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-infocircle--docs)     | A circled "i" that reveals an explanation on hover, focus or tap.                                                                                                                                                                                          |
+| `usePopoutManager`                                                                                                 | A hook returning `closeAll()` and `hasOpenPopouts()`, for closing every pop-out from a route a click-outside does not cover: a keyboard shortcut, a command palette row, a full-page sheet.                                                                |
+| `PopoutRegion`, `usePopoutRegion`                                                                                  | `PopoutRegion id="..."` names a part of your shell (a panel, an inspector); `usePopoutRegion()` reads that name from anywhere inside it, including a pop-out opened there. It does not change which pop-outs may be open together.                         |
 
 The rules a `PopoutManager` enforces, so you do not have to: Escape closes the innermost panel; a
 click outside closes everything; only one root pop-out is open at a time; closing a panel closes
@@ -403,39 +406,39 @@ props on `Popout.Panel`: `anchorX` decides which edge it lines up with (`"panel"
 
 ### Other overlays
 
-| Component | What it is |
-|-----------|------------|
-| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs) | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
-| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs) | A tooltip label with its keyboard shortcut after it. |
-| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs) | The footer row of a Mantine `Modal`: its action buttons, end-aligned. |
-| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one. |
+| Component                                                                                                                         | What it is                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs)        | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
+| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs)                  | A tooltip label with its keyboard shortcut after it.                                                                                                        |
+| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs)                        | The footer row of a Mantine `Modal`: its action buttons, end-aligned.                                                                                       |
+| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one.                                                                |
 
 ### Lists and trees
 
 Objects the reader selects, renames or moves. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`Tree`, `TreeItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-tree--docs) | a list of objects, nested or flat: a real ARIA tree with arrow keys, multiple selection, F2 to rename, drag to reorder, and Alt+ArrowUp / Alt+ArrowDown to move an item when you pass `onMove`. With no `children` on any item it is a flat reorderable list. The tree never edits your data: `moveTreeItem(items, move)` and `renameTreeItem(items, id, name)` apply what `onMove` and `onRename` report and return a new list. |
-| [`PageList`, `PageRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-pagelist--docs) | flat pages with dividers, above a layer tree. |
-| [`InlineRename`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-inlinerename--docs) | the in-place rename field a tree or page row turns into, for a row of your own. |
-| [`ResultRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-resultrow--docs) | one row of find results. |
+| Component                                                                                                                    | Reach for it when                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`Tree`, `TreeItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-tree--docs)        | a list of objects, nested or flat: a real ARIA tree with arrow keys, multiple selection, F2 to rename, drag to reorder, and Alt+ArrowUp / Alt+ArrowDown to move an item when you pass `onMove`. With no `children` on any item it is a flat reorderable list. The tree never edits your data: `moveTreeItem(items, move)` and `renameTreeItem(items, id, name)` apply what `onMove` and `onRename` report and return a new list. |
+| [`PageList`, `PageRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-pagelist--docs) | flat pages with dividers, above a layer tree.                                                                                                                                                                                                                                                                                                                                                                                    |
+| [`InlineRename`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-inlinerename--docs)    | the in-place rename field a tree or page row turns into, for a row of your own.                                                                                                                                                                                                                                                                                                                                                  |
+| [`ResultRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-resultrow--docs)          | one row of find results.                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ### Data display
 
 Readings: things the reader looks at rather than changes. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-overview--docs)
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| [`DataRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarow--docs) | a name and a reading on one line -- a statistic, a fact, a ranking. `selected` marks the current item of a ranking; `onClick` opens what the reading is about. For objects the reader selects, renames or moves, use `Tree` or `PageList`. |
-| [`DataRowHeader`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarowheader--docs) | a run of data rows needs a caption. Give it `onSortChange` and it becomes a sort control. |
-| [`RankChip`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-rankchip--docs) | a rank belongs beside a row: `#6`, rather than "rank 6 of 318". |
-| [`MetricRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-metricrow--docs) | one reading has a percentile and a rank: the name, a bar filled to the percentile, the number and the chip. |
-| [`HistogramRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-histogramrow--docs) | a distribution would otherwise be spelled as the numbers that summarize it. 64px tall. |
-| [`SparklineRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-sparklinerow--docs) | a series is going somewhere and you want to see which way. 32px tall. |
-| [`ProseBlock`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-proseblock--docs) | the panel has to say something in words: a reading, a caveat, a record of the last run. |
-| [`ActionRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-actionrow--docs) | a row reports a state and offers verbs beside it. |
-| [`DataTable`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datatable--docs) | you have columns rather than rows: thousands of them, sortable, searchable, selectable, virtualized. |
+| Component                                                                                                                | Reach for it when                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`DataRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarow--docs)             | a name and a reading on one line -- a statistic, a fact, a ranking. `selected` marks the current item of a ranking; `onClick` opens what the reading is about. For objects the reader selects, renames or moves, use `Tree` or `PageList`. |
+| [`DataRowHeader`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarowheader--docs) | a run of data rows needs a caption. Give it `onSortChange` and it becomes a sort control.                                                                                                                                                  |
+| [`RankChip`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-rankchip--docs)           | a rank belongs beside a row: `#6`, rather than "rank 6 of 318".                                                                                                                                                                            |
+| [`MetricRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-metricrow--docs)         | one reading has a percentile and a rank: the name, a bar filled to the percentile, the number and the chip.                                                                                                                                |
+| [`HistogramRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-histogramrow--docs)   | a distribution would otherwise be spelled as the numbers that summarize it. 64px tall.                                                                                                                                                     |
+| [`SparklineRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-sparklinerow--docs)   | a series is going somewhere and you want to see which way. 32px tall.                                                                                                                                                                      |
+| [`ProseBlock`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-proseblock--docs)       | the panel has to say something in words: a reading, a caveat, a record of the last run.                                                                                                                                                    |
+| [`ActionRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-actionrow--docs)         | a row reports a state and offers verbs beside it.                                                                                                                                                                                          |
+| [`DataTable`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datatable--docs)         | you have columns rather than rows: thousands of them, sortable, searchable, selectable, virtualized.                                                                                                                                       |
 
 ### The editor shell
 
@@ -443,14 +446,14 @@ The chrome around an editor's canvas, as Figma draws it. Each one is a real tool
 tab list: one Tab stop, arrow keys inside, names for screen readers.
 [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-overview--docs)
 
-| Component | What it is |
-|-----------|------------|
+| Component                                                                                                                            | What it is                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`Toolbar`, `ToolButton`, `ToolGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-toolbar--docs) | The floating bottom toolbar (48 tall, 13px corners, `floating` pins it bottom center), its 32 x 32 tools (`label`, `icon`, `shortcut`, `selected`), and a tool with a flyout of related tools whose face shows the last one picked. |
-| [`SecondaryToolbar`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-secondarytoolbar--docs) | The contextual 40-tall bar above the toolbar while a mode is active. |
-| [`NavRail`, `RailButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-navrail--docs) | The 56-wide navigation rail at the window's edge, and its destinations: a 32 x 32 pill over a 9px caption. |
-| [`HelpButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-helpbutton--docs) | The round floating help button; its children are the items of the menu it opens. |
-| [`ShortcutSheet`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-shortcutsheet--docs) | The keyboard shortcuts sheet docked at the window's foot: tabs of shortcut columns with dark key caps. |
-| [`QuickActions`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-quickactions--docs) | The quick actions palette: a search field over sectioned rows. Typing filters, arrows move, Enter runs, Escape closes. |
+| [`SecondaryToolbar`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-secondarytoolbar--docs)          | The contextual 40-tall bar above the toolbar while a mode is active.                                                                                                                                                                |
+| [`NavRail`, `RailButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-navrail--docs)              | The 56-wide navigation rail at the window's edge, and its destinations: a 32 x 32 pill over a 9px caption.                                                                                                                          |
+| [`HelpButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-helpbutton--docs)                      | The round floating help button; its children are the items of the menu it opens.                                                                                                                                                    |
+| [`ShortcutSheet`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-shortcutsheet--docs)                | The keyboard shortcuts sheet docked at the window's foot: tabs of shortcut columns with dark key caps.                                                                                                                              |
+| [`QuickActions`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-quickactions--docs)                  | The quick actions palette: a search field over sectioned rows. Typing filters, arrows move, Enter runs, Escape closes.                                                                                                              |
 
 ```tsx
 import { SegmentedControl } from "@mantine/core";
@@ -520,12 +523,12 @@ import {
 } from "@graphty/compact-mantine";
 
 const SCALES = [
-    {value: "sqrt", word: "Square root", glyph: "scaleSqrt"},
-    {value: "linear", word: "Linear", glyph: "scaleLinear"},
-    {value: "log", word: "Logarithmic", glyph: "scaleLog"},
+    { value: "sqrt", word: "Square root", glyph: "scaleSqrt" },
+    { value: "linear", word: "Linear", glyph: "scaleLinear" },
+    { value: "log", word: "Logarithmic", glyph: "scaleLog" },
 ] as const;
 
-function NodeSizeSection({openAdvanced}: {openAdvanced: () => void}) {
+function NodeSizeSection({ openAdvanced }: { openAdvanced: () => void }) {
     return (
         <ControlSection
             label="Node size"
@@ -543,16 +546,28 @@ function NodeSizeSection({openAdvanced}: {openAdvanced: () => void}) {
             <RampRow label="Size range" min="1.0" max="4.0" variant="size" scale="sqrt" />
 
             {/* Three options whose difference can be drawn: a segmented control of pictures. */}
-            <div style={{display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP, height: PANEL_GRID.ROW_PITCH}}>
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: PANEL_GRID.TRAIL_GAP,
+                    height: PANEL_GRID.ROW_PITCH,
+                }}
+            >
                 <SegmentedControl
                     fullWidth
                     aria-label="Scale"
                     defaultValue="sqrt"
                     data={SCALES.map((s) => ({
                         value: s.value,
-                        label: <><FieldGlyph name={s.glyph} /><VisuallyHidden>{s.word}</VisuallyHidden></>,
+                        label: (
+                            <>
+                                <FieldGlyph name={s.glyph} />
+                                <VisuallyHidden>{s.word}</VisuallyHidden>
+                            </>
+                        ),
                     }))}
-                    style={{flex: "1 1 auto", minWidth: 0}}
+                    style={{ flex: "1 1 auto", minWidth: 0 }}
                 />
                 <TrailingSlot />
             </div>
@@ -609,7 +624,7 @@ scheme and the AA option for free.
 ```tsx
 import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
 
-<div style={{height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME}}>Custom row</div>;
+<div style={{ height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME }}>Custom row</div>;
 ```
 
 You do not have to use a 240px column. Nothing enforces the width; the numbers
@@ -635,9 +650,16 @@ That matches Mantine, and it means a change made in code is expressible as
 modifier keys, call `preventDefault()`, or find the element that was activated:
 
 ```tsx
-<AdvancedButton label="Advanced" onClick={(event) => {
-    if (event.shiftKey) { openInNewPanel(); } else { open(); }
-}} />
+<AdvancedButton
+    label="Advanced"
+    onClick={(event) => {
+        if (event.shiftKey) {
+            openInNewPanel();
+        } else {
+            open();
+        }
+    }}
+/>
 ```
 
 Rows whose selection behavior depends on how they were activated -- `DataRow`,
@@ -649,7 +671,7 @@ so, rather than making you sniff the event:
     name="Mr_Whiskers"
     value="12"
     onClick={(event, meta) => {
-        openNode(id, {inNewPanel: meta.source === "pointer" && event.shiftKey});
+        openNode(id, { inNewPanel: meta.source === "pointer" && event.shiftKey });
     }}
 />
 ```
@@ -697,16 +719,16 @@ forwarded.
 A handful of names appear on most components, and each one means exactly one
 thing everywhere.
 
-| Prop | What it always means |
-|------|----------------------|
-| `label` | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the [`showLabels` preference](#showing-a-word-beside-every-drawing). `ChartRow`'s label is never drawn, `PanelField`'s is drawn only with the preference on, `ControlSection`'s always is. |
-| `value` / `defaultValue` / `onChange` | The state a control holds. Supply `value` with `onChange` to drive it yourself, or `defaultValue` to let it remember. On the display-only rows -- `DataRow` and `MetricRow` -- `value` is the reading drawn on the row and there is no `onChange`. |
-| `trailing` | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row. |
-| `actions` | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster. |
-| `disabled` | The control is present but cannot be used: dimmed, skipped by Tab, announced as unavailable. |
-| `selected` / `selectedIds` | Which row of a list the reader has picked. Not the same as a control's own value. |
-| `busy` / `live` | The content arrives from something that finishes later. See [Handling events](#handling-events). |
-| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes. |
+| Prop                                        | What it always means                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`                                     | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the [`showLabels` preference](#showing-a-word-beside-every-drawing). `ChartRow`'s label is never drawn, `PanelField`'s is drawn only with the preference on, `ControlSection`'s always is. |
+| `value` / `defaultValue` / `onChange`       | The state a control holds. Supply `value` with `onChange` to drive it yourself, or `defaultValue` to let it remember. On the display-only rows -- `DataRow` and `MetricRow` -- `value` is the reading drawn on the row and there is no `onChange`.                                                              |
+| `trailing`                                  | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row.                                                                                                                                                                                      |
+| `actions`                                   | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster.                                                                                                                                                                                        |
+| `disabled`                                  | The control is present but cannot be used: dimmed, skipped by Tab, announced as unavailable.                                                                                                                                                                                                                    |
+| `selected` / `selectedIds`                  | Which row of a list the reader has picked. Not the same as a control's own value.                                                                                                                                                                                                                               |
+| `busy` / `live`                             | The content arrives from something that finishes later. See [Handling events](#handling-events).                                                                                                                                                                                                                |
+| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes.                                                                                                                                                                                                                                                                                 |
 
 ## Internationalization
 
@@ -750,7 +772,7 @@ for your own use:
 ```tsx
 import { useCollator, useNumberFormatter, useOrdinalFormatter } from "@graphty/compact-mantine";
 
-const format = useNumberFormatter({maximumFractionDigits: 2});
+const format = useNumberFormatter({ maximumFractionDigits: 2 });
 format.format(1234.5678); // "1,234.57" in en, "1.234,57" in de
 ```
 
@@ -850,23 +872,23 @@ not obvious. Storybook's
 [Choosing a component](https://graphty.app/storybook/compact-mantine/?path=/docs/introduction-choosing-a-component--docs)
 page has the full list, group by group.
 
-| If you have | Use | Instead of |
-|-------------|-----|------------|
-| A name and a reading on one line | `DataRow`, with the reading already formatted by `useNumberFormatter()` | `Tree` or `PageList`, which are for objects the reader selects, renames or moves |
-| A list of objects to select, rename or reorder | `Tree` (nested, or flat when no item has `children`) or `PageList` | `DataRow`, which lost its listbox props in 0.9 |
-| A group of controls that folds away | `ControlSection` | -- |
-| A group of controls that must not fold, or sits in a padded container | `ControlGroup` | -- |
-| Two or more checkboxes on their own lines | `ToggleRow`s inside a `ToggleRowGroup` | Mantine `Checkbox` with a label, which is sized for a form |
-| A checkbox that reveals the settings it turns on | `ToggleWithContent` | -- |
-| A dropdown in a panel row | `PanelField` with `kind="select"` | -- |
-| A dropdown with a default the reader can override | `StyleSelect` | a `Select` with a hand-made reset button |
-| A value typed freely, with presets | `ComboInput` | `Select` (fixed choices) or `Autocomplete` (suggestions, no chevron) |
-| Two to six drawable options in a panel row | Mantine `SegmentedControl` with a glyph and a `VisuallyHidden` word per segment, beside a `TrailingSlot` | `IconGroupRow`, removed in 0.9 |
-| An icon button that stays pressed | `ToggleIconButton` | `ActionIcon`, which is an action, not an on/off state |
-| An icon button that opens a pop-out | `PopoutButton`, inside `Popout.Trigger` | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
-| A floating panel that can be dragged and nest | `Popout` | Mantine `Popover`: one-off, not draggable, no nesting |
-| An explanation bubble | `InfoCircle` | a `Tooltip`, which closes when the pointer leaves |
-| A color with its opacity | `CompactColorInput` | Mantine `ColorInput`, which has no opacity field and no Figma picker |
+| If you have                                                           | Use                                                                                                      | Instead of                                                                                                          |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| A name and a reading on one line                                      | `DataRow`, with the reading already formatted by `useNumberFormatter()`                                  | `Tree` or `PageList`, which are for objects the reader selects, renames or moves                                    |
+| A list of objects to select, rename or reorder                        | `Tree` (nested, or flat when no item has `children`) or `PageList`                                       | `DataRow`, which lost its listbox props in 0.9                                                                      |
+| A group of controls that folds away                                   | `ControlSection`                                                                                         | --                                                                                                                  |
+| A group of controls that must not fold, or sits in a padded container | `ControlGroup`                                                                                           | --                                                                                                                  |
+| Two or more checkboxes on their own lines                             | `ToggleRow`s inside a `ToggleRowGroup`                                                                   | Mantine `Checkbox` with a label, which is sized for a form                                                          |
+| A checkbox that reveals the settings it turns on                      | `ToggleWithContent`                                                                                      | --                                                                                                                  |
+| A dropdown in a panel row                                             | `PanelField` with `kind="select"`                                                                        | --                                                                                                                  |
+| A dropdown with a default the reader can override                     | `StyleSelect`                                                                                            | a `Select` with a hand-made reset button                                                                            |
+| A value typed freely, with presets                                    | `ComboInput`                                                                                             | `Select` (fixed choices) or `Autocomplete` (suggestions, no chevron)                                                |
+| Two to six drawable options in a panel row                            | Mantine `SegmentedControl` with a glyph and a `VisuallyHidden` word per segment, beside a `TrailingSlot` | `IconGroupRow`, removed in 0.9                                                                                      |
+| An icon button that stays pressed                                     | `ToggleIconButton`                                                                                       | `ActionIcon`, which is an action, not an on/off state                                                               |
+| An icon button that opens a pop-out                                   | `PopoutButton`, inside `Popout.Trigger`                                                                  | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
+| A floating panel that can be dragged and nest                         | `Popout`                                                                                                 | Mantine `Popover`: one-off, not draggable, no nesting                                                               |
+| An explanation bubble                                                 | `InfoCircle`                                                                                             | a `Tooltip`, which closes when the pointer leaves                                                                   |
+| A color with its opacity                                              | `CompactColorInput`                                                                                      | Mantine `ColorInput`, which has no opacity field and no Figma picker                                                |
 
 A lone boolean is not a row: put it in the trailing slot of the row it modifies, or make it one
 segment of a `SegmentedControl`. `ToggleRowGroup` warns in development when given only one child,

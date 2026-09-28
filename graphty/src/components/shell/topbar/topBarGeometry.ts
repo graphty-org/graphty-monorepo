@@ -296,8 +296,7 @@ export const HISTORY_ROW_GRID_WIDTH =
  * A row inside the pop-out: the 360 px shell is 358 inside its border and the body
  * pads 4 a side. Spec 02 section 2.5 ("the 360 band, measured").
  */
-export const HISTORY_ROW_WIDTH =
-    HISTORY_POPOVER_WIDTH - TOP_BAR_BORDER_WIDTH * 2 - HISTORY_BODY_PADDING * 2;
+export const HISTORY_ROW_WIDTH = HISTORY_POPOVER_WIDTH - TOP_BAR_BORDER_WIDTH * 2 - HISTORY_BODY_PADDING * 2;
 
 /** An XR session's children indent 36, not 46. HistoryPopover.dc.html. */
 export const HISTORY_XR_CHILD_INDENT = 36;
@@ -329,5 +328,4 @@ export const HISTORY_CLOSE_GLYPH_SIZE = PANEL_GRID.CHEVRON;
  * `100vh` minus this, which on the drawn 900 px board is the 804 the artboard
  * records. Spec 02 section 2.5 ("max-height stays 804").
  */
-export const HISTORY_POPOVER_HEIGHT_RESERVE =
-    TOP_BAR_HEIGHT + STATUS_BAR_HEIGHT + HISTORY_POPOVER_HEIGHT_INSET;
+export const HISTORY_POPOVER_HEIGHT_RESERVE = TOP_BAR_HEIGHT + STATUS_BAR_HEIGHT + HISTORY_POPOVER_HEIGHT_INSET;

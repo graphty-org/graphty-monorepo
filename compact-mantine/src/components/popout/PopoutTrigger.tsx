@@ -30,9 +30,7 @@ import { usePopoutContext } from "./PopoutContext";
  * @returns The trigger element with the pop-out's behavior attached
  */
 export function PopoutTrigger({ children, action = "toggle" }: PopoutTriggerProps): JSX.Element {
-    const {
-        open, toggle, triggerRef, isOpen, id,
-    } = usePopoutContext();
+    const { open, toggle, triggerRef, isOpen, id } = usePopoutContext();
 
     const handleClick = useCallback(
         (event: MouseEvent) => {

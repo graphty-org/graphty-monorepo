@@ -110,11 +110,11 @@ one (see [Customizing the theme](?path=/docs/introduction-customizing-the-theme-
 
 Nothing is required beyond the theme. Three wrappers exist, each needed only for what it names:
 
-| Wrapper | Put it | Needed when |
-|---|---|---|
-| `Tooltip.Group` (Mantine's) | once, around the whole app, no props | you want Figma's tooltip timing: the first tooltip opens after 1000ms, and for 300ms after one closes the next opens at once. Do not nest a second group inside. |
-| `PopoutManager` | once, near the root, above anything that opens a pop-out | you use `Popout` or `PopoutButton`, or `CompactColorInput` (its picker is a pop-out). Without it those throw on first render. `InfoCircle` supplies its own if there is none. |
-| `LabelsProvider` | anywhere; providers nest | you translate the library's strings or format numbers for a locale. See [Languages and direction](?path=/docs/introduction-languages-and-direction--docs). |
+| Wrapper                     | Put it                                                   | Needed when                                                                                                                                                                   |
+| --------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tooltip.Group` (Mantine's) | once, around the whole app, no props                     | you want Figma's tooltip timing: the first tooltip opens after 1000ms, and for 300ms after one closes the next opens at once. Do not nest a second group inside.              |
+| `PopoutManager`             | once, near the root, above anything that opens a pop-out | you use `Popout` or `PopoutButton`, or `CompactColorInput` (its picker is a pop-out). Without it those throw on first render. `InfoCircle` supplies its own if there is none. |
+| `LabelsProvider`            | anywhere; providers nest                                 | you translate the library's strings or format numbers for a locale. See [Languages and direction](?path=/docs/introduction-languages-and-direction--docs).                    |
 
 ```tsx
 import { MantineProvider, Tooltip } from "@mantine/core";
@@ -154,11 +154,11 @@ the feature stories, the keyboard, and the key measurements.
 
 The toolbar above every story has three switches, and every component is built for all of them:
 
-| Toolbar | What it switches |
-|---|---|
-| **Theme** | light or dark (a `States` story always shows both) |
-| **Contrast** | exact Figma, or the WCAG AA token set (`createCompactTheme({ highContrast: true })`) |
-| **Direction** | left to right, or right to left (Mantine's `DirectionProvider`) |
+| Toolbar       | What it switches                                                                     |
+| ------------- | ------------------------------------------------------------------------------------ |
+| **Theme**     | light or dark (a `States` story always shows both)                                   |
+| **Contrast**  | exact Figma, or the WCAG AA token set (`createCompactTheme({ highContrast: true })`) |
+| **Direction** | left to right, or right to left (Mantine's `DirectionProvider`)                      |
 
 Storybook runs axe-core against every story; the **Accessibility** panel under a story lists any
 violation.

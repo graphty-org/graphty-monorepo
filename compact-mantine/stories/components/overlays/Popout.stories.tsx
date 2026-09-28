@@ -472,8 +472,8 @@ export const AnchorAxes: Story = {
                             >
                                 <Popout.Content>
                                     <Text size="xs">
-                                        The default inside a Popout.Anchor: the panel meets the sidebar edge,
-                                        level with the row that opened it.
+                                        The default inside a Popout.Anchor: the panel meets the sidebar edge, level with
+                                        the row that opened it.
                                     </Text>
                                 </Popout.Content>
                             </Popout.Panel>
@@ -497,8 +497,8 @@ export const AnchorAxes: Story = {
                             >
                                 <Popout.Content>
                                     <Text size="xs">
-                                        anchorX=&quot;trigger&quot; ignores the sidebar and opens beside the
-                                        button instead.
+                                        anchorX=&quot;trigger&quot; ignores the sidebar and opens beside the button
+                                        instead.
                                     </Text>
                                 </Popout.Content>
                             </Popout.Panel>
@@ -518,8 +518,7 @@ export const AnchorAxes: Story = {
                                 <Popout.Content>
                                     <Stack gap="xs">
                                         <Text size="xs">
-                                            Open the next level: it steps out from this panel, not from the
-                                            sidebar.
+                                            Open the next level: it steps out from this panel, not from the sidebar.
                                         </Text>
                                         <Popout>
                                             <Popout.Trigger>
@@ -555,8 +554,7 @@ export const AnchorAxes: Story = {
                                                             >
                                                                 <Popout.Content>
                                                                     <Text size="xs">
-                                                                        Each level lines up with the one it
-                                                                        opened from.
+                                                                        Each level lines up with the one it opened from.
                                                                     </Text>
                                                                 </Popout.Content>
                                                             </Popout.Panel>
@@ -665,7 +663,11 @@ export const AnchorToPanel: Story = {
                                     Configure display options
                                 </Text>
                             </ControlGroup>
-                            <Popout.Panel width={220} header={{ variant: "title", title: "Display Settings" }} placement="left">
+                            <Popout.Panel
+                                width={220}
+                                header={{ variant: "title", title: "Display Settings" }}
+                                placement="left"
+                            >
                                 <Popout.Content>
                                     <Text size="sm">The panel meets the sidebar edge.</Text>
                                     <Text size="xs" c="dimmed">
@@ -768,7 +770,12 @@ export const WithAndWithoutAnchor: Story = {
                                     />
                                 </Popout.Trigger>
                             </Group>
-                            <Popout.Panel width={140} header={{ variant: "title", title: "Settings" }} placement="left" gap={8}>
+                            <Popout.Panel
+                                width={140}
+                                header={{ variant: "title", title: "Settings" }}
+                                placement="left"
+                                gap={8}
+                            >
                                 <Popout.Content>
                                     <Text size="sm">Beside the button</Text>
                                 </Popout.Content>
@@ -793,7 +800,11 @@ export const WithAndWithoutAnchor: Story = {
                                         />
                                     </Popout.Trigger>
                                 </Group>
-                                <Popout.Panel width={140} header={{ variant: "title", title: "Settings" }} placement="left">
+                                <Popout.Panel
+                                    width={140}
+                                    header={{ variant: "title", title: "Settings" }}
+                                    placement="left"
+                                >
                                     <Popout.Content>
                                         <Text size="sm">Flush with the container</Text>
                                     </Popout.Content>
@@ -889,7 +900,13 @@ export const Tabbed: Story = {
                                         content: (
                                             <Popout.Content>
                                                 <Checkbox label="Debug mode" />
-                                                <NumberInput label="Max labels" defaultValue={100} min={0} max={1000} mt="xs" />
+                                                <NumberInput
+                                                    label="Max labels"
+                                                    defaultValue={100}
+                                                    min={0}
+                                                    max={1000}
+                                                    mt="xs"
+                                                />
                                                 <Text size="xs" c="dimmed" mt="xs">
                                                     Warning: These settings are for advanced users.
                                                 </Text>
@@ -988,7 +1005,10 @@ export const OneAtATime: Story = {
                             <Text size="sm">{name}</Text>
                             <Popout>
                                 <Popout.Trigger>
-                                    <PopoutButton icon={<UiGlyph name="settings" size={12} />} aria-label={`${name} settings`} />
+                                    <PopoutButton
+                                        icon={<UiGlyph name="settings" size={12} />}
+                                        aria-label={`${name} settings`}
+                                    />
                                 </Popout.Trigger>
                                 <Popout.Panel width={240} header={{ variant: "title", title: `${name} settings` }}>
                                     <Popout.Content>
@@ -999,7 +1019,10 @@ export const OneAtATime: Story = {
                                                     Create style
                                                 </Button>
                                             </Popout.Trigger>
-                                            <Popout.Panel width={240} header={{ variant: "title", title: "Create style" }}>
+                                            <Popout.Panel
+                                                width={240}
+                                                header={{ variant: "title", title: "Create style" }}
+                                            >
                                                 <Popout.Content>
                                                     <Text size="sm">A child docks flush to its parent.</Text>
                                                 </Popout.Content>
@@ -1076,7 +1099,10 @@ export const RegionsAndCloseAll: Story = {
                             <Text size="sm">{region}</Text>
                             <Popout>
                                 <Popout.Trigger>
-                                    <PopoutButton icon={<UiGlyph name="settings" size={12} />} aria-label={`${region} settings`} />
+                                    <PopoutButton
+                                        icon={<UiGlyph name="settings" size={12} />}
+                                        aria-label={`${region} settings`}
+                                    />
                                 </Popout.Trigger>
                                 <Popout.Panel width={240} header={{ variant: "title", title: `${region} settings` }}>
                                     <Popout.Content>
@@ -1207,7 +1233,14 @@ export const MultiplePopouts: Story = {
                                     This is Panel B.
                                 </Text>
                                 <Box mt="md">
-                                    <StyleNumberInput label="Font size" defaultValue={14} min={10} max={24} step={1} suffix="px" />
+                                    <StyleNumberInput
+                                        label="Font size"
+                                        defaultValue={14}
+                                        min={10}
+                                        max={24}
+                                        step={1}
+                                        suffix="px"
+                                    />
                                 </Box>
                             </Popout.Content>
                         </Popout.Panel>
@@ -1218,7 +1251,10 @@ export const MultiplePopouts: Story = {
                             label="Advanced"
                             actions={
                                 <Popout.Trigger>
-                                    <PopoutButton icon={<UiGlyph name="refresh" size={12} />} aria-label="Open Panel C" />
+                                    <PopoutButton
+                                        icon={<UiGlyph name="refresh" size={12} />}
+                                        aria-label="Open Panel C"
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -1245,7 +1281,10 @@ export const MultiplePopouts: Story = {
                             label="Nested Demo"
                             actions={
                                 <Popout.Trigger>
-                                    <PopoutButton icon={<UiGlyph name="copy" size={12} />} aria-label="Open Nested Demo" />
+                                    <PopoutButton
+                                        icon={<UiGlyph name="copy" size={12} />}
+                                        aria-label="Open Nested Demo"
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -1272,11 +1311,15 @@ export const MultiplePopouts: Story = {
                                                 Open Child
                                             </Button>
                                         </Popout.Trigger>
-                                        <Popout.Panel width={220} header={{ variant: "title", title: "Child Panel" }} placement="left">
+                                        <Popout.Panel
+                                            width={220}
+                                            header={{ variant: "title", title: "Child Panel" }}
+                                            placement="left"
+                                        >
                                             <Popout.Content>
                                                 <Text size="xs" data-testid="child-panel-content">
-                                                    A pop-out opened from inside a panel. Escape closes this one
-                                                    first; closing the panel it came from closes it too.
+                                                    A pop-out opened from inside a panel. Escape closes this one first;
+                                                    closing the panel it came from closes it too.
                                                 </Text>
                                                 <Box mt="md">
                                                     <Checkbox label="Child option 1" />
@@ -1404,14 +1447,21 @@ export const Controlled: Story = {
                     <Group justify="space-between">
                         <Text size="xs">Controlled pop-out</Text>
                         <Popout.Trigger>
-                            <PopoutButton icon={<UiGlyph name="gear" size={12} />} aria-label="Toggle controlled panel" />
+                            <PopoutButton
+                                icon={<UiGlyph name="gear" size={12} />}
+                                aria-label="Toggle controlled panel"
+                            />
                         </Popout.Trigger>
                     </Group>
-                    <Popout.Panel width={220} header={{ variant: "title", title: "Controlled" }} placement="right" gap={8}>
+                    <Popout.Panel
+                        width={220}
+                        header={{ variant: "title", title: "Controlled" }}
+                        placement="right"
+                        gap={8}
+                    >
                         <Popout.Content>
                             <Text size="xs">
-                                Every open and close is reported to onOpenChange, including Escape and clicks
-                                outside.
+                                Every open and close is reported to onOpenChange, including Escape and clicks outside.
                             </Text>
                         </Popout.Content>
                     </Popout.Panel>
@@ -1696,9 +1746,15 @@ export const ComponentCompatibility: Story = {
                                                                 </ActionIcon>
                                                             </Menu.Target>
                                                             <Menu.Dropdown>
-                                                                <Menu.Item data-testid="menu-item-1">Menu Item 1</Menu.Item>
-                                                                <Menu.Item data-testid="menu-item-2">Menu Item 2</Menu.Item>
-                                                                <Menu.Item data-testid="menu-item-3">Menu Item 3</Menu.Item>
+                                                                <Menu.Item data-testid="menu-item-1">
+                                                                    Menu Item 1
+                                                                </Menu.Item>
+                                                                <Menu.Item data-testid="menu-item-2">
+                                                                    Menu Item 2
+                                                                </Menu.Item>
+                                                                <Menu.Item data-testid="menu-item-3">
+                                                                    Menu Item 3
+                                                                </Menu.Item>
                                                             </Menu.Dropdown>
                                                         </Menu>
                                                         <Text size="xs" c="dimmed" mt={4}>

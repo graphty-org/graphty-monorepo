@@ -339,8 +339,7 @@ describe("Popout geometry (browser)", () => {
         firePointer(dragHandle as HTMLElement, "pointerup", startX - 90, startY + 30);
 
         await waitFor(() => {
-            expect(Math.round(panel.getBoundingClientRect().left))
-                .toBe(Math.round(afterResize.left) - 90);
+            expect(Math.round(panel.getBoundingClientRect().left)).toBe(Math.round(afterResize.left) - 90);
         });
 
         const dragged = panel.getBoundingClientRect();

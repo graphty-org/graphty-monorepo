@@ -63,14 +63,29 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} /> },
-                { state: "hover", node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} data-state="hover" /> },
-                { state: "focus", node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} data-state="focus" /> },
-                { state: "disabled", node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} disabled /> },
+                {
+                    state: "hover",
+                    node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} data-state="focus" />,
+                },
+                {
+                    state: "disabled",
+                    node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} disabled />,
+                },
                 { state: "invalid", node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} error /> },
-                { state: "outlined", node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} variant="outlined" /> },
+                {
+                    state: "outlined",
+                    node: <TextInput aria-label="TextInput" defaultValue="Frame 1" w={88} variant="outlined" />,
+                },
                 { state: "with label", node: <TextInput label="Label" defaultValue="Frame 1" w={88} /> },
                 { state: "placeholder", node: <TextInput aria-label="Name" placeholder="Name" w={88} /> },
-                { state: "error message", node: <TextInput aria-label="Name" defaultValue="" error="Required" w={88} /> },
+                {
+                    state: "error message",
+                    node: <TextInput aria-label="Name" defaultValue="" error="Required" w={88} />,
+                },
             ]}
         />
     ),

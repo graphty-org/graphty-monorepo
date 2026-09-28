@@ -35,8 +35,10 @@ export interface ToastAction {
  * Props for Toast: the message and its extras, plus any Mantine `Notification`
  * prop except the ones the toast owns.
  */
-export interface ToastProps
-    extends Omit<NotificationProps, "children" | "title" | "icon" | "onClose" | "withCloseButton" | "role"> {
+export interface ToastProps extends Omit<
+    NotificationProps,
+    "children" | "title" | "icon" | "onClose" | "withCloseButton" | "role"
+> {
     /** The message, such as "Zoom to selection". */
     message: ReactNode;
     /** An optional 16px glyph before the message. */
@@ -199,7 +201,12 @@ export function ToastProvider({ children, bottom = 76, zIndex }: ToastProviderPr
         [hide],
     );
 
-    useEffect(() => () => { clearTimeout(timer.current); }, []);
+    useEffect(
+        () => () => {
+            clearTimeout(timer.current);
+        },
+        [],
+    );
 
     const api = useMemo<ToastApi>(() => ({ show, hide }), [show, hide]);
 

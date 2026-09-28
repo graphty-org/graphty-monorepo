@@ -155,8 +155,7 @@ export const Controlled: Story = {
                     Resolution
                 </Text>
                 <InfoCircle label="Resolution" opened={opened} onOpenChange={setOpened}>
-                    Higher resolution finds more, smaller communities; lower resolution finds fewer, larger
-                    ones.
+                    Higher resolution finds more, smaller communities; lower resolution finds fewer, larger ones.
                 </InfoCircle>
                 <Text size="xs" c={PANEL_INK.CHROME}>
                     {opened ? "explanation open" : "explanation closed"}

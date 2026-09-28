@@ -162,7 +162,9 @@ export const Keyboard: Story = {
         const input = canvas.getByRole("combobox");
         await userEvent.type(input, "e");
         await userEvent.keyboard("{ArrowDown}");
-        const highlighted = canvasElement.querySelector(`#${CSS.escape(input.getAttribute("aria-activedescendant") ?? "")}`);
+        const highlighted = canvasElement.querySelector(
+            `#${CSS.escape(input.getAttribute("aria-activedescendant") ?? "")}`,
+        );
         await expect(highlighted).not.toHaveAttribute("aria-disabled");
         await userEvent.keyboard("{Enter}");
         await expect(args.onRun).toHaveBeenCalled();

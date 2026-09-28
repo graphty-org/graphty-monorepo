@@ -99,7 +99,12 @@ export const States: Story = {
                 <RankChip>#318</RankChip>
             </Group>
             <DataRow name="Selected row" value={<RankChip>#2</RankChip>} selected onClick={() => undefined} />
-            <DataRowHeader label="In a caption" sortDirection="descending" sortPriority={2} onSortChange={() => undefined} />
+            <DataRowHeader
+                label="In a caption"
+                sortDirection="descending"
+                sortPriority={2}
+                onSortChange={() => undefined}
+            />
         </Stack>
     ),
     play: ({ canvasElement }) => expectStatesApply(canvasElement),
@@ -122,8 +127,8 @@ export const InsteadOfASentence: Story = {
                 Rank 6 of 318
             </Text>
             <Text size="xs" c={PANEL_INK.CHROME}>
-                The panel already says there are 318 nodes, so the second half of that sentence is a constant
-                repeated on every row.
+                The panel already says there are 318 nodes, so the second half of that sentence is a constant repeated
+                on every row.
             </Text>
         </Stack>
     ),

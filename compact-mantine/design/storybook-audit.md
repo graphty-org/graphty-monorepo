@@ -176,6 +176,7 @@ Fix: integrator step 3 (for example, `figma-chrome-divider--states` becomes
     mode. That is the documented reason the WCAG AA option exists, but the Accessibility page
     should say so, so that a reader who opens the Accessibility panel is not surprised. The
     full list is in `tmp/sb-audit/full.json`, in the `a11y` field.
+
 12. **Stale comments in the graphty app.** `graphty/src/components/shell/toolbar/ViewModeSegment.tsx:9`
     and `graphty/src/components/shell/panel/AnalyzePanel.tsx:302` still explain why they do not
     use `IconGroupRow`, which no longer exists. The plan records replacing both with
@@ -185,36 +186,37 @@ Fix: integrator step 3 (for example, `figma-chrome-divider--states` becomes
 
 - **Exports.** Every component exported from `src/index.ts` has exactly one page, except the
   gap in item 4. Families share a page through `subcomponents`:
-  - Tree and TreeItem
-  - PageList and PageRow
-  - NavRail and RailButton
-  - Toolbar, ToolButton and ToolGroup
-  - Toast and ToastProvider
-  - ContextMenu and MenuCheckItem on the Menu page
-  - StyleSelect and Mantine Select on the Select page
-  - FieldGlyph and UiGlyph on Foundations/Glyphs
+    - Tree and TreeItem
+    - PageList and PageRow
+    - NavRail and RailButton
+    - Toolbar, ToolButton and ToolGroup
+    - Toast and ToastProvider
+    - ContextMenu and MenuCheckItem on the Menu page
+    - StyleSelect and Mantine Select on the Select page
+    - FieldGlyph and UiGlyph on Foundations/Glyphs
 
-  `LabelsProvider` and `PanelLabelsProvider` are covered by "Languages and direction" and the
-  Panels overview.
+    `LabelsProvider` and `PanelLabelsProvider` are covered by "Languages and direction" and the
+    Panels overview.
+
 - **One home per component.** No two pages declare the same `component`. Apart from items 1
   and 3, no title starts with "Figma/" or sits in a removed category.
 - **The five agreed changes, as Storybook shows them:**
-  - Select has one page, 14 stories in the planned order.
-  - GradientEditor's page shows its built-in ColorPickerPanel, and has `SelectingAStop`,
-    `TypingAStopColor` and `InsideColorPickerPanel` stories.
-  - IconGroupRow has no page, and SegmentedControl has `PicturesInAPanelRow`.
-  - Tree has `FlatReorderableList`, and its Keyboard story covers Alt+ArrowUp/Down.
-  - DataRow's page no longer shows selection, double-click or context-menu stories.
-  - CHANGELOG-figma.md, the README and "Introduction/Upgrading to 0.9" list the same four
-    removed exports: IconGroupRow, IconGroupRowProps, IconGroupOption and DataRowRole. They
-    also list the removed DataRow props and the behavior notes. Those four are the only
-    exports removed since master.
+    - Select has one page, 14 stories in the planned order.
+    - GradientEditor's page shows its built-in ColorPickerPanel, and has `SelectingAStop`,
+      `TypingAStopColor` and `InsideColorPickerPanel` stories.
+    - IconGroupRow has no page, and SegmentedControl has `PicturesInAPanelRow`.
+    - Tree has `FlatReorderableList`, and its Keyboard story covers Alt+ArrowUp/Down.
+    - DataRow's page no longer shows selection, double-click or context-menu stories.
+    - CHANGELOG-figma.md, the README and "Introduction/Upgrading to 0.9" list the same four
+      removed exports: IconGroupRow, IconGroupRowProps, IconGroupOption and DataRowRole. They
+      also list the removed DataRow props and the behavior notes. Those four are the only
+      exports removed since master.
 - **The page template.** Every Components page has all four description sections, `Default`
   first and `States` second with `BOTH_SCHEMES`. Every story export has a comment. Every
   Themed Mantine page links to mantine.dev. The pages that deviate do so as the plan allows:
-  - Menu opens with `ContextMenu`, named that way so sidebar search finds it.
-  - QuickActions takes its args from meta.
-  - The interaction twins are hidden with `!dev` and `!autodocs`.
+    - Menu opens with `ContextMenu`, named that way so sidebar search finds it.
+    - QuickActions takes its args from meta.
+    - The interaction twins are hidden with `!dev` and `!autodocs`.
 - **Rendering.** All 495 stories and 117 docs pages render in light and dark with no errors
   and no console errors. All 79 play functions pass, in both the side-by-side mode and the
   `schemes:single` mode Chromatic uses, except the ComboInput story in item 2.

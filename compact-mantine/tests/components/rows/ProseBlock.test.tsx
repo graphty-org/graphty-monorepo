@@ -31,7 +31,8 @@ function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
     );
 }
 
-const READING = "17 cats, 2 humans and 1 dog, connected by 43 relationships. Everyone is connected to everyone else through at most 4 steps.";
+const READING =
+    "17 cats, 2 humans and 1 dog, connected by 43 relationships. Everyone is connected to everyone else through at most 4 steps.";
 const DEPARTURE = "Approximate (sample of 8). Largest connected part only, 18 of 20 nodes.";
 const RUN_RECORD = "Betweenness, weighted by Bridges, sample 8";
 
@@ -146,7 +147,9 @@ describe("ProseBlock", () => {
         it("counts a third sentence that ends with an ideographic full stop", () => {
             const warn = spyOnWarn();
 
-            renderProse(<ProseBlock variant="reading">{"20個のノード。43本の関係。すべてつながっています。"}</ProseBlock>);
+            renderProse(
+                <ProseBlock variant="reading">{"20個のノード。43本の関係。すべてつながっています。"}</ProseBlock>,
+            );
 
             expect(warn).toHaveBeenCalledWith(expect.stringContaining("2 sentences"));
         });
@@ -178,7 +181,9 @@ describe("ProseBlock", () => {
         it("does not read a decimal as the end of a sentence", () => {
             const warn = spyOnWarn();
 
-            renderProse(<ProseBlock variant="reading">6 groups at granularity 2.5. The largest holds 9 cats.</ProseBlock>);
+            renderProse(
+                <ProseBlock variant="reading">6 groups at granularity 2.5. The largest holds 9 cats.</ProseBlock>,
+            );
 
             expect(warn).not.toHaveBeenCalled();
         });

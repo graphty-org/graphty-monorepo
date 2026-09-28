@@ -5,15 +5,7 @@
  * After the refactor, all components default to compact styling via defaultProps.
  * Covers: Anchor, Burger, NavLink, Pagination, Stepper, Tabs
  */
-import {
-    Anchor,
-    Burger,
-    MantineProvider,
-    NavLink,
-    Pagination,
-    Stepper,
-    Tabs,
-} from "@mantine/core";
+import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -43,11 +35,7 @@ describe("Anchor - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("computed styles", () => {
             it("fontSize is 11px", () => {
-                const { container } = renderWithTheme(
-                    <Anchor href="#">
-                        Link
-                    </Anchor>
-                );
+                const { container } = renderWithTheme(<Anchor href="#">Link</Anchor>);
                 const root = container.querySelector(".mantine-Anchor-root");
                 const style = root ? getComputedStyle(root) : null;
                 expect(style?.fontSize).toBe("11px");
@@ -63,17 +51,13 @@ describe("Burger - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
             it("--burger-size is 18px", () => {
-                const { container } = renderWithTheme(
-                    <Burger opened={false} aria-label="Menu" />
-                );
+                const { container } = renderWithTheme(<Burger opened={false} aria-label="Menu" />);
                 const root = container.querySelector(".mantine-Burger-root");
                 expect(getCssVar(root, "--burger-size")).toBe("18px");
             });
 
             it("--burger-line-size is 1.5px", () => {
-                const { container } = renderWithTheme(
-                    <Burger opened={false} aria-label="Menu" />
-                );
+                const { container } = renderWithTheme(<Burger opened={false} aria-label="Menu" />);
                 const root = container.querySelector(".mantine-Burger-root");
                 expect(getCssVar(root, "--burger-line-size")).toBe("1.5px");
             });
@@ -81,18 +65,14 @@ describe("Burger - All CSS Values (Browser)", () => {
 
         describe("burger computed styles", () => {
             it("width is 18px", () => {
-                const { container } = renderWithTheme(
-                    <Burger opened={false} aria-label="Menu" />
-                );
+                const { container } = renderWithTheme(<Burger opened={false} aria-label="Menu" />);
                 const burger = container.querySelector(".mantine-Burger-burger");
                 const style = burger ? getComputedStyle(burger) : null;
                 expect(style?.width).toBe("18px");
             });
 
             it("height matches --burger-size CSS variable", () => {
-                const { container } = renderWithTheme(
-                    <Burger opened={false} aria-label="Menu" />
-                );
+                const { container } = renderWithTheme(<Burger opened={false} aria-label="Menu" />);
                 const root = container.querySelector(".mantine-Burger-root");
                 // Test the CSS variable is set correctly
                 expect(getCssVar(root, "--burger-size")).toBe("18px");
@@ -108,18 +88,14 @@ describe("NavLink - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root computed styles", () => {
             it("fontSize is 11px", () => {
-                const { container } = renderWithTheme(
-                    <NavLink label="Link" />
-                );
+                const { container } = renderWithTheme(<NavLink label="Link" />);
                 const root = container.querySelector(".mantine-NavLink-root");
                 const style = root ? getComputedStyle(root) : null;
                 expect(style?.fontSize).toBe("11px");
             });
 
             it("minHeight is 32px", () => {
-                const { container } = renderWithTheme(
-                    <NavLink label="Link" />
-                );
+                const { container } = renderWithTheme(<NavLink label="Link" />);
                 const root = container.querySelector(".mantine-NavLink-root");
                 const style = root ? getComputedStyle(root) : null;
                 expect(style?.minHeight).toBe("32px");
@@ -128,9 +104,7 @@ describe("NavLink - All CSS Values (Browser)", () => {
 
         describe("label computed styles", () => {
             it("label fontSize is 11px", () => {
-                const { container } = renderWithTheme(
-                    <NavLink label="Link" />
-                );
+                const { container } = renderWithTheme(<NavLink label="Link" />);
                 const label = container.querySelector(".mantine-NavLink-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.fontSize).toBe("11px");
@@ -208,7 +182,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const root = container.querySelector(".mantine-Stepper-root");
                 expect(getCssVar(root, "--stepper-icon-size")).toBe("24px");
@@ -219,7 +193,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const root = container.querySelector(".mantine-Stepper-root");
                 expect(getCssVar(root, "--stepper-fz")).toBe("11px");
@@ -230,7 +204,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const root = container.querySelector(".mantine-Stepper-root");
                 expect(getCssVar(root, "--stepper-spacing")).toBe("8px");
@@ -243,7 +217,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const stepIcon = container.querySelector(".mantine-Stepper-stepIcon");
                 const style = stepIcon ? getComputedStyle(stepIcon) : null;
@@ -255,7 +229,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const stepIcon = container.querySelector(".mantine-Stepper-stepIcon");
                 const style = stepIcon ? getComputedStyle(stepIcon) : null;
@@ -267,7 +241,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const stepIcon = container.querySelector(".mantine-Stepper-stepIcon");
                 const style = stepIcon ? getComputedStyle(stepIcon) : null;
@@ -281,7 +255,7 @@ describe("Stepper - All CSS Values (Browser)", () => {
                     <Stepper active={1}>
                         <Stepper.Step label="Step 1" description="First" />
                         <Stepper.Step label="Step 2" description="Second" />
-                    </Stepper>
+                    </Stepper>,
                 );
                 const stepLabel = container.querySelector(".mantine-Stepper-stepLabel");
                 const style = stepLabel ? getComputedStyle(stepLabel) : null;
@@ -304,7 +278,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
                             <Tabs.Tab value="first">First</Tabs.Tab>
                             <Tabs.Tab value="second">Second</Tabs.Tab>
                         </Tabs.List>
-                    </Tabs>
+                    </Tabs>,
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
@@ -318,7 +292,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
                             <Tabs.Tab value="first">First</Tabs.Tab>
                             <Tabs.Tab value="second">Second</Tabs.Tab>
                         </Tabs.List>
-                    </Tabs>
+                    </Tabs>,
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
@@ -332,7 +306,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
                             <Tabs.Tab value="first">First</Tabs.Tab>
                             <Tabs.Tab value="second">Second</Tabs.Tab>
                         </Tabs.List>
-                    </Tabs>
+                    </Tabs>,
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
@@ -346,7 +320,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
                             <Tabs.Tab value="first">First</Tabs.Tab>
                             <Tabs.Tab value="second">Second</Tabs.Tab>
                         </Tabs.List>
-                    </Tabs>
+                    </Tabs>,
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
@@ -360,7 +334,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
                             <Tabs.Tab value="first">First</Tabs.Tab>
                             <Tabs.Tab value="second">Second</Tabs.Tab>
                         </Tabs.List>
-                    </Tabs>
+                    </Tabs>,
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
@@ -370,7 +344,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
     });
 });
 
-describe("Tabs variant=\"default\" (the underline tabs) keeps its old padding", () => {
+describe('Tabs variant="default" (the underline tabs) keeps its old padding', () => {
     it("pads a tab 6px 10px", () => {
         const { container } = renderWithTheme(
             <Tabs variant="default" defaultValue="first">
@@ -378,9 +352,14 @@ describe("Tabs variant=\"default\" (the underline tabs) keeps its old padding", 
                     <Tabs.Tab value="first">First</Tabs.Tab>
                     <Tabs.Tab value="second">Second</Tabs.Tab>
                 </Tabs.List>
-            </Tabs>
+            </Tabs>,
         );
         const style = getComputedStyle(container.querySelector(".mantine-Tabs-tab") as Element);
-        expect([style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]).toEqual(["6px", "10px", "6px", "10px"]);
+        expect([style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]).toEqual([
+            "6px",
+            "10px",
+            "6px",
+            "10px",
+        ]);
     });
 });

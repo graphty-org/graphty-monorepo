@@ -319,17 +319,15 @@ export function ToggleRow({
     // "this value follows the data", across every row type that can say it.
     // The glyph is aria-hidden, so the meaning travels in the description
     // above rather than in a picture a screen reader cannot see.
-    const boundMarker = bound
-        ? (
-            <Box
-                component="span"
-                data-testid="toggle-row-bound"
-                style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", color: PANEL_INK.CHROME }}
-            >
-                <FieldGlyph name="attribute" filled />
-            </Box>
-        )
-        : null;
+    const boundMarker = bound ? (
+        <Box
+            component="span"
+            data-testid="toggle-row-bound"
+            style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", color: PANEL_INK.CHROME }}
+        >
+            <FieldGlyph name="attribute" filled />
+        </Box>
+    ) : null;
 
     return (
         <Box

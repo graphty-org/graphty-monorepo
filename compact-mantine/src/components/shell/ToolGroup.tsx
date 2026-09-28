@@ -52,7 +52,14 @@ function asMenuItemRadio(el: HTMLButtonElement | null): void {
  * @param props.chevronProps - Extra attributes for the chevron button
  * @returns The tool group
  */
-export function ToolGroup({ label, tools, activeTool, onToolChange, defaultFace, chevronProps }: ToolGroupProps): React.JSX.Element {
+export function ToolGroup({
+    label,
+    tools,
+    activeTool,
+    onToolChange,
+    defaultFace,
+    chevronProps,
+}: ToolGroupProps): React.JSX.Element {
     const [picked, setPicked] = useState(defaultFace ?? tools[0]?.value);
     const isMember = tools.some((t) => t.value === activeTool);
     // A tool chosen elsewhere (a shortcut) becomes the face too.
@@ -79,7 +86,12 @@ export function ToolGroup({ label, tools, activeTool, onToolChange, defaultFace,
         const target = pickedFromFlyout.current ? faceRef.current : chevronRef.current;
         pickedFromFlyout.current = false;
         const active = document.activeElement;
-        if (active === null || active === document.body || dropdownRef.current?.contains(active) || active === chevronRef.current) {
+        if (
+            active === null ||
+            active === document.body ||
+            dropdownRef.current?.contains(active) ||
+            active === chevronRef.current
+        ) {
             target?.focus();
         }
     };
@@ -105,7 +117,12 @@ export function ToolGroup({ label, tools, activeTool, onToolChange, defaultFace,
             >
                 <Tooltip label={<TipLabel label={label} />} position="top">
                     <Menu.Target>
-                        <UnstyledButton {...chevronProps} ref={chevronRef} className="cm-tool-chevron" aria-label={label}>
+                        <UnstyledButton
+                            {...chevronProps}
+                            ref={chevronRef}
+                            className="cm-tool-chevron"
+                            aria-label={label}
+                        >
                             <UiGlyph name="chevronDown" size={10} />
                         </UnstyledButton>
                     </Menu.Target>

@@ -230,7 +230,7 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
                         `light-dark()` value, which resolves in CSS but not
                         reliably in an SVG presentation attribute.
                     */}
-                    <circle cx="5.5" cy="5.5" r="0.75" style={{fill: PANEL_INK.SURFACE}} stroke="none" />
+                    <circle cx="5.5" cy="5.5" r="0.75" style={{ fill: PANEL_INK.SURFACE }} stroke="none" />
                 </>
             );
         }
@@ -489,9 +489,7 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
     rectangle: <rect x="3" y="3" width="10" height="10" />,
     ellipse: <circle cx="8" cy="8" r="5" />,
     text: <path d="M3.5 3.5h9M8 3.5v9" />,
-    component: (
-        <path d="M8 2l2 2-2 2-2-2zM8 10l2 2-2 2-2-2zM2 8l2-2 2 2-2 2zM10 8l2-2 2 2-2 2z" />
-    ),
+    component: <path d="M8 2l2 2-2 2-2-2zM8 10l2 2-2 2-2-2zM2 8l2-2 2 2-2 2zM10 8l2-2 2 2-2 2z" />,
     group: <rect x="3" y="3" width="10" height="10" strokeDasharray="2 2" />,
 };
 

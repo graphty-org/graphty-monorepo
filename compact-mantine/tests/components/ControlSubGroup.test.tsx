@@ -144,9 +144,9 @@ describe("ControlSubGroup", () => {
             );
 
             // The register has no left caret: the right one, mirrored.
-            const closed = screen.getByTestId("control-sub-group-control").querySelector<HTMLElement>(
-                '[data-caret="closed"]',
-            );
+            const closed = screen
+                .getByTestId("control-sub-group-control")
+                .querySelector<HTMLElement>('[data-caret="closed"]');
             expect(closed?.querySelector("[data-glyph]")).toHaveAttribute("data-glyph", "caretRight");
             expect(closed?.style.transform).toBe("scaleX(-1)");
         });

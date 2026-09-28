@@ -56,7 +56,9 @@ export const displayComponentExtensions = {
             root: {
                 ...compactVarsForSize(compactBadgeScale, props?.size),
                 ...(props?.radius === undefined ? { "--badge-radius": "5px" } : {}),
-                ...(props?.color ? {} : { ...BADGE_TOKENS[props?.variant ?? "outline"], "--badge-bd": "0 solid transparent" }),
+                ...(props?.color
+                    ? {}
+                    : { ...BADGE_TOKENS[props?.variant ?? "outline"], "--badge-bd": "0 solid transparent" }),
             },
         }),
     }),

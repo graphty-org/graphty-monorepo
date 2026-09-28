@@ -113,15 +113,32 @@ export const States: Story = {
             <StateGrid
                 columns={PANEL_GRID.CONTENT}
                 cells={[
-                    ["off", <ToggleWithContent label="Glow"><StyleNumberInput label="Radius" defaultValue={4} /></ToggleWithContent>],
-                    ["on", <ToggleWithContent label="Glow" defaultChecked><StyleNumberInput label="Radius" defaultValue={4} /></ToggleWithContent>],
+                    [
+                        "off",
+                        <ToggleWithContent label="Glow">
+                            <StyleNumberInput label="Radius" defaultValue={4} />
+                        </ToggleWithContent>,
+                    ],
+                    [
+                        "on",
+                        <ToggleWithContent label="Glow" defaultChecked>
+                            <StyleNumberInput label="Radius" defaultValue={4} />
+                        </ToggleWithContent>,
+                    ],
                     [
                         "focus",
                         <div data-story-focus>
-                            <ToggleWithContent label="Glow"><StyleNumberInput label="Radius" defaultValue={4} /></ToggleWithContent>
+                            <ToggleWithContent label="Glow">
+                                <StyleNumberInput label="Radius" defaultValue={4} />
+                            </ToggleWithContent>
                         </div>,
                     ],
-                    ["disabled", <ToggleWithContent label="Glow" disabled disabledReason="Needs a 3D layout"><span /></ToggleWithContent>],
+                    [
+                        "disabled",
+                        <ToggleWithContent label="Glow" disabled disabledReason="Needs a 3D layout">
+                            <span />
+                        </ToggleWithContent>,
+                    ],
                 ]}
             />
         </Box>

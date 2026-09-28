@@ -1,11 +1,5 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type {
-    AccelerationPolicy,
-    EdgeRecord,
-    GraphSession,
-    Layer,
-    NodeRecord,
-} from "@graphty/graphty-element/session";
+import type { AccelerationPolicy, EdgeRecord, GraphSession, Layer, NodeRecord } from "@graphty/graphty-element/session";
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 

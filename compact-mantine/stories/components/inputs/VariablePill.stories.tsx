@@ -79,8 +79,14 @@ export const States: Story = {
     render: () => (
         <StateGrid
             cells={[
-                { state: "bound number", node: <VariablePill {...handlers} glyph="R" name="rsu/radius-sm" value="4" /> },
-                { state: "long name", node: <VariablePill {...handlers} glyph="W" name="spacing/very-long-name" value="1024" /> },
+                {
+                    state: "bound number",
+                    node: <VariablePill {...handlers} glyph="R" name="rsu/radius-sm" value="4" />,
+                },
+                {
+                    state: "long name",
+                    node: <VariablePill {...handlers} glyph="W" name="spacing/very-long-name" value="1024" />,
+                },
                 { state: "bound fill", node: <VariablePill {...handlers} swatch="#0d99ff" name="rsu/brand" /> },
                 { state: "fill, alpha", node: <VariablePill {...handlers} swatch="#0d99ff66" name="rsu/brand-40" /> },
                 { state: "component property", node: <VariablePill {...handlers} kind="property" name="Label" /> },

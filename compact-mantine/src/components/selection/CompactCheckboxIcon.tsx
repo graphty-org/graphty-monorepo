@@ -29,15 +29,23 @@ export function CompactCheckboxIcon({ indeterminate, ...others }: CheckboxIconPr
     const d = dash ? DASH : CHECK;
     const shapeRendering = dash ? "crispEdges" : "geometricPrecision";
     return (
-        <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-            data-glyph={dash ? "dash" : "check"}
-            {...others}
-        >
-            <path className="cm-checkbox-halo" d={d} pathLength={12} strokeLinecap="round" strokeLinejoin="round" shapeRendering={shapeRendering} />
-            <path className="cm-checkbox-glyph" d={dash ? DASH_GLYPH : CHECK} pathLength={12} strokeLinecap="round" strokeLinejoin="round" shapeRendering={shapeRendering} />
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" data-glyph={dash ? "dash" : "check"} {...others}>
+            <path
+                className="cm-checkbox-halo"
+                d={d}
+                pathLength={12}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                shapeRendering={shapeRendering}
+            />
+            <path
+                className="cm-checkbox-glyph"
+                d={dash ? DASH_GLYPH : CHECK}
+                pathLength={12}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                shapeRendering={shapeRendering}
+            />
         </svg>
     );
 }

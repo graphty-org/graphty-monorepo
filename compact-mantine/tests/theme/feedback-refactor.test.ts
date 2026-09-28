@@ -29,13 +29,8 @@ describe("Feedback Component Extensions (Refactored)", () => {
             const sizedComponents = ["Loader", "Progress"] as const;
 
             for (const name of sizedComponents) {
-                const ext =
-                    feedbackComponentExtensions[
-                        name as keyof typeof feedbackComponentExtensions
-                    ];
-                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe(
-                    "sm",
-                );
+                const ext = feedbackComponentExtensions[name as keyof typeof feedbackComponentExtensions];
+                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe("sm");
             }
         });
     });
@@ -77,10 +72,7 @@ describe("Feedback Component Extensions (Refactored)", () => {
             const extension = feedbackComponentExtensions.Progress;
             expect(extension.styles).toBeDefined();
             expect(typeof extension.styles).toBe("object");
-            const styles = extension.styles as Record<
-                string,
-                Record<string, unknown>
-            >;
+            const styles = extension.styles as Record<string, Record<string, unknown>>;
             expect(styles.label).toBeDefined();
             expect(styles.label.fontSize).toBe(9);
         });

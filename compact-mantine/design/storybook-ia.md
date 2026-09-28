@@ -136,16 +136,16 @@ moved into the named file and the old file is deleted.
 
 **Introduction**
 
-| Old | New file | New title |
-|---|---|---|
-| `docs/Introduction.mdx` (Getting Started/Introduction) | `introduction/GettingStarted.mdx` | Introduction/Getting started |
-| (new; from README "Which one should I use?" and the old overviews) | `introduction/ChoosingAComponent.mdx` | Introduction/Choosing a component |
-| `Theming.stories.tsx` stories ChangePrimaryColor, ChangeFonts, ChangeBorderRadius (Compact Theme/Showcase) | `introduction/CustomizingTheTheme.stories.tsx` | Introduction/Customizing the theme |
-| (new; from README "Internationalization" and "Right-to-left languages") | `introduction/LanguagesAndDirection.mdx` | Introduction/Languages and direction |
-| (new; from README "Handling events" and "The shared prop names") | `introduction/EventsAndProps.mdx` | Introduction/Events and shared props |
-| (new; from README "Accessibility") | `introduction/Accessibility.mdx` | Introduction/Accessibility |
-| (new; from CHANGELOG-figma.md) | `introduction/Upgrading.mdx` | Introduction/Upgrading to 0.9 |
-| `docs/CompactTheme.mdx` (Compact Theme/Overview) | split: provider, light/dark and WCAG AA into Getting started; "What it sets" into Foundations; "Making it your own", "A compact region", "Server rendering and shadow roots" into Customizing the theme | -- |
+| Old                                                                                                        | New file                                                                                                                                                                                                | New title                            |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `docs/Introduction.mdx` (Getting Started/Introduction)                                                     | `introduction/GettingStarted.mdx`                                                                                                                                                                       | Introduction/Getting started         |
+| (new; from README "Which one should I use?" and the old overviews)                                         | `introduction/ChoosingAComponent.mdx`                                                                                                                                                                   | Introduction/Choosing a component    |
+| `Theming.stories.tsx` stories ChangePrimaryColor, ChangeFonts, ChangeBorderRadius (Compact Theme/Showcase) | `introduction/CustomizingTheTheme.stories.tsx`                                                                                                                                                          | Introduction/Customizing the theme   |
+| (new; from README "Internationalization" and "Right-to-left languages")                                    | `introduction/LanguagesAndDirection.mdx`                                                                                                                                                                | Introduction/Languages and direction |
+| (new; from README "Handling events" and "The shared prop names")                                           | `introduction/EventsAndProps.mdx`                                                                                                                                                                       | Introduction/Events and shared props |
+| (new; from README "Accessibility")                                                                         | `introduction/Accessibility.mdx`                                                                                                                                                                        | Introduction/Accessibility           |
+| (new; from CHANGELOG-figma.md)                                                                             | `introduction/Upgrading.mdx`                                                                                                                                                                            | Introduction/Upgrading to 0.9        |
+| `docs/CompactTheme.mdx` (Compact Theme/Overview)                                                           | split: provider, light/dark and WCAG AA into Getting started; "What it sets" into Foundations; "Making it your own", "A compact region", "Server rendering and shadow roots" into Customizing the theme | --                                   |
 
 Getting started covers: what the package is, install and peers, `MantineProvider` with
 `compactTheme`, `createCompactTheme({ highContrast: true })`, light and dark
@@ -155,43 +155,43 @@ the toolbar globals.
 
 **Foundations**
 
-| Old | New file | New title |
-|---|---|---|
-| `theme/LightDarkMode.stories.tsx` (Compact Theme/Mantine Components/Light-Dark Mode): Tokens, SideBySide | `foundations/Color.stories.tsx` (Tokens, LightAndDark, plus a new PanelInk story listing every `PANEL_INK` role) | Foundations/Color |
-| same file: SegmentedControlIndicator, ControlGroupColors, ControlSectionColors | deleted: each is a cell of the SegmentedControl, ControlGroup and ControlSection States stories, which now render both schemes | -- |
-| (new) | `foundations/Typography.stories.tsx` (the xs-xl scale with line heights, weights 450/550/600, tracking, Inter) | Foundations/Typography |
-| (new) | `foundations/SpacingAndGrid.stories.tsx` (theme spacing, radii, `PANEL_GRID` drawn as 16 + 88 + 8 + 88 + 8 + 24 + 8, `COMPACT_SIZING`, 24px control and 32px row) | Foundations/Spacing, radii and grid |
-| (new) | `foundations/Elevation.stories.tsx` (shadows xs-xl, light and dark) | Foundations/Elevation |
-| (new) | `foundations/FocusAndMotion.stories.tsx` (1px ring inside fields and outside buttons; 100ms state changes; overlays opening in one frame; tooltip timing) | Foundations/Focus and motion |
-| `Glyphs.stories.tsx` (Glyphs/Glyph Gallery) | `foundations/Glyphs.stories.tsx` | Foundations/Glyphs |
+| Old                                                                                                      | New file                                                                                                                                                          | New title                           |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `theme/LightDarkMode.stories.tsx` (Compact Theme/Mantine Components/Light-Dark Mode): Tokens, SideBySide | `foundations/Color.stories.tsx` (Tokens, LightAndDark, plus a new PanelInk story listing every `PANEL_INK` role)                                                  | Foundations/Color                   |
+| same file: SegmentedControlIndicator, ControlGroupColors, ControlSectionColors                           | deleted: each is a cell of the SegmentedControl, ControlGroup and ControlSection States stories, which now render both schemes                                    | --                                  |
+| (new)                                                                                                    | `foundations/Typography.stories.tsx` (the xs-xl scale with line heights, weights 450/550/600, tracking, Inter)                                                    | Foundations/Typography              |
+| (new)                                                                                                    | `foundations/SpacingAndGrid.stories.tsx` (theme spacing, radii, `PANEL_GRID` drawn as 16 + 88 + 8 + 88 + 8 + 24 + 8, `COMPACT_SIZING`, 24px control and 32px row) | Foundations/Spacing, radii and grid |
+| (new)                                                                                                    | `foundations/Elevation.stories.tsx` (shadows xs-xl, light and dark)                                                                                               | Foundations/Elevation               |
+| (new)                                                                                                    | `foundations/FocusAndMotion.stories.tsx` (1px ring inside fields and outside buttons; 100ms state changes; overlays opening in one frame; tooltip timing)         | Foundations/Focus and motion        |
+| `Glyphs.stories.tsx` (Glyphs/Glyph Gallery)                                                              | `foundations/Glyphs.stories.tsx`                                                                                                                                  | Foundations/Glyphs                  |
 
 **Components / Panels and rows**
 
-| Old | New file | New title |
-|---|---|---|
-| `docs/BuildingAPanel.mdx` (Building a Panel/Overview) | `components/panels/Overview.mdx` | Components/Panels and rows/Overview |
-| `ControlSection.stories.tsx` (Building a Panel/ControlSection) | `components/panels/ControlSection.stories.tsx` | Components/Panels and rows/ControlSection |
-| `ControlGroup.stories.tsx` | `components/panels/ControlGroup.stories.tsx` | Components/Panels and rows/ControlGroup |
-| `ControlSubGroup.stories.tsx` | `components/panels/ControlSubGroup.stories.tsx` | Components/Panels and rows/ControlSubGroup |
-| `FieldRow.stories.tsx` | `components/panels/FieldRow.stories.tsx` | Components/Panels and rows/FieldRow |
-| `CompoundRow.stories.tsx` (Editing a Value/CompoundRow) | `components/panels/CompoundRow.stories.tsx` | Components/Panels and rows/CompoundRow |
-| `TrailingSlot.stories.tsx` | `components/panels/TrailingSlot.stories.tsx` | Components/Panels and rows/TrailingSlot |
-| `figma/chrome/ResizeHandle.stories.tsx` (Figma/Chrome/ResizeHandle) | `components/panels/ResizeHandle.stories.tsx` | Components/Panels and rows/ResizeHandle |
+| Old                                                                 | New file                                        | New title                                  |
+| ------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------ |
+| `docs/BuildingAPanel.mdx` (Building a Panel/Overview)               | `components/panels/Overview.mdx`                | Components/Panels and rows/Overview        |
+| `ControlSection.stories.tsx` (Building a Panel/ControlSection)      | `components/panels/ControlSection.stories.tsx`  | Components/Panels and rows/ControlSection  |
+| `ControlGroup.stories.tsx`                                          | `components/panels/ControlGroup.stories.tsx`    | Components/Panels and rows/ControlGroup    |
+| `ControlSubGroup.stories.tsx`                                       | `components/panels/ControlSubGroup.stories.tsx` | Components/Panels and rows/ControlSubGroup |
+| `FieldRow.stories.tsx`                                              | `components/panels/FieldRow.stories.tsx`        | Components/Panels and rows/FieldRow        |
+| `CompoundRow.stories.tsx` (Editing a Value/CompoundRow)             | `components/panels/CompoundRow.stories.tsx`     | Components/Panels and rows/CompoundRow     |
+| `TrailingSlot.stories.tsx`                                          | `components/panels/TrailingSlot.stories.tsx`    | Components/Panels and rows/TrailingSlot    |
+| `figma/chrome/ResizeHandle.stories.tsx` (Figma/Chrome/ResizeHandle) | `components/panels/ResizeHandle.stories.tsx`    | Components/Panels and rows/ResizeHandle    |
 
 **Components / Inputs**
 
-| Old | New file | New title |
-|---|---|---|
-| `docs/EditingAValue.mdx` (Editing a Value/Overview) | split into the Inputs, Selection and Color overviews | -- |
-| (new) | `components/inputs/Overview.mdx` | Components/Inputs/Overview |
-| `PanelField.stories.tsx` (Editing a Value/PanelField) | `components/inputs/PanelField.stories.tsx` | Components/Inputs/PanelField |
-| `theme/Select.stories.tsx` (Compact Theme/Mantine Components/Select) | merge into `components/inputs/Select.stories.tsx` | Components/Inputs/Select |
-| `figma/inputs/Listbox.stories.tsx` (Figma/Inputs/Select and listbox) | merge into the same file | Components/Inputs/Select |
-| `StyleSelect.stories.tsx` (Editing a Value/StyleSelect) | merge into the same file | Components/Inputs/Select |
-| `StyleNumberInput.stories.tsx` | `components/inputs/StyleNumberInput.stories.tsx` | Components/Inputs/StyleNumberInput |
-| `figma/inputs/SearchInput.stories.tsx` | `components/inputs/SearchInput.stories.tsx` | Components/Inputs/SearchInput |
-| `figma/inputs/ComboInput.stories.tsx` | `components/inputs/ComboInput.stories.tsx` (moved LAST, by the integrator: another agent is editing it) | Components/Inputs/ComboInput |
-| `figma/inputs/VariablePill.stories.tsx` | `components/inputs/VariablePill.stories.tsx` | Components/Inputs/VariablePill |
+| Old                                                                  | New file                                                                                                | New title                          |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `docs/EditingAValue.mdx` (Editing a Value/Overview)                  | split into the Inputs, Selection and Color overviews                                                    | --                                 |
+| (new)                                                                | `components/inputs/Overview.mdx`                                                                        | Components/Inputs/Overview         |
+| `PanelField.stories.tsx` (Editing a Value/PanelField)                | `components/inputs/PanelField.stories.tsx`                                                              | Components/Inputs/PanelField       |
+| `theme/Select.stories.tsx` (Compact Theme/Mantine Components/Select) | merge into `components/inputs/Select.stories.tsx`                                                       | Components/Inputs/Select           |
+| `figma/inputs/Listbox.stories.tsx` (Figma/Inputs/Select and listbox) | merge into the same file                                                                                | Components/Inputs/Select           |
+| `StyleSelect.stories.tsx` (Editing a Value/StyleSelect)              | merge into the same file                                                                                | Components/Inputs/Select           |
+| `StyleNumberInput.stories.tsx`                                       | `components/inputs/StyleNumberInput.stories.tsx`                                                        | Components/Inputs/StyleNumberInput |
+| `figma/inputs/SearchInput.stories.tsx`                               | `components/inputs/SearchInput.stories.tsx`                                                             | Components/Inputs/SearchInput      |
+| `figma/inputs/ComboInput.stories.tsx`                                | `components/inputs/ComboInput.stories.tsx` (moved LAST, by the integrator: another agent is editing it) | Components/Inputs/ComboInput       |
+| `figma/inputs/VariablePill.stories.tsx`                              | `components/inputs/VariablePill.stories.tsx`                                                            | Components/Inputs/VariablePill     |
 
 The merged Select page, in export order: `Default` (Mantine Select), `States` (the trigger's
 states, from theme/Select), `OpenList` (Listbox OpenOverTrigger), `BelowTheField`,
@@ -202,106 +202,106 @@ and Listbox `TriggerStates` (the same cells as States).
 
 **Components / Selection**
 
-| Old | New file | New title |
-|---|---|---|
-| (new) | `components/selection/Overview.mdx` | Components/Selection/Overview |
-| `ToggleRow.stories.tsx` | `components/selection/ToggleRow.stories.tsx` | Components/Selection/ToggleRow |
-| `ToggleRowGroup.stories.tsx` | `components/selection/ToggleRowGroup.stories.tsx` | Components/Selection/ToggleRowGroup |
-| `ToggleWithContent.stories.tsx` | `components/selection/ToggleWithContent.stories.tsx` | Components/Selection/ToggleWithContent |
-| `figma/selection/AlignmentMatrix.stories.tsx` | `components/selection/AlignmentMatrix.stories.tsx` | Components/Selection/AlignmentMatrix |
-| `IconGroupRow.stories.tsx` (Editing a Value/IconGroupRow) | deleted with the component (section 4.2); its coverage is Themed Mantine/Selection/SegmentedControl `PicturesInAPanelRow` | -- |
+| Old                                                       | New file                                                                                                                  | New title                              |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| (new)                                                     | `components/selection/Overview.mdx`                                                                                       | Components/Selection/Overview          |
+| `ToggleRow.stories.tsx`                                   | `components/selection/ToggleRow.stories.tsx`                                                                              | Components/Selection/ToggleRow         |
+| `ToggleRowGroup.stories.tsx`                              | `components/selection/ToggleRowGroup.stories.tsx`                                                                         | Components/Selection/ToggleRowGroup    |
+| `ToggleWithContent.stories.tsx`                           | `components/selection/ToggleWithContent.stories.tsx`                                                                      | Components/Selection/ToggleWithContent |
+| `figma/selection/AlignmentMatrix.stories.tsx`             | `components/selection/AlignmentMatrix.stories.tsx`                                                                        | Components/Selection/AlignmentMatrix   |
+| `IconGroupRow.stories.tsx` (Editing a Value/IconGroupRow) | deleted with the component (section 4.2); its coverage is Themed Mantine/Selection/SegmentedControl `PicturesInAPanelRow` | --                                     |
 
 **Components / Color**
 
-| Old | New file | New title |
-|---|---|---|
-| (new) | `components/color/Overview.mdx` | Components/Color/Overview |
-| `CompactColorInput.stories.tsx` | `components/color/CompactColorInput.stories.tsx` | Components/Color/CompactColorInput |
-| `figma/color/ColorPickerPanel.stories.tsx` (Figma/Color/ColorPickerPanel) | `components/color/ColorPickerPanel.stories.tsx` | Components/Color/ColorPickerPanel |
-| `GradientEditor.stories.tsx` | `components/color/GradientEditor.stories.tsx` | Components/Color/GradientEditor |
-| `RampRow.stories.tsx` (Editing a Value/RampRow) | `components/color/RampRow.stories.tsx` | Components/Color/RampRow |
+| Old                                                                       | New file                                         | New title                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------- |
+| (new)                                                                     | `components/color/Overview.mdx`                  | Components/Color/Overview          |
+| `CompactColorInput.stories.tsx`                                           | `components/color/CompactColorInput.stories.tsx` | Components/Color/CompactColorInput |
+| `figma/color/ColorPickerPanel.stories.tsx` (Figma/Color/ColorPickerPanel) | `components/color/ColorPickerPanel.stories.tsx`  | Components/Color/ColorPickerPanel  |
+| `GradientEditor.stories.tsx`                                              | `components/color/GradientEditor.stories.tsx`    | Components/Color/GradientEditor    |
+| `RampRow.stories.tsx` (Editing a Value/RampRow)                           | `components/color/RampRow.stories.tsx`           | Components/Color/RampRow           |
 
 **Components / Actions**
 
-| Old | New file | New title |
-|---|---|---|
-| (new) | `components/actions/Overview.mdx` | Components/Actions/Overview |
-| `figma/buttons/ToggleIconButton.stories.tsx` | `components/actions/ToggleIconButton.stories.tsx` | Components/Actions/ToggleIconButton |
-| `figma/buttons/SplitButton.stories.tsx` | `components/actions/SplitButton.stories.tsx` | Components/Actions/SplitButton |
-| `AdvancedButton.stories.tsx` (Building a Panel/AdvancedButton) | `components/actions/AdvancedButton.stories.tsx` | Components/Actions/AdvancedButton |
+| Old                                                            | New file                                          | New title                           |
+| -------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------- |
+| (new)                                                          | `components/actions/Overview.mdx`                 | Components/Actions/Overview         |
+| `figma/buttons/ToggleIconButton.stories.tsx`                   | `components/actions/ToggleIconButton.stories.tsx` | Components/Actions/ToggleIconButton |
+| `figma/buttons/SplitButton.stories.tsx`                        | `components/actions/SplitButton.stories.tsx`      | Components/Actions/SplitButton      |
+| `AdvancedButton.stories.tsx` (Building a Panel/AdvancedButton) | `components/actions/AdvancedButton.stories.tsx`   | Components/Actions/AdvancedButton   |
 
 **Components / Overlays**
 
-| Old | New file | New title |
-|---|---|---|
-| `docs/FloatingPanels.mdx` (Floating Panels/Overview) | `components/overlays/Overview.mdx` | Components/Overlays/Overview |
-| `src/components/popout/Popout.stories.tsx` (Floating Panels/Popout) | merge into `components/overlays/Popout.stories.tsx` | Components/Overlays/Popout |
-| `src/components/popout/PopoutAnchor.stories.tsx` (Floating Panels/Popout.Anchor) | merge into the same file (AnchorToPanel, AnchorToButton, Comparison) | Components/Overlays/Popout |
-| `figma/overlays/Popover.stories.tsx` (Figma/Overlays/Light popover) | merge into the same file (as `LightPopoverSurfaces` and `OneAtATime`; it covers Mantine Popover and HoverCard too) | Components/Overlays/Popout |
-| `src/components/popout/PopoutButton.stories.tsx` | `components/overlays/PopoutButton.stories.tsx` | Components/Overlays/PopoutButton |
-| `InfoCircle.stories.tsx` (Floating Panels/InfoCircle) | `components/overlays/InfoCircle.stories.tsx` | Components/Overlays/InfoCircle |
-| `figma/overlays/Menu.stories.tsx` | `components/overlays/Menu.stories.tsx` (`component: ContextMenu`, `subcomponents: { MenuCheckItem }`; the `Context` story is renamed `ContextMenu` so sidebar search finds it) | Components/Overlays/Menu |
-| `figma/overlays/Tooltip.stories.tsx` | `components/overlays/Tooltip.stories.tsx` (`component: TooltipShortcut`) | Components/Overlays/Tooltip |
-| `figma/overlays/Modal.stories.tsx` | `components/overlays/Modal.stories.tsx` (`component: ModalFooter`) | Components/Overlays/Modal |
-| `figma/overlays/Toast.stories.tsx` | `components/overlays/Toast.stories.tsx` | Components/Overlays/Toast |
-| `figma/overlays/ScrollArea.stories.tsx` (Figma/Overlays/Scrollbar) | `mantine/surfaces/ScrollArea.stories.tsx` | Themed Mantine/Surfaces/ScrollArea |
+| Old                                                                              | New file                                                                                                                                                                       | New title                          |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `docs/FloatingPanels.mdx` (Floating Panels/Overview)                             | `components/overlays/Overview.mdx`                                                                                                                                             | Components/Overlays/Overview       |
+| `src/components/popout/Popout.stories.tsx` (Floating Panels/Popout)              | merge into `components/overlays/Popout.stories.tsx`                                                                                                                            | Components/Overlays/Popout         |
+| `src/components/popout/PopoutAnchor.stories.tsx` (Floating Panels/Popout.Anchor) | merge into the same file (AnchorToPanel, AnchorToButton, Comparison)                                                                                                           | Components/Overlays/Popout         |
+| `figma/overlays/Popover.stories.tsx` (Figma/Overlays/Light popover)              | merge into the same file (as `LightPopoverSurfaces` and `OneAtATime`; it covers Mantine Popover and HoverCard too)                                                             | Components/Overlays/Popout         |
+| `src/components/popout/PopoutButton.stories.tsx`                                 | `components/overlays/PopoutButton.stories.tsx`                                                                                                                                 | Components/Overlays/PopoutButton   |
+| `InfoCircle.stories.tsx` (Floating Panels/InfoCircle)                            | `components/overlays/InfoCircle.stories.tsx`                                                                                                                                   | Components/Overlays/InfoCircle     |
+| `figma/overlays/Menu.stories.tsx`                                                | `components/overlays/Menu.stories.tsx` (`component: ContextMenu`, `subcomponents: { MenuCheckItem }`; the `Context` story is renamed `ContextMenu` so sidebar search finds it) | Components/Overlays/Menu           |
+| `figma/overlays/Tooltip.stories.tsx`                                             | `components/overlays/Tooltip.stories.tsx` (`component: TooltipShortcut`)                                                                                                       | Components/Overlays/Tooltip        |
+| `figma/overlays/Modal.stories.tsx`                                               | `components/overlays/Modal.stories.tsx` (`component: ModalFooter`)                                                                                                             | Components/Overlays/Modal          |
+| `figma/overlays/Toast.stories.tsx`                                               | `components/overlays/Toast.stories.tsx`                                                                                                                                        | Components/Overlays/Toast          |
+| `figma/overlays/ScrollArea.stories.tsx` (Figma/Overlays/Scrollbar)               | `mantine/surfaces/ScrollArea.stories.tsx`                                                                                                                                      | Themed Mantine/Surfaces/ScrollArea |
 
 **Components / Lists and trees**
 
-| Old | New file | New title |
-|---|---|---|
-| (new) | `components/lists/Overview.mdx` | Components/Lists and trees/Overview |
-| `figma/tree/Tree.stories.tsx` | `components/lists/Tree.stories.tsx` (plus a new `FlatReorderableList` story: the style layer list shape of section 4.3) | Components/Lists and trees/Tree |
-| `figma/tree/PageList.stories.tsx` | `components/lists/PageList.stories.tsx` | Components/Lists and trees/PageList |
-| `figma/tree/InlineRename.stories.tsx` | `components/lists/InlineRename.stories.tsx` | Components/Lists and trees/InlineRename |
-| `figma/tree/ResultRow.stories.tsx` | `components/lists/ResultRow.stories.tsx` | Components/Lists and trees/ResultRow |
-| `figma/tree/fixtures.ts` | `components/lists/fixtures.ts` | -- |
+| Old                                   | New file                                                                                                                | New title                               |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| (new)                                 | `components/lists/Overview.mdx`                                                                                         | Components/Lists and trees/Overview     |
+| `figma/tree/Tree.stories.tsx`         | `components/lists/Tree.stories.tsx` (plus a new `FlatReorderableList` story: the style layer list shape of section 4.3) | Components/Lists and trees/Tree         |
+| `figma/tree/PageList.stories.tsx`     | `components/lists/PageList.stories.tsx`                                                                                 | Components/Lists and trees/PageList     |
+| `figma/tree/InlineRename.stories.tsx` | `components/lists/InlineRename.stories.tsx`                                                                             | Components/Lists and trees/InlineRename |
+| `figma/tree/ResultRow.stories.tsx`    | `components/lists/ResultRow.stories.tsx`                                                                                | Components/Lists and trees/ResultRow    |
+| `figma/tree/fixtures.ts`              | `components/lists/fixtures.ts`                                                                                          | --                                      |
 
 **Components / Data display**
 
-| Old | New file | New title |
-|---|---|---|
-| `docs/ShowingData.mdx` (Showing Data/Overview) | `components/data/Overview.mdx` | Components/Data display/Overview |
-| `DataRow.stories.tsx` | `components/data/DataRow.stories.tsx`; `SingleSelection`, `MultipleSelection` and `Gestures` are deleted with the props they show (section 4.4); their coverage is the Tree and PageList pages | Components/Data display/DataRow |
-| `DataRowHeader.stories.tsx` | `components/data/DataRowHeader.stories.tsx` | Components/Data display/DataRowHeader |
-| `RankChip.stories.tsx` | `components/data/RankChip.stories.tsx` | Components/Data display/RankChip |
-| `MetricRow.stories.tsx` | `components/data/MetricRow.stories.tsx` | Components/Data display/MetricRow |
-| `HistogramRow.stories.tsx` | `components/data/HistogramRow.stories.tsx` | Components/Data display/HistogramRow |
-| `SparklineRow.stories.tsx` | `components/data/SparklineRow.stories.tsx` | Components/Data display/SparklineRow |
-| `ProseBlock.stories.tsx` | `components/data/ProseBlock.stories.tsx` | Components/Data display/ProseBlock |
-| `ActionRow.stories.tsx` | `components/data/ActionRow.stories.tsx` | Components/Data display/ActionRow |
-| `DataTable.stories.tsx` | `components/data/DataTable.stories.tsx` | Components/Data display/DataTable |
+| Old                                            | New file                                                                                                                                                                                       | New title                             |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `docs/ShowingData.mdx` (Showing Data/Overview) | `components/data/Overview.mdx`                                                                                                                                                                 | Components/Data display/Overview      |
+| `DataRow.stories.tsx`                          | `components/data/DataRow.stories.tsx`; `SingleSelection`, `MultipleSelection` and `Gestures` are deleted with the props they show (section 4.4); their coverage is the Tree and PageList pages | Components/Data display/DataRow       |
+| `DataRowHeader.stories.tsx`                    | `components/data/DataRowHeader.stories.tsx`                                                                                                                                                    | Components/Data display/DataRowHeader |
+| `RankChip.stories.tsx`                         | `components/data/RankChip.stories.tsx`                                                                                                                                                         | Components/Data display/RankChip      |
+| `MetricRow.stories.tsx`                        | `components/data/MetricRow.stories.tsx`                                                                                                                                                        | Components/Data display/MetricRow     |
+| `HistogramRow.stories.tsx`                     | `components/data/HistogramRow.stories.tsx`                                                                                                                                                     | Components/Data display/HistogramRow  |
+| `SparklineRow.stories.tsx`                     | `components/data/SparklineRow.stories.tsx`                                                                                                                                                     | Components/Data display/SparklineRow  |
+| `ProseBlock.stories.tsx`                       | `components/data/ProseBlock.stories.tsx`                                                                                                                                                       | Components/Data display/ProseBlock    |
+| `ActionRow.stories.tsx`                        | `components/data/ActionRow.stories.tsx`                                                                                                                                                        | Components/Data display/ActionRow     |
+| `DataTable.stories.tsx`                        | `components/data/DataTable.stories.tsx`                                                                                                                                                        | Components/Data display/DataTable     |
 
 **Components / App shell**
 
-| Old | New file | New title |
-|---|---|---|
-| (new) | `components/shell/Overview.mdx` | Components/App shell/Overview |
-| `figma/shell/Toolbar.stories.tsx` | `components/shell/Toolbar.stories.tsx` (`subcomponents: { ToolButton, ToolGroup }`) | Components/App shell/Toolbar |
-| `figma/shell/SecondaryToolbar.stories.tsx` | `components/shell/SecondaryToolbar.stories.tsx` | Components/App shell/SecondaryToolbar |
-| `figma/shell/NavRail.stories.tsx` | `components/shell/NavRail.stories.tsx` (`subcomponents: { RailButton }`) | Components/App shell/NavRail |
-| `figma/shell/HelpButton.stories.tsx` | `components/shell/HelpButton.stories.tsx` | Components/App shell/HelpButton |
-| `figma/shell/QuickActions.stories.tsx` | `components/shell/QuickActions.stories.tsx` | Components/App shell/QuickActions |
-| `figma/shell/ShortcutSheet.stories.tsx` | `components/shell/ShortcutSheet.stories.tsx` | Components/App shell/ShortcutSheet |
-| `figma/shell/fixtures.ts` | `components/shell/fixtures.ts` | -- |
+| Old                                        | New file                                                                            | New title                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------- |
+| (new)                                      | `components/shell/Overview.mdx`                                                     | Components/App shell/Overview         |
+| `figma/shell/Toolbar.stories.tsx`          | `components/shell/Toolbar.stories.tsx` (`subcomponents: { ToolButton, ToolGroup }`) | Components/App shell/Toolbar          |
+| `figma/shell/SecondaryToolbar.stories.tsx` | `components/shell/SecondaryToolbar.stories.tsx`                                     | Components/App shell/SecondaryToolbar |
+| `figma/shell/NavRail.stories.tsx`          | `components/shell/NavRail.stories.tsx` (`subcomponents: { RailButton }`)            | Components/App shell/NavRail          |
+| `figma/shell/HelpButton.stories.tsx`       | `components/shell/HelpButton.stories.tsx`                                           | Components/App shell/HelpButton       |
+| `figma/shell/QuickActions.stories.tsx`     | `components/shell/QuickActions.stories.tsx`                                         | Components/App shell/QuickActions     |
+| `figma/shell/ShortcutSheet.stories.tsx`    | `components/shell/ShortcutSheet.stories.tsx`                                        | Components/App shell/ShortcutSheet    |
+| `figma/shell/fixtures.ts`                  | `components/shell/fixtures.ts`                                                      | --                                    |
 
 **Patterns**
 
-| Old | New file | New title |
-|---|---|---|
+| Old                                                                                                                                                                                                | New file                                                                                                     | New title                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------ |
 | `Theming.stories.tsx` stories SidebarPattern, PopoutPanelPattern, ControlGroupPatterns, InlineSettingsPattern (the "General Settings", "Appearance", "Advanced Settings", "Label Settings" panels) | `patterns/SettingsPanels.stories.tsx`, renamed `Sidebar`, `PopOutPanel`, `GroupedControls`, `InlineSettings` | Patterns/Settings panels |
 
 **Themed Mantine.** Every file keeps its component name; only the folder and title change.
 Old title "Compact Theme/Mantine Components/<Name>" becomes "Themed Mantine/<Group>/<Name>".
 
-| Group | Old files -> `mantine/<group>/<Name>.stories.tsx` |
-|---|---|
-| Actions | `theme/ActionIcon`, `theme/Anchor`, `theme/Burger`, `theme/Button`, `theme/CloseButton` |
-| Inputs | `theme/Autocomplete`, `theme/FileInput`, `theme/JsonInput`, `theme/MultiSelect`, `theme/NumberInput`, `theme/PasswordInput`, `theme/Pill`, `theme/PillsInput`, `theme/TagsInput`, `theme/Textarea`, `theme/TextInput` |
-| Selection | `theme/Checkbox`, `theme/Radio`, `theme/RangeSlider`, `theme/SegmentedControl` (plus the new `PicturesInAPanelRow` story, section 4.2), `theme/Slider`, `theme/Switch` |
-| Navigation | `theme/NavLink`, `theme/Pagination`, `theme/Stepper`, `theme/Tabs` |
-| Feedback | `theme/Badge`, `theme/Indicator`, `theme/Kbd`, `theme/Loader`, `theme/Progress`, `theme/RingProgress` |
-| Surfaces | `theme/Avatar`, `theme/Card`, `figma/chrome/Divider` (was Figma/Chrome/Divider), `figma/overlays/ScrollArea` (above), `theme/Text`, `theme/ThemeIcon` |
+| Group      | Old files -> `mantine/<group>/<Name>.stories.tsx`                                                                                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Actions    | `theme/ActionIcon`, `theme/Anchor`, `theme/Burger`, `theme/Button`, `theme/CloseButton`                                                                                                                               |
+| Inputs     | `theme/Autocomplete`, `theme/FileInput`, `theme/JsonInput`, `theme/MultiSelect`, `theme/NumberInput`, `theme/PasswordInput`, `theme/Pill`, `theme/PillsInput`, `theme/TagsInput`, `theme/Textarea`, `theme/TextInput` |
+| Selection  | `theme/Checkbox`, `theme/Radio`, `theme/RangeSlider`, `theme/SegmentedControl` (plus the new `PicturesInAPanelRow` story, section 4.2), `theme/Slider`, `theme/Switch`                                                |
+| Navigation | `theme/NavLink`, `theme/Pagination`, `theme/Stepper`, `theme/Tabs`                                                                                                                                                    |
+| Feedback   | `theme/Badge`, `theme/Indicator`, `theme/Kbd`, `theme/Loader`, `theme/Progress`, `theme/RingProgress`                                                                                                                 |
+| Surfaces   | `theme/Avatar`, `theme/Card`, `figma/chrome/Divider` (was Figma/Chrome/Divider), `figma/overlays/ScrollArea` (above), `theme/Text`, `theme/ThemeIcon`                                                                 |
 
 Within Themed Mantine files, a story that shows one state and nothing else (Checkbox
 `Unchecked`, `Checked`, `Disabled`, `DisabledChecked`, `Indeterminate`; Switch `Off`, `On`,
@@ -314,13 +314,13 @@ rather than a state (`Variants`, `Sections`, `Colors`, `JoinedGroup`, `MultiRow`
 **Helpers** (not stories). Copied verbatim, export names unchanged, into `stories/helpers/`;
 the old files are deleted by the integrator once nothing imports them.
 
-| Old | New |
-|---|---|
-| `figma/inputs/StateGrid.ts` | `helpers/input-states.ts` |
-| `figma/selection/StateGrid.ts` | `helpers/selection-states.ts` |
-| `figma/chrome/StoryPanel.ts` | `helpers/story-panel.ts` |
-| `figma/color/ForceState.ts` | `helpers/force-state.ts` |
-| (new) | `helpers/schemes.ts` (`BOTH_SCHEMES`, section 3.2) |
+| Old                            | New                                                |
+| ------------------------------ | -------------------------------------------------- |
+| `figma/inputs/StateGrid.ts`    | `helpers/input-states.ts`                          |
+| `figma/selection/StateGrid.ts` | `helpers/selection-states.ts`                      |
+| `figma/chrome/StoryPanel.ts`   | `helpers/story-panel.ts`                           |
+| `figma/color/ForceState.ts`    | `helpers/force-state.ts`                           |
+| (new)                          | `helpers/schemes.ts` (`BOTH_SCHEMES`, section 3.2) |
 
 Merging the four grid helpers into one is left for later: it touches all 44 importers again
 for no reader-visible change.
@@ -365,7 +365,7 @@ Markdown. The existing StyleSelect page already works this way.
 
 Every CSF file is laid out like this:
 
-```tsx
+````tsx
 /**
  * <One sentence: what it is and what it is for.>
  *
@@ -409,7 +409,7 @@ export const Default: Story = { args: { ... } };   // args-driven, so Controls w
 export const States: Story = { parameters: BOTH_SCHEMES, render: ... };
 
 // then feature stories, then Keyboard / Translated / RightToLeft last
-```
+````
 
 Rules:
 
@@ -420,25 +420,25 @@ Rules:
   section number, as the existing JSDoc comments do.
 - The "When to use it" pairs every page must answer:
 
-| Page | Nearest alternative it must name |
-|---|---|
-| SearchInput | Mantine TextInput (search adds the glyph, clear button and Escape-to-clear) |
-| ComboInput | Select (fixed choices) and Autocomplete (free text with suggestions) |
-| Select | StyleSelect on the same page (undefined means "inherit the default") and ComboInput |
-| StyleNumberInput | PanelField `kind="number"` (the panel field) and Mantine NumberInput (a form) |
-| PanelField | FieldRow (lays out one or two PanelFields) |
-| ContextMenu (Menu page) | Mantine Menu (opened from a button rather than a right-click) |
-| Tooltip | InfoCircle (an explanation the reader asks for, which stays open) |
-| Popout | Mantine Popover (one-off, not draggable, no nesting) |
-| Tree | DataRow (a reading, not an object the reader selects, renames or moves) and PageList (flat, no nesting) |
-| DataRow | Tree / PageList / ResultRow (lists of objects) and DataTable (columns, thousands of rows) |
-| ToggleRow | ToggleWithContent (a yes/no that brings its own settings) and the trailing-slot checkbox (a lone boolean) |
-| SegmentedControl (Themed Mantine) | the replacement for IconGroupRow: pictures in segments, section 4.2 |
-| CompactColorInput | ColorPickerPanel (the picker on its own, for a surface of your own) |
-| GradientEditor | ColorPickerPanel's `gradient` slot, which hosts it |
-| ToggleIconButton | Mantine ActionIcon (an action, not an on/off state) |
-| SplitButton | Mantine Menu on a Button (no default action) |
-| ControlSection | ControlGroup (never folds) and ControlSubGroup (quieter, nested) |
+| Page                              | Nearest alternative it must name                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| SearchInput                       | Mantine TextInput (search adds the glyph, clear button and Escape-to-clear)                               |
+| ComboInput                        | Select (fixed choices) and Autocomplete (free text with suggestions)                                      |
+| Select                            | StyleSelect on the same page (undefined means "inherit the default") and ComboInput                       |
+| StyleNumberInput                  | PanelField `kind="number"` (the panel field) and Mantine NumberInput (a form)                             |
+| PanelField                        | FieldRow (lays out one or two PanelFields)                                                                |
+| ContextMenu (Menu page)           | Mantine Menu (opened from a button rather than a right-click)                                             |
+| Tooltip                           | InfoCircle (an explanation the reader asks for, which stays open)                                         |
+| Popout                            | Mantine Popover (one-off, not draggable, no nesting)                                                      |
+| Tree                              | DataRow (a reading, not an object the reader selects, renames or moves) and PageList (flat, no nesting)   |
+| DataRow                           | Tree / PageList / ResultRow (lists of objects) and DataTable (columns, thousands of rows)                 |
+| ToggleRow                         | ToggleWithContent (a yes/no that brings its own settings) and the trailing-slot checkbox (a lone boolean) |
+| SegmentedControl (Themed Mantine) | the replacement for IconGroupRow: pictures in segments, section 4.2                                       |
+| CompactColorInput                 | ColorPickerPanel (the picker on its own, for a surface of your own)                                       |
+| GradientEditor                    | ColorPickerPanel's `gradient` slot, which hosts it                                                        |
+| ToggleIconButton                  | Mantine ActionIcon (an action, not an on/off state)                                                       |
+| SplitButton                       | Mantine Menu on a Button (no default action)                                                              |
+| ControlSection                    | ControlGroup (never folds) and ControlSubGroup (quieter, nested)                                          |
 
 Themed Mantine pages use the same template with shorter text: one line saying what the theme
 changes, a link to the component's mantine.dev page for its props, Default, States, and the
@@ -454,29 +454,29 @@ Two mechanisms, for two audiences:
 2. **`BOTH_SCHEMES` on the States story** shows light and dark side by side on the docs page, so
    a reader sees both without touching the toolbar. `stories/helpers/schemes.ts`:
 
-   ```ts
-   export const BOTH_SCHEMES = { schemes: "both" } as const;
-   ```
+    ```ts
+    export const BOTH_SCHEMES = { schemes: "both" } as const;
+    ```
 
-   and the preview decorator, when `context.parameters.schemes === "both"`, renders the story
-   twice in a wrapping row. Each half is
-   `<div className="cm-scheme-<s>" data-mantine-color-scheme="<s>" style={{ colorScheme: "<s>", background: "var(--cm-bg)", color: "var(--cm-text)", padding: 16 }}>`
-   holding a nested `MantineProvider` with the same theme, `forceColorScheme="<s>"`,
-   `cssVariablesSelector=".cm-scheme-<s>"` and `getRootElement` returning that div, with a
-   9px caption "Light" / "Dark" above it. The toolbar's `theme` global is ignored for these
-   stories; `contrast` and `direction` still apply.
+    and the preview decorator, when `context.parameters.schemes === "both"`, renders the story
+    twice in a wrapping row. Each half is
+    `<div className="cm-scheme-<s>" data-mantine-color-scheme="<s>" style={{ colorScheme: "<s>", background: "var(--cm-bg)", color: "var(--cm-text)", padding: 16 }}>`
+    holding a nested `MantineProvider` with the same theme, `forceColorScheme="<s>"`,
+    `cssVariablesSelector=".cm-scheme-<s>"` and `getRootElement` returning that div, with a
+    9px caption "Light" / "Dark" above it. The toolbar's `theme` global is ignored for these
+    stories; `contrast` and `direction` still apply.
 
-   Portalled overlays escape the halves (Mantine renders them into `document.body`). A States
-   story that holds an overlay open renders it in place: `withinPortal={false}` or
-   `comboboxProps={{ withinPortal: false }}`.
+    Portalled overlays escape the halves (Mantine renders them into `document.body`). A States
+    story that holds an overlay open renders it in place: `withinPortal={false}` or
+    `comboboxProps={{ withinPortal: false }}`.
 
-   Verification the Foundations package must do before handing over: screenshot one field, one
-   button and one open listbox States story (a) as a pair and (b) alone under each toolbar
-   scheme, and compare each half with the single render. A half that differs has found a rule
-   the theme draws from Mantine's `[data-mantine-color-scheme]` ancestor selector instead of a
-   `light-dark()` `--cm-*` token. That is a theme defect -- the same leak breaks a consumer's
-   "compact region inside a normal app" -- and the fix goes in the theme's stylesheet, not in the
-   story. List any such rules found; fix them only if the fix is a token swap.
+    Verification the Foundations package must do before handing over: screenshot one field, one
+    button and one open listbox States story (a) as a pair and (b) alone under each toolbar
+    scheme, and compare each half with the single render. A half that differs has found a rule
+    the theme draws from Mantine's `[data-mantine-color-scheme]` ancestor selector instead of a
+    `light-dark()` `--cm-*` token. That is a theme defect -- the same leak breaks a consumer's
+    "compact region inside a normal app" -- and the fix goes in the theme's stylesheet, not in the
+    story. List any such rules found; fix them only if the fix is a token swap.
 
 ## 4. Component consolidations
 
@@ -638,11 +638,11 @@ No other package changes an export.
 
 ### 5.1 Component packages
 
-| Key | What | Files |
-|---|---|---|
-| `gradient-editor-picker` | Section 4.1 | `src/components/GradientEditor.tsx`, `src/theme/css/color.css.ts`, `tests/components/GradientEditor.test.tsx`, `tests/figma/color.browser.test.tsx` |
-| `rows-and-tree-api` | Sections 4.2, 4.4, the Tree keyboard move of 4.3, and 4.6 | `src/components/rows/IconGroupRow.tsx` (delete), `src/components/rows/DataRow.tsx`, `src/components/rows/index.ts`, `src/components/tree/Tree.tsx`, `src/components/tree/treeModel.ts`, `src/types/index.ts`, `src/index.ts`, `src/i18n/labels.ts`, `src/utils/control-annotation.ts`, `tests/exports.test.ts`, `tests/consistency.test.tsx`, `tests/components/disabledReason.test.tsx`, `tests/components/rows/DataRow.test.tsx`, `tests/components/rows/IconGroupRow.test.tsx` (delete), `tests/components/rows/IconGroupRow.browser.test.tsx` (delete), its screenshots (delete), `tests/components/rows/trailing-slot-grid.browser.test.tsx`, `tests/components/tree/Tree.browser.test.tsx`, `stories/IconGroupRow.stories.tsx` (delete), `CHANGELOG-figma.md` |
-| `app-style-layers-on-tree` | Section 4.3, app side | `graphty/src/components/shell/panel/StyleLayerList.tsx` (new), `graphty/src/components/shell/panel/__tests__/StyleLayerList.test.tsx` (new), `graphty/src/components/shell/panel/StylePanel.tsx`, `graphty/src/components/shell/panel/__tests__/StylePanel.test.tsx`, `graphty/src/components/layout/LeftSidebar.tsx` (delete), `graphty/src/components/layout/__tests__/LeftSidebar.test.tsx` (delete), `graphty/src/components/shell/__tests__/AppShell.test.tsx`, the `LayerItem` import path in `graphty/src/components/Graphty.tsx`, `graphty/src/components/shell/AppShell.tsx`, `graphty/src/components/shell/canvas/CanvasRegion.tsx`, `graphty/src/components/shell/inspector/StyleLayerInspector.tsx`, `graphty/src/components/sidebar/panels/StyleLayerPropertiesPanel.tsx`, `graphty/src/components/shell/inspector/__tests__/StyleLayerInspector.test.tsx`, `graphty/src/components/sidebar/panels/__tests__/StyleLayerPropertiesPanel.test.tsx`, `graphty/src/components/sidebar/__tests__/SidebarCompactIntegration.test.tsx`, `graphty/package.json` and `pnpm-lock.yaml` (drop the three `@dnd-kit/*` packages) |
+| Key                        | What                                                      | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gradient-editor-picker`   | Section 4.1                                               | `src/components/GradientEditor.tsx`, `src/theme/css/color.css.ts`, `tests/components/GradientEditor.test.tsx`, `tests/figma/color.browser.test.tsx`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `rows-and-tree-api`        | Sections 4.2, 4.4, the Tree keyboard move of 4.3, and 4.6 | `src/components/rows/IconGroupRow.tsx` (delete), `src/components/rows/DataRow.tsx`, `src/components/rows/index.ts`, `src/components/tree/Tree.tsx`, `src/components/tree/treeModel.ts`, `src/types/index.ts`, `src/index.ts`, `src/i18n/labels.ts`, `src/utils/control-annotation.ts`, `tests/exports.test.ts`, `tests/consistency.test.tsx`, `tests/components/disabledReason.test.tsx`, `tests/components/rows/DataRow.test.tsx`, `tests/components/rows/IconGroupRow.test.tsx` (delete), `tests/components/rows/IconGroupRow.browser.test.tsx` (delete), its screenshots (delete), `tests/components/rows/trailing-slot-grid.browser.test.tsx`, `tests/components/tree/Tree.browser.test.tsx`, `stories/IconGroupRow.stories.tsx` (delete), `CHANGELOG-figma.md`                                                                                                                                                                                                                                                                                                                                                              |
+| `app-style-layers-on-tree` | Section 4.3, app side                                     | `graphty/src/components/shell/panel/StyleLayerList.tsx` (new), `graphty/src/components/shell/panel/__tests__/StyleLayerList.test.tsx` (new), `graphty/src/components/shell/panel/StylePanel.tsx`, `graphty/src/components/shell/panel/__tests__/StylePanel.test.tsx`, `graphty/src/components/layout/LeftSidebar.tsx` (delete), `graphty/src/components/layout/__tests__/LeftSidebar.test.tsx` (delete), `graphty/src/components/shell/__tests__/AppShell.test.tsx`, the `LayerItem` import path in `graphty/src/components/Graphty.tsx`, `graphty/src/components/shell/AppShell.tsx`, `graphty/src/components/shell/canvas/CanvasRegion.tsx`, `graphty/src/components/shell/inspector/StyleLayerInspector.tsx`, `graphty/src/components/sidebar/panels/StyleLayerPropertiesPanel.tsx`, `graphty/src/components/shell/inspector/__tests__/StyleLayerInspector.test.tsx`, `graphty/src/components/sidebar/panels/__tests__/StyleLayerPropertiesPanel.test.tsx`, `graphty/src/components/sidebar/__tests__/SidebarCompactIntegration.test.tsx`, `graphty/package.json` and `pnpm-lock.yaml` (drop the three `@dnd-kit/*` packages) |
 
 ### 5.2 Story packages
 
@@ -651,20 +651,20 @@ the new path, delete the old path). Each rewrites every meta JSDoc to the templa
 `States` with `BOTH_SCHEMES`, puts `Default` first, and writes its Overview page from the old
 overview MDX it reads.
 
-| Key | Section | Owns |
-|---|---|---|
-| `docs-and-foundations` | Introduction and Foundations, plus the Storybook config | `.storybook/preview.tsx`, `.storybook/main.ts`, `stories/helpers/*` (new), `stories/introduction/*.mdx` (new), `stories/foundations/*` (new), `stories/theme/LightDarkMode.stories.tsx` (moves to Color), `stories/Glyphs.stories.tsx` (moves), `README.md` |
-| `components-panels` | Components/Panels and rows | `stories/components/panels/*`; moves `ControlSection`, `ControlGroup`, `ControlSubGroup`, `FieldRow`, `CompoundRow`, `TrailingSlot` stories and `stories/figma/chrome/ResizeHandle.stories.tsx`; reads `stories/docs/BuildingAPanel.mdx` |
-| `components-inputs` | Components/Inputs | `stories/components/inputs/*` (not ComboInput); moves `PanelField`, `StyleNumberInput`, `figma/inputs/SearchInput`, `figma/inputs/VariablePill`; merges `theme/Select`, `figma/inputs/Listbox`, `StyleSelect` into `Select.stories.tsx`; reads `stories/docs/EditingAValue.mdx` |
-| `components-selection` | Components/Selection | `stories/components/selection/*`; moves `ToggleRow`, `ToggleRowGroup`, `ToggleWithContent`, `figma/selection/AlignmentMatrix`; reads `stories/docs/EditingAValue.mdx` |
-| `components-color` | Components/Color | `stories/components/color/*`; moves `CompactColorInput`, `GradientEditor`, `RampRow`, `figma/color/ColorPickerPanel`; reads `stories/docs/EditingAValue.mdx` |
-| `components-actions` | Components/Actions | `stories/components/actions/*`; moves `figma/buttons/ToggleIconButton`, `figma/buttons/SplitButton`, `AdvancedButton` |
-| `components-overlays` | Components/Overlays | `stories/components/overlays/*`; merges `src/components/popout/Popout.stories.tsx`, `src/components/popout/PopoutAnchor.stories.tsx`, `figma/overlays/Popover` into `Popout.stories.tsx`; moves `src/components/popout/PopoutButton.stories.tsx`, `InfoCircle`, `figma/overlays/Menu`, `figma/overlays/Tooltip`, `figma/overlays/Modal`, `figma/overlays/Toast`; reads `stories/docs/FloatingPanels.mdx` |
-| `components-lists` | Components/Lists and trees | `stories/components/lists/*`; moves `figma/tree/Tree`, `PageList`, `InlineRename`, `ResultRow`, `fixtures.ts`; adds the `FlatReorderableList` Tree story |
-| `components-data` | Components/Data display | `stories/components/data/*`; moves `DataRow` (dropping the object-list stories), `DataRowHeader`, `RankChip`, `MetricRow`, `HistogramRow`, `SparklineRow`, `ProseBlock`, `ActionRow`, `DataTable`; reads `stories/docs/ShowingData.mdx` |
-| `components-shell` | Components/App shell | `stories/components/shell/*`; moves `figma/shell/*` stories and `fixtures.ts` |
-| `patterns` | Patterns (and the Customizing the theme CSF) | `stories/patterns/*`, `stories/introduction/CustomizingTheTheme.stories.tsx`; splits and deletes `stories/Theming.stories.tsx`; reads `stories/docs/CompactTheme.mdx` |
-| `themed-mantine` | Themed Mantine | `stories/mantine/**`; moves every `stories/theme/*` file except `Select` and `LightDarkMode`, plus `figma/chrome/Divider` and `figma/overlays/ScrollArea`; adds `PicturesInAPanelRow` to SegmentedControl |
+| Key                    | Section                                                 | Owns                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs-and-foundations` | Introduction and Foundations, plus the Storybook config | `.storybook/preview.tsx`, `.storybook/main.ts`, `stories/helpers/*` (new), `stories/introduction/*.mdx` (new), `stories/foundations/*` (new), `stories/theme/LightDarkMode.stories.tsx` (moves to Color), `stories/Glyphs.stories.tsx` (moves), `README.md`                                                                                                                                              |
+| `components-panels`    | Components/Panels and rows                              | `stories/components/panels/*`; moves `ControlSection`, `ControlGroup`, `ControlSubGroup`, `FieldRow`, `CompoundRow`, `TrailingSlot` stories and `stories/figma/chrome/ResizeHandle.stories.tsx`; reads `stories/docs/BuildingAPanel.mdx`                                                                                                                                                                 |
+| `components-inputs`    | Components/Inputs                                       | `stories/components/inputs/*` (not ComboInput); moves `PanelField`, `StyleNumberInput`, `figma/inputs/SearchInput`, `figma/inputs/VariablePill`; merges `theme/Select`, `figma/inputs/Listbox`, `StyleSelect` into `Select.stories.tsx`; reads `stories/docs/EditingAValue.mdx`                                                                                                                          |
+| `components-selection` | Components/Selection                                    | `stories/components/selection/*`; moves `ToggleRow`, `ToggleRowGroup`, `ToggleWithContent`, `figma/selection/AlignmentMatrix`; reads `stories/docs/EditingAValue.mdx`                                                                                                                                                                                                                                    |
+| `components-color`     | Components/Color                                        | `stories/components/color/*`; moves `CompactColorInput`, `GradientEditor`, `RampRow`, `figma/color/ColorPickerPanel`; reads `stories/docs/EditingAValue.mdx`                                                                                                                                                                                                                                             |
+| `components-actions`   | Components/Actions                                      | `stories/components/actions/*`; moves `figma/buttons/ToggleIconButton`, `figma/buttons/SplitButton`, `AdvancedButton`                                                                                                                                                                                                                                                                                    |
+| `components-overlays`  | Components/Overlays                                     | `stories/components/overlays/*`; merges `src/components/popout/Popout.stories.tsx`, `src/components/popout/PopoutAnchor.stories.tsx`, `figma/overlays/Popover` into `Popout.stories.tsx`; moves `src/components/popout/PopoutButton.stories.tsx`, `InfoCircle`, `figma/overlays/Menu`, `figma/overlays/Tooltip`, `figma/overlays/Modal`, `figma/overlays/Toast`; reads `stories/docs/FloatingPanels.mdx` |
+| `components-lists`     | Components/Lists and trees                              | `stories/components/lists/*`; moves `figma/tree/Tree`, `PageList`, `InlineRename`, `ResultRow`, `fixtures.ts`; adds the `FlatReorderableList` Tree story                                                                                                                                                                                                                                                 |
+| `components-data`      | Components/Data display                                 | `stories/components/data/*`; moves `DataRow` (dropping the object-list stories), `DataRowHeader`, `RankChip`, `MetricRow`, `HistogramRow`, `SparklineRow`, `ProseBlock`, `ActionRow`, `DataTable`; reads `stories/docs/ShowingData.mdx`                                                                                                                                                                  |
+| `components-shell`     | Components/App shell                                    | `stories/components/shell/*`; moves `figma/shell/*` stories and `fixtures.ts`                                                                                                                                                                                                                                                                                                                            |
+| `patterns`             | Patterns (and the Customizing the theme CSF)            | `stories/patterns/*`, `stories/introduction/CustomizingTheTheme.stories.tsx`; splits and deletes `stories/Theming.stories.tsx`; reads `stories/docs/CompactTheme.mdx`                                                                                                                                                                                                                                    |
+| `themed-mantine`       | Themed Mantine                                          | `stories/mantine/**`; moves every `stories/theme/*` file except `Select` and `LightDarkMode`, plus `figma/chrome/Divider` and `figma/overlays/ScrollArea`; adds `PicturesInAPanelRow` to SegmentedControl                                                                                                                                                                                                |
 
 ### 5.3 The integrator (phase 3, last)
 

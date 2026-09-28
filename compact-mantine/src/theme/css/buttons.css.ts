@@ -24,7 +24,8 @@ const EDGED_ICON = ':is([data-variant="default"], [aria-haspopup]:not([aria-hasp
 /** An icon button showing the "on" look: its popover is open, or it is a pressed toggle. */
 const ON = ':is([aria-expanded="true"], [aria-pressed="true"])';
 /** Icon buttons inside a joined group take the joined look unless they asked for another. */
-const JOINED = '.cm-ai-group > .cm-action-icon:is([data-variant="subtle"], [data-variant="default"], [data-variant="joined"])';
+const JOINED =
+    '.cm-ai-group > .cm-action-icon:is([data-variant="subtle"], [data-variant="default"], [data-variant="joined"])';
 
 const css = `
 /* ---------- Button (4.1) ---------- */

@@ -127,10 +127,7 @@ export function AlignmentMatrix({
         if (next !== selected) {
             setSelected(next, event);
         }
-        event.currentTarget
-            .closest(".cm-align")
-            ?.querySelector<HTMLInputElement>(`input[value="${next}"]`)
-            ?.focus();
+        event.currentTarget.closest(".cm-align")?.querySelector<HTMLInputElement>(`input[value="${next}"]`)?.focus();
     };
 
     return (

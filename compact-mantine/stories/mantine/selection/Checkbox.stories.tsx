@@ -64,11 +64,23 @@ export const States: Story = {
                     key={variant}
                     cells={[
                         [`${variant}: unchecked`, <Checkbox variant={variant} label="Clip content" />],
-                        [`${variant}: hover`, <Checkbox variant={variant} label="Clip content" data-cm-state="hover" />],
-                        [`${variant}: pressed`, <Checkbox variant={variant} label="Clip content" data-cm-state="pressed" />],
+                        [
+                            `${variant}: hover`,
+                            <Checkbox variant={variant} label="Clip content" data-cm-state="hover" />,
+                        ],
+                        [
+                            `${variant}: pressed`,
+                            <Checkbox variant={variant} label="Clip content" data-cm-state="pressed" />,
+                        ],
                         [`${variant}: checked`, <Checkbox variant={variant} label="Clip content" defaultChecked />],
-                        [`${variant}: checked hover`, <Checkbox variant={variant} label="Clip content" defaultChecked data-cm-state="hover" />],
-                        [`${variant}: checked pressed`, <Checkbox variant={variant} label="Clip content" defaultChecked data-cm-state="pressed" />],
+                        [
+                            `${variant}: checked hover`,
+                            <Checkbox variant={variant} label="Clip content" defaultChecked data-cm-state="hover" />,
+                        ],
+                        [
+                            `${variant}: checked pressed`,
+                            <Checkbox variant={variant} label="Clip content" defaultChecked data-cm-state="pressed" />,
+                        ],
                         [`${variant}: mixed`, <Checkbox variant={variant} label="Clip content" indeterminate />],
                         [
                             `${variant}: focus`,
@@ -80,8 +92,14 @@ export const States: Story = {
                             />,
                         ],
                         [`${variant}: disabled`, <Checkbox variant={variant} label="Clip content" disabled />],
-                        [`${variant}: disabled checked`, <Checkbox variant={variant} label="Clip content" disabled defaultChecked />],
-                        [`${variant}: disabled mixed`, <Checkbox variant={variant} label="Clip content" disabled indeterminate />],
+                        [
+                            `${variant}: disabled checked`,
+                            <Checkbox variant={variant} label="Clip content" disabled defaultChecked />,
+                        ],
+                        [
+                            `${variant}: disabled mixed`,
+                            <Checkbox variant={variant} label="Clip content" disabled indeterminate />,
+                        ],
                     ]}
                 />
             ))}

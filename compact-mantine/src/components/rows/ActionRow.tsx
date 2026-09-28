@@ -6,7 +6,7 @@ import { PANEL_GRID } from "../../constants/panel";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationHandlerWithMeta, getActivationMeta } from "../../types/events";
 import { useDevWarning } from "../../utils/dev-warning";
-import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
+import { liveRegionProps, type LiveSetting } from "../../utils/live-region";
 
 // RT-7 in the internal vocabulary. Nothing below says so in a `/** */`, because
 // that text is compiled into dist/index.d.ts and into the Storybook prop

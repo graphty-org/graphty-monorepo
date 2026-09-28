@@ -291,9 +291,13 @@ function buildNodeActions(
     // beside the control it warns about -- a menu row would put it behind a door. It
     // carries a cost, so the cap leaves it where it is put.
     if (overThreshold) {
-        resident.splice(1, 0, make("expandAllAnyway", "Expand all anyway", {
-            cost: `All ${formatted(neighborCount)} may slow the canvas down`,
-        }));
+        resident.splice(
+            1,
+            0,
+            make("expandAllAnyway", "Expand all anyway", {
+                cost: `All ${formatted(neighborCount)} may slow the canvas down`,
+            }),
+        );
     }
 
     const more: InspectorAction[] = [
@@ -371,9 +375,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
             return attributes;
         }
 
-        return Object.fromEntries(
-            Object.entries(attributes).filter(([key]) => key.toLowerCase().includes(needle)),
-        );
+        return Object.fromEntries(Object.entries(attributes).filter(([key]) => key.toLowerCase().includes(needle)));
     }, [attributeFilter, attributes]);
 
     // Spec 03 section 5 item 5: the breakdown caps at the top five edge types and then
@@ -715,7 +717,6 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
 
             {/* BLOCK 6 -- the actions block, in the sticky footer outside the scroll. */}
             <InspectorActions label="Actions" actions={resident} moreActions={more} />
-
         </>
     );
 }

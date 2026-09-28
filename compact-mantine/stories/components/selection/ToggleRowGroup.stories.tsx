@@ -173,7 +173,10 @@ export const WithTrailingControls: Story = {
                 defaultChecked
                 trailing={<AdvancedButton label="Label settings" changed onClick={(): void => undefined} />}
             />
-            <ToggleRow label="Halos" trailing={<AdvancedButton label="Halo settings" onClick={(): void => undefined} />} />
+            <ToggleRow
+                label="Halos"
+                trailing={<AdvancedButton label="Halo settings" onClick={(): void => undefined} />}
+            />
             <ToggleRow label="Shadows" />
         </ToggleRowGroup>
     ),

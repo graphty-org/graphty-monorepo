@@ -28,13 +28,13 @@ stories fails, and the published text is full of pointers to a repository file
 
 ## The five tasks
 
-| Task | Found? | Where | Notes |
-|---|---|---|---|
-| A number with a unit | Yes | Components / Inputs / PanelField, story "With Unit" | Sidebar search "unit" finds it. "Choosing a component" also sends you to `CompoundRow` for "a width and its unit" -- but that page's tables are unreadable (finding 1). |
-| Pick one of five icons | Only through an Overview | Themed Mantine / Selection / SegmentedControl, stories "Five Options" and "Pictures In A Panel Row" | Not under Components / Selection, where you would look first. The Selection and Inputs Overviews both point to it, and the Selection link works. Searching "icon" returns ToggleIconButton, ActionIcon and ThemeIcon first. |
-| Search a list | Yes | Components / Inputs / SearchInput; Lists and trees / ResultRow "Driven From A Search Field" | Good. |
-| A color with opacity | Yes | Components / Color / CompactColorInput | The first sentence of the page says exactly this. Searching "opacity" only finds "Without Opacity", which still lands on the right page. |
-| A tree of layers I can reorder | Yes | Components / Lists and trees / Tree, stories "Flat Reorderable List" and "Dragging" | The usage snippet calls two helpers that do not exist (finding 5). Searching "layer" finds nothing. |
+| Task                           | Found?                   | Where                                                                                               | Notes                                                                                                                                                                                                                       |
+| ------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A number with a unit           | Yes                      | Components / Inputs / PanelField, story "With Unit"                                                 | Sidebar search "unit" finds it. "Choosing a component" also sends you to `CompoundRow` for "a width and its unit" -- but that page's tables are unreadable (finding 1).                                                     |
+| Pick one of five icons         | Only through an Overview | Themed Mantine / Selection / SegmentedControl, stories "Five Options" and "Pictures In A Panel Row" | Not under Components / Selection, where you would look first. The Selection and Inputs Overviews both point to it, and the Selection link works. Searching "icon" returns ToggleIconButton, ActionIcon and ThemeIcon first. |
+| Search a list                  | Yes                      | Components / Inputs / SearchInput; Lists and trees / ResultRow "Driven From A Search Field"         | Good.                                                                                                                                                                                                                       |
+| A color with opacity           | Yes                      | Components / Color / CompactColorInput                                                              | The first sentence of the page says exactly this. Searching "opacity" only finds "Without Opacity", which still lands on the right page.                                                                                    |
+| A tree of layers I can reorder | Yes                      | Components / Lists and trees / Tree, stories "Flat Reorderable List" and "Dragging"                 | The usage snippet calls two helpers that do not exist (finding 5). Searching "layer" finds nothing.                                                                                                                         |
 
 ## Getting started
 

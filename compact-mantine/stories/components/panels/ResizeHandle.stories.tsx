@@ -107,7 +107,7 @@ function ResizablePanel(props: ResizeHandleProps): React.JSX.Element {
 /**
  * A panel whose width follows its handle: drag the right edge, or Tab to it and
  * press the arrow keys. Change `min`, `max` and `defaultValue` in the Controls
- * table. 
+ * table.
  */
 export const Default: Story = {
     args: {

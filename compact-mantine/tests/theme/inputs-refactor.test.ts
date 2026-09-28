@@ -35,13 +35,8 @@ describe("Input Component Extensions (Refactored)", () => {
             ] as const;
 
             for (const name of inputComponents) {
-                const ext =
-                    inputComponentExtensions[
-                        name as keyof typeof inputComponentExtensions
-                    ];
-                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe(
-                    "sm",
-                );
+                const ext = inputComponentExtensions[name as keyof typeof inputComponentExtensions];
+                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe("sm");
             }
         });
 

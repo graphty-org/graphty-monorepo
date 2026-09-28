@@ -233,11 +233,7 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                     position="bottom-end"
                     withinPortal
                 >
-                    <Tooltip
-                        disabled={exportOpen && dataLoaded}
-                        label={exportTitle(dataLoaded)}
-                        withinPortal
-                    >
+                    <Tooltip disabled={exportOpen && dataLoaded} label={exportTitle(dataLoaded)} withinPortal>
                         <Menu.Target>
                             <Button
                                 type="button"

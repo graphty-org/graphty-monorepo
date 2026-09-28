@@ -7,13 +7,7 @@
  * Note: These components use defaultProps for zIndex configuration.
  * Overlay dropdowns are rendered in portals at document.body level.
  */
-import {
-    Button,
-    MantineProvider,
-    Menu,
-    Popover,
-    Tooltip,
-} from "@mantine/core";
+import { Button, MantineProvider, Menu, Popover, Tooltip } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -45,7 +39,7 @@ describe("Menu - All CSS Values (Browser)", () => {
                         <Menu.Item>Item 1</Menu.Item>
                         <Menu.Item>Item 2</Menu.Item>
                     </Menu.Dropdown>
-                </Menu>
+                </Menu>,
             );
 
             // Open the menu
@@ -81,7 +75,7 @@ describe("Tooltip - All CSS Values (Browser)", () => {
             renderWithTheme(
                 <Tooltip label="Tooltip content" opened>
                     <Button>Hover me</Button>
-                </Tooltip>
+                </Tooltip>,
             );
 
             // Wait for tooltip to appear
@@ -103,7 +97,7 @@ describe("Tooltip - All CSS Values (Browser)", () => {
             renderWithTheme(
                 <Tooltip label="Tooltip content">
                     <Button>Hover me</Button>
-                </Tooltip>
+                </Tooltip>,
             );
 
             // Hover over the button
@@ -116,7 +110,7 @@ describe("Tooltip - All CSS Values (Browser)", () => {
                     const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
                     expect(tooltip).toBeTruthy();
                 },
-                { timeout: 2000 }
+                { timeout: 2000 },
             );
 
             const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
@@ -139,7 +133,7 @@ describe("Popover - All CSS Values (Browser)", () => {
                         <Button>Open Popover</Button>
                     </Popover.Target>
                     <Popover.Dropdown>Popover content</Popover.Dropdown>
-                </Popover>
+                </Popover>,
             );
 
             // Open the popover

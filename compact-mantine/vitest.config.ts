@@ -115,10 +115,7 @@ export default defineConfig({
                     globals: true,
                     setupFiles: ["./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
-                    exclude: [
-                        "**/node_modules/**",
-                        "**/dist/**",
-                    ],
+                    exclude: ["**/node_modules/**", "**/dist/**"],
                     // Disable file parallelism to prevent race conditions
                     fileParallelism: false,
                     browser: {
@@ -129,7 +126,14 @@ export default defineConfig({
                         // Disable file parallelism to prevent race conditions
                         fileParallelism: false,
                         // Node-side helpers for the measurement harness (tests/harness).
-                        commands: { figmaAvailable, readFigmaCapture, mouseAway, mouseDown, mouseUp, emulateReducedMotion },
+                        commands: {
+                            figmaAvailable,
+                            readFigmaCapture,
+                            mouseAway,
+                            mouseDown,
+                            mouseUp,
+                            emulateReducedMotion,
+                        },
                     },
                 },
             },

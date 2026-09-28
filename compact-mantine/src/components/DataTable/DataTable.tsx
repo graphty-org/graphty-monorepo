@@ -275,7 +275,8 @@ function DataTableInner<TRow extends object>(
                 // accented word after every unaccented one. This one reads the
                 // value through the column's own accessor and compares it with
                 // the collator for the active locale.
-                sortFn: (rowA, rowB) => compareValues(column.value(rowA.original), column.value(rowB.original), collator),
+                sortFn: (rowA, rowB) =>
+                    compareValues(column.value(rowA.original), column.value(rowB.original), collator),
             })),
         [columns, collator],
     );
@@ -549,13 +550,9 @@ function DataTableInner<TRow extends object>(
             return;
         }
 
-        const next = nextGridPosition(
-            position,
-            event.key,
-            { rowCount, columnCount, pageSize: pageSize() },
-            direction,
-            { jumpToEnd },
-        );
+        const next = nextGridPosition(position, event.key, { rowCount, columnCount, pageSize: pageSize() }, direction, {
+            jumpToEnd,
+        });
 
         if (next === undefined) {
             return;
@@ -705,15 +702,12 @@ function DataTableInner<TRow extends object>(
                 out loud rather than only drawn. */}
             <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
                 {shownText}
-                {isSelectable && selection.length > 0 ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}` : ""}
+                {isSelectable && selection.length > 0
+                    ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}`
+                    : ""}
             </VisuallyHidden>
 
-            <Box
-                ref={scrollRef}
-                data-testid="data-table-viewport"
-                className="cm-dt-viewport"
-                style={{ height }}
-            >
+            <Box ref={scrollRef} data-testid="data-table-viewport" className="cm-dt-viewport" style={{ height }}>
                 {/* ARIA Authoring Practices, Grid pattern. The table reports
                     how many rows and columns it has and numbers the ones it
                     has drawn, which is what lets a screen reader say "row 40
@@ -738,12 +732,7 @@ function DataTableInner<TRow extends object>(
                     style={{ minWidth: totalWidth + GRID_GAP * (columnCount + 1) }}
                 >
                     <Table.Thead className="cm-dt-head">
-                        <Table.Tr
-                            role="row"
-                            aria-rowindex={1}
-                            className="cm-dt-row"
-                            style={{ height: headerHeight }}
-                        >
+                        <Table.Tr role="row" aria-rowindex={1} className="cm-dt-row" style={{ height: headerHeight }}>
                             {visibleColumns.map((column, index) => {
                                 const config = columnById.get(column.id);
                                 const sortable = column.getCanSort();
@@ -904,8 +893,7 @@ function DataTableInner<TRow extends object>(
                                 >
                                     {visibleColumns.map((column, index) => {
                                         const config = columnById.get(column.id);
-                                        const isFocused =
-                                            position.row === item.index && position.column === index;
+                                        const isFocused = position.row === item.index && position.column === index;
                                         const value = config?.value(row.original);
                                         const text = cellText(value, format);
                                         // A value the table writes itself is
@@ -978,10 +966,7 @@ function DataTableInner<TRow extends object>(
                 </Table>
 
                 {rowCount === 0 && (
-                    <Box
-                        data-testid="data-table-empty"
-                        className="cm-dt-empty"
-                    >
+                    <Box data-testid="data-table-empty" className="cm-dt-empty">
                         {emptyContent()}
                     </Box>
                 )}

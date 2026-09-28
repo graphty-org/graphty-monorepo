@@ -6,7 +6,7 @@ import { useLabels } from "../../i18n";
 import { FieldGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ActivationHandler } from "../../types/events";
-import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
+import { liveRegionProps, type LiveSetting } from "../../utils/live-region";
 import { mirrorInline, useDirection } from "../../utils/rtl";
 import { AdvancedButton, holdsSomething, TrailingSlot } from "./TrailingSlot";
 
@@ -385,9 +385,7 @@ export function RampRow({
             // hidden setting that is no longer at its default, and a ramp's
             // transform is drawn on the row rather than hidden behind the
             // button, so there is nothing for that signal to report.
-            scaleGlyph = (
-                <AdvancedButton label={scaleName} icon={<FieldGlyph name={curve} />} onClick={onScaleClick} />
-            );
+            scaleGlyph = <AdvancedButton label={scaleName} icon={<FieldGlyph name={curve} />} onClick={onScaleClick} />;
         }
     }
 

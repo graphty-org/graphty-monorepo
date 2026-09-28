@@ -250,9 +250,7 @@ describe("StyleNumberInput", () => {
             const user = userEvent.setup();
             const onFocus = vi.fn();
             const onBlur = vi.fn();
-            renderInput(
-                <StyleNumberInput label="Size" defaultValue={10} onFocus={onFocus} onBlur={onBlur} />,
-            );
+            renderInput(<StyleNumberInput label="Size" defaultValue={10} onFocus={onFocus} onBlur={onBlur} />);
 
             const input = screen.getByRole("spinbutton");
             await user.click(input);
@@ -266,9 +264,7 @@ describe("StyleNumberInput", () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             const onBlur = vi.fn();
-            renderInput(
-                <StyleNumberInput label="Size" defaultValue={10} onChange={onChange} onBlur={onBlur} />,
-            );
+            renderInput(<StyleNumberInput label="Size" defaultValue={10} onChange={onChange} onBlur={onBlur} />);
 
             const input = screen.getByRole("spinbutton");
             await user.clear(input);

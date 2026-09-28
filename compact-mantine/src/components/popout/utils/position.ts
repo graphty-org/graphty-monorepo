@@ -1,10 +1,5 @@
 import { POPOUT_GAP } from "../../../constants/popout";
-import type {
-    PopoutAlignment,
-    PopoutPhysicalPlacement,
-    PopoutPlacement,
-    PopoutPosition,
-} from "../../../types/popout";
+import type { PopoutAlignment, PopoutPhysicalPlacement, PopoutPlacement, PopoutPosition } from "../../../types/popout";
 import { type Direction, isRtl } from "../../../utils/rtl";
 
 // The panel is placed with fixed `left` and `top` rather than with the logical
@@ -47,10 +42,7 @@ interface CalculatePositionOptions {
  * @param direction - The reading direction in force
  * @returns The physical side of the anchor the panel sits on
  */
-export function resolvePlacement(
-    placement: PopoutPlacement,
-    direction: Direction,
-): PopoutPhysicalPlacement {
+export function resolvePlacement(placement: PopoutPlacement, direction: Direction): PopoutPhysicalPlacement {
     if (placement === "start") {
         return isRtl(direction) ? "right" : "left";
     }
@@ -125,11 +117,7 @@ export function calculatePopoutPosition(
  * @param panelHeight - Height of the panel in pixels
  * @returns The top position in pixels
  */
-function calculateVerticalAlignment(
-    anchorRect: DOMRect,
-    alignment: PopoutAlignment,
-    panelHeight: number,
-): number {
+function calculateVerticalAlignment(anchorRect: DOMRect, alignment: PopoutAlignment, panelHeight: number): number {
     switch (alignment) {
         case "start":
             return anchorRect.top;

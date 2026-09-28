@@ -142,7 +142,11 @@ export function ShortcutSheet({
     };
 
     return (
-        <section className={className ? `cm-shortcut-sheet ${className}` : "cm-shortcut-sheet"} style={style} aria-label={name}>
+        <section
+            className={className ? `cm-shortcut-sheet ${className}` : "cm-shortcut-sheet"}
+            style={style}
+            aria-label={name}
+        >
             <div className="cm-sheet-strip">
                 <div className="cm-sheet-tablist" role="tablist" aria-label={name}>
                     <span className="cm-sheet-filler" data-left-of-active={activeIndex === 0 || undefined} />
@@ -168,10 +172,18 @@ export function ShortcutSheet({
                             {tab.label}
                         </UnstyledButton>
                     ))}
-                    <span className="cm-sheet-filler" data-right-of-active={activeIndex === tabs.length - 1 || undefined} />
+                    <span
+                        className="cm-sheet-filler"
+                        data-right-of-active={activeIndex === tabs.length - 1 || undefined}
+                    />
                 </div>
                 {onClose ? (
-                    <UnstyledButton className="cm-sheet-close" aria-label={labels.close} onClick={onClose} onKeyDown={closeOnEscape}>
+                    <UnstyledButton
+                        className="cm-sheet-close"
+                        aria-label={labels.close}
+                        onClick={onClose}
+                        onKeyDown={closeOnEscape}
+                    >
                         <UiGlyph name="close" size={12} />
                     </UnstyledButton>
                 ) : null}
@@ -195,7 +207,11 @@ export function ShortcutSheet({
                                 ) : null}
                                 {group.title ? <div className="cm-sheet-column-title">{group.title}</div> : null}
                                 {group.shortcuts.map((entry, r) => (
-                                    <div className="cm-sheet-row" key={r} data-highlighted={entry.highlighted || undefined}>
+                                    <div
+                                        className="cm-sheet-row"
+                                        key={r}
+                                        data-highlighted={entry.highlighted || undefined}
+                                    >
                                         {entry.icon ? (
                                             <span className="cm-sheet-row-icon" aria-hidden="true">
                                                 {entry.icon}
@@ -209,7 +225,11 @@ export function ShortcutSheet({
                                         </span>
                                         <span className="cm-sheet-keys">
                                             {entry.keys.map((key, k) => (
-                                                <Kbd key={k} size={essential ? "md" : undefined} mod={{ active: entry.highlighted }}>
+                                                <Kbd
+                                                    key={k}
+                                                    size={essential ? "md" : undefined}
+                                                    mod={{ active: entry.highlighted }}
+                                                >
                                                     {key}
                                                 </Kbd>
                                             ))}

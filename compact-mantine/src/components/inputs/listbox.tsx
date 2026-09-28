@@ -202,12 +202,14 @@ export function ensureFocusModality(): void {
     }
     modalityTracked = true;
     const root = document.documentElement;
-    const set = (mode: string) => (event: Event): void => {
-        // The listbox's own walk dispatches untrusted arrow presses; they are not the user's.
-        if (event.isTrusted && root.getAttribute(MODALITY_ATTRIBUTE) !== mode) {
-            root.setAttribute(MODALITY_ATTRIBUTE, mode);
-        }
-    };
+    const set =
+        (mode: string) =>
+        (event: Event): void => {
+            // The listbox's own walk dispatches untrusted arrow presses; they are not the user's.
+            if (event.isTrusted && root.getAttribute(MODALITY_ATTRIBUTE) !== mode) {
+                root.setAttribute(MODALITY_ATTRIBUTE, mode);
+            }
+        };
     document.addEventListener("pointerdown", set("pointer"), true);
     document.addEventListener("keydown", set("keyboard"), true);
 }
@@ -294,9 +296,7 @@ export function ensureListboxKeyboard(): void {
     const noteClosed = (event: Event): void => {
         const input = event.target;
         closedTrigger =
-            event.isTrusted && input instanceof HTMLInputElement && !input.hasAttribute("data-expanded")
-                ? input
-                : null;
+            event.isTrusted && input instanceof HTMLInputElement && !input.hasAttribute("data-expanded") ? input : null;
     };
     const announceOpened = (event: Event): void => {
         const input = event.target;

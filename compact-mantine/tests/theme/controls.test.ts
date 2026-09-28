@@ -56,7 +56,11 @@ describe("controlComponentExtensions", () => {
 describe("control size scales", () => {
     const SIZES = ["xs", "sm", "md", "lg", "xl"] as const;
 
-    const SCALES: readonly { readonly name: string; readonly scale: CompactSizeScale; readonly probe: `--${string}` }[] = [
+    const SCALES: readonly {
+        readonly name: string;
+        readonly scale: CompactSizeScale;
+        readonly probe: `--${string}`;
+    }[] = [
         { name: "Slider", scale: compactSliderScale, probe: "--slider-size" },
         { name: "Checkbox", scale: compactCheckboxScale, probe: "--checkbox-size" },
         { name: "Radio", scale: compactRadioScale, probe: "--radio-size" },

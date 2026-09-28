@@ -71,7 +71,7 @@ or a section with `collapsible={false}`.
 warns in development if you give it neither children nor `empty`.
 
 The controls a section shows without being opened are the ones commonly adjusted
-*for that section's own job*. Everything rarer goes behind an `AdvancedButton` in
+_for that section's own job_. Everything rarer goes behind an `AdvancedButton` in
 the section's `actions`, which opens a pop-out holding the rest.
 
 **An advanced button is always an addition to a section that already shows
@@ -92,7 +92,7 @@ import { PanelLabelsProvider } from "@graphty/compact-mantine";
 
 <PanelLabelsProvider showLabels={settings.showLabelsOnControls}>
     <NodeSizeSection />
-</PanelLabelsProvider>
+</PanelLabelsProvider>;
 ```
 
 Read the preference in your own components with `usePanelLabels()`. Offering it

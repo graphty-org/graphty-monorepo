@@ -58,10 +58,30 @@ export const States: Story = {
             hug
             cells={[
                 ["link", <Anchor href="#learn">Learn more</Anchor>],
-                ["pressed", <Anchor href="#learn" data-cm-state="pressed">Learn more</Anchor>],
-                ["focus", <Anchor href="#learn" data-story-focus>Learn more</Anchor>],
-                ["secondary", <Anchor href="#drafts" variant="secondary">Drafts</Anchor>],
-                ["secondary hover", <Anchor href="#drafts" variant="secondary" data-cm-state="hover">Drafts</Anchor>],
+                [
+                    "pressed",
+                    <Anchor href="#learn" data-cm-state="pressed">
+                        Learn more
+                    </Anchor>,
+                ],
+                [
+                    "focus",
+                    <Anchor href="#learn" data-story-focus>
+                        Learn more
+                    </Anchor>,
+                ],
+                [
+                    "secondary",
+                    <Anchor href="#drafts" variant="secondary">
+                        Drafts
+                    </Anchor>,
+                ],
+                [
+                    "secondary hover",
+                    <Anchor href="#drafts" variant="secondary" data-cm-state="hover">
+                        Drafts
+                    </Anchor>,
+                ],
             ]}
         />
     ),

@@ -71,7 +71,10 @@ export const Weights: Story = {
                 { weight: 550, use: "headings, strong labels, section titles" },
                 { weight: 600, use: "top-level layer names" },
             ].map(({ weight, use }) => (
-                <Box key={weight} style={{ display: "grid", gridTemplateColumns: "120px 240px auto", alignItems: "baseline" }}>
+                <Box
+                    key={weight}
+                    style={{ display: "grid", gridTemplateColumns: "120px 240px auto", alignItems: "baseline" }}
+                >
                     <Text size="xs" ff="monospace" c={PANEL_INK.CHROME}>
                         {weight}
                     </Text>

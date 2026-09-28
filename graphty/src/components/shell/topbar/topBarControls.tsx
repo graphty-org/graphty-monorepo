@@ -34,8 +34,10 @@ import { TopBarGlyph, type TopBarGlyphName } from "./topBarGlyphs";
  * Props of the top bar's icon button. Everything a `<button>` accepts is forwarded.
  * @public
  */
-export interface TopBarIconButtonProps
-    extends Omit<React.ComponentPropsWithoutRef<"button">, "children" | "disabled" | "onClick" | "title"> {
+export interface TopBarIconButtonProps extends Omit<
+    React.ComponentPropsWithoutRef<"button">,
+    "children" | "disabled" | "onClick" | "title"
+> {
     /** The tooltip, character for character from spec 02 section 2. */
     readonly title: string;
     /** The accessible name: the tooltip with the key chip removed. */

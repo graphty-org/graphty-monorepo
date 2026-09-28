@@ -92,10 +92,7 @@ export function CanvasIconButton(props: CanvasIconButtonProps): React.JSX.Elemen
     }
 
     return (
-        <Tooltip
-            label={canvasTooltipText(label, chip, disabled ? disabledReason : undefined)}
-            position="top"
-        >
+        <Tooltip label={canvasTooltipText(label, chip, disabled ? disabledReason : undefined)} position="top">
             <button
                 type="button"
                 aria-label={label}

@@ -214,7 +214,9 @@ describe("FieldRow", () => {
     // rather than branching on the direction it is in.
     describe("writing its spacing in logical properties", () => {
         it("writes no physical spacing anywhere on a pair", () => {
-            renderRow(<FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>);
+            renderRow(
+                <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>,
+            );
 
             for (const element of physicalCandidates()) {
                 expect(physicalSpacing(element)).toEqual([]);
@@ -222,7 +224,9 @@ describe("FieldRow", () => {
         });
 
         it("spends the gutter and the trail gap as logical margins", () => {
-            renderRow(<FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>);
+            renderRow(
+                <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>,
+            );
 
             const slots = screen.getAllByTestId("field-row-slot");
             expect(slots[0]?.style.marginInlineStart).toBe("");
@@ -232,7 +236,12 @@ describe("FieldRow", () => {
         it("writes no physical spacing anywhere on a labeled row", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow labelPosition="inline" trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
+                    <FieldRow
+                        labelPosition="inline"
+                        trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}
+                    >
+                        {pair()}
+                    </FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -466,7 +475,9 @@ describe("FieldRow", () => {
         it("names the pair of rows the labels preference splits it into", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow labelPosition="inline" groupLabel="Node size range">{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline" groupLabel="Node size range">
+                        {pair()}
+                    </FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -493,7 +504,14 @@ describe("FieldRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <FieldRow onFocus={onFocus} onBlur={onBlur}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" onClick={vi.fn()} />
+                    <PanelField
+                        label="Size by attribute"
+                        glyph="attribute"
+                        value="Age"
+                        bound
+                        kind="select"
+                        onClick={vi.fn()}
+                    />
                 </FieldRow>,
             );
 
@@ -547,7 +565,9 @@ describe("FieldRow", () => {
             const ref = React.createRef<HTMLDivElement>();
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow labelPosition="inline" ref={ref}>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline" ref={ref}>
+                        {pair()}
+                    </FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -665,7 +685,12 @@ describe("FieldRow", () => {
         it("keeps the row's one trailing control on the first of the two rows", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow labelPosition="inline" trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
+                    <FieldRow
+                        labelPosition="inline"
+                        trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}
+                    >
+                        {pair()}
+                    </FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -791,7 +816,14 @@ describe("FieldRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={onTrailing} />}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" onClick={onField} />
+                    <PanelField
+                        label="Size by attribute"
+                        glyph="attribute"
+                        value="Age"
+                        bound
+                        kind="select"
+                        onClick={onField}
+                    />
                 </FieldRow>,
             );
 

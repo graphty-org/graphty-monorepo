@@ -52,9 +52,12 @@ describe("type", () => {
 
 describe("elevations", () => {
     it.each(["light", "dark"] as const)("--cm-elevation-400 draws only the %s layers", async (scheme) => {
-        const { container } = await renderThemed(<div data-testid="s" style={{ boxShadow: "var(--cm-elevation-400)" }} />, {
-            scheme,
-        });
+        const { container } = await renderThemed(
+            <div data-testid="s" style={{ boxShadow: "var(--cm-elevation-400)" }} />,
+            {
+                scheme,
+            },
+        );
         const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=s]")).boxShadow);
         const layers = shadow.split(/,\s(?![^(]*\))/);
         expect(layers).toHaveLength(scheme === "light" ? 3 : 4);
@@ -64,30 +67,56 @@ describe("elevations", () => {
 
 describe("focus-ring classes", () => {
     it("cm-focus-outside: 1px #0d99ff at +1px on keyboard focus, transparent at rest", async () => {
-        const { container } = await renderThemed(<button type="button" className="cm-focus-outside mantine-focus-never">x</button>);
+        const { container } = await renderThemed(
+            <button type="button" className="cm-focus-outside mantine-focus-never">
+                x
+            </button>,
+        );
         const button = part(container, "button");
         expectMeasured(button, { outlineStyle: "solid", outlineWidth: "1px", outlineColor: "#00000000" });
         await drive(button, "focus");
-        expectMeasured(button, { outlineColor: "#0d99ff", outlineWidth: "1px", outlineOffset: "1px", outlineStyle: "solid" });
+        expectMeasured(button, {
+            outlineColor: "#0d99ff",
+            outlineWidth: "1px",
+            outlineOffset: "1px",
+            outlineStyle: "solid",
+        });
     });
 
     it("cm-focus-outside: a pointer click draws no ring", async () => {
-        const { container } = await renderThemed(<button type="button" className="cm-focus-outside mantine-focus-never">x</button>);
+        const { container } = await renderThemed(
+            <button type="button" className="cm-focus-outside mantine-focus-never">
+                x
+            </button>,
+        );
         const button = part(container, "button");
         await userEvent.click(button);
         expect(document.activeElement).toBe(button);
-        expect(getComputedStyle(button).outlineStyle === "none" || normalize("c", getComputedStyle(button).outlineColor) === "#00000000").toBe(true);
+        expect(
+            getComputedStyle(button).outlineStyle === "none" ||
+                normalize("c", getComputedStyle(button).outlineColor) === "#00000000",
+        ).toBe(true);
     });
 
     it("cm-focus-inside: the ring sits 1px inside, dark ring color in dark", async () => {
-        const { container } = await renderThemed(<button type="button" className="cm-focus-inside">x</button>, { scheme: "dark" });
+        const { container } = await renderThemed(
+            <button type="button" className="cm-focus-inside">
+                x
+            </button>,
+            { scheme: "dark" },
+        );
         const button = part(container, "button");
         await drive(button, "focus");
         expectMeasured(button, { outlineColor: "#0c8ce9", outlineOffset: "-1px" });
     });
 
     it("the AA option darkens the light ring to #007be5", async () => {
-        const { container } = await renderThemed(<button type="button" className="cm-focus-outside">x</button>, { highContrast: true });
+        const { container } = await renderThemed(
+            <button type="button" className="cm-focus-outside">
+                x
+            </button>,
+            { highContrast: true },
+        );
         const button = part(container, "button");
         await drive(button, "focus");
         expectMeasured(button, { outlineColor: "#007be5" });
@@ -160,14 +189,20 @@ describe("dark menu and light popover primitives", () => {
         const row1 = part(container, "[data-testid=row1]");
         const row2 = part(container, "[data-testid=row2]");
         expectMeasured(row1, { height: 24, color: "#ffffff", fontSize: "11px", fontWeight: "450" });
-        expectMeasured(row2, { backgroundColor: "#0c8ce9", left: "8px", right: "8px", borderTopLeftRadius: "5px" }, { pseudo: "::before" });
+        expectMeasured(
+            row2,
+            { backgroundColor: "#0c8ce9", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
+            { pseudo: "::before" },
+        );
         await drive(row1, "hover");
         expectMeasured(row1, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
         expectMeasured(row2, { backgroundColor: "#00000000" }, { pseudo: "::before" });
     });
 
     it("the popover shell is the page's own surface", async () => {
-        const { container } = await renderThemed(<div className="cm-popover-surface" data-testid="p" />, { scheme: "dark" });
+        const { container } = await renderThemed(<div className="cm-popover-surface" data-testid="p" />, {
+            scheme: "dark",
+        });
         expectMeasured(part(container, "[data-testid=p]"), { backgroundColor: "#2c2c2c", borderRadius: "13px" });
     });
 });

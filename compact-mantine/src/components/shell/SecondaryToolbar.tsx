@@ -28,7 +28,14 @@ export interface SecondaryToolbarProps extends BoxProps, ElementProps<"div"> {
  * @param props.onFocus - Called before the roving-focus bookkeeping
  * @returns The bar
  */
-function SecondaryToolbarRoot({ flush, children, className, onKeyDown, onFocus, ...others }: SecondaryToolbarProps): React.JSX.Element {
+function SecondaryToolbarRoot({
+    flush,
+    children,
+    className,
+    onKeyDown,
+    onFocus,
+    ...others
+}: SecondaryToolbarProps): React.JSX.Element {
     useShellStyles();
     const roving = useRovingFocus<HTMLDivElement>("horizontal");
     return (
@@ -81,36 +88,35 @@ export interface SecondaryToolbarButtonProps extends UnstyledButtonProps, Elemen
  * @param props.children - The visible label
  * @returns The button
  */
-const SecondaryToolbarButton = forwardRef<HTMLButtonElement, SecondaryToolbarButtonProps>(function SecondaryToolbarButton(
-    { icon, selected, dropdown, children, className, ...others },
-    ref,
-) {
-    return (
-        <UnstyledButton
-            {...others}
-            ref={ref}
-            aria-pressed={selected}
-            className={className ? `cm-secondary-item ${className}` : "cm-secondary-item"}
-            mod={{ dropdown }}
-        >
-            {icon ? (
-                <span className="cm-tool-icon" aria-hidden="true">
-                    {icon}
-                </span>
-            ) : null}
-            {children ? (
-                <span className="cm-secondary-item-label" style={icon ? undefined : { paddingInlineStart: 8 }}>
-                    {children}
-                </span>
-            ) : null}
-            {dropdown ? (
-                <span className="cm-secondary-item-chevron" aria-hidden="true">
-                    <UiGlyph name="chevronDown" size={10} />
-                </span>
-            ) : null}
-        </UnstyledButton>
-    );
-});
+const SecondaryToolbarButton = forwardRef<HTMLButtonElement, SecondaryToolbarButtonProps>(
+    function SecondaryToolbarButton({ icon, selected, dropdown, children, className, ...others }, ref) {
+        return (
+            <UnstyledButton
+                {...others}
+                ref={ref}
+                aria-pressed={selected}
+                className={className ? `cm-secondary-item ${className}` : "cm-secondary-item"}
+                mod={{ dropdown }}
+            >
+                {icon ? (
+                    <span className="cm-tool-icon" aria-hidden="true">
+                        {icon}
+                    </span>
+                ) : null}
+                {children ? (
+                    <span className="cm-secondary-item-label" style={icon ? undefined : { paddingInlineStart: 8 }}>
+                        {children}
+                    </span>
+                ) : null}
+                {dropdown ? (
+                    <span className="cm-secondary-item-chevron" aria-hidden="true">
+                        <UiGlyph name="chevronDown" size={10} />
+                    </span>
+                ) : null}
+            </UnstyledButton>
+        );
+    },
+);
 
 /**
  * The divider between groups of the secondary bar, full height.

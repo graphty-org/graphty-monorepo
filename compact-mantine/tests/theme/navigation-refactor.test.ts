@@ -43,21 +43,11 @@ describe("Navigation Component Extensions (Refactored)", () => {
 
         it("components with size prop default to size sm", () => {
             // Only these components have a size prop in Mantine
-            const sizedComponents = [
-                "Pagination",
-                "Stepper",
-                "Anchor",
-                "Burger",
-            ] as const;
+            const sizedComponents = ["Pagination", "Stepper", "Anchor", "Burger"] as const;
 
             for (const name of sizedComponents) {
-                const ext =
-                    navigationComponentExtensions[
-                        name as keyof typeof navigationComponentExtensions
-                    ];
-                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe(
-                    "sm",
-                );
+                const ext = navigationComponentExtensions[name as keyof typeof navigationComponentExtensions];
+                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe("sm");
             }
         });
 

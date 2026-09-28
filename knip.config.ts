@@ -256,7 +256,6 @@ const config: KnipConfig = {
             // import.meta.glob (src/theme/components/index.ts, src/theme/global-styles.ts), which
             // knip cannot follow, so they are entries of their own.
             entry: [
-                "src/index.ts!",
                 "src/theme/components/*.ts!",
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",

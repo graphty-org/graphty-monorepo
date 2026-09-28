@@ -447,7 +447,7 @@ export function Tree({
     };
 
     const renderRow = (row: FlatTreeRow, i: number, style?: React.CSSProperties): React.JSX.Element => {
-        const {id} = row.node;
+        const { id } = row.node;
         const isRenaming = renaming === id;
         return (
             <TreeItem
@@ -597,7 +597,11 @@ export function Tree({
             >
                 {body}
                 {drop?.boxRow !== null && drop?.boxRow !== undefined && (
-                    <div className="cm-tree-drop-box" data-testid="tree-drop-box" style={{ top: drop.boxRow * pitch }} />
+                    <div
+                        className="cm-tree-drop-box"
+                        data-testid="tree-drop-box"
+                        style={{ top: drop.boxRow * pitch }}
+                    />
                 )}
                 {drop?.line && (
                     <div

@@ -48,7 +48,12 @@ export function StateGrid({
                 "div",
                 {
                     key: label,
-                    style: { display: "flex", flexDirection: "column", gap: 4, alignItems: hug ? "flex-start" : undefined },
+                    style: {
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        alignItems: hug ? "flex-start" : undefined,
+                    },
                 },
                 createElement("span", { style: { fontSize: 9, lineHeight: "14px", color: PANEL_INK.CHROME } }, label),
                 content,

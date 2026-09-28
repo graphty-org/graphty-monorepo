@@ -64,16 +64,29 @@ import {
 <Tooltip.Group>
     <div style={{ display: "flex", height: "100vh" }}>
         <NavRail>
-            <RailButton icon={<FileIcon />} label="File"
-                aria-expanded={panel === "file"} onClick={() => setPanel("file")} />
-            <RailButton icon={<GridIcon />} label="Assets"
-                aria-expanded={panel === "assets"} onClick={() => setPanel("assets")} />
+            <RailButton
+                icon={<FileIcon />}
+                label="File"
+                aria-expanded={panel === "file"}
+                onClick={() => setPanel("file")}
+            />
+            <RailButton
+                icon={<GridIcon />}
+                label="Assets"
+                aria-expanded={panel === "assets"}
+                onClick={() => setPanel("assets")}
+            />
         </NavRail>
         <main style={{ position: "relative", flex: 1 }}>
             {/* the canvas */}
             <Toolbar aria-label="Editor" floating>
                 <ToolGroup label="Shape tools" tools={shapeTools} activeTool={tool} onToolChange={setTool} />
-                <ToolButton label="Actions" icon={<SearchIcon />} shortcut="Ctrl+K" onClick={() => setPaletteOpen(true)} />
+                <ToolButton
+                    label="Actions"
+                    icon={<SearchIcon />}
+                    shortcut="Ctrl+K"
+                    onClick={() => setPaletteOpen(true)}
+                />
                 <Toolbar.Divider />
                 <SegmentedControl variant="toolbar" aria-label="Mode" data={modes} value={mode} onChange={setMode} />
             </Toolbar>

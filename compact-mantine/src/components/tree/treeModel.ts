@@ -295,7 +295,11 @@ export function moveTreeItem<T extends TreeLike<T>>(items: readonly T[], move: T
  * @param name - its new name
  * @returns the renamed tree
  */
-export function renameTreeItem<T extends TreeLike<T> & { name: string }>(items: readonly T[], id: string, name: string): T[] {
+export function renameTreeItem<T extends TreeLike<T> & { name: string }>(
+    items: readonly T[],
+    id: string,
+    name: string,
+): T[] {
     return items.map((n) => {
         if (n.id === id) {
             return { ...n, name };

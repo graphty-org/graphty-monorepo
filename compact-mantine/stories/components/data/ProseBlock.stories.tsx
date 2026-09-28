@@ -116,7 +116,9 @@ export const States: Story = {
     render: () => (
         <StoryStates>
             <StoryState name="Reading" padded>
-                <ProseBlock variant="reading">How often a node sits on the shortest path between two others.</ProseBlock>
+                <ProseBlock variant="reading">
+                    How often a node sits on the shortest path between two others.
+                </ProseBlock>
             </StoryState>
             <StoryState name="Departure" padded>
                 <ProseBlock variant="departure">Edge weights were ignored: the graph has none.</ProseBlock>
@@ -219,7 +221,9 @@ export const AllThreeVariants: Story = {
 export const ExactRun: Story = {
     render: (): React.JSX.Element => (
         <Stack gap="md">
-            <ProseBlock variant="reading">6 groups of cats. The largest has 9 members, and Chonky_Boy is in it.</ProseBlock>
+            <ProseBlock variant="reading">
+                6 groups of cats. The largest has 9 members, and Chonky_Boy is in it.
+            </ProseBlock>
             <ProseBlock variant="runRecord" onDetails={fn()}>
                 Groups (granularity 2.5)
             </ProseBlock>
@@ -275,7 +279,9 @@ export const Translated: Story = {
     render: (): React.JSX.Element => (
         <LabelsProvider locale="de-DE" labels={{ departure: "Abweichung", details: "Einzelheiten" }}>
             <Stack gap="md">
-                <ProseBlock variant="reading">17 Katzen, 2 Menschen und 1 Hund, verbunden durch 43 Beziehungen.</ProseBlock>
+                <ProseBlock variant="reading">
+                    17 Katzen, 2 Menschen und 1 Hund, verbunden durch 43 Beziehungen.
+                </ProseBlock>
                 <ProseBlock variant="departure">Naherungswert (Stichprobe von 8).</ProseBlock>
                 <ProseBlock variant="runRecord" onDetails={fn()}>
                     Zwischenzentralitat, gewichtet nach Brucken, Stichprobe 8

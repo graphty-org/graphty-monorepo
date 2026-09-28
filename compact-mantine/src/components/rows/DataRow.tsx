@@ -135,7 +135,6 @@ export function DataRow({
     // Space activate it, and the current row of a set is marked aria-current.
     const ariaCurrent = selected ? true : undefined;
 
-
     /**
      * Reports an activation to the consumer, with the source stated separately.
      * @param event - The click, including the one a browser synthesizes from Enter or Space

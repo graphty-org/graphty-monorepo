@@ -1,4 +1,11 @@
-import { type ElementProps, Menu, type MenuProps, Tooltip, UnstyledButton, type UnstyledButtonProps } from "@mantine/core";
+import {
+    type ElementProps,
+    Menu,
+    type MenuProps,
+    Tooltip,
+    UnstyledButton,
+    type UnstyledButtonProps,
+} from "@mantine/core";
 import React from "react";
 
 import { useLabels } from "../../i18n";
@@ -25,7 +32,8 @@ function HelpGlyph(): React.JSX.Element {
 /**
  * Props for the HelpButton component.
  */
-export interface HelpButtonProps extends Omit<UnstyledButtonProps, "children">, Omit<ElementProps<"button">, "children"> {
+export interface HelpButtonProps
+    extends Omit<UnstyledButtonProps, "children">, Omit<ElementProps<"button">, "children"> {
     /** Accessible name and tooltip. Defaults to the "Help" label. */
     label?: string;
     /** The menu's items (`Menu.Item`, `Menu.Divider`, ...). Without any, the button opens nothing. */
@@ -50,7 +58,11 @@ export function HelpButton({ label, children, menuProps, className, ...others }:
     const labels = useLabels();
     const name = label ?? labels.help;
     const button = (
-        <UnstyledButton {...others} aria-label={name} className={className ? `cm-help-button ${className}` : "cm-help-button"}>
+        <UnstyledButton
+            {...others}
+            aria-label={name}
+            className={className ? `cm-help-button ${className}` : "cm-help-button"}
+        >
             <HelpGlyph />
         </UnstyledButton>
     );
@@ -67,7 +79,12 @@ export function HelpButton({ label, children, menuProps, className, ...others }:
     }
     // The tooltip wraps Menu.Target (not the reverse), or the target's click never opens the menu.
     return (
-        <Menu position="top-end" offset={4} classNames={{ dropdown: "cm-menu-surface", item: "cm-menu-row" }} {...menuProps}>
+        <Menu
+            position="top-end"
+            offset={4}
+            classNames={{ dropdown: "cm-menu-surface", item: "cm-menu-row" }}
+            {...menuProps}
+        >
             {tip(<Menu.Target>{button}</Menu.Target>)}
             <Menu.Dropdown>{children}</Menu.Dropdown>
         </Menu>

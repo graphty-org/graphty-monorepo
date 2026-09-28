@@ -293,34 +293,34 @@ export function ToggleWithContent({
             {/* The row wrapper is added only when there is a marker to sit
                 beside the checkbox, so an ordinary toggle keeps the exact DOM
                 it has always had and no existing layout or snapshot moves. */}
-            {bound
-                ? (
-                    <Box
-                        data-testid="toggle-with-content-row"
-                        style={{ display: "flex", alignItems: "center", gap: INLINE_GAP }}
-                    >
-                        {checkbox}
-                        {/* The filled glyph is the whole of the visible bound
+            {bound ? (
+                <Box
+                    data-testid="toggle-with-content-row"
+                    style={{ display: "flex", alignItems: "center", gap: INLINE_GAP }}
+                >
+                    {checkbox}
+                    {/* The filled glyph is the whole of the visible bound
                             marker, and it is deliberately the same drawing
                             PanelField fills in: one convention for "this value
                             follows the data" across every control that can say
                             it. It is aria-hidden, so the meaning travels in the
                             description rather than in a picture. */}
-                        <Box
-                            component="span"
-                            data-testid="toggle-with-content-bound"
-                            style={{
-                                flex: "0 0 auto",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                color: PANEL_INK.CHROME,
-                            }}
-                        >
-                            <FieldGlyph name="attribute" filled />
-                        </Box>
+                    <Box
+                        component="span"
+                        data-testid="toggle-with-content-bound"
+                        style={{
+                            flex: "0 0 auto",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            color: PANEL_INK.CHROME,
+                        }}
+                    >
+                        <FieldGlyph name="attribute" filled />
                     </Box>
-                )
-                : checkbox}
+                </Box>
+            ) : (
+                checkbox
+            )}
 
             {annotation.description !== undefined && (
                 <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>

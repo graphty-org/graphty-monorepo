@@ -94,7 +94,12 @@ describe("ComboInput", () => {
             <ComboInput
                 label="Width"
                 defaultValue="Hug"
-                options={[{ value: "Fixed" }, { value: "Hug" }, { separator: true }, { value: "Add min", disabled: true }]}
+                options={[
+                    { value: "Fixed" },
+                    { value: "Hug" },
+                    { separator: true },
+                    { value: "Add min", disabled: true },
+                ]}
             />,
         );
         await userEvent.click(screen.getByRole("button", { name: "Open list" }));

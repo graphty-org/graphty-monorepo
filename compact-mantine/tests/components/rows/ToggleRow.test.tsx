@@ -402,10 +402,7 @@ describe("ToggleRow", () => {
 
         it("writes no physical side into any style the row sets", () => {
             renderRow(
-                <ToggleRow
-                    label="Labels"
-                    trailing={<AdvancedButton label="Label options" onClick={vi.fn()} />}
-                />,
+                <ToggleRow label="Labels" trailing={<AdvancedButton label="Label options" onClick={vi.fn()} />} />,
             );
 
             // jsdom has no layout, so a mirrored row cannot be measured here.

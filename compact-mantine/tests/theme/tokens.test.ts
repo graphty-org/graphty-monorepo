@@ -89,11 +89,18 @@ describe("type roles (spec 2.3)", () => {
 describe.skipIf(!STUDY)("color tokens equal the Figma variables (spec 2.1)", () => {
     const study = STUDY ?? "";
     const light = STUDY
-        ? (JSON.parse(readFileSync(join(study, "tokens/css-variables.json"), "utf8")) as { vars: Record<string, string> }).vars
+        ? (
+              JSON.parse(readFileSync(join(study, "tokens/css-variables.json"), "utf8")) as {
+                  vars: Record<string, string>;
+              }
+          ).vars
         : {};
     const dark = STUDY
-        ? (JSON.parse(readFileSync(join(study, "tokens/css-variables-dark.json"), "utf8")) as { vars: Record<string, string> })
-              .vars
+        ? (
+              JSON.parse(readFileSync(join(study, "tokens/css-variables-dark.json"), "utf8")) as {
+                  vars: Record<string, string>;
+              }
+          ).vars
         : {};
     const traced = (Object.entries(CM_COLORS) as [string, CmColorToken][]).filter(([, t]) => t.figma);
 
@@ -173,7 +180,9 @@ describe("the stylesheet", () => {
     });
 
     it("scopes the AA block to data-cm-contrast=high", () => {
-        expect(css).toMatch(/:root\[data-cm-contrast="high"\] \{\s+--cm-text-secondary: light-dark\(#0000008c, #ffffffb2\);/);
+        expect(css).toMatch(
+            /:root\[data-cm-contrast="high"\] \{\s+--cm-text-secondary: light-dark\(#0000008c, #ffffffb2\);/,
+        );
     });
 
     it("with highContrast, applies the AA tokens without the attribute (SSR, shadow roots)", () => {
@@ -183,6 +192,8 @@ describe("the stylesheet", () => {
     it("bundles the Inter face and sets the body type", () => {
         expect(css).toMatch(/@font-face \{\s+font-family: "Inter Variable";/);
         expect(css).toContain("font-weight: 100 900;");
-        expect(css).toMatch(/body \{\s+font-family: var\(--cm-font-family\);\s+font-size: 11px; line-height: 16px; font-weight: 450; letter-spacing: 0.055px;/);
+        expect(css).toMatch(
+            /body \{\s+font-family: var\(--cm-font-family\);\s+font-size: 11px; line-height: 16px; font-weight: 450; letter-spacing: 0.055px;/,
+        );
     });
 });

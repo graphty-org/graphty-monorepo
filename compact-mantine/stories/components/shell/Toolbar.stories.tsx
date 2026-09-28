@@ -170,7 +170,12 @@ export const States: Story = {
         </Stack>
     ),
     // Figma draws the selected tool's hover as selected, no change.
-    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-tool[aria-pressed="true"][data-state="hover"], .cm-tool[aria-checked="true"][data-state="hover"]'] }),
+    play: ({ canvasElement }) =>
+        expectStatesApply(canvasElement, {
+            unchanged: [
+                '.cm-tool[aria-pressed="true"][data-state="hover"], .cm-tool[aria-checked="true"][data-state="hover"]',
+            ],
+        }),
 };
 
 /** A flyout left open: the dark menu 4px above the chevron, start-aligned, a check on the face. */
@@ -186,7 +191,10 @@ export const FlyoutOpen: Story = {
         await userEvent.click(chevron);
         const menu = await flyoutOf(chevron);
         await expect(menu).toHaveAttribute("role", "menu");
-        await expect(within(menu).getByRole("menuitemradio", { name: /Rectangle/ })).toHaveAttribute("aria-checked", "true");
+        await expect(within(menu).getByRole("menuitemradio", { name: /Rectangle/ })).toHaveAttribute(
+            "aria-checked",
+            "true",
+        );
     },
 };
 

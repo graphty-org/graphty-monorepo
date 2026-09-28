@@ -98,7 +98,12 @@ export const Default: Story = {
                     <Popout.Trigger>
                         <PopoutButton {...args} />
                     </Popout.Trigger>
-                    <Popout.Panel width={200} header={{ variant: "title", title: "Settings" }} placement="right" gap={8}>
+                    <Popout.Panel
+                        width={200}
+                        header={{ variant: "title", title: "Settings" }}
+                        placement="right"
+                        gap={8}
+                    >
                         <Popout.Content>
                             <Text size="sm">Panel content</Text>
                         </Popout.Content>
@@ -221,7 +226,11 @@ export const InControlGroup: Story = {
                                 </Text>
                             </Box>
                         </ControlGroup>
-                        <Popout.Panel width={280} header={{ variant: "title", title: "Appearance Settings" }} placement="left">
+                        <Popout.Panel
+                            width={280}
+                            header={{ variant: "title", title: "Appearance Settings" }}
+                            placement="left"
+                        >
                             <Popout.Content>
                                 <Text size="sm">Appearance options would go here</Text>
                             </Popout.Content>
@@ -256,7 +265,10 @@ export const MultipleButtons: Story = {
                                     bleed
                                     actions={
                                         <Popout.Trigger>
-                                            <PopoutButton icon={<UiGlyph name={row.glyph} size={12} />} aria-label={row.name} />
+                                            <PopoutButton
+                                                icon={<UiGlyph name={row.glyph} size={12} />}
+                                                aria-label={row.name}
+                                            />
                                         </Popout.Trigger>
                                     }
                                 >
@@ -264,7 +276,11 @@ export const MultipleButtons: Story = {
                                         {row.body}
                                     </Text>
                                 </ControlGroup>
-                                <Popout.Panel width={200} header={{ variant: "title", title: row.label }} placement="left">
+                                <Popout.Panel
+                                    width={200}
+                                    header={{ variant: "title", title: row.label }}
+                                    placement="left"
+                                >
                                     <Popout.Content>
                                         <Text size="sm">{row.label} panel</Text>
                                     </Popout.Content>

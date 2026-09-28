@@ -116,7 +116,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
-                    </ActionIcon>
+                    </ActionIcon>,
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 expect(getCssVar(root, "--ai-size")).toBe("24px");
@@ -128,7 +128,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
-                    </ActionIcon>
+                    </ActionIcon>,
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 const style = root ? getComputedStyle(root) : null;
@@ -139,7 +139,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
-                    </ActionIcon>
+                    </ActionIcon>,
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 const style = root ? getComputedStyle(root) : null;
@@ -150,7 +150,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
-                    </ActionIcon>
+                    </ActionIcon>,
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 const style = root ? getComputedStyle(root) : null;
@@ -161,7 +161,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
-                    </ActionIcon>
+                    </ActionIcon>,
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 const style = root ? getComputedStyle(root) : null;
@@ -172,7 +172,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
-                    </ActionIcon>
+                    </ActionIcon>,
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 const style = root ? getComputedStyle(root) : null;
@@ -184,7 +184,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
             const { container } = renderWithTheme(
                 <ActionIcon aria-label="Action">
                     <IconPlaceholder />
-                </ActionIcon>
+                </ActionIcon>,
             );
             expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
         });
@@ -193,7 +193,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
             const { container } = renderWithTheme(
                 <ActionIcon aria-label="Action">
                     <IconPlaceholder />
-                </ActionIcon>
+                </ActionIcon>,
             );
             expect(container.querySelector("[data-variant='subtle']")).toBeInTheDocument();
         });

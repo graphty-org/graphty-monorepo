@@ -67,8 +67,23 @@ export const States: Story = {
             columns={220}
             cells={[
                 ["rest", <Slider defaultValue={40} />],
-                ["focus", <div data-story-focus><Slider defaultValue={60} /></div>],
-                ["with marks", <Slider defaultValue={50} marks={[{ value: 0, label: "0" }, { value: 50, label: "50" }, { value: 100, label: "100" }]} />],
+                [
+                    "focus",
+                    <div data-story-focus>
+                        <Slider defaultValue={60} />
+                    </div>,
+                ],
+                [
+                    "with marks",
+                    <Slider
+                        defaultValue={50}
+                        marks={[
+                            { value: 0, label: "0" },
+                            { value: 50, label: "50" },
+                            { value: 100, label: "100" },
+                        ]}
+                    />,
+                ],
                 ["disabled", <Slider defaultValue={40} disabled />],
             ]}
         />

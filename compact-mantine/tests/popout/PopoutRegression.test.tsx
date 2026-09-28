@@ -309,10 +309,7 @@ describe("Popout Regression Tests", () => {
                                     <Popout.Trigger>
                                         <button>Open Child of A</button>
                                     </Popout.Trigger>
-                                    <Popout.Panel
-                                        width={180}
-                                        header={{ variant: "title", title: "Child of A" }}
-                                    >
+                                    <Popout.Panel width={180} header={{ variant: "title", title: "Child of A" }}>
                                         <Popout.Content>
                                             <span data-testid="child-of-a">Child of A Content</span>
                                         </Popout.Content>
@@ -1006,19 +1003,40 @@ describe("Popout Regression Tests", () => {
             Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
                 if (this.getAttribute("role") === "dialog") {
                     return {
-                        x: 0, y: 0, left: 0, top: 0, right: 337, bottom: 200,
-                        width: 337, height: 200, toJSON: () => ({}),
+                        x: 0,
+                        y: 0,
+                        left: 0,
+                        top: 0,
+                        right: 337,
+                        bottom: 200,
+                        width: 337,
+                        height: 200,
+                        toJSON: () => ({}),
                     } as DOMRect;
                 }
                 if (this.getAttribute("data-testid") === "sidebar") {
                     return {
-                        x: 800, y: 0, left: 800, top: 0, right: 1000, bottom: 600,
-                        width: 200, height: 600, toJSON: () => ({}),
+                        x: 800,
+                        y: 0,
+                        left: 800,
+                        top: 0,
+                        right: 1000,
+                        bottom: 600,
+                        width: 200,
+                        height: 600,
+                        toJSON: () => ({}),
                     } as DOMRect;
                 }
                 return {
-                    x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0,
-                    width: 0, height: 0, toJSON: () => ({}),
+                    x: 0,
+                    y: 0,
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: 0,
+                    height: 0,
+                    toJSON: () => ({}),
                 } as DOMRect;
             };
 

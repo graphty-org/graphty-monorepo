@@ -20,7 +20,9 @@ function collect(): MantineThemeComponents {
             }
             for (const [component, extension] of Object.entries(value as MantineThemeComponents)) {
                 if (component in owner) {
-                    throw new Error(`compact-mantine: ${component} is extended in both ${owner[component]} and ${path}`);
+                    throw new Error(
+                        `compact-mantine: ${component} is extended in both ${owner[component]} and ${path}`,
+                    );
                 }
                 owner[component] = path;
                 all[component] = extension;

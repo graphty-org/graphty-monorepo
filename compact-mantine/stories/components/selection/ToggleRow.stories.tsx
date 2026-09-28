@@ -117,7 +117,12 @@ export const States: Story = {
                 cells={[
                     ["checkbox, off", <ToggleRow label="Labels" />],
                     ["checkbox, on", <ToggleRow label="Labels" defaultChecked />],
-                    ["checkbox, focus", <div data-story-focus><ToggleRow label="Labels" defaultChecked /></div>],
+                    [
+                        "checkbox, focus",
+                        <div data-story-focus>
+                            <ToggleRow label="Labels" defaultChecked />
+                        </div>,
+                    ],
                     ["checkbox, disabled", <ToggleRow label="Labels" disabled disabledReason="Load data first" />],
                     ["checkbox, bound", <ToggleRow label="Labels" bound defaultChecked />],
                     ["switch, off", <ToggleRow label="Live layout" control="switch" />],

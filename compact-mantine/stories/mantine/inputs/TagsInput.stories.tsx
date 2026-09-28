@@ -61,11 +61,23 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} /> },
-                { state: "hover", node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} data-state="hover" /> },
-                { state: "focus", node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} data-state="focus" /> },
-                { state: "disabled", node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} disabled /> },
+                {
+                    state: "hover",
+                    node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} data-state="focus" />,
+                },
+                {
+                    state: "disabled",
+                    node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} disabled />,
+                },
                 { state: "invalid", node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} error /> },
-                { state: "outlined", node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} variant="outlined" /> },
+                {
+                    state: "outlined",
+                    node: <TagsInput aria-label="TagsInput" defaultValue={["draft"]} w={184} variant="outlined" />,
+                },
                 { state: "with label", node: <TagsInput label="Label" defaultValue={["draft"]} w={184} /> },
             ]}
         />

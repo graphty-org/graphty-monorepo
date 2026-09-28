@@ -55,11 +55,26 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} /> },
-                { state: "hover", node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} data-state="hover" /> },
-                { state: "focus", node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} data-state="focus" /> },
-                { state: "disabled", node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} disabled /> },
-                { state: "invalid", node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} error /> },
-                { state: "outlined", node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} variant="outlined" /> },
+                {
+                    state: "hover",
+                    node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} data-state="focus" />,
+                },
+                {
+                    state: "disabled",
+                    node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} disabled />,
+                },
+                {
+                    state: "invalid",
+                    node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} error />,
+                },
+                {
+                    state: "outlined",
+                    node: <PasswordInput aria-label="PasswordInput" defaultValue="secret" w={184} variant="outlined" />,
+                },
                 { state: "with label", node: <PasswordInput label="Label" defaultValue="secret" w={184} /> },
             ]}
         />

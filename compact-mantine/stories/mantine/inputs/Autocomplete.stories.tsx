@@ -62,13 +62,81 @@ export const States: Story = {
     render: () => (
         <StateGrid
             cells={[
-                { state: "rest", node: <Autocomplete aria-label="Autocomplete" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} /> },
-                { state: "hover", node: <Autocomplete aria-label="Autocomplete" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} data-state="hover" /> },
-                { state: "focus", node: <Autocomplete aria-label="Autocomplete" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} data-state="focus" /> },
-                { state: "disabled", node: <Autocomplete aria-label="Autocomplete" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} disabled /> },
-                { state: "invalid", node: <Autocomplete aria-label="Autocomplete" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} error /> },
-                { state: "outlined", node: <Autocomplete aria-label="Autocomplete" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} variant="outlined" /> },
-                { state: "with label", node: <Autocomplete label="Label" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} /> },
+                {
+                    state: "rest",
+                    node: (
+                        <Autocomplete
+                            aria-label="Autocomplete"
+                            data={["Frame 1", "Frame 2"]}
+                            defaultValue="Frame 1"
+                            w={184}
+                        />
+                    ),
+                },
+                {
+                    state: "hover",
+                    node: (
+                        <Autocomplete
+                            aria-label="Autocomplete"
+                            data={["Frame 1", "Frame 2"]}
+                            defaultValue="Frame 1"
+                            w={184}
+                            data-state="hover"
+                        />
+                    ),
+                },
+                {
+                    state: "focus",
+                    node: (
+                        <Autocomplete
+                            aria-label="Autocomplete"
+                            data={["Frame 1", "Frame 2"]}
+                            defaultValue="Frame 1"
+                            w={184}
+                            data-state="focus"
+                        />
+                    ),
+                },
+                {
+                    state: "disabled",
+                    node: (
+                        <Autocomplete
+                            aria-label="Autocomplete"
+                            data={["Frame 1", "Frame 2"]}
+                            defaultValue="Frame 1"
+                            w={184}
+                            disabled
+                        />
+                    ),
+                },
+                {
+                    state: "invalid",
+                    node: (
+                        <Autocomplete
+                            aria-label="Autocomplete"
+                            data={["Frame 1", "Frame 2"]}
+                            defaultValue="Frame 1"
+                            w={184}
+                            error
+                        />
+                    ),
+                },
+                {
+                    state: "outlined",
+                    node: (
+                        <Autocomplete
+                            aria-label="Autocomplete"
+                            data={["Frame 1", "Frame 2"]}
+                            defaultValue="Frame 1"
+                            w={184}
+                            variant="outlined"
+                        />
+                    ),
+                },
+                {
+                    state: "with label",
+                    node: <Autocomplete label="Label" data={["Frame 1", "Frame 2"]} defaultValue="Frame 1" w={184} />,
+                },
             ]}
         />
     ),

@@ -129,7 +129,8 @@ export const States: Story = {
         </Stack>
     ),
     // Disabled looks enabled, as Figma's capture shows (CHANGELOG-figma.md, known differences); a swap toggle changes its glyph, not its style.
-    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: [".cm-toggle-icon:disabled", ".cm-toggle-icon[data-swap]"] }),
+    play: ({ canvasElement }) =>
+        expectStatesApply(canvasElement, { unchanged: [".cm-toggle-icon:disabled", ".cm-toggle-icon[data-swap]"] }),
 };
 
 /** The visibility eye: the `swap` variant never fills; the glyph changes instead. */

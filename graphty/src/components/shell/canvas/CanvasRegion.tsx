@@ -58,7 +58,7 @@ import { type DataTableColumn, PopoutRegion } from "@graphty/compact-mantine";
 import type { AccelerationPolicy } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
-import { Graphty,type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
+import { Graphty, type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
 import { CANVAS_TOOLBAR_Z_INDEX, type CanvasBottomStackState, INSIGHTS_STRIP_TOP, OVERLAY_INSET } from "../constants";
 import type { LayerItem } from "../panel/StyleLayerList";
 import type { CanvasRegionProps } from "../types";
@@ -69,9 +69,9 @@ import { CanvasOverlayLayer } from "./CanvasOverlayLayer";
 import { type DataDrawerTab, DataTableDrawer, GraphTableSegment } from "./DataTableDrawer";
 import { type FilterStatusChip, type FilterStatusNote, FilterStatusStrip } from "./FilterStatusStrip";
 import { type InsightCard, InsightsStrip } from "./InsightsStrip";
-import { Legend,type LegendChannel } from "./Legend";
-import { Minimap,type MinimapPoint, type MinimapViewport } from "./Minimap";
-import { TimeSlider,type TimeSliderWindow } from "./TimeSlider";
+import { Legend, type LegendChannel } from "./Legend";
+import { Minimap, type MinimapPoint, type MinimapViewport } from "./Minimap";
+import { TimeSlider, type TimeSliderWindow } from "./TimeSlider";
 import { useCanvasRect } from "./useCanvasRect";
 import { WelcomeState } from "./WelcomeState";
 
@@ -342,15 +342,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                 legendVisible: overlays.legend,
                 encodedChannelCount: channels.length,
             }),
-        [
-            channels.length,
-            overlays.legend,
-            overlays.minimap,
-            rect.height,
-            rect.profile,
-            rect.width,
-            stack,
-        ],
+        [channels.length, overlays.legend, overlays.minimap, rect.height, rect.profile, rect.width, stack],
     );
 
     // Spec 01 section 7 items 4 and 5: below 1280 a tap on the canvas closes an open
@@ -381,21 +373,21 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
 
     return (
         <CanvasBottomStackContext.Provider value={layout}>
-        <div
-            ref={canvasRef}
-            data-shell-region="canvas"
-            data-reflowed={layout.reflowed ? "true" : "false"}
-            data-toolbar-drawn={layout.toolbarBottom === null ? "false" : "true"}
-            data-toolbar-bottom={layout.toolbarBottom === null ? undefined : String(layout.toolbarBottom)}
-            onClick={handleClick}
-            style={{
-                flex: "1 1 auto",
-                minWidth: 0,
-                position: "relative",
-                overflow: "hidden",
-            }}
-        >
-            {/* 1. The graph. Docks shorten its rect; overlays do not.
+            <div
+                ref={canvasRef}
+                data-shell-region="canvas"
+                data-reflowed={layout.reflowed ? "true" : "false"}
+                data-toolbar-drawn={layout.toolbarBottom === null ? "false" : "true"}
+                data-toolbar-bottom={layout.toolbarBottom === null ? undefined : String(layout.toolbarBottom)}
+                onClick={handleClick}
+                style={{
+                    flex: "1 1 auto",
+                    minWidth: 0,
+                    position: "relative",
+                    overflow: "hidden",
+                }}
+            >
+                {/* 1. The graph. Docks shorten its rect; overlays do not.
 
                 It is mounted in EVERY state, Empty included, and Welcome is drawn over
                 it. Loading data is a call on the host's own imperative handle, so a
@@ -405,167 +397,167 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                 or legend in Empty (6.1); the toolbar arrives with the first graph" --
                 and the host is not on that list; spec 5.1 requires the canvas to host
                 graphty-element. */}
-            <div
-                data-canvas-graph="true"
-                style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    bottom: layout.dockedHeight,
-                }}
-            >
-                <Graphty
-                    ref={graphRef}
-                    layers={graph?.layers ?? NO_LAYERS}
-                    acceleration={graph?.acceleration}
-                    viewMode={graph?.viewMode}
-                    dataSource={graph?.dataSource}
-                    dataSourceConfig={graph?.dataSourceConfig}
-                    replaceExisting={graph?.replaceExisting}
-                    layout={graph?.layout}
-                    layoutConfig={graph?.layoutConfig}
-                    onSelectionChange={graph?.onSelectionChange}
-                    onStylesChange={graph?.onStylesChange}
-                />
-            </div>
-
-            {empty ? (
-                <WelcomeState
-                    onOpenFile={welcome?.onOpenFile ?? noop}
-                    onPasteOrOpenFromUrl={welcome?.onPasteOrOpenFromUrl ?? noop}
-                    onFilesDropped={welcome?.onFilesDropped}
-                    error={welcome?.error}
+                <div
+                    data-canvas-graph="true"
+                    style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: layout.dockedHeight,
+                    }}
                 >
-                    {welcome?.children}
-                </WelcomeState>
-            ) : null}
+                    <Graphty
+                        ref={graphRef}
+                        layers={graph?.layers ?? NO_LAYERS}
+                        acceleration={graph?.acceleration}
+                        viewMode={graph?.viewMode}
+                        dataSource={graph?.dataSource}
+                        dataSourceConfig={graph?.dataSourceConfig}
+                        replaceExisting={graph?.replaceExisting}
+                        layout={graph?.layout}
+                        layoutConfig={graph?.layoutConfig}
+                        onSelectionChange={graph?.onSelectionChange}
+                        onStylesChange={graph?.onStylesChange}
+                    />
+                </div>
 
-            {empty ? null : (
-                <CanvasOverlayLayer reflowed={layout.reflowed}>
-                    {/* 2. The top-centre column: Graph / Table, the Insights strip, the
-                        filter status strip directly under it. */}
-                    <div
-                        style={{
-                            position: "absolute",
-                            top: INSIGHTS_STRIP_TOP,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: CANVAS_SPACE.MD,
-                            maxWidth: "100%",
-                            zIndex: CANVAS_TOOLBAR_Z_INDEX,
-                        }}
+                {empty ? (
+                    <WelcomeState
+                        onOpenFile={welcome?.onOpenFile ?? noop}
+                        onPasteOrOpenFromUrl={welcome?.onPasteOrOpenFromUrl ?? noop}
+                        onFilesDropped={welcome?.onFilesDropped}
+                        error={welcome?.error}
                     >
-                        {docks.drawerOpen ? (
-                            <GraphTableSegment
-                                value={docks.drawerMaximised ? "table" : "graph"}
-                                onChange={drawer?.onSurfaceChange ?? noop}
-                            />
-                        ) : null}
+                        {welcome?.children}
+                    </WelcomeState>
+                ) : null}
 
-                        {overlays.insightsStrip && insights !== undefined ? (
-                            <InsightsStrip
-                                cards={insights.cards}
-                                variant={breakpoint === "narrow" ? "chips" : "cards"}
-                                onDismiss={insights.onDismiss}
-                                onDismissCard={insights.onDismissCard}
-                            />
-                        ) : null}
+                {empty ? null : (
+                    <CanvasOverlayLayer reflowed={layout.reflowed}>
+                        {/* 2. The top-centre column: Graph / Table, the Insights strip, the
+                        filter status strip directly under it. */}
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: INSIGHTS_STRIP_TOP,
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: CANVAS_SPACE.MD,
+                                maxWidth: "100%",
+                                zIndex: CANVAS_TOOLBAR_Z_INDEX,
+                            }}
+                        >
+                            {docks.drawerOpen ? (
+                                <GraphTableSegment
+                                    value={docks.drawerMaximised ? "table" : "graph"}
+                                    onChange={drawer?.onSurfaceChange ?? noop}
+                                />
+                            ) : null}
 
-                        {filterStatus === undefined ? null : (
-                            <FilterStatusStrip
-                                chips={filterStatus.chips}
-                                note={filterStatus.note}
-                                onOpenExplore={filterStatus.onOpenExplore}
+                            {overlays.insightsStrip && insights !== undefined ? (
+                                <InsightsStrip
+                                    cards={insights.cards}
+                                    variant={breakpoint === "narrow" ? "chips" : "cards"}
+                                    onDismiss={insights.onDismiss}
+                                    onDismissCard={insights.onDismissCard}
+                                />
+                            ) : null}
+
+                            {filterStatus === undefined ? null : (
+                                <FilterStatusStrip
+                                    chips={filterStatus.chips}
+                                    note={filterStatus.note}
+                                    onOpenExplore={filterStatus.onOpenExplore}
+                                />
+                            )}
+                        </div>
+
+                        {/* 3. The minimap, bottom left on the shared baseline. */}
+                        {minimap === undefined ? null : (
+                            <Minimap
+                                visible={layout.minimapDrawn}
+                                raised={layout.reflowed}
+                                bottom={layout.overlayBottom ?? OVERLAY_INSET}
+                                nodeCount={minimap.nodeCount}
+                                points={minimap.points}
+                                density={minimap.density}
+                                viewport={minimap.viewport}
+                                onScrub={minimap.onScrub}
                             />
                         )}
-                    </div>
 
-                    {/* 3. The minimap, bottom left on the shared baseline. */}
-                    {minimap === undefined ? null : (
-                        <Minimap
-                            visible={layout.minimapDrawn}
+                        {/* 4. The legend, bottom right on the same baseline. */}
+                        <Legend
+                            visible={layout.legendDrawn}
                             raised={layout.reflowed}
+                            compact={layout.legendCompact}
+                            channels={channels}
                             bottom={layout.overlayBottom ?? OVERLAY_INSET}
-                            nodeCount={minimap.nodeCount}
-                            points={minimap.points}
-                            density={minimap.density}
-                            viewport={minimap.viewport}
-                            onScrub={minimap.onScrub}
+                            maxHeight={layout.legendMaxHeight}
                         />
-                    )}
 
-                    {/* 4. The legend, bottom right on the same baseline. */}
-                    <Legend
-                        visible={layout.legendDrawn}
-                        raised={layout.reflowed}
-                        compact={layout.legendCompact}
-                        channels={channels}
-                        bottom={layout.overlayBottom ?? OVERLAY_INSET}
-                        maxHeight={layout.legendMaxHeight}
-                    />
-
-                    {/* 5. The docks and the slider, under the baseline overlays. A dock
+                        {/* 5. The docks and the slider, under the baseline overlays. A dock
                         is a region of its own (6.11): a pop-out opened from the drawer
                         counts against the drawer, not against the canvas. */}
-                    {drawer === undefined ? null : (
-                        <PopoutRegion id="drawer">
-                            <DataTableDrawer<TRow>
-                                open={docks.drawerOpen}
-                                height={docks.drawerHeight}
-                                maximised={docks.drawerMaximised}
-                                canvasHeight={rect.height}
-                                tab={drawer.tab}
-                                onTabChange={drawer.onTabChange}
-                                rows={drawer.rows}
-                                columns={drawer.columns}
-                                getRowId={drawer.getRowId}
-                                showLabel={drawer.showLabel}
-                                showCount={drawer.showCount}
-                                showTotal={drawer.showTotal}
-                                onOpenShowMenu={drawer.onOpenShowMenu}
-                                onHeightChange={drawer.onHeightChange}
-                                onClose={drawer.onClose}
-                                selectedIds={drawer.selectedIds}
-                                onSelectionChange={drawer.onSelectionChange}
+                        {drawer === undefined ? null : (
+                            <PopoutRegion id="drawer">
+                                <DataTableDrawer<TRow>
+                                    open={docks.drawerOpen}
+                                    height={docks.drawerHeight}
+                                    maximised={docks.drawerMaximised}
+                                    canvasHeight={rect.height}
+                                    tab={drawer.tab}
+                                    onTabChange={drawer.onTabChange}
+                                    rows={drawer.rows}
+                                    columns={drawer.columns}
+                                    getRowId={drawer.getRowId}
+                                    showLabel={drawer.showLabel}
+                                    showCount={drawer.showCount}
+                                    showTotal={drawer.showTotal}
+                                    onOpenShowMenu={drawer.onOpenShowMenu}
+                                    onHeightChange={drawer.onHeightChange}
+                                    onClose={drawer.onClose}
+                                    selectedIds={drawer.selectedIds}
+                                    onSelectionChange={drawer.onSelectionChange}
+                                />
+                            </PopoutRegion>
+                        )}
+
+                        {layout.timeSliderBottom === null || timeSlider === undefined ? null : (
+                            <TimeSlider
+                                bottom={layout.timeSliderBottom}
+                                playing={timeSlider.playing}
+                                stepLabel={timeSlider.stepLabel}
+                                viewingLabel={timeSlider.viewingLabel}
+                                byLabel={timeSlider.byLabel}
+                                onStepBack={timeSlider.onStepBack}
+                                onPlay={timeSlider.onPlay}
+                                onPause={timeSlider.onPause}
+                                onStepForward={timeSlider.onStepForward}
+                                onOpenSettings={timeSlider.onOpenSettings}
+                                settingsOpen={timeSlider.settingsOpen}
+                                density={timeSlider.density}
+                                window={timeSlider.window}
                             />
-                        </PopoutRegion>
-                    )}
+                        )}
 
-                    {layout.timeSliderBottom === null || timeSlider === undefined ? null : (
-                        <TimeSlider
-                            bottom={layout.timeSliderBottom}
-                            playing={timeSlider.playing}
-                            stepLabel={timeSlider.stepLabel}
-                            viewingLabel={timeSlider.viewingLabel}
-                            byLabel={timeSlider.byLabel}
-                            onStepBack={timeSlider.onStepBack}
-                            onPlay={timeSlider.onPlay}
-                            onPause={timeSlider.onPause}
-                            onStepForward={timeSlider.onStepForward}
-                            onOpenSettings={timeSlider.onOpenSettings}
-                            settingsOpen={timeSlider.settingsOpen}
-                            density={timeSlider.density}
-                            window={timeSlider.window}
-                        />
-                    )}
-
-                    {/* 6. The pop-out and the canvas toolbar, last in DOM order. The
+                        {/* 6. The pop-out and the canvas toolbar, last in DOM order. The
                         toolbar owns its own offset -- the shell passes it
                         `canvasToolbarBottomOffset`, whose null means "not drawn", which
                         is the state a drawer maximised to the full canvas height
                         produces -- so the region draws its children unconditionally and
                         publishes the decision as `data-toolbar-drawn` instead of
                         withholding a pop-out along with the bar. */}
-                    <div data-canvas-overlay="extras" style={{ display: "contents" }}>
-                        {children}
-                    </div>
-                </CanvasOverlayLayer>
-            )}
-        </div>
+                        <div data-canvas-overlay="extras" style={{ display: "contents" }}>
+                            {children}
+                        </div>
+                    </CanvasOverlayLayer>
+                )}
+            </div>
         </CanvasBottomStackContext.Provider>
     );
 }

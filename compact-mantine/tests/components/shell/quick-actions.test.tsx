@@ -79,7 +79,13 @@ describe("QuickActions", () => {
     });
 
     it("shows the trailing search action until there is text, then its own clear button", async () => {
-        renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} searchAction={<button type="button">Visual search</button>} />);
+        renderShell(
+            <QuickActions
+                actions={ACTIONS}
+                onRun={vi.fn()}
+                searchAction={<button type="button">Visual search</button>}
+            />,
+        );
         expect(screen.getByRole("button", { name: "Visual search" })).toBeInTheDocument();
         await userEvent.keyboard("fr");
         expect(screen.queryByRole("button", { name: "Visual search" })).not.toBeInTheDocument();

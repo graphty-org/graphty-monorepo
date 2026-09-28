@@ -46,23 +46,11 @@ describe("Display Component Extensions (Refactored)", () => {
         });
 
         it("all sized display components default to size sm", () => {
-            const sizedComponents = [
-                "Badge",
-                "Avatar",
-                "ThemeIcon",
-                "Indicator",
-                "Kbd",
-                "Pill",
-            ] as const;
+            const sizedComponents = ["Badge", "Avatar", "ThemeIcon", "Indicator", "Kbd", "Pill"] as const;
 
             for (const name of sizedComponents) {
-                const ext =
-                    displayComponentExtensions[
-                        name as keyof typeof displayComponentExtensions
-                    ];
-                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe(
-                    "sm",
-                );
+                const ext = displayComponentExtensions[name as keyof typeof displayComponentExtensions];
+                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe("sm");
             }
         });
     });

@@ -1,14 +1,6 @@
 import { Box } from "@mantine/core";
 import { useIsomorphicEffect } from "@mantine/hooks";
-import {
-    type ReactPortal,
-    type SyntheticEvent,
-    useCallback,
-    useEffect,
-    useId,
-    useRef,
-    useState,
-} from "react";
+import { type ReactPortal, type SyntheticEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { POPOUT_NESTED_GAP } from "../../constants/popout";
@@ -89,13 +81,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         onDragEnd,
     } = props;
 
-    const {
-        isOpen, close, triggerRef, id, parentId, region, exclusive = true,
-    } = usePopoutContext();
+    const { isOpen, close, triggerRef, id, parentId, region, exclusive = true } = usePopoutContext();
     // Including zIndexVersion in destructuring ensures re-render when z-index stack changes
-    const {
-        getZIndex, portalContainer, register, unregister, bringToFront, zIndexVersion, closeDescendants,
-    } = usePopoutManagerContext();
+    const { getZIndex, portalContainer, register, unregister, bringToFront, zIndexVersion, closeDescendants } =
+        usePopoutManagerContext();
     // Reference zIndexVersion to prevent "unused variable" warning while still subscribing to changes
     void zIndexVersion;
     // Get anchor context if available (from PopoutAnchor wrapper)
@@ -128,9 +117,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     }, [bringToFront, id]);
 
     // Use the floating panel hook for drag behavior
-    const {
-        dragTriggerProps, dragOffset, resetDragOffset, hasDragged, consumeDragClick,
-    } = useFloatingPanel({
+    const { dragTriggerProps, dragOffset, resetDragOffset, hasDragged, consumeDragClick } = useFloatingPanel({
         isOpen,
         onPress: handlePress,
         onDragStart,
@@ -249,18 +236,13 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         const placementAnchor = isBlockPlacement ? blockAnchor : inlineAnchor;
         const crossAnchor = isBlockPlacement ? inlineAnchor : blockAnchor;
 
-        const next = calculatePopoutPosition(
-            placementAnchor.getBoundingClientRect(),
-            renderedWidth,
-            effectiveGap,
-            {
-                placement: physicalPlacement,
-                alignment,
-                panelHeight: renderedHeight,
-                crossAnchorRect: crossAnchor.getBoundingClientRect(),
-                direction,
-            },
-        );
+        const next = calculatePopoutPosition(placementAnchor.getBoundingClientRect(), renderedWidth, effectiveGap, {
+            placement: physicalPlacement,
+            alignment,
+            panelHeight: renderedHeight,
+            crossAnchorRect: crossAnchor.getBoundingClientRect(),
+            direction,
+        });
 
         // Moved up (and in) to stay on screen, as Figma's popovers are: a tall
         // picker opened from a low row opens higher rather than off the bottom.

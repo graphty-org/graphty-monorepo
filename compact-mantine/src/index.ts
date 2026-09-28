@@ -25,7 +25,14 @@ export { ControlSubGroup } from "./components/ControlSubGroup";
 export { DataTable } from "./components/DataTable";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
-export { Popout, PopoutButton, PopoutManager, PopoutRegion, usePopoutManager, usePopoutRegion } from "./components/popout";
+export {
+    Popout,
+    PopoutButton,
+    PopoutManager,
+    PopoutRegion,
+    usePopoutManager,
+    usePopoutRegion,
+} from "./components/popout";
 export { StyleNumberInput } from "./components/StyleNumberInput";
 export { StyleSelect } from "./components/StyleSelect";
 export { ToggleWithContent } from "./components/ToggleWithContent";
@@ -38,7 +45,15 @@ export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
 
 // Overlays: the context menu, the checkable menu row, the modal footer, the toast and the
 // tooltip's shortcut label (8.1-8.6).
-export { ContextMenu, MenuCheckItem, ModalFooter, Toast, ToastProvider, TooltipShortcut, useToast } from "./components/overlays";
+export {
+    ContextMenu,
+    MenuCheckItem,
+    ModalFooter,
+    Toast,
+    ToastProvider,
+    TooltipShortcut,
+    useToast,
+} from "./components/overlays";
 
 // Selection: the 3 x 3 alignment matrix (5.7).
 export { ALIGNMENT_MATRIX_VALUES, AlignmentMatrix } from "./components/selection/AlignmentMatrix";

@@ -281,7 +281,10 @@ export const ChangeFonts: Story = {
             >
                 <FontSample />
             </Variant>
-            <Variant name="Serif" theme={mergeMantineTheme(compactTheme, createTheme({ fontFamily: "Georgia, serif" }))}>
+            <Variant
+                name="Serif"
+                theme={mergeMantineTheme(compactTheme, createTheme({ fontFamily: "Georgia, serif" }))}
+            >
                 <FontSample />
             </Variant>
         </Group>

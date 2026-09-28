@@ -145,7 +145,9 @@ export const States: Story = {
                             <AdvancedButton
                                 label={`Image export options, ${c}`}
                                 changed={changed}
-                                data-state={STATES.includes(c as (typeof STATES)[number]) && c !== "rest" ? c : undefined}
+                                data-state={
+                                    STATES.includes(c as (typeof STATES)[number]) && c !== "rest" ? c : undefined
+                                }
                                 disabled={c === "disabled"}
                                 loading={c === "loading"}
                                 aria-haspopup={c === "open" ? "dialog" : undefined}
@@ -158,7 +160,10 @@ export const States: Story = {
         </Stack>
     ),
     // Loading draws the spinner instead of the disabled look, and the changed ink gives way to disabled, loading and open.
-    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ["[data-loading]", '[data-changed="true"]:is(:disabled, [aria-expanded="true"])'] }),
+    play: ({ canvasElement }) =>
+        expectStatesApply(canvasElement, {
+            unchanged: ["[data-loading]", '[data-changed="true"]:is(:disabled, [aria-expanded="true"])'],
+        }),
 };
 
 /**
@@ -240,7 +245,9 @@ export const EmptySlotKeepsTheColumn: Story = {
                 <Group key={row.label} gap={PANEL_GRID.TRAIL_GAP} wrap="nowrap" h={PANEL_GRID.CONTROL_HEIGHT}>
                     <PanelField label={row.label} value={row.value} width={PANEL_GRID.BODY} />
                     <TrailingSlot>
-                        {row.trailing ? <AdvancedButton label={`${row.label} options`} onClick={() => undefined} /> : null}
+                        {row.trailing ? (
+                            <AdvancedButton label={`${row.label} options`} onClick={() => undefined} />
+                        ) : null}
                     </TrailingSlot>
                 </Group>
             ))}

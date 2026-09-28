@@ -93,7 +93,10 @@ export const States: Story = {
             <Text size="sm" c="dimmed">
                 with an action
             </Text>
-            <Toast message="Large PNG ready for copy" action={{ label: "Copy to clipboard", onClick: () => undefined }} />
+            <Toast
+                message="Large PNG ready for copy"
+                action={{ label: "Copy to clipboard", onClick: () => undefined }}
+            />
             <Text size="sm" c="dimmed">
                 with an icon and the dismiss segment
             </Text>

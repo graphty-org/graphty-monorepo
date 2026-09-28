@@ -12,8 +12,7 @@ import { usePopoutContext } from "./PopoutContext";
  * own: the ghost (`subtle`) button, whose open state the theme draws.
  */
 export interface PopoutButtonProps
-    extends Omit<ActionIconProps, "variant" | "children">,
-        ElementProps<"button", "color" | keyof ActionIconProps> {
+    extends Omit<ActionIconProps, "variant" | "children">, ElementProps<"button", "color" | keyof ActionIconProps> {
     /**
      * The drawing on the button.
      *
@@ -50,21 +49,22 @@ export interface PopoutButtonProps
  * </Popout>
  * ```
  */
-export const PopoutButton = forwardRef<HTMLButtonElement, PopoutButtonProps>(
-    function PopoutButton({ icon, size = "sm", ...props }, ref) {
-        const { isOpen } = usePopoutContext();
+export const PopoutButton = forwardRef<HTMLButtonElement, PopoutButtonProps>(function PopoutButton(
+    { icon, size = "sm", ...props },
+    ref,
+) {
+    const { isOpen } = usePopoutContext();
 
-        return (
-            <ActionIcon
-                ref={ref}
-                data-testid="popout-button"
-                data-open={isOpen || undefined}
-                variant="subtle"
-                size={size}
-                {...props}
-            >
-                {icon}
-            </ActionIcon>
-        );
-    },
-);
+    return (
+        <ActionIcon
+            ref={ref}
+            data-testid="popout-button"
+            data-open={isOpen || undefined}
+            variant="subtle"
+            size={size}
+            {...props}
+        >
+            {icon}
+        </ActionIcon>
+    );
+});

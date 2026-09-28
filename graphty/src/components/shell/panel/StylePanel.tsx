@@ -292,11 +292,7 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                 actions={
                     <>
                         <ComingTag />
-                        <SectionAddButton
-                            tooltip="Save as style..."
-                            label="Save as style..."
-                            onClick={onSaveStyle}
-                        />
+                        <SectionAddButton tooltip="Save as style..." label="Save as style..." onClick={onSaveStyle} />
                         <Menu position="bottom-end" withinPortal shadow="md">
                             <Menu.Target>
                                 <ActionIcon

@@ -116,7 +116,15 @@ const GRID_BANDS = [
 export const PanelGrid: Story = {
     render: () => (
         <Stack gap={8}>
-            <Box style={{ display: "flex", width: PANEL_GRID.WIDTH, height: PANEL_GRID.ROW_PITCH, background: PANEL_INK.PANEL, boxShadow: `inset 0 0 0 1px ${PANEL_INK.BORDER}` }}>
+            <Box
+                style={{
+                    display: "flex",
+                    width: PANEL_GRID.WIDTH,
+                    height: PANEL_GRID.ROW_PITCH,
+                    background: PANEL_INK.PANEL,
+                    boxShadow: `inset 0 0 0 1px ${PANEL_INK.BORDER}`,
+                }}
+            >
                 {GRID_BANDS.map((band, i) => (
                     <Box
                         key={`${band.name}-${String(i)}`}
@@ -136,7 +144,13 @@ export const PanelGrid: Story = {
                     </Box>
                 ))}
             </Box>
-            <Box style={{ width: PANEL_GRID.WIDTH, background: PANEL_INK.PANEL, boxShadow: `inset 0 0 0 1px ${PANEL_INK.BORDER}` }}>
+            <Box
+                style={{
+                    width: PANEL_GRID.WIDTH,
+                    background: PANEL_INK.PANEL,
+                    boxShadow: `inset 0 0 0 1px ${PANEL_INK.BORDER}`,
+                }}
+            >
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                     <PanelField label="Smallest" glyph="sizeSmallest" kind="number" defaultValue={1} />
                     <PanelField label="Largest" glyph="sizeLargest" kind="number" defaultValue={4} />

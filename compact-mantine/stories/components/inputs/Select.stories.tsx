@@ -1,4 +1,14 @@
-import { Autocomplete, Box, DirectionProvider, MultiSelect, NativeSelect, Select, Stack, TagsInput, Text } from "@mantine/core";
+import {
+    Autocomplete,
+    Box,
+    DirectionProvider,
+    MultiSelect,
+    NativeSelect,
+    Select,
+    Stack,
+    TagsInput,
+    Text,
+} from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
@@ -128,12 +138,38 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} /> },
-                { state: "hover (no change)", node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} data-state="hover" /> },
-                { state: "keyboard focus", node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} data-state="focus" /> },
-                { state: "disabled", node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} disabled /> },
-                { state: "invalid", node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} error /> },
-                { state: "placeholder", node: <Select aria-label="Device" data={["iPhone", "iPad"]} placeholder="No device" w={184} /> },
-                { state: "filled variant", node: <Select aria-label="Font style" variant="filled" data={["Regular", "Bold"]} defaultValue="Regular" w={88} /> },
+                {
+                    state: "hover (no change)",
+                    node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} data-state="hover" />,
+                },
+                {
+                    state: "keyboard focus",
+                    node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} data-state="focus" />,
+                },
+                {
+                    state: "disabled",
+                    node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} disabled />,
+                },
+                {
+                    state: "invalid",
+                    node: <Select aria-label="Align" data={ALIGN} defaultValue="Inside" w={88} error />,
+                },
+                {
+                    state: "placeholder",
+                    node: <Select aria-label="Device" data={["iPhone", "iPad"]} placeholder="No device" w={184} />,
+                },
+                {
+                    state: "filled variant",
+                    node: (
+                        <Select
+                            aria-label="Font style"
+                            variant="filled"
+                            data={["Regular", "Bold"]}
+                            defaultValue="Regular"
+                            w={88}
+                        />
+                    ),
+                },
                 { state: "NativeSelect", node: <NativeSelect aria-label="Scale" data={["1x", "2x"]} w={88} /> },
             ]}
         />
@@ -150,13 +186,7 @@ export const OpenList: Story = {
     parameters: ownFrame(280),
     render: () => (
         <div style={{ padding: "120px 40px" }}>
-            <Select
-                aria-label="Stroke align"
-                data={ALIGN}
-                defaultValue="Inside"
-                w={76}
-                defaultDropdownOpened
-            />
+            <Select aria-label="Stroke align" data={ALIGN} defaultValue="Inside" w={76} defaultDropdownOpened />
         </div>
     ),
     play: ({ canvasElement }) => expectStatesApply(canvasElement),
@@ -181,7 +211,7 @@ export const BelowTheField: Story = {
                                 data={["Frame 1", "Frame 2"]}
                                 w={160}
                                 defaultDropdownOpened
-                                            />
+                            />
                         ),
                     },
                     {
@@ -193,7 +223,7 @@ export const BelowTheField: Story = {
                                 defaultValue={["Alpha", "Beta"]}
                                 w={184}
                                 defaultDropdownOpened
-                                            />
+                            />
                         ),
                     },
                     { state: "TagsInput", node: <TagsInput aria-label="Keywords" defaultValue={["draft"]} w={184} /> },
@@ -266,12 +296,23 @@ export const Keyboard: Story = {
 
 /** `searchable`: the trigger becomes a text box that filters the list as you type. */
 export const Searchable: Story = {
-    render: () => <Select label="Searchable" placeholder="Search..." data={["Cats", "Dogs", "Hamsters"]} searchable w={200} />,
+    render: () => (
+        <Select label="Searchable" placeholder="Search..." data={["Cats", "Dogs", "Hamsters"]} searchable w={200} />
+    ),
 };
 
 /** `clearable`: a clear button empties the value. Compare StyleSelect's reset, which reports the default. */
 export const Clearable: Story = {
-    render: () => <Select placeholder="Clearable" aria-label="Pet" data={["Cats", "Dogs"]} clearable defaultValue="Cats" w={200} />,
+    render: () => (
+        <Select
+            placeholder="Clearable"
+            aria-label="Pet"
+            data={["Cats", "Dogs"]}
+            clearable
+            defaultValue="Cats"
+            w={200}
+        />
+    ),
 };
 
 /** Mantine's `NativeSelect`, the browser's own drop-down drawn as a filled field. */
@@ -313,7 +354,15 @@ export const ResetToDefaultStates: Story = {
                     },
                     {
                         state: "disabled",
-                        node: <StyleSelect label="Shape" defaultValue="circle" options={options} disabled disabledReason="Load data first" />,
+                        node: (
+                            <StyleSelect
+                                label="Shape"
+                                defaultValue="circle"
+                                options={options}
+                                disabled
+                                disabledReason="Load data first"
+                            />
+                        ),
                     },
                 ]}
             />
@@ -333,7 +382,13 @@ export const Controlled: Story = {
 
         return (
             <Stack gap="xs" w={PANEL}>
-                <StyleSelect label="Node shape" value={shape} defaultValue="circle" options={shapeOptions} onChange={setShape} />
+                <StyleSelect
+                    label="Node shape"
+                    value={shape}
+                    defaultValue="circle"
+                    options={shapeOptions}
+                    onChange={setShape}
+                />
                 <Text size="xs" c="dimmed">
                     {`value: ${shape ?? "undefined (using the default)"}`}
                 </Text>

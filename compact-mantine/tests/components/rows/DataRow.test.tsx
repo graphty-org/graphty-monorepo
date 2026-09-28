@@ -117,7 +117,9 @@ describe("DataRow", () => {
 
             const slot = screen.getByTestId("data-row-icon");
             expect(slot).toHaveClass("cm-data-row-icon");
-            expect(treeCss).toMatch(/\.cm-data-row-icon \{[^}]*width: 16px;[^}]*height: 16px;[^}]*color: var\(--cm-icon-secondary\)/);
+            expect(treeCss).toMatch(
+                /\.cm-data-row-icon \{[^}]*width: 16px;[^}]*height: 16px;[^}]*color: var\(--cm-icon-secondary\)/,
+            );
         });
 
         it("is decorative, so it never joins the row's accessible name", () => {
@@ -154,7 +156,9 @@ describe("DataRow", () => {
 
             const row = screen.getByTestId("data-row");
             expect(row).toHaveAttribute("data-selected", "true");
-            expect(treeCss).toContain(".cm-data-row[data-selected]:hover::after { background: var(--cm-bg-selected); }");
+            expect(treeCss).toContain(
+                ".cm-data-row[data-selected]:hover::after { background: var(--cm-bg-selected); }",
+            );
         });
 
         it("marks exactly one row of a run as the current one", () => {
@@ -602,9 +606,7 @@ describe("DataRowHeader", () => {
         it("follows the direction it is given, when the consumer holds the state", async () => {
             const onSortChange = vi.fn();
             const user = userEvent.setup();
-            renderRow(
-                <DataRowHeader label="Most connected" sortDirection="descending" onSortChange={onSortChange} />,
-            );
+            renderRow(<DataRowHeader label="Most connected" sortDirection="descending" onSortChange={onSortChange} />);
 
             expect(screen.getByTestId("data-row-header")).toHaveAttribute("aria-sort", "descending");
 
@@ -620,7 +622,9 @@ describe("DataRowHeader", () => {
             renderRow(<DataRowHeader label="Most connected" sortDirection="ascending" onSortChange={vi.fn()} />);
 
             expect(screen.getByTestId("data-row-header")).toHaveAttribute("data-sorted");
-            expect(treeCss).toMatch(/\.cm-data-row-header\[data-sorted\] \.cm-data-row-header-label,[^{]*\{ color: var\(--cm-text\); \}/);
+            expect(treeCss).toMatch(
+                /\.cm-data-row-header\[data-sorted\] \.cm-data-row-header-label,[^{]*\{ color: var\(--cm-text\); \}/,
+            );
         });
 
         it("leaves an unsorted column's name at the secondary color of the caption", () => {

@@ -14,7 +14,7 @@
  * own tag. An unshipped row carries no key chip anywhere.
  */
 
-import { PANEL_GRID, PANEL_INK, UiGlyph,type UiGlyphName } from "@graphty/compact-mantine";
+import { PANEL_GRID, PANEL_INK, UiGlyph, type UiGlyphName } from "@graphty/compact-mantine";
 import { Box, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 import { createPortal } from "react-dom";
@@ -145,7 +145,13 @@ function ActionButton(props: ActionButtonProps): React.JSX.Element {
 
             <Box
                 component="span"
-                style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", textAlign: "start" }}
+                style={{
+                    flex: "1 1 auto",
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    textAlign: "start",
+                }}
             >
                 {action.label}
             </Box>

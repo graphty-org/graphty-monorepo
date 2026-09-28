@@ -19,7 +19,10 @@ function reserve(child: React.ReactNode): React.ReactNode {
         return child;
     }
     const { className, children } = child.props;
-    if (!className?.split(" ").includes(LABEL_CLASS) || (typeof children !== "string" && typeof children !== "number")) {
+    if (
+        !className?.split(" ").includes(LABEL_CLASS) ||
+        (typeof children !== "string" && typeof children !== "number")
+    ) {
         return child;
     }
     return React.cloneElement(

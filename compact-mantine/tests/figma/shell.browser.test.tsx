@@ -75,7 +75,13 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(toolbar(), { scheme: "light" });
             expectMeasured(
                 part(container, ".cm-toolbar"),
-                await fig("bt/toolbar-default", 24, ["height", "backgroundColor", "borderRadius", "color", "boxShadow"]),
+                await fig("bt/toolbar-default", 24, [
+                    "height",
+                    "backgroundColor",
+                    "borderRadius",
+                    "color",
+                    "boxShadow",
+                ]),
             );
         });
 
@@ -83,7 +89,13 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(toolbar(), { scheme: "dark" });
             expectMeasured(
                 part(container, ".cm-toolbar"),
-                await fig("dt/dark-dialog-quick-actions", 25, ["height", "backgroundColor", "borderRadius", "color", "boxShadow"]),
+                await fig("dt/dark-dialog-quick-actions", 25, [
+                    "height",
+                    "backgroundColor",
+                    "borderRadius",
+                    "color",
+                    "boxShadow",
+                ]),
             );
         });
 
@@ -92,12 +104,18 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(part(light.container, ".cm-toolbar-divider"), await fig("bt/toolbar-default", 82, BOX));
             await resetHarness();
             const dark = await renderFigma(toolbar(), { scheme: "dark" });
-            expectMeasured(part(dark.container, ".cm-toolbar-divider"), await fig("dt/dark-dialog-quick-actions", 31, BOX));
+            expectMeasured(
+                part(dark.container, ".cm-toolbar-divider"),
+                await fig("dt/dark-dialog-quick-actions", 31, BOX),
+            );
         });
 
         it("the tool group is 49 x 32 with a 1px gap, the selected tool 32 x 32 brand, the chevron 16 x 32", async () => {
             const { container } = await renderFigma(toolbar(), { scheme: "light" });
-            expectMeasured(part(container, ".cm-tool-group"), await fig("bt/toolbar-default", 31, ["width", "height", "gap"]));
+            expectMeasured(
+                part(container, ".cm-tool-group"),
+                await fig("bt/toolbar-default", 31, ["width", "height", "gap"]),
+            );
             expectMeasured(
                 part(container, ".cm-tool[aria-pressed='true']"),
                 await fig("bt/toolbar-default", 32, [...BOX, "paddingTop", "paddingLeft", "color"]),
@@ -110,7 +128,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
 
         it("AA option: the selected tool's fill is the darker brand (white on it passes 4.5:1)", async () => {
             const { container } = await renderFigma(toolbar(), { scheme: "light", highContrast: true });
-            expectMeasured(part(container, ".cm-tool[aria-pressed='true']"), { backgroundColor: "#0768cf", color: "#ffffff" });
+            expectMeasured(part(container, ".cm-tool[aria-pressed='true']"), {
+                backgroundColor: "#0768cf",
+                color: "#ffffff",
+            });
         });
 
         it("the first tool sits 8px in from the bar", async () => {
@@ -155,7 +176,8 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const button = part(container, ".cm-tool");
             await drive(button, "focus");
             expectMeasured(button, {
-                boxShadow: "rgb(255, 255, 255) 0px 0px 0px 1px inset, rgb(255, 255, 255) 0px 0px 0px 1px, rgb(13, 153, 255) 0px 0px 0px 2px",
+                boxShadow:
+                    "rgb(255, 255, 255) 0px 0px 0px 1px inset, rgb(255, 255, 255) 0px 0px 0px 1px, rgb(13, 153, 255) 0px 0px 0px 2px",
             });
         });
     });
@@ -195,7 +217,12 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const menu = part(document.body, "[role='menu']");
             expectMeasured(
                 menu,
-                await fig("bt/flyout-ShapeTools-chevron", 115, ["backgroundColor", "borderRadius", "paddingTop", "paddingBottom"]),
+                await fig("bt/flyout-ShapeTools-chevron", 115, [
+                    "backgroundColor",
+                    "borderRadius",
+                    "paddingTop",
+                    "paddingBottom",
+                ]),
             );
             const c = chevron.getBoundingClientRect();
             const m = menu.getBoundingClientRect();
@@ -204,12 +231,23 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(chevron, { backgroundColor: "#e6e6e6" });
 
             const row = part(menu, "[role='menuitemradio'][aria-checked='true']");
-            expectMeasured(row, await fig("bt/flyout-ShapeTools-chevron", 119, ["height", "color", "fontSize", "lineHeight", "fontWeight"]));
+            expectMeasured(
+                row,
+                await fig("bt/flyout-ShapeTools-chevron", 119, [
+                    "height",
+                    "color",
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                ]),
+            );
             const check = part(row, ".cm-tool-flyout-check");
             const label = part(row, "[class*='itemLabel']");
             expectMeasured(check, { x: 12, width: 16, height: 16, opacity: "1" }, { origin: row });
             expectMeasured(label, { x: 60 }, { origin: row });
-            expectMeasured(part(menu, "[role='menuitemradio'][aria-checked='false'] .cm-tool-flyout-check"), { opacity: "0" });
+            expectMeasured(part(menu, "[role='menuitemradio'][aria-checked='false'] .cm-tool-flyout-check"), {
+                opacity: "0",
+            });
         });
 
         it("picking a row makes it the face and closes the flyout", async () => {
@@ -278,7 +316,14 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             );
             expectMeasured(
                 part(container, ".cm-secondary-toolbar"),
-                await fig("bt/secondary-vector-bar", 25, ["height", "backgroundColor", "borderRadius", "paddingTop", "paddingLeft", "gap"]),
+                await fig("bt/secondary-vector-bar", 25, [
+                    "height",
+                    "backgroundColor",
+                    "borderRadius",
+                    "paddingTop",
+                    "paddingLeft",
+                    "gap",
+                ]),
             );
             expectMeasured(
                 part(container, ".cm-secondary-item[aria-pressed='true']"),
@@ -286,10 +331,19 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 // Inter and the bundled Inter 4 (see the report).
                 await fig("bt/secondary-vector-bar", 26, ["height", "backgroundColor", "borderRadius"]),
             );
-            expectMeasured(part(container, ".cm-secondary-divider"), await fig("bt/secondary-vector-bar", 34, ["width", "height", "backgroundColor"]));
+            expectMeasured(
+                part(container, ".cm-secondary-divider"),
+                await fig("bt/secondary-vector-bar", 34, ["width", "height", "backgroundColor"]),
+            );
             expectMeasured(
                 part(container, ".cm-secondary-item-label"),
-                await fig("bt/secondary-vector-bar", 29, ["fontSize", "lineHeight", "fontWeight", "paddingRight", "color"]),
+                await fig("bt/secondary-vector-bar", 29, [
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                    "paddingRight",
+                    "color",
+                ]),
             );
         });
     });
@@ -311,7 +365,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
 
         it("a palette row's text is pure black in light (dt/light-dialog-quick-actions)", async () => {
             const { container } = await renderFigma(
-                <QuickActions actions={[{ value: "a", label: "Nudge amount", section: "Recents" }]} onRun={() => undefined} />,
+                <QuickActions
+                    actions={[{ value: "a", label: "Nudge amount", section: "Recents" }]}
+                    onRun={() => undefined}
+                />,
                 { scheme: "light" },
             );
             expectMeasured(part(container, ".cm-qa-row-label"), { color: "#000000" });
@@ -330,10 +387,16 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(more, await fig("bt/secondary-vector-bar", 53, ["height"]));
             // The text starts at x+8: the label box sits at 0 with 8px of start padding.
             expectMeasured(part(more, ".cm-secondary-item-label"), { x: 0, paddingLeft: 8 }, { origin: more });
-            expectMeasured(part(more, ".cm-secondary-item-chevron"), await fig("bt/secondary-vector-bar", 55, ["width", "height"]));
+            expectMeasured(
+                part(more, ".cm-secondary-item-chevron"),
+                await fig("bt/secondary-vector-bar", 55, ["width", "height"]),
+            );
             const chevron = part(more, ".cm-secondary-item-chevron").getBoundingClientRect();
             expect(more.getBoundingClientRect().right - chevron.right).toBeCloseTo(4, 1);
-            expectMeasured(part(container, ".cm-secondary-toolbar"), await fig("bt/secondary-vector-bar", 25, ["boxShadow"]));
+            expectMeasured(
+                part(container, ".cm-secondary-toolbar"),
+                await fig("bt/secondary-vector-bar", 25, ["boxShadow"]),
+            );
         });
     });
 
@@ -354,7 +417,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 part(container, ".cm-nav-rail"),
                 await fig("ls/rail-default", 14, ["width", "backgroundColor", "paddingTop", "paddingBottom"]),
             );
-            expectMeasured(part(container, ".cm-nav-rail-separator"), await fig("ls/rail-default", 19, ["width", "height"]));
+            expectMeasured(
+                part(container, ".cm-nav-rail-separator"),
+                await fig("ls/rail-default", 19, ["width", "height"]),
+            );
             expectMeasured(
                 part(container, ".cm-rail-button[data-active]"),
                 await fig("ls/rail-default", 20, ["width", "height", "paddingTop", "paddingBottom", "gap"]),
@@ -371,12 +437,18 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
 
         it("dark: the rail is #2c2c2c and the active pill #394360", async () => {
             const { container } = await renderFigma(rail(), { scheme: "dark" });
-            expectMeasured(part(container, ".cm-nav-rail"), await fig("dt/dark-dialog-keyboard-shortcuts", 24, ["width", "backgroundColor"]));
+            expectMeasured(
+                part(container, ".cm-nav-rail"),
+                await fig("dt/dark-dialog-keyboard-shortcuts", 24, ["width", "backgroundColor"]),
+            );
             expectMeasured(
                 part(container, ".cm-rail-button[data-active] .cm-rail-pill"),
                 await fig("dt/dark-dialog-keyboard-shortcuts", 27, BOX),
             );
-            expectMeasured(part(container, ".cm-rail-label"), await fig("dt/dark-dialog-keyboard-shortcuts", 30, ["color"]));
+            expectMeasured(
+                part(container, ".cm-rail-label"),
+                await fig("dt/dark-dialog-keyboard-shortcuts", 30, ["color"]),
+            );
         });
 
         it("hover fills the pill --cm-bg-hover", async () => {
@@ -462,8 +534,14 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 await fig("bc/help-button--default", 24, [...BOX, "borderTopWidth", "borderTopColor", "boxShadow"]),
             );
             // The bare question mark: a 30 x 32 svg whose mark is 8.5 x 15.8 (#25 #26).
-            expectMeasured(part(container, ".cm-help-button svg"), await fig("bc/help-button--default", 25, ["width", "height"]));
-            expectMeasured(part(container, ".cm-help-button path"), await fig("bc/help-button--default", 26, ["width", "height"]));
+            expectMeasured(
+                part(container, ".cm-help-button svg"),
+                await fig("bc/help-button--default", 25, ["width", "height"]),
+            );
+            expectMeasured(
+                part(container, ".cm-help-button path"),
+                await fig("bc/help-button--default", 26, ["width", "height"]),
+            );
         });
 
         it("focus: a 1px ring at -2px and a brand border", async () => {
@@ -528,7 +606,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
 
         it("Avatar: 24 with a 12/24 initial; in a stack 28 with a 2px ring, 21px apart (hm/header-right-default)", async () => {
             const single = await renderFigma(<Avatar color="pink">A</Avatar>);
-            expectMeasured(part(single.container, ".mantine-Avatar-root"), await fig("hm/header-right-default", 59, ["width", "height"]));
+            expectMeasured(
+                part(single.container, ".mantine-Avatar-root"),
+                await fig("hm/header-right-default", 59, ["width", "height"]),
+            );
             expectMeasured(
                 part(single.container, ".mantine-Avatar-placeholder"),
                 await fig("hm/header-right-default", 59, ["fontSize", "lineHeight", "fontWeight", "color"]),
@@ -541,7 +622,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 </Avatar.Group>,
             );
             const [a, b] = stack.container.querySelectorAll<HTMLElement>(".mantine-Avatar-root");
-            expectMeasured(a, await fig("hm/header-right-default", 39, ["width", "height", "borderTopWidth", "borderTopColor"]));
+            expectMeasured(
+                a,
+                await fig("hm/header-right-default", 39, ["width", "height", "borderTopWidth", "borderTopColor"]),
+            );
             expect(b.getBoundingClientRect().left - a.getBoundingClientRect().left).toBe(21);
         });
 
@@ -553,11 +637,27 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 </>,
             );
             const [single, word] = container.querySelectorAll<HTMLElement>(".mantine-Kbd-root");
-            const props = ["width", "height", "backgroundColor", "color", "borderTopColor", "borderTopWidth", "borderRadius", "fontSize", "lineHeight", "fontWeight"];
+            const props = [
+                "width",
+                "height",
+                "backgroundColor",
+                "color",
+                "borderTopColor",
+                "borderTopWidth",
+                "borderRadius",
+                "fontSize",
+                "lineHeight",
+                "fontWeight",
+            ];
             expectMeasured(single, await fig("pm/keyboard-shortcuts-tab-tools", 114, props));
             expectMeasured(
                 word,
-                await fig("pm/keyboard-shortcuts-tab-tools", 141, [...props.filter((p) => p !== "width"), "paddingLeft", "paddingRight", "paddingTop"]),
+                await fig("pm/keyboard-shortcuts-tab-tools", 141, [
+                    ...props.filter((p) => p !== "width"),
+                    "paddingLeft",
+                    "paddingRight",
+                    "paddingTop",
+                ]),
             );
         });
 
@@ -589,39 +689,75 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             { value: "view", label: "View", groups: [] },
             { value: "zoom", label: "Zoom", groups: [] },
         ];
-        const sheet = (): React.JSX.Element => <ShortcutSheet tabs={TABS} defaultValue="tools" onClose={() => undefined} />;
+        const sheet = (): React.JSX.Element => (
+            <ShortcutSheet tabs={TABS} defaultValue="tools" onClose={() => undefined} />
+        );
 
         it("light: #1e1e1e, a transparent top border, the folder-tab strip and the close button", async () => {
             const { container } = await renderFigma(sheet(), { scheme: "light" });
             const root = part(container, ".cm-shortcut-sheet");
-            expectMeasured(root, await fig("pm/keyboard-shortcuts-tab-tools", 80, ["backgroundColor", "borderTopWidth", "fontSize", "lineHeight", "height"]));
+            expectMeasured(
+                root,
+                await fig("pm/keyboard-shortcuts-tab-tools", 80, [
+                    "backgroundColor",
+                    "borderTopWidth",
+                    "fontSize",
+                    "lineHeight",
+                    "height",
+                ]),
+            );
             // the tab contents fill the rest and scroll (#101: 1600 x 202)
-            expectMeasured(part(container, ".cm-sheet-body"), { height: (await figmaElement("pm/keyboard-shortcuts-tab-tools", { index: 101 })).box[3] });
+            expectMeasured(part(container, ".cm-sheet-body"), {
+                height: (await figmaElement("pm/keyboard-shortcuts-tab-tools", { index: 101 })).box[3],
+            });
             // Figma's light edge is transparent white; ours transparent black. Both draw nothing.
             expect(getComputedStyle(root).borderTopColor).toBe("rgba(0, 0, 0, 0)");
-            const tab = (name: string): HTMLElement => part(container, `[role='tab'][id$='-${TABS.findIndex((t) => t.label === name)}']`);
+            const tab = (name: string): HTMLElement =>
+                part(container, `[role='tab'][id$='-${TABS.findIndex((t) => t.label === name)}']`);
             // Tabs hug their text, which sets a pixel or two narrower in the bundled Inter 4, so the
             // widths are left out and the paddings asserted.
             const tabProps = ["height", "color", "fontSize", "lineHeight", "paddingLeft", "paddingRight"];
-            expectMeasured(tab("Essential"), await fig("pm/keyboard-shortcuts-tab-tools", 83, [...tabProps, "borderRightWidth", "borderBottomWidth", "borderBottomColor", "borderRadius"]));
+            expectMeasured(
+                tab("Essential"),
+                await fig("pm/keyboard-shortcuts-tab-tools", 83, [
+                    ...tabProps,
+                    "borderRightWidth",
+                    "borderBottomWidth",
+                    "borderBottomColor",
+                    "borderRadius",
+                ]),
+            );
             expectMeasured(tab("Tools"), await fig("pm/keyboard-shortcuts-tab-tools", 84, tabProps));
-            expectMeasured(tab("View"), await fig("pm/keyboard-shortcuts-tab-tools", 85, [...tabProps, "borderLeftWidth", "borderRadius"]));
+            expectMeasured(
+                tab("View"),
+                await fig("pm/keyboard-shortcuts-tab-tools", 85, [...tabProps, "borderLeftWidth", "borderRadius"]),
+            );
             expectMeasured(tab("Zoom"), await fig("pm/keyboard-shortcuts-tab-tools", 86, tabProps));
-            expectMeasured(part(container, ".cm-sheet-close"), await fig("pm/keyboard-shortcuts-tab-tools", 97, ["width", "height", "color", "borderBottomWidth"]));
+            expectMeasured(
+                part(container, ".cm-sheet-close"),
+                await fig("pm/keyboard-shortcuts-tab-tools", 97, ["width", "height", "color", "borderBottomWidth"]),
+            );
             expectMeasured(
                 part(container, ".cm-sheet-row-label"),
                 await fig("pm/keyboard-shortcuts-tab-tools", 111, ["color", "fontSize", "lineHeight", "paddingRight"]),
             );
             expectMeasured(part(container, ".cm-sheet-row"), { height: 37 });
             // The strip is 38 tall; its 39px tabs overflow it by 1px (#81).
-            expectMeasured(part(container, ".cm-sheet-strip"), await fig("pm/keyboard-shortcuts-tab-tools", 81, ["height"]));
+            expectMeasured(
+                part(container, ".cm-sheet-strip"),
+                await fig("pm/keyboard-shortcuts-tab-tools", 81, ["height"]),
+            );
         });
 
         it("dark: a 1px #444 top border", async () => {
             const { container } = await renderFigma(sheet(), { scheme: "dark" });
             expectMeasured(
                 part(container, ".cm-shortcut-sheet"),
-                await fig("dt/dark-dialog-keyboard-shortcuts", 590, ["backgroundColor", "borderTopWidth", "borderTopColor"]),
+                await fig("dt/dark-dialog-keyboard-shortcuts", 590, [
+                    "backgroundColor",
+                    "borderTopWidth",
+                    "borderTopColor",
+                ]),
             );
         });
     });
@@ -634,29 +770,60 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 variant: "essential" as const,
                 caption: "Essential keyboard shortcuts",
                 groups: [
-                    { shortcuts: [{ label: "Show/Hide UI", description: "Press it now to quickly hide the panes and focus on your work", keys: ["Ctrl", "\\"] }] },
-                    { shortcuts: [{ label: "Pick color", description: "Grab a color from elsewhere without losing your flow", keys: ["I"] }] },
+                    {
+                        shortcuts: [
+                            {
+                                label: "Show/Hide UI",
+                                description: "Press it now to quickly hide the panes and focus on your work",
+                                keys: ["Ctrl", "\\"],
+                            },
+                        ],
+                    },
+                    {
+                        shortcuts: [
+                            {
+                                label: "Pick color",
+                                description: "Grab a color from elsewhere without losing your flow",
+                                keys: ["I"],
+                            },
+                        ],
+                    },
                 ],
             },
             { value: "tools", label: "Tools", groups: [] },
         ];
 
         it("the caption, the numbered column, the 68px row, its label, description and caps", async () => {
-            const { container } = await renderFigma(<ShortcutSheet tabs={ESSENTIAL} onClose={() => undefined} />, { scheme: "light" });
+            const { container } = await renderFigma(<ShortcutSheet tabs={ESSENTIAL} onClose={() => undefined} />, {
+                scheme: "light",
+            });
             const path = "ma/keyboard-shortcuts-essential";
             expectMeasured(part(container, ".cm-sheet-body"), await fig(path, 117, ["paddingTop"]));
-            expectMeasured(part(container, ".cm-sheet-caption"), await fig(path, 118, ["height", "fontSize", "lineHeight", "color", "paddingBottom", "marginTop"]));
+            expectMeasured(
+                part(container, ".cm-sheet-caption"),
+                await fig(path, 118, ["height", "fontSize", "lineHeight", "color", "paddingBottom", "marginTop"]),
+            );
             const column = part(container, ".cm-sheet-column");
             expectMeasured(column, await fig(path, 120, ["width"]));
             // The row starts 33px into the column, under the 23px step circle (#120 #123).
             expectMeasured(part(column, ".cm-sheet-row"), { x: 0, y: 33, height: 68 }, { origin: column });
             const row = part(column, ".cm-sheet-row");
-            expectMeasured(part(row, ".cm-sheet-row-label"), await fig(path, 124, ["fontSize", "lineHeight", "color", "paddingRight"]));
-            expectMeasured(part(row, ".cm-sheet-row-description"), await fig(path, 125, ["fontSize", "lineHeight", "color", "paddingTop"]));
+            expectMeasured(
+                part(row, ".cm-sheet-row-label"),
+                await fig(path, 124, ["fontSize", "lineHeight", "color", "paddingRight"]),
+            );
+            expectMeasured(
+                part(row, ".cm-sheet-row-description"),
+                await fig(path, 125, ["fontSize", "lineHeight", "color", "paddingTop"]),
+            );
             // Label text 10px down, caps 6px down (#124 text at y+10, #128 at y+6).
             expectMeasured(part(row, ".cm-sheet-row-description"), { y: 34 }, { origin: row });
             const caps = row.querySelectorAll<HTMLElement>(".mantine-Kbd-root");
-            expectMeasured(caps[0], { y: 6, ...(await fig(path, 128, ["height", "fontSize", "lineHeight", "color", "backgroundColor"])) }, { origin: row });
+            expectMeasured(
+                caps[0],
+                { y: 6, ...(await fig(path, 128, ["height", "fontSize", "lineHeight", "color", "backgroundColor"])) },
+                { origin: row },
+            );
             expectMeasured(caps[1], await fig(path, 129, ["width", "height"]));
             // Columns 302 wide, 46 apart (#120 at 301, #130 at 649).
             const [first, second] = container.querySelectorAll<HTMLElement>(".cm-sheet-column");
@@ -671,31 +838,58 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
         ];
 
         it("light: the panel, the search, a heading, the highlighted and a plain row", async () => {
-            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, { scheme: "light" });
+            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, {
+                scheme: "light",
+            });
             const panel = part(container, ".cm-quick-actions");
             expectMeasured(
                 panel,
-                await fig("pm/quick-actions-open", 33, ["width", "height", "backgroundColor", "borderRadius", "fontSize", "lineHeight", "letterSpacing"]),
+                await fig("pm/quick-actions-open", 33, [
+                    "width",
+                    "height",
+                    "backgroundColor",
+                    "borderRadius",
+                    "fontSize",
+                    "lineHeight",
+                    "letterSpacing",
+                ]),
             );
             const search = part(container, ".cm-qa-search");
             expectMeasured(search, await fig("pm/quick-actions-open", 37, BOX));
             expectMeasured(search, { x: 8, y: 8 }, { origin: panel });
-            expectMeasured(part(container, ".cm-qa-input"), await fig("pm/quick-actions-open", 41, ["height", "fontSize", "lineHeight", "color"]));
+            expectMeasured(
+                part(container, ".cm-qa-input"),
+                await fig("pm/quick-actions-open", 41, ["height", "fontSize", "lineHeight", "color"]),
+            );
             expectMeasured(part(container, ".cm-qa-input"), { x: 44 }, { origin: panel });
             const heading = part(container, ".cm-qa-group-title");
-            expectMeasured(heading, await fig("pm/quick-actions-open", 78, ["height", "color", "fontSize", "lineHeight", "fontWeight"]));
+            expectMeasured(
+                heading,
+                await fig("pm/quick-actions-open", 78, ["height", "color", "fontSize", "lineHeight", "fontWeight"]),
+            );
             expectMeasured(heading, { x: 16 }, { origin: panel });
             expectMeasured(
                 part(container, ".cm-qa-row[data-highlighted]"),
                 await fig("pm/quick-actions-open", 79, [...BOX, "paddingTop", "paddingLeft"]),
             );
-            expectMeasured(part(container, ".cm-qa-row:not([data-highlighted])"), await fig("pm/quick-actions-open", 88, BOX));
+            expectMeasured(
+                part(container, ".cm-qa-row:not([data-highlighted])"),
+                await fig("pm/quick-actions-open", 88, BOX),
+            );
         });
 
         it("the search glyph is Figma's 32 x 32 svg with a 15 x 15 lens (dt/light-dialog-quick-actions #39, #40)", async () => {
-            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, { scheme: "light" });
-            expectMeasured(part(container, ".cm-qa-search-icon svg"), await fig("dt/light-dialog-quick-actions", 39, ["width", "height", "color"]));
-            expectMeasured(part(container, ".cm-qa-search-icon path"), await fig("dt/light-dialog-quick-actions", 40, ["width", "height"]));
+            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, {
+                scheme: "light",
+            });
+            expectMeasured(
+                part(container, ".cm-qa-search-icon svg"),
+                await fig("dt/light-dialog-quick-actions", 39, ["width", "height", "color"]),
+            );
+            expectMeasured(
+                part(container, ".cm-qa-search-icon path"),
+                await fig("dt/light-dialog-quick-actions", 40, ["width", "height"]),
+            );
         });
 
         it("AA option: the always-focused search keeps its 3:1 field edge", async () => {
@@ -704,19 +898,31 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 highContrast: true,
             });
             expect(part(container, ".cm-qa-input")).toHaveFocus();
-            expect(getComputedStyle(part(container, ".cm-qa-search")).boxShadow).toBe("rgba(0, 0, 0, 0.45) 0px 0px 0px 1px inset");
+            expect(getComputedStyle(part(container, ".cm-qa-search")).boxShadow).toBe(
+                "rgba(0, 0, 0, 0.45) 0px 0px 0px 1px inset",
+            );
         });
 
         it("dark: the panel's canvas shadow has 0.5px inset hairlines (dt/dark-dialog-quick-actions #34)", async () => {
-            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, { scheme: "dark" });
-            expectMeasured(part(container, ".cm-quick-actions"), await fig("dt/dark-dialog-quick-actions", 34, ["boxShadow"]));
+            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, {
+                scheme: "dark",
+            });
+            expectMeasured(
+                part(container, ".cm-quick-actions"),
+                await fig("dt/dark-dialog-quick-actions", 34, ["boxShadow"]),
+            );
         });
 
         it("dark: #2c2c2c panel, #383838 search and highlight", async () => {
-            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, { scheme: "dark" });
+            const { container } = await renderFigma(<QuickActions actions={ACTIONS} onRun={() => undefined} />, {
+                scheme: "dark",
+            });
             expectMeasured(part(container, ".cm-quick-actions"), await fig("dt/dark-dialog-quick-actions", 34, BOX));
             expectMeasured(part(container, ".cm-qa-search"), await fig("dt/dark-dialog-quick-actions", 38, BOX));
-            expectMeasured(part(container, ".cm-qa-row[data-highlighted]"), await fig("dt/dark-dialog-quick-actions", 80, BOX));
+            expectMeasured(
+                part(container, ".cm-qa-row[data-highlighted]"),
+                await fig("dt/dark-dialog-quick-actions", 80, BOX),
+            );
         });
 
         // Figma's palette: pill scope tabs under the search and a trailing visual-search button
@@ -754,7 +960,17 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 expectMeasured(row, { x: 0, y: 48 }, { origin: panel });
                 const [first, second, third] = container.querySelectorAll<HTMLElement>(".cm-tab");
                 expectMeasured(first, { x: 8, y: 48 }, { origin: panel });
-                const TAB = ["height", "backgroundColor", "color", "borderRadius", "paddingLeft", "paddingRight", "fontSize", "lineHeight", "fontWeight"];
+                const TAB = [
+                    "height",
+                    "backgroundColor",
+                    "color",
+                    "borderRadius",
+                    "paddingLeft",
+                    "paddingRight",
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                ];
                 expectMeasured(first, await fig(capture, 58 + at, TAB));
                 expectMeasured(second, await fig(capture, 63 + at, TAB));
                 expectMeasured(third, await fig(capture, 68 + at, TAB));
@@ -769,7 +985,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                 const { container } = await renderFigma(palette(), { scheme });
                 const search = part(container, ".cm-qa-search");
                 const button = part(container, ".cm-qa-search-action button");
-                expectMeasured(button, await fig(capture, 45 + at, ["width", "height", "backgroundColor", "borderRadius", "color"]));
+                expectMeasured(
+                    button,
+                    await fig(capture, 45 + at, ["width", "height", "backgroundColor", "borderRadius", "color"]),
+                );
                 expectMeasured(button, { x: 483, y: 4 }, { origin: search });
                 expectMeasured(part(container, ".cm-qa-input"), await fig(capture, 41 + at, ["width"]));
             });
@@ -781,7 +1000,15 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const search = part(container, ".cm-qa-search");
             const clear = part(container, ".cm-qa-search-action button");
             expect(clear).toHaveAccessibleName("Clear search");
-            expectMeasured(clear, await fig("dt/light-dialog-quick-actions-results", 43, ["width", "height", "backgroundColor", "borderRadius"]));
+            expectMeasured(
+                clear,
+                await fig("dt/light-dialog-quick-actions-results", 43, [
+                    "width",
+                    "height",
+                    "backgroundColor",
+                    "borderRadius",
+                ]),
+            );
             expectMeasured(clear, { x: 483, y: 4 }, { origin: search });
             await userEvent.click(clear);
             expect(part(container, ".cm-qa-input")).toHaveValue("");
@@ -791,7 +1018,9 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
         it("a disabled row dims its glyph and shortcut with its name (dt/light-dialog-quick-actions-results #77-#85)", async () => {
             const { container } = await renderFigma(
                 <QuickActions
-                    actions={[{ value: "left", label: "Align left", icon: <Glyph />, shortcut: "Alt+A", disabled: true }]}
+                    actions={[
+                        { value: "left", label: "Align left", icon: <Glyph />, shortcut: "Alt+A", disabled: true },
+                    ]}
                     onRun={() => undefined}
                 />,
                 { scheme: "light" },

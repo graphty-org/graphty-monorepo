@@ -42,7 +42,17 @@ import {
 
 afterEach(resetHarness);
 
-const FACE = ["width", "height", "backgroundColor", "borderTopColor", "borderTopWidth", "borderStyle", "borderRadius", "outline", "outlineOffset"];
+const FACE = [
+    "width",
+    "height",
+    "backgroundColor",
+    "borderTopColor",
+    "borderTopWidth",
+    "borderStyle",
+    "borderRadius",
+    "outline",
+    "outlineOffset",
+];
 const TYPE = ["fontSize", "lineHeight", "fontWeight", "letterSpacing"];
 
 /** A glyph for the segmented options, 24 x 24 like Figma's icon boxes. */
@@ -114,7 +124,9 @@ async function pixels(el: HTMLElement): Promise<number[][][]> {
     ctx.drawImage(bitmap, 0, 0);
     const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
     return Array.from({ length: bitmap.height }, (_, y) =>
-        Array.from({ length: bitmap.width }, (_, x) => Array.from(data.slice((y * bitmap.width + x) * 4, (y * bitmap.width + x) * 4 + 3))),
+        Array.from({ length: bitmap.width }, (_, x) =>
+            Array.from(data.slice((y * bitmap.width + x) * 4, (y * bitmap.width + x) * 4 + 3)),
+        ),
     );
 }
 
@@ -133,7 +145,12 @@ describe.skipIf(!available)("Checkbox (5.4)", () => {
         ["checked focus", { defaultChecked: true }, "bc/checkbox-neutral-checked--focus", "focus"],
         ["mixed", { indeterminate: true }, "bc/checkbox-neutral-mixed--default", "rest"],
         ["disabled", { disabled: true }, "bc/checkbox-neutral-unchecked-disabled--default", "rest"],
-        ["disabled checked", { disabled: true, defaultChecked: true }, "bc/checkbox-neutral-checked-disabled--default", "rest"],
+        [
+            "disabled checked",
+            { disabled: true, defaultChecked: true },
+            "bc/checkbox-neutral-checked-disabled--default",
+            "rest",
+        ],
     ] as const)("neutral %s matches %s", async (_name, props, capture, state) => {
         const figma = await checkboxFace(capture);
         const { container } = await renderFigma(neutral(props));
@@ -148,7 +165,12 @@ describe.skipIf(!available)("Checkbox (5.4)", () => {
         ["checked hover", { defaultChecked: true }, "bc/checkbox-blue-checked--hover", "hover"],
         ["checked pressed", { defaultChecked: true }, "bc/checkbox-blue-checked--pressed", "press"],
         ["mixed", { indeterminate: true }, "bc/checkbox-blue-mixed--default", "rest"],
-        ["disabled checked", { disabled: true, defaultChecked: true }, "bc/checkbox-blue-checked-disabled--default", "rest"],
+        [
+            "disabled checked",
+            { disabled: true, defaultChecked: true },
+            "bc/checkbox-blue-checked-disabled--default",
+            "rest",
+        ],
         ["disabled mixed", { disabled: true, indeterminate: true }, "bc/checkbox-blue-mixed-disabled--default", "rest"],
     ] as const)("blue (default variant) %s matches %s", async (_name, props, capture, state) => {
         const figma = await checkboxFace(capture);
@@ -203,35 +225,44 @@ describe.skipIf(!available)("Checkbox (5.4)", () => {
         // (the face fill on the neutral box, the 4px halo #0c89e5 on the blue one).
         ["neutral", "neutral", [25, 25, 25], [245, 245, 245]],
         ["blue", "default", [255, 255, 255], [12, 137, 229]],
-    ] as const)("%s mixed: the dash is a solid 7 x 2 bar on face rows 7-8, columns 4-10 (bc/checkbox-*-mixed--default.png)", async (_name, variant, ink, fill) => {
-        const { container } = await renderFigma(
-            <Checkbox variant={variant === "neutral" ? "neutral" : undefined} indeterminate aria-label="Mixed" />,
-        );
-        const face = part(container, "input");
-        await settle(face, "rest");
-        const rows = await pixels(face);
-        expect([rows.length, rows[0].length]).toEqual([16, 16]);
-        const near = (px: number[], want: readonly number[]): boolean => px.every((c, i) => Math.abs(c - want[i]) <= 3);
-        for (const y of [7, 8]) {
-            for (let x = 4; x <= 10; x++) {
-                expect(near(rows[y][x], ink), `ink at ${String(x)},${String(y)}: ${rows[y][x].join(",")}`).toBe(true);
+    ] as const)(
+        "%s mixed: the dash is a solid 7 x 2 bar on face rows 7-8, columns 4-10 (bc/checkbox-*-mixed--default.png)",
+        async (_name, variant, ink, fill) => {
+            const { container } = await renderFigma(
+                <Checkbox variant={variant === "neutral" ? "neutral" : undefined} indeterminate aria-label="Mixed" />,
+            );
+            const face = part(container, "input");
+            await settle(face, "rest");
+            const rows = await pixels(face);
+            expect([rows.length, rows[0].length]).toEqual([16, 16]);
+            const near = (px: number[], want: readonly number[]): boolean =>
+                px.every((c, i) => Math.abs(c - want[i]) <= 3);
+            for (const y of [7, 8]) {
+                for (let x = 4; x <= 10; x++) {
+                    expect(near(rows[y][x], ink), `ink at ${String(x)},${String(y)}: ${rows[y][x].join(",")}`).toBe(
+                        true,
+                    );
+                }
+                expect(near(rows[y][3], fill), `fill left of the bar, row ${String(y)}`).toBe(true);
+                expect(near(rows[y][11], fill), `fill right of the bar, row ${String(y)}`).toBe(true);
             }
-            expect(near(rows[y][3], fill), `fill left of the bar, row ${String(y)}`).toBe(true);
-            expect(near(rows[y][11], fill), `fill right of the bar, row ${String(y)}`).toBe(true);
-        }
-        for (let x = 4; x <= 10; x++) {
-            expect(near(rows[6][x], fill), `fill above the bar at ${String(x)}`).toBe(true);
-            expect(near(rows[9][x], fill), `fill below the bar at ${String(x)}`).toBe(true);
-        }
-    });
+            for (let x = 4; x <= 10; x++) {
+                expect(near(rows[6][x], fill), `fill above the bar at ${String(x)}`).toBe(true);
+                expect(near(rows[9][x], fill), `fill below the bar at ${String(x)}`).toBe(true);
+            }
+        },
+    );
 
     it.each([
         ["hover", "#e6e6e6"],
         ["pressed", "#d9d9d9"],
-    ] as const)("a forced %s state on a checked neutral box draws the real state's fill (the States story)", async (state, fill) => {
-        const { container } = await renderFigma(neutral({ defaultChecked: true, "data-cm-state": state }));
-        expectMeasured(part(container, "input"), { backgroundColor: fill });
-    });
+    ] as const)(
+        "a forced %s state on a checked neutral box draws the real state's fill (the States story)",
+        async (state, fill) => {
+            const { container } = await renderFigma(neutral({ defaultChecked: true, "data-cm-state": state }));
+            expectMeasured(part(container, "input"), { backgroundColor: fill });
+        },
+    );
 
     it("the AA option raises the face edge to 3:1 (#00000073)", async () => {
         const { container } = await renderFigma(neutral(), { highContrast: true });
@@ -263,7 +294,14 @@ describe.skipIf(!available)("Switch (5.5)", () => {
         ["off", {}, "rest", { backgroundColor: "#f5f5f5", borderTopColor: "#00000033" }, 4, "#00000033"],
         ["off hover", {}, "hover", { backgroundColor: "#e6e6e6" }, 4, "#00000033"],
         ["off pressed", {}, "press", { backgroundColor: "#d9d9d9" }, 4, "#00000033"],
-        ["on", { defaultChecked: true }, "rest", { backgroundColor: "#0d99ff", borderTopColor: "#00000033" }, 16, "#0000001a"],
+        [
+            "on",
+            { defaultChecked: true },
+            "rest",
+            { backgroundColor: "#0d99ff", borderTopColor: "#00000033" },
+            16,
+            "#0000001a",
+        ],
         ["on hover", { defaultChecked: true }, "hover", { backgroundColor: "#0d99ff" }, 16, "#0000001a"],
         ["on pressed", { defaultChecked: true }, "press", { backgroundColor: "#007be5" }, 16, "#0000001a"],
     ] as const)("%s: track and a 12 x 8 knob at x+%s", async (_name, props, state, track, knobX, outline) => {
@@ -273,7 +311,14 @@ describe.skipIf(!available)("Switch (5.5)", () => {
         expectMeasured(trackEl, { ...TRACK, ...track });
         expectMeasured(
             part(container, ".cm-switch-thumb"),
-            { width: 12, height: 8, x: knobX, y: 4, backgroundColor: "#ffffff", boxShadow: `${outline} 0px 0px 0px 1px` },
+            {
+                width: 12,
+                height: 8,
+                x: knobX,
+                y: 4,
+                backgroundColor: "#ffffff",
+                boxShadow: `${outline} 0px 0px 0px 1px`,
+            },
             { origin: trackEl },
         );
     });
@@ -332,7 +377,12 @@ describe.skipIf(!available)("Radio (5.6)", () => {
         const [off, on] = container.querySelectorAll<HTMLElement>("input");
         expectMeasured(off, { width: 16, height: 16, backgroundColor: "#f5f5f5", borderTopColor: "#00000033" });
         expectMeasured(on, { backgroundColor: "#0d99ff", borderTopColor: "#0000001a" });
-        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-radio-icon")[1], { width: 6, height: 6, color: "#ffffff", opacity: "1" });
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-radio-icon")[1], {
+            width: 6,
+            height: 6,
+            color: "#ffffff",
+            opacity: "1",
+        });
         await drive(off, "focus");
         expectMeasured(off, { outline: "#0d99ff solid 1px", outlineOffset: "1px" });
     });
@@ -344,7 +394,10 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         const face = await figmaElement("bc/segmented-text-align-group", { index: 56 });
         const inkOff = await figmaElement("bc/segmented-text-align-group", { index: 64 });
         const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} />);
-        expectMeasured(part(container, ".cm-sc"), figmaSpec(track, ["width", "height", "backgroundColor", "borderRadius", "paddingTop", "paddingLeft"]));
+        expectMeasured(
+            part(container, ".cm-sc"),
+            figmaSpec(track, ["width", "height", "backgroundColor", "borderRadius", "paddingTop", "paddingLeft"]),
+        );
         const [first, second] = container.querySelectorAll<HTMLElement>(".cm-sc-label");
         expectMeasured(first, figmaSpec(face, ["width", "height", "backgroundColor", "borderRadius", "boxShadow"]));
         expectMeasured(second, { color: inkOff.style.fill, backgroundColor: "#00000000", boxShadow: "none" });
@@ -369,7 +422,10 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         const figma = await figmaElement("bc/segmented-text-align-center--focus", { index: 35 });
         const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} defaultValue="center" />);
         await drive(part(container, "input:checked"), "focus");
-        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[1], figmaSpec(figma, ["outline", "outlineOffset", "borderRadius"]));
+        expectMeasured(
+            container.querySelectorAll<HTMLElement>(".cm-sc-label")[1],
+            figmaSpec(figma, ["outline", "outlineOffset", "borderRadius"]),
+        );
     });
 
     it("dark: the #383838 track and the #2c2c2c face with the #444 edge", async () => {
@@ -377,7 +433,10 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         const face = await figmaElement("dt/dark-segmented-text-align-center--default", { index: 31 });
         const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} />, { scheme: "dark" });
         expectMeasured(part(container, ".cm-sc"), figmaSpec(track, ["backgroundColor", "borderRadius"]));
-        expectMeasured(part(container, ".cm-sc-label"), figmaSpec(face, ["width", "height", "backgroundColor", "boxShadow", "color"]));
+        expectMeasured(
+            part(container, ".cm-sc-label"),
+            figmaSpec(face, ["width", "height", "backgroundColor", "boxShadow", "color"]),
+        );
     });
 
     it("text options: 11/16 450, padding 0 8", async () => {
@@ -393,7 +452,9 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
     });
 
     it("the AA option gives the checked face a 3:1 edge", async () => {
-        const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} />, { highContrast: true });
+        const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} />, {
+            highContrast: true,
+        });
         expectMeasured(part(container, ".cm-sc-label"), { boxShadow: "#00000073 0px 0px 0px 1px inset" });
     });
 
@@ -417,8 +478,13 @@ describe.skipIf(!available)("SegmentedControl variant=toolbar (5.3)", () => {
     it("122 x 32 track, padding 2; the thumb 28 x 28 radius 3 on the selected option", async () => {
         const root = await figmaElement("bc/segmented-toolbelt-mode--default", { index: 26 });
         const thumb = await figmaElement("bc/segmented-toolbelt-mode--default", { index: 29 });
-        const { container } = await renderFigma(<SegmentedControl variant="toolbar" data={MODES} defaultValue="design" />);
-        expectMeasured(part(container, ".cm-sc"), figmaSpec(root, ["width", "height", "backgroundColor", "borderRadius", "paddingTop", "paddingLeft"]));
+        const { container } = await renderFigma(
+            <SegmentedControl variant="toolbar" data={MODES} defaultValue="design" />,
+        );
+        expectMeasured(
+            part(container, ".cm-sc"),
+            figmaSpec(root, ["width", "height", "backgroundColor", "borderRadius", "paddingTop", "paddingLeft"]),
+        );
         const selected = container.querySelectorAll<HTMLElement>(".cm-sc-label")[1];
         expectMeasured(selected, figmaSpec(thumb, ["width", "height", "backgroundColor", "borderRadius", "boxShadow"]));
         expectMeasured(selected, { color: "#007be5" });
@@ -426,7 +492,9 @@ describe.skipIf(!available)("SegmentedControl variant=toolbar (5.3)", () => {
 
     it("hover fills an unselected option #e6e6e6 (bc/segmented-toolbelt-option--hover #31)", async () => {
         const figma = await figmaElement("bc/segmented-toolbelt-option--hover", { index: 31 });
-        const { container } = await renderFigma(<SegmentedControl variant="toolbar" data={MODES} defaultValue="design" />);
+        const { container } = await renderFigma(
+            <SegmentedControl variant="toolbar" data={MODES} defaultValue="design" />,
+        );
         const first = part(container, ".cm-sc-label");
         await drive(first, "hover");
         expectMeasured(first, figmaSpec(figma, ["width", "height", "backgroundColor", "borderRadius"]));
@@ -434,13 +502,17 @@ describe.skipIf(!available)("SegmentedControl variant=toolbar (5.3)", () => {
 
     it("focus rings the option at -1 (bc/segmented-toolbelt-option-selected--focus #30)", async () => {
         const figma = await figmaElement("bc/segmented-toolbelt-option-selected--focus", { index: 30 });
-        const { container } = await renderFigma(<SegmentedControl variant="toolbar" data={MODES} defaultValue="draw" />);
+        const { container } = await renderFigma(
+            <SegmentedControl variant="toolbar" data={MODES} defaultValue="draw" />,
+        );
         await drive(part(container, "input"), "focus");
         expectMeasured(part(container, ".cm-sc-label"), figmaSpec(figma, ["outline", "outlineOffset", "borderRadius"]));
     });
 
     it("dark track is #444", async () => {
-        const { container } = await renderFigma(<SegmentedControl variant="toolbar" data={MODES} />, { scheme: "dark" });
+        const { container } = await renderFigma(<SegmentedControl variant="toolbar" data={MODES} />, {
+            scheme: "dark",
+        });
         expectMeasured(part(container, ".cm-sc"), { backgroundColor: "#444444" });
     });
 });
@@ -554,7 +626,10 @@ describe.skipIf(!available)("AlignmentMatrix (5.7)", () => {
         const bars = [52, 53, 54].map((index) => figmaElement("bc/alignment-grid-9", { index }));
         const { container } = await renderFigma(<AlignmentMatrix defaultValue="top-left" />);
         const root = part(container, ".cm-align");
-        expectMeasured(root, figmaSpec(box, ["width", "height", "backgroundColor", "borderRadius", "borderTopWidth", "borderTopColor"]));
+        expectMeasured(
+            root,
+            figmaSpec(box, ["width", "height", "backgroundColor", "borderRadius", "borderTopWidth", "borderTopColor"]),
+        );
         const dots = container.querySelectorAll<HTMLElement>(".cm-align-dot");
         expectMeasured(dots[1], figmaSpec(dot, ["width", "height", "backgroundColor", "borderRadius"]));
         expectMeasured(dots[1], { x: dot.box[0] - box.box[0], y: dot.box[1] - box.box[1] }, { origin: root });
@@ -570,7 +645,10 @@ describe.skipIf(!available)("AlignmentMatrix (5.7)", () => {
         const { container } = await renderFigma(<AlignmentMatrix defaultValue="top-left" />);
         const center = part(container, '[data-value="middle-center"]');
         await drive(center, "hover");
-        expectMeasured(center.querySelector(".cm-align-bar") as Element, figmaSpec(figma, ["width", "height", "backgroundColor"]));
+        expectMeasured(
+            center.querySelector(".cm-align-bar") as Element,
+            figmaSpec(figma, ["width", "height", "backgroundColor"]),
+        );
     });
 
     it("dark, direction horizontal: vertical bars (dt/dark-alignment-grid-cell--hover #45-#47)", async () => {
@@ -580,7 +658,11 @@ describe.skipIf(!available)("AlignmentMatrix (5.7)", () => {
         expectMeasured(part(container, ".cm-align"), figmaSpec(box, ["backgroundColor"]));
         const drawn = container.querySelectorAll<HTMLElement>("[data-checked] .cm-align-bar")[1];
         expectMeasured(drawn, figmaSpec(bar, ["width", "height", "backgroundColor"]));
-        expectMeasured(drawn, { x: bar.box[0] - box.box[0], y: bar.box[1] - box.box[1] }, { origin: part(container, ".cm-align") });
+        expectMeasured(
+            drawn,
+            { x: bar.box[0] - box.box[0], y: bar.box[1] - box.box[1] },
+            { origin: part(container, ".cm-align") },
+        );
     });
 
     it("focus outlines the box (bc/alignment-grid-cell--focus #24); the arrows move in two dimensions", async () => {
@@ -635,7 +717,9 @@ describe.skipIf(!available)("Anchor (4.2)", () => {
         const rest = await figmaElement("bc/link-learn-more--default", { index: 27 });
         const hover = await figmaElement("bc/link-learn-more--hover", { index: 27 });
         const focus = await figmaElement("bc/link-learn-more--focus", { index: 27 });
-        const { container } = await renderFigma(<Anchor href="#more">{`Learn more ${String.fromCharCode(0x2192)}`}</Anchor>);
+        const { container } = await renderFigma(
+            <Anchor href="#more">{`Learn more ${String.fromCharCode(0x2192)}`}</Anchor>,
+        );
         const link = part(container, "a");
         expectMeasured(link, figmaSpec(rest, LINK));
         await drive(link, "hover");
@@ -648,19 +732,34 @@ describe.skipIf(!available)("Anchor (4.2)", () => {
         const { container } = await renderFigma(<Anchor href="#b">Button</Anchor>);
         const link = part(container, "a");
         await drive(link, "press");
-        expectMeasured(link, { backgroundColor: "#e5f4ff", borderRadius: "5px", top: "-4px", left: "-8px" }, { pseudo: "::before" });
+        expectMeasured(
+            link,
+            { backgroundColor: "#e5f4ff", borderRadius: "5px", top: "-4px", left: "-8px" },
+            { pseudo: "::before" },
+        );
     });
 
     it("the secondary link: hover (ls/header-drafts-hover #27) and focus (ls/header-focus-drafts #60)", async () => {
         const hover = await figmaElement("ls/header-drafts-hover", { index: 27 });
         const focus = await figmaElement("ls/header-focus-drafts", { index: 60 });
-        const { container } = await renderFigma(<Anchor variant="secondary" href="#drafts">Drafts</Anchor>);
+        const { container } = await renderFigma(
+            <Anchor variant="secondary" href="#drafts">
+                Drafts
+            </Anchor>,
+        );
         const link = part(container, "a");
-        expectMeasured(link, figmaSpec(focus, ["height", "color", "paddingLeft", "paddingRight", "borderRadius", ...TYPE]));
+        expectMeasured(
+            link,
+            figmaSpec(focus, ["height", "color", "paddingLeft", "paddingRight", "borderRadius", ...TYPE]),
+        );
         await drive(link, "hover");
         expectMeasured(link, figmaSpec(hover, ["backgroundColor", "color"]));
         await resetHarness();
-        const again = await renderFigma(<Anchor variant="secondary" href="#drafts">Drafts</Anchor>);
+        const again = await renderFigma(
+            <Anchor variant="secondary" href="#drafts">
+                Drafts
+            </Anchor>,
+        );
         const link2 = part(again.container, "a");
         await drive(link2, "focus");
         expectMeasured(link2, figmaSpec(focus, ["outline", "outlineOffset", "color"]));
@@ -676,17 +775,31 @@ describe.skipIf(!available)("Slider (5.8)", () => {
     it("8px track on the secondary fill with a 1px inset edge, brand bar, 12 white thumb", async () => {
         const { container } = await renderFigma(<Slider defaultValue={40} w={160} />);
         expectMeasured(part(container, ".cm-slider-track"), { height: 8 });
-        expectMeasured(part(container, ".cm-slider-track"), { backgroundColor: "#f5f5f5", boxShadow: "#00000033 0px 0px 0px 1px inset" }, { pseudo: "::before" });
+        expectMeasured(
+            part(container, ".cm-slider-track"),
+            { backgroundColor: "#f5f5f5", boxShadow: "#00000033 0px 0px 0px 1px inset" },
+            { pseudo: "::before" },
+        );
         expectMeasured(part(container, ".cm-slider-bar"), { backgroundColor: "#0d99ff" });
         const thumb = part(container, ".cm-slider-thumb");
-        expectMeasured(thumb, { width: 12, height: 12, borderTopWidth: "2px", borderTopColor: "#ffffff", backgroundColor: "#ffffff" });
+        expectMeasured(thumb, {
+            width: 12,
+            height: 12,
+            borderTopWidth: "2px",
+            borderTopColor: "#ffffff",
+            backgroundColor: "#ffffff",
+        });
         await drive(thumb, "focus");
         expectMeasured(thumb, { outline: "#0d99ff solid 1px", outlineOffset: "-2px" });
     });
 
     it("disabled keeps the thumb, on the disabled colors", async () => {
         const { container } = await renderFigma(<Slider defaultValue={40} w={160} disabled />);
-        expectMeasured(part(container, ".cm-slider-track"), { backgroundColor: "#ffffff", boxShadow: "#e6e6e6 0px 0px 0px 1px inset" }, { pseudo: "::before" });
+        expectMeasured(
+            part(container, ".cm-slider-track"),
+            { backgroundColor: "#ffffff", boxShadow: "#e6e6e6 0px 0px 0px 1px inset" },
+            { pseudo: "::before" },
+        );
         expectMeasured(part(container, ".cm-slider-thumb"), { display: "flex", backgroundColor: "#ffffff" });
     });
 });
@@ -714,7 +827,13 @@ describe.skipIf(!available)("NavLink, Pagination, Stepper, Burger (5.9)", () => 
     it("Pagination: 24 ghost controls, the active one #f5f5f5 550", async () => {
         const { container } = await renderFigma(<Pagination total={3} />);
         const active = part(container, ".cm-pagination-control[data-active]");
-        expectMeasured(active, { width: 24, height: 24, backgroundColor: "#f5f5f5", fontWeight: "550", borderRadius: "5px" });
+        expectMeasured(active, {
+            width: 24,
+            height: 24,
+            backgroundColor: "#f5f5f5",
+            fontWeight: "550",
+            borderRadius: "5px",
+        });
         const next = container.querySelectorAll<HTMLElement>(".cm-pagination-control:not([data-active])")[2];
         await drive(next, "hover");
         expectMeasured(next, { backgroundColor: "#0000000d" });

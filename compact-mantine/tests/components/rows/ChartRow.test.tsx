@@ -279,9 +279,7 @@ describe("HistogramRow", () => {
         });
 
         it("announces the drawing and its axis ends when a background run fills them in", () => {
-            renderChart(
-                <HistogramRow label="Links per node" busy={false} bins={DEGREES} minLabel="2" maxLabel="4" />,
-            );
+            renderChart(<HistogramRow label="Links per node" busy={false} bins={DEGREES} minLabel="2" maxLabel="4" />);
 
             const live = screen.getByTestId("histogram-chart");
             expect(live).toHaveAttribute("aria-live", "polite");
@@ -441,7 +439,9 @@ describe("SparklineRow", () => {
 
     describe("accessibility", () => {
         it("is one named image rather than nothing at all", () => {
-            renderChart(<SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />,
+            );
 
             const images = screen.getAllByRole("img");
             expect(images).toHaveLength(1);
@@ -451,7 +451,9 @@ describe("SparklineRow", () => {
         });
 
         it("hides the marks themselves, which are a drawing and not a picture of their own", () => {
-            renderChart(<SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />,
+            );
 
             const plot = screen.getByTestId("sparkline-plot");
             expect(plot).toHaveAttribute("aria-hidden", "true");
@@ -459,7 +461,9 @@ describe("SparklineRow", () => {
         });
 
         it("carries a visually hidden table of every value in the series", () => {
-            renderChart(<SparklineRow label="Layout settling" values={[92, 71, 55]} minLabel="Tick 1" maxLabel="Tick 3" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={[92, 71, 55]} minLabel="Tick 1" maxLabel="Tick 3" />,
+            );
 
             const table = screen.getByTestId("sparkline-values");
             expect(table.tagName).toBe("TABLE");
@@ -519,7 +523,9 @@ describe("SparklineRow", () => {
         });
 
         it("keeps the series the right way round when text runs left to right", () => {
-            renderChart(<SparklineRow label="Layout settling" values={[0, 5, 10]} minLabel="Tick 1" maxLabel="Tick 3" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={[0, 5, 10]} minLabel="Tick 1" maxLabel="Tick 3" />,
+            );
 
             const polyline = screen.getByTestId("sparkline-plot").querySelector("polyline");
             expect(polyline).toHaveAttribute("points", "0,100 50,50 100,0");
@@ -644,7 +650,9 @@ describe("MetricRow", () => {
         it("clamps a percentile above 100 rather than drawing past the track", () => {
             renderChart(<MetricRow name="Bridges" percentile={140} value="0.31" />);
 
-            expect(screen.getByTestId("metric-row-fill").style.getPropertyValue("--progress-section-size")).toBe("100%");
+            expect(screen.getByTestId("metric-row-fill").style.getPropertyValue("--progress-section-size")).toBe(
+                "100%",
+            );
             expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
         });
 

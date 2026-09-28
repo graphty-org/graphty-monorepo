@@ -19,11 +19,7 @@ import { COMPACT_SIZING, PANEL_INK } from "@graphty/compact-mantine";
 import { Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
-import {
-    ACTIVITY_RAIL_ITEM_GAP,
-    ACTIVITY_RAIL_ITEM_HEIGHT,
-    ACTIVITY_RAIL_ITEM_WIDTH,
-} from "../constants";
+import { ACTIVITY_RAIL_ITEM_GAP, ACTIVITY_RAIL_ITEM_HEIGHT, ACTIVITY_RAIL_ITEM_WIDTH } from "../constants";
 import type { ActivityId, RailBadge } from "../types";
 import { RAIL_GLYPHS } from "./railGlyphs";
 
@@ -85,8 +81,10 @@ const TRAILING_KEY_CHIP = / \([^()]+\)$/;
  * `aria-controls` and the like.
  * @public
  */
-export interface ActivityRailItemProps
-    extends Omit<React.ComponentPropsWithRef<"button">, "children" | "disabled" | "onClick" | "title"> {
+export interface ActivityRailItemProps extends Omit<
+    React.ComponentPropsWithRef<"button">,
+    "children" | "disabled" | "onClick" | "title"
+> {
     /** Which rail destination this is; it also chooses the glyph. */
     readonly activity: ActivityId;
     /** The visible 11 px name under the glyph -- a floor item (6.10 item 6). */
@@ -167,7 +165,17 @@ function ariaLabelFor(title: string): string {
  * @returns the rail item element.
  */
 export function ActivityRailItem(props: ActivityRailItemProps): React.JSX.Element {
-    const { activity, label, title, active, disabled, badge = null, warningDot = false, onClick, ...buttonProps } = props;
+    const {
+        activity,
+        label,
+        title,
+        active,
+        disabled,
+        badge = null,
+        warningDot = false,
+        onClick,
+        ...buttonProps
+    } = props;
     const [hovered, setHovered] = useState(false);
 
     const handleClick = useCallback((): void => {

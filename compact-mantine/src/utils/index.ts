@@ -18,11 +18,4 @@ export {
     toHexaColor,
 } from "./color-utils";
 export { mergeExtensions, mergeExtensions3, mergeExtensions4 } from "./merge-extensions";
-export {
-    inlineFraction,
-    inlineGradientDirection,
-    inlineX,
-    isRtl,
-    mirrorInline,
-    useDirection,
-} from "./rtl";
+export { inlineFraction, inlineGradientDirection, inlineX, isRtl, mirrorInline, useDirection } from "./rtl";

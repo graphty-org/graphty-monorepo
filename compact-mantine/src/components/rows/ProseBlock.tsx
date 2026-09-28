@@ -7,7 +7,7 @@ import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ActivationHandler } from "../../types/events";
 import { useDevWarning } from "../../utils/dev-warning";
-import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
+import { liveRegionProps, type LiveSetting } from "../../utils/live-region";
 import { isRtl, useDirection } from "../../utils/rtl";
 import { Caret } from "../chrome/Caret";
 
@@ -359,12 +359,7 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
 
     if (variant === "reading") {
         return (
-            <Text
-                {...announcement}
-                data-testid="prose-block"
-                data-variant={variant}
-                className="cm-prose"
-            >
+            <Text {...announcement} data-testid="prose-block" data-variant={variant} className="cm-prose">
                 {children}
             </Text>
         );

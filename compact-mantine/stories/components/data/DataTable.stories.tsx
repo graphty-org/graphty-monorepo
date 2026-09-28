@@ -393,9 +393,7 @@ export const ColumnArrangement: Story = {
                             onChange={(event) => {
                                 const { checked } = event.currentTarget;
                                 setHidden((previous) =>
-                                    checked
-                                        ? previous.filter((id) => id !== column.id)
-                                        : [...previous, column.id],
+                                    checked ? previous.filter((id) => id !== column.id) : [...previous, column.id],
                                 );
                             }}
                         />
@@ -493,7 +491,14 @@ export const RearrangedFromOutside: Story = {
                     </Button>
                 </Group>
 
-                <DataTable ref={handle} columns={COLUMNS} data={NODES} getRowId={(node) => node.id} label="Nodes" height={252} />
+                <DataTable
+                    ref={handle}
+                    columns={COLUMNS}
+                    data={NODES}
+                    getRowId={(node) => node.id}
+                    label="Nodes"
+                    height={252}
+                />
                 <Note>
                     A table whose arrangement you pass in as props needs none of this. The handle is for the other case:
                     a table that keeps its own arrangement, with your own columns menu beside it.

@@ -117,7 +117,9 @@ const SECOND_START = PANEL_GRID.FIELD + PANEL_GRID.GUTTER;
  * @returns A 24px box
  */
 function Control24({ label }: { label: string }): React.JSX.Element {
-    return <div data-testid="control-24" aria-label={label} style={{ height: PANEL_GRID.CONTROL_HEIGHT, width: "100%" }} />;
+    return (
+        <div data-testid="control-24" aria-label={label} style={{ height: PANEL_GRID.CONTROL_HEIGHT, width: "100%" }} />
+    );
 }
 
 afterEach(() => {
@@ -228,7 +230,8 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
             <PanelLabelsProvider showLabels>
                 <FieldRow
                     labelPosition="inline"
-                    trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
+                    trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}
+                >
                     <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />
                     <PanelField label="Largest" glyph="sizeLargest" value="4.0" />
                 </FieldRow>

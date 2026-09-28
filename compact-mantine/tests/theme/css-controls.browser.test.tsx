@@ -6,15 +6,7 @@
  * them with the captures themselves).
  * Covers: SegmentedControl, Checkbox, Switch, Slider, Radio, RangeSlider
  */
-import {
-    Checkbox,
-    MantineProvider,
-    Radio,
-    RangeSlider,
-    SegmentedControl,
-    Slider,
-    Switch,
-} from "@mantine/core";
+import { Checkbox, MantineProvider, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -44,17 +36,13 @@ describe("SegmentedControl - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
             it("--sc-font-size is 11px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const root = container.querySelector(".mantine-SegmentedControl-root");
                 expect(getCssVar(root, "--sc-font-size")).toBe("11px");
             });
 
             it("--sc-padding is 0 8px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const root = container.querySelector(".mantine-SegmentedControl-root");
                 expect(getCssVar(root, "--sc-padding")).toBe("0 8px");
             });
@@ -62,45 +50,35 @@ describe("SegmentedControl - All CSS Values (Browser)", () => {
 
         describe("label computed styles", () => {
             it("fontSize is 11px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.fontSize).toBe("11px");
             });
 
             it("paddingTop is 0px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.paddingTop).toBe("0px");
             });
 
             it("paddingBottom is 0px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.paddingBottom).toBe("0px");
             });
 
             it("paddingLeft is 8px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.paddingLeft).toBe("8px");
             });
 
             it("paddingRight is 8px", () => {
-                const { container } = renderWithTheme(
-                    <SegmentedControl data={["A", "B", "C"]} />
-                );
+                const { container } = renderWithTheme(<SegmentedControl data={["A", "B", "C"]} />);
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.paddingRight).toBe("8px");
@@ -296,7 +274,7 @@ describe("Slider - All CSS Values (Browser)", () => {
                             { value: 0, label: "0" },
                             { value: 100, label: "100" },
                         ]}
-                    />
+                    />,
                 );
                 const markLabel = container.querySelector(".mantine-Slider-markLabel");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
@@ -311,7 +289,7 @@ describe("Slider - All CSS Values (Browser)", () => {
                             { value: 0, label: "0" },
                             { value: 100, label: "100" },
                         ]}
-                    />
+                    />,
                 );
                 const markLabel = container.querySelector(".mantine-Slider-markLabel");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
@@ -328,17 +306,13 @@ describe("Radio - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
             it("--radio-size is 16px", () => {
-                const { container } = renderWithTheme(
-                    <Radio label="Option" value="a" />
-                );
+                const { container } = renderWithTheme(<Radio label="Option" value="a" />);
                 const root = container.querySelector(".mantine-Radio-root");
                 expect(getCssVar(root, "--radio-size")).toBe("16px");
             });
 
             it("--radio-icon-size is 6px", () => {
-                const { container } = renderWithTheme(
-                    <Radio label="Option" value="a" />
-                );
+                const { container } = renderWithTheme(<Radio label="Option" value="a" />);
                 const root = container.querySelector(".mantine-Radio-root");
                 expect(getCssVar(root, "--radio-icon-size")).toBe("6px");
             });
@@ -346,18 +320,14 @@ describe("Radio - All CSS Values (Browser)", () => {
 
         describe("radio computed styles", () => {
             it("width is 16px", () => {
-                const { container } = renderWithTheme(
-                    <Radio label="Option" value="a" />
-                );
+                const { container } = renderWithTheme(<Radio label="Option" value="a" />);
                 const radio = container.querySelector(".mantine-Radio-radio");
                 const style = radio ? getComputedStyle(radio) : null;
                 expect(style?.width).toBe("16px");
             });
 
             it("height is 16px", () => {
-                const { container } = renderWithTheme(
-                    <Radio label="Option" value="a" />
-                );
+                const { container } = renderWithTheme(<Radio label="Option" value="a" />);
                 const radio = container.querySelector(".mantine-Radio-radio");
                 const style = radio ? getComputedStyle(radio) : null;
                 expect(style?.height).toBe("16px");
@@ -366,9 +336,7 @@ describe("Radio - All CSS Values (Browser)", () => {
 
         describe("icon computed styles (when checked)", () => {
             it("icon uses --radio-icon-size", () => {
-                const { container } = renderWithTheme(
-                    <Radio label="Option" value="a" checked onChange={() => {}} />
-                );
+                const { container } = renderWithTheme(<Radio label="Option" value="a" checked onChange={() => {}} />);
                 const icon = container.querySelector(".mantine-Radio-icon");
                 const style = icon ? getComputedStyle(icon) : null;
                 // Icon size is controlled by CSS variable
@@ -378,9 +346,7 @@ describe("Radio - All CSS Values (Browser)", () => {
 
         describe("label computed styles", () => {
             it("fontSize is 11px", () => {
-                const { container } = renderWithTheme(
-                    <Radio label="Option" value="a" />
-                );
+                const { container } = renderWithTheme(<Radio label="Option" value="a" />);
                 const label = container.querySelector(".mantine-Radio-label");
                 const style = label ? getComputedStyle(label) : null;
                 expect(style?.fontSize).toBe("11px");
@@ -397,18 +363,14 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
             it("--slider-size is 8px", () => {
-                const { container } = renderWithTheme(
-                    <RangeSlider defaultValue={[20, 80]} />
-                );
+                const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
                 // RangeSlider uses Slider class names
                 const root = container.querySelector(".mantine-Slider-root");
                 expect(getCssVar(root, "--slider-size")).toBe("8px");
             });
 
             it("--slider-thumb-size is 12px", () => {
-                const { container } = renderWithTheme(
-                    <RangeSlider defaultValue={[20, 80]} />
-                );
+                const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
                 const root = container.querySelector(".mantine-Slider-root");
                 expect(getCssVar(root, "--slider-thumb-size")).toBe("12px");
             });
@@ -416,9 +378,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
 
         describe("track computed styles", () => {
             it("height is 8px", () => {
-                const { container } = renderWithTheme(
-                    <RangeSlider defaultValue={[20, 80]} />
-                );
+                const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
                 const track = container.querySelector(".mantine-Slider-track");
                 const style = track ? getComputedStyle(track) : null;
                 expect(style?.height).toBe("8px");
@@ -427,18 +387,14 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
 
         describe("thumb computed styles", () => {
             it("width is 12px", () => {
-                const { container } = renderWithTheme(
-                    <RangeSlider defaultValue={[20, 80]} />
-                );
+                const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
                 const thumb = container.querySelector(".mantine-Slider-thumb");
                 const style = thumb ? getComputedStyle(thumb) : null;
                 expect(style?.width).toBe("12px");
             });
 
             it("height is 12px", () => {
-                const { container } = renderWithTheme(
-                    <RangeSlider defaultValue={[20, 80]} />
-                );
+                const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
                 const thumb = container.querySelector(".mantine-Slider-thumb");
                 const style = thumb ? getComputedStyle(thumb) : null;
                 expect(style?.height).toBe("12px");
@@ -454,7 +410,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
                             { value: 0, label: "0" },
                             { value: 100, label: "100" },
                         ]}
-                    />
+                    />,
                 );
                 const markLabel = container.querySelector(".mantine-Slider-markLabel");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
@@ -469,7 +425,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
                             { value: 0, label: "0" },
                             { value: 100, label: "100" },
                         ]}
-                    />
+                    />,
                 );
                 const markLabel = container.querySelector(".mantine-Slider-markLabel");
                 const style = markLabel ? getComputedStyle(markLabel) : null;

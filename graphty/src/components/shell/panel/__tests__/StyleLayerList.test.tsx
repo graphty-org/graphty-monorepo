@@ -140,7 +140,13 @@ describe("StyleLayerList", () => {
         it.each([
             { moved: "up by one", from: "First", to: "Second", edge: "above", expected: ["Second", "First", "Third"] },
             { moved: "up by two", from: "First", to: "Third", edge: "above", expected: ["Second", "Third", "First"] },
-            { moved: "down by one", from: "Third", to: "Second", edge: "below", expected: ["First", "Third", "Second"] },
+            {
+                moved: "down by one",
+                from: "Third",
+                to: "Second",
+                edge: "below",
+                expected: ["First", "Third", "Second"],
+            },
             { moved: "down by two", from: "Third", to: "First", edge: "below", expected: ["Third", "First", "Second"] },
         ] as const)("moves the dragged layer $moved", ({ from, to, edge, expected }) => {
             const onLayersChange = vi.fn();
@@ -155,9 +161,7 @@ describe("StyleLayerList", () => {
         it("never nests a layer inside another", () => {
             render(<StyleLayerList {...defaultProps} />);
 
-            expect(screen.getAllByRole("treeitem").every((item) => item.getAttribute("aria-level") === "1")).toBe(
-                true,
-            );
+            expect(screen.getAllByRole("treeitem").every((item) => item.getAttribute("aria-level") === "1")).toBe(true);
             expect(screen.getAllByRole("treeitem").some((item) => item.hasAttribute("aria-expanded"))).toBe(false);
         });
 

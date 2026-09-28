@@ -161,12 +161,7 @@ import {
     resolveAccelerationSettings,
     writePersistedAccelerationSettings,
 } from "./defaults/accelerationSettings";
-import {
-    colourHeldBy,
-    removeRunLayers,
-    runColourBlock,
-    topSwatchColour,
-} from "./defaults/encodingReport";
+import { colourHeldBy, removeRunLayers, runColourBlock, topSwatchColour } from "./defaults/encodingReport";
 import { loadDefaults } from "./defaults/loadDefaults";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "./defaults/styleDescriptors";
 import {
@@ -219,7 +214,12 @@ import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
-import type { LayoutQuickPick, StatusBarCompletion, StatusBarIssuesModel, StatusBarSlotsModel } from "./statusbar/statusBarModel";
+import type {
+    LayoutQuickPick,
+    StatusBarCompletion,
+    StatusBarIssuesModel,
+    StatusBarSlotsModel,
+} from "./statusbar/statusBarModel";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
 import { TopBar } from "./topbar/TopBar";
 import { historyRows, useUndoStore } from "./topbar/undoStore";
@@ -261,8 +261,6 @@ function isImageFormat(value: string): value is ImageFormat {
  * Analyze panel asks of it. The node metrics take `result-${metric}` on the same rule.
  */
 const COMMUNITY_RESULT_ID = "groups";
-
-
 
 /**
  * The community run's PLAIN name, which is the half floor item 6 insists is the same on
@@ -1189,7 +1187,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         /** The edge count the pass was measured over. */
         readonly edgeCount: number;
     } | null>(null);
-
 
     /* The result the inspector's Algorithm-result surface is drawing, or null. A
        selected node still wins over it (see `selectionKind`), so this is kept in state
@@ -2500,11 +2497,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     ? {}
                     : {
                           layerName: session.styles.get(block.layerId)?.name ?? COMMUNITY_METHOD_NAME,
-                          ...(topSwatchColour(block) === undefined
-                              ? {}
-                              : { stateSwatch: topSwatchColour(block) }),
+                          ...(topSwatchColour(block) === undefined ? {} : { stateSwatch: topSwatchColour(block) }),
                           layerRunId: runId,
-                          layerCount: session.styles.list().filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
+                          layerCount: session.styles
+                              .list()
+                              .filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
                       }),
             });
             setColourChannel(canvasLegendChannels(session.styles.legend()));
@@ -2808,9 +2805,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         ? {}
                         : {
                               layerName: session.styles.get(block.layerId)?.name ?? definition.plainName,
-                              ...(topSwatchColour(block) === undefined
-                                  ? {}
-                                  : { stateSwatch: topSwatchColour(block) }),
+                              ...(topSwatchColour(block) === undefined ? {} : { stateSwatch: topSwatchColour(block) }),
                               layerRunId: runId,
                               layerCount: session.styles
                                   .list()
@@ -2931,7 +2926,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             /* Stamped with the graph it was just measured over. Both counts, not only the
                nodes: a file that adds edges between nodes that are already here changes
                every degree in the ranking without changing its length. */
-            setDegreePass({ results: degrees, nodeCount: graphStatistics.nodeCount, edgeCount: graphStatistics.edgeCount });
+            setDegreePass({
+                results: degrees,
+                nodeCount: graphStatistics.nodeCount,
+                edgeCount: graphStatistics.edgeCount,
+            });
 
             /* NO node colour or size layer, which is a deliberate departure from 7.2's
                "node size by degree on a square-root scale" and "a single neutral node
@@ -3383,12 +3382,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                            removing by index, which is where the off-by-one that took
                            graphty-element's base layer -- and with it every node's shape type
                            -- came from. */
-                        void session.styles.removeBySource(() => true).then(
-                            () => undefined,
-                            (error: unknown) => {
-                                console.error("[shell] the element refused to reset the styles:", error);
-                            },
-                        );
+                        void session.styles
+                            .removeBySource(() => true)
+                            .then(
+                                () => undefined,
+                                (error: unknown) => {
+                                    console.error("[shell] the element refused to reset the styles:", error);
+                                },
+                            );
                     },
                 },
             ];
@@ -3909,7 +3910,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                               connectedParts: formatCount(graphStatistics.components.count),
                               // 6.2's zero rule: a count of nothing is not a row.
                               selfLoops:
-                                  graphStatistics.selfLoopCount === 0 ? undefined : formatCount(graphStatistics.selfLoopCount),
+                                  graphStatistics.selfLoopCount === 0
+                                      ? undefined
+                                      : formatCount(graphStatistics.selfLoopCount),
                               parallelEdges:
                                   graphStatistics.repeatedEdgeCount === 0
                                       ? undefined
@@ -4721,217 +4724,217 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     return (
         <>
             {screenTooSmall ? screenTooSmallOverlay : null}
-        <Box
-            ref={frameRef}
-            data-testid="app-shell"
-            inert={screenTooSmall}
-            aria-hidden={screenTooSmall ? true : undefined}
-            style={{
-                height: "100vh",
-                display: "grid",
-                gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
-                gridTemplateColumns: "minmax(0, 1fr)",
-                overflow: "hidden",
-                visibility: screenTooSmall ? "hidden" : undefined,
-            }}
-        >
-            {/* The top bar spans the full shell width, above the rail. */}
-            <TopBar
-                datasetName={datasetName}
-                dataLoaded={dataLoaded}
-                canUndo={undoStore.canUndo}
-                canRedo={undoStore.canRedo}
-                onUndo={undoStore.undo}
-                onRedo={undoStore.redo}
-                onOpenHistory={() => undefined}
-                onOpenCommandPalette={() => {
-                    setPaletteOpen(true);
-                }}
-                onExport={() => {
-                    openPanelAt("present");
-                }}
-                onShare={() => {
-                    openPanelAt("present");
-                }}
-                compareActive={compareActive}
-                onToggleCompare={() => {
-                    setCompareActive((active) => !active);
-                }}
-                sidebarsShown={sidebarsShown}
-                onToggleSidebars={toggleSidebars}
-                history={{
-                    rows: historyRows(undoStore),
-                    entryCount: undoStore.entries.length,
-                    undoneCount: undoStore.undoneCount,
-                    onRestore: (entry) => {
-                        undoStore.restoreTo(entry.id);
-                    },
-                    onOpenOwningPanel: (entry) => {
-                        if (entry.activity !== "settings" && entry.activity !== "help") {
-                            openPanelAt(entry.activity);
-                        }
-                    },
-                }}
-            />
-
-            {/* The main row: the rail, then everything to the right of it. It is the
-                positioned ancestor the Help menu hangs off, and it does not clip its
-                overflow, so the menu may stand outside the rail's 48 px column. */}
             <Box
-                data-testid="shell-main-row"
+                ref={frameRef}
+                data-testid="app-shell"
+                inert={screenTooSmall}
+                aria-hidden={screenTooSmall ? true : undefined}
                 style={{
-                    position: "relative",
+                    height: "100vh",
                     display: "grid",
-                    gridTemplateColumns: `${ACTIVITY_RAIL_WIDTH}px minmax(0, 1fr)`,
-                    minHeight: 0,
-                    overflow: "visible",
+                    gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
+                    gridTemplateColumns: "minmax(0, 1fr)",
+                    overflow: "hidden",
+                    visibility: screenTooSmall ? "hidden" : undefined,
                 }}
             >
-                <Box data-shell-region="rail" style={{ display: "contents" }}>
-                    <ActivityRail
-                        activeActivity={panelActivity}
-                        disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
-                        onActivityClick={handleActivityClick}
-                        helpMenu={{
-                            opened: helpOpen,
-                            onOpenChange: setHelpOpen,
-                            onSelect: handleHelpSelect,
-                            moreSuggestionsCount: 0,
-                            alreadyRunCount: 0,
-                        }}
-                    />
-                </Box>
+                {/* The top bar spans the full shell width, above the rail. */}
+                <TopBar
+                    datasetName={datasetName}
+                    dataLoaded={dataLoaded}
+                    canUndo={undoStore.canUndo}
+                    canRedo={undoStore.canRedo}
+                    onUndo={undoStore.undo}
+                    onRedo={undoStore.redo}
+                    onOpenHistory={() => undefined}
+                    onOpenCommandPalette={() => {
+                        setPaletteOpen(true);
+                    }}
+                    onExport={() => {
+                        openPanelAt("present");
+                    }}
+                    onShare={() => {
+                        openPanelAt("present");
+                    }}
+                    compareActive={compareActive}
+                    onToggleCompare={() => {
+                        setCompareActive((active) => !active);
+                    }}
+                    sidebarsShown={sidebarsShown}
+                    onToggleSidebars={toggleSidebars}
+                    history={{
+                        rows: historyRows(undoStore),
+                        entryCount: undoStore.entries.length,
+                        undoneCount: undoStore.undoneCount,
+                        onRestore: (entry) => {
+                            undoStore.restoreTo(entry.id);
+                        },
+                        onOpenOwningPanel: (entry) => {
+                            if (entry.activity !== "settings" && entry.activity !== "help") {
+                                openPanelAt(entry.activity);
+                            }
+                        },
+                    }}
+                />
 
-                {/* The body row: the panel, the canvas and the inspector. It is
-                    the positioned ancestor of the narrow overlays, the Settings
-                    overlay and the shortcuts surface. */}
+                {/* The main row: the rail, then everything to the right of it. It is the
+                positioned ancestor the Help menu hangs off, and it does not clip its
+                overflow, so the menu may stand outside the rail's 48 px column. */}
                 <Box
-                    data-testid="shell-body-row"
+                    data-testid="shell-main-row"
                     style={{
                         position: "relative",
-                        display: "flex",
-                        flexDirection: "row",
+                        display: "grid",
+                        gridTemplateColumns: `${ACTIVITY_RAIL_WIDTH}px minmax(0, 1fr)`,
                         minHeight: 0,
-                        minWidth: 0,
-                        overflow: "hidden",
+                        overflow: "visible",
                     }}
                 >
-                    {panelActivity !== null && (
-                        <Box data-shell-region="panel" style={{ display: "contents" }}>
-                            <PopoutRegion id="panel">
-                                <ActivityPanel
-                                    activity={panelActivity}
-                                    width={panelWidth}
-                                    presentation={presentation}
-                                    title={ACTIVITY_TITLES[panelActivity]}
-                                    overflowItems={overflowItems}
-                                    onWidthChange={setPanelWidth}
-                                >
-                                    {panelBody}
-                                </ActivityPanel>
-                            </PopoutRegion>
-                        </Box>
-                    )}
-
-                    {/* The canvas overlay is one region; the Data table drawer nests
-                            its own inside it, because 6.11 makes a dock a region of its own. */}
-                    <PopoutRegion id="canvas">
-                        <CanvasRegion {...canvasProps}>
-                            <CanvasToolbarSlot
-                                viewMode={viewMode}
-                                onViewModeChange={setViewMode}
-                                zoomToSelectionEnabled={selectedNode !== null}
-                                onZoomOut={zoomOut}
-                                onZoomIn={zoomIn}
-                                onZoomToFit={zoomToFit}
-                                onZoomToSelection={zoomToSelection}
-                                profileId={canvasToolbarProfile(shell.shellWidth).id}
-                                viewsMenuOpen={viewsMenuOpen}
-                                onViewsMenuOpenChange={setViewsMenuOpen}
-                                views={{
-                                    legendShown: canvasLayout.legend,
-                                    /* Same fact, same source as the Style panel's switch
-                                       and the L binding: one derivation, so the three
-                                       cannot report three different legends. */
-                                    legendAvailable: legendIsAvailable,
-                                    toolbarShown: canvasLayout.toolbar,
-                                    vrSupported: xrSupport.vr,
-                                    arSupported: xrSupport.ar,
-                                    visibleNodeCount,
-                                    visibleEdgeCount,
-                                    onResetView: resetView,
-                                    onViewPreset: (preset) => {
-                                        graphViewPreset(graphtyRef.current?.graph ?? null, preset);
-                                    },
-                                    onToggleToolbar: () => {
-                                        toggleOverlay("toolbar");
-                                        setViewsMenuOpen(false);
-                                    },
-                                    onToggleLegend: toggleLegend,
-                                    onEnterVr: () => undefined,
-                                    onEnterAr: () => undefined,
-                                }}
-                            />
-                        </CanvasRegion>
-                    </PopoutRegion>
-
-                    <Box data-shell-region="inspector" style={{ display: "contents" }}>
-                        <PopoutRegion id="inspector">
-                            <Inspector
-                                open={sidebarsShown}
-                                width={inspectorWidth}
-                                presentation={presentation}
-                                selectionKind={selectionKind}
-                                kindLabel={INSPECTOR_KIND_LABELS[selectionKind]}
-                                identityLabel={selectedNode?.id}
-                                pinned={dataLoaded && inspectorPinned}
-                                onCopyReading={() => {
-                                    copyReading(inspectorReadingForCopy);
-                                }}
-                                onPin={() => {
-                                    setInspectorPinned(true);
-                                }}
-                                onWidthChange={setInspectorWidth}
-                            >
-                                <InspectorBody selection={inspectorSelection} />
-                            </Inspector>
-                        </PopoutRegion>
-                    </Box>
-
-                    {/* Settings is a full-panel overlay over the body row, not a
-                            280 px panel and not a route (spec 03 section 2.7). */}
-                    <PopoutRegion id="settings">
-                        <SettingsOverlay
-                            opened={settingsOpen}
-                            section={settingsSection}
-                            aiProviders={aiProviderSettings}
-                            accelerationPolicy={accelerationPolicy}
-                            onAccelerationPolicyChange={changeAccelerationPolicy}
-                            labelShortfall={labelShortfall}
-                            onClose={() => {
-                                setSettingsOpen(false);
+                    <Box data-shell-region="rail" style={{ display: "contents" }}>
+                        <ActivityRail
+                            activeActivity={panelActivity}
+                            disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
+                            onActivityClick={handleActivityClick}
+                            helpMenu={{
+                                opened: helpOpen,
+                                onOpenChange: setHelpOpen,
+                                onSelect: handleHelpSelect,
+                                moreSuggestionsCount: 0,
+                                alreadyRunCount: 0,
                             }}
                         />
-                    </PopoutRegion>
+                    </Box>
 
-                    <KeyboardShortcutsOverlay
-                        opened={shortcutsOpen}
-                        onClose={() => {
-                            setShortcutsOpen(false);
+                    {/* The body row: the panel, the canvas and the inspector. It is
+                    the positioned ancestor of the narrow overlays, the Settings
+                    overlay and the shortcuts surface. */}
+                    <Box
+                        data-testid="shell-body-row"
+                        style={{
+                            position: "relative",
+                            display: "flex",
+                            flexDirection: "row",
+                            minHeight: 0,
+                            minWidth: 0,
+                            overflow: "hidden",
                         }}
+                    >
+                        {panelActivity !== null && (
+                            <Box data-shell-region="panel" style={{ display: "contents" }}>
+                                <PopoutRegion id="panel">
+                                    <ActivityPanel
+                                        activity={panelActivity}
+                                        width={panelWidth}
+                                        presentation={presentation}
+                                        title={ACTIVITY_TITLES[panelActivity]}
+                                        overflowItems={overflowItems}
+                                        onWidthChange={setPanelWidth}
+                                    >
+                                        {panelBody}
+                                    </ActivityPanel>
+                                </PopoutRegion>
+                            </Box>
+                        )}
+
+                        {/* The canvas overlay is one region; the Data table drawer nests
+                            its own inside it, because 6.11 makes a dock a region of its own. */}
+                        <PopoutRegion id="canvas">
+                            <CanvasRegion {...canvasProps}>
+                                <CanvasToolbarSlot
+                                    viewMode={viewMode}
+                                    onViewModeChange={setViewMode}
+                                    zoomToSelectionEnabled={selectedNode !== null}
+                                    onZoomOut={zoomOut}
+                                    onZoomIn={zoomIn}
+                                    onZoomToFit={zoomToFit}
+                                    onZoomToSelection={zoomToSelection}
+                                    profileId={canvasToolbarProfile(shell.shellWidth).id}
+                                    viewsMenuOpen={viewsMenuOpen}
+                                    onViewsMenuOpenChange={setViewsMenuOpen}
+                                    views={{
+                                        legendShown: canvasLayout.legend,
+                                        /* Same fact, same source as the Style panel's switch
+                                       and the L binding: one derivation, so the three
+                                       cannot report three different legends. */
+                                        legendAvailable: legendIsAvailable,
+                                        toolbarShown: canvasLayout.toolbar,
+                                        vrSupported: xrSupport.vr,
+                                        arSupported: xrSupport.ar,
+                                        visibleNodeCount,
+                                        visibleEdgeCount,
+                                        onResetView: resetView,
+                                        onViewPreset: (preset) => {
+                                            graphViewPreset(graphtyRef.current?.graph ?? null, preset);
+                                        },
+                                        onToggleToolbar: () => {
+                                            toggleOverlay("toolbar");
+                                            setViewsMenuOpen(false);
+                                        },
+                                        onToggleLegend: toggleLegend,
+                                        onEnterVr: () => undefined,
+                                        onEnterAr: () => undefined,
+                                    }}
+                                />
+                            </CanvasRegion>
+                        </PopoutRegion>
+
+                        <Box data-shell-region="inspector" style={{ display: "contents" }}>
+                            <PopoutRegion id="inspector">
+                                <Inspector
+                                    open={sidebarsShown}
+                                    width={inspectorWidth}
+                                    presentation={presentation}
+                                    selectionKind={selectionKind}
+                                    kindLabel={INSPECTOR_KIND_LABELS[selectionKind]}
+                                    identityLabel={selectedNode?.id}
+                                    pinned={dataLoaded && inspectorPinned}
+                                    onCopyReading={() => {
+                                        copyReading(inspectorReadingForCopy);
+                                    }}
+                                    onPin={() => {
+                                        setInspectorPinned(true);
+                                    }}
+                                    onWidthChange={setInspectorWidth}
+                                >
+                                    <InspectorBody selection={inspectorSelection} />
+                                </Inspector>
+                            </PopoutRegion>
+                        </Box>
+
+                        {/* Settings is a full-panel overlay over the body row, not a
+                            280 px panel and not a route (spec 03 section 2.7). */}
+                        <PopoutRegion id="settings">
+                            <SettingsOverlay
+                                opened={settingsOpen}
+                                section={settingsSection}
+                                aiProviders={aiProviderSettings}
+                                accelerationPolicy={accelerationPolicy}
+                                onAccelerationPolicyChange={changeAccelerationPolicy}
+                                labelShortfall={labelShortfall}
+                                onClose={() => {
+                                    setSettingsOpen(false);
+                                }}
+                            />
+                        </PopoutRegion>
+
+                        <KeyboardShortcutsOverlay
+                            opened={shortcutsOpen}
+                            onClose={() => {
+                                setShortcutsOpen(false);
+                            }}
+                        />
+                    </Box>
+                </Box>
+
+                <Box data-shell-region="statusbar" style={{ display: "contents" }}>
+                    <StatusBar
+                        slots={slots}
+                        completion={statusCompletion}
+                        exploreNotesExpanded={activeActivity === "explore" && isSectionOpen("explore.notes")}
                     />
                 </Box>
-            </Box>
 
-            <Box data-shell-region="statusbar" style={{ display: "contents" }}>
-                <StatusBar
-                    slots={slots}
-                    completion={statusCompletion}
-                    exploreNotesExpanded={activeActivity === "explore" && isSectionOpen("explore.notes")}
-                />
-            </Box>
-
-            {/*
+                {/*
                 The size gate's one door (spec 1918-1927). It draws the estimate module's
                 own sentence and the estimate module's own Run label, and NOTHING about
                 the cost CLASS: the words instant, iterative, heavy and sampled are the
@@ -4939,55 +4942,55 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 hand a reader a category they cannot act on in place of the time they can.
                 Cancel is a plain refusal that leaves the graph exactly as it was.
             */}
-            {metricConfirm !== null && (
-                <Modal
-                    opened
+                {metricConfirm !== null && (
+                    <Modal
+                        opened
+                        onClose={() => {
+                            setMetricConfirm(null);
+                        }}
+                        title={`Run ${NODE_METRIC_DEFINITIONS[metricConfirm.metric].plainName} (${NODE_METRIC_DEFINITIONS[metricConfirm.metric].technicalName})`}
+                    >
+                        <Text size="sm" data-testid="metric-confirm-sentence">
+                            {metricConfirm.estimate.confirmSentence}
+                        </Text>
+                        <Group justify="flex-end" mt="md">
+                            <Button
+                                variant="default"
+                                onClick={() => {
+                                    setMetricConfirm(null);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    const { metric, retiresInsightCard } = metricConfirm;
+
+                                    setMetricConfirm(null);
+                                    void runNodeMetricCard({ metric, confirmed: true, retiresInsightCard });
+                                }}
+                            >
+                                {metricConfirm.estimate.runLabel}
+                            </Button>
+                        </Group>
+                    </Modal>
+                )}
+
+                <CommandPalette
+                    opened={paletteOpen}
                     onClose={() => {
-                        setMetricConfirm(null);
+                        setPaletteOpen(false);
                     }}
-                    title={`Run ${NODE_METRIC_DEFINITIONS[metricConfirm.metric].plainName} (${NODE_METRIC_DEFINITIONS[metricConfirm.metric].technicalName})`}
-                >
-                    <Text size="sm" data-testid="metric-confirm-sentence">
-                        {metricConfirm.estimate.confirmSentence}
-                    </Text>
-                    <Group justify="flex-end" mt="md">
-                        <Button
-                            variant="default"
-                            onClick={() => {
-                                setMetricConfirm(null);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                const { metric, retiresInsightCard } = metricConfirm;
+                    items={paletteItems}
+                />
 
-                                setMetricConfirm(null);
-                                void runNodeMetricCard({ metric, confirmed: true, retiresInsightCard });
-                            }}
-                        >
-                            {metricConfirm.estimate.runLabel}
-                        </Button>
-                    </Group>
-                </Modal>
-            )}
-
-            <CommandPalette
-                opened={paletteOpen}
-                onClose={() => {
-                    setPaletteOpen(false);
-                }}
-                items={paletteItems}
-            />
-
-            <FeedbackModal
-                opened={feedbackOpen}
-                onClose={() => {
-                    setFeedbackOpen(false);
-                }}
-            />
-        </Box>
+                <FeedbackModal
+                    opened={feedbackOpen}
+                    onClose={() => {
+                        setFeedbackOpen(false);
+                    }}
+                />
+            </Box>
         </>
     );
 }

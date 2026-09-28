@@ -85,8 +85,10 @@ export function TrailingSlot({ children }: TrailingSlotProps): React.JSX.Element
 /**
  * Props for the advanced settings button.
  */
-export interface AdvancedButtonProps
-    extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "color" | "onClick" | "type"> {
+export interface AdvancedButtonProps extends Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    "color" | "onClick" | "type"
+> {
     /**
      * Names the settings the button opens, such as `"Image export options"`.
      *

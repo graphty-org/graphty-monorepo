@@ -1,4 +1,11 @@
-import { Box, type BoxProps, type ElementProps, Tooltip, UnstyledButton, type UnstyledButtonProps } from "@mantine/core";
+import {
+    Box,
+    type BoxProps,
+    type ElementProps,
+    Tooltip,
+    UnstyledButton,
+    type UnstyledButtonProps,
+} from "@mantine/core";
 import React, { forwardRef } from "react";
 
 import { useLabels } from "../../i18n";
@@ -79,7 +86,8 @@ export const NavRail = Object.assign(NavRailRoot, { Separator: NavRailSeparator 
 /**
  * Props for the RailButton component.
  */
-export interface RailButtonProps extends Omit<UnstyledButtonProps, "children">, Omit<ElementProps<"button">, "children"> {
+export interface RailButtonProps
+    extends Omit<UnstyledButtonProps, "children">, Omit<ElementProps<"button">, "children"> {
     /** The destination's glyph, drawn in the 32 x 32 pill. */
     icon: React.ReactNode;
     /** The 9px caption under the pill, also the accessible name and the tooltip. */

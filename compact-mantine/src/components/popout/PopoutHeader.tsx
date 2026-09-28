@@ -92,12 +92,7 @@ export function PopoutHeader({
             {actions.length > 0 ? (
                 <div className="cm-popout-actions">
                     {actions.map((action) => (
-                        <ActionIcon
-                            key={action.id}
-                            variant="subtle"
-                            onClick={action.onClick}
-                            aria-label={action.label}
-                        >
+                        <ActionIcon key={action.id} variant="subtle" onClick={action.onClick} aria-label={action.label}>
                             {action.icon}
                         </ActionIcon>
                     ))}

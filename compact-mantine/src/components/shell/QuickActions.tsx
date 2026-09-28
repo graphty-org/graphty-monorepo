@@ -12,7 +12,14 @@ import { useShellStyles } from "./roving";
  */
 function SearchGlyph(): React.JSX.Element {
     return (
-        <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false" style={{ display: "block" }}>
+        <svg
+            width="32"
+            height="32"
+            viewBox="0 0 32 32"
+            aria-hidden="true"
+            focusable="false"
+            style={{ display: "block" }}
+        >
             <path
                 fill="currentColor"
                 fillRule="evenodd"
@@ -131,7 +138,12 @@ export function QuickActions({
     const labels = useLabels();
     const id = useId();
     const input = useRef<HTMLInputElement>(null);
-    const [search, setSearch] = useUncontrolled({ value: query, defaultValue: "", finalValue: "", onChange: onQueryChange });
+    const [search, setSearch] = useUncontrolled({
+        value: query,
+        defaultValue: "",
+        finalValue: "",
+        onChange: onQueryChange,
+    });
 
     const sections = useMemo(() => {
         const bySection = new Map<string, QuickAction[]>();

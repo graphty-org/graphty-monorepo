@@ -84,7 +84,12 @@ export const States: Story = {
                 ["horizontal, top left", <AlignmentMatrix direction="horizontal" defaultValue="top-left" />],
                 ["horizontal, center", <AlignmentMatrix direction="horizontal" defaultValue="middle-center" />],
                 ["horizontal, bottom right", <AlignmentMatrix direction="horizontal" defaultValue="bottom-right" />],
-                ["focus", <div data-story-focus><AlignmentMatrix defaultValue="middle-left" /></div>],
+                [
+                    "focus",
+                    <div data-story-focus>
+                        <AlignmentMatrix defaultValue="middle-left" />
+                    </div>,
+                ],
                 ["disabled", <AlignmentMatrix defaultValue="top-center" disabled />],
             ]}
         />
@@ -103,7 +108,14 @@ export const InThePanel: Story = {
     render: () => (
         <div style={{ width: 240, padding: "4px 8px 4px 16px", display: "flex", gap: 8, alignItems: "flex-start" }}>
             <AlignmentMatrix defaultValue="middle-center" direction="horizontal" />
-            <ComboInput label="Gap" glyph={<UiGlyph name="alignCenterH" />} numeric defaultValue={3.04} options={GAPS} width={88} />
+            <ComboInput
+                label="Gap"
+                glyph={<UiGlyph name="alignCenterH" />}
+                numeric
+                defaultValue={3.04}
+                options={GAPS}
+                width={88}
+            />
             <ActionIcon aria-label="Auto layout settings" style={{ marginInlineStart: "auto" }}>
                 <UiGlyph name="settings" />
             </ActionIcon>
@@ -115,7 +127,7 @@ const GAPS = [{ value: "Auto" }, { separator: true as const }, ...[0, 4, 8, 16].
 
 /**
  * Keyboard: Tab lands on the chosen cell, and the arrows move along the row and the column and
- * stop at the edges. 
+ * stop at the edges.
  */
 export const Keyboard: Story = {
     parameters: OPEN_OVERLAY,

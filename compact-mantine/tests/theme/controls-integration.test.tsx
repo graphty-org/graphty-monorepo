@@ -200,10 +200,18 @@ describe("Control Components Integration", () => {
 
         it("gives Checkbox, Radio and Switch a different size at every size token", () => {
             expect(
-                varAcrossSizes((size) => <Checkbox size={size} label="c" />, ".mantine-Checkbox-root", "--checkbox-size"),
+                varAcrossSizes(
+                    (size) => <Checkbox size={size} label="c" />,
+                    ".mantine-Checkbox-root",
+                    "--checkbox-size",
+                ),
             ).toEqual(["12px", "16px", "20px", "24px", "28px"]);
             expect(
-                varAcrossSizes((size) => <Radio size={size} value="a" label="r" />, ".mantine-Radio-root", "--radio-size"),
+                varAcrossSizes(
+                    (size) => <Radio size={size} value="a" label="r" />,
+                    ".mantine-Radio-root",
+                    "--radio-size",
+                ),
             ).toEqual(["12px", "16px", "20px", "24px", "28px"]);
             expect(
                 varAcrossSizes((size) => <Switch size={size} label="s" />, ".mantine-Switch-root", "--switch-height"),

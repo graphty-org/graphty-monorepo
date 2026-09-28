@@ -81,7 +81,13 @@ export function SplitButton({
             className={className ? `cm-split ${className}` : "cm-split"}
         >
             <Tooltip label={label}>
-                <ActionIcon className="cm-split-main" size={size} aria-label={label} disabled={disabled} onClick={onClick}>
+                <ActionIcon
+                    className="cm-split-main"
+                    size={size}
+                    aria-label={label}
+                    disabled={disabled}
+                    onClick={onClick}
+                >
                     {icon}
                 </ActionIcon>
             </Tooltip>

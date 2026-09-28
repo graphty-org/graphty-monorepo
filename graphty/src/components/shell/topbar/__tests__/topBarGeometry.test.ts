@@ -107,9 +107,7 @@ describe("topBarGeometry", () => {
         });
 
         it("caps its height at 804 on the drawn 900 px board", () => {
-            expect(HISTORY_POPOVER_HEIGHT_RESERVE).toBe(
-                TOP_BAR_HEIGHT + STATUS_BAR_HEIGHT + 32,
-            );
+            expect(HISTORY_POPOVER_HEIGHT_RESERVE).toBe(TOP_BAR_HEIGHT + STATUS_BAR_HEIGHT + 32);
             expect(900 - HISTORY_POPOVER_HEIGHT_RESERVE).toBe(804);
         });
     });

@@ -27,8 +27,10 @@ export interface ResizeHandleBounds {
 /**
  * Props for the ResizeHandle component. Every other `div` prop is forwarded.
  */
-export interface ResizeHandleProps
-    extends Omit<React.ComponentPropsWithoutRef<"div">, "onChange" | "defaultValue" | "children"> {
+export interface ResizeHandleProps extends Omit<
+    React.ComponentPropsWithoutRef<"div">,
+    "onChange" | "defaultValue" | "children"
+> {
     /**
      * The panel edge the handle straddles: `"end"` for a panel on the leading side of the
      * window (its trailing edge is dragged), `"start"` for a panel on the trailing side, `"top"`

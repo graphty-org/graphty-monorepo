@@ -57,11 +57,23 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} /> },
-                { state: "hover", node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} data-state="hover" /> },
-                { state: "focus", node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} data-state="focus" /> },
+                {
+                    state: "hover",
+                    node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} data-state="focus" />,
+                },
                 { state: "disabled", node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} disabled /> },
-                { state: "invalid", node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} error="Invalid JSON" /> },
-                { state: "outlined", node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} variant="outlined" /> },
+                {
+                    state: "invalid",
+                    node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} error="Invalid JSON" />,
+                },
+                {
+                    state: "outlined",
+                    node: <JsonInput aria-label="JsonInput" defaultValue="{}" w={184} variant="outlined" />,
+                },
                 { state: "with label", node: <JsonInput label="Label" defaultValue="{}" w={184} /> },
             ]}
         />

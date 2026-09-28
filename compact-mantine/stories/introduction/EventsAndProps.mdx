@@ -94,18 +94,18 @@ live region has to be in the document before the change it announces.
 
 ## The shared prop names
 
-| Prop | What it always means |
-|---|---|
-| `label` | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the `showLabels` preference (see [Languages and direction](?path=/docs/introduction-languages-and-direction--docs)). |
-| `name` | On the display rows (`DataRow`, `MetricRow`), the name of the reading, always drawn. |
-| `value` / `defaultValue` / `onChange` | The state a control holds. On the display rows, `value` is the reading drawn on the row and there is no `onChange`. |
-| `trailing` | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row. |
-| `actions` | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster. |
-| `disabled` | Present but cannot be used: dimmed, skipped by Tab, announced as unavailable. |
-| `disabledReason` | One sentence saying why a control is disabled, shown while it is (`ToggleRow`, `ToggleWithContent`, `StyleNumberInput`). |
-| `selected` | Which item of a list the reader has picked. Not the same as a control's own value. |
-| `busy` / `live` | The content arrives from something that finishes later. |
-| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes. |
+| Prop                                        | What it always means                                                                                                                                                                                                                      |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`                                     | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the `showLabels` preference (see [Languages and direction](?path=/docs/introduction-languages-and-direction--docs)). |
+| `name`                                      | On the display rows (`DataRow`, `MetricRow`), the name of the reading, always drawn.                                                                                                                                                      |
+| `value` / `defaultValue` / `onChange`       | The state a control holds. On the display rows, `value` is the reading drawn on the row and there is no `onChange`.                                                                                                                       |
+| `trailing`                                  | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row.                                                                                                                |
+| `actions`                                   | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster.                                                                                                                  |
+| `disabled`                                  | Present but cannot be used: dimmed, skipped by Tab, announced as unavailable.                                                                                                                                                             |
+| `disabledReason`                            | One sentence saying why a control is disabled, shown while it is (`ToggleRow`, `ToggleWithContent`, `StyleNumberInput`).                                                                                                                  |
+| `selected`                                  | Which item of a list the reader has picked. Not the same as a control's own value.                                                                                                                                                        |
+| `busy` / `live`                             | The content arrives from something that finishes later.                                                                                                                                                                                   |
+| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes.                                                                                                                                                                                                           |
 
 ## TypeScript
 

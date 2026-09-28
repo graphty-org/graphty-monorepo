@@ -102,9 +102,20 @@ export const States: Story = {
             columns={200}
             cells={[
                 ["panel, icons, 88", <SegmentedControl w={88} data={ALIGN} />],
-                ["panel, icons, 184", <SegmentedControl w={184} data={[...ALIGN, { value: "justify", label: <UiGlyph name="more" /> }]} />],
+                [
+                    "panel, icons, 184",
+                    <SegmentedControl
+                        w={184}
+                        data={[...ALIGN, { value: "justify", label: <UiGlyph name="more" /> }]}
+                    />,
+                ],
                 ["panel, text", <SegmentedControl data={["Basic", "Dynamic", "Brush"]} />],
-                ["panel, focus", <div data-story-focus><SegmentedControl w={88} data={ALIGN} defaultValue="center" /></div>],
+                [
+                    "panel, focus",
+                    <div data-story-focus>
+                        <SegmentedControl w={88} data={ALIGN} defaultValue="center" />
+                    </div>,
+                ],
                 ["panel, disabled", <SegmentedControl w={88} data={ALIGN} disabled />],
                 ["panel, read-only", <SegmentedControl w={88} data={ALIGN} readOnly />],
                 ["toolbar", <SegmentedControl variant="toolbar" data={MODES} defaultValue="design" />],
@@ -138,7 +149,14 @@ export const PicturesInAPanelRow: Story = {
         return (
             <StoryPanel>
                 <ControlSection label="Text">
-                    <div style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP, height: PANEL_GRID.ROW_PITCH }}>
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: PANEL_GRID.TRAIL_GAP,
+                            height: PANEL_GRID.ROW_PITCH,
+                        }}
+                    >
                         <SegmentedControl
                             fullWidth
                             aria-label="Text alignment"

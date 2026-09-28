@@ -368,10 +368,20 @@ describe("calculatePopoutPosition", () => {
             // way down it: the panel meets the sidebar and opens level with the
             // row.
             const sidebar = createAnchorRect({
-                left: 800, top: 0, right: 1000, bottom: 600, width: 200, height: 600,
+                left: 800,
+                top: 0,
+                right: 1000,
+                bottom: 600,
+                width: 200,
+                height: 600,
             });
             const triggerRow = createAnchorRect({
-                left: 960, top: 240, right: 980, bottom: 260, width: 20, height: 20,
+                left: 960,
+                top: 240,
+                right: 980,
+                bottom: 260,
+                width: 20,
+                height: 20,
             });
 
             const position = calculatePopoutPosition(sidebar, panelWidth, 0, {
@@ -386,10 +396,20 @@ describe("calculatePopoutPosition", () => {
 
         it("takes the vertical placement from the anchor and the inline edge from the cross anchor", () => {
             const triggerRow = createAnchorRect({
-                left: 400, top: 100, right: 420, bottom: 120, width: 20, height: 20,
+                left: 400,
+                top: 100,
+                right: 420,
+                bottom: 120,
+                width: 20,
+                height: 20,
             });
             const sidebar = createAnchorRect({
-                left: 300, top: 0, right: 500, bottom: 600, width: 200, height: 600,
+                left: 300,
+                top: 0,
+                right: 500,
+                bottom: 600,
+                width: 200,
+                height: 600,
             });
 
             const position = calculatePopoutPosition(triggerRow, panelWidth, 4, {
@@ -407,13 +427,12 @@ describe("calculatePopoutPosition", () => {
         it("uses the same rectangle for both axes when no cross anchor is given", () => {
             const anchorRect = createAnchorRect();
 
-            expect(calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, { placement: "left" }))
-                .toEqual(
-                    calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
-                        placement: "left",
-                        crossAnchorRect: anchorRect,
-                    }),
-                );
+            expect(calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, { placement: "left" })).toEqual(
+                calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                    placement: "left",
+                    crossAnchorRect: anchorRect,
+                }),
+            );
         });
     });
 

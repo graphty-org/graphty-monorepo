@@ -42,7 +42,14 @@ export interface ToolbarProps extends BoxProps, ElementProps<"div"> {
  * </Toolbar>
  * ```
  */
-function ToolbarRoot({ floating, children, className, onKeyDown, onFocus, ...others }: ToolbarProps): React.JSX.Element {
+function ToolbarRoot({
+    floating,
+    children,
+    className,
+    onKeyDown,
+    onFocus,
+    ...others
+}: ToolbarProps): React.JSX.Element {
     useShellStyles();
     const labels = useLabels();
     const roving = useRovingFocus<HTMLDivElement>("horizontal");

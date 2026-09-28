@@ -335,7 +335,9 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     leftSectionPointerEvents={scrub ? "all" : "none"}
                     rightSection={rightSection}
                     rightSectionWidth={
-                        suffix === undefined ? chevronWidth : `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`
+                        suffix === undefined
+                            ? chevronWidth
+                            : `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`
                     }
                     rightSectionPointerEvents="all"
                 />

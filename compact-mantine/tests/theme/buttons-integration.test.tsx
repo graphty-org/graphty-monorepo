@@ -47,9 +47,7 @@ describe("Button Components Integration", () => {
         it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <ActionIcon aria-label="action">
-                        X
-                    </ActionIcon>
+                    <ActionIcon aria-label="action">X</ActionIcon>
                 </MantineProvider>,
             );
             expect(screen.getByRole("button", { name: "action" })).toBeInTheDocument();
@@ -265,7 +263,10 @@ describe("Button Components Integration", () => {
         });
 
         it("draws color='red' filled and variant='danger' as the same danger button", () => {
-            for (const el of [root(<Button color="red">Delete</Button>), root(<Button variant="danger">Delete</Button>)]) {
+            for (const el of [
+                root(<Button color="red">Delete</Button>),
+                root(<Button variant="danger">Delete</Button>),
+            ]) {
                 expect(cssVar(el, "--button-bg")).toBe("var(--cm-bg-danger)");
                 expect(cssVar(el, "--cm-btn-pressed")).toBe("var(--cm-bg-danger-pressed)");
             }
@@ -287,7 +288,9 @@ describe("Button Components Integration", () => {
         });
 
         it("leaves a non-primary filled color and gradient to Mantine", () => {
-            expect(cssVar(root(<Button color="grape">Grape</Button>), "--button-bg")).toBe("var(--mantine-color-grape-filled)");
+            expect(cssVar(root(<Button color="grape">Grape</Button>), "--button-bg")).toBe(
+                "var(--mantine-color-grape-filled)",
+            );
             expect(cssVar(root(<Button variant="gradient">G</Button>), "--cm-btn-pressed")).toBe("");
         });
     });

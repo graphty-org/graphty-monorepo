@@ -21,7 +21,10 @@ type Marker = readonly [attribute: string, values: readonly string[] | null];
 
 /** Kinds of state, each the attributes (and the values meaning "on") that write it. */
 const KINDS: Readonly<Record<string, readonly Marker[]>> = {
-    forced: [["data-cm-state", null], ["data-cm-force", null]],
+    forced: [
+        ["data-cm-state", null],
+        ["data-cm-force", null],
+    ],
     forcedState: [["data-state", ["hover", "focus", "pressed", "open", "active"]]],
     disabled: [
         ["disabled", null],
@@ -197,7 +200,9 @@ export async function expectStatesApply(canvasElement: HTMLElement, options: Sta
             continue;
         }
         const selector = markers.map(([attribute]) => `[${attribute}]`).join(",");
-        const marked = scopes.flatMap((scope) => [...scope.querySelectorAll(selector)]).filter((e) => carries(e, markers));
+        const marked = scopes
+            .flatMap((scope) => [...scope.querySelectorAll(selector)])
+            .filter((e) => carries(e, markers));
         // One check per control: the outermost element that carries the state.
         const tops = marked.filter((e) => !ancestorsOf(e, REACH).some((a) => carries(a, markers)));
         for (const top of tops) {
@@ -218,8 +223,16 @@ export async function expectStatesApply(canvasElement: HTMLElement, options: Sta
     // Real keyboard focus (a story that tabs to a control): blur it and compare.
     const active = doc.activeElement;
     // A menu's focus trap parks focus on an empty sentinel; that is not a control the story shows.
-    const sentinel = active instanceof HTMLElement && (active.hasAttribute("data-autofocus") || active.getClientRects().length === 0);
-    if (active instanceof HTMLElement && active !== doc.body && !sentinel && active.matches(":focus-visible") && !exempt(active)) {
+    const sentinel =
+        active instanceof HTMLElement &&
+        (active.hasAttribute("data-autofocus") || active.getClientRects().length === 0);
+    if (
+        active instanceof HTMLElement &&
+        active !== doc.body &&
+        !sentinel &&
+        active.matches(":focus-visible") &&
+        !exempt(active)
+    ) {
         const on = drawing(active);
         active.blur();
         const off = drawing(active);

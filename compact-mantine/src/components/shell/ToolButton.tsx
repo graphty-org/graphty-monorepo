@@ -22,7 +22,8 @@ export function TipLabel({ label, shortcut }: { label: React.ReactNode; shortcut
 /**
  * Props for the ToolButton component.
  */
-export interface ToolButtonProps extends Omit<UnstyledButtonProps, "children">, Omit<ElementProps<"button">, "children"> {
+export interface ToolButtonProps
+    extends Omit<UnstyledButtonProps, "children">, Omit<ElementProps<"button">, "children"> {
     /** The tool's name: its accessible name and its tooltip. */
     label: string;
     /** The tool's glyph, drawn in a 24px box. */

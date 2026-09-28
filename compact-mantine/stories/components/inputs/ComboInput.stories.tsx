@@ -98,7 +98,9 @@ function ownFrame(height: number): { docs: { story: { inline: false; height: str
  */
 function FontSize(props: { divided?: boolean }): React.JSX.Element {
     const [size, setSize] = useState<string | number>(24);
-    return <ComboInput label="Font size" numeric value={size} onChange={setSize} options={SIZES} divided={props.divided} />;
+    return (
+        <ComboInput label="Font size" numeric value={size} onChange={setSize} options={SIZES} divided={props.divided} />
+    );
 }
 
 /** A font-size field; the controls edit its props. */
@@ -117,9 +119,18 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <ComboInput label="Font size" numeric defaultValue={24} options={SIZES} /> },
-                { state: "divided", node: <ComboInput label="Font size" numeric defaultValue={24} options={SIZES} divided /> },
-                { state: "suffix (Hug)", node: <ComboInput label="Width" defaultValue="236" suffix="Hug" options={WIDTHS} /> },
-                { state: "disabled", node: <ComboInput label="Font size" defaultValue="24" options={SIZES} disabled /> },
+                {
+                    state: "divided",
+                    node: <ComboInput label="Font size" numeric defaultValue={24} options={SIZES} divided />,
+                },
+                {
+                    state: "suffix (Hug)",
+                    node: <ComboInput label="Width" defaultValue="236" suffix="Hug" options={WIDTHS} />,
+                },
+                {
+                    state: "disabled",
+                    node: <ComboInput label="Font size" defaultValue="24" options={SIZES} disabled />,
+                },
                 { state: "placeholder", node: <ComboInput label="Gap" placeholder="Auto" options={SIZES} /> },
             ]}
         />

@@ -2,7 +2,16 @@ import { Box, Checkbox, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
-import { AdvancedButton, FieldRow, PANEL_GRID, PANEL_INK, PanelField, ToggleRow, TrailingSlot, UiGlyph } from "../../../src";
+import {
+    AdvancedButton,
+    FieldRow,
+    PANEL_GRID,
+    PANEL_INK,
+    PanelField,
+    ToggleRow,
+    TrailingSlot,
+    UiGlyph,
+} from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
@@ -193,7 +202,13 @@ export const WhatGoesInIt: Story = {
                 </TrailingSlot>
             </Box>
             <Box style={ROW_STYLE}>
-                <PanelField label="Halo color" glyph="attribute" width={PANEL_GRID.BODY} defaultValue="community" bound />
+                <PanelField
+                    label="Halo color"
+                    glyph="attribute"
+                    width={PANEL_GRID.BODY}
+                    defaultValue="community"
+                    bound
+                />
                 <TrailingSlot>
                     <Checkbox aria-label="Draw halos" defaultChecked />
                 </TrailingSlot>

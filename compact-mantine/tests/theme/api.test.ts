@@ -4,12 +4,7 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { compactColors, compactTheme } from "../../src";
-import {
-    compactGlobalCss,
-    compactThemeOverride,
-    createCompactTheme,
-    ensureCompactStyles,
-} from "../../src/theme";
+import { compactGlobalCss, compactThemeOverride, createCompactTheme, ensureCompactStyles } from "../../src/theme";
 
 describe("Public API", () => {
     it("exports compactTheme", () => {

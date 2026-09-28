@@ -31,8 +31,10 @@ const KEYBOARD_ECHO_MS = 500;
  * Props for ContextMenu: the target, the rows, and any Mantine `Menu` prop
  * except those that place and open it, which the context menu owns.
  */
-export interface ContextMenuProps
-    extends Omit<MenuProps, "children" | "opened" | "defaultOpened" | "position" | "offset" | "trigger"> {
+export interface ContextMenuProps extends Omit<
+    MenuProps,
+    "children" | "opened" | "defaultOpened" | "position" | "offset" | "trigger"
+> {
     /**
      * The element that opens the menu when it is right-clicked, or when it (or
      * something inside it) has focus and Shift+F10 or the ContextMenu key is

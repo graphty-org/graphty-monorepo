@@ -45,7 +45,12 @@ export const Default: Story = {
     args: { orientation: "horizontal" },
     render: (args) => (
         <StoryPanel padded>
-            <Stack gap={8} py={8} h={args.orientation === "vertical" ? 40 : undefined} style={{ flexDirection: args.orientation === "vertical" ? "row" : "column" }}>
+            <Stack
+                gap={8}
+                py={8}
+                h={args.orientation === "vertical" ? 40 : undefined}
+                style={{ flexDirection: args.orientation === "vertical" ? "row" : "column" }}
+            >
                 <Divider {...args} />
             </Stack>
         </StoryPanel>

@@ -50,7 +50,16 @@ describe("Text - All CSS Values (Browser)", () => {
     });
 
     it("fw still wins, other sizes keep the normal weight, inherit keeps the parent's", () => {
-        expect(getComputedStyle(root(<Text size="sm" fw={600}>Hello</Text>, ".mantine-Text-root")).fontWeight).toBe("600");
+        expect(
+            getComputedStyle(
+                root(
+                    <Text size="sm" fw={600}>
+                        Hello
+                    </Text>,
+                    ".mantine-Text-root",
+                ),
+            ).fontWeight,
+        ).toBe("600");
         expect(getComputedStyle(root(<Text size="md">Hello</Text>, ".mantine-Text-root")).fontWeight).toBe("400");
         const inherited = root(
             <div style={{ fontWeight: 700 }}>

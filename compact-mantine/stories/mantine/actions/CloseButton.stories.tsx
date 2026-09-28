@@ -60,7 +60,11 @@ export const States: Story = {
                     </Text>
                     {STATES.map((state) => (
                         <Group key={state} w={40}>
-                            <CloseButton size={size} aria-label={`Close, ${state}`} data-state={state === "rest" ? undefined : state} />
+                            <CloseButton
+                                size={size}
+                                aria-label={`Close, ${state}`}
+                                data-state={state === "rest" ? undefined : state}
+                            />
                         </Group>
                     ))}
                     <Group w={40}>

@@ -211,7 +211,12 @@ export const SeveralAtOnce: Story = {
 export const Translated: Story = {
     render: (): React.JSX.Element => (
         <LabelsProvider locale="fr-FR">
-            <SparklineRow label="Stabilization de la disposition" values={SETTLING} minLabel="Pas 1" maxLabel="Pas 20" />
+            <SparklineRow
+                label="Stabilization de la disposition"
+                values={SETTLING}
+                minLabel="Pas 1"
+                maxLabel="Pas 20"
+            />
         </LabelsProvider>
     ),
 };

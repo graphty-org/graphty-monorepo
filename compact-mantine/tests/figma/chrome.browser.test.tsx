@@ -115,7 +115,10 @@ function expectBoxNear(
     expected: Partial<{ x: number; y: number; width: number; height: number }>,
 ): void {
     for (const [key, want] of Object.entries(expected)) {
-        expect(Math.abs(actual[key as keyof typeof actual] - want), `${key}: ${String(actual[key as keyof typeof actual])}`).toBeLessThanOrEqual(0.5);
+        expect(
+            Math.abs(actual[key as keyof typeof actual] - want),
+            `${key}: ${String(actual[key as keyof typeof actual])}`,
+        ).toBeLessThanOrEqual(0.5);
     }
 }
 
@@ -166,7 +169,13 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
             } else {
                 const rule = await figmaElement("dt/dark-panel-rect", { index: 121 });
                 expectMeasured(section, figmaSpec(rule, ["borderBottomWidth", "borderBottomColor"]));
-                expectMeasured(title, { color: INK.dark.text, fontSize: "11px", lineHeight: "32px", fontWeight: "550", letterSpacing: "normal" });
+                expectMeasured(title, {
+                    color: INK.dark.text,
+                    fontSize: "11px",
+                    lineHeight: "32px",
+                    fontWeight: "550",
+                    letterSpacing: "normal",
+                });
             }
         });
 
@@ -367,7 +376,9 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
         });
 
         it("CompoundRow: one filled field, 1px panel seams, hover outline, 1px focus ring", async () => {
-            const chit = <span style={{ display: "block", width: 14, height: 14, borderRadius: 2, background: "#3380ff" }} />;
+            const chit = (
+                <span style={{ display: "block", width: 14, height: 14, borderRadius: 2, background: "#3380ff" }} />
+            );
             const panel = await inPanel(
                 <div style={{ paddingInline: "16px 8px" }}>
                     <CompoundRow
@@ -534,7 +545,13 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
             // radius 9999.
             expectMeasured(
                 handle,
-                { width: 8, backgroundColor: INK[scheme].brand, borderTopLeftRadius: "9999px", left: "2px", right: "2px" },
+                {
+                    width: 8,
+                    backgroundColor: INK[scheme].brand,
+                    borderTopLeftRadius: "9999px",
+                    left: "2px",
+                    right: "2px",
+                },
                 { pseudo: "::before" },
             );
             const pill = getComputedStyle(handle, "::before");

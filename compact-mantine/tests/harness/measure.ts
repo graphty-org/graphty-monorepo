@@ -283,11 +283,7 @@ function matches(property: string, actual: string | number, expected: string | n
  * @param options.origin - x / y are measured from this element's top left
  * @returns one line per mismatching property
  */
-function differences(
-    el: Element,
-    spec: MeasureSpec,
-    options: { pseudo?: string; origin?: Element } = {},
-): string[] {
+function differences(el: Element, spec: MeasureSpec, options: { pseudo?: string; origin?: Element } = {}): string[] {
     const props = Object.keys(spec).filter((k) => !BOX_KEYS.has(k));
     const m = measure(el, props, options);
     const out: string[] = [];

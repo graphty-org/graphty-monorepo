@@ -63,7 +63,12 @@ export const States: Story = {
             columns={220}
             cells={[
                 ["rest", <RangeSlider defaultValue={[20, 70]} />],
-                ["focus", <div data-story-focus><RangeSlider defaultValue={[30, 80]} /></div>],
+                [
+                    "focus",
+                    <div data-story-focus>
+                        <RangeSlider defaultValue={[30, 80]} />
+                    </div>,
+                ],
                 ["disabled", <RangeSlider defaultValue={[20, 70]} disabled />],
             ]}
         />

@@ -12,14 +12,7 @@
  * field, #25/26 icon, #28/29 input); rs/apply-variable-radius-bound(-hover) (#68 pill, #75
  * detach); rs/fill-variable-bound(-hover) (#53 row, #55 chit, #58 name, #61 detach).
  */
-import {
-    MantineProvider,
-    MultiSelect,
-    NativeSelect,
-    Select,
-    Textarea,
-    TextInput,
-} from "@mantine/core";
+import { MantineProvider, MultiSelect, NativeSelect, Select, Textarea, TextInput } from "@mantine/core";
 import { render } from "@testing-library/react";
 import React, { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -103,7 +96,11 @@ function field(container: HTMLElement): HTMLElement {
 function textInset(container: HTMLElement): number {
     const input = part(container, ".cm-input-wrapper input");
     const wrapper = field(container);
-    return input.getBoundingClientRect().left + parseFloat(computed(input).paddingLeft) - wrapper.getBoundingClientRect().left;
+    return (
+        input.getBoundingClientRect().left +
+        parseFloat(computed(input).paddingLeft) -
+        wrapper.getBoundingClientRect().left
+    );
 }
 
 /** The number field under test: 88 wide, a 24px letter slot, value 40. */
@@ -294,9 +291,12 @@ describe.skipIf(!available)("6.2 text input and search", () => {
     });
 
     it.each(SCHEMES)("outlined TextInput (%s): --cm-bg, 1px --cm-border, text 8 in", async (scheme) => {
-        const { container } = await renderFigma(<TextInput variant="outlined" aria-label="Name" defaultValue="Frame" />, {
-            scheme,
-        });
+        const { container } = await renderFigma(
+            <TextInput variant="outlined" aria-label="Name" defaultValue="Frame" />,
+            {
+                scheme,
+            },
+        );
         expectMeasured(field(container), {
             height: 24,
             backgroundColor: scheme === "light" ? "#ffffff" : "#2c2c2c",
@@ -333,18 +333,31 @@ describe.skipIf(!available)("6.2 text input and search", () => {
             const figmaField = await figmaElement(capture, { index: fieldIndex });
             const figmaIcon = await figmaElement(capture, { index: iconIndex });
             const figmaInput = await figmaElement(capture, { index: inputIndex });
-            const { container } = await renderFigma(<SearchInput placeholder="Search all libraries" style={{ width: 180 }} />, {
-                scheme,
-            });
+            const { container } = await renderFigma(
+                <SearchInput placeholder="Search all libraries" style={{ width: 180 }} />,
+                {
+                    scheme,
+                },
+            );
             await drive(part(container, "input"), "focus");
             expectMeasured(
                 field(container),
-                figmaSpec(figmaField, ["width", "height", "backgroundColor", "borderRadius", "outline", "outlineOffset"]),
+                figmaSpec(figmaField, [
+                    "width",
+                    "height",
+                    "backgroundColor",
+                    "borderRadius",
+                    "outline",
+                    "outlineOffset",
+                ]),
             );
             const icon = part(container, ".cm-input-section[data-position=left]");
             expectMeasured(icon, { width: figmaIcon.box[2], height: figmaIcon.box[3] });
             expect(textInset(container)).toBeCloseTo(figmaInput.box[0] - figmaField.box[0], 1);
-            expectMeasured(part(container, "input"), figmaSpec(figmaInput, ["fontSize", "fontWeight", "letterSpacing"]));
+            expectMeasured(
+                part(container, "input"),
+                figmaSpec(figmaInput, ["fontSize", "fontWeight", "letterSpacing"]),
+            );
         });
     });
 
@@ -431,7 +444,12 @@ describe.skipIf(!available)("6.4 select trigger", () => {
         const trigger = await figmaElement("ii/select-trigger-default", { index: 27 });
         const label = await figmaElement("ii/select-trigger-default", { index: 29 });
         const { container } = await renderFigma(
-            <Select aria-label="Stroke align" data={["Center", "Inside", "Outside"]} defaultValue="Inside" style={{ width: 76 }} />,
+            <Select
+                aria-label="Stroke align"
+                data={["Center", "Inside", "Outside"]}
+                defaultValue="Inside"
+                style={{ width: 76 }}
+            />,
         );
         const spec = figmaSpec(trigger, [
             "width",
@@ -455,7 +473,12 @@ describe.skipIf(!available)("6.4 select trigger", () => {
         // The caret's color is its path fill (#30), not the wrapper's tertiary `color`.
         const caretPath = await figmaElement(`dt/${scheme}-select-prototype-device--default`, { index: 30 });
         const { container } = await renderFigma(
-            <Select aria-label="Device" data={["No device", "iPhone 17"]} defaultValue="No device" style={{ width: 208 }} />,
+            <Select
+                aria-label="Device"
+                data={["No device", "iPhone 17"]}
+                defaultValue="No device"
+                style={{ width: 208 }}
+            />,
             { scheme },
         );
         expectMeasured(
@@ -509,7 +532,9 @@ describe.skipIf(!available)("6.4 select trigger", () => {
     });
 
     it("AA option: hovering an outlined field raises its edge, never paints a lighter outline over it", async () => {
-        const { container } = await renderFigma(<TextInput variant="outlined" aria-label="Name" />, { highContrast: true });
+        const { container } = await renderFigma(<TextInput variant="outlined" aria-label="Name" />, {
+            highContrast: true,
+        });
         await drive(field(container), "hover");
         expectMeasured(field(container), { borderTopColor: "#000000a6", outlineColor: "#00000000" });
     });
@@ -530,20 +555,30 @@ describe.skipIf(!available)("6.4 select trigger", () => {
 
     it("NativeSelect is the same outlined trigger", async () => {
         const trigger = await figmaElement("dt/light-select-prototype-device--default", { index: 26 });
-        const { container } = await renderFigma(<NativeSelect aria-label="Device" data={["No device"]} style={{ width: 208 }} />);
+        const { container } = await renderFigma(
+            <NativeSelect aria-label="Device" data={["No device"]} style={{ width: 208 }} />,
+        );
         expectMeasured(
             field(container),
             figmaSpec(trigger, ["width", "height", "backgroundColor", "borderTopColor", "borderRadius"]),
         );
         const select = part(container, "select");
         expect(
-            select.getBoundingClientRect().left + parseFloat(computed(select).paddingLeft) - field(container).getBoundingClientRect().left,
+            select.getBoundingClientRect().left +
+                parseFloat(computed(select).paddingLeft) -
+                field(container).getBoundingClientRect().left,
         ).toBeCloseTo(9, 1);
     });
 
     it("PanelField kind=select is the outlined trigger with the caret", async () => {
         const { container } = await renderFigma(
-            <PanelField label="Layout" kind="select" data={["Force", "Radial"]} value="Radial" onChange={() => undefined} />,
+            <PanelField
+                label="Layout"
+                kind="select"
+                data={["Force", "Radial"]}
+                value="Radial"
+                onChange={() => undefined}
+            />,
         );
         expectMeasured(field(container), { height: 24, backgroundColor: "#ffffff", borderTopColor: "#e6e6e6" });
         part(container, "[data-testid=panel-field-chevron] .cm-field-caret");
@@ -589,7 +624,9 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(Math.abs(s.bottom - t.bottom)).toBeLessThanOrEqual(1);
         expect(Math.abs(d.left - (t.left - 8))).toBeLessThanOrEqual(1);
         expect(d.width).toBeGreaterThanOrEqual(t.width + 16 - 0.5);
-        const highlight = measure(selected, ["backgroundColor", "borderTopLeftRadius", "left", "right"], { pseudo: "::before" });
+        const highlight = measure(selected, ["backgroundColor", "borderTopLeftRadius", "left", "right"], {
+            pseudo: "::before",
+        });
         expect(highlight.style.backgroundColor).toBe("#0c8ce9");
         expect(highlight.style.borderTopLeftRadius).toBe("5px");
         expect(highlight.style.left).toBe("8px");
@@ -623,7 +660,9 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
     ])("%s: the selected option stays on the field inside the viewport", async (name, y, value) => {
         await page.viewport(600, 380);
         const items = Array.from({ length: 30 }, (_, i) => `Item ${String(i + 1)}`);
-        const sizes = [10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128].map((n) => ({ value: String(n) }));
+        const sizes = [10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128].map((n) => ({
+            value: String(n),
+        }));
         const { container } = await renderFigma(
             <div style={{ position: "fixed", left: 40, top: y }}>
                 {name.startsWith("Select") ? (
@@ -709,7 +748,9 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
     it.each(["enter", "space", "click"] as const)(
         "opening (%s) makes the checked option the aria-activedescendant",
         async (how) => {
-            const { container } = await renderFigma(<Select aria-label="Stroke align" data={DATA} defaultValue="Outside" />);
+            const { container } = await renderFigma(
+                <Select aria-label="Stroke align" data={DATA} defaultValue="Outside" />,
+            );
             const input = part(container, "input");
             if (how === "click") {
                 await userEvent.click(input);
@@ -821,7 +862,12 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expectMeasured(part(dropdown, ".cm-listbox-group-label"), { height: 24, color: "#ffffffb2" });
         expectMeasured(part(dropdown, "[data-combobox-disabled]"), { color: "#ffffff66", opacity: "1" });
         const groups = dropdown.querySelectorAll<HTMLElement>(".cm-listbox-group");
-        expectMeasured(groups[1], { borderTopWidth: "1px", borderTopColor: "#ffffff1a", paddingTop: "8px", marginTop: "8px" });
+        expectMeasured(groups[1], {
+            borderTopWidth: "1px",
+            borderTopColor: "#ffffff1a",
+            paddingTop: "8px",
+            marginTop: "8px",
+        });
     });
 
     it("MultiSelect: filled field, 20px variable-pill pills, list below", async () => {
@@ -839,7 +885,10 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         });
         await drive(part(container, ".cm-input"), "open");
         const dropdown = await listbox();
-        expect(dropdown.getBoundingClientRect().top - field(container).getBoundingClientRect().bottom).toBeCloseTo(4, 0);
+        expect(dropdown.getBoundingClientRect().top - field(container).getBoundingClientRect().bottom).toBeCloseTo(
+            4,
+            0,
+        );
     });
 });
 
@@ -852,10 +901,16 @@ describe.skipIf(!available)("6.3 combo input", () => {
             const figmaCaret = await figmaElement(`dt/${scheme}-combo-font-size--default`, { index: 40 });
             const figmaCaretPath = await figmaElement(`dt/${scheme}-combo-font-size--default`, { index: 41 });
             const figmaInput = await figmaElement(`dt/${scheme}-combo-font-size--default`, { index: 45 });
-            const { container } = await renderFigma(<ComboInput label="Font size" numeric defaultValue={24} options={SIZES} />, {
-                scheme,
-            });
-            expectMeasured(field(container), figmaSpec(figmaField, ["width", "height", "backgroundColor", "borderRadius"]));
+            const { container } = await renderFigma(
+                <ComboInput label="Font size" numeric defaultValue={24} options={SIZES} />,
+                {
+                    scheme,
+                },
+            );
+            expectMeasured(
+                field(container),
+                figmaSpec(figmaField, ["width", "height", "backgroundColor", "borderRadius"]),
+            );
             expect(textInset(container)).toBeCloseTo(7, 1);
             expectMeasured(part(container, "input"), figmaSpec(figmaInput, [...TYPE, "paddingRight"]));
             expectMeasured(part(container, ".cm-combo-chevron"), { width: figmaCaret.box[2] });
@@ -864,9 +919,12 @@ describe.skipIf(!available)("6.3 combo input", () => {
 
         it("hover: a 1px --cm-border edge", async () => {
             const figmaEdge = await figmaElement(`dt/${scheme}-combo-font-size--hover`, { index: 42 });
-            const { container } = await renderFigma(<ComboInput label="Font size" numeric defaultValue={24} options={SIZES} />, {
-                scheme,
-            });
+            const { container } = await renderFigma(
+                <ComboInput label="Font size" numeric defaultValue={24} options={SIZES} />,
+                {
+                    scheme,
+                },
+            );
             await drive(field(container), "hover");
             expect(hex(computed(field(container)).outlineColor)).toBe(hex(figmaEdge.style.borderTopColor));
         });
@@ -882,7 +940,9 @@ describe.skipIf(!available)("6.3 combo input", () => {
         const dropdown = await listbox();
         const selected = part(dropdown, "[data-checked]");
         expect(selected.textContent).toBe("24");
-        expect(Math.abs(selected.getBoundingClientRect().top - field(container).getBoundingClientRect().top)).toBeLessThanOrEqual(1);
+        expect(
+            Math.abs(selected.getBoundingClientRect().top - field(container).getBoundingClientRect().top),
+        ).toBeLessThanOrEqual(1);
         expect(document.activeElement).toBe(part(container, "input"));
     });
 
@@ -945,16 +1005,36 @@ describe.skipIf(!available)("6.6 variable pill", () => {
         const detach = await figmaElement("rs/apply-variable-radius-bound-hover", { index: 75 });
         const fieldBox = await figmaElement("rs/apply-variable-radius-bound", { index: 57 });
         const { container } = await renderFigma(
-            <VariablePill glyph="R" name="rsu/radius-sm" value="4" onDetach={() => undefined} onClick={() => undefined} />,
+            <VariablePill
+                glyph="R"
+                name="rsu/radius-sm"
+                value="4"
+                onDetach={() => undefined}
+                onClick={() => undefined}
+            />,
         );
         const root = part(container, ".cm-var-field");
         const p = part(container, ".cm-var-pill");
         expectMeasured(
             p,
-            figmaSpec(pill, ["height", "backgroundColor", "borderTopColor", "borderTopWidth", "borderRadius", "paddingLeft", "cursor"]),
+            figmaSpec(pill, [
+                "height",
+                "backgroundColor",
+                "borderTopColor",
+                "borderTopWidth",
+                "borderRadius",
+                "paddingLeft",
+                "cursor",
+            ]),
         );
-        expect(p.getBoundingClientRect().left - root.getBoundingClientRect().left).toBeCloseTo(pill.box[0] - fieldBox.box[0], 0);
-        expect(p.getBoundingClientRect().top - root.getBoundingClientRect().top).toBeCloseTo(pill.box[1] - fieldBox.box[1], 0);
+        expect(p.getBoundingClientRect().left - root.getBoundingClientRect().left).toBeCloseTo(
+            pill.box[0] - fieldBox.box[0],
+            0,
+        );
+        expect(p.getBoundingClientRect().top - root.getBoundingClientRect().top).toBeCloseTo(
+            pill.box[1] - fieldBox.box[1],
+            0,
+        );
         expectMeasured(part(container, ".cm-var-detach"), { opacity: "0" });
         await drive(p, "hover");
         expectMeasured(p, figmaSpec(pillHover, ["backgroundColor"]));
@@ -980,16 +1060,21 @@ describe.skipIf(!available)("6.6 variable pill", () => {
         expectMeasured(part(container, ".cm-var-detach"), { width: 0, opacity: "0" });
         const c = part(container, ".cm-var-chit");
         expectMeasured(c, figmaSpec(chit, ["width", "height", "borderRadius"]));
-        expect(c.getBoundingClientRect().left - button.getBoundingClientRect().left).toBeCloseTo(chit.box[0] - row.box[0], 0);
-        expect(part(container, ".cm-var-name").getBoundingClientRect().left - button.getBoundingClientRect().left).toBeCloseTo(
-            name.box[0] - row.box[0],
+        expect(c.getBoundingClientRect().left - button.getBoundingClientRect().left).toBeCloseTo(
+            chit.box[0] - row.box[0],
             0,
         );
+        expect(
+            part(container, ".cm-var-name").getBoundingClientRect().left - button.getBoundingClientRect().left,
+        ).toBeCloseTo(name.box[0] - row.box[0], 0);
         await drive(button, "hover");
         expectMeasured(button, figmaSpec(rowHover, ["width", "backgroundColor"]));
         const d = part(container, ".cm-var-detach");
         expectMeasured(d, { width: detach.box[2], height: detach.box[3] });
-        expect(d.getBoundingClientRect().left - button.getBoundingClientRect().left).toBeCloseTo(detach.box[0] - rowHover.box[0], 0);
+        expect(d.getBoundingClientRect().left - button.getBoundingClientRect().left).toBeCloseTo(
+            detach.box[0] - rowHover.box[0],
+            0,
+        );
     });
 
     it("bound number field: the rest of the field is an input flush after the pill (#73)", async () => {
@@ -997,7 +1082,13 @@ describe.skipIf(!available)("6.6 variable pill", () => {
         const figmaPill = await figmaElement("rs/apply-variable-radius-bound", { index: 68 });
         const onValueCommit = vi.fn();
         const { container } = await renderFigma(
-            <VariablePill glyph="R" name="rsu/radius-sm" value="4" onDetach={() => undefined} onValueCommit={onValueCommit} />,
+            <VariablePill
+                glyph="R"
+                name="rsu/radius-sm"
+                value="4"
+                onDetach={() => undefined}
+                onValueCommit={onValueCommit}
+            />,
         );
         const input = part(container, ".cm-var-input");
         const pill = part(container, ".cm-var-pill");

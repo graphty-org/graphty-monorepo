@@ -378,9 +378,7 @@ describe("ActivityRail", () => {
         });
 
         it("draws the open menu outside the rail, anchored beside the Help item", async () => {
-            render(
-                <ActivityRail activeActivity={null} onActivityClick={vi.fn()} helpMenu={helpMenu(vi.fn(), true)} />,
-            );
+            render(<ActivityRail activeActivity={null} onActivityClick={vi.fn()} helpMenu={helpMenu(vi.fn(), true)} />);
 
             // Mantine labels the menu by its opener.
             const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });

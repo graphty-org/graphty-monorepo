@@ -169,10 +169,7 @@ describe("ActionRow", () => {
         it("lets stateTitle override a plain-text reading", () => {
             renderRow(<ActionRow state="20 nodes" stateTitle="20 nodes, 34 edges, 2 components" />);
 
-            expect(screen.getByTestId("action-row-state")).toHaveAttribute(
-                "title",
-                "20 nodes, 34 edges, 2 components",
-            );
+            expect(screen.getByTestId("action-row-state")).toHaveAttribute("title", "20 nodes, 34 edges, 2 components");
         });
 
         it("offers no tooltip for markup with no stateTitle, rather than an invented one", () => {
@@ -421,7 +418,13 @@ describe("ActionRow", () => {
         it("runs the action when it has been revealed and pressed", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" onClick={onClick} />} />);
+            renderRow(
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actions={<GlyphAction label="Copy reading" onClick={onClick} />}
+                />,
+            );
 
             await user.hover(screen.getByTestId("action-row"));
             await user.click(screen.getByRole("button", { name: "Copy reading" }));
@@ -431,7 +434,8 @@ describe("ActionRow", () => {
 
         it("never hides what reports state", () => {
             renderRow(
-                <ActionRow reveal="hover"
+                <ActionRow
+                    reveal="hover"
                     state="Chonky_Boy"
                     actions={<GlyphAction label="Copy reading" />}
                     residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />}
@@ -446,7 +450,11 @@ describe("ActionRow", () => {
 
         it("leaves what reports state resident while the row is hovered", () => {
             renderRow(
-                <ActionRow reveal="hover" state="Chonky_Boy" residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="Chonky_Boy"
+                    residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />}
+                />,
             );
 
             fireEvent.mouseEnter(screen.getByTestId("action-row"));
@@ -458,7 +466,8 @@ describe("ActionRow", () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover"
+                <ActionRow
+                    reveal="hover"
                     state="Chonky_Boy"
                     residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" onClick={onClick} />}
                 />,
@@ -471,7 +480,8 @@ describe("ActionRow", () => {
 
         it("draws both clusters when the row has each kind", () => {
             renderRow(
-                <ActionRow reveal="hover"
+                <ActionRow
+                    reveal="hover"
                     state="Mrs_Henderson"
                     actions={<GlyphAction label="Copy reading" />}
                     residentActions={<GlyphAction label="Hidden. Show Mrs_Henderson" />}
@@ -486,7 +496,12 @@ describe("ActionRow", () => {
     describe("holding the actions open", () => {
         it("draws them with no hover and no focus when the caller asks", () => {
             renderRow(
-                <ActionRow reveal="hover" state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible
+                    actions={<GlyphAction label="Node options" />}
+                />,
             );
 
             const actions = screen.getByTestId("action-row-actions");
@@ -498,7 +513,12 @@ describe("ActionRow", () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover" state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" onClick={onClick} />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible
+                    actions={<GlyphAction label="Node options" onClick={onClick} />}
+                />,
             );
 
             await user.click(screen.getByRole("button", { name: "Node options" }));
@@ -508,7 +528,12 @@ describe("ActionRow", () => {
 
         it("outranks the hover when the caller holds them shut", () => {
             renderRow(
-                <ActionRow reveal="hover" state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible={false}
+                    actions={<GlyphAction label="Copy reading" />}
+                />,
             );
 
             fireEvent.mouseEnter(screen.getByTestId("action-row"));
@@ -519,7 +544,12 @@ describe("ActionRow", () => {
         it("does not outrank focus, because a focus ring nobody can see is a failure", async () => {
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover" state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible={false}
+                    actions={<GlyphAction label="Copy reading" />}
+                />,
             );
 
             await user.tab();
@@ -532,7 +562,12 @@ describe("ActionRow", () => {
         it("holds them shut again once focus has left", async () => {
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover" state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible={false}
+                    actions={<GlyphAction label="Copy reading" />}
+                />,
             );
 
             await user.tab();
@@ -556,7 +591,13 @@ describe("ActionRow", () => {
             setMatchMedia(true);
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" onClick={onClick} />} />);
+            renderRow(
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actions={<GlyphAction label="Copy reading" onClick={onClick} />}
+                />,
+            );
 
             await user.click(screen.getByRole("button", { name: "Copy reading" }));
 
@@ -586,7 +627,13 @@ describe("ActionRow", () => {
         it("runs a hidden action from the keyboard", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" onClick={onClick} />} />);
+            renderRow(
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actions={<GlyphAction label="Copy reading" onClick={onClick} />}
+                />,
+            );
 
             await user.tab();
             await user.keyboard("{Enter}");
@@ -597,7 +644,8 @@ describe("ActionRow", () => {
         it("stays revealed while focus moves between two affordances of the same row", async () => {
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover"
+                <ActionRow
+                    reveal="hover"
                     state="20 nodes"
                     actions={
                         <>
@@ -641,7 +689,8 @@ describe("ActionRow", () => {
             const onBlur = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover"
+                <ActionRow
+                    reveal="hover"
                     state="20 nodes"
                     actions={<GlyphAction label="Copy reading" />}
                     onFocus={onFocus}
@@ -670,7 +719,8 @@ describe("ActionRow", () => {
             const onBlur = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow reveal="hover"
+                <ActionRow
+                    reveal="hover"
                     state="20 nodes"
                     actions={
                         <>

@@ -89,7 +89,11 @@ export const States: Story = {
                     </Text>
                     {STATES.map((state) => (
                         <Group key={state} w={40}>
-                            <ActionIcon {...props} aria-label={`Add fill, ${state}`} data-state={state === "rest" ? undefined : state}>
+                            <ActionIcon
+                                {...props}
+                                aria-label={`Add fill, ${state}`}
+                                data-state={state === "rest" ? undefined : state}
+                            >
                                 {plus}
                             </ActionIcon>
                         </Group>
@@ -109,7 +113,10 @@ export const States: Story = {
         </Stack>
     ),
     // Loading draws the spinner in place of the disabled look; a disabled or loading button draws no open look.
-    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ["[data-loading]", '[aria-expanded="true"]:is(:disabled, [data-loading])'] }),
+    play: ({ canvasElement }) =>
+        expectStatesApply(canvasElement, {
+            unchanged: ["[data-loading]", '[aria-expanded="true"]:is(:disabled, [data-loading])'],
+        }),
 };
 
 const ALIGN = [
@@ -149,7 +156,12 @@ export const JoinedGroup: Story = {
             </Group>
             <ActionIcon.Group>
                 {(["hover", "press", "focus"] as const).map((state, i) => (
-                    <ActionIcon key={state} variant="default" aria-label={`${ALIGN[i].label}, ${state}`} data-state={state}>
+                    <ActionIcon
+                        key={state}
+                        variant="default"
+                        aria-label={`${ALIGN[i].label}, ${state}`}
+                        data-state={state}
+                    >
                         <UiGlyph name={ALIGN[i].glyph} />
                     </ActionIcon>
                 ))}

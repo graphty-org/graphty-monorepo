@@ -9,7 +9,8 @@ import { forwardRef, type MouseEvent, type PointerEvent, type ReactNode, useRef 
  * button (`size`, `disabled`, `className`, a `data-` attribute ...).
  */
 export interface ToggleIconButtonProps
-    extends Omit<ActionIconProps, "variant" | "children">,
+    extends
+        Omit<ActionIconProps, "variant" | "children">,
         ElementProps<"button", "color" | "onChange" | keyof ActionIconProps> {
     /** Whether the toggle is on (controlled). */
     checked?: boolean;

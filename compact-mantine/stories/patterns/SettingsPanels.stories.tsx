@@ -122,7 +122,10 @@ function PopoutRow({
                 </Text>
                 <TrailingSlot>
                     <Popout.Trigger>
-                        <PopoutButton icon={<UiGlyph name={icon} size={12} />} aria-label={`Open ${name.toLowerCase()}`} />
+                        <PopoutButton
+                            icon={<UiGlyph name={icon} size={12} />}
+                            aria-label={`Open ${name.toLowerCase()}`}
+                        />
                     </Popout.Trigger>
                 </TrailingSlot>
             </Group>
@@ -167,7 +170,12 @@ export const Sidebar: Story = {
                 >
                     <ControlSection label="Size">
                         <FieldRow groupLabel="Node size">
-                            <PanelField label="Smallest node size" glyph="sizeSmallest" kind="number" defaultValue={1} />
+                            <PanelField
+                                label="Smallest node size"
+                                glyph="sizeSmallest"
+                                kind="number"
+                                defaultValue={1}
+                            />
                             <PanelField label="Largest node size" glyph="sizeLargest" kind="number" defaultValue={4} />
                         </FieldRow>
                         <RampRow label="Size range" min="1.0" max="4.0" variant="size" scale="sqrt" />
@@ -246,7 +254,14 @@ export const PopOutPanel: Story = {
                             <PanelField label="Render mode" data={["WebGL", "WebGPU", "Canvas"]} defaultValue="WebGL" />
                         </FieldRow>
                         <FieldRow>
-                            <PanelField label="Frame rate limit" kind="number" defaultValue={60} min={30} max={144} unit="fps" />
+                            <PanelField
+                                label="Frame rate limit"
+                                kind="number"
+                                defaultValue={60}
+                                min={30}
+                                max={144}
+                                unit="fps"
+                            />
                         </FieldRow>
                     </ControlGroup>
                     <ToggleRowGroup label="Diagnostics">
@@ -303,16 +318,35 @@ export const GroupedControls: Story = {
 export const InlineSettings: Story = {
     parameters: BOTH_SCHEMES,
     render: (): React.JSX.Element => (
-        <Box style={{ ...PANEL_STYLE, paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingInlineEnd: PANEL_GRID.PAD_RIGHT }}>
+        <Box
+            style={{ ...PANEL_STYLE, paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingInlineEnd: PANEL_GRID.PAD_RIGHT }}
+        >
             <PanelLabelsProvider showLabels>
                 <FieldRow labelPosition="inline">
-                    <PanelField label="Opacity" glyph="opacity" kind="number" defaultValue={100} min={0} max={100} unit="%" />
+                    <PanelField
+                        label="Opacity"
+                        glyph="opacity"
+                        kind="number"
+                        defaultValue={100}
+                        min={0}
+                        max={100}
+                        unit="%"
+                    />
                 </FieldRow>
                 <FieldRow labelPosition="inline">
-                    <PanelField label="Blend" data={["Normal", "Multiply", "Screen", "Overlay"]} defaultValue="Normal" />
+                    <PanelField
+                        label="Blend"
+                        data={["Normal", "Multiply", "Screen", "Overlay"]}
+                        defaultValue="Normal"
+                    />
                 </FieldRow>
                 <FieldRow labelPosition="inline">
-                    <PanelField label="Scale" glyph="attribute" data={["Square root", "Linear", "Logarithmic"]} defaultValue="Linear" />
+                    <PanelField
+                        label="Scale"
+                        glyph="attribute"
+                        data={["Square root", "Linear", "Logarithmic"]}
+                        defaultValue="Linear"
+                    />
                 </FieldRow>
                 <ToggleRowGroup label="Visibility">
                     <ToggleRow label="Visible" defaultChecked />

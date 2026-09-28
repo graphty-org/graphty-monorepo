@@ -6,10 +6,7 @@ const config: StorybookConfig = {
     // introduction and each section's overview. Without it only files named
     // `*.stories.*` are indexed, which is why those pages had never appeared in
     // the sidebar.
-    stories: [
-        "../stories/**/*.mdx",
-        "../stories/**/*.stories.@(js|jsx|ts|tsx)",
-    ],
+    stories: ["../stories/**/*.mdx", "../stories/**/*.stories.@(js|jsx|ts|tsx)"],
     // addon-docs is registered on its own so its MDX compiler gets remark-gfm: without it the
     // Markdown tables in the .mdx pages render as raw pipe text. addon-a11y runs axe-core
     // against every story and reports violations in the Accessibility panel, which is what

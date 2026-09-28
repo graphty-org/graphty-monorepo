@@ -436,9 +436,7 @@ describe("PanelField", () => {
         });
 
         it("offers a drop-down when it is given choices", () => {
-            renderField(
-                <PanelField label="Layout" kind="select" data={["Force directed", "Radial"]} value="Radial" />,
-            );
+            renderField(<PanelField label="Layout" kind="select" data={["Force directed", "Radial"]} value="Radial" />);
 
             const input = fieldInput();
             expect(input).toHaveAttribute("aria-haspopup", "listbox");

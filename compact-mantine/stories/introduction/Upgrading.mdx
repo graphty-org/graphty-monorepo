@@ -30,8 +30,24 @@ import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot } from "@graph
             value={shape}
             onChange={setShape}
             data={[
-                { value: "sphere", label: <><SphereGlyph /><VisuallyHidden>Sphere</VisuallyHidden></> },
-                { value: "box", label: <><BoxGlyph /><VisuallyHidden>Box</VisuallyHidden></> },
+                {
+                    value: "sphere",
+                    label: (
+                        <>
+                            <SphereGlyph />
+                            <VisuallyHidden>Sphere</VisuallyHidden>
+                        </>
+                    ),
+                },
+                {
+                    value: "box",
+                    label: (
+                        <>
+                            <BoxGlyph />
+                            <VisuallyHidden>Box</VisuallyHidden>
+                        </>
+                    ),
+                },
             ]}
             style={{ flex: "1 1 auto", minWidth: 0 }}
         />
@@ -83,16 +99,16 @@ multiple selection, F2 and double-click rename, and a context menu. A find resul
 These do not stop your code compiling, but a layout that hard-codes the old numbers will look
 wrong:
 
-| What | Before | After |
-|---|---|---|
-| `PANEL_GRID.WIDTH` / `FIELD` | 280 / 108 | 240 / 88 (and most other `PANEL_GRID` members) |
-| `spacing.sm` | 6 | 8 |
-| `radius.sm` / `md` / `lg` / `xl` | 4 / 6 / 8 / 12 | 5 / 5 / 13 / 13 |
-| `fontSizes.xs` / `lg` / `xl` | 10 / 14 / 16 | 9 / 15 / 24 |
-| `POPOUT_GAP` / `POPOUT_NESTED_GAP` | 8 / 4 | 0 / 0 |
-| `ControlSection` header | 32 | 40 |
-| `DataRow` | 28 tall, 12px name | 32 tall, 11px name |
-| `DataTable` row and header height | 28 / 24 | 40 / 40 |
+| What                               | Before             | After                                          |
+| ---------------------------------- | ------------------ | ---------------------------------------------- |
+| `PANEL_GRID.WIDTH` / `FIELD`       | 280 / 108          | 240 / 88 (and most other `PANEL_GRID` members) |
+| `spacing.sm`                       | 6                  | 8                                              |
+| `radius.sm` / `md` / `lg` / `xl`   | 4 / 6 / 8 / 12     | 5 / 5 / 13 / 13                                |
+| `fontSizes.xs` / `lg` / `xl`       | 10 / 14 / 16       | 9 / 15 / 24                                    |
+| `POPOUT_GAP` / `POPOUT_NESTED_GAP` | 8 / 4              | 0 / 0                                          |
+| `ControlSection` header            | 32                 | 40                                             |
+| `DataRow`                          | 28 tall, 12px name | 32 tall, 11px name                             |
+| `DataTable` row and header height  | 28 / 24            | 40 / 40                                        |
 
 And the look: `colors.dark` is a neutral ramp, `primaryColor` is the new `brand` palette (code
 that passed `color="blue"` expecting the primary color now gets Mantine's blue), `focusRing` is

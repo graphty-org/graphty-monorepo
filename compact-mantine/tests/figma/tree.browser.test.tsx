@@ -80,8 +80,16 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const figIcon = await figmaElement(fig, { index: 33 });
         const figName = await figmaElement(fig, { index: 38 });
         expectMeasured(top, figmaSpec(figRow, ["width", "height"]));
-        expectMeasured(part(top, ".cm-tree-icon"), { ...figmaSpec(figIcon, ["width", "height", "color"]), x: 16 }, { origin: top });
-        expectMeasured(part(top, ".cm-tree-name"), { ...figmaSpec(figName, ["height", "color", ...FONT]), x: 40 }, { origin: top });
+        expectMeasured(
+            part(top, ".cm-tree-icon"),
+            { ...figmaSpec(figIcon, ["width", "height", "color"]), x: 16 },
+            { origin: top },
+        );
+        expectMeasured(
+            part(top, ".cm-tree-name"),
+            { ...figmaSpec(figName, ["height", "color", ...FONT]), x: 40 },
+            { origin: top },
+        );
     });
 
     it("a top-level container with no children is still 600 with a primary glyph; a top-level leaf is 400, tertiary", async () => {
@@ -91,7 +99,12 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             <div style={{ width: 240 }}>
                 <Tree
                     items={[
-                        { id: "empty", name: "estimated rather than measured", icon: <UiGlyph name="frame" size={16} />, children: [] },
+                        {
+                            id: "empty",
+                            name: "estimated rather than measured",
+                            icon: <UiGlyph name="frame" size={16} />,
+                            children: [],
+                        },
                         { id: "leaf", name: "Line", icon: <UiGlyph name="text" size={16} /> },
                     ]}
                 />
@@ -149,10 +162,21 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const rect = row("ci-rect");
         expectMeasured(
             rect,
-            { top: 4, left: 12, right: 8, blockSize: "24px", backgroundColor: "#e5f4ff", borderRadius: "5px", zIndex: "-1" },
+            {
+                top: 4,
+                left: 12,
+                right: 8,
+                blockSize: "24px",
+                backgroundColor: "#e5f4ff",
+                borderRadius: "5px",
+                zIndex: "-1",
+            },
             { pseudo: "::after" },
         );
-        expectMeasured(part(rect, ".cm-tree-icon"), figmaSpec(await figmaElement("ii/layer-row-selected", { index: 42 }), ["color"]));
+        expectMeasured(
+            part(rect, ".cm-tree-icon"),
+            figmaSpec(await figmaElement("ii/layer-row-selected", { index: 42 }), ["color"]),
+        );
     });
 
     it("hover: the same pill in #f5f5f5, drawn in one frame", async () => {
@@ -185,17 +209,37 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             { pseudo: "::after" },
         );
         const middle = row("ci-inner-frame");
-        expectMeasured(middle, { top: 0, blockSize: "32px", left: 12, right: 8, backgroundColor: "#f2f9ff", borderRadius: "0px" }, { pseudo: "::before" });
+        expectMeasured(
+            middle,
+            { top: 0, blockSize: "32px", left: 12, right: 8, backgroundColor: "#f2f9ff", borderRadius: "0px" },
+            { pseudo: "::before" },
+        );
         const last = row("ci-rect");
-        expectMeasured(last, { top: 0, blockSize: "28px", backgroundColor: "#f2f9ff", borderRadius: "0px 0px 5px 5px" }, { pseudo: "::before" });
+        expectMeasured(
+            last,
+            { top: 0, blockSize: "28px", backgroundColor: "#f2f9ff", borderRadius: "0px 0px 5px 5px" },
+            { pseudo: "::before" },
+        );
         await drive(middle, "hover");
         expectMeasured(middle, { top: 4, blockSize: "24px", backgroundColor: "#bde3ff" }, { pseudo: "::after" });
     });
 
     it("a run of selected rows is one block: first 4/28, middle 0/32, last 0/28", async () => {
-        await renderTree({ defaultExpanded: [], defaultSelected: ["frame", "other"], items: [...ITEMS, { id: "z", name: "z" }] });
-        expectMeasured(row("cross-area-index"), { top: 4, blockSize: "28px", borderRadius: "5px 5px 0px 0px" }, { pseudo: "::after" });
-        expectMeasured(row("other"), { top: 0, blockSize: "28px", borderRadius: "0px 0px 5px 5px" }, { pseudo: "::after" });
+        await renderTree({
+            defaultExpanded: [],
+            defaultSelected: ["frame", "other"],
+            items: [...ITEMS, { id: "z", name: "z" }],
+        });
+        expectMeasured(
+            row("cross-area-index"),
+            { top: 4, blockSize: "28px", borderRadius: "5px 5px 0px 0px" },
+            { pseudo: "::after" },
+        );
+        expectMeasured(
+            row("other"),
+            { top: 0, blockSize: "28px", borderRadius: "0px 0px 5px 5px" },
+            { pseudo: "::after" },
+        );
     });
 
     it("keyboard focus: a 1px ring on the pill area", async () => {
@@ -204,11 +248,17 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const ring = part(top, ".cm-tree-ring");
         expectMeasured(ring, { outlineColor: "#00000000" });
         await drive(top, "focus");
-        expectMeasured(ring, { x: 12, y: 4, width: 220, height: 24, outline: "#0d99ff solid 1px", borderRadius: "5px" }, { origin: top });
+        expectMeasured(
+            ring,
+            { x: 12, y: 4, width: 220, height: 24, outline: "#0d99ff solid 1px", borderRadius: "5px" },
+            { origin: top },
+        );
     });
 
     it("hidden layer: name and glyph in the tertiary color", async () => {
-        await renderTree({ items: [{ id: "h", name: "hidden", dimmed: true, icon: <UiGlyph name="rectangle" size={10} /> }] });
+        await renderTree({
+            items: [{ id: "h", name: "hidden", dimmed: true, icon: <UiGlyph name="rectangle" size={10} /> }],
+        });
         expectMeasured(part(row("hidden"), ".cm-tree-name"), { color: "#0000004d" });
         expectMeasured(part(row("hidden"), ".cm-tree-icon"), { color: "#0000004d" });
     });
@@ -222,7 +272,12 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
                 actions: (
                     <>
                         <button type="button" aria-label="Lock" aria-pressed="true" style={{ width: 24, height: 24 }} />
-                        <button type="button" aria-label="Hide" aria-pressed="false" style={{ width: 24, height: 24 }} />
+                        <button
+                            type="button"
+                            aria-label="Hide"
+                            aria-pressed="false"
+                            style={{ width: 24, height: 24 }}
+                        />
                     </>
                 ),
             },
@@ -247,7 +302,13 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
         target.dispatchEvent(
-            new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data, clientY: box.top + 16, clientX: box.left + 50 }),
+            new DragEvent("dragover", {
+                bubbles: true,
+                cancelable: true,
+                dataTransfer: data,
+                clientY: box.top + 16,
+                clientX: box.left + 50,
+            }),
         );
         const drop = await within(tree).findByTestId("tree-drop-box");
         expectMeasured(drop, {
@@ -265,12 +326,22 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
         target.dispatchEvent(
-            new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data, clientY: box.top + 2, clientX: box.left + 50 }),
+            new DragEvent("dragover", {
+                bubbles: true,
+                cancelable: true,
+                dataTransfer: data,
+                clientY: box.top + 2,
+                clientX: box.left + 50,
+            }),
         );
         const line = await within(tree).findByTestId("tree-drop-line");
         expectMeasured(
             line,
-            { ...figmaSpec(figLine, ["height", "backgroundColor"]), x: figLine.box[0] - 57, y: box.top - tree.getBoundingClientRect().top - 1 },
+            {
+                ...figmaSpec(figLine, ["height", "backgroundColor"]),
+                x: figLine.box[0] - 57,
+                y: box.top - tree.getBoundingClientRect().top - 1,
+            },
             { origin: tree },
         );
     });
@@ -280,8 +351,14 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         await renderTree({ defaultSelected: ["inner"] }, "dark");
         const fig = "cr/dark-layer-row-parent-selected";
         const inner = row("ci-inner-frame");
-        expectMeasured(part(inner, ".cm-tree-name"), figmaSpec(await figmaElement(fig, { index: 85 }), ["color", ...FONT]));
-        expectMeasured(part(row("ci-rect"), ".cm-tree-icon"), figmaSpec(await figmaElement(fig, { index: 93 }), ["color"]));
+        expectMeasured(
+            part(inner, ".cm-tree-name"),
+            figmaSpec(await figmaElement(fig, { index: 85 }), ["color", ...FONT]),
+        );
+        expectMeasured(
+            part(row("ci-rect"), ".cm-tree-icon"),
+            figmaSpec(await figmaElement(fig, { index: 93 }), ["color"]),
+        );
         expectMeasured(inner, { backgroundColor: "#394360", borderBottomColor: "#32394d" }, { pseudo: "::after" });
         const text = row("ci-text");
         expectMeasured(text, { backgroundColor: "#32394d", blockSize: "28px" }, { pseudo: "::before" });
@@ -315,19 +392,29 @@ describe.skipIf(!(await figmaAvailable()))("Page rows against Figma", () => {
         const cells = await renderPages();
         const fig = await figmaElement("bc/page-row--default", { index: 41 });
         expectMeasured(cells[1], { width: 240, height: 32, paddingTop: "4px", paddingLeft: "8px" });
-        expectMeasured(part(cells[1], ".cm-page-button"), { ...figmaSpec(fig, BUTTON), x: 8, y: 4 }, { origin: cells[1] });
+        expectMeasured(
+            part(cells[1], ".cm-page-button"),
+            { ...figmaSpec(fig, BUTTON), x: 8, y: 4 },
+            { origin: cells[1] },
+        );
     });
 
     it("hover: #f5f5f5", async () => {
         const cells = await renderPages();
         await drive(cells[1], "hover");
-        expectMeasured(part(cells[1], ".cm-page-button"), figmaSpec(await figmaElement("bc/page-row--hover", { index: 41 }), BUTTON));
+        expectMeasured(
+            part(cells[1], ".cm-page-button"),
+            figmaSpec(await figmaElement("bc/page-row--hover", { index: 41 }), BUTTON),
+        );
     });
 
     it("current page: #f5f5f5 and weight 550", async () => {
         const cells = await renderPages();
         const fig = await figmaElement("ls/scratch-pages-list", { index: 54 });
-        expectMeasured(part(cells[0], ".cm-page-button"), figmaSpec(fig, ["backgroundColor", "fontWeight", "letterSpacing"]));
+        expectMeasured(
+            part(cells[0], ".cm-page-button"),
+            figmaSpec(fig, ["backgroundColor", "fontWeight", "letterSpacing"]),
+        );
     });
 
     // Figma's newer page list rings the whole 240 x 32 cell, and its own scroll container cuts
@@ -350,12 +437,26 @@ describe.skipIf(!(await figmaAvailable()))("Page rows against Figma", () => {
         const cells = await renderPages();
         const fig = await figmaElement("ls/scratch-pages-list", { index: 71 });
         const line = part(cells[2], ".cm-page-divider");
-        expectMeasured(line, { ...figmaSpec(fig, ["width", "height", "backgroundColor"]), x: 16, y: 15.5 }, { origin: cells[2] });
+        expectMeasured(
+            line,
+            { ...figmaSpec(fig, ["width", "height", "backgroundColor"]), x: 16, y: 15.5 },
+            { origin: cells[2] },
+        );
     });
 });
 
 describe.skipIf(!(await figmaAvailable()))("Inline rename against Figma", () => {
-    const FIELD = ["height", "backgroundColor", "color", "borderTopWidth", "borderTopColor", "borderRadius", "paddingLeft", "paddingRight", ...FONT];
+    const FIELD = [
+        "height",
+        "backgroundColor",
+        "color",
+        "borderTopWidth",
+        "borderTopColor",
+        "borderRadius",
+        "paddingLeft",
+        "paddingRight",
+        ...FONT,
+    ];
 
     it("in the layer tree: 176 x 24 from the name x - 8", async () => {
         await renderTree({ onRename: () => undefined });
@@ -378,7 +479,11 @@ describe.skipIf(!(await figmaAvailable()))("Inline rename against Figma", () => 
 
     it("dark: the field is #2c2c2c with white text", async () => {
         await renderFigma(<InlineRename value="Page 1" onCommit={() => undefined} />, { scheme: "dark" });
-        expectMeasured(screen.getByRole("textbox"), { backgroundColor: "#2c2c2c", color: "#ffffff", borderTopColor: "#0c8ce9" });
+        expectMeasured(screen.getByRole("textbox"), {
+            backgroundColor: "#2c2c2c",
+            color: "#ffffff",
+            borderTopColor: "#0c8ce9",
+        });
     });
 });
 
@@ -387,16 +492,41 @@ describe.skipIf(!(await figmaAvailable()))("Find result rows against Figma", () 
     const renderResults = async (scheme: "light" | "dark" = "light"): Promise<HTMLElement[]> => {
         await renderFigma(
             <div role="listbox" aria-label="Results" style={{ width: 240 }}>
-                <ResultRow name="Deepest rect" path="left-sidebar" current icon={<UiGlyph name="rectangle" size={10} />} />
-                <ResultRow name="Rectangle" match="rect" path="left-sidebar" icon={<UiGlyph name="rectangle" size={10} />} />
-                <ResultRow name="Rectangle 3" path="buttons-and-controls" tone="component" icon={<UiGlyph name="component" size={16} />} />
+                <ResultRow
+                    name="Deepest rect"
+                    path="left-sidebar"
+                    current
+                    icon={<UiGlyph name="rectangle" size={10} />}
+                />
+                <ResultRow
+                    name="Rectangle"
+                    match="rect"
+                    path="left-sidebar"
+                    icon={<UiGlyph name="rectangle" size={10} />}
+                />
+                <ResultRow
+                    name="Rectangle 3"
+                    path="buttons-and-controls"
+                    tone="component"
+                    icon={<UiGlyph name="component" size={16} />}
+                />
                 <ResultRow name="Only a name" />
             </div>,
             { scheme },
         );
         return screen.getAllByRole("option");
     };
-    const ROW = ["width", "height", "backgroundColor", "borderTopColor", "borderTopWidth", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"];
+    const ROW = [
+        "width",
+        "height",
+        "backgroundColor",
+        "borderTopColor",
+        "borderTopWidth",
+        "paddingTop",
+        "paddingRight",
+        "paddingBottom",
+        "paddingLeft",
+    ];
 
     it("current and rest: 240 x 52, padding 8 8 8 16, a 1px border the color of the fill", async () => {
         const rows = await renderResults();
@@ -407,14 +537,35 @@ describe.skipIf(!(await figmaAvailable()))("Find result rows against Figma", () 
     it("name at x 41 in 11/16 400, path 10/16 secondary, match at 600", async () => {
         const rows = await renderResults();
         const name = part(rows[1], ".cm-result-name");
-        expectMeasured(name, { ...figmaSpec(await figmaElement(fig, { index: 147 }), ["color", "fontSize", "fontWeight", "letterSpacing"]), x: 41, y: 9 }, { origin: rows[1] });
+        expectMeasured(
+            name,
+            {
+                ...figmaSpec(await figmaElement(fig, { index: 147 }), [
+                    "color",
+                    "fontSize",
+                    "fontWeight",
+                    "letterSpacing",
+                ]),
+                x: 41,
+                y: 9,
+            },
+            { origin: rows[1] },
+        );
         expectMeasured(
             part(rows[1], ".cm-result-path"),
-            { ...figmaSpec(await figmaElement(fig, { index: 149 }), ["color", "fontSize", "lineHeight"]), x: 41, y: 27 },
+            {
+                ...figmaSpec(await figmaElement(fig, { index: 149 }), ["color", "fontSize", "lineHeight"]),
+                x: 41,
+                y: 27,
+            },
             { origin: rows[1] },
         );
         expectMeasured(part(rows[1], ".cm-result-match"), { fontWeight: "600" });
-        expectMeasured(part(rows[2], ".cm-result-icon"), { ...figmaSpec(await figmaElement(fig, { index: 201 }), ["width", "height", "color"]), x: 17 }, { origin: rows[2] });
+        expectMeasured(
+            part(rows[2], ".cm-result-icon"),
+            { ...figmaSpec(await figmaElement(fig, { index: 201 }), ["width", "height", "color"]), x: 17 },
+            { origin: rows[2] },
+        );
     });
 
     it("component results are purple on both lines; one line is 34 tall; hover #f5f5f5", async () => {
@@ -438,7 +589,12 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
     const renderRows = async (scheme: "light" | "dark" = "light"): Promise<HTMLElement[]> => {
         await renderFigma(
             <div style={{ width: 240 }}>
-                <DataRowHeader label="Most connected" unit="links" sortDirection="descending" onSortChange={() => undefined} />
+                <DataRowHeader
+                    label="Most connected"
+                    unit="links"
+                    sortDirection="descending"
+                    onSortChange={() => undefined}
+                />
                 <DataRow name="Mr_Whiskers" value="4" onClick={() => undefined} />
                 <DataRow name="Mrs_Henderson" value="3" selected onClick={() => undefined} />
                 <DataRow name="Inert" value={<RankChip>#6</RankChip>} />
@@ -451,14 +607,22 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
     it("row: 32 x 240, name 11/32 450 primary, value secondary (10.5)", async () => {
         const rows = await renderRows();
         expectMeasured(rows[0], { width: 240, height: 32, paddingLeft: "16px", paddingRight: "8px" });
-        expectMeasured(part(rows[0], ".cm-data-row-name"), { x: 16, fontSize: "11px", lineHeight: "32px", fontWeight: "450", color: "#000000e5" }, { origin: rows[0] });
+        expectMeasured(
+            part(rows[0], ".cm-data-row-name"),
+            { x: 16, fontSize: "11px", lineHeight: "32px", fontWeight: "450", color: "#000000e5" },
+            { origin: rows[0] },
+        );
         expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#00000080" });
     });
 
     it("pill: rest none, hover #f5f5f5, selected #e5f4ff, inset 4 8 4 12, radius 5", async () => {
         const rows = await renderRows();
         expectMeasured(rows[0], { backgroundColor: "#00000000" }, { pseudo: "::after" });
-        expectMeasured(rows[1], { top: 4, left: 12, right: 8, blockSize: "24px", backgroundColor: "#e5f4ff", borderRadius: "5px" }, { pseudo: "::after" });
+        expectMeasured(
+            rows[1],
+            { top: 4, left: 12, right: 8, blockSize: "24px", backgroundColor: "#e5f4ff", borderRadius: "5px" },
+            { pseudo: "::after" },
+        );
         await drive(rows[0], "hover");
         expectMeasured(rows[0], { backgroundColor: "#f5f5f5" }, { pseudo: "::after" });
         await drive(rows[2], "hover");
@@ -479,13 +643,23 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
     it("keyboard focus: a 1px ring on the pill", async () => {
         const rows = await renderRows();
         await drive(within(rows[0]).getByRole("button"), "focus");
-        expectMeasured(rows[0], { outline: "#0d99ff solid 1px", outlineOffset: "0px", borderRadius: "5px" }, { pseudo: "::before" });
+        expectMeasured(
+            rows[0],
+            { outline: "#0d99ff solid 1px", outlineOffset: "0px", borderRadius: "5px" },
+            { pseudo: "::before" },
+        );
     });
 
     it("header: 32 tall, 11/16 550 secondary; sorted label primary; 5 x 3 caret", async () => {
         await renderRows();
         const header = screen.getByTestId("data-row-header");
-        expectMeasured(header, { height: 32, fontSize: "11px", lineHeight: "16px", fontWeight: "550", color: "#00000080" });
+        expectMeasured(header, {
+            height: 32,
+            fontSize: "11px",
+            lineHeight: "16px",
+            fontWeight: "550",
+            color: "#00000080",
+        });
         expectMeasured(screen.getByTestId("data-row-header-label"), { color: "#000000e5" });
         const caret = part(screen.getByTestId("data-row-header-sort-glyph"), "svg path").getBoundingClientRect();
         expect(caret.width).toBeCloseTo(5, 0);
@@ -497,7 +671,17 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
         const fig = await figmaElement("bt/mode-metronome-full", { index: 296 });
         expectMeasured(
             screen.getByTestId("rank-chip"),
-            figmaSpec(fig, ["height", "color", "backgroundColor", "outline", "outlineOffset", "borderRadius", "paddingLeft", "paddingRight", ...FONT]),
+            figmaSpec(fig, [
+                "height",
+                "color",
+                "backgroundColor",
+                "outline",
+                "outlineOffset",
+                "borderRadius",
+                "paddingLeft",
+                "paddingRight",
+                ...FONT,
+            ]),
         );
     });
 
@@ -529,7 +713,14 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         await renderFigma(
             // 200 + 280 columns, their 1px gaps and the table's 1px padding: no column stretches.
             <div style={{ width: 483 }}>
-                <DataTable columns={COLUMNS} data={CATS} getRowId={(c) => c.id} defaultSelectedIds={["a"]} height={300} label="Variables" />
+                <DataTable
+                    columns={COLUMNS}
+                    data={CATS}
+                    getRowId={(c) => c.id}
+                    defaultSelectedIds={["a"]}
+                    height={300}
+                    label="Variables"
+                />
             </div>,
             { scheme },
         );
@@ -541,13 +732,26 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         await renderTable();
         const fig = await figmaElement("ls/vars-04-table-two-modes", { index: 230 });
         const header = screen.getAllByRole("columnheader")[0];
-        expectMeasured(
-            header,
-            { ...figmaSpec(fig, ["width", "backgroundColor", "color", "outline", "outlineOffset", "fontSize", "lineHeight", "fontWeight", "letterSpacing"]), height: 32 },
-        );
+        expectMeasured(header, {
+            ...figmaSpec(fig, [
+                "width",
+                "backgroundColor",
+                "color",
+                "outline",
+                "outlineOffset",
+                "fontSize",
+                "lineHeight",
+                "fontWeight",
+                "letterSpacing",
+            ]),
+            height: 32,
+        });
         expectMeasured(part(header, "button"), { paddingLeft: "16px", paddingRight: "16px" });
         // #233: the 'Light' mode label starts 16px into the second column's header too.
-        expectMeasured(part(screen.getAllByRole("columnheader")[1], "button"), { paddingLeft: "16px", paddingRight: "16px" });
+        expectMeasured(part(screen.getAllByRole("columnheader")[1], "button"), {
+            paddingLeft: "16px",
+            paddingRight: "16px",
+        });
     });
 
     it("name cell 11/16 400 untracked; value cells 11/16 450 0.055px, padded 12 / 8", async () => {
@@ -557,7 +761,13 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         const valuePad = await figmaElement(fig, { index: 263 });
         const cells = within(screen.getAllByTestId("data-table-row")[1]).getAllByRole("gridcell");
         expectMeasured(cells[0], figmaSpec(name, FONT));
-        expectMeasured(cells[1], { ...figmaSpec(valuePad, ["paddingLeft", "paddingRight"]), fontSize: "11px", lineHeight: "16px", fontWeight: "450", letterSpacing: "0.055px" });
+        expectMeasured(cells[1], {
+            ...figmaSpec(valuePad, ["paddingLeft", "paddingRight"]),
+            fontSize: "11px",
+            lineHeight: "16px",
+            fontWeight: "450",
+            letterSpacing: "0.055px",
+        });
     });
 
     it("body cells: 32 tall, the grid line, rows 33 apart, columns 1px apart", async () => {
@@ -565,7 +775,10 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         const fig = await figmaElement("ls/vars-04-table-two-modes", { index: 251 });
         const rows = screen.getAllByTestId("data-table-row");
         const cells = within(rows[1]).getAllByRole("gridcell");
-        expectMeasured(cells[0], { ...figmaSpec(fig, ["width", "outline", "outlineOffset", "backgroundColor"]), height: 32 });
+        expectMeasured(cells[0], {
+            ...figmaSpec(fig, ["width", "outline", "outlineOffset", "backgroundColor"]),
+            height: 32,
+        });
         expect(cells[1].getBoundingClientRect().left - cells[0].getBoundingClientRect().right).toBeCloseTo(1, 1);
         expect(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top).toBeCloseTo(33, 1);
     });
@@ -591,7 +804,17 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         expect(cell).toHaveAttribute("role", "gridcell");
         expect(cell).toHaveAttribute("aria-colindex", "2");
         expectMeasured(cell, { width: 280, height: 32, outline: "#e6e6e6 solid 1px" });
-        expectMeasured(cell, { inlineSize: "278px", blockSize: "30px", borderTopWidth: "1px", borderTopColor: "#0d99ff", borderRadius: "0px" }, { pseudo: "::before" });
+        expectMeasured(
+            cell,
+            {
+                inlineSize: "278px",
+                blockSize: "30px",
+                borderTopWidth: "1px",
+                borderTopColor: "#0d99ff",
+                borderRadius: "0px",
+            },
+            { pseudo: "::before" },
+        );
     });
 
     it("dark: #2c2c2c cells, #444444 grid, white header text, #394360 selection", async () => {

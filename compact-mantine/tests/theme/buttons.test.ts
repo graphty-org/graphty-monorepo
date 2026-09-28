@@ -42,7 +42,11 @@ describe("buttonComponentExtensions", () => {
 describe("button size scales", () => {
     const SIZES = ["xs", "sm", "md", "lg", "xl"] as const;
 
-    const SCALES: readonly { readonly name: string; readonly scale: CompactSizeScale; readonly probe: `--${string}` }[] = [
+    const SCALES: readonly {
+        readonly name: string;
+        readonly scale: CompactSizeScale;
+        readonly probe: `--${string}`;
+    }[] = [
         { name: "Button", scale: compactButtonScale, probe: "--button-height" },
         { name: "ActionIcon", scale: compactActionIconScale, probe: "--ai-size" },
         { name: "CloseButton", scale: compactCloseButtonScale, probe: "--cb-size" },
@@ -75,9 +79,18 @@ describe("button size scales", () => {
             "--button-padding-x": "12px",
         });
         expect(compactVarsForSize(compactActionIconScale, "sm")).toEqual({ "--ai-size": "24px" });
-        expect(compactVarsForSize(compactActionIconScale, "md")).toEqual({ "--ai-size": "32px", "--cm-ai-padding": "0 4px" });
-        expect(compactVarsForSize(compactCloseButtonScale, "sm")).toEqual({ "--cb-size": "24px", "--cb-icon-size": "10px" });
-        expect(compactVarsForSize(compactCloseButtonScale, "xs")).toEqual({ "--cb-size": "16px", "--cb-icon-size": "10px" });
+        expect(compactVarsForSize(compactActionIconScale, "md")).toEqual({
+            "--ai-size": "32px",
+            "--cm-ai-padding": "0 4px",
+        });
+        expect(compactVarsForSize(compactCloseButtonScale, "sm")).toEqual({
+            "--cb-size": "24px",
+            "--cb-icon-size": "10px",
+        });
+        expect(compactVarsForSize(compactCloseButtonScale, "xs")).toEqual({
+            "--cb-size": "16px",
+            "--cb-icon-size": "10px",
+        });
     });
 
     it("marks CloseButton's compact entry as sm, matching its defaultProps", () => {
@@ -194,7 +207,9 @@ describe("Button variant vars", () => {
 
     it("draws the outlined looks' disabled edge and the solid looks' disabled fill", () => {
         expect(compactButtonVariantVars("default")["--cm-btn-disabled-outline"]).toBe("var(--cm-border-disabled)");
-        expect(compactButtonVariantVars("danger-outline")["--cm-btn-disabled-outline"]).toBe("var(--cm-border-disabled)");
+        expect(compactButtonVariantVars("danger-outline")["--cm-btn-disabled-outline"]).toBe(
+            "var(--cm-border-disabled)",
+        );
         expect(compactButtonVariantVars("success")["--cm-btn-disabled-bg"]).toBe("var(--cm-bg-disabled)");
         expect(compactButtonVariantVars("subtle")["--cm-btn-disabled-bg"]).toBe("transparent");
     });

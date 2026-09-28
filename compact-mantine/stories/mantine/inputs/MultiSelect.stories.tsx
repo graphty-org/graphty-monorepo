@@ -63,13 +63,81 @@ export const States: Story = {
     render: () => (
         <StateGrid
             cells={[
-                { state: "rest", node: <MultiSelect aria-label="MultiSelect" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} /> },
-                { state: "hover", node: <MultiSelect aria-label="MultiSelect" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} data-state="hover" /> },
-                { state: "focus", node: <MultiSelect aria-label="MultiSelect" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} data-state="focus" /> },
-                { state: "disabled", node: <MultiSelect aria-label="MultiSelect" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} disabled /> },
-                { state: "invalid", node: <MultiSelect aria-label="MultiSelect" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} error /> },
-                { state: "outlined", node: <MultiSelect aria-label="MultiSelect" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} variant="outlined" /> },
-                { state: "with label", node: <MultiSelect label="Label" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} /> },
+                {
+                    state: "rest",
+                    node: (
+                        <MultiSelect
+                            aria-label="MultiSelect"
+                            data={["Alpha", "Beta"]}
+                            defaultValue={["Alpha"]}
+                            w={184}
+                        />
+                    ),
+                },
+                {
+                    state: "hover",
+                    node: (
+                        <MultiSelect
+                            aria-label="MultiSelect"
+                            data={["Alpha", "Beta"]}
+                            defaultValue={["Alpha"]}
+                            w={184}
+                            data-state="hover"
+                        />
+                    ),
+                },
+                {
+                    state: "focus",
+                    node: (
+                        <MultiSelect
+                            aria-label="MultiSelect"
+                            data={["Alpha", "Beta"]}
+                            defaultValue={["Alpha"]}
+                            w={184}
+                            data-state="focus"
+                        />
+                    ),
+                },
+                {
+                    state: "disabled",
+                    node: (
+                        <MultiSelect
+                            aria-label="MultiSelect"
+                            data={["Alpha", "Beta"]}
+                            defaultValue={["Alpha"]}
+                            w={184}
+                            disabled
+                        />
+                    ),
+                },
+                {
+                    state: "invalid",
+                    node: (
+                        <MultiSelect
+                            aria-label="MultiSelect"
+                            data={["Alpha", "Beta"]}
+                            defaultValue={["Alpha"]}
+                            w={184}
+                            error
+                        />
+                    ),
+                },
+                {
+                    state: "outlined",
+                    node: (
+                        <MultiSelect
+                            aria-label="MultiSelect"
+                            data={["Alpha", "Beta"]}
+                            defaultValue={["Alpha"]}
+                            w={184}
+                            variant="outlined"
+                        />
+                    ),
+                },
+                {
+                    state: "with label",
+                    node: <MultiSelect label="Label" data={["Alpha", "Beta"]} defaultValue={["Alpha"]} w={184} />,
+                },
             ]}
         />
     ),

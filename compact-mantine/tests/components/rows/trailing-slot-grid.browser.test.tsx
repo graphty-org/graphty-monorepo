@@ -101,10 +101,7 @@ describe("the trailing slot", () => {
         renderInPanel(
             <CompoundRow
                 label="Node size range"
-                segments={[
-                    { glyph: "sizeSmallest", value: "1.0", grow: true },
-                    { value: "4.0" },
-                ]}
+                segments={[{ glyph: "sizeSmallest", value: "1.0", grow: true }, { value: "4.0" }]}
                 trailing={advanced}
             />,
         );
@@ -117,10 +114,7 @@ describe("the trailing slot", () => {
             <CompoundRow
                 label="Node size range"
                 width={PANEL_GRID.FIELD}
-                segments={[
-                    { glyph: "sizeSmallest", value: "1.0", grow: true },
-                    { value: "4.0" },
-                ]}
+                segments={[{ glyph: "sizeSmallest", value: "1.0", grow: true }, { value: "4.0" }]}
                 trailing={advanced}
             />,
         );

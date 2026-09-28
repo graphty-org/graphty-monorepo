@@ -50,13 +50,8 @@ describe("Control Component Extensions (Refactored)", () => {
             ] as const;
 
             for (const name of controlComponents) {
-                const ext =
-                    controlComponentExtensions[
-                        name as keyof typeof controlComponentExtensions
-                    ];
-                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe(
-                    "sm",
-                );
+                const ext = controlComponentExtensions[name as keyof typeof controlComponentExtensions];
+                expect(ext.defaultProps?.size, `${name} should default to sm`).toBe("sm");
             }
         });
     });

@@ -62,7 +62,8 @@ export function useRovingFocus<T extends HTMLElement>(orientation: "horizontal" 
     };
 
     const onKeyDown = (event: KeyboardEvent<T>): void => {
-        const rtl = orientation === "horizontal" && ref.current !== null && getComputedStyle(ref.current).direction === "rtl";
+        const rtl =
+            orientation === "horizontal" && ref.current !== null && getComputedStyle(ref.current).direction === "rtl";
         let back = rtl ? "ArrowRight" : "ArrowLeft";
         let forward = rtl ? "ArrowLeft" : "ArrowRight";
         if (orientation === "vertical") {

@@ -61,11 +61,20 @@ export const States: Story = {
         <StateGrid
             cells={[
                 { state: "rest", node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} /> },
-                { state: "hover", node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} data-state="hover" /> },
-                { state: "focus", node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} data-state="focus" /> },
+                {
+                    state: "hover",
+                    node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} data-state="focus" />,
+                },
                 { state: "disabled", node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} disabled /> },
                 { state: "invalid", node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} error /> },
-                { state: "outlined", node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} variant="outlined" /> },
+                {
+                    state: "outlined",
+                    node: <NumberInput aria-label="NumberInput" defaultValue={40} w={88} variant="outlined" />,
+                },
                 { state: "with label", node: <NumberInput label="Label" defaultValue={40} w={88} /> },
                 { state: "suffix", node: <NumberInput aria-label="Opacity" defaultValue={100} suffix="%" w={88} /> },
             ]}

@@ -203,7 +203,7 @@ export function StyleNumberInput({
     // its own `aria-describedby` and overwrites anything passed in -- measured
     // against @mantine/core 8.3.10 -- and the description element is then
     // styled out of sight, exactly as PanelField does it.
-    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
+    const annotation = useControlAnnotation({ name: label, disabled, disabledReason });
     const parseNumber = useNumberParser();
     const writeNumber = useNumberWriter(decimalScale);
 

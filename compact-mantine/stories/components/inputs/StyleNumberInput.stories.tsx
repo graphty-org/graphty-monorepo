@@ -108,7 +108,15 @@ export const States: Story = {
                 { state: "suffix", node: <StyleNumberInput label="Opacity" defaultValue={100} suffix="%" /> },
                 {
                     state: "disabled",
-                    node: <StyleNumberInput label="Size" defaultValue={10} value={24} disabled disabledReason="Load data first" />,
+                    node: (
+                        <StyleNumberInput
+                            label="Size"
+                            defaultValue={10}
+                            value={24}
+                            disabled
+                            disabledReason="Load data first"
+                        />
+                    ),
                 },
             ]}
         />

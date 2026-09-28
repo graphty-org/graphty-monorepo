@@ -1,6 +1,10 @@
 import { Anchor, Burger, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 
-import { activateTabOnMouseDown, forgetActivation, swallowActivatedClick } from "../../components/selection/pointer-down";
+import {
+    activateTabOnMouseDown,
+    forgetActivation,
+    swallowActivatedClick,
+} from "../../components/selection/pointer-down";
 import { renderTabRoot } from "../../components/selection/tab-root";
 import {
     ANCHOR_CLASSES,

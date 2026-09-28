@@ -34,7 +34,13 @@ export interface InlineRenameProps {
  * @param props.width - The field's width
  * @returns The rename field
  */
-export function InlineRename({ value, onCommit, onCancel, label = "Name", width }: InlineRenameProps): React.JSX.Element {
+export function InlineRename({
+    value,
+    onCommit,
+    onCancel,
+    label = "Name",
+    width,
+}: InlineRenameProps): React.JSX.Element {
     useCompactStyles();
     const inputRef = useRef<HTMLInputElement>(null);
     const returnTo = useRef<HTMLElement | null>(null);

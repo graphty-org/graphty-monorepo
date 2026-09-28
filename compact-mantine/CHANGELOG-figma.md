@@ -42,7 +42,7 @@ props" below.
 | `ToggleIconButton`, `SplitButton`                                | Figma's toggle icon button (with drag-to-toggle) and split button                                                          |
 | `SearchInput`, `ComboInput`, `VariablePill`                      | Search field, combo input with a dark list, variable pill for a bound field                                                |
 | `AlignmentMatrix`, `ALIGNMENT_MATRIX_VALUES`                     | The 3 x 3 alignment matrix (radios with 2D arrow keys)                                                                     |
-| `ColorPickerPanel`                                               | The color picker: paint type, format, saturation field, hue and alpha sliders                                             |
+| `ColorPickerPanel`                                               | The color picker: paint type, format, saturation field, hue and alpha sliders                                              |
 | `ContextMenu`, `MenuCheckItem`, `TooltipShortcut`, `ModalFooter` | Right-click menu (also Shift+F10 and the ContextMenu key), checkable menu row, a tooltip's shortcut label, a dialog footer |
 | `Toast`, `ToastProvider`, `useToast`                             | Figma's dark toast and the queue that shows it                                                                             |
 | `ResizeHandle`                                                   | The panel edge resize handle (role separator)                                                                              |
@@ -52,7 +52,7 @@ props" below.
 | `Toolbar`, `ToolButton`, `ToolGroup`, `SecondaryToolbar`         | The floating toolbar, its tools and flyout, and the contextual bar                                                         |
 | `NavRail`, `RailButton`, `HelpButton`                            | The navigation rail and the floating help button                                                                           |
 | `ShortcutSheet`, `QuickActions`                                  | The keyboard shortcuts sheet and the quick actions palette                                                                 |
-| `isLightColor`, `mixHex`, `normalizeHexa`                        | Color helpers                                                                                                             |
+| `isLightColor`, `mixHex`, `normalizeHexa`                        | Color helpers                                                                                                              |
 
 Every component's prop types are exported alongside it (for example `TreeProps`,
 `TreeNodeData`, `TreeMove`, `ToastApi`).
@@ -312,8 +312,24 @@ import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot } from "@graph
             value={shape}
             onChange={setShape}
             data={[
-                { value: "sphere", label: <><SphereGlyph /><VisuallyHidden>Sphere</VisuallyHidden></> },
-                { value: "box", label: <><BoxGlyph /><VisuallyHidden>Box</VisuallyHidden></> },
+                {
+                    value: "sphere",
+                    label: (
+                        <>
+                            <SphereGlyph />
+                            <VisuallyHidden>Sphere</VisuallyHidden>
+                        </>
+                    ),
+                },
+                {
+                    value: "box",
+                    label: (
+                        <>
+                            <BoxGlyph />
+                            <VisuallyHidden>Box</VisuallyHidden>
+                        </>
+                    ),
+                },
             ]}
             style={{ flex: "1 1 auto", minWidth: 0 }}
         />
@@ -321,7 +337,7 @@ import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot } from "@graph
             <AdvancedButton label="Shape options" onClick={openOptions} />
         </TrailingSlot>
     </div>
-</ControlSection>
+</ControlSection>;
 ```
 
 `disabledReason` has no `SegmentedControl` equivalent: give the control a `title` of the form

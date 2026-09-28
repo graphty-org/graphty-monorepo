@@ -89,7 +89,13 @@ export const sheetTabs: ShortcutSheetTab[] = [
                 ],
             },
             {
-                shortcuts: [{ label: "Pick color", description: "Grab a color from elsewhere without losing your flow", keys: ["I"] }],
+                shortcuts: [
+                    {
+                        label: "Pick color",
+                        description: "Grab a color from elsewhere without losing your flow",
+                        keys: ["I"],
+                    },
+                ],
             },
             {
                 shortcuts: [
@@ -147,8 +153,21 @@ export const actions: QuickAction[] = [
     { value: "remove-bg", label: "Remove background", section: "Image editing", icon: glyph(ScanFace) },
     { value: "boost", label: "Boost resolution", section: "Image editing", icon: glyph(ImageUp) },
     { value: "edit-image", label: "Edit image with prompt", section: "Image editing", icon: glyph(WandSparkles) },
-    { value: "rename", label: "Rename layers...", section: "Design tools", icon: glyph(TextCursorInput), shortcut: "Ctrl+R" },
-    { value: "align-left", label: "Align left", section: "Design tools", icon: glyph(AlignStartVertical), shortcut: "Alt+A", disabled: true },
+    {
+        value: "rename",
+        label: "Rename layers...",
+        section: "Design tools",
+        icon: glyph(TextCursorInput),
+        shortcut: "Ctrl+R",
+    },
+    {
+        value: "align-left",
+        label: "Align left",
+        section: "Design tools",
+        icon: glyph(AlignStartVertical),
+        shortcut: "Alt+A",
+        disabled: true,
+    },
     {
         value: "align-center",
         label: "Align horizontal centers",
@@ -157,7 +176,14 @@ export const actions: QuickAction[] = [
         shortcut: "Alt+H",
         disabled: true,
     },
-    { value: "align-right", label: "Align right", section: "Design tools", icon: glyph(AlignEndVertical), shortcut: "Alt+D", disabled: true },
+    {
+        value: "align-right",
+        label: "Align right",
+        section: "Design tools",
+        icon: glyph(AlignEndVertical),
+        shortcut: "Alt+D",
+        disabled: true,
+    },
     { value: "frame", label: "Frame", section: "Design tools", icon: glyph(Hash), shortcut: "F" },
     { value: "text", label: "Text", section: "Design tools", icon: glyph(Type), shortcut: "T" },
     { value: "plugins", label: "Browse plugins", section: "Plugins & widgets", icon: glyph(Puzzle) },

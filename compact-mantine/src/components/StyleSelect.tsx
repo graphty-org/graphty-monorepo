@@ -152,7 +152,7 @@ export function StyleSelect({
     // passed in -- measured against @mantine/core 8.3.10, not assumed -- and
     // the description element is then styled out of sight, exactly as
     // PanelField does it.
-    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
+    const annotation = useControlAnnotation({ name: label, disabled, disabledReason });
 
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is

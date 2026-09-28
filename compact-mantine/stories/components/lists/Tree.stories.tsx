@@ -112,7 +112,15 @@ const component = <UiGlyph name="component" size={16} />;
  * @param props.onChange - Called with the new value
  * @returns The toggle
  */
-function LayerToggle({ kind, on, onChange }: { kind: "lock" | "eye"; on: boolean; onChange?: (on: boolean) => void }): React.JSX.Element {
+function LayerToggle({
+    kind,
+    on,
+    onChange,
+}: {
+    kind: "lock" | "eye";
+    on: boolean;
+    onChange?: (on: boolean) => void;
+}): React.JSX.Element {
     return kind === "lock" ? (
         <ToggleIconButton
             variant="swap"
@@ -208,7 +216,13 @@ export const States: Story = {
                 <RowPanel label="component, component selected, hidden">
                     <TreeItem name="Button" icon={component} level={2} tone="component" />
                     <TreeItem name="Button" icon={component} level={2} tone="component" selected />
-                    <TreeItem name="Hidden layer" icon={rect} level={2} dimmed actions={<LayerToggle kind="eye" on />} />
+                    <TreeItem
+                        name="Hidden layer"
+                        icon={rect}
+                        level={2}
+                        dimmed
+                        actions={<LayerToggle kind="eye" on />}
+                    />
                 </RowPanel>
                 <RowPanel label="toggles: revealed on hover; a toggle that is on stays">
                     <TreeItem
@@ -264,8 +278,16 @@ export const Playground: Story = {
                 dimmed: hidden.has(n.id),
                 actions: (
                     <>
-                        <LayerToggle kind="lock" on={locked.has(n.id)} onChange={() => setLocked((s) => flip(s, n.id))} />
-                        <LayerToggle kind="eye" on={hidden.has(n.id)} onChange={() => setHidden((s) => flip(s, n.id))} />
+                        <LayerToggle
+                            kind="lock"
+                            on={locked.has(n.id)}
+                            onChange={() => setLocked((s) => flip(s, n.id))}
+                        />
+                        <LayerToggle
+                            kind="eye"
+                            on={hidden.has(n.id)}
+                            onChange={() => setHidden((s) => flip(s, n.id))}
+                        />
                     </>
                 ),
                 children: n.children ? decorate(n.children) : undefined,
@@ -342,10 +364,14 @@ export const FlatReorderableList: Story = {
         const degree = tree.getByRole("treeitem", { name: "Degree color" });
         degree.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() => expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]));
+        await waitFor(() =>
+            expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
+        );
         await expect(tree.getByRole("treeitem", { name: "Degree color" })).toHaveFocus();
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
-        await waitFor(() => expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]));
+        await waitFor(() =>
+            expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
+        );
         // Rename, then try to empty the name: the empty name is refused.
         await userEvent.keyboard("{F2}");
         const field = tree.getByRole("textbox", { name: "Layer name" });
@@ -424,7 +450,9 @@ export const Keyboard: Story = {
         await expect(button).toHaveAttribute("aria-posinset", "1");
         // Alt+ArrowDown moves Button below Card, inside the same frame, and focus follows it.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() => expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"));
+        await waitFor(() =>
+            expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"),
+        );
         await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveFocus();
         await userEvent.keyboard("{F2}");
         await expect(canvas.getByRole("textbox", { name: "Layer name" })).toHaveFocus();
@@ -442,7 +470,11 @@ export const StickyRoots: Story = {
             id: name,
             name,
             icon: frame,
-            children: Array.from({ length: 12 }, (_, i) => ({ id: `${name}-${String(i)}`, name: `${name} layer ${String(i + 1)}`, icon: rect })),
+            children: Array.from({ length: 12 }, (_, i) => ({
+                id: `${name}-${String(i)}`,
+                name: `${name} layer ${String(i + 1)}`,
+                icon: rect,
+            })),
         }));
         return (
             <Panel>
@@ -457,7 +489,9 @@ export const StickyRoots: Story = {
         // Header's block is 13 rows of 32: 560 is five rows into Body.
         scroller.scrollTop = 560;
         const body = within(canvasElement).getByRole("treeitem", { name: "Body" });
-        await waitFor(() => expect(Math.round(body.getBoundingClientRect().top)).toBe(Math.round(scroller.getBoundingClientRect().top)));
+        await waitFor(() =>
+            expect(Math.round(body.getBoundingClientRect().top)).toBe(Math.round(scroller.getBoundingClientRect().top)),
+        );
     },
 };
 
@@ -485,10 +519,22 @@ export const Dragging: Story = {
     render: () => (
         <Group align="flex-start" gap={24}>
             <Panel label="drop into a frame">
-                <Tree items={LAYERS} defaultExpanded={["frame"]} defaultSelected={["note"]} onMove={() => undefined} label="Into" />
+                <Tree
+                    items={LAYERS}
+                    defaultExpanded={["frame"]}
+                    defaultSelected={["note"]}
+                    onMove={() => undefined}
+                    label="Into"
+                />
             </Panel>
             <Panel label="drop between rows">
-                <Tree items={LAYERS} defaultExpanded={["frame"]} defaultSelected={["note"]} onMove={() => undefined} label="Between" />
+                <Tree
+                    items={LAYERS}
+                    defaultExpanded={["frame"]}
+                    defaultSelected={["note"]}
+                    onMove={() => undefined}
+                    label="Between"
+                />
             </Panel>
         </Group>
     ),
@@ -497,16 +543,27 @@ export const Dragging: Story = {
         const hover = (tree: string, source: string, target: string, fraction: number): void => {
             const scope = within(canvas.getByRole("tree", { name: tree }));
             const data = new DataTransfer();
-            scope.getByRole("treeitem", { name: source }).dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
+            scope
+                .getByRole("treeitem", { name: source })
+                .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
             const row = scope.getByRole("treeitem", { name: target });
             const box = row.getBoundingClientRect();
             row.dispatchEvent(
-                new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data, clientY: box.top + box.height * fraction }),
+                new DragEvent("dragover", {
+                    bubbles: true,
+                    cancelable: true,
+                    dataTransfer: data,
+                    clientY: box.top + box.height * fraction,
+                }),
             );
         };
         hover("Into", "Sticky note", "Card", 0.5);
         hover("Between", "Sticky note", "Background", 0.1);
-        await expect(await within(canvas.getByRole("tree", { name: "Into" })).findByTestId("tree-drop-box")).toBeVisible();
-        await expect(await within(canvas.getByRole("tree", { name: "Between" })).findByTestId("tree-drop-line")).toBeVisible();
+        await expect(
+            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId("tree-drop-box"),
+        ).toBeVisible();
+        await expect(
+            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId("tree-drop-line"),
+        ).toBeVisible();
     },
 };

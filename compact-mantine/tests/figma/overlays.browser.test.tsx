@@ -150,7 +150,10 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 const { container } = await renderFigma(<OpenMenu />, { scheme });
                 const surface = part(container, ".mantine-Menu-dropdown");
                 const figma = await figmaElement(`dark-theme/${scheme}-menu-blend-mode`, { index: 257 });
-                expectMeasured(surface, figmaSpec(figma, ["backgroundColor", "borderRadius", "paddingTop", "paddingBottom"]));
+                expectMeasured(
+                    surface,
+                    figmaSpec(figma, ["backgroundColor", "borderRadius", "paddingTop", "paddingBottom"]),
+                );
                 expectMeasured(surface, { paddingLeft: 0, paddingRight: 0, borderTopWidth: "0px" });
                 if (scheme === "light") {
                     expectShadow(surface, figma.style.boxShadow);
@@ -167,7 +170,14 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 const actions = row(container, "Actions");
                 const figmaRow = await figmaElement(MENU, { index: 334 });
                 expectMeasured(actions, {
-                    ...figmaSpec(figmaRow, ["height", "color", "fontSize", "lineHeight", "fontWeight", "letterSpacing"]),
+                    ...figmaSpec(figmaRow, [
+                        "height",
+                        "color",
+                        "fontSize",
+                        "lineHeight",
+                        "fontWeight",
+                        "letterSpacing",
+                    ]),
                     width: box(surface).width,
                 });
                 const label = part(actions, ".mantine-Menu-itemLabel");
@@ -294,7 +304,10 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 expect(box(path).width).toBeCloseTo(glyph.box[2], 0);
                 expect(box(path).height).toBeCloseTo(glyph.box[3], 0);
                 await drive(parent, "hover");
-                const sub = await waitFor(() => container.querySelectorAll<HTMLElement>("[data-menu-dropdown]")[1], 200);
+                const sub = await waitFor(
+                    () => container.querySelectorAll<HTMLElement>("[data-menu-dropdown]")[1],
+                    200,
+                );
                 expect(box(sub).left - box(surface).right).toBeCloseTo(4, 0);
                 expect(box(row(sub, "Copy as text")).top).toBeCloseTo(box(parent).top, 0);
                 // a submenu is the same dark surface as its parent (Menu.Sub renders through a
@@ -306,7 +319,9 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                     paddingTop: root.paddingTop,
                     borderRadius: root.borderRadius,
                 });
-                expect(getComputedStyle(row(sub, "Copy as text")).color).toBe(getComputedStyle(row(container, "File")).color);
+                expect(getComputedStyle(row(sub, "Copy as text")).color).toBe(
+                    getComputedStyle(row(container, "File")).color,
+                );
                 // the parent row stays highlighted while its submenu is open
                 expect(parent.getAttribute("aria-expanded")).toBe("true");
                 await drive(row(sub, "Copy as text"), "hover");
@@ -364,7 +379,9 @@ describe("8.1 dark menu keyboard and scroll", () => {
         expect(box(menu).bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
         const after = computed(menu, "::after");
         expect(after.height).toBe("24px");
-        expect(normalize("backgroundColor", after.backgroundColor)).toBe(normalize("backgroundColor", computed(menu).backgroundColor));
+        expect(normalize("backgroundColor", after.backgroundColor)).toBe(
+            normalize("backgroundColor", computed(menu).backgroundColor),
+        );
         // Hovering the bottom chevron scrolls the menu down; the top chevron then appears.
         await userEvent.hover(menu, { position: { x: 40, y: box(menu).height - 10 } });
         await waitFor(() => (menu.scrollTop > 40 ? true : null), 2000);
@@ -475,7 +492,10 @@ describe.skipIf(!available)("8.3 tooltip", () => {
             } else {
                 expectShadow(bubble, tokenShadow(bubble.parentElement!, "--cm-elevation-300"));
             }
-            expectMeasured(part(bubble, ".cm-tooltip-shortcut"), figmaSpec(await figmaElement(TIP, { index: 66 }), ["color", "marginLeft"]));
+            expectMeasured(
+                part(bubble, ".cm-tooltip-shortcut"),
+                figmaSpec(await figmaElement(TIP, { index: 66 }), ["color", "marginLeft"]),
+            );
             // Width: Figma's 109 is 16 of padding around 93 of text; our text is within 3px of it
             // (the bundled Inter Variable 4 sets these glyphs slightly narrower than Figma's Inter).
             expect(Math.abs(box(bubble).width - figma.box[2])).toBeLessThan(3);
@@ -534,7 +554,7 @@ describe.skipIf(!available)("8.3 tooltip", () => {
 
         const t1 = performance.now();
         await userEvent.hover(getByRole("button", { name: "2" }));
-        await waitFor(() => tip()?.textContent === "Two" ? tip() : null, 1000);
+        await waitFor(() => (tip()?.textContent === "Two" ? tip() : null), 1000);
         expect(performance.now() - t1).toBeLessThan(250);
 
         const t2 = performance.now();
@@ -676,7 +696,10 @@ describe.skipIf(!available)("8.4 light popover", () => {
             const { getByRole } = await renderFigma(<StrokeSettings />, { scheme });
             await drive(getByRole("button", { name: "Stroke" }), "open");
             const panel = await waitFor(() => document.querySelector<HTMLElement>('[role="dialog"]'));
-            const cap = scheme === "light" ? "index-and-inventory/light-popover-stroke-settings" : "dark-theme/dark-effect-settings-popover";
+            const cap =
+                scheme === "light"
+                    ? "index-and-inventory/light-popover-stroke-settings"
+                    : "dark-theme/dark-effect-settings-popover";
             const shell = await figmaElement(cap, { index: 65 });
             const header = await figmaElement(cap, { index: 66 });
             const close = await figmaElement(cap, { tag: "button", aria: "Close" });
@@ -691,7 +714,15 @@ describe.skipIf(!available)("8.4 light popover", () => {
             expectMeasured(bar, figmaSpec(header, ["height", "paddingLeft", "paddingRight", "boxShadow"]));
             const title = part(panel, "h2");
             const figmaTitle = await figmaElement("index-and-inventory/light-popover-stroke-settings", { index: 67 });
-            expectMeasured(title, figmaSpec(figmaTitle, ["fontSize", "lineHeight", "fontWeight", "letterSpacing", "paddingLeft", "color"].filter((p) => scheme === "light" || p !== "color")));
+            expectMeasured(
+                title,
+                figmaSpec(
+                    figmaTitle,
+                    ["fontSize", "lineHeight", "fontWeight", "letterSpacing", "paddingLeft", "color"].filter(
+                        (p) => scheme === "light" || p !== "color",
+                    ),
+                ),
+            );
             expect(box(title).left - box(panel).left).toBeCloseTo(figmaTitle.box[0] - 1120, 0);
             const x = part(panel, '[data-testid="popout-header-close"]');
             expectMeasured(x, { width: close.box[2], height: close.box[3] });
@@ -781,7 +812,9 @@ describe.skipIf(!available)("8.4 light popover", () => {
 
     for (const scheme of SCHEMES) {
         it(`${scheme}: InfoCircle is a 24 ghost button with a 240 light-popover bubble in secondary text`, async () => {
-            const { getByRole } = await renderFigma(<InfoCircle label="Resolution">Explanation</InfoCircle>, { scheme });
+            const { getByRole } = await renderFigma(<InfoCircle label="Resolution">Explanation</InfoCircle>, {
+                scheme,
+            });
             const trigger = getByRole("button", { name: /Resolution/ });
             expectMeasured(trigger, { width: 24, height: 24 });
             await drive(trigger, "hover");
@@ -807,7 +840,11 @@ describe.skipIf(!available)("8.4 light popover", () => {
             </Popover>,
         );
         const dropdown = await waitFor(() => document.querySelector<HTMLElement>(".mantine-Popover-dropdown"));
-        expectMeasured(dropdown, { ...figmaSpec(figma, ["backgroundColor", "borderRadius"]), padding: "8px", borderTopWidth: "0px" });
+        expectMeasured(dropdown, {
+            ...figmaSpec(figma, ["backgroundColor", "borderRadius"]),
+            padding: "8px",
+            borderTopWidth: "0px",
+        });
         expectShadow(dropdown, figma.style.boxShadow);
     });
 });
@@ -834,7 +871,10 @@ describe.skipIf(!available)("8.5 modal", () => {
             const header = await figmaElement(DIALOG, { index: 25 });
             const close = await figmaElement(DIALOG, { index: 47 });
             const footer = await figmaElement(DIALOG, { index: 36 });
-            expectMeasured(content, figmaSpec(frame, ["width", "borderRadius", ...(scheme === "light" ? ["backgroundColor"] : [])]));
+            expectMeasured(
+                content,
+                figmaSpec(frame, ["width", "borderRadius", ...(scheme === "light" ? ["backgroundColor"] : [])]),
+            );
             if (scheme === "light") {
                 expectShadow(content, frame.style.boxShadow);
             } else {
@@ -842,23 +882,47 @@ describe.skipIf(!available)("8.5 modal", () => {
                 expectShadow(content, tokenShadow(content.parentElement!, "--cm-elevation-500"));
             }
             const bar = part(content, ".mantine-Modal-header");
-            expectMeasured(bar, figmaSpec(header, ["height", "paddingRight", ...(scheme === "light" ? ["boxShadow"] : [])]));
+            expectMeasured(
+                bar,
+                figmaSpec(header, ["height", "paddingRight", ...(scheme === "light" ? ["boxShadow"] : [])]),
+            );
             const title = part(content, ".mantine-Modal-title");
             expect(box(title).left - box(content).left).toBeCloseTo(16, 0);
-            expectMeasured(title, figmaSpec(await figmaElement(DIALOG, { index: 26 }), ["fontSize", "lineHeight", "fontWeight", "letterSpacing"]));
+            expectMeasured(
+                title,
+                figmaSpec(await figmaElement(DIALOG, { index: 26 }), [
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                    "letterSpacing",
+                ]),
+            );
             const x = part(content, ".mantine-Modal-close");
             expectMeasured(x, { width: close.box[2], height: close.box[3] });
             expect(box(x).left - box(content).left).toBeCloseTo(close.box[0] - frame.box[0], 0);
             expect(box(x).top - box(content).top).toBeCloseTo(close.box[1] - frame.box[1], 0);
             const body = part(content, ".mantine-Modal-body");
-            expectMeasured(body, figmaSpec(await figmaElement(DIALOG, { index: 29 }), ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]));
+            expectMeasured(
+                body,
+                figmaSpec(await figmaElement(DIALOG, { index: 29 }), [
+                    "paddingTop",
+                    "paddingRight",
+                    "paddingBottom",
+                    "paddingLeft",
+                ]),
+            );
             // Figma: header ends at y 420, the Title input starts at y 428.
             const field = part(content, 'input[aria-label="Title"]');
             expect(box(field).top - box(bar).bottom).toBeCloseTo(8, 0);
             const bottom = part(content, ".cm-modal-footer");
             expect(box(bottom).top - box(field).bottom).toBeCloseTo(8, 0);
             expectMeasured(bottom, {
-                ...figmaSpec(footer, ["height", "paddingLeft", "paddingRight", ...(scheme === "light" ? ["boxShadow"] : [])]),
+                ...figmaSpec(footer, [
+                    "height",
+                    "paddingLeft",
+                    "paddingRight",
+                    ...(scheme === "light" ? ["boxShadow"] : []),
+                ]),
                 width: frame.box[2],
             });
             expect(box(content).bottom - box(bottom).bottom).toBeCloseTo(0, 0);
@@ -880,26 +944,44 @@ describe.skipIf(!available)("8.6 toast", () => {
     for (const scheme of SCHEMES) {
         it(`${scheme}: pill, message and action match Figma's "Large PNG ready for copy"`, async () => {
             const { getByTestId } = await renderFigma(
-                <Toast message="Large PNG ready for copy" action={{ label: "Copy to clipboard", onClick: () => undefined }} />,
+                <Toast
+                    message="Large PNG ready for copy"
+                    action={{ label: "Copy to clipboard", onClick: () => undefined }}
+                />,
                 { scheme },
             );
             const pill = getByTestId("toast");
             const figma = await figmaElement(TOAST, { index: 35 });
             const message = await figmaElement(TOAST, { index: 36 });
             const action = await figmaElement(TOAST, { index: 41 });
-            expectMeasured(pill, figmaSpec(figma, ["height", "backgroundColor", "borderRadius", "paddingLeft", "paddingRight"]));
+            expectMeasured(
+                pill,
+                figmaSpec(figma, ["height", "backgroundColor", "borderRadius", "paddingLeft", "paddingRight"]),
+            );
             expectShadow(pill, figma.style.boxShadow);
             const msg = part(pill, '[role="alert"]');
             expectMeasured(
                 msg,
-                figmaSpec(message, ["height", "color", "fontSize", "lineHeight", "fontWeight", "letterSpacing", "paddingLeft", "paddingTop"]),
+                figmaSpec(message, [
+                    "height",
+                    "color",
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                    "letterSpacing",
+                    "paddingLeft",
+                    "paddingTop",
+                ]),
             );
             // The pill's width is its chrome plus the message text; the bundled Inter Variable sets
             // the text a few px narrower than Figma's Inter, so compare the chrome only.
             const btn = part(pill, "button");
             const textDelta = message.box[2] - box(msg).width + (action.box[2] - box(btn).width);
             expect(box(pill).width).toBeCloseTo(figma.box[2] - textDelta, 0);
-            expectMeasured(btn, figmaSpec(action, ["height", "color", "borderRadius", "outline", "outlineOffset", "fontWeight"]));
+            expectMeasured(
+                btn,
+                figmaSpec(action, ["height", "color", "borderRadius", "outline", "outlineOffset", "fontWeight"]),
+            );
             expect(box(btn).left - box(msg).right).toBeCloseTo(action.box[0] - (message.box[0] + message.box[2]), 0);
             // text 8px in from each side (the label is narrower than Figma's by the font delta)
             const label = part(btn, ".mantine-Button-label");
@@ -923,7 +1005,9 @@ describe.skipIf(!available)("8.7 overlay scrollbar", () => {
         const root = part(container, ".mantine-ScrollArea-root");
         expect(container.querySelector('.mantine-ScrollArea-scrollbar[data-state="visible"]')).toBeNull();
         await drive(root, "hover");
-        const track = await waitFor(() => container.querySelector<HTMLElement>('.mantine-ScrollArea-scrollbar[data-orientation="vertical"]'));
+        const track = await waitFor(() =>
+            container.querySelector<HTMLElement>('.mantine-ScrollArea-scrollbar[data-orientation="vertical"]'),
+        );
         expectMeasured(track, { width: 10, paddingLeft: 2, paddingRight: 2, backgroundColor: "#00000000" });
         const thumb = await waitFor(() => track.querySelector<HTMLElement>(".mantine-ScrollArea-thumb"));
         expectMeasured(thumb, { width: 6, backgroundColor: "#00000000" });
@@ -934,7 +1018,10 @@ describe.skipIf(!available)("8.7 overlay scrollbar", () => {
         await drive(track, "hover");
         expectMeasured(track, { boxShadow: "rgb(230, 230, 230) 1px 0px 0px 0px inset" });
         await commands.mouseAway();
-        await waitFor(() => (container.querySelector('.mantine-ScrollArea-scrollbar[data-state="visible"]') ? null : true), 500);
+        await waitFor(
+            () => (container.querySelector('.mantine-ScrollArea-scrollbar[data-state="visible"]') ? null : true),
+            500,
+        );
     });
 });
 
@@ -952,7 +1039,9 @@ describe.skipIf(!available)("8.8 feedback", () => {
             );
             const loader = part(container, ".mantine-Loader-root");
             expectMeasured(loader, { width: 16, height: 16 });
-            expect(computed(loader, "::after").borderTopColor).toBe(scheme === "light" ? "rgba(0, 0, 0, 0.898)" : "rgb(255, 255, 255)");
+            expect(computed(loader, "::after").borderTopColor).toBe(
+                scheme === "light" ? "rgba(0, 0, 0, 0.898)" : "rgb(255, 255, 255)",
+            );
             const bar = part(container, ".mantine-Progress-root");
             expectMeasured(bar, {
                 height: 4,

@@ -101,7 +101,10 @@ describe("Overlay Component Extensions", () => {
             for (const name of ["Modal", "Notification", "ScrollArea"]) {
                 expect(overlayComponentExtensions[name]?.classNames, name).toBeDefined();
             }
-            expect(overlayComponentExtensions.Modal?.defaultProps).toMatchObject({ centered: true, withOverlay: false });
+            expect(overlayComponentExtensions.Modal?.defaultProps).toMatchObject({
+                centered: true,
+                withOverlay: false,
+            });
             expect(overlayComponentExtensions.ScrollArea?.defaultProps).toMatchObject({
                 type: "hover",
                 scrollHideDelay: 0,

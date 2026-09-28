@@ -3,13 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React from "react";
 
-import {
-    LabelsProvider,
-    PANEL_GRID,
-    PANEL_INK,
-    PanelField,
-    PanelLabelsProvider,
-} from "../../../src";
+import { LabelsProvider, PANEL_GRID, PANEL_INK, PanelField, PanelLabelsProvider } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -123,12 +117,21 @@ export const States: Story = {
                     node: <PanelField label="X" glyph="W" kind="number" defaultValue={40} data-state="focus" />,
                 },
                 { state: "disabled", node: <PanelField label="X" glyph="W" kind="number" value={40} disabled /> },
-                { state: "Mixed", node: <PanelField label="X" glyph="W" kind="number" value={40} mixed onChange={() => undefined} /> },
+                {
+                    state: "Mixed",
+                    node: <PanelField label="X" glyph="W" kind="number" value={40} mixed onChange={() => undefined} />,
+                },
                 { state: "bound", node: <PanelField label="Size" glyph="attribute" value="Age" bound /> },
                 { state: "pending", node: <PanelField label="Largest" glyph="sizeLargest" value="4.0" pending /> },
-                { state: "unit", node: <PanelField label="Opacity" glyph="opacity" kind="number" defaultValue={100} unit="%" /> },
+                {
+                    state: "unit",
+                    node: <PanelField label="Opacity" glyph="opacity" kind="number" defaultValue={100} unit="%" />,
+                },
                 { state: "text", node: <PanelField label="Name" glyph="attribute" defaultValue="Betweenness" /> },
-                { state: "placeholder", node: <PanelField label="Label attribute" glyph="attribute" placeholder="Choose" /> },
+                {
+                    state: "placeholder",
+                    node: <PanelField label="Label attribute" glyph="attribute" placeholder="Choose" />,
+                },
                 {
                     state: "select",
                     node: <PanelField label="Layout" kind="select" data={["Force", "Radial"]} defaultValue="Force" />,
@@ -440,7 +443,14 @@ export const ScrubAndType: Story = {
         // Real pointer events on the handle: press, move 20px along the text, release.
         const at = (type: string, x: number): void => {
             slot.dispatchEvent(
-                new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: x, clientY: top + 12 }),
+                new PointerEvent(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 0,
+                    pointerId: 1,
+                    clientX: x,
+                    clientY: top + 12,
+                }),
             );
         };
         at("pointerdown", left + 12);

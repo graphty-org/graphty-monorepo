@@ -1,3 +1,13 @@
+## 0.8.11 (2026-09-28)
+
+### 🚀 Features
+
+- **workspace:** capture like chromatic and make the review page easier to judge ([a8f4ad8c](https://github.com/graphty-org/graphty-monorepo/commit/a8f4ad8c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.10 (2026-09-28)
 
 ### 🩹 Fixes

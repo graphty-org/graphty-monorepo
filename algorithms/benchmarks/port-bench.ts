@@ -1,16 +1,18 @@
-/* Before/after for the four ports: the shipped Map-of-Maps implementation against the indexed one,
+/* Before/after for the indexed ports: the shipped Map-of-Maps implementation against the indexed one,
  * on the same graph, minimum of N runs. Undirected, ten edges per node, as the GPU cost record's
  * graphs are. Run from algorithms/ with: npx tsx benchmarks/port-bench.ts */
 import { loadavg } from "node:os";
 
 import { hits as legacyHits } from "../src/algorithms/centrality/hits.js";
 import { katzCentrality as legacyKatz } from "../src/algorithms/centrality/katz.js";
+import { labelPropagation as legacyLabelPropagation } from "../src/algorithms/community/label-propagation.js";
 import { louvain as legacyLouvain } from "../src/algorithms/community/louvain.js";
 import { kCoreDecomposition as legacyKCore } from "../src/clustering/k-core.js";
 import { Graph } from "../src/core/graph.js";
 import { hits } from "../src/indexed/hits.js";
 import { kCoreDecomposition } from "../src/indexed/k-core.js";
 import { katzCentrality } from "../src/indexed/katz.js";
+import { labelPropagation } from "../src/indexed/label-propagation.js";
 import { louvain } from "../src/indexed/louvain.js";
 import { toSnapshot } from "../src/indexed/to-snapshot.js";
 
@@ -70,7 +72,8 @@ for (const n of sizes) {
     const su = toSnapshot(undirected);
     const sd = toSnapshot(directed);
     const rows: [string, number, number | null][] = [];
-    const pairs: [string, () => void, () => void][] = [
+    // A null legacy side is a port-only row, printed with "--".
+    const pairs: [string, (() => void) | null, () => void][] = [
         ["k-core", () => void legacyKCore(undirected), () => void kCoreDecomposition(su)],
         [
             "Katz, 100 iterations",
@@ -83,21 +86,38 @@ for (const n of sizes) {
             () => void hits(sd, { maxIterations: 100, tolerance: 0 }),
         ],
         ["Louvain", () => void legacyLouvain(undirected), () => void louvain(su)],
+        ["label propagation", () => void legacyLabelPropagation(undirected), () => void labelPropagation(su)],
+        // Exactly n visits: the whole shuffled initial queue, one full-sweep equivalent.
+        ["LP, one sweep", null, () => void labelPropagation(su, { maxIterations: 1 })],
     ];
     for (const [name, legacy, ported] of pairs) {
+        // At 1k the first calls are mostly JIT warm-up (a converged label propagation took 7.6-11.1 ms
+        // cold against 0.8 ms warm), so both sides run 20 untimed calls first. From 10k up the
+        // difference is inside load noise.
+        if (n === 1000) {
+            for (let i = 0; i < 20; i++) {
+                ported();
+                legacy?.();
+            }
+        }
         const portedMs = best(reps, ported);
         let legacyMs: number | null = null;
-        const probe = performance.now();
-        legacy();
-        const first = performance.now() - probe;
-        if (first < budgetMs) {
-            legacyMs = Math.min(first, reps > 1 ? best(reps - 1, legacy) : Infinity);
+        if (legacy !== null) {
+            const probe = performance.now();
+            legacy();
+            const first = performance.now() - probe;
+            if (first < budgetMs) {
+                legacyMs = Math.min(first, reps > 1 ? best(reps - 1, legacy) : Infinity);
+            }
         }
         rows.push([name, portedMs, legacyMs]);
     }
     console.log(`\nn = ${n}, ${n * 10} edges, minimum of ${reps}`);
     for (const [name, portedMs, legacyMs] of rows) {
-        const speedup = legacyMs === null ? "legacy over budget" : `${(legacyMs / portedMs).toFixed(1)}x`;
+        let speedup = legacyMs === null ? "legacy over budget" : `${(legacyMs / portedMs).toFixed(1)}x`;
+        if (legacyMs === null && name === "LP, one sweep") {
+            speedup = "--";
+        }
         console.log(
             `  ${name.padEnd(22)} indexed ${portedMs.toFixed(1).padStart(9)} ms   shipped ${
                 legacyMs === null ? "    --     " : `${legacyMs.toFixed(1).padStart(9)} ms`

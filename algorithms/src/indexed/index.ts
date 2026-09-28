@@ -21,6 +21,7 @@ export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdge
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
+export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";

@@ -94,6 +94,11 @@ export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
+// Aliased: the flat LabelPropagationOptions / LabelPropagationResult name the legacy function's types.
+export type {
+    LabelPropagationOptions as IndexedLabelPropagationOptions,
+    LabelPropagationResult as IndexedLabelPropagationResult,
+} from "./indexed/label-propagation.js";
 export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,

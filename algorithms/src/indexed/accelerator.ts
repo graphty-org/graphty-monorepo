@@ -19,6 +19,7 @@ import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "
 import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
 import type { KatzOptions } from "./katz.js";
+import type { LabelPropagationOptions } from "./label-propagation.js";
 import type { LouvainOptions } from "./louvain.js";
 import type { MstOptions } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
@@ -173,6 +174,11 @@ export interface BetweennessAcceleratorOptions {
  * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
  * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
  *
+ * `labelPropagation` passes its options through the same way. An accelerator's result carries no
+ * `iterations` or `converged`, and a deterministic kernel has no use for `randomSeed`; call
+ * `indexed.labelPropagation` directly for those. webgpu-graph-algorithms does not implement
+ * `labelPropagation` yet, so with its accelerator this method runs the CPU port.
+ *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
  * answers the port's question -- no options that change the result, at most the port's default
@@ -195,6 +201,7 @@ export interface AcceleratedAlgorithms {
     katzCentrality(s: GraphSnapshot, options?: KatzOptions): Promise<ScoresResultLike>;
     hits(s: GraphSnapshot, options?: HitsOptions): Promise<HitsResultLike>;
     louvain(s: GraphSnapshot, options?: LouvainOptions): Promise<CommunityResultLike>;
+    labelPropagation(s: GraphSnapshot, options?: LabelPropagationOptions): Promise<LabelResultLike>;
     allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
 }
 
@@ -285,5 +292,9 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.allPairsShortestPath !== undefined && acceleratorAnswersApsp(s, options)
                 ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
+        labelPropagation: (s, options) =>
+            acc?.labelPropagation !== undefined
+                ? acc.labelPropagation(s, options)
+                : Promise.resolve(indexed.labelPropagation(s, options)),
     };
 }

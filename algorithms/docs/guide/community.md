@@ -32,14 +32,14 @@ console.log("Modularity:", result.modularity);
 
 ```typescript
 const result = louvain(graph, {
-  // Resolution parameter (higher = smaller communities)
-  resolution: 1.0,
+    // Resolution parameter (higher = smaller communities)
+    resolution: 1.0,
 
-  // Random seed for reproducibility
-  seed: 42,
+    // Random seed for reproducibility
+    seed: 42,
 
-  // Maximum iterations per level
-  maxIterations: 100,
+    // Maximum iterations per level
+    maxIterations: 100,
 });
 ```
 
@@ -64,8 +64,8 @@ console.log("Community assignments:", result.communities);
 
 ```typescript
 const result = girvanNewman(graph, {
-  // Stop when reaching k communities
-  k: 3,
+    // Stop when reaching k communities
+    k: 3,
 });
 ```
 
@@ -87,7 +87,7 @@ const communities = labelPropagation(graph);
 
 // Returns community labels for each node
 for (const [node, community] of communities) {
-  console.log(`${node} belongs to community ${community}`);
+    console.log(`${node} belongs to community ${community}`);
 }
 ```
 
@@ -95,13 +95,41 @@ for (const [node, community] of communities) {
 
 ```typescript
 const communities = labelPropagation(graph, {
-  // Maximum iterations
-  maxIterations: 100,
+    // Maximum iterations
+    maxIterations: 100,
 
-  // Random seed
-  seed: 42,
+    // Random seed
+    seed: 42,
 });
 ```
+
+### Over a graph-format snapshot
+
+`indexed.labelPropagation` runs the same idea over a `GraphSnapshot` from `@graphty/graph-format`
+with typed arrays and no per-edge allocation. It is fast label propagation (FLPA, Traag and
+Subelj 2023): nodes wait in a queue and only nodes whose neighbourhood changed are revisited, so
+it stops once every node's label is the most common among its neighbours, even on paths and trees
+where the legacy function runs to its iteration cap. For the same `randomSeed` it returns
+different partitions than `labelPropagation`.
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const result = indexed.labelPropagation(s, {
+    maxIterations: 100, // work cap, in full-sweep equivalents
+    randomSeed: 42, // visit order and tie draws; one seed gives one result
+    weighted: true, // false: each distinct neighbour votes once
+});
+
+result.labels; // Uint32Array: community per node index
+result.count; // number of communities
+result.groups(); // node indices per community
+result.converged; // true when every label is dominant among its neighbours
+```
+
+Self-loops are ignored and parallel edges are summed. On a directed snapshot a node's neighbours
+are its out- and in-neighbours. A negative, NaN or infinite weight throws a `RangeError`.
 
 ## K-Clique Communities
 
@@ -117,7 +145,7 @@ const communities = kCliqueCommunities(graph, 3); // k=3 (triangles)
 
 // Returns list of communities (nodes can belong to multiple)
 for (let i = 0; i < communities.length; i++) {
-  console.log(`Community ${i}: ${[...communities[i]].join(", ")}`);
+    console.log(`Community ${i}: ${[...communities[i]].join(", ")}`);
 }
 ```
 
@@ -133,10 +161,10 @@ const graph = new Graph<string>({ directed: false });
 
 // Your community assignments
 const communities = new Map([
-  ["a", 0],
-  ["b", 0],
-  ["c", 1],
-  ["d", 1],
+    ["a", 0],
+    ["b", 0],
+    ["c", 1],
+    ["d", 1],
 ]);
 
 const q = modularity(graph, communities);
@@ -166,23 +194,23 @@ const result = louvain(docGraph);
 // Group documents by topic
 const topics = new Map<number, string[]>();
 for (const [doc, topic] of result.communities) {
-  if (!topics.has(topic)) topics.set(topic, []);
-  topics.get(topic)!.push(doc);
+    if (!topics.has(topic)) topics.set(topic, []);
+    topics.get(topic)!.push(doc);
 }
 
 console.log("Document clusters:");
 for (const [topic, docs] of topics) {
-  console.log(`Topic ${topic}: ${docs.join(", ")}`);
+    console.log(`Topic ${topic}: ${docs.join(", ")}`);
 }
 ```
 
 ## Algorithm Comparison
 
-| Algorithm | Time Complexity | Overlapping | Deterministic |
-|-----------|-----------------|-------------|---------------|
-| Louvain | O(n log n) | No | No |
-| Girvan-Newman | O(m² n) | No | Yes |
-| Label Propagation | O(m) | No | No |
-| K-Clique | O(n² k) | Yes | Yes |
+| Algorithm         | Time Complexity | Overlapping | Deterministic |
+| ----------------- | --------------- | ----------- | ------------- |
+| Louvain           | O(n log n)      | No          | No            |
+| Girvan-Newman     | O(m² n)         | No          | Yes           |
+| Label Propagation | O(m)            | No          | No            |
+| K-Clique          | O(n² k)         | Yes         | Yes           |
 
 Where n = nodes, m = edges, k = clique size.

@@ -713,6 +713,11 @@ const labels = labelPropagationAsync(graph, options);
 const labels = labelPropagationSemiSupervised(graph, seedLabels, options);
 ```
 
+Over a `@graphty/graph-format` snapshot, `indexed.labelPropagation(toSnapshot(graph), { maxIterations,
+randomSeed, weighted })` runs fast label propagation (FLPA) on typed arrays and returns
+`{ labels, count, groups(), iterations, converged }`. It stops once every label is dominant, so it
+also converges on paths and trees; its partitions differ from `labelPropagation`'s for the same seed.
+
 #### Girvan-Newman Algorithm
 
 ```typescript

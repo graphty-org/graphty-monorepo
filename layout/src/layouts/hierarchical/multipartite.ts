@@ -13,7 +13,8 @@ import { nodeListsToRows, shellsToPositionMap } from "../geometric/shell";
  * on `[center[1], center[0]]`; `indexed.multipartite` centres on `center` itself.
  * @param G - Graph, or a GraphSnapshot when `subsetKey` names a node column
  * @param subsetKey - Object mapping layers to node sets, or the name of a `u32` or `dict` node column of a
- * GraphSnapshot whose equal values form one layer, in ascending value order
+ * GraphSnapshot whose equal values form one layer, in ascending value order; for any other graph a string puts every
+ * node in one layer
  * @param align - The alignment of nodes: 'vertical' or 'horizontal'
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
@@ -43,15 +44,14 @@ export function multipartiteLayout(
 
     let rowIds: readonly Node[] = nodes;
     let layers: number[][];
-    if (typeof subsetKey === "string") {
-        if (!isGraphSnapshot(G)) {
-            throw new Error(
-                `subsetKey "${subsetKey}" names a node column, and only a GraphSnapshot has node columns; pass the layers instead`,
-            );
-        }
+    if (typeof subsetKey === "string" && isGraphSnapshot(G)) {
         layers = groupsOfColumn(G, subsetKey, "subset");
     } else {
-        const lists = Object.values(subsetKey).map((value) => (Array.isArray(value) ? value : [value]));
+        // a graph without node columns has nothing for a string subsetKey to read, so every node shares one layer
+        const lists =
+            typeof subsetKey === "string"
+                ? [nodes]
+                : Object.values(subsetKey).map((value) => (Array.isArray(value) ? value : [value]));
         ({ rowIds, lists: layers } = nodeListsToRows(nodes, lists));
     }
     const rescaleCenter = align === "horizontal" ? [center[1], center[0]] : center;

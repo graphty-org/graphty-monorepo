@@ -37,7 +37,7 @@ const adjacent = (adj: readonly number[][], u: number, v: number): boolean => ad
 /**
  * Whether the graph is K5 or K3,3, the two graphs the planarity check names outright.
  * @param adj - the neighbour lists
- * @param edgeCount - the logical edge count
+ * @param edgeCount - the number of distinct edges between two nodes
  * @returns true for K5 or K3,3
  */
 function isKuratowski(adj: readonly number[][], edgeCount: number): boolean {
@@ -196,13 +196,16 @@ function embeddingRows(adj: readonly number[][], seed: number | null): F64 {
  * @param center - at least 2 components
  * @param seed - the jitter's seed, or null for a random one
  * @returns `2 * n` values
- * @throws "G is not planar." for K5, K3,3 and a connected graph of more than `3n - 6` edges
+ * @throws "G is not planar." for K5, K3,3 and a connected graph of more than `3n - 6` distinct edges, not counting
+ * self-loops and parallel edges
  */
 export function planarRows(g: GraphSnapshot, scale: number, center: readonly number[], seed: number | null): F64 {
     const n = g.nodeCount;
     const adj = neighbourLists(g);
+    // self-loops and parallel edges do not affect planarity, so count only the distinct edges between two nodes
+    const edgeCount = adj.reduce((total, list) => total + list.length, 0) / 2;
     if (n > 4) {
-        if (isKuratowski(adj, g.edgeCount)) {
+        if (isKuratowski(adj, edgeCount)) {
             throw new Error("G is not planar.");
         }
         const reached = new Uint8Array(n);
@@ -217,7 +220,7 @@ export function planarRows(g: GraphSnapshot, scale: number, center: readonly num
                 }
             }
         }
-        if (count === n && g.edgeCount > 3 * n - 6) {
+        if (count === n && edgeCount > 3 * n - 6) {
             throw new Error("G is not planar.");
         }
     }

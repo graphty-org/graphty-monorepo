@@ -359,8 +359,103 @@ describe("legacy wrappers over the indexed layouts", () => {
         }
     });
 
-    it("multipartiteLayout rejects a string subsetKey for a graph with no node columns", () => {
-        assert.throws(() => multipartiteLayout(completeGraph(3)), /only a GraphSnapshot has node columns/);
+    it("multipartiteLayout puts every node in one layer for a string subsetKey on a graph with no node columns", () => {
+        const spies = (["log", "info", "warn", "error", "debug"] as const).map((method) =>
+            vi.spyOn(console, method).mockImplementation(() => undefined),
+        );
+        const g: Graph = { nodes: () => [0, 1, 2], edges: () => [] };
+        assert.deepEqual(multipartiteLayout(g), { 0: [0, -1], 1: [0, 0], 2: [0, 1] });
+        for (const spy of spies) {
+            assert.equal(spy.mock.calls.length, 0);
+        }
+    });
+
+    /** Asserts that `pos` holds exactly `expected`'s nodes, each within 1e-9 of its pinned coordinates. */
+    const closeTo = (pos: PositionMap, expected: Record<string, number[]>): void => {
+        assert.deepEqual(Object.keys(pos), Object.keys(expected));
+        for (const [node, coords] of Object.entries(expected)) {
+            coords.forEach((c, i) => {
+                assert.ok(Math.abs(pos[node][i] - c) < 1e-9, `node ${node} axis ${i}: ${pos[node][i]} != ${c}`);
+            });
+        }
+    };
+
+    // The coordinates below were produced by the pre-migration implementations, so these tests hold the wrappers to
+    // the old output rather than to the indexed code they now run.
+    const spectralGraph: Graph = {
+        nodes: () => [0, 1, 2, 3, 4],
+        edges: () => [[0, 1], [0, 1], [1, 2], [2, 3], [3, 4], [4, 0], [1, 3], [2, 2]],
+    };
+
+    it("spectralLayout keeps its pre-migration output in 2D, with a parallel edge and a self-loop", () => {
+        closeTo(spectralLayout(spectralGraph, 1, null, 2, 7), {
+            0: [0.39279270028992536, 0.0031423426377324903],
+            1: [-0.6355519396046398, -0.18854288286515103],
+            2: [8.704879263260277e-12, 0.593684065965646],
+            3: [0.635551939590555, -0.7720581144464991],
+            4: [-0.39279270028454544, 0.36377458870827156],
+        });
+    });
+
+    it("spectralLayout keeps its pre-migration output in 3D, with a parallel edge and a self-loop", () => {
+        closeTo(spectralLayout(spectralGraph, 2, [1, 2, 3], 3, 7), {
+            0: [1.6630117939800617, 2.005304096099559, 3.6630117939800617],
+            1: [-0.07277561760632345, 1.6817503102315094, 1.9272243823936765],
+            2: [1.0000000000146934, 3.0021050221725725, 3.000000000014693],
+            3: [2.072775617582549, 0.6968097035963008, 4.072775617582549],
+            4: [0.33698820602901913, 2.614030867900058, 2.336988206029019],
+        });
+    });
+
+    // six nodes whose Hamiltonian cycle 0-2-4-1-3-5 is not in index order, so it becomes the outer face
+    const planarEdges: [number, number][] = [[0, 2], [2, 4], [4, 1], [1, 3], [3, 5], [5, 0], [0, 4]];
+    const planarGraph: Graph = { nodes: () => [0, 1, 2, 3, 4, 5], edges: () => planarEdges };
+
+    it("planarLayout keeps its pre-migration output on a small graph with a Hamiltonian cycle", () => {
+        closeTo(planarLayout(planarGraph, 1, null, 2, 7), {
+            0: [0.9999999999999998, -5.5511151231257815e-17],
+            1: [-0.9999999999999998, 6.695352868347748e-17],
+            2: [0.5, 0.8660254037844384],
+            3: [-0.5000000000000003, -0.8660254037844384],
+            4: [-0.49999999999999967, 0.8660254037844384],
+            5: [0.5, -0.8660254037844384],
+        });
+    });
+
+    it("planarLayout ignores self-loops and parallel edges", () => {
+        // node 6, joined to 0 and 1, has no Hamiltonian cycle through it, so it is placed inside at its neighbours' mean
+        const withInterior = (extra: [number, number][]): Graph => ({
+            nodes: () => [0, 1, 2, 3, 4, 5, 6],
+            edges: () => [...planarEdges, [6, 0], [6, 1], ...extra],
+        });
+        const plain = planarLayout(withInterior([]), 1, null, 2, 7);
+        assert.deepEqual(planarLayout(withInterior([[2, 2], [6, 6]]), 1, null, 2, 7), plain);
+        assert.deepEqual(planarLayout(withInterior([[0, 6], [6, 0], [2, 0]]), 1, null, 2, 7), plain);
+    });
+
+    it("planarLayout accepts a planar graph whose self-loops and parallel edges pass 3n - 6", () => {
+        // a five-node path has 4 edges; five self-loops and a repeated edge take the raw count to 10 > 3 * 5 - 6
+        const g: Graph = {
+            nodes: () => [0, 1, 2, 3, 4],
+            edges: () => [[0, 1], [1, 2], [2, 3], [3, 4], [0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [0, 1]],
+        };
+        assert.equal(Object.keys(planarLayout(g, 1, null, 2, 7)).length, 5);
+    });
+
+    it("planarLayout rejects K3,3 with a self-loop", () => {
+        const edges: [number, number][] = [[0, 0]];
+        for (const u of [0, 1, 2]) {
+            for (const v of [3, 4, 5]) {
+                edges.push([u, v]);
+            }
+        }
+        const g: Graph = { nodes: () => [0, 1, 2, 3, 4, 5], edges: () => edges };
+        assert.throws(() => planarLayout(g, 1, null, 2, 7), /G is not planar/);
+    });
+
+    it("bfsLayout keeps its pre-migration horizontal centring on the swapped centre", () => {
+        const g: Graph = { nodes: () => ["a", "b", "c"], edges: () => [["a", "b"], ["b", "c"]] };
+        assert.deepEqual(bfsLayout(g, "a", "horizontal", 1, [5, 1]), { a: [1, 4], b: [1, 5], c: [1, 6] });
     });
 
     it("bfsLayout rejects a start node that is not in the graph", () => {

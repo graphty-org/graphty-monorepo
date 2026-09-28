@@ -359,13 +359,13 @@ console.log(dist[i * n + j]); // distance from a to c; +Infinity when unreachabl
 ```
 
 By default it runs one breadth-first search per source on unweighted graphs, Floyd-Warshall when a
-weight is negative or the graph is dense (0.4 n^2 arcs or more), and one Dijkstra per source
+weight is negative or the graph is dense (n^2 / 3 arcs or more), and one Dijkstra per source
 otherwise; `method: "floyd-warshall"` or `"per-source"` forces a strategy, and `result.method` says
 which ran. Pass `paths: true` to record predecessors, then `pathTo(i, j)` and `pathEdges(i, j)` return
 node and edge indices. It refuses graphs above 5,792 nodes (256 MiB of matrix) unless you raise
 `maxNodes`. A negative cycle gives `hasNegativeCycle: true` and a matrix of `NaN`. On a 512-node graph
-with 5,120 edges it is 59x faster than `floydWarshall` with Floyd-Warshall forced, 195x on weighted
-input by default, and 737x on unweighted input.
+with 5,120 edges it is 69x faster than `floydWarshall` with Floyd-Warshall forced, 201x on weighted
+input by default, and 775x on unweighted input.
 
 ### Centrality Algorithms
 

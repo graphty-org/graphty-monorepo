@@ -9,13 +9,17 @@ export const APSP_DEFAULT_MAX_NODES = 5792;
 
 /** Options of the index-based all-pairs shortest paths. @public */
 export interface ApspOptions {
-    /** Per-arc weight override, arcCount long; defaults to `s.weights` (null = 1 per arc). */
+    /**
+     * Per-arc weight override, arcCount long; defaults to `s.weights` (null = 1 per arc). The
+     * snapshot's weights are f32, whose rounding can change which path is shortest; pass the exact
+     * f64 weights here to match the shipped `floydWarshall`.
+     */
     readonly weights?: NumericVector | undefined;
     /** `false` counts hops and ignores every weight. Default true. */
     readonly weighted?: boolean | undefined;
     /**
      * Strategy override. `"auto"` (the default): BFS rows on unit weights, Floyd-Warshall on any
-     * negative weight, Dijkstra rows below arcCount 0.4 n^2, Floyd-Warshall otherwise.
+     * negative weight, Dijkstra rows below arcCount n^2 / 3, Floyd-Warshall otherwise.
      * `"floyd-warshall"` always sweeps; `"per-source"` runs BFS or Dijkstra rows and throws on a
      * negative weight.
      */
@@ -76,8 +80,13 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
     for (let a = 0; a < s.arcCount; a++) {
         const x = w[a];
         if (!Number.isFinite(x)) {
+            // A finite weight above 3.4e38 reaches the f32 arc column as Infinity.
+            const hint =
+                options.weights === undefined && !Number.isNaN(x)
+                    ? "; a finite weight above the f32 range (3.4e38) becomes Infinity in the snapshot's f32 arc weights -- pass the exact f64 weights through the weights override"
+                    : "";
             throw new RangeError(
-                `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite`,
+                `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite${hint}`,
             );
         }
         unit &&= x === 1;
@@ -117,26 +126,31 @@ function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: bool
     }
     for (let k = 0; k < n; k++) {
         const kr = k * n;
+        // Row views, not d[kr + j]: 12 to 19 percent faster at every measured size (design section 12).
+        const dk = d.subarray(kr, kr + n);
         for (let i = 0; i < n; i++) {
             const ir = i * n;
             const dik = d[ir + k];
             if (dik === Infinity) {
                 continue;
             }
+            const di = d.subarray(ir, ir + n);
             // two copies of the j loop so the common no-paths sweep carries no per-cell branch
             if (p === null) {
-                for (let j = 0; j < n; j++) {
-                    const via = dik + d[kr + j];
-                    if (via < d[ir + j]) {
-                        d[ir + j] = via;
+                for (let j = 0; j < di.length; j++) {
+                    const via = dik + dk[j];
+                    if (via < di[j]) {
+                        di[j] = via;
                     }
                 }
             } else {
-                for (let j = 0; j < n; j++) {
-                    const via = dik + d[kr + j];
-                    if (via < d[ir + j]) {
-                        d[ir + j] = via;
-                        p[ir + j] = p[kr + j];
+                const pk = p.subarray(kr, kr + n);
+                const pi = p.subarray(ir, ir + n);
+                for (let j = 0; j < di.length; j++) {
+                    const via = dik + dk[j];
+                    if (via < di[j]) {
+                        di[j] = via;
+                        pi[j] = pk[j];
                     }
                 }
             }
@@ -268,9 +282,9 @@ function pickStrategy(
         }
         return "floyd-warshall";
     }
-    // The measured crossover (design section 12): 0.4 n^2 arcs, above SciPy's n^2 / 4. Integer form, no rounding.
+    // The measured crossover (design section 12): n^2 / 3 arcs, above SciPy's n^2 / 4. Integer form, no rounding.
     const n = s.nodeCount;
-    return method === "per-source" || 5 * s.arcCount < 2 * n * n ? "dijkstra" : "floyd-warshall";
+    return method === "per-source" || 3 * s.arcCount < n * n ? "dijkstra" : "floyd-warshall";
 }
 
 /**
@@ -283,7 +297,8 @@ function pickStrategy(
 export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}): ApspResult {
     const n = s.nodeCount;
     const maxNodes = options.maxNodes ?? APSP_DEFAULT_MAX_NODES;
-    if (n > maxNodes) {
+    // Written negated so a NaN maxNodes refuses rather than switching the bound off.
+    if (!(n <= maxNodes)) {
         const bytes = (options.paths === true ? 12 : 8) * n * n;
         throw new RangeError(
             `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,

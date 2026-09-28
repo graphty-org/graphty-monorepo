@@ -174,10 +174,13 @@ export interface BetweennessAcceleratorOptions {
  * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
  *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
- * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when its
- * answer is the port's answer -- no options that change the result, at most the port's default
+ * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
+ * answers the port's question -- no options that change the result, at most the port's default
  * 5,792 nodes, and non-negative finite snapshot weights -- and runs the CPU port otherwise. That is
  * routing decided from the inputs, not a fallback: an error the accelerator raises still propagates.
+ * Same question is not same bits: both read the snapshot's f32 arc weights, but a GPU member sums
+ * them in f32 and returns an f32 `dist`, where the port sums in f64. The two agree exactly while
+ * every path sum is an integer below 2^24, and otherwise may differ by f32 rounding.
  * @public
  */
 export interface AcceleratedAlgorithms {
@@ -197,7 +200,7 @@ export interface AcceleratedAlgorithms {
 
 /**
  * Whether the accelerator's all-pairs member, called with the snapshot alone, answers the question
- * the CPU port would: no option that changes the answer, a size the port accepts by default, and
+ * the CPU port would (at its own precision; see `AcceleratedAlgorithms`): no option that changes the answer, a size the port accepts by default, and
  * weights under which no negative cycle can exist, so `hasNegativeCycle: false` is true.
  * @param s - The snapshot
  * @param options - The caller's port options

@@ -67,6 +67,22 @@ describe("indexed.allPairsShortestPath -- input checks", () => {
         s.validate({ checksum: true });
     });
 
+    it("refuses a NaN maxNodes instead of dropping the bound", () => {
+        const s = checksummedSnapshot(threePath());
+        expect(() => allPairsShortestPath(s, { maxNodes: NaN })).toThrow(/maxNodes NaN/);
+        s.validate({ checksum: true });
+    });
+
+    it("names f32 overflow and the f64 override for a finite weight above the f32 range", () => {
+        const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        b.addEdge(0, 1, 1e39);
+        b.addEdge(1, 2, 1);
+        const s = b.freeze();
+        expect(() => allPairsShortestPath(s)).toThrow(/f32.*weights override/);
+        const w = f64Weights(s);
+        expect(allPairsShortestPath(s, { weights: w }).dist[2]).toBe(1e39 + 1);
+    });
+
     it("has an oracle that gets a weighted square right", () => {
         // a-b 1, b-c 2, c-d 3, d-a 10, undirected: a->d is 6 the long way round
         const g = new Graph({ directed: false });
@@ -160,6 +176,20 @@ describe("indexed.allPairsShortestPath -- Floyd-Warshall", () => {
         const r = allPairsShortestPath(s, { ...fw, weights: w });
         expect(r.dist).toEqual(floydWarshallOracle(s, w));
         expect(r.dist[2]).toBe(0.1 + 0.2);
+        s.validate({ checksum: true });
+    });
+
+    it("can pick a different path on the f32 arc weights than on the f64 override", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b", 0.1);
+        g.addEdge("b", "c", 0.2);
+        g.addEdge("a", "c", 0.3);
+        const s = checksummedSnapshot(g);
+        const r32 = allPairsShortestPath(s, { paths: true });
+        const r64 = allPairsShortestPath(s, { paths: true, weights: f64Weights(s) });
+        expect(Array.from(r32.pathTo(0, 2))).toEqual([0, 1, 2]);
+        expect(Array.from(r64.pathTo(0, 2))).toEqual([0, 2]);
+        expect(r64.dist[2]).toBe(0.3);
         s.validate({ checksum: true });
     });
 });
@@ -338,12 +368,12 @@ describe("indexed.allPairsShortestPath -- per-source strategies and the rule", (
         }
     });
 
-    it("switches from Dijkstra to Floyd-Warshall at arcCount 0.4 n^2", () => {
-        const below = directed20(159);
-        expect(below.arcCount).toBe(159);
+    it("switches from Dijkstra to Floyd-Warshall at arcCount n^2 / 3", () => {
+        const below = directed20(133);
+        expect(below.arcCount).toBe(133);
         expect(allPairsShortestPath(below).method).toBe("dijkstra");
-        const at = directed20(160);
-        expect(at.arcCount).toBe(160);
+        const at = directed20(134);
+        expect(at.arcCount).toBe(134);
         expect(allPairsShortestPath(at).method).toBe("floyd-warshall");
         below.validate({ checksum: true });
         at.validate({ checksum: true });

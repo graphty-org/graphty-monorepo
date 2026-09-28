@@ -1,4 +1,4 @@
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
@@ -320,6 +320,29 @@ describe("accelerated(acc)", () => {
                 const r = await dispatcher.allPairsShortestPath(s, options);
                 expect(r.dist, JSON.stringify(options)).toEqual(indexed.allPairsShortestPath(s, options).dist);
             }
+            expect(calls).toEqual([]);
+        });
+
+        it("runs the CPU port above the default size bound, whatever the device could hold", async () => {
+            const b = new GraphBuilder({ directed: true });
+            for (let i = 0; i <= 5792; i++) {
+                b.addNode(i);
+            }
+            const s = b.freeze();
+            const calls: unknown[][] = [];
+            await expect(async () => accelerated(stub(calls)).allPairsShortestPath(s)).rejects.toThrow(/exceeds maxNodes 5792/);
+            expect(calls).toEqual([]);
+        });
+
+        it("runs the CPU port on an infinite snapshot weight, so both paths refuse it alike", async () => {
+            const b = new GraphBuilder({ directed: true });
+            b.addEdge(0, 1, Infinity);
+            b.addEdge(1, 2, 1);
+            const s = b.freeze();
+            expect(s.flags.nonNegativeWeights).toBe(true);
+            expect(s.flags.finiteWeights).toBe(false);
+            const calls: unknown[][] = [];
+            await expect(async () => accelerated(stub(calls)).allPairsShortestPath(s)).rejects.toThrow(RangeError);
             expect(calls).toEqual([]);
         });
 

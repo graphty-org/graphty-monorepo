@@ -146,15 +146,14 @@ undirected edge count, as SciPy's stored-entry count does for a symmetric matrix
 1. `w` is absent, or every value is 1, or `options.weighted === false`: **BFS**, one per source,
    hop counts.
 2. Some weight is negative: **Floyd-Warshall**.
-3. `A < 0.4 n^2` (computed as `5 A < 2 n^2`): **Dijkstra**, one per source.
+3. `A < n^2 / 3` (computed as `3 A < n^2`): **Dijkstra**, one per source.
 4. Otherwise: **Floyd-Warshall**.
 
 Rule 3 started as SciPy's threshold, `A < n^2 / 4`. igraph's is lower (0.1 n^2 edges, about 0.2 n^2
 arcs undirected). The scratch benchmark of section 2 put the crossover at an average out-degree of
-n/4 to n/3, but the benchmark of the shipped code (section 12) measured it at 0.39 n^2 arcs on 512
-nodes: at SciPy's n^2 / 4 the Dijkstra rows were still 26 percent faster than the sweep, and the two
-tied only at average degree 200. The scratch figures at 1,024 nodes in section 2 put it near 0.43
-n^2. So the port uses 0.4 n^2, the measured crossover, not SciPy's.
+n/4 to n/3, and the benchmark of the shipped code (section 12) measured it at n^2 / 3 arcs on 512
+nodes: at SciPy's n^2 / 4 the Dijkstra rows were still 17 percent faster than the sweep, and the
+two tied at average degree 170. So the port uses n^2 / 3, the measured crossover, not SciPy's.
 
 `options.method` overrides the rule: `"floyd-warshall"` always sweeps (with unit weights when rule
 1 would have applied); `"per-source"` runs BFS under rule 1 and Dijkstra otherwise, and throws when
@@ -211,6 +210,13 @@ and one O(A) scan is negligible next to the O(n^2) matrix.
 column (`s.edges.byRole("weight")`). A caller who needs the shipped function's exact f64 distances
 passes `weights: expandEdges(s, shadow.data)`, as the `indexed.dijkstra` tests already do.
 
+The f32 rounding can change which path is shortest, not only the last digits of a distance: with
+edges 0->1 0.1, 1->2 0.2 and 0->2 0.3, the default call returns `dist[0][2] = 0.30000000447...` by
+the path 0, 1, 2, while the f64 override and the shipped function return 0.3 by the direct edge.
+And a finite weight above the f32 range (about 3.4e38) is Infinity in `s.weights`, so the default
+call refuses it with a `RangeError` that says so and names the override; with the override the
+distances follow f64 arithmetic.
+
 ### 5.3 Negative cycles
 
 When the graph has a negative cycle the result has `hasNegativeCycle: true`, every cell of `dist`
@@ -266,7 +272,8 @@ SciPy documents the same: "If multiple valid solutions are possible, output may 
 The port refuses more than `maxNodes` nodes, default **5,792**, with a `RangeError` raised before
 anything is allocated. The message names the node count, the bound, the bytes the call would
 allocate (8 n^2, plus 4 n^2 with `paths: true`) and the option that changes it. `maxNodes` may be
-set lower or higher per call.
+set lower or higher per call. The test is written `!(n <= maxNodes)`, so a `NaN` bound refuses
+rather than switching the check off.
 
 5,792 is the GPU kernel's ceiling at the WebGPU spec-default 128 MiB storage binding
 (`floor(sqrt(2^27 / 4))`, PR #549 `all-pairs.ts`), so the CPU and GPU paths refuse at the same size
@@ -372,7 +379,7 @@ its kernel, so even `weighted` never arrives. It refuses negative and non-finite
 different question without saying so: `weighted: false` on a weighted snapshot gives hop counts
 on the CPU and weighted distances on the GPU, and `paths`, `method` and `maxNodes` would be
 dropped. So `acceleratorAnswersApsp(s, options)`, a private helper, sends the call to the
-accelerator only when its answer is the port's answer, and otherwise the CPU port runs:
+accelerator only when it answers the port's question, and otherwise the CPU port runs:
 
 - `options.weights`, `options.method` (other than `"auto"`) and `options.maxNodes` are undefined,
   `options.paths` is not `true`, and `options.weighted` is not `false`;
@@ -386,6 +393,14 @@ Under those conditions no negative cycle can exist, so wrapping the accelerator'
 negative-weight graph always runs the CPU port and gets the flag and the `NaN` matrix of section
 5.3, whether or not an accelerator is injected. A non-finite weight gets the port's `RangeError`
 on both paths.
+
+The same question does not give the same bits. Both paths read the snapshot's f32 arc weights, but
+the GPU member sums them in f32 and returns an f32 `dist`, where the port sums in f64 and returns a
+`Float64Array`. The two agree exactly while every shortest-path sum is an integer below 2^24; past
+that, or on fractional weights, the GPU distances carry f32 rounding (weights 16,777,216 and 1 in
+a row give 16,777,217 on the CPU and 16,777,216 on the GPU). The seam type `ApspResultLike.dist` is
+a `NumericVector` for this reason. A caller who needs f64 distances passes an option the
+accelerator does not read (the `weights` override), which keeps the call on the CPU.
 
 This is routing decided from the inputs before anything runs, as the `auto` rule picks a
 strategy. It is not the fallback the repository forbids: the dispatcher never catches an
@@ -473,7 +488,7 @@ edge, deliberately; this suite adds its own cases for those.
 | undirected graph with one negative edge | `hasNegativeCycle` before the sweep |
 | `NaN`, `+Infinity` weight; override of the wrong length | `RangeError` |
 | `maxNodes: 2` on three nodes | `RangeError` naming 3, 2 and the bytes; nothing allocated |
-| a 20-node graph on each side of `A = 0.4 n^2` (159 and 160 arcs) | `auto` reports `dijkstra` below and `floyd-warshall` at or above |
+| a 20-node graph on each side of `A = n^2 / 3` (133 and 134 arcs) | `auto` reports `dijkstra` below and `floyd-warshall` at or above |
 | every fixture, `floyd-warshall` and `per-source` forced, on the fixture's own weights and on an override of 2 on every arc | the reference matrix for the same weights, exactly, and the triangle inequality; the override makes `per-source` run Dijkstra on the unit-weight fixtures, which would otherwise take BFS |
 | every fixture, `paths: true`, both forced strategies, own weights and the all-2 override | for every reachable pair the weight sum along `pathEdges` equals `dist`, `pathTo` starts at i and ends at j, consecutive nodes are joined by the named edges |
 | every fixture, Floyd-Warshall strategy, f64 override | bit-identical to the shipped `floydWarshall` distances, mapped through the snapshot's id map |
@@ -556,7 +571,8 @@ The measured table is section 12.
 
 `npx tsx benchmarks/all-pairs-bench.ts` from `algorithms/`, timing the shipped
 `indexed.allPairsShortestPath` and the shipped `floydWarshall`; Node v22.22.1 on the i9-14900,
-2026-09-27. Load average (1, 5, 15 minutes) 10.30, 7.00, 6.52 before the first size and 12.71, 8.53, 7.12 after the last: the
+2026-09-27, after the Floyd-Warshall loop moved to row views (below). Load average (1, 5, 15
+minutes) 10.28, 12.07, 11.62 before the first size and 8.72, 11.06, 11.32 after the last: the
 machine was shared, so the arms ran interleaved within each pass and every figure is a median or a
 minimum, never a mean. Before any timing, every port arm's matrix equalled the Floyd-Warshall arm's
 cell for cell, and the shipped function's where it ran; the unweighted arm equalled half of a
@@ -565,56 +581,73 @@ an unweighted copy of the same edges.
 
 | nodes | arm | strategy | median ms | min ms | median vs shipped | passes |
 | ----: | --- | --- | ----: | ----: | ----: | ----: |
-| 64 | shipped floydWarshall |  | 11.0 | 10.7 |  | 15 |
-| 64 | port floyd-warshall | floyd-warshall | 0.38 | 0.37 | 28.7x | 15 |
-| 64 | port auto (weighted) | dijkstra | 0.47 | 0.45 | 23.3x | 15 |
-| 64 | port auto (unweighted) | bfs | 0.14 | 0.14 | 76.8x | 15 |
-| 128 | shipped floydWarshall |  | 90.1 | 89.0 |  | 15 |
-| 128 | port floyd-warshall | floyd-warshall | 2.32 | 2.26 | 38.9x | 15 |
-| 128 | port auto (weighted) | dijkstra | 2.08 | 2.03 | 43.3x | 15 |
-| 128 | port auto (unweighted) | bfs | 0.61 | 0.57 | 148.1x | 15 |
-| 256 | shipped floydWarshall |  | 760 | 704 |  | 15 |
-| 256 | port floyd-warshall | floyd-warshall | 16.8 | 16.1 | 45.2x | 15 |
-| 256 | port auto (weighted) | dijkstra | 8.88 | 8.45 | 85.6x | 15 |
-| 256 | port auto (unweighted) | bfs | 2.41 | 2.25 | 315.7x | 15 |
-| 512 | shipped floydWarshall |  | 7035 | 6955 |  | 5 |
-| 512 | port floyd-warshall | floyd-warshall | 120 | 112 | 58.7x | 5 |
-| 512 | port auto (weighted) | dijkstra | 36.1 | 35.3 | 195.1x | 5 |
-| 512 | port auto (unweighted) | bfs | 9.54 | 9.05 | 737.2x | 5 |
-| 1024 | port floyd-warshall | floyd-warshall | 854 | 838 |  | 5 |
-| 1024 | port auto (weighted) | dijkstra | 151 | 148 |  | 5 |
-| 1024 | port auto (unweighted) | bfs | 36.9 | 36.6 |  | 5 |
-| 2048 | port floyd-warshall | floyd-warshall | 7274 | 7267 |  | 3 |
-| 2048 | port auto (weighted) | dijkstra | 720 | 657 |  | 3 |
-| 2048 | port auto (unweighted) | bfs | 163 | 159 |  | 3 |
-| 4096 | port auto (weighted) | dijkstra | 2942 | 2932 |  | 3 |
-| 4096 | port auto (unweighted) | bfs | 687 | 663 |  | 3 |
-| 5792 | port auto (weighted) | dijkstra | 6449 | 6212 |  | 3 |
-| 5792 | port auto (unweighted) | bfs | 1551 | 1412 |  | 3 |
+| 64 | shipped floydWarshall |  | 14.0 | 13.2 |  | 15 |
+| 64 | port floyd-warshall | floyd-warshall | 0.45 | 0.42 | 31.3x | 15 |
+| 64 | port auto (weighted) | dijkstra | 0.52 | 0.49 | 27.1x | 15 |
+| 64 | port auto (unweighted) | bfs | 0.16 | 0.15 | 84.8x | 15 |
+| 128 | shipped floydWarshall |  | 111 | 109 |  | 15 |
+| 128 | port floyd-warshall | floyd-warshall | 2.50 | 2.36 | 44.3x | 15 |
+| 128 | port auto (weighted) | dijkstra | 2.35 | 2.25 | 47.1x | 15 |
+| 128 | port auto (unweighted) | bfs | 0.68 | 0.63 | 162.2x | 15 |
+| 256 | shipped floydWarshall |  | 795 | 769 |  | 15 |
+| 256 | port floyd-warshall | floyd-warshall | 15.5 | 14.6 | 51.3x | 15 |
+| 256 | port auto (weighted) | dijkstra | 8.98 | 8.70 | 88.5x | 15 |
+| 256 | port auto (unweighted) | bfs | 2.40 | 2.28 | 331.2x | 15 |
+| 512 | shipped floydWarshall |  | 7687 | 7549 |  | 5 |
+| 512 | port floyd-warshall | floyd-warshall | 111 | 105 | 69.3x | 5 |
+| 512 | port auto (weighted) | dijkstra | 38.2 | 37.2 | 201.3x | 5 |
+| 512 | port auto (unweighted) | bfs | 9.91 | 9.85 | 775.4x | 5 |
+| 1024 | port floyd-warshall | floyd-warshall | 774 | 761 |  | 5 |
+| 1024 | port auto (weighted) | dijkstra | 156 | 155 |  | 5 |
+| 1024 | port auto (unweighted) | bfs | 38.3 | 37.7 |  | 5 |
+| 2048 | port floyd-warshall | floyd-warshall | 7033 | 6958 |  | 3 |
+| 2048 | port auto (weighted) | dijkstra | 686 | 681 |  | 3 |
+| 2048 | port auto (unweighted) | bfs | 174 | 168 |  | 3 |
+| 4096 | port auto (weighted) | dijkstra | 2961 | 2917 |  | 3 |
+| 4096 | port auto (unweighted) | bfs | 690 | 667 |  | 3 |
+| 5792 | port auto (weighted) | dijkstra | 5810 | 5767 |  | 3 |
+| 5792 | port auto (unweighted) | bfs | 1318 | 1316 |  | 3 |
 
 The shipped function was not timed above 512 nodes (7 s per call there). "median vs shipped" is the
-shipped median divided by the arm's median. At 512 nodes the port is 59x faster with
-Floyd-Warshall forced, 195x with `auto` on the weighted graph (Dijkstra rows) and 737x with `auto`
+shipped median divided by the arm's median. At 512 nodes the port is 69x faster with
+Floyd-Warshall forced, 201x with `auto` on the weighted graph (Dijkstra rows) and 775x with `auto`
 on the unweighted graph (BFS rows). At 64 nodes `auto` picks Dijkstra, which is slower there than
-the sweep (0.47 against 0.38 ms); below a millisecond that is not worth a rule of its own.
+the sweep (0.52 against 0.45 ms); below a millisecond that is not worth a rule of its own.
 
-Density at 512 nodes, weights 1-100, both strategies forced:
+**Row views in the Floyd-Warshall loop.** The inner loop reads row k and row i through
+`subarray` views (`dk[j]`, `di[j]`) instead of indexing the whole matrix (`d[kr + j]`,
+`d[ir + j]`). Old and new code timed in one process per case, order alternating each pass, output
+equal cell for cell (`tmp/floyd-warshall-port/oldnew/`; load 2.8 rising to 11.5), median (min) ms:
+
+| case | row offsets | row views | new / old |
+| --- | ----: | ----: | ----: |
+| 512 nodes, degree 20 | 107.2 (105.0) | 95.2 (94.3) | 0.89 |
+| 512 nodes, degree 480 | 131.7 (125.1) | 114.3 (109.3) | 0.87 |
+| 1,024 nodes, degree 20 | 907 (899) | 738 (723) | 0.81 |
+| 2,048 nodes, degree 20 | 7,422 (6,986) | 6,233 (6,069) | 0.84 |
+
+Filling each BFS or Dijkstra row with Infinity just before its search, instead of the whole matrix
+up front, was measured the same way and gave no reliable gain (new / old 0.91 to 1.02 by median,
+within 3 percent by minimum, at 2,048 to 5,792 nodes), so the up-front fill stays.
+
+Density at 512 nodes, weights 1-100, both strategies forced (a second run, on the final rule;
+load 10.94 before, 11.45 after):
 
 | average degree | arcs / n^2 | auto picks | floyd-warshall median ms | min | per-source median ms | min | per-source / fw |
 | ----: | ----: | --- | ----: | ----: | ----: | ----: | ----: |
-| 20 | 0.039 | dijkstra | 114 | 113 | 36.2 | 35.8 | 0.32 |
-| 64 | 0.125 | dijkstra | 130 | 130 | 64.7 | 64.3 | 0.50 |
-| 128 | 0.250 | dijkstra | 152 | 135 | 116 | 98.9 | 0.76 |
-| 170 | 0.332 | dijkstra | 135 | 128 | 126 | 123 | 0.94 |
-| 200 | 0.391 | dijkstra | 130 | 129 | 137 | 134 | 1.05 |
-| 256 | 0.500 | floyd-warshall | 127 | 125 | 164 | 162 | 1.29 |
-| 480 | 0.938 | floyd-warshall | 128 | 124 | 291 | 277 | 2.28 |
+| 20 | 0.039 | dijkstra | 105 | 101 | 37.5 | 36.9 | 0.36 |
+| 64 | 0.125 | dijkstra | 113 | 112 | 62.9 | 61.9 | 0.56 |
+| 128 | 0.250 | dijkstra | 113 | 109 | 93.4 | 89.8 | 0.83 |
+| 170 | 0.332 | dijkstra | 114 | 109 | 114 | 112 | 1.00 |
+| 200 | 0.391 | floyd-warshall | 110 | 108 | 124 | 121 | 1.13 |
+| 256 | 0.500 | floyd-warshall | 109 | 108 | 153 | 152 | 1.40 |
+| 480 | 0.938 | floyd-warshall | 190 | 114 | 514 | 419 | 2.70 |
 
-**The crossover moved the threshold.** The plan asked whether the crossover sits between an average
+**The crossover set the threshold.** The plan asked whether the crossover sits between an average
 degree of n/4 and n/3 (arcs / n^2 of 0.25 to 0.33), which would confirm SciPy's n^2 / 4. It does
-not: the Dijkstra rows are still 24 percent faster at 0.25 and 6 percent faster at 0.33, and the two
-strategies meet at about 0.38 (average degree 200 gave a ratio of 1.00 in the first full run and
-1.05 in this one, which ran on the final code). The scratch figures at 1,024 nodes in section 2 put
-the crossover near 0.43. So rule 3 of section 4 is `A < 0.4 n^2`, and the "auto picks" column above
-is that rule. Near the threshold the two strategies are within about 5 percent of each other, so
-the exact constant costs little either way.
+not: the Dijkstra rows are still 17 percent faster at 0.25, and the two strategies tie at 0.33
+(ratio 1.00 in both runs after the row-view change). Before that change the sweep was slower and
+the tie sat near 0.38 to 0.39, which is why the rule was first `A < 0.4 n^2`; at 0.391 the sweep is
+now 13 percent faster. So rule 3 of section 4 is `A < n^2 / 3`, and the "auto picks" column above
+is that rule. Near the threshold the two strategies are within a few percent of each other, so the
+exact constant costs little either way.

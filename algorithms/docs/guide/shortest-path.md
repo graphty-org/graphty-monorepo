@@ -92,22 +92,22 @@ console.log(result.hasNegativeCycle); // true
 Finds shortest paths between all pairs of nodes.
 
 ```typescript
-import { Graph, floydWarshall } from "@graphty/algorithms";
+import { Graph, floydWarshall, floydWarshallPath } from "@graphty/algorithms";
 
-const graph = new Graph<string>();
-graph.addEdge("a", "b", { weight: 3 });
-graph.addEdge("b", "c", { weight: 1 });
-graph.addEdge("a", "c", { weight: 6 });
-graph.addEdge("c", "a", { weight: 2 });
+const graph = new Graph({ directed: true });
+graph.addEdge("a", "b", 3);
+graph.addEdge("b", "c", 1);
+graph.addEdge("a", "c", 6);
+graph.addEdge("c", "a", 2);
 
 const result = floydWarshall(graph);
 
 // Get distance between any two nodes
-console.log(result.distance("a", "c")); // 4 (a -> b -> c)
-console.log(result.distance("c", "b")); // 5 (c -> a -> b)
+console.log(result.distances.get("a")?.get("c")); // 4 (a -> b -> c)
+console.log(result.distances.get("c")?.get("b")); // 5 (c -> a -> b)
 
 // Get path between any two nodes
-console.log(result.path("a", "c")); // ["a", "b", "c"]
+console.log(floydWarshallPath(graph, "a", "c")?.path); // ["a", "b", "c"]
 ```
 
 ::: tip
@@ -119,7 +119,7 @@ Floyd-Warshall is ideal when you need to query shortest paths between many diffe
 `indexed.allPairsShortestPath` works on a graph-format snapshot and returns a dense row-major
 `Float64Array`. It picks the fastest strategy for the graph: one breadth-first search per source
 when unweighted, Floyd-Warshall when a weight is negative or the graph is dense, and one Dijkstra
-per source otherwise. On a 512-node graph with 5,120 edges it is 59x to 737x faster than
+per source otherwise. On a 512-node graph with 5,120 edges it is 69x to 775x faster than
 `floydWarshall`, depending on the strategy.
 
 ```typescript
@@ -135,6 +135,19 @@ console.log([...result.pathTo(a, c)].map((i) => s.ids.idOf(i))); // ["a", "b", "
 
 It refuses graphs above 5,792 nodes unless `maxNodes` is raised, and reports a negative cycle as
 `hasNegativeCycle: true` with every distance `NaN`.
+
+By default it reads the snapshot's arc weights, which are stored as f32. Rounding a weight such as
+0.1 to f32 changes more than the last digits: with edges a-b 0.1, b-c 0.2 and a-c 0.3 it picks the
+path a, b, c, where `floydWarshall` picks a, c. A weight above the f32 range (about 3.4e38) is
+refused. For the exact f64 weights `toSnapshot` keeps, pass them as the `weights` option:
+
+```typescript
+import { expandEdges } from "@graphty/graph-format";
+
+const shadow = s.edges.byRole("weight");
+const exact = shadow !== null && shadow.dtype === "f64" ? expandEdges(s, shadow.data) : s.weights;
+indexed.allPairsShortestPath(s, { weights: exact ?? undefined });
+```
 
 ## A* Search
 

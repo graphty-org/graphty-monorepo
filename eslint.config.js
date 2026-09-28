@@ -35,7 +35,6 @@ export default tseslint.config(
             // which is inside the compiled source tree and is imported by a story, so a file
             // that runs in Storybook and in the storybook test project was linted by nothing.
             "*/examples/**",
-            "*/examples-legacy/**",
             // The webgpu-graph-algorithms browser demo belongs to no tsconfig on purpose --
             // webgpu-graph-algorithms/eslint.config.js has ignored it since it was written, with
             // the note that it is type-checked by hand with the DOM lib. A per-package run honours

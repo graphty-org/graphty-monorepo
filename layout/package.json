@@ -21,9 +21,6 @@
         "README.md",
         "LICENSE"
     ],
-    "directories": {
-        "example": "examples"
-    },
     "publishConfig": {
         "access": "public",
         "provenance": true
@@ -42,11 +39,9 @@
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "build:gh-pages": "npm run build:bundle && node scripts/build-gh-pages.js",
+        "build:gh-pages": "node scripts/build-gh-pages.js",
         "watch": "tsc --watch",
         "dev": "tsc --watch",
-        "serve": "npm run build:bundle && vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "examples": "npm run build:bundle && vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "ready:commit": "npm run build && npm run lint && npm run test:run",
         "docs:api": "typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
         "docs:api:watch": "typedoc --watch",

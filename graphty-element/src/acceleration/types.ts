@@ -488,11 +488,14 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * render ceiling (issue #419) is what would let any of the three be measured here and sharpened.
  *
  * HITS, KATZ AND EIGENVECTOR CENTRALITY ARE FLOORED FROM THE SAME RECORD AND SIT BELOW THE CEILING.
- * No sweep through the element has measured them yet; their floors are the kernel's resident
- * crossovers against the index-based ports in Chromium, on the minima: 4,000 nodes for HITS and
- * 6,600 for Katz and eigenvector centrality, each at 100 iterations. All three are inside what the
- * element can hold, so these are the first floors after PageRank that a consumer's graph reaches;
- * a sweep through the element is what would sharpen them.
+ * No sweep through the element has measured them yet. The record's section "Re-derived against the
+ * measured ports" times the kernels at 100 iterations against the index-based CPU ports in Chromium:
+ * HITS at 0.72x and 5.71x, Katz at 0.36x and 3.66x, at 10,000 and 100,000 nodes, so both LOSE at
+ * 10,000. The floors are where the speedup crosses 1x between those two measured sizes, taken on a
+ * straight line in log size against log speedup and rounded up: 15,000 nodes for HITS and 28,000
+ * for Katz. Eigenvector centrality shares Katz's floor: the record costs the two as one row, runs
+ * the same power iteration for both, and has no re-derivation of its own. All three are inside
+ * what the element can hold; a sweep through the element is what would sharpen them.
  *
  * A floor is the smallest measured size at which the device's median was at or below the CPU
  * port's IN EVERY RUN, so a size that won under one load and lost under another is below it. A
@@ -527,11 +530,12 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         pageRank: 50_000,
         // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
         connectedComponents: 132_000,
-        // The kernel's resident crossover against the index-based port, from the same record; inside
-        // the render ceiling, so a graph this large does reach the device.
-        hits: 4_000,
-        // Likewise, for Katz and eigenvector centrality alike.
-        katzCentrality: 6_600,
-        eigenvectorCentrality: 6_600,
+        // Interpolated between the kernel's measured 0.72x at 10,000 and 5.71x at 100,000 nodes
+        // against the index-based port; inside the render ceiling, so a graph this large does reach
+        // the device.
+        hits: 15_000,
+        // Likewise, between Katz's 0.36x and 3.66x; eigenvector centrality is costed as the same row.
+        katzCentrality: 28_000,
+        eigenvectorCentrality: 28_000,
     },
 );

@@ -106,8 +106,11 @@ These are reversible, so they are made here rather than asked.
   GPU kernel has no seed. The element never bypasses the dispatcher to get this behaviour.
 - **GPU forwarding in the element.** This plan forwards only members whose cost record gives an
   unconditional crossover, each with its node floor from
-  `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md` ("minimum of N" column): `hits`
-  4,000; `katzCentrality` 6,600; `eigenvectorCentrality` 6,600. Bellman-Ford (earns only with
+  `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, taken from its re-derivation
+  against the measured ports (the "minimum of N" column was costed against an estimated port, and
+  both HITS and Katz lose at 10k against the real one): `hits` 15,000; `katzCentrality` 28,000;
+  `eigenvectorCentrality` 28,000, each interpolated between the measured 10k and 100k speedups.
+  Bellman-Ford (earns only with
   negative weights), closeness (earns only sampled), betweenness, all-pairs, triangles and label
   propagation need conditional routing rules and belong to issue #558.
 - **Kamada-Kawai weights are distances**, as in the legacy function and NetworkX. graphty-element,

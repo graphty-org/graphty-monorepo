@@ -223,9 +223,9 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
 
     describe("routing", () => {
         it("carries the measured floors and forwards the three members, and not the unmeasured ones", () => {
-            assert.strictEqual(floorOf("hits"), 4_000);
-            assert.strictEqual(floorOf("katzCentrality"), 6_600);
-            assert.strictEqual(floorOf("eigenvectorCentrality"), 6_600);
+            assert.strictEqual(floorOf("hits"), 15_000);
+            assert.strictEqual(floorOf("katzCentrality"), 28_000);
+            assert.strictEqual(floorOf("eigenvectorCentrality"), 28_000);
 
             const noop = (): Promise<never> => Promise.reject(new Error("not called"));
             const narrowed = narrowAlgorithms(
@@ -259,10 +259,16 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
                 const { values, precision } = await measured(graph, make(graph));
                 assert.strictEqual(calls[capability], 1);
                 assert.strictEqual(precision, "f32");
-                // The fake's flat 0.5 is what was published (eigenvector's is rescaled to 1 by the
-                // dispatcher, as the port rescales its own), so the numbers are the accelerator's.
-                const expected = capability === "eigenvectorCentrality" ? 1 : 0.5;
-                assert.strictEqual(values.get("n0")?.value, expected);
+                // The fake's flat 0.5 is what was published, on the port's scale: eigenvector's is
+                // rescaled to 1 and HITS's to unit length by the dispatcher, and Katz's equal scores
+                // are left as they are, as the port leaves its own.
+                const n = floorOf(capability);
+                const expected: Partial<Record<FlooredCapability, number>> = {
+                    hits: 1 / Math.sqrt(n),
+                    katzCentrality: 0.5,
+                    eigenvectorCentrality: 1,
+                };
+                close(values.get("n0")?.value, expected[capability], `${capability} n0`);
             });
 
             it(`${capability} one node below its floor runs on the CPU port and says f64`, async () => {
@@ -280,6 +286,27 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvectorCentrality, 0);
             assert.strictEqual(precision, "f64");
+        });
+
+        it("eigenvector under acceleration=required on a graph the device cannot answer fails with E_NO_ACCELERATOR", async () => {
+            const { fake, calls } = centralityFake();
+            const graph = await graphWith(evenRing(8), fake);
+            (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
+                policy: "required",
+                registry: new AcceleratorRegistry(),
+            });
+            graph.acceleration.setAccelerator(fake);
+            const algorithm = new EigenvectorCentralityAlgorithm(graph);
+            let thrown: unknown;
+            try {
+                await algorithm.run();
+            } catch (error) {
+                thrown = error;
+            }
+            assert.isTrue(isGraphtyError(thrown), String(thrown));
+            assert.strictEqual((thrown as { code: string }).code, "E_NO_ACCELERATOR");
+            assert.strictEqual(calls.eigenvectorCentrality, 0);
+            assert.isUndefined(algorithm.result);
         });
 
         it("eigenvector that does not converge on the accelerator fails with E_NOT_CONVERGED", async () => {

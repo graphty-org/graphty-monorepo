@@ -460,7 +460,24 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                 );
 
                 if (outcome.accelerated) {
-                    return { value: outcome.value, precision: reached ? outcome.precision : CPU_PRECISION };
+                    if (reached) {
+                        return { value: outcome.value, precision: outcome.precision };
+                    }
+
+                    // Under "required" an answer the device did not compute is the absence that
+                    // policy exists to make loud, however it came about.
+                    if (controller.policy === "required") {
+                        throw new GraphtyError({
+                            code: "E_NO_ACCELERATOR",
+                            message:
+                                `acceleration is required, but the accelerator does not answer this ` +
+                                `"${capability}" run as asked, so it ran on the CPU`,
+                            source: "acceleration",
+                            details: { policy: "required", capability, nodeCount: snapshot.nodeCount },
+                        });
+                    }
+
+                    return { value: outcome.value, precision: CPU_PRECISION };
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one

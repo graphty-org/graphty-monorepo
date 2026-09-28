@@ -76,6 +76,7 @@ export type {
     EdgeScoresResultLike,
     HitsOptionsLike,
     HitsResultLike,
+    KatzOptionsLike,
     LabelResultLike,
     MstResultLike,
     PageRankOptionsLike,

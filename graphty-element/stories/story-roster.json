@@ -57,6 +57,7 @@
         "Data::ModifiedJson",
         "Data::Pajek",
         "Extending/Simple tier/Algorithm::ConfidenceDegree",
+        "Extending/Simple tier/Layout::RowsByTier",
         "Graphty::graphty",
         "Layout/2D::Arf",
         "Layout/2D::Bfs",

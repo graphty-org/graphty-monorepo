@@ -21,7 +21,11 @@ import { type GraphtyError, isGraphtyError } from "../../src/errors";
 const ROOT = join(__dirname, "..", "..");
 const GUIDE = readFileSync(join(ROOT, "docs", "guide", "extending", "custom-algorithms.md"), "utf8");
 const EXAMPLES_DIR = join(ROOT, "docs", "examples", "simple-tier");
-const EXAMPLE_FILES = readdirSync(EXAMPLES_DIR).filter((name) => name.endsWith(".ts"));
+// The folder is shared with the other points' simple-tier examples (layouts, palettes, log
+// destinations); this guide shows only the ones that define an algorithm.
+const EXAMPLE_FILES = readdirSync(EXAMPLES_DIR).filter(
+    (name) => name.endsWith(".ts") && readFileSync(join(EXAMPLES_DIR, name), "utf8").includes("defineAlgorithm("),
+);
 
 /** Where the simple tier ends in the guide and the advanced tier begins. */
 const ADVANCED_HEADING = "## Advanced: full control";

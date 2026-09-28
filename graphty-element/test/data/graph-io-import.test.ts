@@ -79,11 +79,11 @@ describe("the graph-io import helper", () => {
         };
 
         await importDocument(importer, "doc", { errorLimit: 5 });
-        await importDocument(importer, "doc", { ids: "auto" });
+        await importDocument(importer, "doc", { ids: "number" });
 
         assert.strictEqual(seen[0]?.errorLimit, 5);
         assert.strictEqual(seen[0]?.ids, "string");
-        assert.strictEqual(seen[1]?.ids, "auto");
+        assert.strictEqual(seen[1]?.ids, "number");
     });
 
     it("keeps every weight exactly, and gives an edge the file left unweighted no weight", async () => {
@@ -128,8 +128,8 @@ describe("the graph-io import helper", () => {
             },
         });
 
-        assert.deepEqual(nodes, [{ id: "a", label: "Alpha" }, { id: "b" }]);
-        assert.deepEqual(edges, [{ source: "a", target: "b", score: 88.3 }]);
+        assert.deepEqual<unknown>(nodes, [{ id: "a", label: "Alpha" }, { id: "b" }]);
+        assert.deepEqual<unknown>(edges, [{ source: "a", target: "b", score: 88.3 }]);
     });
 
     it("widens an f32 cell to the decimal the file wrote, and copies a multi-component cell", async () => {
@@ -154,7 +154,7 @@ describe("the graph-io import helper", () => {
     it("keeps what a recognisable document gave before the importer gave up", async () => {
         const imported = await importDocument(abortingImporter(1), "doc", {});
 
-        assert.deepEqual(toRecords(imported, { node() {}, edge() {} }).nodes, [{ id: "a" }]);
+        assert.deepEqual<unknown>(toRecords(imported, { node() {}, edge() {} }).nodes, [{ id: "a" }]);
         assert.strictEqual(imported.report.errorCount, 1);
     });
 
@@ -236,7 +236,7 @@ function abortingImporter(recognised: number): GraphImporter {
         import(_input, sink: GraphSink) {
             const report = new ImportReportBuilder("test", Infinity);
             sink.addNode("a");
-            report.error("syntax-error", "E_TEST", "a tag left open", { line: 3 });
+            report.error("parse-error", "E_TEST", "a tag left open", { line: 3 });
             return Promise.reject(report.abort("the document breaks off"));
         },
     };

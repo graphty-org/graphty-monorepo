@@ -407,22 +407,39 @@ describe("the adapters that run through accelerated()", () => {
             assert.strictEqual(output.caveats.precision, "f64");
         });
 
-        it("under acceleration required, a run no accelerator answers fails before anything ran", async () => {
+        it("under acceleration required, an algorithm the element never hands over runs on the CPU", async () => {
             const fake = createFakeAccelerator({ members: { bellmanFord: spy() } });
             const graph = await graphWith(FIXTURE, fake, "required");
 
-            for (const [algorithm, capability] of [
-                [new BellmanFordAlgorithm(graph, { source: "A" }), "bellmanFord"],
-                [new DFSAlgorithm(graph, { source: "A" }), "depthFirstSearch"],
-                [new PrimAlgorithm(graph), "primMST"],
-                [new StronglyConnectedComponentsAlgorithm(graph), "stronglyConnectedComponents"],
-            ] as const) {
-                const error = await rejection(() => algorithm.compute(detachedRunContext()));
-                assert.strictEqual(error.code, "E_NO_ACCELERATOR", capability);
-                assert.deepInclude(error.details, { capability });
+            for (const algorithm of [
+                new BellmanFordAlgorithm(graph, { source: "A" }),
+                new DFSAlgorithm(graph, { source: "A" }),
+                new PrimAlgorithm(graph),
+                new StronglyConnectedComponentsAlgorithm(graph),
+            ]) {
+                const output = await computed(algorithm);
+                assert.strictEqual(output.caveats.precision, "f64");
             }
 
             assert.strictEqual(called(fake, "bellmanFord"), 0);
+        });
+
+        it("under acceleration required, a run of a handed-over member the accelerator cannot answer fails", async () => {
+            const fake = createFakeAccelerator({ members: { breadthFirstSearch: spy() } });
+            const graph = await graphWith(FIXTURE, fake, "required");
+
+            const walk = new BFSAlgorithm(graph, { source: "A", targetNode: "C" });
+            const walkError = await rejection(() => walk.compute(detachedRunContext()));
+            assert.strictEqual(walkError.code, "E_NO_ACCELERATOR");
+            assert.deepInclude(walkError.details, { capability: "breadthFirstSearch" });
+
+            const ranks = new PageRankAlgorithm(graph, { personalization: new Map([["A", 1]]) });
+            const ranksError = await rejection(() => ranks.run());
+            assert.strictEqual(ranksError.code, "E_NO_ACCELERATOR");
+            assert.deepInclude(ranksError.details, { capability: "pageRank" });
+            assert.isUndefined(ranks.result);
+
+            assert.strictEqual(called(fake, "breadthFirstSearch"), 0);
         });
     });
 

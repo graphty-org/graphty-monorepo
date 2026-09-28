@@ -132,14 +132,12 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         /* Undirected: the traversal follows an edge in either direction.
 
            A walk that stops at a target is not one an accelerator answers -- a GPU walk expands
-           whole levels at once -- so the decision says so before any work starts. It also tries
+           whole levels at once -- so the dispatcher runs it on the CPU port. It also tries
            each node's neighbours in the order their edges were declared: which nodes it expands
            before it reaches the target depends on that order, and the element's walks have always
            used it. A walk with no target keeps row order, which an accelerator can reproduce and
            which reaches every node on the same level either way. */
-        const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected", {
-            accelerable: targetNode === undefined,
-        });
+        const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected");
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = targetNode === undefined ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 

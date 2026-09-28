@@ -234,13 +234,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
            summed change, as the accelerator does, so the two routes of it agree. */
         const declared = this.input("declared").graph;
         const plain = declared.directed && initialRanks === undefined && personalization === undefined;
-        const { snapshot, run } = this.accelerated(
-            personalization === undefined ? "pageRank" : "personalizedPageRank",
-            "directed",
-            {
-                accelerable: plain,
-            },
-        );
+        const { snapshot, run } = this.accelerated("pageRank", "directed");
 
         context.report({
             phase: "iterating",

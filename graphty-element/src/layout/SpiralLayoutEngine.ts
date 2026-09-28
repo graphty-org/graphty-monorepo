@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { spiral } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -98,7 +98,7 @@ export class SpiralLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.spiral(this.graph, {
+        this.result = spiral(this.graph, {
             scale: this.config.scale,
             center: this.config.center ?? undefined,
             dim: layoutDim(this.config.dim),

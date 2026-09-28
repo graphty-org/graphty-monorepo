@@ -1,5 +1,5 @@
 import { type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
-import { indexed } from "@graphty/layout";
+import { kamadaKawai } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -170,7 +170,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
         this.stale = false;
         const dim = layoutDim(this.config.dim);
         const weighted = this.config.weighted ? withDistances(this.graph) : null;
-        this.result = indexed.kamadaKawai(weighted ?? this.graph, {
+        this.result = kamadaKawai(weighted ?? this.graph, {
             dist: this.distances(),
             pos: this.startPositions(dim) ?? this.rowsOfRecord(this.config.pos, dim),
             weight: weighted === null ? false : DISTANCE_COLUMN,

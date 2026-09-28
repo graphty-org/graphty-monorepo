@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { random } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -81,7 +81,7 @@ export class RandomLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.random(this.graph, {
+        this.result = random(this.graph, {
             center: this.config.center ?? undefined,
             dim: layoutDim(this.config.dim),
             seed: this.config.seed,

@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { circular } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -83,7 +83,7 @@ export class CircularLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.circular(this.graph, {
+        this.result = circular(this.graph, {
             scale: this.config.scale,
             center: this.config.center ?? undefined,
             dim: layoutDim(this.config.dim),

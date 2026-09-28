@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { grid } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -78,7 +78,7 @@ export class GridLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.grid(this.graph, {
+        this.result = grid(this.graph, {
             columns: this.config.columns,
             scale: this.config.scale,
             center: this.config.center ?? undefined,

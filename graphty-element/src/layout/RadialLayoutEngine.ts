@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { radial } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -79,7 +79,7 @@ export class RadialLayout extends SimpleLayoutEngine {
     doLayout(): void {
         this.stale = false;
         const { root } = this.config;
-        this.result = indexed.radial(this.graph, {
+        this.result = radial(this.graph, {
             root: root === null ? null : this.requireRow(root, "root"),
             scale: this.config.scale,
             center: this.config.center ?? undefined,

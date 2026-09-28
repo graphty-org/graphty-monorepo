@@ -94,7 +94,7 @@ A layout that works over the whole graph, rather than over a list of nodes, read
 instead: the element's graph as an undirected `GraphSnapshot` from `@graphty/graph-format`, whose
 row `i` is the node whose `index` is `i`. It assigns `this.result = { positions, dim, n }` -- `n`
 rows of `dim` layout-unit values in a `Float32Array`, NaN for a node it leaves unplaced -- which
-is exactly what the `indexed` layouts of `@graphty/layout` return, so one of those can be handed
+is exactly what the layouts of `@graphty/layout` (`circular`, `kamadaKawai`, ...) return, so one of those can be handed
 straight through. The element's own static layouts are written this way. A layout that reads
 `this.graph` also gets the element's behaviour after an add: when a reader adds nodes to a
 finished graph, the existing nodes stay where they are and only the new ones are placed, and

@@ -1,5 +1,5 @@
 import { INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
-import { indexed } from "@graphty/layout";
+import { bipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -105,7 +105,7 @@ export class BipartiteLayout extends SimpleLayoutEngine {
             }
         }
 
-        this.result = indexed.bipartite(this.graph, {
+        this.result = bipartite(this.graph, {
             top,
             align: this.config.align,
             scale: this.config.scale,

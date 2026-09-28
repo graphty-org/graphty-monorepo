@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { arf } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -99,7 +99,7 @@ export class ArfLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.arf(this.graph, {
+        this.result = arf(this.graph, {
             pos: this.startPositions(2) ?? this.rowsOfRecord(this.config.pos, 2),
             scaling: this.config.scaling,
             a: this.config.a,

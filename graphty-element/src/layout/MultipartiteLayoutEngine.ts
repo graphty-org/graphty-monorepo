@@ -1,5 +1,5 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { indexed } from "@graphty/layout";
+import { multipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -83,7 +83,7 @@ export class MultipartiteLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.multipartite(this.graph, {
+        this.result = multipartite(this.graph, {
             // A node a layer names that the graph does not hold has nowhere to be drawn.
             subsets: Object.values(this.config.subsetKey).map((layer) =>
                 layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),

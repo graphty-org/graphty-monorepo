@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/layout";
+import { bfs } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -88,7 +88,7 @@ export class BfsLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        this.result = indexed.bfs(this.graph, {
+        this.result = bfs(this.graph, {
             start: this.requireRow(this.config.start, "start"),
             align: this.config.align,
             scale: this.config.scale,

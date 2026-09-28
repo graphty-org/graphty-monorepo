@@ -35,7 +35,8 @@
  * constructor, and none of this has anything to do with a mesh.
  */
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
-import { createSimulation, indexed, seedPositions } from "@graphty/layout";
+import * as layouts from "@graphty/layout";
+import { createSimulation, seedPositions } from "@graphty/layout";
 import { assert, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
@@ -256,10 +257,7 @@ describe("edge weights and the two layouts that read them", () => {
             const zeroed = forceAtlas2(mirrorPath(0, 1));
             const ones = forceAtlas2(mirrorPath(1, 1));
 
-            assert.isFalse(
-                samePlaces(zeroed, ones),
-                "a weight of zero is not the same instruction as a weight of one",
-            );
+            assert.isFalse(samePlaces(zeroed, ones), "a weight of zero is not the same instruction as a weight of one");
             assert.isAbove(
                 distance(zeroed, "a", "b"),
                 distance(zeroed, "c", "e"),
@@ -303,10 +301,7 @@ describe("edge weights and the two layouts that read them", () => {
             const asDistances = directKamadaKawai({ "a|b": 1 / 4, "b|c": 1, "c|e": 1 });
             const asWeights = directKamadaKawai({ "a|b": 4, "b|c": 1, "c|e": 1 });
 
-            assert.isTrue(
-                samePlaces(arranged, asDistances),
-                "the engine asked for 1/weight, which is a distance",
-            );
+            assert.isTrue(samePlaces(arranged, asDistances), "the engine asked for 1/weight, which is a distance");
             assert.isFalse(
                 samePlaces(arranged, asWeights),
                 "and not for the weight itself, which would draw a strong connection long",
@@ -332,9 +327,29 @@ describe("edge weights and the two layouts that read them", () => {
             // second edge between the same two nodes. Left to the solver, the shorter of the two
             // would win and the order or the split of the weights would decide the arrangement;
             // summed first, two edges draw exactly as the one connection they make together.
-            const parallel = arrange(kamadaKawai(), graphOf([["a", "b", 2], ["a", "b", 3], ["b", "c", 1]]));
-            const reversed = arrange(kamadaKawai(), graphOf([["a", "b", 3], ["a", "b", 2], ["b", "c", 1]]));
-            const summed = arrange(kamadaKawai(), graphOf([["a", "b", 5], ["b", "c", 1]]));
+            const parallel = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 2],
+                    ["a", "b", 3],
+                    ["b", "c", 1],
+                ]),
+            );
+            const reversed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 3],
+                    ["a", "b", 2],
+                    ["b", "c", 1],
+                ]),
+            );
+            const summed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 5],
+                    ["b", "c", 1],
+                ]),
+            );
 
             assert.isTrue(samePlaces(parallel, reversed), "the order the parallel edges arrived in changes nothing");
             assert.isTrue(samePlaces(parallel, summed), "and edges of 2 and 3 arrange exactly as one edge of 5");
@@ -404,7 +419,7 @@ describe("edge weights and the two layouts that read them", () => {
 });
 
 /**
- * Run `indexed.kamadaKawai` over the mirror path with a distance column written by hand, and
+ * Run the layout package's `kamadaKawai` over the mirror path with a distance column written by hand, and
  * scale the answer the way the engine scales it.
  *
  * This is the "what should the element have asked for?" side of the reciprocal test above.
@@ -421,7 +436,7 @@ function directKamadaKawai(table: Readonly<Record<string, number>>): Arrangement
         assert.isDefined(d, `the table gives ${key}`);
         return d;
     });
-    const placed = indexed.kamadaKawai(undirected.withColumns(undefined, { distance }), {
+    const placed = layouts.kamadaKawai(undirected.withColumns(undefined, { distance }), {
         weight: "distance",
         scale: 1,
         dim: 2,

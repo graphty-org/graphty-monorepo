@@ -135,13 +135,14 @@ That is the label to show beside a value a reader might compare against a saved 
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
 | `betweenness`, `closeness`             | No                      | The CPU implementation                           |
 | `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
+| `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
 `kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
 with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
 `E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
 the member exists, with no change to your page.
 
-The algorithms in the last two rows are never handed to an accelerator, even one that implements
+The algorithms in the last three rows are never handed to an accelerator, even one that implements
 them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
 An algorithm is accelerated only above a measured node count: `hits` from 15,000 nodes, `katz`
@@ -169,9 +170,12 @@ the others in reach; until then, `acceleration="required"` or your own
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:
-those three change what the numbers mean rather than how fast they are computed, and only the
-reference implementation defines them. Such a run reports `caveats.precision` as `"f64"` and says
-in its caveats which of the three sent it there.
+those three change what the numbers mean rather than how fast they are computed. Such a run
+reports `caveats.precision` as `"f64"`, and under `acceleration="required"` it throws
+`E_NO_ACCELERATOR`. On an undirected graph every edge carries rank both ways. A personalization
+entry naming a node outside the run's graph -- outside a scope, say -- is left out, and the notes
+say how many were. A `bfs` with a `targetNode` is the same: it stops early, which the accelerator
+cannot, so it runs on the CPU and throws under `required`.
 
 `hits`, `katz` and `eigenvector` have exceptions of the same kind. A `katz` run with `normalized`
 switched off, or over a graph where every node has the same number of neighbours, takes the CPU
@@ -179,6 +183,10 @@ implementation, and so does an `eigenvector` run that follows edge direction or 
 with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
+
+An algorithm the element does not route to the device at all (`betweenness`, `closeness`,
+`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim` and `scc` today) runs on the
+CPU and says `"f64"` under `acceleration="required"` too, rather than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

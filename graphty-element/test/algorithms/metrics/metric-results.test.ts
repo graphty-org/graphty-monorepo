@@ -180,10 +180,9 @@ describe("metric results", () => {
             assert.isNumber(caveats.iterations);
         });
 
-        it("pagerank reports the convergence the delta method measured", async () => {
-            // A personalization vector is what keeps this run on the reference implementation,
-            // which is the only place the delta method lives: no index-based port takes one, so a
-            // run that asks for one is answered by the implementation that does.
+        it("a personalized pagerank over a large graph reports the convergence it measured", async () => {
+            // Over 100 nodes, where the reference implementation once switched to its delta
+            // method. Every route now runs one power iteration, and says so.
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
             const graph = await createMockGraph({ nodes, edges });
@@ -195,18 +194,15 @@ describe("metric results", () => {
             assert.isDefined(result);
 
             const { caveats } = result.summary();
-            assert.strictEqual(caveats.method, "delta-pagerank");
+            assert.strictEqual(caveats.method, "power-iteration");
             assert.isTrue(caveats.converged);
             assert.isNumber(caveats.iterations);
             assert.isBelow(caveats.iterations ?? Infinity, 100);
         });
 
-        it("pagerank over a large graph still measures its convergence, and says the delta method was not taken", async () => {
-            /* `useDelta` is on by default and the reference implementation switches to the delta
-               method above a hundred nodes, where it can answer neither question. The index-based
-               route has no delta method at all, so a default run of this size is a real power
-               iteration -- both figures are measurements again, and the run says which method it
-               was, because a reader comparing two runs of the same size needs to know. */
+        it("pagerank over a large graph is a power iteration that measures its convergence", async () => {
+            /* `useDelta` is on by default and is ignored: a run of any size is a power iteration,
+               so both figures are measurements, and no note talks about a delta method. */
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
             const graph = await createMockGraph({ nodes, edges });
@@ -220,8 +216,8 @@ describe("metric results", () => {
             assert.strictEqual(caveats.method, "power-iteration");
             assert.isBoolean(caveats.converged);
             assert.isNumber(caveats.iterations);
-            assert.isTrue(
-                caveats.notes.some((note) => note.includes("the delta optimisation")),
+            assert.isFalse(
+                caveats.notes.some((note) => note.includes("delta")),
                 caveats.notes.join(" | "),
             );
         });

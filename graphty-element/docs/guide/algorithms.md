@@ -68,6 +68,9 @@ Find connected subgraphs:
 | `connected-components` | Find all connected components         |
 | `strongly-connected`   | Strong connectivity (directed graphs) |
 
+On an undirected graph every edge runs both ways, so `strongly-connected` finds the same pieces as
+`connected-components`.
+
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```

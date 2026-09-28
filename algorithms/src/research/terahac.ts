@@ -63,6 +63,8 @@ export interface TeraHACResult {
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Hierarchical clustering result
+ * @deprecated Use `indexed.teraHAC` over a `GraphSnapshot`. At algorithms 3.0.0 the name `teraHAC` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function teraHAC(graph: Graph, config: TeraHACConfig = {}): TeraHACResult {
     const {

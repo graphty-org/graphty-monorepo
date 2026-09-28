@@ -30,6 +30,8 @@ export interface KatzCentralityOptions extends CentralityOptions {
  * @param graph - The graph to compute Katz centrality on
  * @param options - Configuration options for the computation
  * @returns Object mapping node IDs to their Katz centrality scores
+ * @deprecated Use `indexed.katzCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name `katzCentrality`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function katzCentrality(graph: Graph, options: KatzCentralityOptions = {}): CentralityResult {
     const { alpha = 0.1, beta = 1.0 } = options;
@@ -152,6 +154,8 @@ export function legacyKatzCentrality(graph: Graph, options: KatzCentralityOption
  * @param nodeId - The ID of the node to calculate centrality for
  * @param options - Configuration options for the computation
  * @returns The Katz centrality score for the specified node
+ * @deprecated Use `indexed.katzCentrality` over a `GraphSnapshot`, and read the node's index. Removed in algorithms
+ *   3.0.0.
  */
 export function nodeKatzCentrality(graph: Graph, nodeId: string | number, options: KatzCentralityOptions = {}): number {
     if (!graph.hasNode(nodeId)) {

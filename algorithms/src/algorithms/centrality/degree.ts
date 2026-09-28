@@ -16,6 +16,8 @@ import type { CentralityOptions, CentralityResult } from "../../types/index.js";
  * @param graph - The input graph to analyze
  * @param options - Algorithm configuration options
  * @returns Centrality scores for each node keyed by node ID
+ * @deprecated Use `indexed.degreeCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name `degreeCentrality`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function degreeCentrality(graph: Graph, options: CentralityOptions = {}): CentralityResult {
     if (needsLegacyCode(graph)) {
@@ -82,6 +84,8 @@ export function legacyDegreeCentrality(graph: Graph, options: CentralityOptions 
  * @param nodeId - The node to calculate centrality for
  * @param options - Algorithm configuration options
  * @returns The degree centrality score for the node
+ * @deprecated Use `indexed.degreeCentrality` over a `GraphSnapshot`, and read the node's index. Removed in algorithms
+ *   3.0.0.
  */
 export function nodeDegreeCentrality(graph: Graph, nodeId: string | number, options: CentralityOptions = {}): number {
     if (!graph.hasNode(nodeId)) {

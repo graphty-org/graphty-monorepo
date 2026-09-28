@@ -47,6 +47,8 @@ export interface SynCResult {
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Clustering result with assignments and embeddings
+ * @deprecated Use `indexed.syncClustering` over a `GraphSnapshot`. At algorithms 3.0.0 the name `syncClustering`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function syncClustering(graph: Graph, config: SynCConfig): SynCResult {
     const { numClusters, maxIterations = 100, tolerance = 1e-6, seed = 42, learningRate = 0.01, lambda = 0.1 } = config;

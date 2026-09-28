@@ -5,6 +5,7 @@ import { TypedFastBitSet } from "typedfastbitset";
  *
  * Provides efficient bit-packed set operations optimized for graph algorithms
  * with 8x memory reduction compared to standard JavaScript Set for boolean values.
+ * @deprecated Removed in algorithms 3.0.0. Use a `Uint8Array` or `Uint32Array` sized to the snapshot's node count.
  */
 export class GraphBitSet {
     private bitset: TypedFastBitSet;
@@ -163,6 +164,7 @@ export class GraphBitSet {
  *
  * More memory efficient than GraphBitSet for simple boolean arrays
  * that don't need set operations.
+ * @deprecated Removed in algorithms 3.0.0. Use a `Uint8Array` sized to the snapshot's node count.
  */
 export class VisitedBitArray {
     private words: Uint32Array;
@@ -325,6 +327,7 @@ export class VisitedBitArray {
  *
  * Optimized for storing distances using 16-bit integers (up to 65,535 levels)
  * Still provides 2x memory savings compared to standard 32-bit numbers
+ * @deprecated Removed in algorithms 3.0.0. Use a `Float64Array` or `Uint32Array` sized to the snapshot's node count.
  */
 export class CompactDistanceArray {
     private data: Uint16Array;

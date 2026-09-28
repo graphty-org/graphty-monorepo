@@ -34,6 +34,8 @@ export type { ClusterExplanation, GRSBMCluster, GRSBMConfig, GRSBMResult } from 
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Hierarchical clustering result with explanations
+ * @deprecated Use `indexed.grsbm` over a `GraphSnapshot`. At algorithms 3.0.0 the name `grsbm` becomes that function:
+ *   it takes a `GraphSnapshot` and its result type changes.
  */
 export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
     const s = toTopologySnapshot(graph);

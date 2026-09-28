@@ -6,6 +6,7 @@ import type { NodeId } from "../types/index.js";
  * Used by community detection and flow algorithms
  * @param graph - The Graph instance to convert
  * @returns A nested Map where outer keys are source nodes and inner maps contain target nodes with edge weights
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder` and read its adjacency.
  */
 export function graphToMap(graph: Graph): Map<string, Map<string, number>> {
     const map = new Map<string, Map<string, number>>();
@@ -43,6 +44,7 @@ export function graphToMap(graph: Graph): Map<string, Map<string, number>> {
  * @param map - The nested Map representation of the graph
  * @param isDirected - Whether the resulting graph should be directed (defaults to true)
  * @returns A new Graph instance with nodes and edges from the map
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder`.
  */
 export function mapToGraph(map: Map<string, Map<string, number>>, isDirected = true): Graph {
     const graph = new Graph({ directed: isDirected });
@@ -75,6 +77,8 @@ export function mapToGraph(map: Map<string, Map<string, number>>, isDirected = t
 /**
  * Adapter for using Graph algorithms with Map representation
  * Implements a subset of Graph interface methods needed by algorithms
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already
+ *   compressed sparse rows.
  */
 export class GraphAdapter {
     private map: Map<string, Map<string, number>>;

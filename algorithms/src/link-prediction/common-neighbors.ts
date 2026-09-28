@@ -61,6 +61,8 @@ function toScores(s: GraphSnapshot, r: LinkPredictionResult): LinkPredictionScor
  * @param target - The target node ID
  * @param options - Link prediction options
  * @returns The number of common neighbors
+ * @deprecated Use `indexed.commonNeighborsScore` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `commonNeighborsScore` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function commonNeighborsScore(
     graph: Graph,
@@ -82,6 +84,8 @@ export function commonNeighborsScore(
  * @param graph - The input graph
  * @param options - Link prediction options
  * @returns Array of link prediction scores sorted by score descending
+ * @deprecated Use `indexed.commonNeighborsPrediction` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `commonNeighborsPrediction` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function commonNeighborsPrediction(graph: Graph, options: LinkPredictionOptions = {}): LinkPredictionScore[] {
     const s = toTopologySnapshot(graph);
@@ -94,6 +98,8 @@ export function commonNeighborsPrediction(graph: Graph, options: LinkPredictionO
  * @param pairs - Array of node ID pairs to calculate scores for
  * @param options - Link prediction options
  * @returns Array of link prediction scores for the specified pairs
+ * @deprecated Use `indexed.commonNeighborsForPairs` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `commonNeighborsForPairs` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function commonNeighborsForPairs(
     graph: Graph,
@@ -111,6 +117,8 @@ export function commonNeighborsForPairs(
  * @param node - The node ID to get candidates for
  * @param options - Link prediction options with optional candidate list
  * @returns Array of top link prediction candidates sorted by score descending
+ * @deprecated Use `indexed.getTopCandidatesForNode` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `getTopCandidatesForNode` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function getTopCandidatesForNode(
     graph: Graph,
@@ -129,6 +137,8 @@ export function getTopCandidatesForNode(
  * @param nonEdges - Array of node pairs that are not edges
  * @param options - Link prediction options
  * @returns Evaluation metrics including precision, recall, F1 score, and AUC
+ * @deprecated Use `indexed.evaluateCommonNeighbors` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `evaluateCommonNeighbors` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function evaluateCommonNeighbors(
     trainingGraph: Graph,

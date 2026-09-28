@@ -38,6 +38,8 @@ function search(
  * @param startNode - The node to start the BFS from
  * @param options - Traversal options (callbacks, target node, etc.)
  * @returns Traversal result with visited nodes, order, and tree structure
+ * @deprecated Use `indexed.breadthFirstSearch` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `breadthFirstSearch` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function breadthFirstSearch(graph: Graph, startNode: NodeId, options: TraversalOptions = {}): TraversalResult {
     if (!graph.hasNode(startNode)) {
@@ -64,6 +66,8 @@ export function breadthFirstSearch(graph: Graph, startNode: NodeId, options: Tra
  * @param source - The source node ID
  * @param target - The target node ID
  * @returns Shortest path result or null if no path exists
+ * @deprecated Use `indexed.breadthFirstSearch` over a `GraphSnapshot`, with `target`, then walk `parent` back from
+ *   the target. Removed in algorithms 3.0.0.
  */
 export function shortestPathBFS(graph: Graph, source: NodeId, target: NodeId): ShortestPathResult | null {
     if (!graph.hasNode(source)) {
@@ -95,6 +99,8 @@ export function shortestPathBFS(graph: Graph, source: NodeId, target: NodeId): S
  * @param graph - The input graph to search
  * @param source - The source node ID to compute shortest paths from
  * @returns Map of node IDs to their shortest path results, every entry sharing one predecessor map
+ * @deprecated Use `indexed.breadthFirstSearch` over a `GraphSnapshot`; `depth` holds each node's hop distance.
+ *   Removed in algorithms 3.0.0.
  */
 export function singleSourceShortestPathBFS(graph: Graph, source: NodeId): Map<NodeId, ShortestPathResult> {
     if (!graph.hasNode(source)) {
@@ -114,6 +120,8 @@ export function singleSourceShortestPathBFS(graph: Graph, source: NodeId): Map<N
  * Check if the graph is bipartite
  * @param graph - The undirected graph to check
  * @returns True if the graph is bipartite, false otherwise
+ * @deprecated Use `indexed.isBipartite` over a `GraphSnapshot`. At algorithms 3.0.0 the name `isBipartite` becomes
+ *   that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function isBipartite(graph: Graph): boolean {
     if (graph.isDirected) {

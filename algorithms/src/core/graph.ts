@@ -16,6 +16,8 @@ function isMirror(source: NodeId, target: NodeId): boolean {
  *
  * Provides efficient graph representation with support for both directed and undirected graphs.
  * Uses adjacency lists for optimal performance with sparse graphs.
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder` from `@graphty/graph-format`
+ *   and call the `indexed` functions on it.
  */
 export class Graph {
     private nodeMap: Map<NodeId, Node>;

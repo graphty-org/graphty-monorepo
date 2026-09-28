@@ -331,6 +331,7 @@ function edmondsKarpImpl(graph: Map<string, Map<string, number>>, source: string
  * @param rightNodes - Array of right partition node identifiers
  * @param edges - Array of edges connecting left nodes to right nodes
  * @returns The flow network graph with source and sink nodes
+ * @deprecated Use `indexed.bipartiteFlowNetwork` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function createBipartiteFlowNetwork(
     leftNodes: string[],
@@ -390,6 +391,7 @@ export function createBipartiteFlowNetwork(
  *
  * Time Complexity: O(E * f) where f is the maximum flow
  * Space Complexity: O(V + E)
+ * @deprecated Use `indexed.maxFlow` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function fordFulkerson(graph: Graph, source: string, sink: string): MaxFlowResult {
     // Convert Graph to Map representation
@@ -406,6 +408,7 @@ export function fordFulkerson(graph: Graph, source: string, sink: string): MaxFl
  * @returns Maximum flow value and flow graph
  *
  * Time Complexity: O(V * E²)
+ * @deprecated Use `indexed.maxFlow` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function edmondsKarp(
     graph: Graph | Map<string, Map<string, number>>,

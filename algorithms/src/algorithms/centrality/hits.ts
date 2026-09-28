@@ -33,6 +33,8 @@ export interface HITSOptions extends CentralityOptions {
  * @param graph - The graph to compute HITS scores on
  * @param options - Configuration options for the computation
  * @returns Object containing hub and authority scores for all nodes
+ * @deprecated Use `indexed.hits` over a `GraphSnapshot`. At algorithms 3.0.0 the name `hits` becomes that function:
+ *   it takes a `GraphSnapshot` and its result type changes.
  */
 export function hits(graph: Graph, options: HITSOptions = {}): HITSResult {
     if (needsLegacyCode(graph)) {
@@ -214,6 +216,7 @@ export function legacyHits(graph: Graph, options: HITSOptions = {}): HITSResult 
  * @param nodeId - The ID of the node to calculate scores for
  * @param options - Configuration options for the computation
  * @returns Object containing hub and authority scores for the specified node
+ * @deprecated Use `indexed.hits` over a `GraphSnapshot`, and read the node's index. Removed in algorithms 3.0.0.
  */
 export function nodeHITS(
     graph: Graph,

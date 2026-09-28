@@ -26,6 +26,8 @@ export type { KCoreResult } from "./k-core-legacy.js";
  * @param graph - Undirected graph
  * @param k - Core number
  * @returns Set of nodes in k-core or higher
+ * @deprecated Use `indexed.kCoreDecomposition` over a `GraphSnapshot`; the k-core is the nodes whose `coreness` is at
+ *   least k. Removed in algorithms 3.0.0.
  */
 export function getKCore(graph: Graph, k: number): Set<string> {
     const { coreness } = kCoreDecomposition(graph);
@@ -292,6 +294,8 @@ export function toUndirected<T>(directedGraph: Map<T, Map<T, number>>): Map<T, S
  *
  * Time Complexity: O(V + E)
  * Space Complexity: O(V)
+ * @deprecated Use `indexed.kCoreDecomposition` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `kCoreDecomposition` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function kCoreDecomposition(graph: Graph): KCoreResult<string> {
     // The port refuses a directed graph and does not count a self-loop as a neighbour, where the old

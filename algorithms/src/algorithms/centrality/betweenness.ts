@@ -229,6 +229,8 @@ function normalizeCentrality(centrality: Record<string, number>, nodeCount: numb
  * @param graph - The input graph to analyze
  * @param options - Algorithm configuration options
  * @returns Centrality scores for each node keyed by node ID
+ * @deprecated Use `indexed.betweennessCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `betweennessCentrality` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function betweennessCentrality(
     graph: Graph,
@@ -295,6 +297,8 @@ export function legacyBetweennessCentrality(
  * @param targetNode - The node to calculate centrality for
  * @param options - Algorithm configuration options
  * @returns The betweenness centrality score for the target node
+ * @deprecated Use `indexed.betweennessCentrality` over a `GraphSnapshot`, and read `scores` at the node's index.
+ *   Removed in algorithms 3.0.0.
  */
 export function nodeBetweennessCentrality(
     graph: Graph,
@@ -315,6 +319,8 @@ export function nodeBetweennessCentrality(
  * @param graph - The input graph to analyze
  * @param options - Algorithm configuration options
  * @returns Edge centrality scores keyed by edge string representation
+ * @deprecated Use `indexed.edgeBetweennessCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `edgeBetweennessCentrality` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function edgeBetweennessCentrality(
     graph: Graph,

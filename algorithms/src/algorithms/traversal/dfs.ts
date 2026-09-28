@@ -31,6 +31,8 @@ export interface DFSOptions extends TraversalOptions {
  * @param startNode - The node to start the DFS from
  * @param options - DFS options (recursive mode, pre/post order, etc.)
  * @returns Traversal result with visited nodes, order, and tree structure
+ * @deprecated Use `indexed.depthFirstSearch` over a `GraphSnapshot`. At algorithms 3.0.0 the name `depthFirstSearch`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function depthFirstSearch(graph: Graph, startNode: NodeId, options: DFSOptions = {}): TraversalResult {
     if (!graph.hasNode(startNode)) {
@@ -126,6 +128,7 @@ function dfsRecursive(
  * Detect cycles in a graph using DFS
  * @param graph - The input graph to check for cycles
  * @returns True if the graph contains a cycle, false otherwise
+ * @deprecated Use `indexed.hasCycle` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function hasCycleDFS(graph: Graph): boolean {
     return hasCycle(toTopologySnapshot(graph));
@@ -135,6 +138,8 @@ export function hasCycleDFS(graph: Graph): boolean {
  * Topological sorting using DFS (for directed acyclic graphs)
  * @param graph - The directed acyclic graph to sort
  * @returns Array of node IDs in topological order, or null if graph has cycles
+ * @deprecated Use `indexed.topologicalSort` over a `GraphSnapshot`. At algorithms 3.0.0 the name `topologicalSort`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function topologicalSort(graph: Graph): NodeId[] | null {
     if (!graph.isDirected) {
@@ -149,6 +154,7 @@ export function topologicalSort(graph: Graph): NodeId[] | null {
  * Find strongly connected components using DFS (for directed graphs)
  * @param graph - The directed graph to analyze
  * @returns Array of strongly connected components (each is an array of node IDs)
+ * @deprecated Use `indexed.stronglyConnectedComponents` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function findStronglyConnectedComponents(graph: Graph): NodeId[][] {
     if (!graph.isDirected) {

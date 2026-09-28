@@ -24,6 +24,8 @@ export interface MinCutResult {
  * @returns Minimum cut information
  *
  * Time Complexity: Same as max flow algorithm used
+ * @deprecated Use `indexed.minSTCut` over a `GraphSnapshot`. At algorithms 3.0.0 the name `minSTCut` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function minSTCut(graph: Graph, source: string, sink: string): MinCutResult {
     const flowResult = fordFulkerson(graph, source, sink);
@@ -63,6 +65,8 @@ export function minSTCut(graph: Graph, source: string, sink: string): MinCutResu
  * @returns Global minimum cut
  *
  * Time Complexity: O(V³) or O(VE + V² log V) with heap
+ * @deprecated Use `indexed.stoerWagner` over a `GraphSnapshot`. At algorithms 3.0.0 the name `stoerWagner` becomes
+ *   that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function stoerWagner(graph: Graph | Map<string, Map<string, number>>): MinCutResult {
     // Convert Graph to Map representation if needed
@@ -314,6 +318,8 @@ function makeUndirected(graph: Map<string, Map<string, number>>): Map<string, Ma
  * @returns Minimum cut found
  *
  * Time Complexity: O(V² * iterations)
+ * @deprecated Use `indexed.kargerMinCut` over a `GraphSnapshot`. At algorithms 3.0.0 the name `kargerMinCut` becomes
+ *   that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function kargerMinCut(graph: Graph | Map<string, Map<string, number>>, iterations = 100): MinCutResult {
     // Convert Graph to Map representation if needed

@@ -24,6 +24,8 @@ import { girvanNewman as legacyGirvanNewman } from "./girvan-newman-legacy.js";
  * @param options - Algorithm options
  * @returns Array of community detection results representing the dendrogram
  * @throws Error on a directed graph
+ * @deprecated Use `indexed.girvanNewman` over a `GraphSnapshot`. At algorithms 3.0.0 the name `girvanNewman` becomes
+ *   that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function girvanNewman(graph: Graph, options: GirvanNewmanOptions = {}): CommunityResult[] {
     // A directed graph throws from the old code's component step. A self-loop counts once in the

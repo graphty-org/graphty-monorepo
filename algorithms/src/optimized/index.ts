@@ -8,8 +8,6 @@
  */
 
 // Configuration and optimization control
-// These deprecated functions are intentionally re-exported for backward compatibility
-// eslint-disable-next-line @typescript-eslint/no-deprecated
 export { configureOptimizations, getOptimizationConfig, type GraphAlgorithmConfig } from "./graph-adapter.js";
 
 // Note: The main BFS functions in algorithms/traversal/bfs.ts automatically

@@ -255,6 +255,8 @@ function labelPropagationSemiSupervisedImpl(
  *
  * Time Complexity: O(m) per full pass, at most maxIterations passes
  * Space Complexity: O(n + m)
+ * @deprecated Use `indexed.labelPropagation` over a `GraphSnapshot`. At algorithms 3.0.0 the name `labelPropagation`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function labelPropagation(graph: Graph, options: LabelPropagationOptions = {}): LabelPropagationResult {
     const s = toSnapshot(graph);
@@ -278,6 +280,7 @@ export function labelPropagation(graph: Graph, options: LabelPropagationOptions 
  * @param graph - Undirected graph (can be weighted)
  * @param options - Algorithm options
  * @returns Community assignments
+ * @deprecated Use `indexed.labelPropagation` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function labelPropagationAsync(graph: Graph, options: LabelPropagationOptions = {}): LabelPropagationResult {
     // Convert Graph to Map representation
@@ -292,6 +295,8 @@ export function labelPropagationAsync(graph: Graph, options: LabelPropagationOpt
  * @param seedLabels - Initial fixed labels for some nodes
  * @param options - Algorithm options
  * @returns Community assignments
+ * @deprecated Use `indexed.labelPropagationSemiSupervised` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `labelPropagationSemiSupervised` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function labelPropagationSemiSupervised(
     graph: Graph,

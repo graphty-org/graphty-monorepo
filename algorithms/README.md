@@ -81,6 +81,127 @@ console.log(shortestPaths.dist[graph.ids.requireIndex("C")]); // 3
 The id-keyed API documented below (the `Graph` class and functions such as `breadthFirstSearch(graph, "A")`) is the
 previous API. It stays available until the next major version; `toSnapshot(graph)` converts one of its graphs to a
 snapshot.
+## Deprecated entry points
+
+Everything this package exported before the `indexed` namespace -- the object `Graph`, `toSnapshot`,
+`CSRGraph` and the rest of the `optimized` exports, and every function and class that takes a
+`Graph` or a Map of Maps -- is deprecated. Each keeps working until
+algorithms 3.0.0 removes it. The replacement takes a `GraphSnapshot` from `@graphty/graph-format` (build one
+with `GraphBuilder`), addresses nodes by index (`s.ids.requireIndex(id)` and `s.ids.idOf(i)`), and
+returns typed arrays indexed by node or edge.
+
+At 3.0.0 the functions of `indexed` move to the top level. Where a deprecated name is the same as
+an `indexed` one ("name reused" below), the name survives but its first argument becomes a
+`GraphSnapshot` and its result type changes, so a call that compiles today stops compiling at 3.0.0.
+
+| Deprecated                             | Replacement                                                                                                          | At 3.0.0                              |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `Graph`                                | Build a `GraphSnapshot` with `GraphBuilder` from `@graphty/graph-format` and call the `indexed` functions on it      | removed                               |
+| `toSnapshot`                           | Build the `GraphSnapshot` with `GraphBuilder` from `@graphty/graph-format`; this bridge goes with the legacy `Graph` | removed                               |
+| `CSRGraph`                             | Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already compressed sparse rows                            | removed                               |
+| `createOptimizedGraph`                 | Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already compressed sparse rows                            | removed                               |
+| `toCSRGraph`                           | Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already compressed sparse rows                            | removed                               |
+| `isCSRGraph`                           | Nothing replaces it: every `indexed` function takes a `GraphSnapshot`                                                | removed                               |
+| `configureOptimizations`               | Nothing replaces it: this function does nothing                                                                      | removed                               |
+| `getOptimizationConfig`                | Nothing replaces it: this function returns an empty object                                                           | removed                               |
+| `GraphBitSet`                          | Use a `Uint8Array` or `Uint32Array` sized to the snapshot's node count                                               | removed                               |
+| `VisitedBitArray`                      | Use a `Uint8Array` sized to the snapshot's node count                                                                | removed                               |
+| `CompactDistanceArray`                 | Use a `Float64Array` or `Uint32Array` sized to the snapshot's node count                                             | removed                               |
+| `DirectionOptimizedBFS`                | `indexed.directionOptimizedBfs`                                                                                      | removed                               |
+| `DeltaPageRank`                        | `indexed.DeltaPageRank`                                                                                              | name reused: new signature and result |
+| `PriorityDeltaPageRank`                | `indexed.PriorityDeltaPageRank`                                                                                      | name reused: new signature and result |
+| `breadthFirstSearch`                   | `indexed.breadthFirstSearch`                                                                                         | name reused: new signature and result |
+| `depthFirstSearch`                     | `indexed.depthFirstSearch`                                                                                           | name reused: new signature and result |
+| `topologicalSort`                      | `indexed.topologicalSort`                                                                                            | name reused: new signature and result |
+| `hasCycleDFS`                          | `indexed.hasCycle`                                                                                                   | removed                               |
+| `shortestPathBFS`                      | `indexed.breadthFirstSearch`, with `target`, then walk `parent` back from the target                                 | removed                               |
+| `singleSourceShortestPathBFS`          | `indexed.breadthFirstSearch`, `depth` holds each node's hop distance                                                 | removed                               |
+| `isBipartite`                          | `indexed.isBipartite`                                                                                                | name reused: new signature and result |
+| `bipartitePartition`                   | `indexed.isBipartite`, its `sides` mask holds the partition                                                          | removed                               |
+| `findStronglyConnectedComponents`      | `indexed.stronglyConnectedComponents`                                                                                | removed                               |
+| `dijkstra`                             | `indexed.dijkstra`                                                                                                   | name reused: new signature and result |
+| `dijkstraPath`                         | `indexed.bidirectionalDijkstra`                                                                                      | removed                               |
+| `singleSourceShortestPath`             | `indexed.dijkstra`                                                                                                   | removed                               |
+| `allPairsShortestPath`                 | `indexed.allPairsShortestPath`                                                                                       | name reused: new signature and result |
+| `bellmanFord`                          | `indexed.bellmanFord`                                                                                                | name reused: new signature and result |
+| `bellmanFordPath`                      | `indexed.bellmanFord`, then `pathTo(target)`                                                                         | removed                               |
+| `hasNegativeCycle`                     | `indexed.bellmanFord`, and read `hasNegativeCycle`                                                                   | removed                               |
+| `floydWarshall`                        | `indexed.allPairsShortestPath`                                                                                       | removed                               |
+| `floydWarshallPath`                    | `indexed.allPairsShortestPath`, with `paths: true`, then `pathTo(source, target)`                                    | removed                               |
+| `transitiveClosure`                    | `indexed.allPairsShortestPath`, a pair is reachable when its `dist` entry is finite                                  | removed                               |
+| `astar`                                | `indexed.astar`                                                                                                      | name reused: new signature and result |
+| `astarWithDetails`                     | `indexed.astar`, its result carries `gScore`, `fScore` and `visited`                                                 | removed                               |
+| `heuristics`                           | Pass your own heuristic over node indices to `indexed.astar`                                                         | removed                               |
+| `pathfindingUtils`                     | Use `pathTo` and `pathEdges` on the `indexed` shortest-path results                                                  | removed                               |
+| `degreeCentrality`                     | `indexed.degreeCentrality`                                                                                           | name reused: new signature and result |
+| `nodeDegreeCentrality`                 | `indexed.degreeCentrality`, and read the node's index                                                                | removed                               |
+| `betweennessCentrality`                | `indexed.betweennessCentrality`                                                                                      | name reused: new signature and result |
+| `nodeBetweennessCentrality`            | `indexed.betweennessCentrality`, and read `scores` at the node's index                                               | removed                               |
+| `edgeBetweennessCentrality`            | `indexed.edgeBetweennessCentrality`                                                                                  | name reused: new signature and result |
+| `closenessCentrality`                  | `indexed.closenessCentrality`                                                                                        | name reused: new signature and result |
+| `nodeClosenessCentrality`              | `indexed.nodeClosenessCentrality`                                                                                    | name reused: new signature and result |
+| `weightedClosenessCentrality`          | `indexed.closenessCentrality`, with `weighted: true`                                                                 | removed                               |
+| `nodeWeightedClosenessCentrality`      | `indexed.nodeClosenessCentrality`, with `weighted: true`                                                             | removed                               |
+| `eigenvectorCentrality`                | `indexed.eigenvectorCentrality`                                                                                      | name reused: new signature and result |
+| `nodeEigenvectorCentrality`            | `indexed.eigenvectorCentrality`, and read the node's index                                                           | removed                               |
+| `katzCentrality`                       | `indexed.katzCentrality`                                                                                             | name reused: new signature and result |
+| `nodeKatzCentrality`                   | `indexed.katzCentrality`, and read the node's index                                                                  | removed                               |
+| `hits`                                 | `indexed.hits`                                                                                                       | name reused: new signature and result |
+| `nodeHITS`                             | `indexed.hits`, and read the node's index                                                                            | removed                               |
+| `pageRank`                             | `indexed.pageRank`                                                                                                   | name reused: new signature and result |
+| `personalizedPageRank`                 | `indexed.personalizedPageRank`                                                                                       | name reused: new signature and result |
+| `pageRankCentrality`                   | `indexed.pageRank`                                                                                                   | removed                               |
+| `topPageRankNodes`                     | `indexed.pageRank`, and sort the node indices by score                                                               | removed                               |
+| `connectedComponents`                  | `indexed.connectedComponents`                                                                                        | name reused: new signature and result |
+| `weaklyConnectedComponents`            | `indexed.weaklyConnectedComponents`                                                                                  | name reused: new signature and result |
+| `stronglyConnectedComponents`          | `indexed.stronglyConnectedComponents`                                                                                | name reused: new signature and result |
+| `connectedComponentsDFS`               | `indexed.connectedComponents`                                                                                        | removed                               |
+| `numberOfConnectedComponents`          | `indexed.connectedComponents`, and read `count`                                                                      | removed                               |
+| `isConnected`                          | `indexed.connectedComponents`, the graph is connected when `count <= 1`                                              | removed                               |
+| `isWeaklyConnected`                    | `indexed.weaklyConnectedComponents`, the graph is weakly connected when `count <= 1`                                 | removed                               |
+| `isStronglyConnected`                  | `indexed.stronglyConnectedComponents`, the graph is strongly connected when `count <= 1`                             | removed                               |
+| `getConnectedComponent`                | `indexed.connectedComponents`, the component is `groups()[labels[node]]`                                             | removed                               |
+| `largestConnectedComponent`            | `indexed.connectedComponents`, and take the longest of `groups()`                                                    | removed                               |
+| `condensationGraph`                    | `indexed.condensation`                                                                                               | removed                               |
+| `kruskalMST`                           | `indexed.kruskalMST`                                                                                                 | name reused: new signature and result |
+| `minimumSpanningTree`                  | `indexed.kruskalMST`                                                                                                 | removed                               |
+| `primMST`                              | `indexed.primMST`                                                                                                    | name reused: new signature and result |
+| `louvain`                              | `indexed.louvain`                                                                                                    | name reused: new signature and result |
+| `leiden`                               | `indexed.leiden`                                                                                                     | name reused: new signature and result |
+| `girvanNewman`                         | `indexed.girvanNewman`                                                                                               | name reused: new signature and result |
+| `labelPropagation`                     | `indexed.labelPropagation`                                                                                           | name reused: new signature and result |
+| `labelPropagationAsync`                | `indexed.labelPropagation`                                                                                           | removed                               |
+| `labelPropagationSemiSupervised`       | `indexed.labelPropagationSemiSupervised`                                                                             | name reused: new signature and result |
+| `markovClustering`                     | `indexed.markovClustering`                                                                                           | name reused: new signature and result |
+| `calculateMCLModularity`               | `indexed.modularity`                                                                                                 | removed                               |
+| `hierarchicalClustering`               | `indexed.hierarchicalClustering`                                                                                     | name reused: new signature and result |
+| `spectralClustering`                   | `indexed.spectralClustering`                                                                                         | name reused: new signature and result |
+| `kCoreDecomposition`                   | `indexed.kCoreDecomposition`                                                                                         | name reused: new signature and result |
+| `getKCore`                             | `indexed.kCoreDecomposition`, the k-core is the nodes whose `coreness` is at least k                                 | removed                               |
+| `syncClustering`                       | `indexed.syncClustering`                                                                                             | name reused: new signature and result |
+| `teraHAC`                              | `indexed.teraHAC`                                                                                                    | name reused: new signature and result |
+| `grsbm`                                | `indexed.grsbm`                                                                                                      | name reused: new signature and result |
+| `fordFulkerson`                        | `indexed.maxFlow`                                                                                                    | removed                               |
+| `edmondsKarp`                          | `indexed.maxFlow`                                                                                                    | removed                               |
+| `minSTCut`                             | `indexed.minSTCut`                                                                                                   | name reused: new signature and result |
+| `stoerWagner`                          | `indexed.stoerWagner`                                                                                                | name reused: new signature and result |
+| `kargerMinCut`                         | `indexed.kargerMinCut`                                                                                               | name reused: new signature and result |
+| `createBipartiteFlowNetwork`           | `indexed.bipartiteFlowNetwork`                                                                                       | removed                               |
+| `maximumBipartiteMatching`             | `indexed.maximumBipartiteMatching`                                                                                   | name reused: new signature and result |
+| `greedyBipartiteMatching`              | `indexed.greedyBipartiteMatching`                                                                                    | name reused: new signature and result |
+| `isGraphIsomorphic`                    | `indexed.isGraphIsomorphic`                                                                                          | name reused: new signature and result |
+| `findAllIsomorphisms`                  | `indexed.findAllIsomorphisms`                                                                                        | name reused: new signature and result |
+| `commonNeighborsScore`                 | `indexed.commonNeighborsScore`                                                                                       | name reused: new signature and result |
+| `commonNeighborsPrediction`            | `indexed.commonNeighborsPrediction`                                                                                  | name reused: new signature and result |
+| `commonNeighborsForPairs`              | `indexed.commonNeighborsForPairs`                                                                                    | name reused: new signature and result |
+| `getTopCandidatesForNode`              | `indexed.getTopCandidatesForNode`                                                                                    | name reused: new signature and result |
+| `evaluateCommonNeighbors`              | `indexed.evaluateCommonNeighbors`                                                                                    | name reused: new signature and result |
+| `adamicAdarScore`                      | `indexed.adamicAdarScore`                                                                                            | name reused: new signature and result |
+| `adamicAdarPrediction`                 | `indexed.adamicAdarPrediction`                                                                                       | name reused: new signature and result |
+| `adamicAdarForPairs`                   | `indexed.adamicAdarForPairs`                                                                                         | name reused: new signature and result |
+| `getTopAdamicAdarCandidatesForNode`    | `indexed.getTopAdamicAdarCandidatesForNode`                                                                          | name reused: new signature and result |
+| `evaluateAdamicAdar`                   | `indexed.evaluateAdamicAdar`                                                                                         | name reused: new signature and result |
+| `compareAdamicAdarWithCommonNeighbors` | `indexed.compareAdamicAdarWithCommonNeighbors`                                                                       | name reused: new signature and result |
 
 ## API Reference
 

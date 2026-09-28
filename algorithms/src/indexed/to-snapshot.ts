@@ -72,6 +72,8 @@ const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
  * @param options - Conversion options
  * @returns A frozen snapshot of the graph's current topology and weights
  * @public
+ * @deprecated Removed in algorithms 3.0.0. Build the `GraphSnapshot` with `GraphBuilder` from
+ *   `@graphty/graph-format`; this bridge goes with the legacy `Graph`.
  */
 export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): GraphSnapshot {
     const checksum = options.checksum === true;

@@ -40,6 +40,8 @@ export interface SpectralClusteringResult {
  * @param graph - The input graph to cluster
  * @param options - Spectral clustering options (k, laplacianType, etc.)
  * @returns Spectral clustering result with communities and cluster assignments
+ * @deprecated Use `indexed.spectralClustering` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `spectralClustering` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function spectralClustering(graph: Graph, options: SpectralClusteringOptions): SpectralClusteringResult {
     const { k, laplacianType = "normalized", maxIterations = 100, tolerance = 1e-4, seed } = options;

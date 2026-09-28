@@ -41,6 +41,8 @@ interface VF2State {
  * @param graph2 - The second graph to compare
  * @param options - Optional configuration for node and edge matching predicates
  * @returns An object indicating if the graphs are isomorphic and an optional mapping between nodes
+ * @deprecated Use `indexed.isGraphIsomorphic` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `isGraphIsomorphic` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function isGraphIsomorphic(graph1: Graph, graph2: Graph, options: IsomorphismOptions = {}): IsomorphismResult {
     // Quick checks
@@ -370,6 +372,8 @@ function addPair(g1: Graph, g2: Graph, state: VF2State, node1: NodeId, node2: No
  * @param graph2 - The second graph to compare
  * @param options - Optional configuration for node and edge matching predicates
  * @returns An array of all possible node mappings between the graphs
+ * @deprecated Use `indexed.findAllIsomorphisms` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `findAllIsomorphisms` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function findAllIsomorphisms(
     graph1: Graph,

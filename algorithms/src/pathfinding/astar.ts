@@ -13,6 +13,8 @@ import { pathfindingUtils } from "./utils.js";
  *
  * Time Complexity: O(E) with good heuristic, O(b^d) worst case
  * Space Complexity: O(V)
+ * @deprecated Use `indexed.astar` over a `GraphSnapshot`. At algorithms 3.0.0 the name `astar` becomes that function:
+ *   it takes a `GraphSnapshot` and its result type changes.
  */
 export function astar<T>(
     graph: Map<T, Map<T, number>>,
@@ -106,6 +108,8 @@ export function astar<T>(
  * @param goal - The goal node
  * @param heuristic - Heuristic function that estimates distance from node to goal
  * @returns Detailed result including path, cost, visited nodes, and score maps
+ * @deprecated Use `indexed.astar` over a `GraphSnapshot`; its result carries `gScore`, `fScore` and `visited`.
+ *   Removed in algorithms 3.0.0.
  */
 export function astarWithDetails<T>(
     graph: Map<T, Map<T, number>>,
@@ -202,6 +206,7 @@ export function astarWithDetails<T>(
 
 /**
  * Common heuristic functions for A*
+ * @deprecated Removed in algorithms 3.0.0. Pass your own heuristic over node indices to `indexed.astar`.
  */
 export const heuristics = {
     /**

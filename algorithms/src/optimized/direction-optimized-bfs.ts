@@ -34,6 +34,7 @@ interface BFSResult<TNodeId> {
  * keeps its own code rather than delegating: it runs on a `CSRGraph`, not a `Graph`;
  * `searchMultiple` has no single-call equivalent; and a second `search` without `reset` keeps
  * the previous search's nodes, where the replacement starts every call afresh.
+ * @deprecated Use `indexed.directionOptimizedBfs` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export class DirectionOptimizedBFS<TNodeId = NodeId> {
     private graph: CSRGraph<TNodeId>;

@@ -540,6 +540,8 @@ export function modularityHierarchicalClustering(graph: Graph): HierarchicalClus
  *
  * Time Complexity: O(n³) naive, O(n² log n) with heap
  * Space Complexity: O(n²)
+ * @deprecated Use `indexed.hierarchicalClustering` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `hierarchicalClustering` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function hierarchicalClustering(
     graph: Graph,

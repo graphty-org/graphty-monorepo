@@ -16,6 +16,8 @@ import { calculateModularity, getNeighborCommunities, getNodeDegree, getTotalEdg
  * @param graph - The input graph
  * @param options - Algorithm options
  * @returns Community detection result with communities, modularity, and iterations
+ * @deprecated Use `indexed.louvain` over a `GraphSnapshot`. At algorithms 3.0.0 the name `louvain` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function louvain(graph: Graph, options: LouvainOptions = {}): CommunityResult {
     const resolution = options.resolution ?? 1.0;

@@ -34,6 +34,8 @@ export interface MCLResult {
  * @param graph - The input graph to cluster
  * @param options - MCL algorithm options (expansion, inflation, iterations, etc.)
  * @returns MCL clustering result with communities, attractors, and convergence info
+ * @deprecated Use `indexed.markovClustering` over a `GraphSnapshot`. At algorithms 3.0.0 the name `markovClustering`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function markovClustering(graph: Graph, options: MCLOptions = {}): MCLResult {
     const {
@@ -463,6 +465,7 @@ function extractClusters(
  * @param graph - The original graph that was clustered
  * @param communities - Array of communities (each community is an array of node IDs)
  * @returns Modularity score between -0.5 and 1.0
+ * @deprecated Use `indexed.modularity` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function calculateMCLModularity(graph: Graph, communities: NodeId[][]): number {
     const m = graph.totalEdgeCount;

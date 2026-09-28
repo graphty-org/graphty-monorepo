@@ -17,6 +17,8 @@ import type { NodeId } from "../../types/index.js";
  * Find connected components in an undirected graph using Union-Find
  * @param graph - The input graph (must be undirected)
  * @returns Array of connected components, each containing an array of node IDs
+ * @deprecated Use `indexed.connectedComponents` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `connectedComponents` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function connectedComponents(graph: Graph): NodeId[][] {
     if (graph.isDirected) {
@@ -44,6 +46,7 @@ function componentGroups(graph: Graph): NodeId[][] {
  * Find connected components using DFS (alternative implementation)
  * @param graph - The input graph (must be undirected)
  * @returns Array of connected components, each containing an array of node IDs
+ * @deprecated Use `indexed.connectedComponents` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function connectedComponentsDFS(graph: Graph): NodeId[][] {
     if (graph.isDirected) {
@@ -86,6 +89,8 @@ function dfsComponent(graph: Graph, nodeId: NodeId, visited: Set<NodeId>, compon
  * Find the number of connected components
  * @param graph - The input graph (must be undirected)
  * @returns The number of connected components in the graph
+ * @deprecated Use `indexed.connectedComponents` over a `GraphSnapshot`, and read `count`. Removed in algorithms
+ *   3.0.0.
  */
 export function numberOfConnectedComponents(graph: Graph): number {
     return connectedComponents(graph).length;
@@ -95,6 +100,8 @@ export function numberOfConnectedComponents(graph: Graph): number {
  * Check if the graph is connected (has exactly one connected component)
  * @param graph - The input graph (must be undirected)
  * @returns True if the graph is connected, false otherwise
+ * @deprecated Use `indexed.connectedComponents` over a `GraphSnapshot`; the graph is connected when `count <= 1`.
+ *   Removed in algorithms 3.0.0.
  */
 export function isConnected(graph: Graph): boolean {
     return numberOfConnectedComponents(graph) <= 1;
@@ -104,6 +111,8 @@ export function isConnected(graph: Graph): boolean {
  * Find the largest connected component
  * @param graph - The input graph (must be undirected)
  * @returns Array of node IDs in the largest connected component
+ * @deprecated Use `indexed.connectedComponents` over a `GraphSnapshot`, and take the longest of `groups()`. Removed
+ *   in algorithms 3.0.0.
  */
 export function largestConnectedComponent(graph: Graph): NodeId[] {
     const components = connectedComponents(graph);
@@ -120,6 +129,8 @@ export function largestConnectedComponent(graph: Graph): NodeId[] {
  * @param graph - The input graph (must be undirected)
  * @param nodeId - The node ID to find the component for
  * @returns Array of node IDs in the same component as the specified node
+ * @deprecated Use `indexed.connectedComponents` over a `GraphSnapshot`; the component is `groups()[labels[node]]`.
+ *   Removed in algorithms 3.0.0.
  */
 export function getConnectedComponent(graph: Graph, nodeId: NodeId): NodeId[] {
     if (!graph.hasNode(nodeId)) {
@@ -140,6 +151,8 @@ export function getConnectedComponent(graph: Graph, nodeId: NodeId): NodeId[] {
  * Find strongly connected components using Tarjan's algorithm
  * @param graph - The input graph (must be directed)
  * @returns Array of strongly connected components, each containing an array of node IDs
+ * @deprecated Use `indexed.stronglyConnectedComponents` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `stronglyConnectedComponents` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function stronglyConnectedComponents(graph: Graph): NodeId[][] {
     if (!graph.isDirected) {
@@ -160,6 +173,8 @@ export function stronglyConnectedComponents(graph: Graph): NodeId[][] {
  * Check if a directed graph is strongly connected
  * @param graph - The input graph (must be directed)
  * @returns True if the graph is strongly connected, false otherwise
+ * @deprecated Use `indexed.stronglyConnectedComponents` over a `GraphSnapshot`; the graph is strongly connected when
+ *   `count <= 1`. Removed in algorithms 3.0.0.
  */
 export function isStronglyConnected(graph: Graph): boolean {
     if (!graph.isDirected) {
@@ -175,6 +190,8 @@ export function isStronglyConnected(graph: Graph): boolean {
  * (treat the graph as undirected for connectivity)
  * @param graph - The input graph (must be directed)
  * @returns Array of weakly connected components, each containing an array of node IDs
+ * @deprecated Use `indexed.weaklyConnectedComponents` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `weaklyConnectedComponents` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function weaklyConnectedComponents(graph: Graph): NodeId[][] {
     if (!graph.isDirected) {
@@ -190,6 +207,8 @@ export function weaklyConnectedComponents(graph: Graph): NodeId[][] {
  * Check if a directed graph is weakly connected
  * @param graph - The input graph (must be directed)
  * @returns True if the graph is weakly connected, false otherwise
+ * @deprecated Use `indexed.weaklyConnectedComponents` over a `GraphSnapshot`; the graph is weakly connected when
+ *   `count <= 1`. Removed in algorithms 3.0.0.
  */
 export function isWeaklyConnected(graph: Graph): boolean {
     if (!graph.isDirected) {
@@ -203,6 +222,7 @@ export function isWeaklyConnected(graph: Graph): boolean {
  * Find condensation graph (quotient graph of strongly connected components)
  * @param graph - The input graph (must be directed)
  * @returns Object containing the condensed graph, component map, and component arrays
+ * @deprecated Use `indexed.condensation` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function condensationGraph(graph: Graph): {
     condensedGraph: Graph;

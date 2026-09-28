@@ -27,6 +27,8 @@ export type { SynCConfig, SynCResult } from "./sync-legacy.js";
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Clustering result with assignments and embeddings
+ * @deprecated Use `indexed.syncClustering` over a `GraphSnapshot`. At algorithms 3.0.0 the name `syncClustering`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function syncClustering(graph: Graph, config: SynCConfig): SynCResult {
     if (!Number.isInteger(config.numClusters)) {

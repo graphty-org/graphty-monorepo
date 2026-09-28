@@ -88,6 +88,8 @@ function relaxableArcs(graph: Graph): Arc[] {
  * @param source - The starting node for the search
  * @param options - Algorithm options including optional target for early termination
  * @returns The distances, predecessors, and negative cycle information
+ * @deprecated Use `indexed.bellmanFord` over a `GraphSnapshot`. At algorithms 3.0.0 the name `bellmanFord` becomes
+ *   that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOptions = {}): BellmanFordResult {
     if (!graph.hasNode(source)) {
@@ -175,6 +177,7 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
  * @param source - The starting node for the path
  * @param target - The destination node for the path
  * @returns The shortest path result or null if no path exists
+ * @deprecated Use `indexed.bellmanFord` over a `GraphSnapshot`, then `pathTo(target)`. Removed in algorithms 3.0.0.
  */
 export function bellmanFordPath(graph: Graph, source: NodeId, target: NodeId): ShortestPathResult | null {
     if (!graph.hasNode(source)) {
@@ -211,6 +214,8 @@ export function bellmanFordPath(graph: Graph, source: NodeId, target: NodeId): S
  * Check if graph has negative cycles using Bellman-Ford
  * @param graph - The graph to check for negative cycles
  * @returns True if the graph contains a negative cycle
+ * @deprecated Use `indexed.bellmanFord` over a `GraphSnapshot`, and read `hasNegativeCycle`. Removed in algorithms
+ *   3.0.0.
  */
 export function hasNegativeCycle(graph: Graph): boolean {
     // A -Infinity weight: legacy's answer depends on where its |V| - 1 rounds stopped, so keep that walk.

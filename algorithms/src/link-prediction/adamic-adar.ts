@@ -24,6 +24,8 @@ import type { LinkPredictionOptions, LinkPredictionScore } from "./common-neighb
  * @param target - The target node ID
  * @param options - Link prediction options
  * @returns The Adamic-Adar score for the node pair
+ * @deprecated Use `indexed.adamicAdarScore` over a `GraphSnapshot`. At algorithms 3.0.0 the name `adamicAdarScore`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function adamicAdarScore(
     graph: Graph,
@@ -66,6 +68,8 @@ export function adamicAdarScore(
  * @param graph - The input graph
  * @param options - Link prediction options
  * @returns Array of link prediction scores sorted by score descending
+ * @deprecated Use `indexed.adamicAdarPrediction` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `adamicAdarPrediction` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function adamicAdarPrediction(graph: Graph, options: LinkPredictionOptions = {}): LinkPredictionScore[] {
     const { directed = false, includeExisting = false, topK } = options;
@@ -117,6 +121,8 @@ export function adamicAdarPrediction(graph: Graph, options: LinkPredictionOption
  * @param pairs - Array of node ID pairs to calculate scores for
  * @param options - Link prediction options
  * @returns Array of link prediction scores for the specified pairs
+ * @deprecated Use `indexed.adamicAdarForPairs` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `adamicAdarForPairs` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function adamicAdarForPairs(
     graph: Graph,
@@ -136,6 +142,9 @@ export function adamicAdarForPairs(
  * @param node - The node ID to get candidates for
  * @param options - Link prediction options with optional candidate list
  * @returns Array of top link prediction candidates sorted by score descending
+ * @deprecated Use `indexed.getTopAdamicAdarCandidatesForNode` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `getTopAdamicAdarCandidatesForNode` becomes that function: it takes a `GraphSnapshot` and its result type
+ *   changes.
  */
 export function getTopAdamicAdarCandidatesForNode(
     graph: Graph,
@@ -181,6 +190,8 @@ export function getTopAdamicAdarCandidatesForNode(
  * @param nonEdges - Array of node pairs that are not edges
  * @param options - Link prediction options
  * @returns Evaluation metrics including precision, recall, F1 score, and AUC
+ * @deprecated Use `indexed.evaluateAdamicAdar` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `evaluateAdamicAdar` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function evaluateAdamicAdar(
     trainingGraph: Graph,
@@ -265,6 +276,9 @@ export function evaluateAdamicAdar(
  * @param nonEdges - Array of node pairs that are not edges
  * @param options - Link prediction options
  * @returns Comparison of evaluation metrics for both algorithms
+ * @deprecated Use `indexed.compareAdamicAdarWithCommonNeighbors` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `compareAdamicAdarWithCommonNeighbors` becomes that function: it takes a `GraphSnapshot` and its result type
+ *   changes.
  */
 export function compareAdamicAdarWithCommonNeighbors(
     graph: Graph,

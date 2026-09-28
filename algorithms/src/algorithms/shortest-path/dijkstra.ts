@@ -20,6 +20,8 @@ import { BidirectionalDijkstra } from "./bidirectional-dijkstra.js";
  * @param source - The starting node for the search
  * @param options - Algorithm options including optional target for early termination
  * @returns A map of node IDs to their shortest path results
+ * @deprecated Use `indexed.dijkstra` over a `GraphSnapshot`. At algorithms 3.0.0 the name `dijkstra` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function dijkstra(graph: Graph, source: NodeId, options: DijkstraOptions = {}): Map<NodeId, ShortestPathResult> {
     if (!graph.hasNode(source)) {
@@ -127,6 +129,7 @@ export function dijkstra(graph: Graph, source: NodeId, options: DijkstraOptions 
  * @param target - The destination node for the path
  * @param options - Algorithm options including bidirectional search toggle
  * @returns The shortest path result or null if no path exists
+ * @deprecated Use `indexed.bidirectionalDijkstra` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function dijkstraPath(
     graph: Graph,
@@ -171,6 +174,7 @@ export function dijkstraPath(
  * @param source - The starting node for the search
  * @param cutoff - Optional maximum distance to search
  * @returns A map of node IDs to their distances from the source
+ * @deprecated Use `indexed.dijkstra` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function singleSourceShortestPath(graph: Graph, source: NodeId, cutoff?: number): Map<NodeId, number> {
     if (!graph.hasNode(source)) {
@@ -280,6 +284,8 @@ function singleSourceShortestPathLegacy(graph: Graph, source: NodeId, cutoff?: n
  * Note: For dense graphs, consider Floyd-Warshall algorithm instead
  * @param graph - The graph to compute all-pairs shortest paths for
  * @returns A nested map of source to target to distance
+ * @deprecated Use `indexed.allPairsShortestPath` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `allPairsShortestPath` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function allPairsShortestPath(graph: Graph): Map<NodeId, Map<NodeId, number>> {
     const results = new Map<NodeId, Map<NodeId, number>>();

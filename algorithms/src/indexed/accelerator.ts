@@ -18,6 +18,7 @@ import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "
 import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
 import type { KatzOptions } from "./katz.js";
+import type { LabelPropagationOptions } from "./label-propagation.js";
 import type { LouvainOptions } from "./louvain.js";
 import type { MstOptions } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
@@ -167,6 +168,11 @@ export interface BetweennessAcceleratorOptions {
  * `alpha` / `beta` or Louvain's `resolution`, and one that is handed them would answer a different
  * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
  * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
+ *
+ * `labelPropagation` passes its options through the same way. An accelerator reads
+ * `maxIterations` and `weighted` and ignores `randomSeed` -- the GPU kernel is deterministic -- and
+ * its result carries no `iterations` or `converged`; call `indexed.labelPropagation` directly for
+ * those.
  * @public
  */
 export interface AcceleratedAlgorithms {
@@ -181,6 +187,7 @@ export interface AcceleratedAlgorithms {
     katzCentrality(s: GraphSnapshot, options?: KatzOptions): Promise<ScoresResultLike>;
     hits(s: GraphSnapshot, options?: HitsOptions): Promise<HitsResultLike>;
     louvain(s: GraphSnapshot, options?: LouvainOptions): Promise<CommunityResultLike>;
+    labelPropagation(s: GraphSnapshot, options?: LabelPropagationOptions): Promise<LabelResultLike>;
 }
 
 /**
@@ -245,5 +252,9 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.hits !== undefined ? acc.hits(s, options) : Promise.resolve(indexed.hits(s, options)),
         louvain: (s, options) =>
             acc?.louvain !== undefined ? acc.louvain(s, options) : Promise.resolve(indexed.louvain(s, options)),
+        labelPropagation: (s, options) =>
+            acc?.labelPropagation !== undefined
+                ? acc.labelPropagation(s, options)
+                : Promise.resolve(indexed.labelPropagation(s, options)),
     };
 }

@@ -7,6 +7,7 @@ import {
     type AcceleratedAlgorithms,
     type AlgorithmAccelerator,
     type BfsResultLike,
+    indexed,
     type LabelResultLike,
     type MstResultLike,
     type PageRankResultLike,
@@ -270,7 +271,38 @@ describe("accelerated(acc)", () => {
         expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
     });
 
-    it("carries exactly the ten methods whose ports exist", () => {
+    it("runs the CPU label propagation port when the accelerator has none", async () => {
+        const s = cycle();
+        const viaDispatcher = await accelerated(null).labelPropagation(s, { randomSeed: 7 });
+        const direct = indexed.labelPropagation(s, { randomSeed: 7 });
+        expect([...viaDispatcher.labels]).toEqual([...direct.labels]);
+        expect(viaDispatcher.count).toBe(direct.count);
+    });
+
+    it("hands label propagation to an accelerator with the same snapshot and options object", async () => {
+        const s = cycle();
+        const options = { maxIterations: 3, randomSeed: 5, weighted: false };
+        const answer: LabelResultLike = { labels: Uint32Array.of(0, 0, 0), count: 1, groups: () => [] };
+        const seen: unknown[] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            labelPropagation: (snapshot, received) => {
+                seen.push(snapshot, received);
+                return Promise.resolve(answer);
+            },
+        };
+        expect(await accelerated(fake).labelPropagation(s, options)).toBe(answer);
+        expect(seen[0]).toBe(s);
+        expect(seen[1]).toBe(options);
+    });
+
+    it("lets a throwing label propagation accelerator reject unchanged", async () => {
+        const boom = new Error("E_DEVICE_LOST");
+        const fake: AlgorithmAccelerator = { kind: "fake", labelPropagation: () => Promise.reject(boom) };
+        await expect(accelerated(fake).labelPropagation(cycle())).rejects.toBe(boom);
+    });
+
+    it("carries exactly the eleven methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
@@ -279,6 +311,7 @@ describe("accelerated(acc)", () => {
             "hits",
             "kCoreDecomposition",
             "katzCentrality",
+            "labelPropagation",
             "louvain",
             "minimumSpanningTree",
             "pageRank",

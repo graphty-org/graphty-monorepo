@@ -1,7 +1,7 @@
 import { accelerated, type AcceleratedAlgorithms, type Graph as AlgorithmGraph } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { narrowAlgorithms } from "../acceleration/narrow";
+import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
@@ -404,6 +404,10 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * rather than answering quietly. After the work has started there is no second decision: a
      * failure from the accelerator propagates with its code and fails the run, because a number
      * that silently came from somewhere else is worse than no number.
+     *
+     * A capability the element does not forward to accelerators (`"kCoreDecomposition"`,
+     * `"louvain"`) is not put to the controller: it runs the CPU port under every policy, as an
+     * algorithm with no accelerated form does.
      * @param capability - The accelerator member this work would use, such as `"pageRank"`.
      * @param mode - The shape this algorithm needs; see {@link AlgorithmGraphMode}. `"undirected"`
      *   takes the snapshot's undirected view, which is what collapses a reciprocal pair into one
@@ -444,6 +448,14 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {
+                /* A capability the element never forwards runs the CPU port without asking the
+                   controller, as work with no accelerated form at all does -- under "required"
+                   too. Asking would plan an accelerator that implements the member, label the
+                   run with its precision, and then answer from the CPU port. */
+                if (!forwardsAlgorithm(capability)) {
+                    return { value: await fn(accelerated(null), snapshot), precision: CPU_PRECISION };
+                }
+
                 const outcome = await controller.run(work, (accelerator) =>
                     fn(accelerated(narrowAlgorithms(accelerator)), snapshot),
                 );

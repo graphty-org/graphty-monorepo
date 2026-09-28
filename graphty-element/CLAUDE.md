@@ -286,7 +286,9 @@ accelerator when the controller planned one and the CPU simulation when it did n
 algorithm adapters (PageRank, Dijkstra, BFS, connected components, Kruskal, HITS, Katz, k-core,
 Louvain) route through `@graphty/algorithms`' `accelerated()` and label the result's
 `caveats.precision` with the arithmetic that produced it. k-core and Louvain always take the CPU
-port: `narrowAlgorithms` forwards only the members listed in `src/acceleration/narrow.ts`.
+port: `narrowAlgorithms` forwards only the members listed in `src/acceleration/narrow.ts`, and
+`Algorithm.accelerated` does not ask the controller about any other, so `acceleration="required"`
+does not refuse them.
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and frame-count-independent, and
 it is shared by the tests and the stories -- write no second one.
 

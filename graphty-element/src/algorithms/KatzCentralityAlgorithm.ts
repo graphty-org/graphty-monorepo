@@ -5,7 +5,7 @@ import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import type { ScopeInputDeclaration } from "./input/ScopedInput";
+import { releaseOnAccelerator, type ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -62,7 +62,7 @@ const katzCentralityOptionsSchema = defineOptions({
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description: "Which paths count: arriving along each edge's direction (in), leaving (out), or either way (total)",
             advanced: true,
         },
     },
@@ -70,7 +70,7 @@ const katzCentralityOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description: "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     },
@@ -90,9 +90,9 @@ interface KatzCentralityOptions extends Record<string, unknown> {
     tolerance: number;
     /** Whether to normalize the final scores */
     normalized: boolean;
-    /** Direction mode for directed graphs: "in", "out", or "total" */
+    /** Which paths count: arriving along each edge's direction ("in"), leaving ("out"), or either way ("total") */
     mode: "in" | "out" | "total";
-    /** Whether to include endpoints in path calculations */
+    /** Not supported: Katz walks no paths end to end, so `true` is refused */
     endpoints: boolean;
 }
 
@@ -172,7 +172,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             type: "select",
             default: "total",
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description: "Which paths count: arriving along each edge's direction (in), leaving (out), or either way (total)",
             options: [
                 { value: "total", label: "Total (both directions)" },
                 { value: "in", label: "In-degree (incoming edges)" },
@@ -184,7 +184,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             type: "boolean",
             default: false,
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description: "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     };
@@ -210,9 +210,13 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         /* `"total"`, the default: every neighbour counts as an influence, whichever way the record
            declared the edge. `"in"` counts the paths that ARRIVE at a node along the declared
            direction, which is what the port reads off a directed snapshot; `"out"` counts the
-           paths that LEAVE it, which is the same reading over the transposed snapshot. */
-        const direction = mode === "total" ? "undirected" : "directed";
+           paths that LEAVE it, which is the same reading over the transposed snapshot. A graph
+           loaded undirected has no direction to keep, so every mode reads it undirected. */
+        const direction = mode !== "total" && this.input("declared").graph.directed ? "directed" : "undirected";
         const { snapshot, run } = this.accelerated("katzCentrality", direction);
+        // Built here, per run and uncached, so it is released here: an accelerator that uploaded it
+        // would otherwise hold it until its device is torn down.
+        const transposed = mode === "out" && direction === "directed" ? snapshot.transpose().snapshot : null;
 
         context.report({
             phase: "iterating",
@@ -220,15 +224,17 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             total: nodeIds.length,
             message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
         });
-        const { value: result, precision } = await run((dispatch, s) =>
-            dispatch.katzCentrality(mode === "out" ? s.transpose().snapshot : s, {
-                alpha,
-                beta,
-                maxIterations,
-                tolerance,
-                normalized,
-            }),
-        );
+        let outcome;
+        try {
+            outcome = await run((dispatch, s) =>
+                dispatch.katzCentrality(transposed ?? s, { alpha, beta, maxIterations, tolerance, normalized }),
+            );
+        } finally {
+            if (transposed !== null) {
+                releaseOnAccelerator(this.graph, transposed);
+            }
+        }
+        const { value: result, precision } = outcome;
         context.signal.throwIfAborted();
 
         const { ids } = snapshot;

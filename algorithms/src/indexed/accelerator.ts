@@ -198,10 +198,22 @@ export interface BetweennessAcceleratorOptions {
  * and `weighted` resolved to the port's default (false), since the WebGPU members default it to
  * true -- and rescale what comes back: the WebGPU members scale HITS by the sum and Katz to unit
  * length, and the port leaves HITS at unit length (a largest entry of 1 with `normalized: false`)
- * and min-max rescales Katz. Every one of those scalings is blind to a positive factor, so the
- * rescaled vector is the port's. Katz with `normalized: false` runs the CPU port, because the raw
- * sums cannot be recovered from a vector of unit length. The iteration counts of the two paths
- * differ.
+ * and min-max rescales Katz. Every one of those scalings is blind to a positive factor, so once
+ * both iterations have converged the rescaled vector is the port's fixed point, to single
+ * precision. They converge under different stopping rules, as PageRank's do: webgpu-graph-algorithms
+ * stops at an L1 change below `tolerance * n` over sum-scaled (HITS) or raw (Katz) iterates and
+ * seeds Katz with `1 / n`, where the ports stop at a largest per-node change below `tolerance`. So
+ * the two stop at different iterations, and a run cut short by a loose `tolerance` or a small
+ * `maxIterations` gives two different partial answers.
+ *
+ * Katz goes to the accelerator only when its series is certain to converge: `alpha` times the
+ * largest in-arc count (or in-arc weight sum when `weighted`) below 1, which bounds the spectral
+ * radius. Past that the series can diverge, and an accelerator that iterates in f32 with no
+ * per-iteration normaliser overflows to Infinity where the f64 port stays finite and reports
+ * `converged: false`. Katz with `normalized: false` runs the CPU port too, because the raw sums
+ * cannot be recovered from a vector of unit length. A vector whose entries are all equal is left
+ * raw by the port's min-max, so the accelerator's unit vector is replaced by the fixed point
+ * `beta / (1 - alpha * d)`, where `d` is the in-arc count every node then shares.
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
@@ -484,14 +496,61 @@ function katzOptionsLike(options: KatzOptions | undefined): KatzOptions {
 }
 
 /**
+ * The in-arc total of each node the Katz iteration pulls over: the arc count, or the weight sum
+ * when `weighted`.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns One total per node
+ */
+function katzInTotals(s: GraphSnapshot, options: KatzOptions | undefined): Float64Array {
+    const rev = s.reverse();
+    const weights = options?.weighted === true ? rev.weights : null;
+    const totals = new Float64Array(s.nodeCount);
+    for (let v = 0; v < s.nodeCount; v++) {
+        for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
+            totals[v] += weights === null ? 1 : Math.abs(weights[a]);
+        }
+    }
+    return totals;
+}
+
+/**
+ * Whether the accelerator's Katz member answers the port's question: min-max scaling, and a series
+ * certain to converge because `alpha` times the largest in-arc total is below 1.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns True when the call may go to the accelerator
+ */
+function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined): boolean {
+    if (options?.normalized === false) {
+        return false;
+    }
+    let largest = 0;
+    for (const total of katzInTotals(s, options)) {
+        largest = Math.max(largest, total);
+    }
+    return Math.abs(options?.alpha ?? 0.1) * largest < 1;
+}
+
+/**
  * Give an accelerator's Katz vector the port's min-max scaling. Min-max is blind to a positive
- * scale factor, so whatever length the accelerator left the vector at, the result is the port's.
+ * scale factor, so whatever length the accelerator left the vector at, the result is the port's
+ * once both have converged -- except when every entry is equal, which min-max leaves alone: the
+ * port then publishes its raw fixed point, `beta / (1 - alpha * d)` for the in-arc total `d` every
+ * node shares, and so does this.
+ * @param s - The snapshot
  * @param like - The accelerator's result
+ * @param options - The caller's port options
  * @returns The result, rescaled into a new vector
  */
-function finishKatz(like: ScoresResultLike): ScoresResultLike {
+function finishKatz(s: GraphSnapshot, like: ScoresResultLike, options: KatzOptions | undefined): ScoresResultLike {
     const scores = Float64Array.from(like.scores);
-    minMaxNormalize(scores);
+    if (scores.length > 0 && scores.every((x) => x === scores[0])) {
+        const alpha = options?.alpha ?? 0.1;
+        scores.fill((options?.beta ?? 1) / (1 - alpha * katzInTotals(s, options)[0]));
+    } else {
+        minMaxNormalize(scores);
+    }
     return { scores, iterations: like.iterations, converged: like.converged };
 }
 
@@ -575,8 +634,8 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.kCoreDecomposition(s)
                 : Promise.resolve(indexed.kCoreDecomposition(s)),
         katzCentrality: (s, options) =>
-            acc?.katzCentrality !== undefined && options?.normalized !== false
-                ? acc.katzCentrality(s, katzOptionsLike(options)).then(finishKatz)
+            acc?.katzCentrality !== undefined && acceleratorAnswersKatz(s, options)
+                ? acc.katzCentrality(s, katzOptionsLike(options)).then((like) => finishKatz(s, like, options))
                 : Promise.resolve(indexed.katzCentrality(s, options)),
         hits: (s, options) =>
             acc?.hits !== undefined

@@ -183,16 +183,12 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
         });
     }
 
-    it("louvain with useOptimized off runs the reference implementation, and says so", async () => {
+    it("louvain refuses useOptimized off: only the optimized implementation remains", async () => {
         const graph = await createMockGraph({ dataPath: "./data4.json" });
-        const output = await computed(new LouvainAlgorithm(graph, { useOptimized: false }));
+        const error = await rejection(() => new LouvainAlgorithm(graph, { useOptimized: false }).compute(detachedRunContext()));
 
-        const reference = louvain(toAlgorithmGraph(graph.getDataManager(), "undirected"), { useOptimized: false });
-        assert.approximately(output.graph?.modularity as number, reference.modularity, 1e-12);
-        assert.isTrue(
-            output.caveats.notes.some((note) => note.includes("useOptimized")),
-            output.caveats.notes.join(" | "),
-        );
+        assert.strictEqual(error.code, "E_OPTION_RANGE");
+        assert.deepInclude(error.details, { option: "useOptimized", value: false });
     });
 
     it("hits and katz report whether they converged, now that the port says", async () => {
@@ -240,6 +236,15 @@ describe("the direction and endpoint options", () => {
         const inValues = published(graph, inRun);
         assert.isAbove(outValues.get("E")?.value as number, inValues.get("E")?.value as number);
         assert.strictEqual(outRun.result?.summary().caveats.direction, "directed");
+    });
+
+    it("katz says undirected for every mode on a graph loaded undirected", async () => {
+        const graph = await createMockGraph({ ...MIXED, directed: false });
+        for (const mode of ["in", "out", "total"] as const) {
+            const run = new KatzCentralityAlgorithm(graph, { mode });
+            await run.run();
+            assert.strictEqual(run.result?.summary().caveats.direction, "undirected", mode);
+        }
     });
 
     it("hits and katz refuse endpoints, which neither method has", async () => {
@@ -323,16 +328,50 @@ describe("hits and katz on an accelerator", () => {
         assert.strictEqual(communities.caveats.precision, "f64");
     });
 
-    it("under acceleration required, k-core fails loudly when the accelerator cannot compute cores", async () => {
-        const { fake } = counting();
+    it("runs k-core and louvain on the CPU port under required, even when the accelerator has both members", async () => {
+        // The element forwards neither member, so the controller is not asked: an accelerator that
+        // implements them is never planned, never labelled f32, and never made to fail the run.
+        const calls: string[] = [];
+        const fake = createFakeAccelerator({
+            members: {
+                kCoreDecomposition: () => (calls.push("kCoreDecomposition"), Promise.reject(new Error("not here"))),
+                louvain: () => (calls.push("louvain"), Promise.reject(new Error("not here"))),
+            },
+        });
         const graph = await createMockGraph(MIXED);
         graph.acceleration.setPolicy("required");
         graph.acceleration.setAccelerator(fake);
 
-        const error = await rejection(() => new KCoreAlgorithm(graph).run());
+        const core = new KCoreAlgorithm(graph);
+        await core.run();
+        const communities = await computed(new LouvainAlgorithm(graph));
 
-        assert.strictEqual(error.code, "E_NO_ACCELERATOR");
-        assert.deepInclude(error.details, { capability: "kCoreDecomposition" });
+        assert.deepStrictEqual(calls, []);
+        assert.strictEqual(core.result?.summary().caveats.precision, "f64");
+        assert.strictEqual(communities.caveats.precision, "f64");
+    });
+
+    it("releases the transposed snapshot katz mode out builds, once the run is over", async () => {
+        const handed: unknown[] = [];
+        const fake = createFakeAccelerator({
+            members: {
+                katzCentrality: (s: { nodeCount: number }) => {
+                    handed.push(s);
+                    return Promise.resolve({
+                        scores: Float32Array.from({ length: s.nodeCount }, (_, i) => i),
+                        iterations: 3,
+                        converged: true,
+                    });
+                },
+            },
+        });
+        const graph = await createMockGraph(MIXED);
+        graph.acceleration.setAccelerator(fake);
+
+        await new KatzCentralityAlgorithm(graph, { mode: "out" }).run();
+
+        assert.lengthOf(handed, 1);
+        assert.include(fake.calls.release, handed[0]);
     });
 });
 

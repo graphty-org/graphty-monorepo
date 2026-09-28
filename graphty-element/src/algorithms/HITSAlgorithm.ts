@@ -45,7 +45,7 @@ const hitsOptionsSchema = defineOptions({
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description: "Which score is the published value: authority (in), hub (out) or their average (total)",
             advanced: true,
         },
     },
@@ -53,7 +53,7 @@ const hitsOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description: "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     },
@@ -69,9 +69,9 @@ interface HITSOptions extends Record<string, unknown> {
     tolerance: number;
     /** Whether to normalize the final scores */
     normalized: boolean;
-    /** Direction mode for directed graphs: "in", "out", or "total" */
+    /** Which score is the published value: authority ("in"), hub ("out") or their average ("total") */
     mode: "in" | "out" | "total";
-    /** Whether to include endpoints in path calculations */
+    /** Not supported: HITS walks no paths, so `true` is refused */
     endpoints: boolean;
 }
 
@@ -152,7 +152,7 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             type: "select",
             default: "total",
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description: "Which score is the published value: authority (in), hub (out) or their average (total)",
             options: [
                 { value: "total", label: "Total (both directions)" },
                 { value: "in", label: "In-degree (incoming edges)" },
@@ -164,7 +164,7 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             type: "boolean",
             default: false,
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description: "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     };

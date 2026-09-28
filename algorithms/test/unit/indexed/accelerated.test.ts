@@ -290,7 +290,8 @@ describe("accelerated(acc)", () => {
         const dispatcher = accelerated(fake);
         expect((await dispatcher.kCoreDecomposition(undirected)).coreness[0]).toBe(9);
         // The accelerator's vectors, rescaled the ports' way (see the HITS and Katz routing below).
-        expect([...(await dispatcher.katzCentrality(s)).scores]).toEqual([1, 1, 1]);
+        // Equal entries are left raw by the port's min-max: beta / (1 - alpha * 1) on the cycle.
+        expect([...(await dispatcher.katzCentrality(s)).scores]).toEqual([1 / 0.9, 1 / 0.9, 1 / 0.9]);
         expect([...(await dispatcher.hits(s)).hubs]).toEqual([1, 0, 0]);
         expect((await dispatcher.louvain(undirected)).count).toBe(1);
         expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
@@ -935,6 +936,37 @@ describe("accelerated(acc) routing for HITS and Katz", () => {
         expect(r.scores[0]).toBe(0);
         expect(r.scores[2]).toBe(1);
         expect(r.scores[1]).toBeCloseTo(1 / 3, 6);
+    });
+
+    it("keeps Katz on the CPU port when its series may diverge: alpha times the largest in-arc count reaches 1", async () => {
+        // A hub with ten in-arcs: at alpha 0.1 the bound is exactly 1, where an f32 iteration with
+        // no normaliser can overflow. Just below the bound the accelerator is asked.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 10; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+        }
+        const s = toSnapshot(g);
+        const calls: unknown[][] = [];
+        const onPort = await accelerated(katzStub(calls)).katzCentrality(s, { alpha: 0.1 });
+        expect(calls).toHaveLength(0);
+        expect([...onPort.scores]).toEqual([...indexed.katzCentrality(s, { alpha: 0.1 }).scores]);
+        await accelerated(katzStub(calls)).katzCentrality(s, { alpha: 0.099 });
+        expect(calls).toHaveLength(1);
+    });
+
+    it("gives the port's raw fixed point when the accelerator's Katz entries are all equal", async () => {
+        // A regular graph: min-max leaves the port's constant vector raw, and a unit vector says
+        // nothing about its size.
+        const s = cycle();
+        const constant: AlgorithmAccelerator = {
+            kind: "fake",
+            katzCentrality: () =>
+                Promise.resolve({ scores: new Float32Array(3).fill(1 / Math.sqrt(3)), iterations: 9, converged: true }),
+        };
+        const r = await accelerated(constant).katzCentrality(s, { alpha: 0.2, beta: 3 });
+        const want = indexed.katzCentrality(s, { alpha: 0.2, beta: 3 }).scores;
+        [...r.scores].forEach((x, i) => expect(x).toBeCloseTo(want[i], 6));
+        expect(r.scores[0]).toBeCloseTo(3 / 0.8, 12);
     });
 
     it("keeps Katz with normalized false on the CPU port: the raw sums cannot be recovered from a unit vector", async () => {

@@ -1,8 +1,7 @@
-import { louvain } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import type { NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
@@ -48,7 +47,7 @@ const louvainOptionsSchema = defineOptions({
         schema: z.boolean().default(true),
         meta: {
             label: "Use Optimized",
-            description: "Use optimized implementation for better performance on large graphs",
+            description: "Only the optimized implementation remains, so a run with this switched off is refused. Leave it on",
             advanced: true,
         },
     },
@@ -64,7 +63,7 @@ interface LouvainOptions extends Record<string, unknown> {
     maxIterations: number;
     /** Minimum modularity improvement to continue */
     tolerance: number;
-    /** Use optimized implementation for better performance on large graphs */
+    /** Only the optimized implementation remains, so `false` is refused */
     useOptimized: boolean;
 }
 
@@ -112,7 +111,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
             type: "boolean",
             default: true,
             label: "Use Optimized",
-            description: "Use optimized implementation for better performance on large graphs",
+            description: "Only the optimized implementation remains, so a run with this switched off is refused. Leave it on",
             advanced: true,
         },
     };
@@ -137,7 +136,15 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
         const { resolution, maxIterations, tolerance, useOptimized } = this.schemaOptions;
 
         if (!useOptimized) {
-            return this.computeOnReference(context, nodeIds);
+            // The option chose between two implementations, and the unoptimized one is not carried
+            // over to the snapshot. A run that asked for it is told so rather than quietly given
+            // the other; `true`, the default, keeps saved documents running.
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                source: "run",
+                message: "Louvain has only its optimized implementation now; leave useOptimized on.",
+                details: { algorithm: "louvain", option: "useOptimized", value: false, permitted: [true] },
+            });
         }
 
         // Undirected: modularity is defined over unordered pairs. No shipped accelerator groups
@@ -166,52 +173,6 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
                 weight: { attribute: "weight", meaning: "strength" },
                 precision,
                 notes: [`Resolution ${String(resolution)}.`],
-            }),
-        };
-    }
-
-    /**
-     * The same method on the reference implementation, for `useOptimized: false`.
-     *
-     * The option has always chosen between two implementations of Louvain, and the index-based
-     * port is the fast one. Asking for the other still gets the other, rather than having the
-     * option read by nothing.
-     * @param context - What the element gave the run.
-     * @param nodeIds - The nodes of the run's input.
-     * @returns The community result.
-     */
-    private async computeOnReference(context: AlgorithmRunContext, nodeIds: readonly NodeId[]): Promise<AlgorithmOutput> {
-        const { resolution, maxIterations, tolerance } = this.schemaOptions;
-        const graphData = this.algorithmGraph("undirected");
-
-        context.report({ phase: "Optimizing modularity", total: null });
-        const result = louvain(graphData, { resolution, maxIterations, tolerance, useOptimized: false });
-
-        const groupOf = new Map<number | string, number>();
-        for (let index = 0; index < result.communities.length; index++) {
-            for (const nodeId of result.communities[index]) {
-                groupOf.set(nodeId, index);
-            }
-        }
-
-        const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
-        });
-
-        return {
-            shape: "community",
-            fields: communityFieldSpecs(true),
-            nodes,
-            graph: { modularity: result.modularity },
-            caveats: declaredCaveats({
-                method: "louvain",
-                direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
-                notes: [
-                    `Resolution ${String(resolution)}.`,
-                    "Computed on the CPU reference implementation: useOptimized is off, and that implementation is the unoptimised one.",
-                ],
             }),
         };
     }

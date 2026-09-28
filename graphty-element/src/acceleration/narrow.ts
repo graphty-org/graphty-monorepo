@@ -60,6 +60,19 @@ const ALGORITHM_MEMBERS = [
 ] as const;
 
 /**
+ * Whether the element hands an accelerator's member of this name to the dispatcher at all.
+ *
+ * An adapter asks before it consults the controller, whose feature test reads the accelerator
+ * itself: an accelerator that implements a member this list leaves out would otherwise be planned
+ * as accelerated, labelled with its precision, and then answered by the CPU port.
+ * @param capability - The accelerator member an adapter's work would use.
+ * @returns True when {@link narrowAlgorithms} forwards that member.
+ */
+export function forwardsAlgorithm(capability: string): boolean {
+    return (ALGORITHM_MEMBERS as readonly string[]).includes(capability);
+}
+
+/**
  * Narrows the attached accelerator to the layout seam `createSimulation` feature-tests.
  *
  * The returned object is fresh on every call and holds only the members the accelerator actually

@@ -23,9 +23,10 @@ The word names three different things in this repository; this document is only 
    or a framing by camera view. This document.
 3. **A saved view** in the design studio's sense (`design/ui/framework/conceptual-model.md` 5.3)
    also captures filter steps, the style layers switched on, collapsed sets, stored positions,
-   display toggles, the notes shown and an export setting. It belongs to a project and needs its
-   data. It is not specified in version 1; each of those captures can be added to a view as an
-   optional member later without a new major version.
+   display toggles and an export setting. It belongs to a project and needs its data. Version 1
+   holds only the notes a view shows (`notes`); each of the other captures can be added as an
+   optional member later without a new major version. Canvas callouts, which report pages need
+   (`W15.yaml`), are open decision 14.
 
 ### Changes from the element API design
 
@@ -66,6 +67,7 @@ interface View {
   mode?: "2d" | "3d" | "vr" | "ar";   // default: leave the current mode
   camera?: StoredCamera;         // at least one of camera and framing
   framing?: Framing;
+  notes?: string[];              // ids of the notes this view (report page) shows, in order
   extensions?: Record<string, unknown>;
 }
 
@@ -82,11 +84,17 @@ type StoredCamera =
 
 interface Framing {
   cameraView: string;            // a camera view id from the element's catalogue
-  options?: Record<string, unknown>;  // that camera view's options
-  fit?: "visible" | "graph" | "selection" | "largest-component" | { set: string };  // default "visible"
-  paddingPercent?: number;       // 0..100; default: the camera view's own
+  params?: Record<string, unknown>;   // that camera view's options, as applyCameraView takes them
+  fit?: Scope;                   // what to frame; default: the whole graph
 }
 ```
+
+`fit` is graphty-element's own `Scope`, the type `applyCameraView(id, { scope, params })` already
+takes (`graphty-element/src/Graph.ts`), restricted by the rule a recipe uses: no `{ nodes }` and no
+`define` holding a fixed set. Absent, the whole graph is framed, as `applyCameraView` does today. A
+set scope (`{ set: id }`) is legal in a view, because a view belongs to a presentation of particular
+data. Padding is not a member: `applyCameraView` has no padding input, and adding one is an element
+change to make first.
 
 Units: scene units are the coordinates node positions are stored in, the same space a layout
 writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is up.
@@ -96,29 +104,41 @@ writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is u
 1. Views are added to the session's list in document order. Applying a view document does not by
    itself move the camera, unless `initial` names a view; then that view is applied.
 2. Applying a view sets the drawing mode when `mode` is present, then places the camera.
-3. When both `camera` and `framing` are present, the applier uses `camera` if the document's
-   fingerprint matches the current graph, and `framing` otherwise. When only `camera` is present,
-   it is applied as stored and the binding report says whether the graph matches (`match`,
-   `differs`, `unknown`); a stored camera on a different graph is legal and may point at empty
-   space, which is why a writer SHOULD write a framing beside it.
+3. When both `camera` and `framing` are present, the applier uses `camera` unless the document's
+   fingerprint (or, in an envelope, the envelope's, when the view member has none) `differs` from
+   the current graph's, and `framing` when it differs. `unknown` (no fingerprint, or a scheme the
+   reader does not compute) uses the stored camera and is reported, so retiring a fingerprint scheme
+   never replaces a submitted figure's camera. This is the one use of a fingerprint README allows.
+   When only `camera` is present, it is applied as stored and the binding report says whether the
+   graph matches; a stored camera on a different graph is legal and may point at empty space, which
+   is why a writer SHOULD write a framing beside it.
 4. A `mode` of `vr` or `ar` on a page that cannot enter that mode is reported with `E_UNSUPPORTED`
    and the camera is applied in the current mode. Entering an immersive mode requires a user
    gesture in browsers; an applier MUST NOT try to enter it without one, and reports the view as
    waiting for the reader instead.
 5. A framing whose `cameraView` is not registered is reported with `E_UNKNOWN_CAMERA`, naming the
    id; the view is kept in the list, unapplied. A camera view that does not support the requested
-   mode (its descriptor's `modes`) is reported with `E_UNSUPPORTED`.
+   mode (its descriptor's `modes`) is reported with `E_UNSUPPORTED`. A `fit` naming a set the
+   session does not hold is reported with `E_UNKNOWN_SET` and the whole graph is framed.
 6. An `orthographic` camera applied in 3D, or a `perspective` camera applied in 2D, is converted
    by the element: the orthographic camera becomes a top-down perspective camera that shows the
    same `height` at the target plane, and the reverse. The conversion is reported.
-7. A view that fails the schema is skipped with `E_BAD_COMMAND`; the other views apply.
+7. `camera` and `framing` are validated separately. A view whose `camera` fails (a projection this
+   reader does not know, a malformed vector) keeps its framing and applies it, reporting the camera;
+   a view whose framing fails keeps its camera. A view with neither usable is kept verbatim,
+   unapplied, reported with `E_BAD_COMMAND`, and written back on save; the other views apply.
+8. `notes` lists the notes shown when this view is applied as a report page, in reading order. A
+   note id that is not held is reported and ignored.
 
 ## Writing
 
 1. A writer MUST write every coordinate in scene units and every angle in degrees, whatever its
    renderer uses internally.
 2. A writer SHOULD write a `framing` beside a stored camera, so the view still works on new data.
-3. The element's existing `exportCameraPresets()` map (`Graph.ts`) is not a view document. An
+3. Saved filters are not part of version 1. A writer that saves views while a filter is active
+   MUST report it (`W_GRAPHTY_FILTER`), so a person knows the recipient will see the whole graph.
+4. A writer MUST NOT write `fingerprint` until a scheme is approved (README).
+5. The element's existing `exportCameraPresets()` map (`Graph.ts`) is not a view document. An
    applier that accepts it MUST convert it into a view document, one view per map key, and report
    every Babylon-only field it could not carry.
 
@@ -132,7 +152,11 @@ VR or AR remains behind the browser's own permission and gesture rules.
 | Input | Required result |
 |---|---|
 | `{ "kind": "graphty-view", "version": 1, "views": [] }` | accepted; nothing changes |
-| a view with neither `camera` nor `framing` | that view skipped with `E_BAD_COMMAND` |
+| a view with neither `camera` nor `framing` | that view kept unapplied, reported with `E_BAD_COMMAND` |
+| a view with `camera: { "projection": "fisheye", ... }` and a valid framing | framing applied; camera reported |
+| a view framed on `{ "set": "set_ring_a" }` that the session does not hold | `E_UNKNOWN_SET`; whole graph framed |
+| a view with both, no fingerprint anywhere | the stored camera is used; `unknown` reported |
+| views saved while a filter hides half the graph | saved; `W_GRAPHTY_FILTER` reported |
 | a framing naming `cameraView: "orbitFromNorth"` that nothing registered | view kept, reported `E_UNKNOWN_CAMERA` |
 | a view with both, on a graph whose fingerprint differs | the framing is used |
 | `initial` naming an id not in `views` | reported; no view applied |
@@ -149,7 +173,6 @@ VR or AR remains behind the browser's own permission and gesture rules.
   "kind": "graphty-view",
   "version": 1,
   "name": "Briefing pages",
-  "fingerprint": "g1:0c4f9e2a7713b851",
   "initial": "overview",
   "views": [
     {
@@ -164,7 +187,8 @@ VR or AR remains behind the browser's own permission and gesture rules.
       "caption": "Twelve accounts sharing three devices",
       "mode": "2d",
       "camera": { "projection": "orthographic", "center": [142.5, -38.0], "height": 60 },
-      "framing": { "cameraView": "fitToGraph", "fit": { "set": "set_ring_a" } }
+      "framing": { "cameraView": "fitToGraph", "fit": { "set": "set_ring_a" } },
+      "notes": ["note_01", "note_02"]
     }
   ]
 }

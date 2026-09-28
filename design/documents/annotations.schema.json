@@ -2,81 +2,328 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schema/documents/graphty-annotations/v1.json",
   "title": "graphty annotations, version 1",
-  "description": "Normative for structure. Behaviour is specified in annotations.md. Validation is applied per note: a note that fails is reported and kept aside; only a failure of the top level refuses the document.",
+  "description": "Normative for what a conforming writer produces. A reader validates notes one by one; a note that fails is kept verbatim, unbound, and written back (annotations.md); only a failure of the top level refuses the document.",
   "type": "object",
-  "required": ["kind", "version", "notes"],
+  "required": [
+    "kind",
+    "version",
+    "notes"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "kind": { "const": "graphty-annotations" },
-    "version": { "const": 1 },
-    "name": { "type": "string" },
-    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
-    "generator": {
-      "type": "object",
-      "required": ["name", "version"],
-      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    "$schema": {
+      "type": "string"
     },
-    "notes": { "type": "array", "items": { "$ref": "#/$defs/note" } },
+    "kind": {
+      "const": "graphty-annotations"
+    },
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "fingerprint": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
+    },
+    "generator": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/note"
+      }
+    },
     "extensions": {
-      "type": "object",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+    },
+    "dataDigest": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
     }
   },
   "$defs": {
-    "nodeId": { "type": ["string", "number"] },
-    "timestamp": { "type": "string", "format": "date-time" },
-    "edgeRef": {
-      "type": "object",
-      "anyOf": [{ "required": ["id"] }, { "required": ["source", "target"] }],
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "source": { "$ref": "#/$defs/nodeId" },
-        "target": { "$ref": "#/$defs/nodeId" },
-        "key": { "type": ["string", "number"] },
-        "ordinal": { "type": "integer", "minimum": 0 },
-        "among": { "type": "integer", "minimum": 1 }
-      }
+    "nodeId": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/nodeId"
+    },
+    "timestamp": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
     },
     "target": {
       "oneOf": [
-        { "type": "object", "required": ["node"], "properties": { "node": { "$ref": "#/$defs/nodeId" }, "nodeType": { "type": "string" } } },
-        { "type": "object", "required": ["edge"], "properties": { "edge": { "$ref": "#/$defs/edgeRef" } } },
-        { "type": "object", "required": ["point"], "properties": { "point": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 } } },
-        { "type": "object", "required": ["graph"], "properties": { "graph": { "const": true } } },
-        { "type": "object", "required": ["run"], "properties": { "run": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" } } },
-        { "type": "object", "required": ["layer"], "properties": { "layer": { "type": "string", "minLength": 1 } } }
+        {
+          "type": "object",
+          "required": [
+            "node"
+          ],
+          "properties": {
+            "node": {
+              "$ref": "#/$defs/nodeId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "edge"
+          ],
+          "properties": {
+            "edge": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/edgeMember"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "group"
+          ],
+          "properties": {
+            "group": {
+              "type": "object",
+              "required": [
+                "run",
+                "value"
+              ],
+              "properties": {
+                "run": {
+                  "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/nodeId"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "set"
+          ],
+          "properties": {
+            "set": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "point"
+          ],
+          "properties": {
+            "point": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "graph"
+          ],
+          "properties": {
+            "graph": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "run"
+          ],
+          "properties": {
+            "run": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+            },
+            "recipe": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "layer"
+          ],
+          "properties": {
+            "layer": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
       ]
     },
     "quote": {
       "type": "object",
-      "required": ["path", "value"],
+      "required": [
+        "path",
+        "value"
+      ],
       "properties": {
-        "path": { "type": "string", "minLength": 1 },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
         "value": {},
-        "at": { "$ref": "#/$defs/timestamp" }
+        "at": {
+          "$ref": "#/$defs/timestamp"
+        }
       }
     },
     "note": {
       "type": "object",
-      "required": ["id", "target", "text", "createdAt", "updatedAt"],
+      "required": [
+        "id",
+        "target",
+        "text",
+        "createdAt",
+        "updatedAt"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "target": { "$ref": "#/$defs/target" },
-        "text": { "type": "string" },
-        "tags": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "author": { "type": "string" },
-        "createdAt": { "$ref": "#/$defs/timestamp" },
-        "updatedAt": { "$ref": "#/$defs/timestamp" },
-        "quotes": { "type": "array", "items": { "$ref": "#/$defs/quote" } },
-        "cites": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" } },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "author": {
+          "type": "string"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "quotes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/quote"
+          }
+        },
+        "cites": {
+          "type": "array",
+          "items": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+          }
+        },
         "orphaned": {
           "type": "object",
-          "required": ["since", "lastTarget"],
-          "properties": { "since": { "$ref": "#/$defs/timestamp" }, "lastTarget": { "type": "string" } }
+          "required": [
+            "since",
+            "lastTarget"
+          ],
+          "properties": {
+            "since": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "lastTarget": {
+              "type": "string"
+            }
+          }
         },
-        "userData": { "type": "object" },
-        "extensions": { "type": "object" }
+        "userData": {
+          "type": "object"
+        },
+        "extensions": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1,
+          "description": "open, confirmed, cleared, retracted; an open enumeration"
+        },
+        "digest": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "text",
+              "updatedAt"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+              },
+              "author": {
+                "type": "string"
+              },
+              "digest": {
+                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+              }
+            }
+          }
+        },
+        "importedFrom": {
+          "type": "object",
+          "required": [
+            "document",
+            "digest",
+            "at"
+          ],
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "digest": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+            },
+            "at": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+            }
+          }
+        }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
+    }
+  ]
 }

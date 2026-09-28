@@ -2,165 +2,651 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schema/documents/graphty-recipe/v1.json",
   "title": "graphty recipe, version 1",
-  "description": "Normative for structure. Behaviour is specified in recipe.md. Validation is applied per step and per slot: one that fails is reported and skipped; only a failure of the top level refuses the document.",
+  "description": "Normative for what a conforming writer produces. A reader validates steps, slots and extension requirements one by one and follows recipe.md for what fails; only a failure of the top level refuses the document.",
   "type": "object",
-  "required": ["kind", "version", "id", "name", "steps"],
+  "required": [
+    "kind",
+    "version",
+    "id",
+    "name",
+    "steps"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "kind": { "const": "graphty-recipe" },
-    "version": { "const": 1 },
-    "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-    "recipeVersion": { "type": "string", "minLength": 1 },
-    "name": { "type": "string", "minLength": 1 },
-    "description": { "type": "string" },
-    "namespace": { "$ref": "#/$defs/namespace" },
-    "source": { "type": "string", "format": "uri" },
-    "authors": {
-      "type": "array",
-      "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "url": { "type": "string" } } }
+    "$schema": {
+      "type": "string"
     },
-    "license": { "type": "string" },
+    "kind": {
+      "const": "graphty-recipe"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "recipeVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "namespace": {
+      "$ref": "#/$defs/namespace"
+    },
+    "source": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/httpsUrl"
+    },
+    "license": {
+      "type": "string"
+    },
     "generator": {
-      "type": "object",
-      "required": ["name", "version"],
-      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
     },
     "requires": {
       "type": "object",
       "properties": {
-        "attributes": { "type": "array", "items": { "$ref": "#/$defs/attributeSlot" } },
-        "arguments": { "type": "array", "items": { "$ref": "#/$defs/argumentSlot" } },
-        "extensions": { "type": "array", "items": { "$ref": "#/$defs/extensionRequirement" } }
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attributeSlot"
+          }
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/argumentSlot"
+          }
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/extensionRequirement"
+          }
+        }
       }
     },
-    "steps": { "type": "array", "items": { "$ref": "#/$defs/step" } },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
     "overview": {
       "type": "object",
-      "required": ["readings"],
-      "properties": { "readings": { "type": "array", "items": { "type": "string", "minLength": 1 } } }
+      "required": [
+        "readings"
+      ],
+      "properties": {
+        "readings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     },
     "extensions": {
-      "type": "object",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+    },
+    "features": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+    },
+    "engine": {
+      "$ref": "#/$defs/engine"
+    },
+    "application": {
+      "$ref": "#/$defs/application"
     }
   },
   "$defs": {
-    "namespace": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "maxLength": 32 },
-    "slotId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-    "runId": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 32
+    },
+    "slotId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "runId": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+    },
     "attributeSlot": {
-      "type": "object",
-      "required": ["slot", "element", "name"],
-      "properties": {
-        "slot": { "$ref": "#/$defs/slotId" },
-        "element": { "enum": ["node", "edge"] },
-        "name": { "type": "string", "minLength": 1 },
-        "nameHints": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "level": { "enum": ["categorical", "ordinal", "quantitative", "temporal", "identifier"] },
-        "role": { "type": "string", "minLength": 1 },
-        "weightRole": { "enum": ["distance", "similarity", "capacity"] },
-        "signed": { "type": "boolean" },
-        "optional": { "type": "boolean" },
-        "description": { "type": "string" }
-      }
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/attributeSlot"
     },
     "argumentSlot": {
       "type": "object",
-      "required": ["slot", "type"],
+      "required": [
+        "slot",
+        "type"
+      ],
       "properties": {
-        "slot": { "$ref": "#/$defs/slotId" },
-        "type": { "enum": ["node-id", "node-set", "number", "string"] },
+        "slot": {
+          "$ref": "#/$defs/slotId"
+        },
+        "type": {
+          "enum": [
+            "node-id",
+            "node-set",
+            "number",
+            "integer",
+            "string",
+            "boolean",
+            "enum",
+            "date"
+          ]
+        },
         "default": {},
-        "description": { "type": "string" }
+        "description": {
+          "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
       }
     },
     "extensionRequirement": {
       "type": "object",
-      "required": ["kind", "key"],
+      "required": [
+        "kind",
+        "key"
+      ],
       "properties": {
-        "kind": { "enum": ["algorithm", "layout", "palette", "camera", "format"] },
-        "key": { "type": "string", "minLength": 1 },
-        "package": { "type": "string" },
-        "version": { "type": "string" }
+        "kind": {
+          "enum": [
+            "algorithm",
+            "layout",
+            "palette",
+            "camera",
+            "format"
+          ]
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
       }
     },
     "step": {
       "type": "object",
-      "required": ["id", "command"],
+      "required": [
+        "id",
+        "command"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "description": { "type": "string" },
-        "command": { "$ref": "#/$defs/command" },
-        "extensions": { "type": "object" }
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "command": {
+          "$ref": "#/$defs/command"
+        },
+        "extensions": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+        }
       }
     },
     "command": {
       "type": "object",
-      "required": ["op"],
-      "properties": { "op": { "type": "string" } },
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "type": "string"
+        }
+      },
       "oneOf": [
-        { "$ref": "#/$defs/algoRun" },
-        { "$ref": "#/$defs/layoutSet" }
+        {
+          "$ref": "#/$defs/algoRun"
+        },
+        {
+          "$ref": "#/$defs/layoutSet"
+        }
       ]
     },
     "scope": {
       "oneOf": [
-        { "enum": ["visible", "graph", "selection", "largest-component"] },
-        { "type": "object", "required": ["where"], "properties": { "where": { "type": "string" } } },
-        { "type": "object", "required": ["define"], "properties": { "define": { "type": "object" } } }
+        {
+          "enum": [
+            "graph",
+            "visible",
+            "largest-component"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "where"
+          ],
+          "properties": {
+            "where": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/expression"
+            },
+            "args": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "neighbourhood"
+          ],
+          "properties": {
+            "neighbourhood": {
+              "type": "object",
+              "required": [
+                "of",
+                "hops"
+              ],
+              "properties": {
+                "of": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/argumentRef"
+                    },
+                    {
+                      "$ref": "#/$defs/resultRef"
+                    }
+                  ]
+                },
+                "hops": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    {
+                      "$ref": "#/$defs/argumentRef"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "window"
+          ],
+          "properties": {
+            "window": {
+              "type": "object",
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                },
+                "from": {
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    {
+                      "$ref": "#/$defs/argumentRef"
+                    }
+                  ]
+                },
+                "to": {
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    {
+                      "$ref": "#/$defs/argumentRef"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "define"
+          ],
+          "properties": {
+            "define": {
+              "type": "object"
+            }
+          }
+        }
       ]
     },
     "params": {
       "type": "object",
       "additionalProperties": {
         "oneOf": [
-          { "type": "object", "required": ["$argument"], "properties": { "$argument": { "$ref": "#/$defs/slotId" } }, "additionalProperties": false },
-          { "not": { "type": "object", "required": ["$argument"] } }
+          {
+            "$ref": "#/$defs/argumentRef"
+          },
+          {
+            "$ref": "#/$defs/attributeRef"
+          },
+          {
+            "$ref": "#/$defs/resultRef"
+          },
+          {
+            "not": {
+              "type": "object",
+              "anyOf": [
+                {
+                  "required": [
+                    "$argument"
+                  ]
+                },
+                {
+                  "required": [
+                    "$attribute"
+                  ]
+                },
+                {
+                  "required": [
+                    "$result"
+                  ]
+                }
+              ]
+            }
+          }
         ]
       }
     },
     "algoRun": {
       "type": "object",
-      "required": ["op", "algorithm", "as"],
+      "required": [
+        "op",
+        "algorithm",
+        "as"
+      ],
       "properties": {
-        "op": { "const": "algo.run" },
-        "algorithm": { "type": "string", "minLength": 1 },
-        "params": { "$ref": "#/$defs/params" },
-        "scope": { "$ref": "#/$defs/scope" },
-        "seed": { "type": "number" },
-        "sample": { "type": "integer", "minimum": 1 },
-        "exact": { "type": "boolean" },
-        "as": { "$ref": "#/$defs/runId" },
+        "op": {
+          "const": "algo.run"
+        },
+        "algorithm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "params": {
+          "$ref": "#/$defs/params"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "seed": {
+          "$ref": "#/$defs/numberOrArgument"
+        },
+        "sample": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "$ref": "#/$defs/argumentRef"
+            }
+          ]
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "as": {
+          "$ref": "#/$defs/asId"
+        },
         "style": {
           "oneOf": [
-            { "type": "boolean" },
+            {
+              "type": "boolean"
+            },
             {
               "type": "object",
               "properties": {
                 "size": {
                   "oneOf": [
-                    { "type": "boolean" },
-                    { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
                   ]
                 }
               }
             }
           ]
+        },
+        "precision": {
+          "const": "f64"
         }
       }
     },
     "layoutSet": {
       "type": "object",
-      "required": ["op", "id"],
+      "required": [
+        "op",
+        "id"
+      ],
       "properties": {
-        "op": { "const": "layout.set" },
-        "id": { "type": "string", "minLength": 1 },
-        "params": { "$ref": "#/$defs/params" },
-        "scope": { "$ref": "#/$defs/scope" },
-        "seed": { "type": "number" },
-        "dimension": { "enum": [2, 3] },
-        "start": { "enum": ["current", "fresh", "positions"] }
+        "op": {
+          "const": "layout.set"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "params": {
+          "$ref": "#/$defs/params"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "seed": {
+          "$ref": "#/$defs/numberOrArgument"
+        },
+        "dimension": {
+          "enum": [
+            2,
+            3
+          ]
+        },
+        "start": {
+          "enum": [
+            "current",
+            "fresh",
+            "positions"
+          ]
+        }
+      }
+    },
+    "asId": {
+      "type": "string",
+      "pattern": "^[a-z]([a-z0-9-]|_(?!_))*$",
+      "description": "RUN_ID_PATTERN without the namespace separator __"
+    },
+    "argumentRef": {
+      "type": "object",
+      "required": [
+        "$argument"
+      ],
+      "properties": {
+        "$argument": {
+          "$ref": "#/$defs/slotId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "attributeRef": {
+      "type": "object",
+      "required": [
+        "$attribute"
+      ],
+      "properties": {
+        "$attribute": {
+          "$ref": "#/$defs/slotId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "resultRef": {
+      "type": "object",
+      "required": [
+        "$result"
+      ],
+      "properties": {
+        "$result": {
+          "$ref": "#/$defs/asId"
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "numberOrArgument": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/argumentRef"
+        }
+      ]
+    },
+    "engine": {
+      "type": "object",
+      "required": [
+        "element"
+      ],
+      "properties": {
+        "element": {
+          "type": "string"
+        },
+        "algorithms": {
+          "type": "string"
+        },
+        "layout": {
+          "type": "string"
+        },
+        "plugins": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "application": {
+      "type": "object",
+      "required": [
+        "namespace",
+        "bindings",
+        "confirmed",
+        "digest",
+        "appliedAt"
+      ],
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/namespace"
+        },
+        "dataPlan": {
+          "type": "string"
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "attribute",
+              "by"
+            ],
+            "properties": {
+              "attribute": {
+                "type": "string"
+              },
+              "by": {
+                "enum": [
+                  "explicit",
+                  "recorded",
+                  "name",
+                  "hint"
+                ]
+              },
+              "hint": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "confirmed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/slotId"
+          }
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "digest": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+        },
+        "appliedAt": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+        }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
+    }
+  ]
 }

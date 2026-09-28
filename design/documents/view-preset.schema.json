@@ -2,83 +2,230 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schema/documents/graphty-view/v1.json",
   "title": "graphty view document, version 1",
-  "description": "Normative for structure. Behaviour is specified in view-preset.md. Validation is applied per view: a view that fails is reported and skipped; only a failure of the top level refuses the document.",
+  "description": "Normative for what a conforming writer produces. A reader validates camera and framing separately and keeps a view that fails (view-preset.md); only a failure of the top level refuses the document.",
   "type": "object",
-  "required": ["kind", "version", "views"],
+  "required": [
+    "kind",
+    "version",
+    "views"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "kind": { "const": "graphty-view" },
-    "version": { "const": 1 },
-    "name": { "type": "string" },
-    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
-    "generator": {
-      "type": "object",
-      "required": ["name", "version"],
-      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    "$schema": {
+      "type": "string"
     },
-    "initial": { "type": "string", "minLength": 1, "description": "The id of the view to apply when the document is opened." },
-    "views": { "type": "array", "items": { "$ref": "#/$defs/view" } },
+    "kind": {
+      "const": "graphty-view"
+    },
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "fingerprint": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
+    },
+    "generator": {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
+    },
+    "initial": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The id of the view to apply when the document is opened."
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/view"
+      }
+    },
     "extensions": {
-      "type": "object",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
     }
   },
   "$defs": {
-    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-    "vec2": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "vec2": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
     "view": {
       "type": "object",
-      "required": ["id", "name"],
-      "anyOf": [{ "required": ["camera"] }, { "required": ["framing"] }],
+      "required": [
+        "id",
+        "name"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "camera"
+          ]
+        },
+        {
+          "required": [
+            "framing"
+          ]
+        }
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "name": { "type": "string" },
-        "caption": { "type": "string" },
-        "mode": { "enum": ["2d", "3d", "vr", "ar"] },
-        "camera": { "$ref": "#/$defs/camera" },
-        "framing": { "$ref": "#/$defs/framing" },
-        "extensions": { "type": "object" }
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "caption": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "2d",
+            "3d",
+            "vr",
+            "ar"
+          ]
+        },
+        "camera": {
+          "$ref": "#/$defs/camera"
+        },
+        "framing": {
+          "$ref": "#/$defs/framing"
+        },
+        "extensions": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+        }
       }
     },
     "camera": {
       "oneOf": [
         {
           "type": "object",
-          "required": ["projection", "position", "target"],
+          "required": [
+            "projection",
+            "position",
+            "target"
+          ],
           "properties": {
-            "projection": { "const": "perspective" },
-            "position": { "$ref": "#/$defs/vec3" },
-            "target": { "$ref": "#/$defs/vec3" },
-            "up": { "$ref": "#/$defs/vec3" },
-            "fovDeg": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 180 }
+            "projection": {
+              "const": "perspective"
+            },
+            "position": {
+              "$ref": "#/$defs/vec3"
+            },
+            "target": {
+              "$ref": "#/$defs/vec3"
+            },
+            "up": {
+              "$ref": "#/$defs/vec3"
+            },
+            "fovDeg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 180
+            }
           }
         },
         {
           "type": "object",
-          "required": ["projection", "center", "height"],
+          "required": [
+            "projection",
+            "center",
+            "height"
+          ],
           "properties": {
-            "projection": { "const": "orthographic" },
-            "center": { "$ref": "#/$defs/vec2" },
-            "height": { "type": "number", "exclusiveMinimum": 0 },
-            "rotationDeg": { "type": "number" }
+            "projection": {
+              "const": "orthographic"
+            },
+            "center": {
+              "$ref": "#/$defs/vec2"
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "rotationDeg": {
+              "type": "number"
+            }
           }
         }
       ]
     },
     "framing": {
       "type": "object",
-      "required": ["cameraView"],
+      "required": [
+        "cameraView"
+      ],
       "properties": {
-        "cameraView": { "type": "string", "minLength": 1 },
-        "options": { "type": "object" },
+        "cameraView": {
+          "type": "string",
+          "minLength": 1
+        },
         "fit": {
           "oneOf": [
-            { "enum": ["visible", "graph", "selection", "largest-component"] },
-            { "type": "object", "required": ["set"], "properties": { "set": { "type": "string" } } }
+            {
+              "enum": [
+                "visible",
+                "graph",
+                "selection",
+                "largest-component"
+              ]
+            },
+            {
+              "type": "object",
+              "required": [
+                "set"
+              ],
+              "properties": {
+                "set": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "where"
+              ],
+              "properties": {
+                "where": {
+                  "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/expression"
+                }
+              }
+            }
           ]
         },
-        "paddingPercent": { "type": "number", "minimum": 0, "maximum": 100 }
+        "params": {
+          "type": "object"
+        }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
+    }
+  ]
 }

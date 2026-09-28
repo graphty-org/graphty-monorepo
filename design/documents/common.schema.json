@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphty.app/schema/documents/common/v1.json",
+  "title": "graphty documents: shared definitions, version 1",
+  "description": "Definitions every graphty document schema refers to. Behaviour is specified in README.md.",
+  "$defs": {
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "generator": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$"
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "httpsUrl": {
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "fieldPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^([A-Za-z_][A-Za-z0-9_]*|\"([^\"\\\\]|\\\\.)*\")(\\.([A-Za-z_][A-Za-z0-9_]*|\"([^\"\\\\]|\\\\.)*\"))*$",
+      "description": "README, Paths rule 1: identifiers or quoted identifiers joined by dots; never a full expression."
+    },
+    "expression": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "A JMESPath expression evaluated by graphty-element; at most 1024 characters and 32 levels of nesting."
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "nodeId": {
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "edgeMember": {
+      "type": "object",
+      "description": "graphty-element's EdgeMember: source and target plus exactly one of id, or ordinal with among. key is reserved by the element.",
+      "required": [
+        "source",
+        "target"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "target": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "id": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "among": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "not": {
+        "required": [
+          "key"
+        ]
+      },
+      "oneOf": [
+        {
+          "required": [
+            "id"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "ordinal"
+                ]
+              },
+              {
+                "required": [
+                  "among"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "ordinal",
+            "among"
+          ],
+          "not": {
+            "required": [
+              "id"
+            ]
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Shared descriptive metadata allowed on every document and the envelope (README, Extension data and shared metadata).",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "modifiedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "generator": {
+          "$ref": "#/$defs/generator"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/fingerprint"
+        },
+        "features": {
+          "$ref": "#/$defs/features"
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "$ref": "#/$defs/httpsUrl"
+              },
+              "orcid": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$"
+              }
+            }
+          }
+        },
+        "license": {
+          "type": "string"
+        },
+        "citation": {
+          "type": "string"
+        },
+        "doi": {
+          "type": "string",
+          "pattern": "^10\\."
+        },
+        "derivedFrom": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "digest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        "handling": {
+          "type": "object",
+          "required": [
+            "marking"
+          ],
+          "properties": {
+            "marking": {
+              "type": "string",
+              "minLength": 1
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      }
+    },
+    "attributeSlot": {
+      "type": "object",
+      "required": [
+        "slot",
+        "element",
+        "name"
+      ],
+      "properties": {
+        "slot": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "element": {
+          "enum": [
+            "node",
+            "edge"
+          ]
+        },
+        "name": {
+          "$ref": "#/$defs/fieldPath"
+        },
+        "nameHints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fieldPath"
+          }
+        },
+        "level": {
+          "enum": [
+            "categorical",
+            "ordinal",
+            "quantitative",
+            "temporal",
+            "identifier"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weightRole": {
+          "enum": [
+            "distance",
+            "similarity",
+            "capacity"
+          ]
+        },
+        "signed": {
+          "type": "boolean"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -96,9 +96,9 @@ export function ingestNode(
         store.builder.setNodeValue(store.seedColumn, index, seed);
     }
 
-    // EVERY mutating path touches, including this one when it was a merge: `builder.mutationCount`
-    // counts neither a merge nor a column write, so a burst of merges would otherwise serve a stale
-    // snapshot and fire no `snapshot-replaced` (DEP-M6-A).
+    // EVERY mutating path touches, including this one when it was a merge: the store keys its
+    // cache on its own revision (see GraphStore.touch), so a burst of merges would otherwise serve
+    // a stale snapshot and fire no `snapshot-replaced`.
     store.touch();
     return { index, merged };
 }

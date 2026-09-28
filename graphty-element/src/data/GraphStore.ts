@@ -266,7 +266,7 @@ export class GraphStore {
      * an existing id and an attribute write, and the snapshot cache is keyed on the revision it bumps.
      * This is a temporary workaround: graph-format's `builder.mutationCount` once ignored column
      * writes, and now counts every change that makes the next freeze() differ. Keying the cache on
-     * `builder.mutationCount` and deleting this method and its call sites is tracked in issue #100.
+     * `builder.mutationCount` and deleting this method and its call sites is tracked in issue #572.
      * @throws Error when the store has been disposed
      */
     touch(): void {
@@ -334,8 +334,8 @@ export class GraphStore {
             // before that freeze (a removal, or a second load opened straight after) belongs to
             // no load and must not move this one's ordinals or merge into it.
             this.completeIdentity();
-            // Column writes do not move the builder, so without this a snapshot frozen during the
-            // load would keep being served without the load's identity values.
+            // The cache is keyed on the store's own revision (see touch()), so without this a
+            // snapshot frozen during the load would keep being served without the load's identity values.
             this.touch();
         }
     }

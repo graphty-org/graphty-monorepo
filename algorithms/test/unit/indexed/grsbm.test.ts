@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { grsbm, type GrsbmOptions, type GrsbmResult } from "../../../src/indexed/grsbm.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { grsbm as legacyGrsbm, type GRSBMCluster, type GRSBMResult } from "../../../src/research/grsbm.js";
+import { grsbm as legacyGrsbm, type GRSBMCluster, type GRSBMResult } from "../../../src/research/grsbm-legacy.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";

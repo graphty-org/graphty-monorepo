@@ -6,7 +6,7 @@ import {
     cutDendrogram,
     hierarchicalClustering as legacyHierarchical,
     type LinkageMethod,
-} from "../../../src/clustering/hierarchical.js";
+} from "../../../src/clustering/hierarchical-legacy.js";
 import { Graph } from "../../../src/core/graph.js";
 import { hierarchicalClustering, type HierarchicalResult } from "../../../src/indexed/hierarchical.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";

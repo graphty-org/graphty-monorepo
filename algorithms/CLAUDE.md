@@ -50,9 +50,14 @@ and the research clusterings teraHAC, SynC and GRSBM. Each lands beside its lega
 live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS,
 Louvain, label propagation) against their legacy functions. Some legacy functions now delegate to
 their port and keep only their signature and result shape: `floydWarshall`, `floydWarshallPath`,
-`transitiveClosure` and `labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it
-accepts negative weights, which the port refuses. The conversions they use live in
-`src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade*.test.ts`.
+`transitiveClosure`, `labelPropagation`, the five common-neighbour link prediction functions,
+`hierarchicalClustering`, `markovClustering`, `syncClustering` and `grsbm`. The Dijkstra-based
+`allPairsShortestPath` does not: it accepts negative weights, which the port refuses. Neither do the
+Adamic-Adar functions, `calculateMCLModularity`, `spectralClustering` or `teraHAC`, whose ports give
+different answers. The conversions they use live in `src/indexed/facade.ts`; each has a facade test
+in `test/unit/indexed/*-facade*.test.ts`. Where a delegating function's old code is still needed --
+as the oracle of its facade test, or for inputs the port refuses -- it sits beside it in a
+`*-legacy.ts` file, unchanged, until the removal release deletes it.
 
 ## Essential Commands
 

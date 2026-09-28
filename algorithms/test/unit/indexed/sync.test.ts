@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { syncClustering } from "../../../src/indexed/sync.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { syncClustering as legacySync, type SynCConfig } from "../../../src/research/sync.js";
+import { syncClustering as legacySync, type SynCConfig } from "../../../src/research/sync-legacy.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";

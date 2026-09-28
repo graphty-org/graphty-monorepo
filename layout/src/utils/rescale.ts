@@ -10,6 +10,8 @@ import { PositionMap } from "../types";
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @returns Rescaled positions dictionary
+ * @deprecated Use `rescaleInPlace(positions, dim, scale, center)` over a flat position array. For an id-keyed map,
+ * convert with `fromPositionMap` first and back with `toPositionMap`. Removed in 3.0.0.
  */
 export function rescaleLayout(
     pos: PositionMap | number[][],
@@ -162,6 +164,8 @@ export function rescaleLayout(
  * @param pos - Dictionary of positions
  * @param scale - Scale factor for positions
  * @returns Dictionary of scaled positions
+ * @deprecated Use `rescaleInPlace(positions, dim, scale)` over a flat position array. For an id-keyed map, convert
+ * with `fromPositionMap` first and back with `toPositionMap`. Removed in 3.0.0.
  */
 export function rescaleLayoutDict(pos: PositionMap, scale: number = 1): PositionMap {
     if (Object.keys(pos).length === 0) {

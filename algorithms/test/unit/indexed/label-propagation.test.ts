@@ -395,3 +395,128 @@ describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", ()
         s.validate({ checksum: true });
     });
 });
+
+/**
+ * Two five-cliques a0..a4 and b0..b4 plus a node x, joined by `extra`; built with GraphBuilder
+ * because the legacy Graph cannot hold parallel edges.
+ */
+function cliquesAndX(extra: (b: GraphBuilder) => void): { s: GraphSnapshot; index: (id: string) => number } {
+    const b = new GraphBuilder({ directed: false });
+    for (const p of ["a", "b"]) {
+        for (let i = 0; i < 5; i++) {
+            for (let j = i + 1; j < 5; j++) {
+                b.addEdge(`${p}${i}`, `${p}${j}`, 1);
+            }
+        }
+    }
+    extra(b);
+    const s = b.freeze({ checksum: true });
+    return { s, index: (id: string) => s.ids.indexOf(id) };
+}
+
+function cliqueWhole(labels: ArrayLike<number>, index: (id: string) => number, p: string): boolean {
+    const first = labels[index(`${p}0`)];
+    return [1, 2, 3, 4].every((i) => labels[index(`${p}${i}`)] === first);
+}
+
+describe("indexed.labelPropagation: self-loops, parallel edges and weights", () => {
+    it("ignores self-loops: the karate club with loops gives the same labels as without", () => {
+        const karate = undirectedFixtures().find((f) => f.name === "Zachary's karate club");
+        if (karate === undefined) {
+            throw new Error("karate club fixture missing");
+        }
+        const plain = new GraphBuilder({ directed: false });
+        const looped = new GraphBuilder({ directed: false });
+        for (const b of [plain, looped]) {
+            for (const edge of karate.graph.edges()) {
+                b.addEdge(String(edge.source), String(edge.target));
+            }
+            b.addNode("s");
+        }
+        for (const id of ["0", "33", "5", "s"]) {
+            looped.addEdge(id, id);
+        }
+        const sPlain = plain.freeze({ checksum: true });
+        const sLooped = looped.freeze({ checksum: true });
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(sLooped, { randomSeed: seed });
+            expect([...r.labels]).toEqual([...labelPropagation(sPlain, { randomSeed: seed }).labels]);
+            // a node whose only arc is a self-loop stays a singleton
+            expect(r.groups()[r.labels[sLooped.ids.indexOf("s")]].length).toBe(1);
+        }
+        sPlain.validate({ checksum: true });
+        sLooped.validate({ checksum: true });
+    });
+
+    it("sums parallel edges when weighted, and counts the neighbour once when not", () => {
+        const { s, index } = cliquesAndX((b) => {
+            b.addEdge("x", "a0");
+            b.addEdge("x", "a0");
+            b.addEdge("x", "b0");
+        });
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect(cliqueWhole(r.labels, index, "a") && cliqueWhole(r.labels, index, "b")).toBe(true);
+            expect(r.labels[index("x")]).toBe(r.labels[index("a0")]);
+            expect(dominanceHolds(s, r.labels)).toBe(true);
+        }
+        let withA = false;
+        let withB = false;
+        for (let seed = 1; seed <= 50; seed++) {
+            const r = labelPropagation(s, { randomSeed: seed, weighted: false });
+            expect(dominanceHolds(s, r.labels, false)).toBe(true);
+            withA ||= r.labels[index("x")] === r.labels[index("a0")];
+            withB ||= r.labels[index("x")] === r.labels[index("b0")];
+        }
+        expect(withA && withB).toBe(true);
+        s.validate({ checksum: true });
+    });
+
+    it("follows the heavier arc: weight 3 to one clique outvotes 1 + 1 to the other", () => {
+        const { s, index } = cliquesAndX((b) => {
+            b.addEdge("x", "a0", 3);
+            b.addEdge("x", "b0", 1);
+            b.addEdge("x", "b1", 1);
+        });
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect(cliqueWhole(r.labels, index, "a") && cliqueWhole(r.labels, index, "b")).toBe(true);
+            expect(r.labels[index("x")]).toBe(r.labels[index("a0")]);
+            expect(dominanceHolds(s, r.labels)).toBe(true);
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("keeps the label of a node whose arcs all weigh 0", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", 1);
+        b.addEdge("b", "c", 1);
+        b.addEdge("c", "a", 1);
+        b.addEdge("z", "a", 0);
+        b.addEdge("z", "b", 0);
+        const s = b.freeze({ checksum: true });
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect(r.converged).toBe(true);
+            expect(r.groups()[r.labels[s.ids.indexOf("z")]].length).toBe(1);
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("ignores the weights with weighted: false -- a 100-weight arc votes like a 1-weight one", () => {
+        const { s, index } = cliquesAndX((b) => {
+            b.addEdge("x", "a0", 100);
+            b.addEdge("x", "b0", 1);
+        });
+        let withB = false;
+        for (let seed = 1; seed <= 50; seed++) {
+            expect(labelPropagation(s, { randomSeed: seed }).labels[index("x")]).toBe(
+                labelPropagation(s, { randomSeed: seed }).labels[index("a0")],
+            );
+            const r = labelPropagation(s, { randomSeed: seed, weighted: false });
+            withB ||= r.labels[index("x")] === r.labels[index("b0")];
+        }
+        expect(withB).toBe(true);
+        s.validate({ checksum: true });
+    });
+});

@@ -122,6 +122,9 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
     // label and the stamp never wraps below the 2^53 - 1 visit cap (design section 4).
     const stamp = new Float64Array(n).fill(-1);
     const touched = new Uint32Array(n);
+    // weighted: false -- visit number that last counted neighbour v, so each distinct neighbour
+    // votes once however many arcs join it.
+    const seen = weighted ? null : new Float64Array(n).fill(-1);
     // A ring of n + 1 slots: `queued` keeps a node in it at most once.
     const capacity = n + 1;
     const queue = new Uint32Array(capacity);
@@ -149,7 +152,17 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
         let count = 0;
         const end = rowPtr[u + 1];
         for (let a = rowPtr[u]; a < end; a++) {
-            const c = label[colIdx[a]];
+            const v = colIdx[a];
+            if (v === u) {
+                continue; // a self-loop does not vote
+            }
+            if (seen !== null) {
+                if (seen[v] === visit) {
+                    continue;
+                }
+                seen[v] = visit;
+            }
+            const c = label[v];
             const w = weights === null ? 1 : weights[a];
             if (stamp[c] !== visit) {
                 stamp[c] = visit;

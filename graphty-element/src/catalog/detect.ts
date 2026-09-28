@@ -47,7 +47,6 @@ import {
     rankFormats,
 } from "@graphty/graph-io";
 
-import { DELIMITERS as CSV_DELIMITERS } from "../data/csv-variant-detection";
 import { GraphtyError } from "../errors";
 import { registeredFormats } from "./formatRegistry";
 import { FORMAT_DESCRIPTORS, UNSERVED_FORMAT_IDS } from "./formats";
@@ -87,6 +86,9 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
  * that then reports a parse error instead of "unknown format". CSV has its own test, below.
  */
 const MIN_CONTENT_CONFIDENCE = 0.5;
+
+/** The column separators the element's CSV reader splits on. Not a space: see isReadableTable. */
+const CSV_DELIMITERS = [",", "\t", ";", "|"] as const;
 
 /**
  * Whether graph-io's CSV answer names a table the element's CSV reader can split.

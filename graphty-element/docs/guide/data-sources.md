@@ -95,15 +95,18 @@ If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 
-| Format  | Extensions                                | Description                           |
-| ------- | ----------------------------------------- | ------------------------------------- |
-| JSON    | `.json`                                   | Native format with nodes/edges arrays |
-| GraphML | `.graphml`, `.xml`                        | XML-based graph format                |
-| GEXF    | `.gexf`, `.xml`                           | Gephi exchange format                 |
-| GML     | `.gml`                                    | Graph Modeling Language               |
-| DOT     | `.dot`, `.gv`                             | Graphviz format                       |
-| CSV     | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
-| Pajek   | `.net`, `.paj`                            | Pajek network format                  |
+Every format is detected with, and read through, an importer from `@graphty/graph-io`, a
+dependency of graphty-element; the last column names it.
+
+| Format  | Extensions                                    | Description                                              | graph-io importer                                                                                                |
+| ------- | --------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| JSON    | `.json`                                       | Native format with nodes/edges arrays                    | `jsonImporter` from `@graphty/graph-io/json`                                                                     |
+| GraphML | `.graphml`, `.xml`                            | XML-based graph format                                   | `graphmlImporter` from `@graphty/graph-io/graphml`                                                               |
+| GEXF    | `.gexf`, `.xml`                               | Gephi exchange format                                    | `gexfImporter` from `@graphty/graph-io/gexf`                                                                     |
+| GML     | `.gml`                                        | Graph Modeling Language                                  | `gmlImporter` from `@graphty/graph-io/gml`                                                                       |
+| DOT     | `.dot`, `.gv`                                 | Graphviz format                                          | `dotImporter` from `@graphty/graph-io/dot`                                                                       |
+| CSV     | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files | `csvImporter` from `@graphty/graph-io/csv`; `neo4jImporter` from `@graphty/graph-io/neo4j` for neo4j-admin files |
+| Pajek   | `.net`, `.paj`                                | Pajek network format                                     | `pajekImporter` from `@graphty/graph-io/pajek`                                                                   |
 
 ### How the format is chosen
 

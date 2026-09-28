@@ -25,7 +25,7 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 ];
 
 /** The column separators a delimited file is sniffed for, a comma first so it wins a tie. */
-export const DELIMITERS = [",", "\t", ";", "|"] as const;
+const DELIMITERS = [",", "\t", ";", "|"] as const;
 
 /**
  * Work out a delimited file's column separator from its first line.

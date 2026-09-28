@@ -45,12 +45,12 @@ describe("expectFacadeMatchesLegacy", () => {
         });
     });
 
-    it("passes dijkstra through ssspToShortestPaths with exact f64 weights, source given as a string", () => {
+    it("passes dijkstra through ssspToShortestPaths with exact f64 weights, the same source on both sides", () => {
         const withSource = fixtures.filter((f) => f.graph.nodeCount > 0);
         const sourceOf = (g: Graph): NodeId => [...g.nodes()][0].id;
         const facade = (g: Graph): Map<NodeId, ShortestPathResult> => {
             const s = toSnapshot(g);
-            const source = resolveNode(s.ids, String(sourceOf(g)));
+            const source = resolveNode(s.ids, sourceOf(g));
             return ssspToShortestPaths(s, indexedDijkstra(s, source, { weights: exactArcWeights(s) }));
         };
         const distances = (r: Map<NodeId, ShortestPathResult>): Map<NodeId, number> =>

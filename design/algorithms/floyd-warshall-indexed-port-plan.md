@@ -29,7 +29,7 @@ Files:
   the arcs; `apspRowsOracle(s)` -- one BFS per source, hop counts; `expectMatrixTriangleInequality`
   and `expectSymmetric`. Copied from the GPU branch's
   `webgpu-graph-algorithms/test/oracle/all-pairs.ts` (`git show
-  origin/feat/webgpu-all-pairs-shortest-paths:webgpu-graph-algorithms/test/oracle/all-pairs.ts`)
+origin/feat/webgpu-all-pairs-shortest-paths:webgpu-graph-algorithms/test/oracle/all-pairs.ts`)
   without the tile and f32 options, and with its BFS written inline so it imports nothing from
   `src/`. Takes an explicit per-arc weight vector or `null` for unit weights.
 - `algorithms/src/indexed/all-pairs.ts` (new): `ApspOptions`, `ApspResult` and
@@ -41,7 +41,7 @@ Files:
 - `algorithms/test/unit/indexed/all-pairs.test.ts` (new).
 
 Tests: empty graph; `maxNodes: 2` on a three-node path throws
-`RangeError` whose message contains `3`, `2` and `72` (8 * 3^2 bytes) and, with `paths: true`,
+`RangeError` whose message contains `3`, `2` and `72` (8 \* 3^2 bytes) and, with `paths: true`,
 `108`; a `NaN` and a `+Infinity` weight through the override throw `RangeError`; an override of the
 wrong length throws `RangeError`. One test of the oracle itself: on a four-node weighted square its
 matrix equals a hand-written one.
@@ -119,7 +119,7 @@ Tests:
 - every fixture, default options, equals the oracle exactly;
 - unweighted fixtures report `method: "bfs"` and equal `apspRowsOracle`; a weighted fixture with
   `weighted: false` equals `apspRowsOracle` too;
-- a 20-node directed graph with 159 arcs (below 0.4 * 400 = 160) reports `"dijkstra"`, and with 160
+- a 20-node directed graph with 159 arcs (below 0.4 \* 400 = 160) reports `"dijkstra"`, and with 160
   arcs reports `"floyd-warshall"`; weights 2 on every arc so rule 1 does not apply;
 - real weights 0.1-0.9 on a 30-node graph: Dijkstra rows equal the oracle within relative 1e-12;
 - the tie case of section 8 (a square with two equal routes): on weights of 2,
@@ -182,7 +182,7 @@ Files:
 - `algorithms/src/indexed/index.ts`: export `allPairsShortestPath`, `type ApspOptions`,
   `type ApspResult` from `./all-pairs.js`.
 - `algorithms/src/index.ts`: add `export type { ApspOptions as IndexedApspOptions, ApspResult as
-  IndexedApspResult } from "./indexed/all-pairs.js";` beside the other `Indexed`-prefixed exports,
+IndexedApspResult } from "./indexed/all-pairs.js";` beside the other `Indexed`-prefixed exports,
   with a one-line comment that `@graphty/webgpu-graph-algorithms` publishes a different
   `ApspOptions`; add `ApspCycleResultLike` to the existing seam type export list beside
   `ApspResultLike`.

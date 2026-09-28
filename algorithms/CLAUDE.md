@@ -85,6 +85,7 @@ export function algorithmName<TNodeId = unknown>(
 ```
 
 Key principles:
+
 - Generic `TNodeId` type for flexible node identification
 - Read-only graph interface for safety
 - Optional configuration with sensible defaults
@@ -104,6 +105,7 @@ Key principles:
 ## Optimized Implementations
 
 The `src/optimized/` directory contains high-performance implementations:
+
 - **CSRGraph**: Compressed Sparse Row format for memory efficiency
 - **Bit-packed structures**: TypedFastBitSet for large graphs
 - **Direction-optimized BFS**: Automatic switching between top-down and bottom-up

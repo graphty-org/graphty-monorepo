@@ -4,13 +4,13 @@ Find the shortest path between nodes in a graph. Different algorithms are suited
 
 ## Algorithm Selection Guide
 
-| Algorithm | Weights | Negative Weights | All Pairs | Time Complexity |
-|-----------|---------|------------------|-----------|-----------------|
-| BFS | No (unit) | N/A | No | O(V + E) |
-| Dijkstra | Yes (non-negative) | No | No | O((V + E) log V) |
-| Bellman-Ford | Yes | Yes | No | O(V × E) |
-| Floyd-Warshall | Yes | Yes (no neg cycles) | Yes | O(V³) |
-| A* | Yes (non-negative) | No | No | O(E) best case |
+| Algorithm      | Weights            | Negative Weights    | All Pairs | Time Complexity  |
+| -------------- | ------------------ | ------------------- | --------- | ---------------- |
+| BFS            | No (unit)          | N/A                 | No        | O(V + E)         |
+| Dijkstra       | Yes (non-negative) | No                  | No        | O((V + E) log V) |
+| Bellman-Ford   | Yes                | Yes                 | No        | O(V × E)         |
+| Floyd-Warshall | Yes                | Yes (no neg cycles) | Yes       | O(V³)            |
+| A\*            | Yes (non-negative) | No                  | No        | O(E) best case   |
 
 ## Dijkstra's Algorithm
 
@@ -36,7 +36,7 @@ console.log(result.paths.get("d")); // ["a", "b", "d"]
 
 // Get all reachable distances
 for (const [node, distance] of result.distances) {
-  console.log(`${node}: ${distance}`);
+    console.log(`${node}: ${distance}`);
 }
 ```
 
@@ -47,7 +47,7 @@ for (const [node, distance] of result.distances) {
 const result = dijkstra(graph, "a", { target: "d" });
 
 console.log(result.distance); // 9
-console.log(result.path);     // ["a", "b", "d"]
+console.log(result.path); // ["a", "b", "d"]
 ```
 
 ::: warning
@@ -69,9 +69,9 @@ graph.addEdge("a", "c", { weight: 5 });
 const result = bellmanFord(graph, "a");
 
 if (result.hasNegativeCycle) {
-  console.log("Graph contains a negative cycle!");
+    console.log("Graph contains a negative cycle!");
 } else {
-  console.log(result.distances.get("c")); // 2 (a -> b -> c: 4 + -2)
+    console.log(result.distances.get("c")); // 2 (a -> b -> c: 4 + -2)
 }
 ```
 
@@ -149,7 +149,7 @@ const exact = shadow !== null && shadow.dtype === "f64" ? expandEdges(s, shadow.
 indexed.allPairsShortestPath(s, { weights: exact ?? undefined });
 ```
 
-## A* Search
+## A\* Search
 
 A heuristic-guided search that can be faster than Dijkstra when a good heuristic is available.
 
@@ -159,10 +159,10 @@ import { Graph, aStar } from "@graphty/algorithms";
 // Graph with 2D coordinates
 const graph = new Graph<string>();
 const positions = new Map([
-  ["a", { x: 0, y: 0 }],
-  ["b", { x: 1, y: 0 }],
-  ["c", { x: 2, y: 1 }],
-  ["d", { x: 3, y: 1 }],
+    ["a", { x: 0, y: 0 }],
+    ["b", { x: 1, y: 0 }],
+    ["c", { x: 2, y: 1 }],
+    ["d", { x: 3, y: 1 }],
 ]);
 
 graph.addEdge("a", "b", { weight: 1 });
@@ -172,26 +172,27 @@ graph.addEdge("c", "d", { weight: 1 });
 
 // Euclidean distance heuristic
 const heuristic = (node: string, goal: string) => {
-  const p1 = positions.get(node)!;
-  const p2 = positions.get(goal)!;
-  return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+    const p1 = positions.get(node)!;
+    const p2 = positions.get(goal)!;
+    return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
 };
 
 const result = aStar(graph, "a", "d", heuristic);
 
-console.log(result.path);     // ["a", "b", "c", "d"]
+console.log(result.path); // ["a", "b", "c", "d"]
 console.log(result.distance); // 3.5
 console.log(result.explored); // Number of nodes explored (often less than Dijkstra)
 ```
 
 ### Heuristic Requirements
 
-For A* to find optimal paths, the heuristic must be:
+For A\* to find optimal paths, the heuristic must be:
 
 1. **Admissible**: Never overestimates the actual cost
 2. **Consistent** (optional): h(n) ≤ cost(n, n') + h(n')
 
 Common heuristics:
+
 - **Euclidean distance**: For 2D/3D spatial graphs
 - **Manhattan distance**: For grid-based graphs
 - **Zero**: Degenerates to Dijkstra's algorithm

@@ -330,7 +330,9 @@ describe("accelerated(acc)", () => {
             }
             const s = b.freeze();
             const calls: unknown[][] = [];
-            await expect(async () => accelerated(stub(calls)).allPairsShortestPath(s)).rejects.toThrow(/exceeds maxNodes 5792/);
+            await expect(async () => accelerated(stub(calls)).allPairsShortestPath(s)).rejects.toThrow(
+                /exceeds maxNodes 5792/,
+            );
             expect(calls).toEqual([]);
         });
 

@@ -108,25 +108,25 @@ which is deterministic.
 
 ### 3.2 Optimisations chosen and rejected
 
-| optimisation | decision | reason |
-| --- | --- | --- |
-| Skip row i when `d[i][k]` is `+Infinity` | chosen | Free, and removes whole rows on disconnected or directed graphs. SciPy and Floyd's original both do it. |
-| `Float64Array`, not `Float32Array` | chosen | A `Float32Array` sweep measured 1.17-1.39x SLOWER in V8: 186 vs 150 ms at 512, 1,380 vs 1,082 ms at 1,024, 10.6 vs 9.0 s at 2,048 (scratch benchmark). V8 does arithmetic in doubles, so every f32 load and store converts. f32 also loses integer exactness above 2^24 and cannot reproduce the shipped function's f64 sums. It would only halve the memory. |
-| Cache blocking (three-phase tiled order) | rejected | Tiles of 32 and 64 measured 5-30 percent SLOWER than plain k-i-j at 256-2,048 nodes; a tile of 128 was within noise (7.96 vs 9.03 s at 2,048; scratch benchmark). The published gains come from small caches and from blocking that enables SIMD: Venkataraman, Sahni, Mukhopadhyaya (ACM JEA 8, 2003) report 1.6-1.9x on a Sun Ultra Enterprise 4000/5000 and bound scalar tiling at about 2x; Han et al. (PACT 2006) report 1.3-1.8x from scalar tiling and unrolling and a further 3.0-5.7x from 4-way SIMD; Rucci, De Giusti, Naiouf (2018, arXiv 1811.01201, Table 1) saved 5 percent from scalar blocking on KNL at n = 4,096, with the 15.5x coming from AVX-512. |
-| Recursive or Morton / block data layout (Park, Penner, Prasanna, IEEE TPDS 15(9), 2004) | rejected | Same reason: the layout pays through cache reuse and vector units that scalar JavaScript does not use. |
-| Brodnik-Grgurovic-Pozar "Tree" variant (Ars Math. Contemp. 22(1), 2022) | deferred | igraph's default and one of NetworkX's four entry points; expected O(n^2 log^2 n) on complete graphs with uniform random weights. It is the next speedup to try if dense Floyd-Warshall ever becomes the bottleneck, and the benchmark in section 9 is the place to measure it. |
-| WASM SIMD | deferred | The only lever the literature shows paying beyond the plain loop (3-15x, above). Not worth a WASM build step until dense Floyd-Warshall is a measured bottleneck. |
-| Symmetric half-matrix sweep on undirected graphs | rejected | About 2x at most, and it complicates the predecessor matrix. The snapshot's CSR already stores both arcs of an undirected edge, so no symmetrising step is needed either. |
-| Johnson reweighting for sparse graphs with negative weights | deferred | SciPy's choice for that case. Floyd-Warshall already handles negative weights correctly; add Johnson only if sparse negative-weight graphs turn out to be common. |
+| optimisation                                                                            | decision | reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Skip row i when `d[i][k]` is `+Infinity`                                                | chosen   | Free, and removes whole rows on disconnected or directed graphs. SciPy and Floyd's original both do it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Float64Array`, not `Float32Array`                                                      | chosen   | A `Float32Array` sweep measured 1.17-1.39x SLOWER in V8: 186 vs 150 ms at 512, 1,380 vs 1,082 ms at 1,024, 10.6 vs 9.0 s at 2,048 (scratch benchmark). V8 does arithmetic in doubles, so every f32 load and store converts. f32 also loses integer exactness above 2^24 and cannot reproduce the shipped function's f64 sums. It would only halve the memory.                                                                                                                                                                                                                                                                                                            |
+| Cache blocking (three-phase tiled order)                                                | rejected | Tiles of 32 and 64 measured 5-30 percent SLOWER than plain k-i-j at 256-2,048 nodes; a tile of 128 was within noise (7.96 vs 9.03 s at 2,048; scratch benchmark). The published gains come from small caches and from blocking that enables SIMD: Venkataraman, Sahni, Mukhopadhyaya (ACM JEA 8, 2003) report 1.6-1.9x on a Sun Ultra Enterprise 4000/5000 and bound scalar tiling at about 2x; Han et al. (PACT 2006) report 1.3-1.8x from scalar tiling and unrolling and a further 3.0-5.7x from 4-way SIMD; Rucci, De Giusti, Naiouf (2018, arXiv 1811.01201, Table 1) saved 5 percent from scalar blocking on KNL at n = 4,096, with the 15.5x coming from AVX-512. |
+| Recursive or Morton / block data layout (Park, Penner, Prasanna, IEEE TPDS 15(9), 2004) | rejected | Same reason: the layout pays through cache reuse and vector units that scalar JavaScript does not use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Brodnik-Grgurovic-Pozar "Tree" variant (Ars Math. Contemp. 22(1), 2022)                 | deferred | igraph's default and one of NetworkX's four entry points; expected O(n^2 log^2 n) on complete graphs with uniform random weights. It is the next speedup to try if dense Floyd-Warshall ever becomes the bottleneck, and the benchmark in section 9 is the place to measure it.                                                                                                                                                                                                                                                                                                                                                                                          |
+| WASM SIMD                                                                               | deferred | The only lever the literature shows paying beyond the plain loop (3-15x, above). Not worth a WASM build step until dense Floyd-Warshall is a measured bottleneck.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Symmetric half-matrix sweep on undirected graphs                                        | rejected | About 2x at most, and it complicates the predecessor matrix. The snapshot's CSR already stores both arcs of an undirected edge, so no symmetrising step is needed either.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Johnson reweighting for sparse graphs with negative weights                             | deferred | SciPy's choice for that case. Floyd-Warshall already handles negative weights correctly; add Johnson only if sparse negative-weight graphs turn out to be common.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### 3.3 Negative cycles
 
 A negative cycle makes plain Floyd-Warshall produce exponentially large numbers: entries can grow
-by a factor of 6 per round and reach -2 * 6^(n-1) * cmax. In float64 that loses integer exactness
+by a factor of 6 per round and reach -2 _ 6^(n-1) _ cmax. In float64 that loses integer exactness
 after about 20 rounds, overflows to `-Infinity` after about 396, and `-Infinity + Infinity` is then
 `NaN` (Hougardy, "The Floyd-Warshall algorithm on graphs with negative cycles", IPL 110 (2010)
 279-281, Proposition 1, Theorem 2 and the conclusion). Without a negative cycle every finite entry
-stays within n * cmax.
+stays within n \* cmax.
 
 So the sweep scans the diagonal after every round k (O(n) per round, O(n^2) in total) and stops at
 the first `d[i][i] < 0`, as igraph does inside its sweep (`IGRAPH_ENEGCYCLE`,
@@ -184,7 +184,7 @@ threshold for it; the plan fixes the threshold before the README quotes any figu
 - `+Infinity` when j is unreachable from i.
 - `0` on the diagonal, always. A positive self-loop never replaces it.
 - Parallel arcs contribute their cheapest weight (`Math.min`).
-- The matrix is a `Float64Array` of length n * n; n = 0 gives an empty array.
+- The matrix is a `Float64Array` of length n \* n; n = 0 gives an empty array.
 
 These are exactly the GPU kernel's semantics (`webgpu-graph-algorithms/src/algorithms/all-pairs.ts`
 on the PR #549 branch: `+Infinity` fill, cheapest parallel arc, diagonal 0 written after the arcs)
@@ -427,13 +427,13 @@ flat type exports and the dispatcher, and the legacy function was left alone. No
 Rerouting the shipped functions onto the port would change what they return, which is a separate
 decision for the owner (section 10). The differences, all intended in the port:
 
-| input | shipped `floydWarshall` | port | why the port differs |
-| --- | --- | --- | --- |
-| parallel edges | the LAST edge wins (`sourceDistances.set` with no minimum, `floyd-warshall.ts` lines 42-61) | the cheapest arc wins | a shortest path takes the cheapest edge; NetworkX, SciPy, Boost, igraph, cytoscape.js and the GPU kernel all take the minimum; only dagrejs/graphlib shares the shipped behaviour |
-| positive self-loop | overwrites the diagonal 0 (A->A weight 5 gives `distances A->A = 5` and a one-node path of length 5 from `floydWarshallPath`) | diagonal stays 0 | the empty path has length 0; NetworkX, SciPy, Boost and the GPU kernel keep 0 |
-| negative cycle | flag, plus a matrix and paths that disagree | flag, `dist` all `NaN`, path accessors throw | section 5.3 |
-| negative undirected edge | flag (correct) and a meaningless matrix (A-B weight -1 gives A->B = -3) | flag, all `NaN`, no sweep | section 3.3 |
-| everything else | f64 distances, `+Infinity` unreachable, 0 diagonal, k-i-j with strict `<` | identical | -- |
+| input                    | shipped `floydWarshall`                                                                                                       | port                                         | why the port differs                                                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| parallel edges           | the LAST edge wins (`sourceDistances.set` with no minimum, `floyd-warshall.ts` lines 42-61)                                   | the cheapest arc wins                        | a shortest path takes the cheapest edge; NetworkX, SciPy, Boost, igraph, cytoscape.js and the GPU kernel all take the minimum; only dagrejs/graphlib shares the shipped behaviour |
+| positive self-loop       | overwrites the diagonal 0 (A->A weight 5 gives `distances A->A = 5` and a one-node path of length 5 from `floydWarshallPath`) | diagonal stays 0                             | the empty path has length 0; NetworkX, SciPy, Boost and the GPU kernel keep 0                                                                                                     |
+| negative cycle           | flag, plus a matrix and paths that disagree                                                                                   | flag, `dist` all `NaN`, path accessors throw | section 5.3                                                                                                                                                                       |
+| negative undirected edge | flag (correct) and a meaningless matrix (A-B weight -1 gives A->B = -3)                                                       | flag, all `NaN`, no sweep                    | section 3.3                                                                                                                                                                       |
+| everything else          | f64 distances, `+Infinity` unreachable, 0 diagonal, k-i-j with strict `<`                                                     | identical                                    | --                                                                                                                                                                                |
 
 On graphs with no parallel edge, no self-loop and no negative cycle, the Floyd-Warshall strategy
 performs the same additions in the same order as the shipped function (both sweep k-i-j in node
@@ -468,30 +468,30 @@ port that writes into a shared snapshot array fails. The shared fixtures of
 random graph and Zachary's karate club; four directed ones) carry no self-loop and no parallel
 edge, deliberately; this suite adds its own cases for those.
 
-| case | what it pins |
-| --- | --- |
-| empty graph (n = 0) | `dist.length === 0`, `n === 0`, no throw |
-| single node, with and without a positive self-loop | `dist = [0]` |
-| single node with a self-loop of weight -1 | `hasNegativeCycle`, `dist = [NaN]`, `pathTo` throws `PathWalkError`: the weight checks run before any small-n shortcut |
-| positive self-loop | the diagonal stays 0, on every strategy |
-| negative self-loop | `hasNegativeCycle`, `dist` all `NaN`, path accessors throw |
-| parallel edges of weights 5 and 2 | distance 2, and `pathEdges` names the weight-2 edge |
-| disconnected graph (two components, an isolated node) | `+Infinity` across components, `predArc` `INVALID_INDEX` |
-| directed graph with a one-way chain | asymmetric matrix, `+Infinity` against the arcs |
-| undirected graph | `expectSymmetric` on integer weights |
-| unweighted, and weighted with `weighted: false` | hop counts equal the BFS-per-source reference |
-| real weights (0.1, 0.2, ...) through the f64 override | Floyd-Warshall strategy exact against the reference; others within relative 1e-12 |
-| ties (a square with two equal-length routes) | Floyd-Warshall and Dijkstra agree on weights of 2, Floyd-Warshall and BFS agree on unit weights; each path's weight sum equals `dist` and every step is an arc |
-| directed negative weights, no cycle | correct distances via Floyd-Warshall; `method: "per-source"` throws |
-| directed negative cycle (A->B 1, B->C 1, C->A -10) | `hasNegativeCycle`, all `NaN` |
-| Hougardy's graph (every edge weight -1), directed and undirected | `hasNegativeCycle`, no `-Infinity` computed, returns promptly |
-| undirected graph with one negative edge | `hasNegativeCycle` before the sweep |
-| `NaN`, `+Infinity` weight; override of the wrong length | `RangeError` |
-| `maxNodes: 2` on three nodes | `RangeError` naming 3, 2 and the bytes; nothing allocated |
-| a 20-node graph on each side of `A = n^2 / 3` (133 and 134 arcs) | `auto` reports `dijkstra` below and `floyd-warshall` at or above |
+| case                                                                                                                       | what it pins                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| empty graph (n = 0)                                                                                                        | `dist.length === 0`, `n === 0`, no throw                                                                                                                                                  |
+| single node, with and without a positive self-loop                                                                         | `dist = [0]`                                                                                                                                                                              |
+| single node with a self-loop of weight -1                                                                                  | `hasNegativeCycle`, `dist = [NaN]`, `pathTo` throws `PathWalkError`: the weight checks run before any small-n shortcut                                                                    |
+| positive self-loop                                                                                                         | the diagonal stays 0, on every strategy                                                                                                                                                   |
+| negative self-loop                                                                                                         | `hasNegativeCycle`, `dist` all `NaN`, path accessors throw                                                                                                                                |
+| parallel edges of weights 5 and 2                                                                                          | distance 2, and `pathEdges` names the weight-2 edge                                                                                                                                       |
+| disconnected graph (two components, an isolated node)                                                                      | `+Infinity` across components, `predArc` `INVALID_INDEX`                                                                                                                                  |
+| directed graph with a one-way chain                                                                                        | asymmetric matrix, `+Infinity` against the arcs                                                                                                                                           |
+| undirected graph                                                                                                           | `expectSymmetric` on integer weights                                                                                                                                                      |
+| unweighted, and weighted with `weighted: false`                                                                            | hop counts equal the BFS-per-source reference                                                                                                                                             |
+| real weights (0.1, 0.2, ...) through the f64 override                                                                      | Floyd-Warshall strategy exact against the reference; others within relative 1e-12                                                                                                         |
+| ties (a square with two equal-length routes)                                                                               | Floyd-Warshall and Dijkstra agree on weights of 2, Floyd-Warshall and BFS agree on unit weights; each path's weight sum equals `dist` and every step is an arc                            |
+| directed negative weights, no cycle                                                                                        | correct distances via Floyd-Warshall; `method: "per-source"` throws                                                                                                                       |
+| directed negative cycle (A->B 1, B->C 1, C->A -10)                                                                         | `hasNegativeCycle`, all `NaN`                                                                                                                                                             |
+| Hougardy's graph (every edge weight -1), directed and undirected                                                           | `hasNegativeCycle`, no `-Infinity` computed, returns promptly                                                                                                                             |
+| undirected graph with one negative edge                                                                                    | `hasNegativeCycle` before the sweep                                                                                                                                                       |
+| `NaN`, `+Infinity` weight; override of the wrong length                                                                    | `RangeError`                                                                                                                                                                              |
+| `maxNodes: 2` on three nodes                                                                                               | `RangeError` naming 3, 2 and the bytes; nothing allocated                                                                                                                                 |
+| a 20-node graph on each side of `A = n^2 / 3` (133 and 134 arcs)                                                           | `auto` reports `dijkstra` below and `floyd-warshall` at or above                                                                                                                          |
 | every fixture, `floyd-warshall` and `per-source` forced, on the fixture's own weights and on an override of 2 on every arc | the reference matrix for the same weights, exactly, and the triangle inequality; the override makes `per-source` run Dijkstra on the unit-weight fixtures, which would otherwise take BFS |
-| every fixture, `paths: true`, both forced strategies, own weights and the all-2 override | for every reachable pair the weight sum along `pathEdges` equals `dist`, `pathTo` starts at i and ends at j, consecutive nodes are joined by the named edges |
-| every fixture, Floyd-Warshall strategy, f64 override | bit-identical to the shipped `floydWarshall` distances, mapped through the snapshot's id map |
+| every fixture, `paths: true`, both forced strategies, own weights and the all-2 override                                   | for every reachable pair the weight sum along `pathEdges` equals `dist`, `pathTo` starts at i and ends at j, consecutive nodes are joined by the named edges                              |
+| every fixture, Floyd-Warshall strategy, f64 override                                                                       | bit-identical to the shipped `floydWarshall` distances, mapped through the snapshot's id map                                                                                              |
 
 A browser-project test allocates the default bound's worst case (an edgeless 5,792-node snapshot
 with `paths: true`, 384 MiB) in Chromium, answering the open question of whether a browser accepts
@@ -522,11 +522,11 @@ whose 1k / 10k / 100k ladder cannot hold an n^2 matrix (800 MB at 10k, 80 GB at 
 Graphs follow the GPU cost record's generator: seeded, 10 n unique undirected edges, integer
 weights 1-100, plus an unweighted copy for the BFS strategy.
 
-| sizes | arms |
-| --- | --- |
-| 64, 128, 256, 512 | shipped `floydWarshall`, port forced to `floyd-warshall`, port `auto` (Dijkstra), port unweighted (BFS) |
-| 1,024, 2,048 | the three port arms |
-| 4,096, 5,792 | port `auto` and unweighted only; Floyd-Warshall would take about 69 s and 194 s |
+| sizes                                                      | arms                                                                                                        |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 64, 128, 256, 512                                          | shipped `floydWarshall`, port forced to `floyd-warshall`, port `auto` (Dijkstra), port unweighted (BFS)     |
+| 1,024, 2,048                                               | the three port arms                                                                                         |
+| 4,096, 5,792                                               | port `auto` and unweighted only; Floyd-Warshall would take about 69 s and 194 s                             |
 | density at 512 nodes: average degree 20, 64, 128, 256, 480 | port forced to `floyd-warshall` against forced `per-source`, to check that the switch sits at the crossover |
 
 Rules, because the machine is shared: `uptime` load average printed before the first size and
@@ -579,34 +579,34 @@ cell for cell, and the shipped function's where it ran; the unweighted arm equal
 Dijkstra run with every weight 2. Graphs: 10 n unique undirected edges, integer weights 1-100, and
 an unweighted copy of the same edges.
 
-| nodes | arm | strategy | median ms | min ms | median vs shipped | passes |
-| ----: | --- | --- | ----: | ----: | ----: | ----: |
-| 64 | shipped floydWarshall |  | 14.0 | 13.2 |  | 15 |
-| 64 | port floyd-warshall | floyd-warshall | 0.45 | 0.42 | 31.3x | 15 |
-| 64 | port auto (weighted) | dijkstra | 0.52 | 0.49 | 27.1x | 15 |
-| 64 | port auto (unweighted) | bfs | 0.16 | 0.15 | 84.8x | 15 |
-| 128 | shipped floydWarshall |  | 111 | 109 |  | 15 |
-| 128 | port floyd-warshall | floyd-warshall | 2.50 | 2.36 | 44.3x | 15 |
-| 128 | port auto (weighted) | dijkstra | 2.35 | 2.25 | 47.1x | 15 |
-| 128 | port auto (unweighted) | bfs | 0.68 | 0.63 | 162.2x | 15 |
-| 256 | shipped floydWarshall |  | 795 | 769 |  | 15 |
-| 256 | port floyd-warshall | floyd-warshall | 15.5 | 14.6 | 51.3x | 15 |
-| 256 | port auto (weighted) | dijkstra | 8.98 | 8.70 | 88.5x | 15 |
-| 256 | port auto (unweighted) | bfs | 2.40 | 2.28 | 331.2x | 15 |
-| 512 | shipped floydWarshall |  | 7687 | 7549 |  | 5 |
-| 512 | port floyd-warshall | floyd-warshall | 111 | 105 | 69.3x | 5 |
-| 512 | port auto (weighted) | dijkstra | 38.2 | 37.2 | 201.3x | 5 |
-| 512 | port auto (unweighted) | bfs | 9.91 | 9.85 | 775.4x | 5 |
-| 1024 | port floyd-warshall | floyd-warshall | 774 | 761 |  | 5 |
-| 1024 | port auto (weighted) | dijkstra | 156 | 155 |  | 5 |
-| 1024 | port auto (unweighted) | bfs | 38.3 | 37.7 |  | 5 |
-| 2048 | port floyd-warshall | floyd-warshall | 7033 | 6958 |  | 3 |
-| 2048 | port auto (weighted) | dijkstra | 686 | 681 |  | 3 |
-| 2048 | port auto (unweighted) | bfs | 174 | 168 |  | 3 |
-| 4096 | port auto (weighted) | dijkstra | 2961 | 2917 |  | 3 |
-| 4096 | port auto (unweighted) | bfs | 690 | 667 |  | 3 |
-| 5792 | port auto (weighted) | dijkstra | 5810 | 5767 |  | 3 |
-| 5792 | port auto (unweighted) | bfs | 1318 | 1316 |  | 3 |
+| nodes | arm                    | strategy       | median ms | min ms | median vs shipped | passes |
+| ----: | ---------------------- | -------------- | --------: | -----: | ----------------: | -----: |
+|    64 | shipped floydWarshall  |                |      14.0 |   13.2 |                   |     15 |
+|    64 | port floyd-warshall    | floyd-warshall |      0.45 |   0.42 |             31.3x |     15 |
+|    64 | port auto (weighted)   | dijkstra       |      0.52 |   0.49 |             27.1x |     15 |
+|    64 | port auto (unweighted) | bfs            |      0.16 |   0.15 |             84.8x |     15 |
+|   128 | shipped floydWarshall  |                |       111 |    109 |                   |     15 |
+|   128 | port floyd-warshall    | floyd-warshall |      2.50 |   2.36 |             44.3x |     15 |
+|   128 | port auto (weighted)   | dijkstra       |      2.35 |   2.25 |             47.1x |     15 |
+|   128 | port auto (unweighted) | bfs            |      0.68 |   0.63 |            162.2x |     15 |
+|   256 | shipped floydWarshall  |                |       795 |    769 |                   |     15 |
+|   256 | port floyd-warshall    | floyd-warshall |      15.5 |   14.6 |             51.3x |     15 |
+|   256 | port auto (weighted)   | dijkstra       |      8.98 |   8.70 |             88.5x |     15 |
+|   256 | port auto (unweighted) | bfs            |      2.40 |   2.28 |            331.2x |     15 |
+|   512 | shipped floydWarshall  |                |      7687 |   7549 |                   |      5 |
+|   512 | port floyd-warshall    | floyd-warshall |       111 |    105 |             69.3x |      5 |
+|   512 | port auto (weighted)   | dijkstra       |      38.2 |   37.2 |            201.3x |      5 |
+|   512 | port auto (unweighted) | bfs            |      9.91 |   9.85 |            775.4x |      5 |
+|  1024 | port floyd-warshall    | floyd-warshall |       774 |    761 |                   |      5 |
+|  1024 | port auto (weighted)   | dijkstra       |       156 |    155 |                   |      5 |
+|  1024 | port auto (unweighted) | bfs            |      38.3 |   37.7 |                   |      5 |
+|  2048 | port floyd-warshall    | floyd-warshall |      7033 |   6958 |                   |      3 |
+|  2048 | port auto (weighted)   | dijkstra       |       686 |    681 |                   |      3 |
+|  2048 | port auto (unweighted) | bfs            |       174 |    168 |                   |      3 |
+|  4096 | port auto (weighted)   | dijkstra       |      2961 |   2917 |                   |      3 |
+|  4096 | port auto (unweighted) | bfs            |       690 |    667 |                   |      3 |
+|  5792 | port auto (weighted)   | dijkstra       |      5810 |   5767 |                   |      3 |
+|  5792 | port auto (unweighted) | bfs            |      1318 |   1316 |                   |      3 |
 
 The shipped function was not timed above 512 nodes (7 s per call there). "median vs shipped" is the
 shipped median divided by the arm's median. At 512 nodes the port is 69x faster with
@@ -619,12 +619,12 @@ the sweep (0.52 against 0.45 ms); below a millisecond that is not worth a rule o
 `d[ir + j]`). Old and new code timed in one process per case, order alternating each pass, output
 equal cell for cell (`tmp/floyd-warshall-port/oldnew/`; load 2.8 rising to 11.5), median (min) ms:
 
-| case | row offsets | row views | new / old |
-| --- | ----: | ----: | ----: |
-| 512 nodes, degree 20 | 107.2 (105.0) | 95.2 (94.3) | 0.89 |
-| 512 nodes, degree 480 | 131.7 (125.1) | 114.3 (109.3) | 0.87 |
-| 1,024 nodes, degree 20 | 907 (899) | 738 (723) | 0.81 |
-| 2,048 nodes, degree 20 | 7,422 (6,986) | 6,233 (6,069) | 0.84 |
+| case                   |   row offsets |     row views | new / old |
+| ---------------------- | ------------: | ------------: | --------: |
+| 512 nodes, degree 20   | 107.2 (105.0) |   95.2 (94.3) |      0.89 |
+| 512 nodes, degree 480  | 131.7 (125.1) | 114.3 (109.3) |      0.87 |
+| 1,024 nodes, degree 20 |     907 (899) |     738 (723) |      0.81 |
+| 2,048 nodes, degree 20 | 7,422 (6,986) | 6,233 (6,069) |      0.84 |
 
 Filling each BFS or Dijkstra row with Infinity just before its search, instead of the whole matrix
 up front, was measured the same way and gave no reliable gain (new / old 0.91 to 1.02 by median,
@@ -633,15 +633,15 @@ within 3 percent by minimum, at 2,048 to 5,792 nodes), so the up-front fill stay
 Density at 512 nodes, weights 1-100, both strategies forced (a second run, on the final rule;
 load 10.94 before, 11.45 after):
 
-| average degree | arcs / n^2 | auto picks | floyd-warshall median ms | min | per-source median ms | min | per-source / fw |
-| ----: | ----: | --- | ----: | ----: | ----: | ----: | ----: |
-| 20 | 0.039 | dijkstra | 105 | 101 | 37.5 | 36.9 | 0.36 |
-| 64 | 0.125 | dijkstra | 113 | 112 | 62.9 | 61.9 | 0.56 |
-| 128 | 0.250 | dijkstra | 113 | 109 | 93.4 | 89.8 | 0.83 |
-| 170 | 0.332 | dijkstra | 114 | 109 | 114 | 112 | 1.00 |
-| 200 | 0.391 | floyd-warshall | 110 | 108 | 124 | 121 | 1.13 |
-| 256 | 0.500 | floyd-warshall | 109 | 108 | 153 | 152 | 1.40 |
-| 480 | 0.938 | floyd-warshall | 190 | 114 | 514 | 419 | 2.70 |
+| average degree | arcs / n^2 | auto picks     | floyd-warshall median ms | min | per-source median ms |  min | per-source / fw |
+| -------------: | ---------: | -------------- | -----------------------: | --: | -------------------: | ---: | --------------: |
+|             20 |      0.039 | dijkstra       |                      105 | 101 |                 37.5 | 36.9 |            0.36 |
+|             64 |      0.125 | dijkstra       |                      113 | 112 |                 62.9 | 61.9 |            0.56 |
+|            128 |      0.250 | dijkstra       |                      113 | 109 |                 93.4 | 89.8 |            0.83 |
+|            170 |      0.332 | dijkstra       |                      114 | 109 |                  114 |  112 |            1.00 |
+|            200 |      0.391 | floyd-warshall |                      110 | 108 |                  124 |  121 |            1.13 |
+|            256 |      0.500 | floyd-warshall |                      109 | 108 |                  153 |  152 |            1.40 |
+|            480 |      0.938 | floyd-warshall |                      190 | 114 |                  514 |  419 |            2.70 |
 
 **The crossover set the threshold.** The plan asked whether the crossover sits between an average
 degree of n/4 and n/3 (arcs / n^2 of 0.25 to 0.33), which would confirm SciPy's n^2 / 4. It does

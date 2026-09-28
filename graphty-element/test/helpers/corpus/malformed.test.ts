@@ -69,6 +69,8 @@ interface MalformedBehavior {
     shouldThrow?: boolean; // Parser should throw an error
     shouldRecover?: boolean; // Parser should recover with partial/empty data
     errorPattern?: RegExp; // If throws, error message should match this pattern
+    nodes?: number; // If it recovers, the node records it yields
+    edges?: number; // If it recovers, the edge records it yields
     description: string; // Human-readable description of expected behavior
 }
 
@@ -136,11 +138,21 @@ const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
     pajek: {
         "empty-file.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Empty file is not Pajek" },
         "no-vertices-header.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "No header fails" },
-        "wrong-vertex-count.net": { shouldRecover: true, description: "Wrong count should parse available" },
+        "wrong-vertex-count.net": {
+            shouldRecover: true,
+            nodes: 10,
+            edges: 2,
+            description: "The *Vertices count sets the vertex set, lines or not",
+        },
         "malformed-vertex.net": { shouldRecover: true, description: "Malformed vertex should skip line" },
         "malformed-edge.net": { shouldRecover: true, description: "Malformed edge should skip line" },
         "garbage-content.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Garbage is not Pajek" },
-        "invalid-edge-reference.net": { shouldRecover: true, description: "Invalid refs should be kept" },
+        "invalid-edge-reference.net": {
+            shouldRecover: true,
+            nodes: 3,
+            edges: 2,
+            description: "An edge to a vertex outside *Vertices is dropped and reported",
+        },
         "missing-edges-section.net": { shouldRecover: true, description: "Missing edges should return nodes only" },
     },
     json: {
@@ -242,6 +254,12 @@ describe("Malformed Corpus Tests", () => {
                             // The counts can be 0 or more - we just care that it didn't crash
                             assert.isAtLeast(totalNodes, 0, "Node count should be non-negative");
                             assert.isAtLeast(totalEdges, 0, "Edge count should be non-negative");
+                            if (behavior.nodes !== undefined) {
+                                assert.equal(totalNodes, behavior.nodes, "node records");
+                            }
+                            if (behavior.edges !== undefined) {
+                                assert.equal(totalEdges, behavior.edges, "edge records");
+                            }
                         } catch (error) {
                             // Even if we expected recovery, some errors are acceptable
                             // as long as they're meaningful and don't crash

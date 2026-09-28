@@ -1,4 +1,4 @@
-import { pajekImporter } from "@graphty/graph-io/pajek";
+import { PAJEK_ISSUE, pajekImporter } from "@graphty/graph-io/pajek";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import { importRecords } from "./graph-io-import.js";
@@ -32,18 +32,16 @@ function shortestF32(value: number): number {
 /**
  * Rebuild the 2.x node record: `id`, `label`, and the coordinates as `x`, `y` and `z`.
  * @param record - the record graph-io's columns produced
+ * @param threeD - whether the file's vertex lines write a z coordinate
  * @returns the record the element has always received for a Pajek vertex
  */
-function nodeRecord(record: Record<string, unknown>): Record<string, unknown> {
+function nodeRecord(record: Record<string, unknown>, threeD: boolean): Record<string, unknown> {
     const { position, ...rest } = record;
     // A three-component column cell reads back as a typed array.
     if (ArrayBuffer.isView(position)) {
         const [x, y, z] = Array.from(position as Float32Array, shortestF32);
-        Object.assign(rest, { x, y });
-        // graph-io fills an unwritten z with 0; a vertex line with two coordinates stays 2D.
-        if (z !== 0) {
-            rest.z = z;
-        }
+        // graph-io fills an unwritten z with 0; a file whose vertex lines write two coordinates stays 2D.
+        Object.assign(rest, threeD ? { x, y, z } : { x, y });
     }
 
     return rest;
@@ -101,8 +99,8 @@ export class PajekDataSource extends DataSource {
             ...(value === undefined ? {} : { weight: value }),
         }));
 
-        // A file with neither an edge line nor a section the importer read states nothing.
-        if (imported.stated !== null || edges.length > 0) {
+        // Direction is stated by a line section header; a file with none states nothing.
+        if (!imported.report.issues.some((issue) => issue.code === PAJEK_ISSUE.NO_LINES)) {
             this.declareDirection(
                 imported.directed,
                 imported.directed ? "*Arcs" : "*Edges",
@@ -110,6 +108,10 @@ export class PajekDataSource extends DataSource {
             );
         }
 
-        yield* this.chunkData(DataSource.toRecords(imported.nodes.map(nodeRecord)), DataSource.toRecords(edges));
+        const threeD = imported.snapshot.nodes.byRole("position")?.meta.extra.sourceDims === 3;
+        yield* this.chunkData(
+            DataSource.toRecords(imported.nodes.map((record) => nodeRecord(record, threeD))),
+            DataSource.toRecords(edges),
+        );
     }
 }

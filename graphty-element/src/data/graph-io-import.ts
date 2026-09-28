@@ -3,7 +3,6 @@ import {
     type GraphMeta,
     type GraphSnapshot,
     type NodeId,
-    type SetDirectedOptions,
     type U32,
 } from "@graphty/graph-format";
 import { type CommonImportOptions, type GraphImporter, ImportError, type ImportReport } from "@graphty/graph-io";
@@ -15,18 +14,15 @@ import type { ErrorAggregator } from "./ErrorAggregator.js";
 const PAIR_COLUMN = "graphty.pair";
 
 /**
- * A scratch builder that remembers what the importer said, not only what it built.
+ * A scratch builder that remembers which nodes the importer added.
  *
  * The element rebuilds its records from a frozen snapshot, and a snapshot cannot tell a node the
- * file declared from one the builder created for an edge endpoint, nor a direction the file stated
- * from the builder's starting value. Both are recorded here as the importer pushes.
+ * file declared from one the builder created for an edge endpoint. That is recorded here as the
+ * importer pushes.
  */
 class RecordingBuilder extends GraphBuilder {
     /** Ids the importer added as nodes, as opposed to endpoints the builder created. */
     readonly declared = new Set<NodeId>();
-    /** The direction the importer set, or null when it never set one. */
-    stated: boolean | null = null;
-
     override addNode(id: NodeId): number {
         this.declared.add(id);
         return super.addNode(id);
@@ -40,11 +36,6 @@ class RecordingBuilder extends GraphBuilder {
 
         return super.addNodes(list, out);
     }
-
-    override setDirected(directed: boolean, options?: SetDirectedOptions): void {
-        this.stated = directed;
-        super.setDirected(directed, options);
-    }
 }
 
 /** What {@link importRecords} read, as the plain records the element's data sources yield. */
@@ -57,12 +48,12 @@ interface ImportedRecords {
     declared: boolean[];
     /** The snapshot's direction. */
     directed: boolean;
-    /** The direction the importer set explicitly, or null when it left the builder's default. */
-    stated: boolean | null;
     /** The graph-level metadata the importer recorded. */
     meta: GraphMeta;
     /** The importer's report. */
     report: ImportReport;
+    /** The frozen snapshot the records were read from, for column metadata. */
+    snapshot: GraphSnapshot;
 }
 
 /**
@@ -124,9 +115,9 @@ export async function importRecords<Opts>(
     return {
         ...recordsOf(snapshot, builder.declared),
         directed: snapshot.directed,
-        stated: builder.stated,
         meta: snapshot.meta,
         report,
+        snapshot,
     };
 }
 

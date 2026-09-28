@@ -29,8 +29,8 @@ function fileAttributes(record: Record<string, unknown>): Record<string, unknown
  * Node records carry `id` and the node's attributes, including those a `node [ ... ]` default
  * statement gives it; edge records carry `source`, `target` and the edge's attributes. A port on an
  * edge endpoint (`a:p1 -> b`) names a place on the node, not another node, so it is not part of
- * the id. A cluster subgraph is not drawn as a node: each of its members carries the cluster's
- * name as `parent`.
+ * the id. A cluster subgraph is not drawn as a node unless an edge names it as an endpoint; each of
+ * its members carries the cluster's name as `parent`. `pos` stays the text the file wrote.
  *
  * DOT states direction once, in the keyword that opens the file. A file that does not open with
  * `graph` or `digraph` is not DOT, and fails with `E_PARSE_FAILED` rather than loading a guess.
@@ -62,15 +62,17 @@ export class DOTDataSource extends DataSource {
             dotImporter,
             "dot",
             await this.getContent(),
-            // Ids stay the strings DOT writes, and `weight` stays an attribute: the element reads
-            // its weight from the record.
-            { ids: "keep", weightFrom: null, errorLimit: this.config.errorLimit ?? 100 },
+            // Ids stay the strings DOT writes, `weight` stays an attribute (the element reads its
+            // weight from the record), and `pos` stays the text the file wrote.
+            { ids: "keep", weightFrom: null, positions: false, errorLimit: this.config.errorLimit ?? 100 },
             this.errorAggregator,
         );
 
+        const endpoints = new Set(imported.edges.flatMap((edge) => [edge.source, edge.target]));
         const nodes: Record<string, unknown>[] = [];
         for (const record of imported.nodes) {
-            if (record[CLUSTER_COLUMN] === true) {
+            // An edge to a cluster needs the cluster as its endpoint; any other cluster only groups.
+            if (record[CLUSTER_COLUMN] === true && !endpoints.has(record.id)) {
                 continue;
             }
 

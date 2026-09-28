@@ -119,8 +119,9 @@ Floyd-Warshall is ideal when you need to query shortest paths between many diffe
 `indexed.allPairsShortestPath` works on a graph-format snapshot and returns a dense row-major
 `Float64Array`. It picks the fastest strategy for the graph: one breadth-first search per source
 when unweighted, Floyd-Warshall when a weight is negative or the graph is dense, and one Dijkstra
-per source otherwise. On a 512-node graph with 5,120 edges it is 69x to 775x faster than
-`floydWarshall`, depending on the strategy.
+per source otherwise. On a 512-node graph with 5,120 edges it was 69x to 775x faster,
+depending on the strategy, than the Map-of-Maps implementation `floydWarshall` ran before it
+delegated here.
 
 ```typescript
 import { indexed, toSnapshot } from "@graphty/algorithms";

@@ -129,27 +129,51 @@ describe("floydWarshall facade", () => {
         expect(floydWarshallPath(g, "a", "c")).toBeNull();
     });
 
-    it("treats an infinite weight as no edge and leaves a NaN weight's own entry NaN, as before", () => {
+    it("treats a +Infinity weight as no edge, its source its predecessor while nothing reaches it", () => {
         const g = new Graph({ directed: true });
         g.addEdge("a", "b", Infinity);
-        g.addEdge("b", "c", NaN);
+        g.addEdge("b", "c", 2);
         g.addEdge("c", "a", 1);
         const { distances, predecessors, hasNegativeCycle } = floydWarshall(g);
         expect(hasNegativeCycle).toBe(false);
         expect(distances.get("a")?.get("b")).toBe(Infinity);
         expect(predecessors.get("a")?.get("b")).toBe("a");
-        expect(distances.get("b")?.get("c")).toBeNaN();
-        expect(predecessors.get("b")?.get("c")).toBe("b");
-        expect(distances.get("b")?.get("a")).toBe(Infinity);
+        expect(distances.get("b")?.get("a")).toBe(3);
         expect(floydWarshallPath(g, "a", "b")).toBeNull();
-        expect(floydWarshallPath(g, "b", "c")?.path).toEqual(["b", "c"]);
+        expect(floydWarshallPath(g, "b", "a")).toEqual({ path: ["b", "c", "a"], distance: 3 });
         expect(transitiveClosure(g)).toEqual(
             new Map([
                 ["a", new Set(["a"])],
-                ["b", new Set(["b"])],
+                ["b", new Set(["b", "c", "a"])],
                 ["c", new Set(["c", "a"])],
             ]),
         );
+    });
+
+    it("treats a +Infinity undirected edge as no edge in both orientations", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b", Infinity);
+        g.addNode("c");
+        const { distances, predecessors } = floydWarshall(g);
+        expect(distances.get("a")?.get("b")).toBe(Infinity);
+        expect(distances.get("b")?.get("a")).toBe(Infinity);
+        expect(predecessors.get("a")?.get("b")).toBe("a");
+        expect(predecessors.get("b")?.get("a")).toBe("b");
+        expect(predecessors.get("a")?.get("c")).toBeNull();
+        expect(transitiveClosure(g).get("b")).toEqual(new Set(["b"]));
+    });
+
+    it("throws a RangeError on a NaN or -Infinity weight, which has no shortest-path reading", () => {
+        for (const weight of [NaN, -Infinity]) {
+            for (const directed of [true, false]) {
+                const g = new Graph({ directed });
+                g.addEdge("i", "a", 1);
+                g.addEdge("a", "b", weight);
+                expect(() => floydWarshall(g)).toThrow(RangeError);
+                expect(() => floydWarshallPath(g, "i", "b")).toThrow(RangeError);
+                expect(() => transitiveClosure(g)).toThrow(RangeError);
+            }
+        }
     });
 });
 
@@ -196,6 +220,15 @@ describe("transitiveClosure facade", () => {
             (g) => new Map(ids(g).map((i) => [i, new Set(singleSourceShortestPath(g, i).keys())])),
             transitiveClosure,
         );
+    });
+
+    it("reads reachability, not distance: a sum that overflows to Infinity still reaches", () => {
+        const g = new Graph({ directed: true, allowSelfLoops: true });
+        g.addEdge(0, 1, 1e308);
+        g.addEdge(0, 3, 1);
+        g.addEdge(3, 0, 1e308);
+        g.addEdge(3, 3, Infinity);
+        expect(transitiveClosure(g).get(3)).toEqual(new Set([0, 1, 3]));
     });
 
     it("reads reachability, not distance, under a negative cycle", () => {

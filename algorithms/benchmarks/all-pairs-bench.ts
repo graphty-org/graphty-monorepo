@@ -1,5 +1,6 @@
-/* All-pairs shortest paths: the shipped Map-of-Maps floydWarshall against the shipped
- * indexed.allPairsShortestPath, per strategy. Seeded undirected graphs with 10 n unique edges and
+/* All-pairs shortest paths: the floydWarshall facade (which runs the port and rebuilds its
+ * Map-of-Maps, so its ratio is the conversion cost) against indexed.allPairsShortestPath, per
+ * strategy. Seeded undirected graphs with 10 n unique edges and
  * integer weights 1-100 (the GPU cost record's generator), plus an unweighted copy.
  *
  * The machine is shared, so: load average printed before and after; one discarded warm-up per arm;
@@ -135,7 +136,7 @@ function passesFor(n: number): number {
 console.log(`node ${process.version}`);
 uptime("load before");
 console.log("");
-console.log("| nodes | arm | strategy | median ms | min ms | median vs shipped | passes |");
+console.log("| nodes | arm | strategy | median ms | min ms | median vs facade | passes |");
 console.log("| ----: | --- | --- | ----: | ----: | ----: | ----: |");
 
 for (const n of sizes) {
@@ -163,7 +164,7 @@ for (const n of sizes) {
             for (let j = 0; j < n; j++) {
                 const expected = row?.get(`n${String(j)}`);
                 if (!Object.is(auto.dist[i * n + j], expected)) {
-                    throw new Error(`${String(n)}: shipped and port disagree at ${String(i)}->${String(j)}`);
+                    throw new Error(`${String(n)}: facade and port disagree at ${String(i)}->${String(j)}`);
                 }
             }
         }
@@ -182,7 +183,7 @@ for (const n of sizes) {
     // ---- timing
     const arms: Arm[] = [];
     if (withShipped) {
-        arms.push({ name: "shipped floydWarshall", run: () => floydWarshall(g) });
+        arms.push({ name: "floydWarshall facade", run: () => floydWarshall(g) });
     }
     if (withFw) {
         arms.push({ name: "port floyd-warshall", run: () => allPairsShortestPath(s, { method: "floyd-warshall" }) });
@@ -191,11 +192,11 @@ for (const n of sizes) {
     arms.push({ name: "port auto (unweighted)", run: () => allPairsShortestPath(su) });
     const passes = passesFor(n);
     const times = timeArms(arms, passes);
-    const shippedMedian = withShipped ? median(times.get("shipped floydWarshall") ?? []) : NaN;
+    const shippedMedian = withShipped ? median(times.get("floydWarshall facade") ?? []) : NaN;
     for (const a of arms) {
         const t = times.get(a.name) ?? [];
         const m = median(t);
-        const ratio = withShipped && a.name !== "shipped floydWarshall" ? `${(shippedMedian / m).toFixed(1)}x` : "";
+        const ratio = withShipped && a.name !== "floydWarshall facade" ? `${(shippedMedian / m).toFixed(1)}x` : "";
         console.log(
             `| ${String(n)} | ${a.name} | ${methods.get(a.name) ?? ""} | ${fmt(m)} | ${fmt(Math.min(...t))} | ${ratio} | ${String(passes)} |`,
         );

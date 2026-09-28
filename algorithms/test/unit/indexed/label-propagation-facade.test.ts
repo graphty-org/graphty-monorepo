@@ -90,10 +90,38 @@ describe("labelPropagation facade", () => {
                 converged: false,
             });
         }
-        expect(labelPropagation(g, { maxIterations: 1.5 })).toMatchObject({ iterations: 1, converged: true });
         expect(labelPropagation(g, { maxIterations: Infinity })).toMatchObject({ iterations: 1, converged: true });
-        expect(labelPropagation(g, { randomSeed: 1.5 }).communities).toEqual(labelPropagation(g).communities);
         expect(labelPropagation(new Graph(), { maxIterations: 0 })).toMatchObject({ iterations: 0, converged: true });
+    });
+
+    it("rounds a fractional maxIterations up and a fractional randomSeed down", () => {
+        const byName = (name: string): Graph => {
+            const found = undirectedFixtures().find((f) => f.name === name);
+            if (found === undefined) {
+                throw new Error(`no fixture ${name}`);
+            }
+            return found.graph;
+        };
+        // Two triangles need a second pass to converge, so one pass stops short.
+        const triangles = byName("two triangles and an isolated node");
+        expect(labelPropagation(triangles, { maxIterations: 1 }).converged).toBe(false);
+        expect(labelPropagation(triangles, { maxIterations: 1.5 })).toMatchObject({ iterations: 2, converged: true });
+        // Seeds 7 and 8 split a path differently, so the seed rounding shows.
+        const path = byName("path of six");
+        const at = (randomSeed: number): number[] => [...labelPropagation(path, { randomSeed }).communities.values()];
+        expect(at(7)).not.toEqual(at(8));
+        expect(at(7.9)).toEqual(at(7));
+    });
+
+    it("gives a zero-weight edge no vote, so it joins nothing", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b", 0);
+        g.addEdge("b", "c", 0);
+        expect([...labelPropagation(g).communities]).toEqual([
+            ["a", 0],
+            ["b", 1],
+            ["c", 2],
+        ]);
     });
 
     it("throws a RangeError on a negative weight", () => {

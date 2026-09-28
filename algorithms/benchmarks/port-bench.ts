@@ -1,11 +1,10 @@
 /* Before/after for the indexed ports: the shipped Map-of-Maps implementation against the indexed one,
- * on the same graph, minimum of N runs. Undirected, ten edges per node, as the GPU cost record's
+ * on the same graph (label propagation is port-only: `labelPropagation` now delegates to the port), minimum of N runs. Undirected, ten edges per node, as the GPU cost record's
  * graphs are. Run from algorithms/ with: npx tsx benchmarks/port-bench.ts */
 import { loadavg } from "node:os";
 
 import { hits as legacyHits } from "../src/algorithms/centrality/hits.js";
 import { katzCentrality as legacyKatz } from "../src/algorithms/centrality/katz.js";
-import { labelPropagation as legacyLabelPropagation } from "../src/algorithms/community/label-propagation.js";
 import { louvain as legacyLouvain } from "../src/algorithms/community/louvain.js";
 import { kCoreDecomposition as legacyKCore } from "../src/clustering/k-core.js";
 import { Graph } from "../src/core/graph.js";
@@ -71,7 +70,7 @@ for (const n of sizes) {
     const directed = build(n, true);
     const su = toSnapshot(undirected);
     const sd = toSnapshot(directed);
-    const rows: [string, number, number | null][] = [];
+    const rows: [string, number, number | null, boolean][] = [];
     // A null legacy side is a port-only row, printed with "--".
     const pairs: [string, (() => void) | null, () => void][] = [
         ["k-core", () => void legacyKCore(undirected), () => void kCoreDecomposition(su)],
@@ -86,7 +85,7 @@ for (const n of sizes) {
             () => void hits(sd, { maxIterations: 100, tolerance: 0 }),
         ],
         ["Louvain", () => void legacyLouvain(undirected), () => void louvain(su)],
-        ["label propagation", () => void legacyLabelPropagation(undirected), () => void labelPropagation(su)],
+        ["label propagation", null, () => void labelPropagation(su)],
         // Exactly n visits: the whole shuffled initial queue, one full-sweep equivalent.
         ["LP, one sweep", null, () => void labelPropagation(su, { maxIterations: 1 })],
     ];
@@ -110,12 +109,12 @@ for (const n of sizes) {
                 legacyMs = Math.min(first, reps > 1 ? best(reps - 1, legacy) : Infinity);
             }
         }
-        rows.push([name, portedMs, legacyMs]);
+        rows.push([name, portedMs, legacyMs, legacy === null]);
     }
     console.log(`\nn = ${n}, ${n * 10} edges, minimum of ${reps}`);
-    for (const [name, portedMs, legacyMs] of rows) {
+    for (const [name, portedMs, legacyMs, portOnly] of rows) {
         let speedup = legacyMs === null ? "legacy over budget" : `${(legacyMs / portedMs).toFixed(1)}x`;
-        if (legacyMs === null && name === "LP, one sweep") {
+        if (portOnly) {
             speedup = "--";
         }
         console.log(

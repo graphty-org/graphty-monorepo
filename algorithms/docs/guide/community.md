@@ -108,9 +108,9 @@ const communities = labelPropagation(graph, {
 `indexed.labelPropagation` runs the same idea over a `GraphSnapshot` from `@graphty/graph-format`
 with typed arrays and no per-edge allocation. It is fast label propagation (FLPA, Traag and
 Subelj 2023): nodes wait in a queue and only nodes whose neighbourhood changed are revisited, so
-it stops once every node's label is the most common among its neighbours, even on paths and trees
-where the legacy function runs to its iteration cap. For the same `randomSeed` it returns
-different partitions than `labelPropagation`.
+it stops once every node's label is the most common among its neighbours, even on paths and trees.
+`labelPropagation` delegates to it, so for the same integer `randomSeed` both return the same
+partition.
 
 ```typescript
 import { indexed, toSnapshot } from "@graphty/algorithms";

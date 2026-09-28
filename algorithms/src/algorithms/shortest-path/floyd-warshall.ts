@@ -1,3 +1,5 @@
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { Graph } from "../../core/graph.js";
 import { allPairsShortestPath } from "../../indexed/all-pairs.js";
 import { exactArcWeights } from "../../indexed/facade.js";
@@ -11,14 +13,28 @@ export interface FloydWarshallResult {
 }
 
 /**
- * The graph without its NaN and infinite edges, which the port refuses, and those edges. Before the
- * port, such an edge never shortened a path: `x + NaN < d` and `x + Infinity < d` are both false.
+ * The graph without its +Infinity edges, which the port refuses and which never shortened a path
+ * (`x + Infinity < d` is false), and those edges. A NaN or -Infinity weight has no such reading, so it
+ * throws.
  * @param graph - The legacy graph
+ * @param name - The calling function, for the error message
  * @returns The graph to run on (the input itself when every weight is finite) and the removed edges,
  * each in both orientations on an undirected graph
+ * @throws RangeError on a NaN or -Infinity edge weight
  */
-function withoutNonFinite(graph: Graph): { finite: Graph; removed: Edge[] } {
-    const removed = Array.from(graph.edges()).filter((e) => !Number.isFinite(e.weight ?? 1));
+function withoutInfinite(graph: Graph, name: string): { finite: Graph; removed: Edge[] } {
+    const removed: Edge[] = [];
+    for (const e of graph.edges()) {
+        const w = e.weight ?? 1;
+        if (Number.isNaN(w) || w === -Infinity) {
+            throw new RangeError(
+                `${name}: the edge ${String(e.source)} -> ${String(e.target)} has weight ${String(w)}; weights must be numbers or +Infinity (no edge)`,
+            );
+        }
+        if (w === Infinity) {
+            removed.push(e);
+        }
+    }
     if (removed.length === 0) {
         return { finite: graph, removed };
     }
@@ -39,9 +55,10 @@ function withoutNonFinite(graph: Graph): { finite: Graph; removed: Edge[] } {
  * entry NaN and shortens nothing.
  * @param graph - The graph to compute shortest paths for
  * @returns The distances, predecessors, and negative cycle detection result
+ * @throws RangeError on a NaN or -Infinity edge weight
  */
 export function floydWarshall(graph: Graph): FloydWarshallResult {
-    const { finite, removed } = withoutNonFinite(graph);
+    const { finite, removed } = withoutInfinite(graph, "floydWarshall");
     const s = toSnapshot(finite);
     const { dist, n, predArc, hasNegativeCycle } = allPairsShortestPath(s, {
         weights: exactArcWeights(s),
@@ -74,11 +91,8 @@ export function floydWarshall(graph: Graph): FloydWarshallResult {
                 predecessors.get(e.source)?.set(e.source, e.source);
             }
         }
-        for (const { source, target, weight } of removed) {
-            if (Number.isNaN(weight)) {
-                distances.get(source)?.set(target, NaN);
-                predecessors.get(source)?.set(target, source);
-            } else if (distances.get(source)?.get(target) === Infinity) {
+        for (const { source, target } of removed) {
+            if (distances.get(source)?.get(target) === Infinity) {
                 predecessors.get(source)?.set(target, source);
             }
         }
@@ -93,40 +107,41 @@ export function floydWarshall(graph: Graph): FloydWarshallResult {
  * @param target - The destination node for the path
  * @returns The path and distance, or null if either node is missing, no path exists, or the graph
  * has a negative cycle
+ * @throws RangeError on a NaN or -Infinity edge weight
  */
 export function floydWarshallPath(
     graph: Graph,
     source: NodeId,
     target: NodeId,
 ): { path: NodeId[]; distance: number } | null {
-    const { distances, predecessors, hasNegativeCycle } = floydWarshall(graph);
-    const distance = distances.get(source)?.get(target);
-    const row = predecessors.get(source);
-    if (hasNegativeCycle || distance === undefined || distance === Infinity || row === undefined) {
+    const s = toSnapshot(withoutInfinite(graph, "floydWarshallPath").finite);
+    const i = s.ids.indexOf(source);
+    const j = s.ids.indexOf(target);
+    if (i === INVALID_INDEX || j === INVALID_INDEX) {
         return null;
     }
-    const path: NodeId[] = [target];
-    for (let v = target; v !== source; ) {
-        const p = row.get(v);
-        if (p === null || p === undefined || path.length > row.size) {
-            return null;
-        }
-        path.unshift(p);
-        v = p;
+    const result = allPairsShortestPath(s, {
+        weights: exactArcWeights(s),
+        method: "floyd-warshall",
+        paths: true,
+        maxNodes: Infinity,
+    });
+    const distance = result.dist[i * result.n + j];
+    if (result.hasNegativeCycle || distance === Infinity) {
+        return null;
     }
-    return { path, distance };
+    return { path: Array.from(result.pathTo(i, j), (k) => s.ids.idOf(k)), distance };
 }
 
 /**
  * Computes the transitive closure of a graph: one breadth-first search per node, edge weights
- * ignored except that a NaN or infinite edge counts as no edge, and a NaN edge's target is not
- * reached from its source.
+ * ignored except that a +Infinity edge counts as no edge.
  * @param graph - The graph to compute transitive closure for
  * @returns A map of each node to the set of nodes reachable from it, itself included, in node order
+ * @throws RangeError on a NaN or -Infinity edge weight
  */
 export function transitiveClosure(graph: Graph): Map<NodeId, Set<NodeId>> {
-    const { finite, removed } = withoutNonFinite(graph);
-    const s = toSnapshot(finite);
+    const s = toSnapshot(withoutInfinite(graph, "transitiveClosure").finite);
     const { dist, n } = allPairsShortestPath(s, { weighted: false, maxNodes: Infinity });
     const closure = new Map<NodeId, Set<NodeId>>();
     for (let i = 0; i < n; i++) {
@@ -137,11 +152,6 @@ export function transitiveClosure(graph: Graph): Map<NodeId, Set<NodeId>> {
             }
         }
         closure.set(s.ids.idOf(i), reachable);
-    }
-    for (const { source, target, weight } of removed) {
-        if (Number.isNaN(weight)) {
-            closure.get(source)?.delete(target);
-        }
     }
     return closure;
 }

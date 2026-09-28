@@ -31,25 +31,36 @@ started" are no longer current.
 
 Checked against origin/master at `b109fac2`. Phases are those of design section 14.6.
 
-| Phase | State       | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1    | Done        | graph-format landed 2026-09-16 (see "F1 landing" below).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| F2    | Done        | 1.0.0 cut 2026-09-18 without the A1 gate (design 17.7 D-F2-GATE); now 1.1.0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| A1    | Done        | Shipped in algorithms 1.8.0 inside the WebGPU seam work (`design/decisions/2026-09-19-a1-lands-inside-m8a.md`): `algorithms/src/indexed/to-snapshot.ts` (memoised on graph and `mutationCount`, f64 weight shadow column), `Graph.mutationCount` in `algorithms/src/core/graph.ts`, the differential harness in `algorithms/test/helpers/snapshot-differential.ts`.                                                                                                                                                                                                                                                                    |
-| A2    | Partial     | Ported: breadthFirstSearch, commonNeighborsScore, connectedComponents, weaklyConnectedComponents, dijkstra, hits, kCoreDecomposition, katzCentrality, louvain, kruskalMST, pageRank (10 files in `algorithms/src/indexed/`, 17 test files). Local branches not yet pushed: `feat/algorithms-indexed-floyd-warshall` (`indexed.allPairsShortestPath`) and `feat/algorithms-indexed-label-propagation` (`indexed.labelPropagation`). Of the 90 legacy functions and 3 classes the barrel exports, none delegates to a port and none accepts a snapshot. Missing structures: `RingQueue`, `BitSet`, `IndexedMaxHeap`, `fromAdjacencyMap`. |
-| L1    | Partial     | Done: `layout/src/simulation/` (PR #12, 2026-09-20), `forceatlas2Layout` on a snapshot. Missing: the `indexed` namespace, `LayoutResult`, `toPositionMap` / `fromPositionMap` / `toPositionColumn` / `fromPositionColumn` / `rescaleInPlace`, ports of the other 15 positional layouts. `toLayoutSnapshot` caches duck-typed inputs by identity and returns a stale snapshot for a mutated input. Generators moved to `@graphty/graph-samples` (commit 080fa1f9).                                                                                                                                                                      |
-| E1    | Partial     | Done: builder, lazy freeze, snapshot replacement with remaps, undirected cache, element-owned positions, records pushed by data sources. Missing: 20 adapters still build a legacy `Graph` through `algorithmGraph()` (MaxFlow and MinCut build one by hand); 13 `SimpleLayoutEngine` subclasses call positional layouts; `EdgeMap` survives (`graphty-element/src/Edge.ts`); on-load algorithms start once per data chunk (`graphty-element/src/Graph.ts`). The legacy `Graph` is published in the plugin API as `AlgorithmGraphView`.                                                                                                |
-| W1    | Done        | webgpu-graph-algorithms consumes snapshots, has `release()` and per-snapshot residency, and imports the real `AlgorithmAccelerator` type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| D1    | Not started | No legacy entry point is tagged `@deprecated` (apart from layout's 8 generator aliases).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| IO1   | Partial     | graph-io half done. Element half not started: the seven `DataSource` classes in `graphty-element/src/data/` parse files themselves with papaparse and fast-xml-parser; `FORMAT_DESCRIPTORS` has `canExport: false` for every format.                                                                                                                                                                                                                                                                                                                                                                                                   |
-| 2.0   | Not started | The removal releases are now algorithms 3.0.0 and layout 2.0.0: algorithms published 2.0.0 on 2026-09-24 for an unrelated break.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Phase | State       | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1    | Done        | graph-format landed 2026-09-16 (see "F1 landing" below).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| F2    | Done        | 1.0.0 cut 2026-09-18 without the A1 gate (design 17.7 D-F2-GATE); now 1.1.0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| A1    | Done        | Shipped in algorithms 1.8.0 inside the WebGPU seam work (`design/decisions/2026-09-19-a1-lands-inside-m8a.md`): `algorithms/src/indexed/to-snapshot.ts` (memoised on graph and `mutationCount`, f64 weight shadow column), `Graph.mutationCount` in `algorithms/src/core/graph.ts`, the differential harness in `algorithms/test/helpers/snapshot-differential.ts`.                                                                                                                                                                                                                                                                                                                              |
+| A2    | Partial     | Ported: breadthFirstSearch, commonNeighborsScore, connectedComponents, weaklyConnectedComponents, dijkstra, hits, kCoreDecomposition, katzCentrality, louvain, kruskalMST, pageRank (10 files in `algorithms/src/indexed/`, 17 test files). Local branches not yet pushed, both clean and containing master: `feat/algorithms-indexed-floyd-warshall` (`indexed.allPairsShortestPath`, 15 commits) and `feat/algorithms-indexed-label-propagation` (`indexed.labelPropagation`, 13 commits). Of the 90 legacy functions and 3 classes the barrel exports, none delegates to a port and none accepts a snapshot. Missing structures: `RingQueue`, `BitSet`, `IndexedMaxHeap`, `fromAdjacencyMap`. |
+| L1    | Partial     | Done: `layout/src/simulation/` (PR #12, 2026-09-20), `forceatlas2Layout` on a snapshot. Missing: the `indexed` namespace, `LayoutResult`, `toPositionMap` / `fromPositionMap` / `toPositionColumn` / `fromPositionColumn` / `rescaleInPlace`, ports of the other 15 positional layouts. `toLayoutSnapshot` caches duck-typed inputs by identity and returns a stale snapshot for a mutated input. Generators moved to `@graphty/graph-samples` (commit 080fa1f9).                                                                                                                                                                                                                                |
+| E1    | Partial     | Done: builder, lazy freeze, snapshot replacement with remaps, undirected cache, element-owned positions, records pushed by data sources. Missing: 20 adapters still build a legacy `Graph` through `algorithmGraph()` (MaxFlow and MinCut build one by hand); 13 `SimpleLayoutEngine` subclasses call positional layouts; `EdgeMap` survives (`graphty-element/src/Edge.ts`); on-load algorithms start once per data chunk (`graphty-element/src/Graph.ts`). The legacy `Graph` is published in the plugin API as `AlgorithmGraphView`.                                                                                                                                                          |
+| W1    | Done        | webgpu-graph-algorithms consumes snapshots, has `release()` and per-snapshot residency, and imports the real `AlgorithmAccelerator` type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D1    | Not started | No legacy entry point is tagged `@deprecated` (apart from layout's 8 generator aliases).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| IO1   | Partial     | graph-io half done. Element half not started: the seven `DataSource` classes in `graphty-element/src/data/` parse files themselves with papaparse and fast-xml-parser; `FORMAT_DESCRIPTORS` has `canExport: false` for every format.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 2.0   | Not started | The removal releases are now algorithms 3.0.0 and layout 2.0.0: algorithms published 2.0.0 on 2026-09-24 for an unrelated break.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Open issues on the migration: #85 (graph-format declared twice in graphty-element), #100 (fixed by
 commit f7db019c, still open), #101 (a published graph-format file can write producer `dev`), #102
 (the design's unscoped breaking commit), #503 (a truncated GML file loads without error in the
-element). Open pull requests that must land before, or be coordinated with, the remaining work:
-#549 (GPU all-pairs), #550 (GPU label propagation and triangles), #552 (GPU betweenness), #553
-(element undo, which reflows the design, this file and the root CLAUDE.md).
+element).
+
+Open pull requests the remaining work waits for or must coordinate with:
+
+- #553 (element undo, released as graphty-element 3.0.0): rewrites the element's data layer,
+  `LayoutEngine.ts`, `Edge.ts`, `Graph.ts`, `catalog/detect.ts` and `custom-algorithms.md`, and
+  reflows the design, this file and the root CLAUDE.md.
+- #490 (instanced edges): `Edge.ts`, `Graph.ts`, `UpdateManager.ts`.
+- #513 (force layout on an accelerator): `SimulationLayoutEngine.ts`, `LayoutManager.ts`.
+- #559 (visual-review baselines in Git LFS): master has no visual-review baselines yet, and
+  layout's Storybook is not a visual-review project, so no visual change can be reviewed against a
+  baseline until it lands.
+- #549, #550, #552 (GPU all-pairs, label propagation and triangles, betweenness): routing them
+  from the element is issue #558.
 
 ## graph-format: what is implemented
 
@@ -1228,19 +1239,19 @@ implemented". No code, test or document changed for them and every one stays on 
 
 ### Verification (from the monorepo root, 2026-09-16)
 
-| Command | Result |
-| --- | --- |
-| `nx run-many --target=lint --projects=graph-format,graph-io` | pass |
-| `nx run-many --target=build --projects=graph-format,graph-io` | pass, graph-format first |
-| `nx run-many --target=test --projects=graph-format,graph-io` | 59 files / 1309 tests; 76 files / 4273 tests (34 skipped without `IO_BENCH=1`) |
-| `nx run graph-format:coverage` | 95.96 percent lines, 95.88 branches |
-| `nx run graph-io:coverage` | 97.16 percent lines, 95.23 branches |
-| `./tools/merge-coverage.sh` | merged; graph-format 96.0, graph-io 97.2 |
-| `tsc --noEmit -p tsconfig.strict-consumer.json` (both) | pass |
-| `pnpm exec knip` | clean, exit 0 |
-| `pnpm install --frozen-lockfile` | pass |
-| `nx show projects --with-target=nx-release-publish` | lists both |
-| `./tools/prepush.sh` | pass |
+| Command                                                       | Result                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `nx run-many --target=lint --projects=graph-format,graph-io`  | pass                                                                           |
+| `nx run-many --target=build --projects=graph-format,graph-io` | pass, graph-format first                                                       |
+| `nx run-many --target=test --projects=graph-format,graph-io`  | 59 files / 1309 tests; 76 files / 4273 tests (34 skipped without `IO_BENCH=1`) |
+| `nx run graph-format:coverage`                                | 95.96 percent lines, 95.88 branches                                            |
+| `nx run graph-io:coverage`                                    | 97.16 percent lines, 95.23 branches                                            |
+| `./tools/merge-coverage.sh`                                   | merged; graph-format 96.0, graph-io 97.2                                       |
+| `tsc --noEmit -p tsconfig.strict-consumer.json` (both)        | pass                                                                           |
+| `pnpm exec knip`                                              | clean, exit 0                                                                  |
+| `pnpm install --frozen-lockfile`                              | pass                                                                           |
+| `nx show projects --with-target=nx-release-publish`           | lists both                                                                     |
+| `./tools/prepush.sh`                                          | pass                                                                           |
 
 knip is CLEAN, which the move checklist did not expect: it predicted exit 1 on two unused exports in
 `graphty/src/components/shell/readings/nodeMetricReading.ts`. Those were fixed in the monorepo before
@@ -1275,12 +1286,12 @@ code, id, node order or report field changes. Equivalence was checked over 3200 
 keywords, zero-based numbering, across eight option sets) with no mismatch on node count, edge count,
 id-map order, the label and originalId columns, any edge endpoint or the issue list.
 
-| Benchmark | Before | After |
-| --- | --- | --- |
-| 100k vertices + 1M arcs | 3340 ms (3.34 us/edge) | 790 ms (0.79 us/edge) |
-| doubling 25k / 50k / 100k arcs | 2563 / 2599 / 2619 ms | 71 / 85 / 123 ms |
-| 100k vertices, no arcs | 2355 ms | 49 ms |
-| 200k vertices, no arcs | 9593 ms | 102 ms |
+| Benchmark                      | Before                 | After                 |
+| ------------------------------ | ---------------------- | --------------------- |
+| 100k vertices + 1M arcs        | 3340 ms (3.34 us/edge) | 790 ms (0.79 us/edge) |
+| doubling 25k / 50k / 100k arcs | 2563 / 2599 / 2619 ms  | 71 / 85 / 123 ms      |
+| 100k vertices, no arcs         | 2355 ms                | 49 ms                 |
+| 200k vertices, no arcs         | 9593 ms                | 102 ms                |
 
 Pajek is now the joint fastest importer per edge instead of the slowest by four times.
 
@@ -1293,7 +1304,7 @@ count and requires under 8x the time; linear is about 4x and the defect was abou
 
 1. GEXF whole-document parsing -- NOT A GAP, the note was stale. GEXF runs one SAX-style pass:
    `importer.ts` feeds `textChunks()` into the shared `tokenizeXml` with a `GexfReader implements
-   XmlHandler`, the same tokenizer GraphML uses, and `fast-xml-parser` is out of graph-io's runtime
+XmlHandler`, the same tokenizer GraphML uses, and `fast-xml-parser` is out of graph-io's runtime
    entirely (devDependency for one independent-reader fidelity probe; its absence from src is pinned
    by `test/build-output.test.ts`). Measured at the landing: GEXF 1.64 us/edge against GraphML's 2.51
    over 200k edges in both the stream and Uint8Array shapes, doubling ratios 1.93 / 2.04 / 2.04 over
@@ -1337,7 +1348,7 @@ count and requires under 8x the time; linear is about 4x and the defect was abou
   stub and skips, as the sibling build-output tests do. The rehearsal missed it because it ran only
   graph-io's tests after the plain build.
 - `remote-logger`'s `GET /remote-logger.js endpoint > response contains the bundled RemoteLogClient
-  code` failed once with ECONNRESET during a loaded pre-push run and passed 33/33 on three isolated
+code` failed once with ECONNRESET during a loaded pre-push run and passed 33/33 on three isolated
   reruns; a graph-io audit test failed once and passed on rerun, which the timing-noise caveat above
   already predicts. Both are flakes, neither is related to the landing.
 
@@ -1350,12 +1361,12 @@ What moved, all in one push (the ordering is not optional -- `nx release` aborts
 declared range no longer admits the version being released, which is what stranded every release at
 0.1.0 -> 0.2.0 until `6b4777df`):
 
-| Change | Where |
-| --- | --- |
-| `0.2.1` -> `1.0.0`, by a `feat(graph-format)!:` commit | `graph-format/package.json` |
-| peer `^0.2.0` -> `^1.0.0` | `graph-io/package.json`, `webgpu-graph-algorithms/package.json` |
+| Change                                                                                   | Where                                                                                |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `0.2.1` -> `1.0.0`, by a `feat(graph-format)!:` commit                                   | `graph-format/package.json`                                                          |
+| peer `^0.2.0` -> `^1.0.0`                                                                | `graph-io/package.json`, `webgpu-graph-algorithms/package.json`                      |
 | dependency `workspace:*` -> `workspace:^` (pnpm publishes `workspace:*` as an EXACT pin) | `graph-io/package.json`, its lockfile importer, `graph-io/test/build-output.test.ts` |
-| rule 3 corrected in place; 13.2's repetition with it; 17.7 appended | `design/graph-format/graph-format-design.md` |
+| rule 3 corrected in place; 13.2's repetition with it; 17.7 appended                      | `design/graph-format/graph-format-design.md`                                         |
 
 `FORMAT_VERSION` stays `1` and the wire stays `[1, 0]`. Nothing about the data model changed: 13.5's
 implication runs invariant change -> npm major, never the other way, so a major cut with no invariant

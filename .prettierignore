@@ -46,3 +46,10 @@ algorithms/benchmark-results/
 **/corpus/malformed/
 # Third-party source vendored unchanged
 visual-review/trusted/vendor/
+
+# The UI design framework is hand-formatted and checked by its own script
+# (design/ui/framework/research/scripts/check-framework.mjs): prettier's rewrite of its tables,
+# lists and escapes breaks that check's cross-document pointers. The object-first rounds are
+# the frozen design record the framework cites.
+design/ui/framework/
+design/ui/object-first-ux/

@@ -2,6 +2,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { readSeedPosition } from "../data/ingest";
 import type { Node } from "../Node";
 import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
@@ -26,11 +27,13 @@ type FixedLayoutConfigType = z.infer<typeof FixedLayoutConfig>;
 type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
 
 /**
- * The fixed layout: every node stays where the element's position array already has it.
+ * The fixed layout: every node goes to its `data.position` (scaled by
+ * `data.knownFields.positionScale`) each time the layout runs.
  *
- * A node's `data.position` reaches that array when the node is loaded (scaled by
- * `data.knownFields.positionScale`), and a drag writes it there too, so this engine computes
- * nothing: it reads the array and places only a node that has no coordinates at all, at the origin.
+ * The position array is shared by every layout engine, so a row can already hold where another
+ * layout put the node -- the default force layout, or the one the reader switched away from. The
+ * data position wins over that row. A node with no `data.position` keeps its row, and one with no
+ * row either goes to the origin.
  */
 export class FixedLayout extends SimpleLayoutEngine {
     static type = "fixed";
@@ -69,7 +72,7 @@ export class FixedLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Keep every placed row, and put an unplaced one at the origin.
+     * Put every node at its data position; keep the row of a node without one, or use the origin.
      */
     doLayout(): void {
         this.stale = false;
@@ -82,6 +85,13 @@ export class FixedLayout extends SimpleLayoutEngine {
                 continue;
             }
 
+            const seed = readSeedPosition(node.data as Record<string, unknown>);
+            if (seed !== null) {
+                const scale = positionScale(node);
+                positions.set([seed[0] * scale, seed[1] * scale, seed[2] * scale], 3 * row);
+                continue;
+            }
+
             // A placed row is written back unchanged, which is what keeps it from being mistaken
             // for an unplaced one by a reader of what this engine computed.
             const placed = this.readNodePosition(node, at);
@@ -90,4 +100,14 @@ export class FixedLayout extends SimpleLayoutEngine {
 
         this.result = { positions, dim: 3, n: graph.nodeCount };
     }
+}
+
+/**
+ * The element's record-to-scene scale for a node's data position; 1 for a node with no element.
+ * @param node - the node
+ * @returns `data.knownFields.positionScale`
+ */
+function positionScale(node: Node): number {
+    const graph = node.parentGraph as Node["parentGraph"] | undefined;
+    return graph?.getStyles().config.data.knownFields.positionScale ?? 1;
 }

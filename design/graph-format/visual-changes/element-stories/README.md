@@ -6,16 +6,22 @@ This page lists every graphty-element story whose picture differs between the st
 migration and the integration branch, says why, and asks the owner for a verdict on each. The
 owner has not reviewed any of it yet.
 
+The layout stories are also recorded, with the same conclusions, in
+[element-layout-stories](../element-layout-stories/) on the branch
+`mig/layout-and-layout-engine-visual-review-r2`. This page covers every element story and
+supersedes that one; when both land, the owner needs to review only this one.
+
 | Story                                                                          | What changed                                         | Recommended verdict |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------- | ------------------- |
 | Layout/2D / Arf (`layout-2d--arf`)                                             | a different drawing of the same graph                | accept              |
 | Layout/3D / Kamada Kawai Weighted (`layout-3d--kamada-kawai-weighted`)         | a different drawing of the same graph                | accept              |
 | Layout/3D / Kamada Kawai (`layout-3d--kamada-kawai`)                           | 357 pixels on node rims, nodes move under 0.01 units | accept              |
 | Layout/3D / Random (`layout-3d--random`)                                       | 8 anti-aliased pixels                                | accept              |
-| Styles/Layered / Label Enabled Layers (`styles-layered--label-enabled-layers`) | some renders scatter the nodes off their data places | reject: a defect    |
+| Styles/Layered / Label Enabled Layers (`styles-layered--label-enabled-layers`) | some renders scattered the nodes; fixed, see below   | none: unchanged now |
 
-Every other story draws the same settled picture on both sides. Parallel edges are drawn exactly
-as before (see "Parallel edges").
+Every other story draws the same settled picture on both sides, except the two fake-accelerator
+GPU stories, which could not be screenshotted on either build and were compared by node position
+only. Parallel edges are drawn exactly as before (see "Parallel edges").
 
 ## What was compared
 
@@ -37,7 +43,7 @@ as before (see "Parallel edges").
   2400x168 strip of the top of the frame with no graph in it. It reported one story changed (Arf,
   whose strip happens to reach the top nodes).
 
-## Why Arf and the Kamada-Kawai 3D stories changed: float32 start positions
+## Why Arf and the Kamada-Kawai 3D stories changed: float32 positions and, for Arf, a new start
 
 The layout engines now call the snapshot layouts (`arf`, `kamadaKawai`, `random`), which keep
 positions in a `Float32Array`; the legacy functions kept float64. Same graph, same options:
@@ -65,19 +71,30 @@ weights (`value`, 1 to 31) and options.
 
 ![Kamada-Kawai 3D weighted, before (left) and after (right)](kamada-kawai-3d-weighted.png)
 
-## A fixed-layout story sometimes ignores its data positions
+## The fixed layout ignored data positions once another layout had run (fixed)
 
 Styles/Layered / Label Enabled Layers places five nodes at fixed data positions (a diamond). On
-the after build 1 of 5 renders drew them scattered, up to 7.3 units from their data positions; on
-the before build 0 of 5 did. The settled picture of the other four after renders is identical to
-before.
+the integration branch 1 of 5 renders drew them scattered, up to 7.3 units from their data
+positions; before the migration 0 of 5 did.
 
-![Label Enabled Layers on the after build: intended (left), scattered (right)](label-enabled-layers.png)
+![Label Enabled Layers on the integration branch: intended (left), scattered (right)](label-enabled-layers.png)
 
-The fixed layout now keeps what the element's position array holds rather than placing every
-node at its `data.position`, and the element's default layout, ngraph, may already have written
-there when the story's `layout: "fixed"` takes effect. That fits the scattered picture, but the
-mechanism is not proven. This needs an element fix, not an accept.
+The cause was deterministic, and wider than this story. The migration changed the fixed layout
+to keep whatever the element's shared position array already held for a node, instead of moving
+every node to its `data.position` each time it ran as it did before. The array is seeded from
+`data.position` only for a row no layout has placed yet. So any node another layout had already
+placed stayed where that layout put it:
+
+- The story: the element's default layout (ngraph) sometimes wrote its first positions before the
+  story's `layout: "fixed"` took effect.
+- Any graph switched from another layout to `fixed` at runtime stayed in the old layout's shape.
+- A node whose `data.position` changed after it was loaded did not move under the fixed layout.
+
+graphty-element's fixed layout now places every node that has a `data.position` there (scaled
+by `data.knownFields.positionScale`) each time it runs, and keeps the array's row only for a node
+without one. `graphty-element/test/layout/fixed-layout.test.ts` pins both cases. With the fix,
+10 of 10 renders of the story put every node exactly on its data position (largest distance 0,
+`probes/fixed-probe.mjs`), so the story no longer differs from before the migration.
 
 ## Stories that differ only while they are still moving
 
@@ -99,12 +116,16 @@ The data-layer change moved both from the deleted `EdgeMap` onto the store
 (`DataManager.getEdgesBetween`).
 
 - No story holds two edges between the same ordered pair of nodes, on either build (every edge
-  of all 178 stories was checked for `parallelCount > 1`).
+  of all 178 stories was checked for `parallelCount > 1`, with `probes/parallel-probe.mjs`).
 - So three edge stories were given parallel edges on both builds: two more copies of their first
   edge, added through `graph.addEdges`. Styles/Edge / Default (straight), Styles/Edge / Bezier
   (curved) and Styles/Edge / Bidirectional each hold one group of three. Every edge of each group
   has the same rank (0, 1, 2), count (3) and mesh bounding box on both builds, and within a group
-  the three meshes coincide, as before.
+  the three meshes coincide, as before (`probes/parallel-probe.mjs --add`).
+- Rank and count are guarded by `graphty-element/test/unit/edge-identity.test.ts` and
+  `graphty-element/test/browser/parallel-edges.test.ts`. The coinciding meshes are not pinned by a
+  test: there is no offset to keep unchanged, and pinning edges drawn on top of each other would
+  lock in what the element is expected to change.
 
 ![Styles/Edge Bezier with three parallel edges from A to B, before (left) and after (right)](parallel-edges-bezier.png)
 
@@ -118,4 +139,16 @@ root:
 node tools/diff-stories.mjs <before>/graphty-element/storybook-static \
     <after>/graphty-element/storybook-static <story-id> [...] --out <dir> [--settle 15000]
 node tools/pixel-diff.mjs <dir>/<story>.baseline.png <dir>/<story>.head.png
+```
+
+The two probes in `probes/` run against built Storybooks the same way:
+
+```bash
+# parallel edges in every story, and with two copies of the first edge added to three stories
+node design/graph-format/visual-changes/element-stories/probes/parallel-probe.mjs \
+    <before>/graphty-element/storybook-static <after>/graphty-element/storybook-static \
+    [--add styles-edge--default,styles-edge--bezier,styles-edge--bidirectional]
+# the largest distance of any node from its data.position, over repeated loads of one story
+node design/graph-format/visual-changes/element-stories/probes/fixed-probe.mjs \
+    <after>/graphty-element/storybook-static styles-layered--label-enabled-layers 10
 ```

@@ -33,7 +33,7 @@ export function isStorableId(id: unknown): id is string | number {
  * @param record - the raw node record
  * @returns the file-unit triple, or null when there is nothing usable to seed
  */
-function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
+export function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
     const { position } = record;
     if (position === null || typeof position !== "object") {
         return null;

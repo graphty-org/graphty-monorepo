@@ -169,6 +169,13 @@ jobs:
             - name: Element data sources on graph-io
               run: pnpm run check:data-source-migration
 
+            # Reads source only. A new use of the legacy graph API (a legacy algorithms or layout
+            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails;
+            # the uses the graph-format migration has not removed yet are in
+            # tools/legacy-use-baseline.json. The same check runs in tools/prepush.sh.
+            - name: Legacy graph API use
+              run: pnpm run check:legacy-use
+
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook
 

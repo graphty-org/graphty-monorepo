@@ -257,6 +257,7 @@ The `tools/` directory contains build scripts:
 | `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
+| `check-legacy-use.mjs` | Fails on a new use of the legacy graph API the graph-format migration replaces (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). Uses not yet migrated are in `legacy-use-baseline.json`; `--update-baseline` rewrites it, `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 

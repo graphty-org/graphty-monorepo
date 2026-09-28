@@ -6,7 +6,7 @@ import {
     calculateMCLModularity,
     markovClustering as legacyMarkov,
     type MCLOptions,
-} from "../../../src/clustering/mcl.js";
+} from "../../../src/clustering/mcl-legacy.js";
 import { Graph } from "../../../src/core/graph.js";
 import { exactArcWeights, labelsToGroups } from "../../../src/indexed/facade.js";
 import { markovClustering } from "../../../src/indexed/markov.js";

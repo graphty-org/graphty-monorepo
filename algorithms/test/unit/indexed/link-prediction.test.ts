@@ -15,11 +15,15 @@ import {
     getTopCandidatesForNode,
     type LinkPredictionResult,
 } from "../../../src/indexed/link-prediction.js";
+import * as adamicAdarLegacy from "../../../src/link-prediction/adamic-adar.js";
+import * as commonNeighborsLegacy from "../../../src/link-prediction/common-neighbors-legacy.js";
 import type { LinkPredictionScore } from "../../../src/link-prediction/index.js";
-import * as legacy from "../../../src/link-prediction/index.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
+
+/** The pre-migration functions: the published common-neighbour ones now delegate to these ports. */
+const legacy = { ...adamicAdarLegacy, ...commonNeighborsLegacy };
 
 interface Case {
     readonly name: string;

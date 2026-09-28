@@ -24,6 +24,27 @@ interface CacheEntry {
     readonly mutationCount: number;
     readonly checksum: boolean;
     readonly snapshot: GraphSnapshot;
+    /** Every edge's weight in `graph.edges()` order, as frozen. */
+    readonly weights: readonly (number | undefined)[];
+}
+
+/**
+ * Whether every edge still carries the weight it was frozen with. `mutationCount` counts topology
+ * changes only, and `graph.getEdge(u, v)` hands out the live edge, so a weight can change in place
+ * without moving the counter.
+ * @param graph - The legacy graph
+ * @param weights - The weights recorded at freeze
+ * @returns True when no weight changed
+ */
+function sameWeights(graph: Graph, weights: readonly (number | undefined)[]): boolean {
+    let i = 0;
+    for (const edge of graph.edges()) {
+        // Object.is, so a NaN weight (kept in the topology cache) matches itself.
+        if (!Object.is(edge.weight, weights[i++])) {
+            return false;
+        }
+    }
+    return i === weights.length;
 }
 
 /**
@@ -34,7 +55,8 @@ interface CacheEntry {
 const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
 
 /**
- * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount`.
+ * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount` and its
+ * edge weights (a weight set in place does not move the counter, so a hit re-reads the weights).
  *
  * The builder is created with `weightDtype: "f64"` so a legacy graph's double weights survive
  * exactly: at freeze, graph-format keeps the original values in an f64 edge column with role
@@ -74,7 +96,12 @@ function cachedFreeze(
     // A checksummed snapshot answers a plain request; a plain one cannot answer a checksummed
     // request -- validate({ checksum: true }) throws E_INVALID_SNAPSHOT ("no-checksum") when none
     // were recorded (graph-format/src/types/snapshot.ts:401-405).
-    if (cached !== undefined && cached.mutationCount === graph.mutationCount && (cached.checksum || !checksum)) {
+    if (
+        cached !== undefined &&
+        cached.mutationCount === graph.mutationCount &&
+        (cached.checksum || !checksum) &&
+        sameWeights(graph, cached.weights)
+    ) {
         return cached.snapshot;
     }
     const builder = new GraphBuilder({
@@ -86,11 +113,13 @@ function cachedFreeze(
     for (const node of graph.nodes()) {
         builder.addNode(node.id);
     }
+    const weights: (number | undefined)[] = [];
     for (const edge of graph.edges()) {
         builder.addEdge(edge.source, edge.target, weighted ? edge.weight : undefined);
+        weights.push(edge.weight);
     }
     const snapshot = builder.freeze({ label: "algorithms.toSnapshot", checksum });
-    cache.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot });
+    cache.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot, weights });
     return snapshot;
 }
 
@@ -117,7 +146,8 @@ export function toSnapshotOrNull(graph: Graph, options: ToSnapshotOptions = {}):
 }
 
 /**
- * A snapshot for a port that reads no weights (a traversal, the components): {@link toSnapshot}, or,
+ * A snapshot for a port that reads no weights (a traversal, the components, a clustering or link
+ * prediction that counts neighbours): {@link toSnapshot}, or,
  * when a NaN weight stops that, the same nodes and edges frozen without weights, so a graph with a
  * NaN weight traverses as it always did.
  * @param graph - The legacy graph

@@ -53,16 +53,26 @@ their port and keep only their signature and result shape: `floydWarshall`, `flo
 `transitiveClosure`, `labelPropagation`, the BFS functions, `depthFirstSearch`, `hasCycleDFS`,
 `topologicalSort`, the connected, weakly and strongly connected component functions (and
 `condensationGraph` through them), `singleSourceShortestPath` (and `allPairsShortestPath` through it),
-`hasNegativeCycle` and `kruskalMST`. Traversal facades pass `legacyArcOrder` so neighbours are tried
-in the graph's insertion order. A graph with a NaN weight has no weighted snapshot:
-`toTopologySnapshot` freezes it without weights for the traversals, and the weighted facades keep
-their legacy code for it (and `singleSourceShortestPath` for negative weights). Functions whose port
-breaks ties differently (`dijkstra`, `dijkstraPath`, `bellmanFord`, `bellmanFordPath`, `astar`,
-`astarWithDetails`, `primMST`) or returns less order (`bipartitePartition`,
-`findStronglyConnectedComponents`, `connectedComponentsDFS`) stay on legacy code. The code the
-traversal, path, component and tree facades replaced is kept verbatim in
-`test/helpers/legacy-traversal-paths-trees.ts` as their test oracle. The conversions they use live
-in `src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade\*.test.ts`.
+`hasNegativeCycle`, `kruskalMST`, the five common-neighbour link prediction functions,
+`hierarchicalClustering`, `markovClustering`, `syncClustering` and `grsbm`. Traversal facades pass
+`legacyArcOrder` so neighbours are tried in the graph's insertion order. A graph with a NaN weight has
+no weighted snapshot: `toTopologySnapshot` freezes it without weights for the ports that read none,
+and the weighted facades keep their legacy code for it (and `singleSourceShortestPath` for negative
+weights). Functions whose port breaks ties differently (`dijkstra`, `dijkstraPath`, `bellmanFord`,
+`bellmanFordPath`, `astar`, `astarWithDetails`, `primMST`), returns less order (`bipartitePartition`,
+`findStronglyConnectedComponents`, `connectedComponentsDFS`) or gives different answers (the
+Adamic-Adar functions, `calculateMCLModularity`, `spectralClustering`, `teraHAC`) stay on legacy
+code. The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
+`test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
+replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts` as their test oracle.
+Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade
+test, or for inputs the port refuses -- it sits beside it in a `*-legacy.ts` file, unchanged, until
+the removal release deletes it. A `*-legacy.ts` file can also be the only implementation of
+published functions that do not delegate: `hierarchical-legacy.ts` holds `cutDendrogram`,
+`cutDendrogramKClusters` and `modularityHierarchicalClustering` (and the `hierarchicalClustering`
+facade calls `cutDendrogram`), and `mcl-legacy.ts` holds `calculateMCLModularity`. Those functions
+are re-exported from the public file and are not dead code; the removal release must move them, not
+delete them.
 
 ## Essential Commands
 

@@ -18,6 +18,13 @@ export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
+export {
+    grsbm,
+    type GrsbmCluster,
+    type GrsbmOptions,
+    type GrsbmResult,
+    type GrsbmSplit,
+} from "./grsbm.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
@@ -26,3 +33,5 @@ export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";
+export { syncClustering, type SyncClusteringOptions, type SyncClusteringResult } from "./sync.js";
+export { teraHAC, type TeraHacOptions, type TeraHacResult } from "./terahac.js";

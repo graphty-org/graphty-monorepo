@@ -6,8 +6,14 @@ import { describe, expect, it } from "vitest";
 import type {
     IndexedApspOptions,
     IndexedApspResult,
+    IndexedGrsbmOptions,
+    IndexedGrsbmResult,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    IndexedSyncClusteringOptions,
+    IndexedSyncClusteringResult,
+    IndexedTeraHacOptions,
+    IndexedTeraHacResult,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -55,5 +61,25 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed research clustering exports", () => {
+    it("reaches indexed.teraHAC, indexed.syncClustering and indexed.grsbm and their flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        const hac: IndexedTeraHacOptions = { linkage: "single" };
+        const hacResult: IndexedTeraHacResult = pkg.indexed.teraHAC(s, hac);
+        expect(hacResult.merges).toBe(2);
+        const sync: IndexedSyncClusteringOptions = { numClusters: 1 };
+        const syncResult: IndexedSyncClusteringResult = pkg.indexed.syncClustering(s, sync);
+        expect(syncResult.labels.length).toBe(3);
+        const bisect: IndexedGrsbmOptions = { weighted: false };
+        const bisectResult: IndexedGrsbmResult = pkg.indexed.grsbm(s, bisect);
+        expect(bisectResult.count).toBe(1);
     });
 });

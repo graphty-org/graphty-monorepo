@@ -91,9 +91,25 @@ export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
 // option types one capital letter apart in the same barrel is a trap, not a convenience.
+// Aliased: the flat GRSBMConfig / GRSBMResult / GRSBMCluster, SynCConfig / SynCResult and
+// TeraHACConfig / TeraHACResult name the legacy research functions' types, one capital letter away.
+export type {
+    GrsbmCluster as IndexedGrsbmCluster,
+    GrsbmOptions as IndexedGrsbmOptions,
+    GrsbmResult as IndexedGrsbmResult,
+    GrsbmSplit as IndexedGrsbmSplit,
+} from "./indexed/grsbm.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
+export type {
+    SyncClusteringOptions as IndexedSyncClusteringOptions,
+    SyncClusteringResult as IndexedSyncClusteringResult,
+} from "./indexed/sync.js";
+export type {
+    TeraHacOptions as IndexedTeraHacOptions,
+    TeraHacResult as IndexedTeraHacResult,
+} from "./indexed/terahac.js";
 // Aliased: the flat LabelPropagationOptions / LabelPropagationResult name the legacy function's types.
 export type {
     LabelPropagationOptions as IndexedLabelPropagationOptions,

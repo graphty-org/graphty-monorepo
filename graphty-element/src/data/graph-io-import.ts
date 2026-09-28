@@ -8,6 +8,7 @@ import {
 } from "@graphty/graph-io";
 
 import type { AdHocData } from "../config/common.js";
+import { GraphtyError } from "../errors/GraphtyError.js";
 import type { ErrorAggregator } from "./ErrorAggregator.js";
 
 /**
@@ -45,7 +46,8 @@ export interface ImportedGraph {
  * A document that is recognisably this format but breaks off (a tag left open, a stray end tag)
  * keeps what was read before the break: the importer's fatal error becomes one more error in the
  * report rather than a thrown one. A document the importer does not recognise at all, or one whose
- * report holds one of the `fatal` codes, still throws.
+ * report holds one of the `fatal` codes, still throws: a `GraphtyError` with `E_PARSE_FAILED`
+ * naming the format and the line, whose `cause` is the importer's `ImportError`.
  * @param importer - the graph-io importer for the format
  * @param text - the whole document
  * @param options - importer options; `ids` defaults to "string", so ids stay the text the file wrote
@@ -64,12 +66,18 @@ export async function importDocument<Opts>(
         report = await importer.import(text, builder, { ids: "string", ...options });
     } catch (error) {
         const recognised = importer.sniff?.(new TextEncoder().encode(text.slice(0, 4096))) ?? 0;
-        if (
-            !(error instanceof ImportError) ||
-            recognised === 0 ||
-            error.report.issues.some((issue) => fatal.includes(issue.code))
-        ) {
+        if (!(error instanceof ImportError)) {
             throw error;
+        }
+
+        if (recognised === 0 || error.report.issues.some((issue) => fatal.includes(issue.code))) {
+            const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;
+            throw GraphtyError.wrap(error, {
+                code: "E_PARSE_FAILED",
+                source: "data",
+                message: `Failed to read the ${importer.format} file${line === null ? "" : ` at line ${line}`}: ${error.message}`,
+                details: { format: importer.format, line, errors: error.report.errorCount },
+            });
         }
 
         ({ report } = error);

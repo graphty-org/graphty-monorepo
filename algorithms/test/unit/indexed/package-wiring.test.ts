@@ -6,8 +6,14 @@ import { describe, expect, it } from "vitest";
 import type {
     IndexedApspOptions,
     IndexedApspResult,
+    IndexedBipartiteFlowNetwork,
+    IndexedKargerOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    IndexedMaxFlowOptions,
+    IndexedMaxFlowResult,
+    IndexedMinCutResult,
+    IndexedStoerWagnerOptions,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -55,5 +61,21 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed flow and cut exports", () => {
+    it("reaches the flow and cut family and its flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const network: IndexedBipartiteFlowNetwork = pkg.indexed.bipartiteFlowNetwork(["a"], ["x"], [["a", "x"]]);
+        const options: IndexedMaxFlowOptions = { algorithm: "ford-fulkerson" };
+        const flow: IndexedMaxFlowResult = pkg.indexed.maxFlow(network.snapshot, network.source, network.sink, options);
+        expect(flow.maxFlow).toBe(1);
+        const cut: IndexedMinCutResult = pkg.indexed.minSTCut(network.snapshot, network.source, network.sink);
+        expect(cut.cutValue).toBe(1);
+        const sw: IndexedStoerWagnerOptions = {};
+        expect(pkg.indexed.stoerWagner(network.snapshot, sw).cutValue).toBe(1);
+        const karger: IndexedKargerOptions = { iterations: 3, randomSeed: 1 };
+        expect(pkg.indexed.kargerMinCut(network.snapshot, karger).cutValue).toBe(1);
     });
 });

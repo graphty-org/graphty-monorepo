@@ -251,6 +251,10 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/graph-format"]);
     });
 
+    it("takes graph-io as a dependency, since the element's readers parse through it", () => {
+        assert.strictEqual(manifest.dependencies["@graphty/graph-io"], "workspace:^");
+    });
+
     it("takes the GPU package as an optional peer, so a consumer who never wants it never resolves it", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);

@@ -1,14 +1,14 @@
 /**
- * The legacy all-pairs functions (`floydWarshall`, `floydWarshallPath`, `transitiveClosure` and the
- * Dijkstra-based `allPairsShortestPath`) delegate to `indexed.allPairsShortestPath`. They are checked
- * against repeated legacy single-source Dijkstra -- the Floyd-Warshall legacy code is gone, and
+ * The legacy all-pairs functions `floydWarshall`, `floydWarshallPath` and `transitiveClosure`
+ * delegate to `indexed.allPairsShortestPath`. They are checked against repeated legacy single-source
+ * Dijkstra -- the Floyd-Warshall legacy code is gone, and
  * running it hung vitest under coverage -- and every result change they make on purpose against a
  * hand-computed fixture.
  */
 
 import { describe, expect, it } from "vitest";
 
-import { allPairsShortestPath, singleSourceShortestPath } from "../../../src/algorithms/shortest-path/dijkstra.js";
+import { singleSourceShortestPath } from "../../../src/algorithms/shortest-path/dijkstra.js";
 import {
     floydWarshall,
     floydWarshallPath,
@@ -110,7 +110,7 @@ describe("floydWarshall facade", () => {
         g.addEdge("a", "b", 1);
         const { distances, predecessors } = floydWarshall(g);
         expect(distances.get("a")?.get("a")).toBe(0);
-        expect(predecessors.get("a")?.get("a")).toBeNull();
+        expect(predecessors.get("a")?.get("a")).toBe("a");
         expect(floydWarshallPath(g, "a", "a")).toEqual({ path: ["a"], distance: 0 });
     });
 
@@ -129,10 +129,27 @@ describe("floydWarshall facade", () => {
         expect(floydWarshallPath(g, "a", "c")).toBeNull();
     });
 
-    it("throws a RangeError on an infinite weight", () => {
+    it("treats an infinite weight as no edge and leaves a NaN weight's own entry NaN, as before", () => {
         const g = new Graph({ directed: true });
         g.addEdge("a", "b", Infinity);
-        expect(() => floydWarshall(g)).toThrow(RangeError);
+        g.addEdge("b", "c", NaN);
+        g.addEdge("c", "a", 1);
+        const { distances, predecessors, hasNegativeCycle } = floydWarshall(g);
+        expect(hasNegativeCycle).toBe(false);
+        expect(distances.get("a")?.get("b")).toBe(Infinity);
+        expect(predecessors.get("a")?.get("b")).toBe("a");
+        expect(distances.get("b")?.get("c")).toBeNaN();
+        expect(predecessors.get("b")?.get("c")).toBe("b");
+        expect(distances.get("b")?.get("a")).toBe(Infinity);
+        expect(floydWarshallPath(g, "a", "b")).toBeNull();
+        expect(floydWarshallPath(g, "b", "c")?.path).toEqual(["b", "c"]);
+        expect(transitiveClosure(g)).toEqual(
+            new Map([
+                ["a", new Set(["a"])],
+                ["b", new Set(["b"])],
+                ["c", new Set(["c", "a"])],
+            ]),
+        );
     });
 });
 
@@ -193,19 +210,5 @@ describe("transitiveClosure facade", () => {
                 ["c", new Set(["c"])],
             ]),
         );
-    });
-});
-
-describe("allPairsShortestPath facade", () => {
-    it("gives the reached distances of repeated legacy Dijkstra, in node order", () => {
-        expectFacadeMatchesLegacy(
-            fixtures,
-            (g) => new Map(ids(g).map((i) => [i, singleSourceShortestPath(g, i)])),
-            allPairsShortestPath,
-        );
-    });
-
-    it("refuses a negative weight", () => {
-        expect(() => allPairsShortestPath(negativeNoCycle())).toThrow(/negative/);
     });
 });

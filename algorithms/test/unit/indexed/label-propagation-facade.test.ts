@@ -35,7 +35,7 @@ const fixtures: FacadeFixture[] = [
 describe("labelPropagation facade", () => {
     it("returns the port's partition keyed by String(id), with its iterations and convergence", () => {
         for (const randomSeed of [undefined, 1, 42, 2024]) {
-            for (const maxIterations of [undefined, 0, 2]) {
+            for (const maxIterations of [undefined, 1, 2]) {
                 const options = { randomSeed, maxIterations };
                 expectFacadeMatchesLegacy(
                     fixtures,
@@ -78,6 +78,22 @@ describe("labelPropagation facade", () => {
             ["z", 1],
             ["lone", 2],
         ]);
+    });
+
+    it("accepts any maxIterations and randomSeed, as the old loop did", () => {
+        const g = new Graph({ directed: false });
+        g.addNode("a");
+        g.addNode("b");
+        for (const maxIterations of [0, -1, NaN]) {
+            expect(labelPropagation(g, { maxIterations }), String(maxIterations)).toMatchObject({
+                iterations: 0,
+                converged: false,
+            });
+        }
+        expect(labelPropagation(g, { maxIterations: 1.5 })).toMatchObject({ iterations: 1, converged: true });
+        expect(labelPropagation(g, { maxIterations: Infinity })).toMatchObject({ iterations: 1, converged: true });
+        expect(labelPropagation(g, { randomSeed: 1.5 }).communities).toEqual(labelPropagation(g).communities);
+        expect(labelPropagation(new Graph(), { maxIterations: 0 })).toMatchObject({ iterations: 0, converged: true });
     });
 
     it("throws a RangeError on a negative weight", () => {

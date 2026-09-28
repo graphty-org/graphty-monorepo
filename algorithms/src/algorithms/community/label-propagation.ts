@@ -258,8 +258,18 @@ function labelPropagationSemiSupervisedImpl(
  */
 export function labelPropagation(graph: Graph, options: LabelPropagationOptions = {}): LabelPropagationResult {
     const s = toSnapshot(graph);
-    const { labels, iterations, converged } = indexedLabelPropagation(s, options);
-    return { communities: s.ids.toStringMap(labels), iterations, converged };
+    const n = s.nodeCount;
+    // This function always took any number: its loop ran while iterations < maxIterations, and any
+    // seed started a stream. The port wants integers, so round here the way that loop counted.
+    const max = options.maxIterations ?? 100;
+    const cap = max > 0 ? Math.min(Math.ceil(max), Math.floor(Number.MAX_SAFE_INTEGER / Math.max(n, 1))) : 0;
+    const seed = options.randomSeed ?? 42;
+    const { labels, iterations, converged } = indexedLabelPropagation(s, {
+        maxIterations: cap,
+        randomSeed: Number.isFinite(seed) ? Math.floor(seed) : 0,
+    });
+    // With no pass run on a non-empty graph, nothing was checked, so nothing converged.
+    return { communities: s.ids.toStringMap(labels), iterations, converged: converged && (cap > 0 || n === 0) };
 }
 
 /**

@@ -1,8 +1,5 @@
 import type { Graph } from "../../core/graph.js";
 import { PriorityQueue } from "../../data-structures/priority-queue.js";
-import { allPairsShortestPath as indexedAllPairs } from "../../indexed/all-pairs.js";
-import { exactArcWeights } from "../../indexed/facade.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { DijkstraOptions, NodeId, ShortestPathResult } from "../../types/index.js";
 import { reconstructPath } from "../../utils/graph-utilities.js";
 import { BidirectionalDijkstra } from "./bidirectional-dijkstra.js";
@@ -250,29 +247,18 @@ export function singleSourceShortestPath(graph: Graph, source: NodeId, cutoff?: 
 }
 
 /**
- * All-pairs shortest paths using repeated Dijkstra (one breadth-first search per node when every
- * weight is 1).
+ * All-pairs shortest paths using repeated Dijkstra
  * Note: For dense graphs, consider Floyd-Warshall algorithm instead
  * @param graph - The graph to compute all-pairs shortest paths for
- * @returns A nested map of source to target to distance, reached targets only, in node order
- * @throws Error when an edge weight is negative; RangeError when one is NaN or infinite
+ * @returns A nested map of source to target to distance
  */
 export function allPairsShortestPath(graph: Graph): Map<NodeId, Map<NodeId, number>> {
-    const s = toSnapshot(graph);
-    const weights = exactArcWeights(s);
-    if ((weights ?? s.weights)?.some((w) => w < 0)) {
-        throw new Error("allPairsShortestPath does not support negative edge weights; use floydWarshall");
-    }
-    const { dist, n } = indexedAllPairs(s, { weights, method: "per-source", maxNodes: Infinity });
     const results = new Map<NodeId, Map<NodeId, number>>();
-    for (let i = 0; i < n; i++) {
-        const row = new Map<NodeId, number>();
-        for (let j = 0; j < n; j++) {
-            if (dist[i * n + j] < Infinity) {
-                row.set(s.ids.idOf(j), dist[i * n + j]);
-            }
-        }
-        results.set(s.ids.idOf(i), row);
+
+    for (const node of Array.from(graph.nodes())) {
+        const distances = singleSourceShortestPath(graph, node.id);
+        results.set(node.id, distances);
     }
+
     return results;
 }

@@ -42,8 +42,9 @@ algorithms/
 common neighbours, k-core, Louvain, label propagation and all-pairs shortest paths. Each lands
 beside its legacy function; tests live in `test/unit/indexed/` and before/after timings in
 `benchmarks/port-bench.ts`. Some legacy functions now delegate to their port and keep only their
-signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure`, the
-Dijkstra-based `allPairsShortestPath` and `labelPropagation`. The conversions they use live in
+signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and
+`labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it accepts negative weights,
+which the port refuses. The conversions they use live in
 `src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade*.test.ts`.
 
 ## Essential Commands

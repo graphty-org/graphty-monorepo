@@ -869,7 +869,8 @@ class GmlImport {
             if (idTok < 0) {
                 throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
             }
-            const fileId = this.fileIdOf(idTok, "id");
+            // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap
+            const fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
             if (originalTok >= 0) {
                 sinkId = this.restoredId(originalTok);
             } else {
@@ -886,7 +887,7 @@ class GmlImport {
                         sinkId = ordinal;
                         break;
                     default:
-                        sinkId = this.coerceFileId(idTok, fileId);
+                        sinkId = fileId;
                 }
             }
             if (this.idMap !== null) {
@@ -1040,11 +1041,15 @@ class GmlImport {
             return t.stringOf(v);
         }
         if (t.kind[v] !== TOKEN_INT) {
-            throw new GraphFormatError("E_INVALID_ID", `${key} must be an integer or a string, found ${describeValue(t, v)}`, {
-                reason: "not an integer",
-                key,
-                value: t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v),
-            });
+            throw new GraphFormatError(
+                "E_INVALID_ID",
+                `${key} must be an integer or a string, found ${describeValue(t, v)}`,
+                {
+                    reason: "not an integer",
+                    key,
+                    value: t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v),
+                },
+            );
         }
         return Number(t.textOf(v));
     }
@@ -1122,14 +1127,8 @@ class GmlImport {
      * @returns the id
      */
     private endpoint(v: number, key: string): NodeId {
-        const id = this.fileIdOf(v, key);
-        if (this.idMap !== null) {
-            const mapped = this.idMap.get(id);
-            if (mapped !== undefined) {
-                return mapped;
-            }
-        }
-        return this.coerceFileId(v, id);
+        const id = this.coerceFileId(v, this.fileIdOf(v, key));
+        return this.idMap?.get(id) ?? id;
     }
 
     /**

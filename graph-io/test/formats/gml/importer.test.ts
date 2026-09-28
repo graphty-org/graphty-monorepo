@@ -394,7 +394,7 @@ describe("gmlImporter: structure and flags", () => {
 
     it("reports duplicate node ids, duplicate structural keys and non-integer endpoints", async () => {
         const { report, snapshot } = await importGml(
-            'graph [ node [ id 1 ] node [ id 1 ] node [ id 2 id 3 ] edge [ source 1 source 2 target 1 ] edge [ source 1.5 target 1 ] edge [ source 1 target [ x 1 ] ] ]',
+            "graph [ node [ id 1 ] node [ id 1 ] node [ id 2 id 3 ] edge [ source 1 source 2 target 1 ] edge [ source 1.5 target 1 ] edge [ source 1 target [ x 1 ] ] ]",
         );
         expect(codes(report)).toEqual([
             DUPLICATE_NODE_CODE,
@@ -441,10 +441,29 @@ describe("gmlImporter: structure and flags", () => {
         expect(ids(snapshot)).toEqual(["Alpha", "Beta"]);
         expect(edges(snapshot)).toEqual(["Alpha-Beta"]);
     });
+
+    it.each([
+        ["id", [1, 2], ["1-2"]],
+        ["label", ["a", "b"], ["a-b"]],
+        ["index", [0, 1], ["0-1"]],
+    ] as const)(
+        "resolves an endpoint spelled as a string of an integer node id under nodeIdFrom %s",
+        async (from, want, wantEdges) => {
+            const { snapshot } = await importGml(
+                'graph [ node [ id 1 label "a" ] node [ id 2 label "b" ] edge [ source "1" target 2 ] ]',
+                {
+                    nodeIdFrom: from,
+                },
+            );
+            expect(ids(snapshot)).toEqual(want);
+            expect(edges(snapshot)).toEqual(wantEdges);
+        },
+    );
 });
 
 describe("gmlImporter: edge-level direction and entities", () => {
-    const MIXED = 'graph [ directed 0 node [ id 1 label "caf&eacute;" ] node [ id 2 ] edge [ source 1 target 2 directed 1 ] ]';
+    const MIXED =
+        'graph [ directed 0 node [ id 1 label "caf&eacute;" ] node [ id 2 ] edge [ source 1 target 2 directed 1 ] ]';
 
     it("honours an edge-level directed key instead of storing it as a column", async () => {
         const { snapshot, report } = await importGml(MIXED);

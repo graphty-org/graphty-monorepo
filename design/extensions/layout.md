@@ -19,6 +19,46 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 (kept); design-studio needs for hierarchical tiers, radial, per-cluster and geographic layouts
 (`design/designloom/workflows/W11.yaml`, `W17.yaml`, `W21.yaml`, `W24.yaml`).
 
+## Simple tier
+
+A first layout is written with `defineLayout` (`simple-tier.md` section 4.2): an id, the options
+in short form, and `place(graph, context)`, which returns a map from node id to `[x, y]` or
+`[x, y, z]` in scene units. A node the map leaves out is unplaced.
+
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-tiers",
+    dimensions: 2,
+    options: { tier: { type: "attribute", attributeType: "integer", default: "tier" }, spacing: 1 },
+    place(graph, { options }) {
+        const used = new Map<number, number>();
+        return new Map(
+            graph.nodes().map((node) => {
+                const tier = node.number(options.tier) ?? -1; // no tier: a row of its own below tier 0
+                const column = used.get(tier) ?? 0;
+                used.set(tier, column + 1);
+                return [node.id, [column * options.spacing, tier * options.spacing]] as const;
+            }),
+        );
+    },
+});
+```
+
+The element compiles the definition to the snapshot layout registration of section 2
+(`SnapshotLayoutRegistration`): the descriptor with every catalogue member defaulted, the graph
+view built from the snapshot, the coordinate array filled from the map (NaN for an unplaced
+node), pinned and held nodes copied over whatever `place` returned, the view dimension as
+`context.dimensions`, no hidden scaling, a seeded `context.random()`, and abort, progress and
+error coding. Placing nodes at coordinates their data carries needs no plugin once the built-in
+`fixed` layout takes attribute options (`simple-tier.md` section 4.2).
+
+Move to the advanced tier for a live layout, direct typed-array output on very large graphs,
+worker or GPU work, weights read in bulk, or chunking inside `place`.
+
+**Sections 2 onwards specify the advanced tier.**
+
 ## 2. Data model
 
 | Type                                                                                                                                                                                           | Kind                      |
@@ -333,7 +373,7 @@ configuration.
 | disposes cleanly                | after `dispose`, no timer, animation frame or worker created by the engine is alive                                                                                             |
 | failures are coded              | a throw from the constructor or `init` reaches `setLayout`'s rejection as a `GraphtyError`                                                                                      |
 
-## 10. Worked example
+## 10. Worked example (advanced tier)
 
 A batch "tiers" layout that places nodes in horizontal rows by a numeric attribute the reader
 names, tier 0 (the customers) at the bottom and each higher tier above it -- the hierarchical

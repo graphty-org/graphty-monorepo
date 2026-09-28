@@ -20,6 +20,7 @@
         "camera.d.ts",
         "layout.d.ts",
         "algorithm.d.ts",
-        "logging.d.ts"
+        "logging.d.ts",
+        "simple.d.ts"
     ]
 }

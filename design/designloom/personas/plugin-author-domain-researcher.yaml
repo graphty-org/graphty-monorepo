@@ -1,0 +1,67 @@
+id: plugin-author-domain-researcher
+name: Researcher Writing a One-Off Plugin
+role: Bioinformatics Researcher Writing a Custom Score or a Lab File Reader
+quote: I copied the example, changed three lines, and got an error I couldn't parse. I went back to Cytoscape.
+bio: >-
+  Dr. Tomasz Kowalczyk is a staff scientist in a systems biology lab. His lab's interaction screens produce a
+  tab-separated file with its own column conventions (bait, prey, a confidence score and a replicate count), and the
+  lab has its own "essentiality score" that combines degree with experimental knock-out data. He writes R and a little
+  Python for analysis, and JavaScript only by copying and editing examples he finds in documentation. He will spend
+  one afternoon trying to make graphty-element read the lab's file and show the lab's score. If the first example runs
+  and the first error message tells him what to change, he will finish. If the first error is a stack trace from
+  inside the element or a TypeScript type he has never seen, he stops and goes back to the tool he already knows.
+characteristics:
+  expertise: novice
+  time_pressure: medium
+  graph_literacy: moderate
+  domain_knowledge: advanced
+motivations:
+  - Open the lab's own file format directly instead of converting it in a spreadsheet every time
+  - Show the lab's custom score on the network the same way built-in scores are shown
+  - Get a figure for a lab meeting or a paper without learning a new programming ecosystem
+  - Share the reader with two lab mates so they stop converting files by hand
+behaviors:
+  - Searches the docs for an example that is closest to his file (CSV or TSV) and copies it whole
+  - Edits the example in place and reloads the page, without a build step, a test or a type checker
+  - Reads only the first line of an error message and searches for it
+  - Tries a fix at most two or three times before abandoning the tool for the afternoon
+  - Keeps the working version in a single HTML file on a shared drive
+goals:
+  - A complete example he can copy and change in three places
+  - An error message that names the line of his file or his code that is wrong and what was expected
+  - Read a tab-separated lab file with custom column names into the element
+  - Compute one score per node and see it as colour
+frustrations:
+  - Examples that are fragments and assume a project, a bundler or imports he does not have
+  - Errors that come from deep inside the element rather than naming his plugin and his input
+  - Having to understand versions, namespaces, lifecycles or option schemas for a one-off script
+  - A reader that fails the whole file because of one malformed row, with no row number
+  - Docs that explain the architecture before showing a working result
+knows:
+  - The biology and the lab's data conventions in depth
+  - R and basic Python, spreadsheets, tab-separated files
+  - How to copy a script into an HTML file and open it in a browser
+refuses_to_learn:
+  - npm, bundlers, TypeScript or module systems
+  - The element's internals or any concept not in the example he copied
+  - Anything that takes longer than the manual conversion it replaces
+first_plugin: >-
+  A file reader for the lab's tab-separated interaction screen format (bait, prey, confidence, replicates), followed
+  by a one-off algorithm that computes the lab's essentiality score per protein.
+context:
+  frequency: as-needed
+  devices:
+    - laptop
+    - desktop
+  voluntary: true
+workflows: []
+sources:
+  - title: A large-scale analysis of bioinformatics code on GitHub (PLOS ONE)
+    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0205898
+    summary: Research code is typically small, written by one person, and rarely tested - the one-off author this persona represents
+  - title: Cytoscape App Store
+    url: https://apps.cytoscape.org/
+    summary: The plugin ecosystem researchers compare against; most apps are small, single-purpose readers and scores
+  - title: Nielsen Norman Group - Error Message Guidelines
+    url: https://www.nngroup.com/articles/error-message-guidelines/
+    summary: Error messages must say what went wrong and how to fix it in the user's terms - the point where this persona gives up

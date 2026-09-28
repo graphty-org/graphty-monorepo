@@ -26,6 +26,53 @@ a plugin algorithm that can't publish a result?"); the owner's list of official 
 changes in section 7 below); the design studio's gap workflows (`design/designloom/workflows/W21.yaml`,
 `W22.yaml`, `W23.yaml`, `W16.yaml`, `W11.yaml`).
 
+## Simple tier
+
+A first algorithm is written with `defineAlgorithm` (`simple-tier.md` section 4.1): an id, the
+options in short form, and ONE function that decides the result. `node(node, context)` returns a
+score per node, `edge(edge, context)` a score per edge, `nodes(graph, context)` a map of scores
+computed over the whole graph, and `groups(graph, context)` a map of group labels (a clustering).
+The author works with the graph view of `simple-tier.md` section 2.3 -- nodes and edges with real
+ids, `neighbors()`, `edges()`, `attr(path)` and `number(path)` -- and never with snapshot rows.
+
+```ts
+import { defineAlgorithm, type NodeView } from "@graphty/graphty-element/extend";
+
+// The sum of the confidence of every edge touching a node.
+const weightedDegree = (node: NodeView, attribute: string) =>
+    node.edges().reduce((sum, edge) => sum + (edge.number(attribute) ?? 0), 0);
+
+defineAlgorithm({
+    id: "acme-confidence-degree",
+    options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
+    node: (node, { options }) => weightedDegree(node, options.confidence),
+});
+
+defineAlgorithm({
+    id: "acme-confidence-share",
+    options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
+    edge: (edge, { options }) =>
+        (edge.number(options.confidence) ?? 0) /
+        Math.sqrt(weightedDegree(edge.source, options.confidence) * weightedDegree(edge.target, options.confidence)),
+});
+```
+
+The element generates the `DeclaredAlgorithm` subclass this document specifies from the
+definition: the descriptor (key, names, category "custom", shape and fields from the function),
+the input (`context.input`, undirected unless `direction: "directed"`, every parallel edge kept),
+attribute reads through `input.column`, the chunked loop with progress and cancellation, id
+mapping through `ids.idOf` and `input.edgeId`, the output, caveats (`method` = the name) and a
+cost estimate. A score that is `undefined`, `null`, `NaN` or infinite publishes nothing, which is
+the measured-only rule of section 2.2. The generated class is registered with
+`DeclaredAlgorithm.register`, so every clause of section 5 applies to it unchanged.
+
+Move to the advanced tier (the rest of this document) for any other result shape, several fields
+in one result, work per element that grows faster than its degree, weights with a stated meaning,
+a seed or sampling, or typed-array speed. Graduation keeps the id and the field names
+(`simple-tier.md` section 5).
+
+**Sections 2 onwards specify the advanced tier.**
+
 ## 2. Data model
 
 | Type                                                                                                                                                                                                                                    | Kind                                          |
@@ -602,7 +649,7 @@ headless host (section 10); until it exists they run in the browser configuratio
 | scope is honoured               | with `scopeInput = "subgraph"`, every published id is inside the scope                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | failures are coded              | an invalid input the author supplies fails with a `GraphtyError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-## 12. Worked example
+## 12. Worked example (advanced tier)
 
 A hub score written only against the snapshot: the share of possible links among a node's
 neighbours, damped by neighbourhood size. It resembles cytoHubba's DMNC but is NOT it (DMNC

@@ -10,6 +10,12 @@ standalone web component that renders graphs. It is the formal counterpart of th
 `design/graphty-element/extension-points.md`. Where those documents and this one disagree, this one
 is normative and the disagreement is listed under "Corrections this specification makes" below.
 
+Every point has two tiers. The **simple tier** (`simple-tier.md`) is one `define*` function per
+point that takes an id and the author's own logic and fills in everything else; it is what the
+guides teach first, and it is held to the adoption budget of section 8.1. The **advanced tier** is
+the contract each point's specification describes; it is what the simple tier compiles to, and it
+is where an author goes for full control. Each point's specification opens with its simple tier.
+
 | Document                             | What it specifies                                                                                                                              |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `README.md` (this file)              | The model every extension point shares: packaging, registration, discovery, versioning, options, parity, lifecycle, isolation, errors, testing |
@@ -22,6 +28,8 @@ is normative and the disagreement is listed under "Corrections this specificatio
 | `algorithm.md`, `algorithm.d.ts`     | A computation over the graph that publishes a result                                                                                           |
 | `logging.md`, `logging.d.ts`         | A destination the element's log records are delivered to                                                                                       |
 | `candidates.md`                      | Seams that are NOT official extension points, with a recommendation for each                                                                   |
+| `simple-tier.md`, `simple.d.ts`      | The simple tier of every point: one `define*` function each, and how it wraps the contracts above                                              |
+| `complexity-review.md`               | What the first plugin of each point costs today and under the simple tier, against prior art                                                   |
 
 ## 1. Conventions
 
@@ -89,6 +97,12 @@ of `graphty-element/extend.ts`. This specification keeps it.
 | Layout      | An engine that decides where nodes sit                             | `LayoutEngine.register(Class)`                                | `layout.md`      |
 | Algorithm   | A computation over the graph that publishes a result               | `Algorithm.register(Class)` on a `DeclaredAlgorithm` subclass | `algorithm.md`   |
 | Logging     | A destination for log records                                      | `registerLogSink({ descriptor, create })`                     | `logging.md`     |
+
+Each point also has a simple-tier verb on `./extend` -- `defineAlgorithm`, `defineLayout`,
+`defineFormat`, `defineDataSource` (for the data-source point the owner added on 2026-09-28, open
+decision 15), `definePalette`, `defineCameraView` and `defineCameraMotion`, and
+`defineLogDestination` -- which builds a registration and calls the verb in the table
+(`simple-tier.md` section 3). It adds no registration seam: the table above counts points, not verbs.
 
 **The list is closed.** An element release MUST NOT make any other registration seam a supported
 extension point without an explicit owner decision; promoting one is a one-way door. Seams that
@@ -718,6 +732,82 @@ there is not promised. `all-extension-points.test.ts` also pins the list of regi
 so a new `register*` export fails the build until it is listed as a supported point or an explicit
 exclusion.
 
+### 8.1 Easy things easy: the adoption budget
+
+Parity makes hard things possible. It says nothing about what the EASY thing costs, and measured
+against real first plugins every point had grown far past what prior art asks
+(`complexity-review.md`). The owner's rule of 2026-09-28 is "easy things easy, hard things
+possible". This section makes the first half normative for every extension point, present and
+future.
+
+1. **The budget.** For every point there is a named first-plugin task (item 4). Written against the
+   point's simple tier from the published guide alone, it MUST take about 15 lines of author code
+   and MUST NOT exceed 20, and it MUST NOT name any internal concept (item 3). Author lines are
+   non-blank, non-comment lines, not counting `import` lines or the one consumer call that turns
+   the extension on.
+2. **Every point has a simple tier** that meets the budget, specified before its advanced contract
+   (`simple-tier.md`; the "Simple tier" section of each point's specification). A future point is
+   not accepted without one.
+3. **Internal concepts.** A first plugin that needs any of these fails the budget, whatever its
+   length:
+    - storage: snapshot, snapshot row, row index, compressed sparse rows (`rowPtr`, `colIdx`), arc,
+      typed array, `Float32Array` output, column union, validity bitmap, mask (`NodeMask`,
+      `EdgeMask`), bit test, interleaved coordinates;
+    - scheduling: cooperative yielding, `yieldNow`, `forEachChunked`, chunk size, frame budget;
+    - cost: cost class, `costUnits`, cost formula, complexity string;
+    - descriptor bookkeeping: `plainName`, `technicalName`, `static type` or `namespace`, a member
+      that must repeat another (`descriptor.id` equal to `type`, `engine`, `maxDimensions`), a
+      member the element can derive (`capacity`, `fields`, result-field specs, `shape` repeated in
+      an output, `canImport`, `canExport`, `mimeTypes`), a required empty member (`options: []`,
+      `description: ""`);
+    - result machinery: result shape contracts, field lists, caveats, `declaredCaveats`, `null`
+      against an empty result, measured-only and finite-number rules;
+    - plumbing: base-class constructors, `getConfig`, `resolveOptions`, `toRecords` and branded
+      records, `chunkData`, `GraphtyError` construction, `ExportCapabilities`, loss notes, `Sink`
+      lifecycle (`flush`, `dispose`), the logger's global enable flag, two-step register-then-attach;
+    - ids: node rows against node ids, edge rows against edge ids, `ids.idOf`, `edgeId(row)`.
+
+    A term the point's domain uses anyway (a colour, a kind of palette, a file extension, a node,
+    an edge, an attribute, 2D and 3D, a log level) is domain knowledge, not an internal concept.
+
+4. **The first-plugin tasks.** Chosen as the most common real request at each point, not to
+   exercise the contract:
+
+    | Point       | First-plugin task                                                                        |
+    | ----------- | ---------------------------------------------------------------------------------------- |
+    | Algorithm   | a node score from an edge attribute (confidence-weighted degree), and its edge companion |
+    | Layout      | nodes in rows by a tier attribute; nodes at coordinates their data carries               |
+    | File format | a tab-separated edge list, read and written                                              |
+    | Data source | a paged REST API with a bearer token                                                     |
+    | Palette     | a brand's categorical and sequential colours                                             |
+    | Camera      | a slow orbit; a named corner view                                                        |
+    | Logging     | errors sent to a telemetry endpoint                                                      |
+
+5. **The blind-author check.** The budget is TESTED, not asserted. For each task, an author who
+   has never read this directory or the element's source writes the plugin from the published
+   guide (`graphty-element/docs/guide/extending/`) and the `./extend` declarations only. The
+   authors are agents playing the plugin-author personas in `design/designloom/personas/`:
+   `plugin-author-data-scientist` (algorithm, layout, data source), `plugin-author-domain-researcher`
+   (algorithm, file format), `plugin-author-frontend-developer` (palette, camera, logging) and
+   `plugin-author-graph-library-author` (layout and algorithm, who also graduates one plugin to the
+   advanced tier under the same id, `simple-tier.md` section 5). Each run records the author
+   lines, every internal concept the plugin or the author's notes named, how many attempts it
+   took, and every error message the author could not act on. It passes when the plugin fits the
+   budget, passes the conformance kit (section 11.2), and was finished within three attempts with
+   every error acted on from its first line. The results are recorded in `complexity-review.md`.
+   The check runs on every change to a guide page under `extending/`, to the `./extend` exports or
+   to a point's specification, and before every release.
+6. **The static half.** A CI check, beside `check-examples.mjs`, fails when the first TypeScript
+   block of a guide page under `extending/` does not type-check, exceeds 20 author lines, imports
+   anything but a simple-tier verb and its types, or names a term from item 3.
+7. **Review rule.** A change that adds an obligation on an extension author (a MUST, a required
+   member, a rule the author has to remember) states which tier carries it. If it lands on the
+   simple tier the change fails review unless the element absorbs it instead; on the advanced tier
+   it is allowed, and the simple tier's generated registration MUST satisfy it automatically.
+8. **Parity is unchanged.** The budget never removes a capability: the advanced tier keeps every
+   route section 8 lists, and the simple tier reaches every one of them because it registers
+   through the same verbs (`simple-tier.md` section 3).
+
 ## 9. Lifecycle, isolation and error containment
 
 ### 9.1 Lifecycle
@@ -1028,6 +1118,11 @@ Requirements on the kit:
    miss a time budget on a slow CI runner and a bad one can meet it on a fast workstation. The one
    exception is a generous hang timeout (30 seconds), which detects an operation that never
    settles.
+
+8. Every `check*` function also accepts the id of a registered extension, so a simple-tier
+   extension is checked by exactly the checks an advanced one is; the kit publishes
+   `graphView({ nodes, edges })`, which builds the simple tier's graph view from plain objects for
+   a unit test of a `place`, `node`, `edge`, `nodes` or `groups` function.
 
 An extension **conforms** to this specification when every check its point lists passes or is
 skipped for a stated reason.
@@ -1772,35 +1867,76 @@ options, dimension, scope }` in the project, with no extension version, which pr
     run record; attribute categories take a documented sorted order; and a categorical binding
     may carry an explicit value-to-anchor (or value-to-colour) map, so a shared style pins its
     categories. `palette.md` section 4 states the gap.
+33. **The names and shapes of the simple tier.** Having a simple tier is decided (2026-09-28); its
+    exports are published names. **Recommended:** exactly the exports of `simple.d.ts` -- the
+    verbs `defineAlgorithm`, `defineLayout`, `defineFormat`, `defineDataSource`, `definePalette`,
+    `defineCameraView`, `defineCameraMotion` and `defineLogDestination`, one `define` prefix so an
+    author who has learnt one can guess the rest; the graph view types `GraphView`, `NodeView`,
+    `EdgeView`, `NodeId` and `Point`, with the US spelling `neighbors` that graphology and
+    Cytoscape.js use; the four algorithm function members `node`, `edge`, `nodes` and `groups`,
+    each deciding the result shape, with result fields `value` and `group`; `place` returning a
+    `Map` from id to position, where a missing node is unplaced; `read(text)` and `write(graph)`
+    over plain records, with `keeps` for loss notes; `load(context)` returning one batch, a promise
+    or an async iterable; `definePalette(id, kind, colors, extra?)` as positional arguments; the
+    short option form of `simple-tier.md` section 2.2, including the new `on: "node" | "edge"`
+    option member; the new `edgeMetricFields` builder; the new catalogue kind
+    `session.catalog.sources()`; and the conformance kit's `graphView` builder. Also a shape
+    choice: an id's derived display name is the id in sentence case.
+34. **Delivery to a log destination attached in code.** Today nothing reaches any destination until
+    something calls `GraphtyLogger.configure({ enabled: true })`, and the global level caps every
+    destination. **Recommended:** a destination the embedder attaches in code (through
+    `defineLogDestination`, and also through `addSink`) receives records at its own level whatever
+    the global flag says, and the global `enabled` and `level` govern only the built-in console.
+    The rule that a destination may only narrow the global level stays for configurations read
+    from storage or a URL, where it protects against an injected configuration raising verbosity.
+    This changes what an existing `addSink` call receives, so it is a behaviour change to decide,
+    not only a new name.
+35. **Element-scoped default palettes.** **Recommended:**
+    `session.styles.setDefaultPalettes({ categorical, continuous })` (and the equivalent element
+    configuration key), resolved when a layer is WRITTEN: a binding or `encode()` with no palette
+    records the resolved id, so a saved document always names a concrete palette and its meaning
+    never depends on the page that opens it. The fallbacks stay `okabe-ito` and `ylorbr`.
+36. **Camera motions.** **Recommended:** a camera view may declare itself a motion; its input gains
+    `elapsedMs`; the element publishes `playCameraMotion(id, options?)` and `stopCameraMotion()`
+    and an element attribute that starts one; "orbit" is a reserved built-in motion; a motion
+    pauses on input the element owns and resumes three seconds after it ends, never starts under
+    `prefers-reduced-motion`, and can be recorded by `captureAnimation`. Purity is kept: a motion
+    is a pure function of time, the frame and its options.
 
 ## 13. Corrections this specification makes to existing documents
 
 These documents state something false or superseded. Each needs the edit named; none is a one-way
 door.
 
-| Document                                                                                                       | Statement                                                                                                           | Correction                                                                                                                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `graphty-element/docs/guide/extending/index.md`                                                                | a registered log destination "starts receiving records immediately"                                                 | It does not: registration files a factory; records flow only once a configuration names it (`GraphtyLogger.configure({ sinks: [{ use }] })`) or a live sink is added with `addSink`                                                                                                                    |
-| same                                                                                                           | "pass `{ strict: true }`" for every point                                                                           | True for four points; see open decision 6                                                                                                                                                                                                                                                              |
-| `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | reads input through `this.algorithmGraph("undirected")`                                                             | Rewrite around `context.input(...)`; mark `algorithmGraph` deprecated                                                                                                                                                                                                                                  |
-| `graphty-element/docs/guide/extending/custom-data-sources.md` and `design/graphty-element/extension-points.md` | "when writing exists the same class will carry it"                                                                  | Writer registration is undecided (open decision 1)                                                                                                                                                                                                                                                     |
-| `design/graphty-element/extension-points.md`, "Still open"                                                     | `scope` does not reach `compute`                                                                                    | It does, through `context.input`; `seed`, `exact`, `sample` and `timeBox` do not                                                                                                                                                                                                                       |
-| same, Algorithm section                                                                                        | an `edgeResultId(source, target)` helper is published                                                               | It was withdrawn: a pair cannot name one of two parallel edges                                                                                                                                                                                                                                         |
-| `design/element-api/element-api-design.md` section 4.14 and its `./extend` row                                 | one `use()` verb, `createRegistry()`, ten plugin kinds                                                              | Superseded by `design/graphty-element/extension-points.md` and this directory; the unbuilt kinds are evaluated in `candidates.md`                                                                                                                                                                      |
-| root `CLAUDE.md`, "Plugin System"                                                                              | `LayoutRegistry.register`, `DataSourceRegistry.register`, `AlgorithmRegistry.register`                              | None exists; the verbs are the six in section 2                                                                                                                                                                                                                                                        |
-| `design/ui/framework/conceptual-model.md` section 9 (uncommitted)                                              | data source is an extension point; the log destination is internal; exporters are not offered                       | See section 2                                                                                                                                                                                                                                                                                          |
-| `design/graph-format/migration-plan.md` section 6 (branch `feat/graph-format-migration`)                       | the plugin seam, the dependency declaration and the export contents are open owner decisions                        | Decided on 2026-09-28; see `design/decisions/2026-09-28-graph-format-migration-owner-decisions.md`                                                                                                                                                                                                     |
-| same, item "element-plugin-seam"                                                                               | the accessor is "the scoped input's snapshot plus the edge remap"                                                   | Differs from this specification's `edgeId(row)`; open decision 5 picks one                                                                                                                                                                                                                             |
-| same, the static-layout item                                                                                   | `SimpleLayoutEngine` moves onto the snapshot                                                                        | Must keep the plugin members working or ship the successor first (section 10 item 2)                                                                                                                                                                                                                   |
-| `design/designloom/workflows/W25.yaml`, adoption note                                                          | the share menu exports CX2                                                                                          | No built-in serves `cx2` and no writer seam exists; the note is wrong until open decision 1 is taken and a CX2 writer ships                                                                                                                                                                            |
-| `design/graph-format/migration-plan.md`, item "element-export-api"                                             | builds the export snapshot from "the data bags and current positions"                                               | Must also carry algorithm results, derived fields and style where the format has a place for them, and a route for graph-level result tables (section 10 item 6; `file-format.md` section 8.1)                                                                                                         |
-| same, the label propagation seed                                                                               | a fixed element default of 42, and a `randomSeed` routing every call to the CPU port                                | One seed rule for both documents, with the route recorded (section 10 item 4; open decision 16)                                                                                                                                                                                                        |
-| same, the static-layout item                                                                                   | deletes `LayoutEngine.pairWeights` and `pairWeightKey` in the dual-API window                                       | A protected helper a plugin can call; keep it through an adapter until the next major (section 10 item 7)                                                                                                                                                                                              |
-| `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | edge results through the `edgeIdsByPair` helper, which reads `this.graph.getSession()`                              | That breaks the snapshot-only rule and cannot name a parallel edge; the guide must say plainly that no conforming edge-shaped plugin exists until the edge identity accessor ships, and what the snapshot's weights hold and that attribute columns do not reach a plugin (`algorithm.md` section 3.1) |
-| `design/graph-format/migration-plan.md`, item "element-plugin-seam"                                            | delete `toAlgorithmGraph` and its file when nothing internal calls it; nothing in `src` constructs a legacy `Graph` | `algorithmGraph()` is implemented by `toAlgorithmGraph`, and `./extend` exports its types from that file; in 3.x keep all three behind `@deprecated` and move the deletion to the 4.0 removal item (section 10 item 8)                                                                                 |
-| same, item "element-export-api"                                                                                | exports through graph-io's CSV writer                                                                               | That writer neutralises no formula cell; add the rule to graph-io's shared cell writer and to the item's "Done when" check (section 10 item 9)                                                                                                                                                         |
-| `design/extensions/candidates.md`, section 8 (earlier draft)                                                   | a registered accelerator implements `AlgorithmAccelerator`                                                          | It returns the element's own `GraphAccelerator`, narrowed internally; corrected there                                                                                                                                                                                                                  |
-| `graphty-element/test/browser/extensions/layout-extension.test.ts`, the live engine's `getEdgePosition`        | reads `e.srcNode` and `e.dstNode`                                                                                   | Outside the layout contract's member list; look endpoints up by `srcId` and `dstId`, so the reference engine conforms (`layout.md` section 2)                                                                                                                                                          |
+| Document                                                                                                       | Statement                                                                                                                                                                    | Correction                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `graphty-element/docs/guide/extending/index.md`                                                                | a registered log destination "starts receiving records immediately"                                                                                                          | It does not: registration files a factory; records flow only once a configuration names it (`GraphtyLogger.configure({ sinks: [{ use }] })`) or a live sink is added with `addSink`                                                                                                                    |
+| same                                                                                                           | "pass `{ strict: true }`" for every point                                                                                                                                    | True for four points; see open decision 6                                                                                                                                                                                                                                                              |
+| `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | reads input through `this.algorithmGraph("undirected")`                                                                                                                      | Rewrite around `context.input(...)`; mark `algorithmGraph` deprecated                                                                                                                                                                                                                                  |
+| `graphty-element/docs/guide/extending/custom-data-sources.md` and `design/graphty-element/extension-points.md` | "when writing exists the same class will carry it"                                                                                                                           | Writer registration is undecided (open decision 1)                                                                                                                                                                                                                                                     |
+| `design/graphty-element/extension-points.md`, "Still open"                                                     | `scope` does not reach `compute`                                                                                                                                             | It does, through `context.input`; `seed`, `exact`, `sample` and `timeBox` do not                                                                                                                                                                                                                       |
+| same, Algorithm section                                                                                        | an `edgeResultId(source, target)` helper is published                                                                                                                        | It was withdrawn: a pair cannot name one of two parallel edges                                                                                                                                                                                                                                         |
+| `design/element-api/element-api-design.md` section 4.14 and its `./extend` row                                 | one `use()` verb, `createRegistry()`, ten plugin kinds                                                                                                                       | Superseded by `design/graphty-element/extension-points.md` and this directory; the unbuilt kinds are evaluated in `candidates.md`                                                                                                                                                                      |
+| root `CLAUDE.md`, "Plugin System"                                                                              | `LayoutRegistry.register`, `DataSourceRegistry.register`, `AlgorithmRegistry.register`                                                                                       | None exists; the verbs are the six in section 2                                                                                                                                                                                                                                                        |
+| `design/ui/framework/conceptual-model.md` section 9 (uncommitted)                                              | data source is an extension point; the log destination is internal; exporters are not offered                                                                                | See section 2                                                                                                                                                                                                                                                                                          |
+| `design/graph-format/migration-plan.md` section 6 (branch `feat/graph-format-migration`)                       | the plugin seam, the dependency declaration and the export contents are open owner decisions                                                                                 | Decided on 2026-09-28; see `design/decisions/2026-09-28-graph-format-migration-owner-decisions.md`                                                                                                                                                                                                     |
+| same, item "element-plugin-seam"                                                                               | the accessor is "the scoped input's snapshot plus the edge remap"                                                                                                            | Differs from this specification's `edgeId(row)`; open decision 5 picks one                                                                                                                                                                                                                             |
+| same, the static-layout item                                                                                   | `SimpleLayoutEngine` moves onto the snapshot                                                                                                                                 | Must keep the plugin members working or ship the successor first (section 10 item 2)                                                                                                                                                                                                                   |
+| `design/designloom/workflows/W25.yaml`, adoption note                                                          | the share menu exports CX2                                                                                                                                                   | No built-in serves `cx2` and no writer seam exists; the note is wrong until open decision 1 is taken and a CX2 writer ships                                                                                                                                                                            |
+| `design/graph-format/migration-plan.md`, item "element-export-api"                                             | builds the export snapshot from "the data bags and current positions"                                                                                                        | Must also carry algorithm results, derived fields and style where the format has a place for them, and a route for graph-level result tables (section 10 item 6; `file-format.md` section 8.1)                                                                                                         |
+| same, the label propagation seed                                                                               | a fixed element default of 42, and a `randomSeed` routing every call to the CPU port                                                                                         | One seed rule for both documents, with the route recorded (section 10 item 4; open decision 16)                                                                                                                                                                                                        |
+| same, the static-layout item                                                                                   | deletes `LayoutEngine.pairWeights` and `pairWeightKey` in the dual-API window                                                                                                | A protected helper a plugin can call; keep it through an adapter until the next major (section 10 item 7)                                                                                                                                                                                              |
+| `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | edge results through the `edgeIdsByPair` helper, which reads `this.graph.getSession()`                                                                                       | That breaks the snapshot-only rule and cannot name a parallel edge; the guide must say plainly that no conforming edge-shaped plugin exists until the edge identity accessor ships, and what the snapshot's weights hold and that attribute columns do not reach a plugin (`algorithm.md` section 3.1) |
+| `design/graph-format/migration-plan.md`, item "element-plugin-seam"                                            | delete `toAlgorithmGraph` and its file when nothing internal calls it; nothing in `src` constructs a legacy `Graph`                                                          | `algorithmGraph()` is implemented by `toAlgorithmGraph`, and `./extend` exports its types from that file; in 3.x keep all three behind `@deprecated` and move the deletion to the 4.0 removal item (section 10 item 8)                                                                                 |
+| same, item "element-export-api"                                                                                | exports through graph-io's CSV writer                                                                                                                                        | That writer neutralises no formula cell; add the rule to graph-io's shared cell writer and to the item's "Done when" check (section 10 item 9)                                                                                                                                                         |
+| `design/extensions/candidates.md`, section 8 (earlier draft)                                                   | a registered accelerator implements `AlgorithmAccelerator`                                                                                                                   | It returns the element's own `GraphAccelerator`, narrowed internally; corrected there                                                                                                                                                                                                                  |
+| every guide page under `graphty-element/docs/guide/extending/`                                                 | opens with the full class or descriptor contract                                                                                                                             | Open with the point's simple-tier example (`simple-tier.md` section 4); move the current content under "Advanced: full control" (section 8.1)                                                                                                                                                          |
+| `graphty-element/docs/guide/extending/custom-algorithms.md`, first example                                     | "nodes within N hops" computed as the neighbour count times the hop count                                                                                                    | That is not the number of nodes within N hops; a reader copies the arithmetic. Replace the example (`complexity-review.md`, Algorithm)                                                                                                                                                                 |
+| `graphty-element/docs/guide/extending/custom-layouts.md`                                                       | types the descriptor as `LayoutDescriptor` without `honoursWeights` and `scoped`; the live example reads `e.srcNode`; suggests `session.positions.isPinned` inside an engine | Use `AuthoredLayoutDescriptor`; look endpoints up by id; an engine is never handed a session (`layout.md` sections 2 and 3)                                                                                                                                                                            |
+| `graphty-element/docs/guide/extending/custom-log-destinations.md`                                              | `timestamp: number`; route one's `addSink` alone receives records; route two's buffer is a module-level array                                                                | `timestamp` is a `Date`; nothing is delivered until logging is enabled (open decision 34); a buffer shared by every `create()` call mixes two configurations' records -- keep it inside `create`                                                                                                       |
+| `graphty-element/docs/guide/extending/custom-cameras.md`                                                       | `viewport` is in device pixels; `measured: 0` frames "the element's default box"                                                                                             | CSS pixels; a view is not called for an empty box (`camera.md` sections 2 and 4.4)                                                                                                                                                                                                                     |
+| `graphty-element/docs/guide/extending/custom-palettes.md`, first example                                       | claims deuteranopia and tritanopia safety for an invented palette                                                                                                            | Make no colour-vision claim in an example; the element never checks one (open decision 30)                                                                                                                                                                                                             |
+| `graphty-element/test/browser/extensions/layout-extension.test.ts`, the live engine's `getEdgePosition`        | reads `e.srcNode` and `e.dstNode`                                                                                                                                            | Outside the layout contract's member list; look endpoints up by `srcId` and `dstId`, so the reference engine conforms (`layout.md` section 2)                                                                                                                                                          |
 
 ## 14. What graphty-element 3.0 changes (open pull request)
 

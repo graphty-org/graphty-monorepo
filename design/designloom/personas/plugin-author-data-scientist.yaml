@@ -1,0 +1,67 @@
+id: plugin-author-data-scientist
+name: Data Scientist Porting a Metric
+role: Data Scientist / Python and NetworkX User Writing an Algorithm Plugin
+quote: I already have this metric in twenty lines of NetworkX. Why is getting it into the browser a week of reading?
+bio: >-
+  Marcus Webb is a data scientist on an analytics team. He has spent five years in Jupyter notebooks with pandas,
+  NetworkX and scikit-learn, and he has a custom influence score, a weighted variant of PageRank tuned to his company's
+  transaction graph, that he computes every week in Python. His team has adopted graphty-element for a dashboard, and
+  he wants the score to appear in it as a node colour and size, the same way degree and PageRank already do. He writes
+  JavaScript only when he has to: he can follow an example, change a loop and read a stack trace, but he has never
+  configured a bundler, does not know what a generic type parameter is, and reads "Promise" as a hint that something
+  will go wrong. He thinks of a graph as `G.nodes`, `G.edges` and `G[u][v]["weight"]`, and he expects a metric to be a
+  function that takes a graph and returns a dict.
+characteristics:
+  expertise: intermediate
+  time_pressure: medium
+  graph_literacy: advanced
+  domain_knowledge: advanced
+motivations:
+  - Get the metric he already trusts into the dashboard without rewriting its logic from scratch
+  - Have the result show up as colour and size on the graph, like the built-in algorithms, without writing styling code
+  - Keep the browser result numerically identical to the Python result so nobody questions the dashboard
+  - Hand the plugin to a front-end colleague to ship without having to explain it
+behaviors:
+  - Opens the docs looking for a single page titled something like "add your own algorithm" with a complete example
+  - Copies the closest built-in algorithm (PageRank or degree) and edits the inner loop
+  - Translates NetworkX idioms line by line (neighbours, edge weights, node attributes) and searches for each equivalent
+  - Validates the port by running both versions on a small graph and comparing the numbers by eye, then in a spreadsheet
+  - Runs code in the Storybook or a CodePen-style page rather than setting up a project
+  - Asks a colleague when the error mentions a type he does not recognise
+goals:
+  - Write a metric as one function from a graph to a number per node
+  - Register it with one call and see it in the element's algorithm list
+  - Get a suggested colour ramp on the result without learning the style layer system
+  - Confirm the output matches his Python numbers
+frustrations:
+  - Examples that show the registration boilerplate but not a complete, runnable metric
+  - Having to learn a class hierarchy, decorators or a namespace/type/version triple before writing one line of maths
+  - No obvious way to read an edge weight or a node attribute in the shape NetworkX gives them
+  - TypeScript errors about generic types that say nothing about what he did wrong
+  - Having to set up npm, a bundler and a build step to try one function
+  - Results that are silently NaN or zero because an attribute name was misspelt
+knows:
+  - Graph theory and centrality measures at the level of a practitioner, including their numerical pitfalls
+  - Python, NetworkX, pandas and Jupyter
+  - Enough JavaScript to edit a loop, an array and an object literal
+refuses_to_learn:
+  - Build tooling (bundlers, tsconfig, package exports)
+  - Advanced TypeScript (generics, conditional types, declaration merging)
+  - The element's internal manager, mesh or style-layer architecture
+first_plugin: >-
+  An algorithm that computes his weighted influence score per node and publishes it so the element colours and sizes
+  nodes by it, registered from a script tag on a page that already shows the graph.
+context:
+  frequency: as-needed
+  devices:
+    - laptop
+    - desktop
+  voluntary: true
+workflows: []
+sources:
+  - title: NetworkX Algorithms reference
+    url: https://networkx.org/documentation/stable/reference/algorithms/index.html
+    summary: The function-over-graph-returning-dict shape this persona expects every metric to have
+  - title: Stack Overflow Developer Survey 2024 - Most popular technologies
+    url: https://survey.stackoverflow.co/2024/technology
+    summary: Python dominates data work while JavaScript dominates the web; many data scientists are occasional JavaScript users

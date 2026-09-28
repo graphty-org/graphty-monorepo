@@ -23,6 +23,33 @@ Grounding: owner's list of official points (2026-09-21), which includes Logging 
 design-studio framework, which called the log destination internal); `design/graphty-element/extension-points.md`
 section "Logging" (kept, with the correction in section 3 item 1).
 
+## Simple tier
+
+A first destination is one function (`simple-tier.md` section 4.7):
+
+```ts
+import { defineLogDestination } from "@graphty/graphty-element/extend";
+
+defineLogDestination({
+    id: "acme-telemetry",
+    level: "error",
+    write: (record) =>
+        fetch("https://telemetry.acme.example/v1/errors", {
+            method: "POST",
+            body: JSON.stringify({ time: record.time, source: record.category, message: record.message }),
+        }),
+});
+```
+
+`defineLogDestination` registers a `LogSinkRegistration` (descriptor defaulted) and attaches it at
+once. It receives records at its own level whether or not the logger is globally enabled (README
+section 12, item 34). When `write` returns a promise, the element queues, orders, retries, flushes
+on `pagehide` and drains on removal, so the buffering rule of section 4 is the element's, not the
+author's. Move to the advanced tier for declared options, a custom `flush` or `dispose`, or the
+full `LogRecord`.
+
+**Sections 2 onwards specify the advanced tier.**
+
 ## 2. Data model
 
 | Type                                                                            | Entry point             | Kind                      |
@@ -210,7 +237,7 @@ Run by `checkLogSink(registration, { options })` in the proposed kit. All run in
 | egress matches its claim        | with network calls trapped (README section 9.4 item 2's list), a destination that declares `destinations` contacts only those origins, and one that declares none contacts nothing                                              |
 | no secret in the payload        | loading a URL with a query token and running a test graph under the default redaction, no destination receives the token or any node id of the test graph in `message`, `data` or `error` (fails until section 7 item 2 is met) |
 
-## 9. Worked example
+## 9. Worked example (advanced tier)
 
 A ring-buffer destination that keeps the last N records in the page, for an on-screen diagnostics
 panel in a headset where there is no console, turned on by name:

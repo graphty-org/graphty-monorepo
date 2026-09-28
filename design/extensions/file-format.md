@@ -25,6 +25,49 @@ graph formats"; owner's decision on export content (2026-09-28): "whatever the f
 graph-io's importer and exporter contract (`graph-io/src/types.ts`, `design/graph-format/graph-format-design.md`
 section 12.4).
 
+## Simple tier
+
+A first format is written with `defineFormat` (`simple-tier.md` section 4.3): an id, the file
+extensions, `read(text)` returning plain records and `write(graph)` returning text. Either
+function may be left out.
+
+```ts
+import { defineFormat } from "@graphty/graphty-element/extend";
+
+defineFormat({
+    id: "acme-tsv",
+    name: "Tab-separated edge list",
+    extensions: [".tsv"],
+    read(text) {
+        const [header = "", ...rows] = text.split(/\r?\n/).filter((line) => line !== "");
+        const columns = header.split("\t");
+        if (!columns.includes("source") || !columns.includes("target")) {
+            throw new Error("the first line must name a source and a target column");
+        }
+        return { edges: rows.map((row) => Object.fromEntries(row.split("\t").map((cell, i) => [columns[i], cell]))) };
+    },
+    write({ edges, edgeColumns }) {
+        const header = ["source", "target", ...edgeColumns];
+        const lines = [header, ...edges.map((edge) => header.map((column) => String(edge[column] ?? "")))];
+        return lines.map((cells) => cells.join("\t")).join("\n") + "\n";
+    },
+});
+```
+
+The element generates the `DataSource` subclass of section 3 (descriptor, constructor, option
+resolution, input reading with its retry and size limits, chunking, record branding) and wraps a
+throw from `read` as `E_PARSE_FAILED`. For `write` it builds the graph-io exporter registered
+through `registerFormatWriter` (section 8): it resolves the snapshot into plain records -- ids
+resolved, mixed-direction pairs folded, internal columns removed, unmeasured values left out --
+neutralises spreadsheet formulas by column type, derives the capability table and loss notes from
+`keeps`, and encodes the text. One catalogue entry covers both directions.
+
+Move to the advanced tier for a binary format, streaming without holding the whole text, a
+declared attribute schema, a place for style or hierarchy, custom loss notes, or byte-level
+detection.
+
+**Sections 2 onwards specify the advanced tier.**
+
 ## 2. Data model
 
 | Type                                                                                                                                          | Kind                      | Defined in         |
@@ -567,7 +610,7 @@ and TSV) and "writer-only claims nothing" (a writer registered without a reader 
 the kit adds a bomb corpus: a small gzip that inflates past the byte limit, a nested zip and a
 zip with several entries, each refused with a coded error.
 
-## 13. Worked example
+## 13. Worked example (advanced tier)
 
 A reader for SIF (Simple Interaction Format, used by Cytoscape and the need in
 `design/designloom/workflows/W20.yaml`), registered under a vendor id because `sif` is a reserved

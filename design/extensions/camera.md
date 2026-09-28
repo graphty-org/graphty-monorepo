@@ -24,6 +24,43 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 (2026-09-19): "maybe camera views?"; the design studio's overview-to-detail and saved-view needs
 (`design/designloom/workflows/W02.yaml`).
 
+## Simple tier
+
+The most common custom-camera request, a slow orbit, needs no extension: the element ships an
+"orbit" motion (`playCameraMotion("orbit")`, README section 12, item 36). A custom still view or
+motion is written with `defineCameraView` or `defineCameraMotion` (`simple-tier.md` section 4.6),
+from a frame that already carries the centre and the distance at which the graph fits:
+
+```ts
+import { defineCameraMotion, defineCameraView } from "@graphty/graphty-element/extend";
+
+defineCameraMotion({
+    id: "acme-slow-orbit",
+    options: { secondsPerTurn: 60 },
+    motion: (t, { center: c, fitDistance: d }, { secondsPerTurn }) => {
+        const angle = (t / 1000 / secondsPerTurn) * 2 * Math.PI;
+        return { position: { x: c.x + d * Math.sin(angle), y: c.y, z: c.z + d * Math.cos(angle) }, target: { ...c } };
+    },
+});
+
+defineCameraView({
+    id: "acme-corner",
+    view: ({ center: c, fitDistance: d }) => ({
+        position: { x: c.x + d / Math.sqrt(3), y: c.y + d / Math.sqrt(3), z: c.z + d / Math.sqrt(3) },
+        target: { ...c },
+    }),
+});
+```
+
+`defineCameraView` calls `registerCameraView` with the descriptor defaulted (`modes` default
+`["3d"]`) and a `compute` that builds the frame from `CameraViewInput`. A motion is a view with
+elapsed time as one more input; it keeps the purity rule of section 3 (it reads time as an
+argument, never from a clock), and the element owns the frame loop, pausing on input, resuming,
+reduced-motion and recording. Move to the advanced tier when a view needs the viewport in pixels
+or the current camera state.
+
+**Sections 2 onwards specify the advanced tier.**
+
 ## 2. Data model
 
 | Type                                                                                             | Kind                      |
@@ -208,7 +245,7 @@ Run by `checkCameraView(registration)` in the proposed kit. All run in Node exce
 | is refused in an undeclared mode | in a mode not in `modes`, the route rejects with `E_UNSUPPORTED` and `compute` is not called (browser)                                                                                     |
 | frames a screenshot on a subset  | `captureScreenshot({ camera: { preset, params, scope } })` frames the scope with the options (browser; fails until section 4.1 item 3 is met)                                              |
 
-## 10. Worked example
+## 10. Worked example (advanced tier)
 
 A top-down "map" view for a geographic layout, 2D and 3D, with a margin option:
 

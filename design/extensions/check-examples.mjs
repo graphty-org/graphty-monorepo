@@ -2,6 +2,9 @@
 // and ./logging, under strict and noImplicitOverride. Run from the repository root:
 //   node design/extensions/check-examples.mjs
 // A one-line signature block (for example "registerPalette(descriptor, options?): void") is skipped.
+// ./extend is checked as the element's own ./extend plus the proposed simple tier (simple.d.ts), so
+// a simple-tier example is checked against the normative declarations it depends on, and a
+// simple-tier name that collides with a published one fails the check.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,6 +37,15 @@ for (const name of readdirSync(specDir).filter((file) => file.endsWith(".md"))) 
 }
 
 writeFileSync(
+    join(out, "_extend.ts"),
+    [
+        `export * from ${JSON.stringify(join(root, "graphty-element/extend"))};`,
+        `export * from ${JSON.stringify(join(specDir, "simple"))};`,
+        "",
+    ].join("\n"),
+);
+
+writeFileSync(
     join(out, "tsconfig.json"),
     JSON.stringify({
         compilerOptions: {
@@ -47,7 +59,8 @@ writeFileSync(
             skipLibCheck: true,
             types: [],
             paths: {
-                "@graphty/graphty-element/extend": [join(root, "graphty-element/extend.ts")],
+                "@graphty/graphty-element/extend": [join(out, "_extend.ts")],
+                "@graphty/graph-format": [join(root, "graph-format/src/index.ts")],
                 "@graphty/graphty-element/logging": [join(root, "graphty-element/logging.ts")],
                 "@graphty/graphty-element/session": [join(root, "graphty-element/session.ts")],
                 "@graphty/graphty-element": [join(root, "graphty-element/index.ts")],

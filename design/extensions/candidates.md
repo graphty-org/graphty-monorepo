@@ -95,8 +95,42 @@ graph.
 - A service source sends the reader's query (possibly sensitive identifiers) to a third-party host;
   the framework's rule that nothing fetches before the reader confirms the host must be designed in.
 
-**Shape if promoted.** A class like `DataSource` whose descriptor declares `options` (the query
-form), `hosts` (the origins it contacts, checked against the embedder's allowlist and shown to the
+**Simple tier.** The owner made data sources the seventh point on 2026-09-28. Its contract
+starts as the simple tier of `simple-tier.md` section 4.4 -- `defineDataSource({ id, hosts,
+credential, options, load })`, where `load` returns one batch of plain records, a promise of one,
+or an async iterable of batches -- and every member of the shape below is an OPTIONAL member of the
+same definition, so a simple source grows into an advanced one without being rewritten:
+
+```ts
+import { defineDataSource } from "@graphty/graphty-element/extend";
+
+defineDataSource({
+    id: "acme-api",
+    name: "Acme graph API",
+    hosts: ["https://api.acme.example"],
+    credential: { name: "API token" },
+    options: { endpoint: "https://api.acme.example/graph" },
+    async *load({ options, fetch }) {
+        for (let url: string | null = options.endpoint; url !== null; ) {
+            const page = (await (await fetch(url)).json()) as {
+                nodes: Record<string, unknown>[];
+                edges: Record<string, unknown>[];
+                next?: string;
+            };
+            yield { nodes: page.nodes, edges: page.edges };
+            url = page.next ?? null;
+        }
+    },
+});
+```
+
+The `fetch` handed to `load` is the element's: it checks the host list, confirms a host with the
+reader, attaches the credential, retries, rate-limits, times out, honours cancellation and maps
+failures to `E_FETCH_FAILED`. The credential is never visible to `load`, logged or saved. A data
+source is its own catalogue kind, so it invents no file extension.
+
+**Shape if promoted (the advanced tier).** Members of the same definition that declare `options` (the
+query form), `hosts` (the origins it contacts, checked against the embedder's allowlist and shown to the
 reader before any fetch), and `refresh` (`"none" | "manual" | "interval" | "stream"`, the last for
 pushed feeds over WebSocket or server-sent events); a credential slot whose values the element
 keeps and never logs or serialises; the service release it queried and the query parameters,

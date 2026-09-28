@@ -25,6 +25,26 @@ section "Palette" (kept); the design studio's need for shareable lab styles and 
 colour-blind-safe preset (`design/designloom/workflows/W20.yaml`, `W21.yaml`,
 `design/designloom/capabilities/style-presets.yaml`).
 
+## Simple tier
+
+A first palette is one call (`simple-tier.md` section 4.5):
+
+```ts
+import { definePalette } from "@graphty/graphty-element/extend";
+
+definePalette("acme-brand", "categorical", ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"]);
+definePalette("acme-brand-ramp", "sequential", ["#E8F1FA", "#1B7F79", "#0B1D51"]);
+```
+
+`definePalette` builds a `PaletteRegistration` -- `plainName` from the id, `capacity` derived,
+`colorblindSafe` empty unless the optional fourth argument makes a claim -- and calls
+`registerPalette`, so there is one validation path and one registry. Two changes make the brand
+case complete: `registerPalette`'s published parameter type narrows to `PaletteRegistration`, and
+an element-scoped default palette lets a brand palette apply everywhere without being named in
+every binding (README section 12, item 35).
+
+**Sections 2 onwards specify the advanced tier: the descriptor form.**
+
 ## 2. Data model
 
 `PaletteDescriptor` (`palette.d.ts`) -- kind: implemented by extensions.
@@ -253,7 +273,7 @@ the last two, which need the kit's browser configuration.
 | a renamed palette still applies    | a document carrying the palette with a different `plainName` and an unknown extra member applies, reporting the difference (Node; fails until section 5 item 3 is met) |
 | overflow is observable             | a categorical binding with more groups than the capacity and no `overflow` reports `E_CAP_EXCEEDED` to the consumer (browser; fails until section 7 is met)            |
 
-## 11. Worked examples
+## 11. Worked examples (advanced tier)
 
 A diverging fold-change palette for gene expression, with grey for missing values supplied by the
 binding (the need in `design/designloom/workflows/W20.yaml`). `capacity: null` is written out

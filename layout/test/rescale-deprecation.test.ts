@@ -28,5 +28,13 @@ describe("rescale utilities deprecation", () => {
             assert.include(text, "fromPositionMap");
             assert.include(text, "3.0.0");
         });
+
+        it(`${name} says how a plain map converts and where the replacement differs`, () => {
+            const text = deprecationOf(name);
+            assert.include(text, "Float64Array");
+            assert.include(text, "NodeIdMap");
+            assert.include(text, "Float32Array");
+            assert.include(text, "NaN");
+        });
     }
 });

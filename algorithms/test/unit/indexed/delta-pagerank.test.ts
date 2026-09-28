@@ -1,4 +1,4 @@
-import { GraphBuilder,type GraphSnapshot } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -117,7 +117,7 @@ function portedPageRank(
     return { ranks, iterations: r.iterations, converged: r.converged };
 }
 
-describe("indexed.deltaPageRank", () => {
+describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
     it("covers fixtures on both sides of legacy's n > 100 delta rule", () => {
         const sizes = fixtures().map((f) => f.graph.nodeCount);
         expect(sizes.some((n) => n > DELTA_THRESHOLD)).toBe(true);
@@ -217,6 +217,7 @@ describe("indexed.DeltaPageRank", () => {
         { name: "personalized", options: { personalize: true } },
         { name: "delta threshold 1e-5, five iterations", options: { deltaThreshold: 1e-5, maxIterations: 5 } },
         { name: "damping 0.7", options: { dampingFactor: 0.7 } },
+        { name: "tolerance 0.05, above the teleport share", options: { tolerance: 0.05 } },
     ] as const;
 
     function legacyOptions(
@@ -226,6 +227,7 @@ describe("indexed.DeltaPageRank", () => {
         return {
             dampingFactor: "dampingFactor" in options ? options.dampingFactor : undefined,
             maxIterations: "maxIterations" in options ? options.maxIterations : undefined,
+            tolerance: "tolerance" in options ? options.tolerance : undefined,
             deltaThreshold: "deltaThreshold" in options ? options.deltaThreshold : undefined,
             weight: "weight" in options ? options.weight : undefined,
             personalization: "personalize" in options ? firstThree(g) : undefined,
@@ -240,6 +242,7 @@ describe("indexed.DeltaPageRank", () => {
         return {
             dampingFactor: "dampingFactor" in options ? options.dampingFactor : undefined,
             maxIterations: "maxIterations" in options ? options.maxIterations : undefined,
+            tolerance: "tolerance" in options ? options.tolerance : undefined,
             deltaThreshold: "deltaThreshold" in options ? options.deltaThreshold : undefined,
             weighted: "weight" in options,
             personalization: "personalize" in options ? toVector(s, firstThree(g), 0) : undefined,
@@ -276,7 +279,29 @@ describe("indexed.DeltaPageRank", () => {
         });
     }
 
-    it("throws on an undirected snapshot, a bad damping factor and an out-of-range node", () => {
+    it("update() skips an index outside the graph but still runs, as legacy does for an unknown id", () => {
+        for (const { graph: g } of fixtures()) {
+            const s = snapshotOf(g);
+            const legacy = new LegacyDeltaPageRank(g);
+            const port = new DeltaPageRank(s, { weights: exactArcWeights(s) });
+            legacy.compute();
+            port.compute();
+            const ids = [...g.nodes()].map((node) => node.id);
+            const onlyUnknown = [legacy.update(new Set(["no such node"])), toMap(s, port.update([s.nodeCount, -1]))];
+            const mixed = [
+                legacy.update(new Set([ids[0], "no such node"])),
+                toMap(s, port.update([0, Number.NaN, s.nodeCount + 5])),
+            ];
+            for (const [l, p] of [onlyUnknown, mixed]) {
+                expect(p.size).toBe(l.size);
+                for (const [id, score] of l) {
+                    expect(p.get(id)).toBeCloseTo(score, 9);
+                }
+            }
+        }
+    });
+
+    it("throws on an undirected snapshot and a bad damping factor", () => {
         const u = new Graph({ directed: false });
         u.addEdge("a", "b");
         expect(() => new DeltaPageRank(snapshotOf(u))).toThrow("DeltaPageRank requires a directed graph");
@@ -284,7 +309,6 @@ describe("indexed.DeltaPageRank", () => {
         d.addEdge("a", "b");
         const engine = new DeltaPageRank(snapshotOf(d));
         expect(() => engine.compute({ dampingFactor: -0.1 })).toThrow("Damping factor must be between 0 and 1");
-        expect(() => engine.update([2])).toThrow(RangeError);
     });
 
     it("returns no scores for an empty graph", () => {

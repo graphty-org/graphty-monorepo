@@ -11,7 +11,7 @@ import type { PageRankResult } from "./pagerank.js";
  * @module
  */
 
-/** Options of {@link deltaPageRank}. @public */
+/** Options of {@link deltaPageRank}. @internal */
 export interface DeltaPageRankOptions {
     /** Probability of following a link; default 0.85. */
     readonly dampingFactor?: number | undefined;
@@ -135,10 +135,14 @@ function checkDamping(d: number): void {
  * other path runs the same iteration, so this answers both. A node with no out-arcs is dangling
  * and its rank is spread over every node (by the personalization when one is given); a node whose
  * out-weights sum to 0 but has arcs is not dangling and passes nothing on, as in legacy.
+ *
+ * Not in the `indexed` namespace: it propagates no deltas, and it exists only so the legacy
+ * `pageRank` facade can reproduce legacy arithmetic exactly. Snapshot callers use
+ * `indexed.pageRank`.
  * @param s - A DIRECTED snapshot
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
- * @public
+ * @internal
  */
 export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): PageRankResult {
     if (!s.directed) {
@@ -234,6 +238,46 @@ export class DeltaPageRank {
      * @returns A copy of the scores per node index
      */
     compute(o: DeltaPageRankComputeOptions = {}): F64 {
+        return this.run(o, false);
+    }
+
+    /**
+     * Make only the given nodes and their in- and out-neighbours active, then {@link compute}.
+     * An index outside the graph names nothing and is skipped, but a non-empty `modified` still
+     * starts a round, as legacy does for an id the graph lacks. The snapshot is frozen, so this
+     * re-runs over the same graph; a changed graph is a new snapshot and a new engine.
+     * @param modified - Node indices to reactivate
+     * @param o - Algorithm options
+     * @returns A copy of the scores per node index
+     */
+    update(modified: ArrayLike<number>, o: DeltaPageRankComputeOptions = {}): F64 {
+        const { s } = this;
+        const rev = s.reverse();
+        const active = new Uint8Array(s.nodeCount);
+        for (let i = 0; i < modified.length; i++) {
+            const u = modified[i];
+            if (!Number.isInteger(u) || u < 0 || u >= s.nodeCount) {
+                continue;
+            }
+            active[u] = 1;
+            for (let a = rev.rowPtr[u]; a < rev.rowPtr[u + 1]; a++) {
+                active[rev.colIdx[a]] = 1;
+            }
+            for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+                active[s.colIdx[a]] = 1;
+            }
+        }
+        this.active = active;
+        return this.run(o, modified.length > 0);
+    }
+
+    /**
+     * The propagation rounds behind {@link compute} and {@link update}.
+     * @param o - Algorithm options
+     * @param startRound - Run the first round even when no node is active
+     * @returns A copy of the scores per node index
+     */
+    private run(o: DeltaPageRankComputeOptions, startRound: boolean): F64 {
         const d = o.dampingFactor ?? 0.85;
         const tol = o.tolerance ?? 1e-6;
         const maxIter = o.maxIterations ?? 100;
@@ -248,7 +292,7 @@ export class DeltaPageRank {
         const weights = o.weighted === true ? this.weights : null;
         const randomJump = (1 - d) / n;
         let activeCount = this.active.reduce((sum, x) => sum + x, 0);
-        for (let it = 0; activeCount > 0 && it < maxIter; it++) {
+        for (let it = 0; (activeCount > 0 || (it === 0 && startRound)) && it < maxIter; it++) {
             const next = new Float64Array(n);
             let dangling = 0;
             for (let u = 0; u < n; u++) {
@@ -292,35 +336,6 @@ export class DeltaPageRank {
         }
         normalize(scores);
         return scores.slice();
-    }
-
-    /**
-     * Make only the given nodes and their in- and out-neighbours active, then {@link compute}.
-     * The snapshot is frozen, so this re-runs over the same graph; a changed graph is a new
-     * snapshot and a new engine.
-     * @param modified - Node indices to reactivate
-     * @param o - Algorithm options
-     * @returns A copy of the scores per node index
-     */
-    update(modified: ArrayLike<number>, o: DeltaPageRankComputeOptions = {}): F64 {
-        const { s } = this;
-        const rev = s.reverse();
-        const active = new Uint8Array(s.nodeCount);
-        for (let i = 0; i < modified.length; i++) {
-            const u = modified[i];
-            if (!Number.isInteger(u) || u < 0 || u >= s.nodeCount) {
-                throw new RangeError(`node index ${String(u)} is outside [0, ${String(s.nodeCount)})`);
-            }
-            active[u] = 1;
-            for (let a = rev.rowPtr[u]; a < rev.rowPtr[u + 1]; a++) {
-                active[rev.colIdx[a]] = 1;
-            }
-            for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
-                active[s.colIdx[a]] = 1;
-            }
-        }
-        this.active = active;
-        return this.compute(o);
     }
 }
 

@@ -8,7 +8,6 @@ import type {
     DeltaPageRankEngineOptions,
     IndexedApspOptions,
     IndexedApspResult,
-    IndexedDeltaPageRankOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
 } from "../../../src/index.js";
@@ -62,15 +61,15 @@ describe("indexed all-pairs shortest path exports", () => {
 });
 
 describe("indexed delta PageRank exports", () => {
-    it("reaches the three delta engines and their flat types through the package barrel", async () => {
+    it("reaches the two delta engines and their flat types through the package barrel", async () => {
         const pkg = await import("../../../src/index.js");
         const format = await import("@graphty/graph-format");
         const b = new format.GraphBuilder({ directed: true });
         b.addEdge(0, 1);
         b.addEdge(1, 0);
         const s = b.freeze();
-        const options: IndexedDeltaPageRankOptions = { tolerance: 1e-12 };
-        expect(Array.from(pkg.indexed.deltaPageRank(s, options).scores)).toEqual([0.5, 0.5]);
+        // The legacy pageRank facade's exact power iteration is internal, not a second public PageRank.
+        expect("deltaPageRank" in pkg.indexed).toBe(false);
         const engineOptions: DeltaPageRankEngineOptions = {};
         const computeOptions: DeltaPageRankComputeOptions = { dampingFactor: 0.85 };
         // The engines drop deltas below their threshold, so the symmetric pair lands near, not on, 0.5.

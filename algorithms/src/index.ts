@@ -88,12 +88,7 @@ export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult
 export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";
-// Aliased: the flat DeltaPageRankOptions names the legacy DeltaPageRank's options.
-export type {
-    DeltaPageRankComputeOptions,
-    DeltaPageRankEngineOptions,
-    DeltaPageRankOptions as IndexedDeltaPageRankOptions,
-} from "./indexed/delta-pagerank.js";
+export type { DeltaPageRankComputeOptions, DeltaPageRankEngineOptions } from "./indexed/delta-pagerank.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two

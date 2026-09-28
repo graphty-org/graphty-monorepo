@@ -19,10 +19,8 @@ export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neig
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
 export {
     DeltaPageRank,
-    deltaPageRank,
     type DeltaPageRankComputeOptions,
     type DeltaPageRankEngineOptions,
-    type DeltaPageRankOptions,
     PriorityDeltaPageRank,
 } from "./delta-pagerank.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";

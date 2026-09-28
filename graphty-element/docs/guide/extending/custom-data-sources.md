@@ -179,11 +179,12 @@ The order is:
 
 1. **Extension.** Every format whose descriptor claims the file's extension, the element's own
    first, then registrations in registration order.
-2. **Disambiguation.** When more than one claims it, each claimant's `detect(sample)` is asked in
-   that same order and the first `true` wins. This is how a third XML dialect is told apart from
-   GraphML and GEXF.
-3. **Content.** With no extension match, the element's own sniffers are asked in a fixed order,
-   then yours.
+2. **Disambiguation.** When more than one claims it, the claimants whose content check says yes
+   come first -- the element's own formats in the order `@graphty/graph-io`'s sniffers rank them,
+   then yours in registration order -- and the rest follow. This is how a third XML dialect is
+   told apart from GraphML and GEXF.
+3. **Content.** With no extension match, the element's own formats are ranked by
+   `@graphty/graph-io`'s sniffers, then your `detect(sample)` is asked.
 
 **Plugin detectors run strictly after every built-in detector**, so your format can only claim a
 file the element could not already read. A detector that throws is caught and treated as "no".

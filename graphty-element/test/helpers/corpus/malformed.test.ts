@@ -69,20 +69,29 @@ interface MalformedBehavior {
     shouldThrow?: boolean; // Parser should throw an error
     shouldRecover?: boolean; // Parser should recover with partial/empty data
     errorPattern?: RegExp; // If throws, error message should match this pattern
+    nodes?: number; // If it recovers, the node records it yields
+    edges?: number; // If it recovers, the edge records it yields
     description: string; // Human-readable description of expected behavior
 }
+
+/** What a reader built on graph-io says when it cannot read the file at all. */
+const PARSE_FAILED = /^Failed to read the (dot|gml|pajek) file/;
 
 // Define expected behaviors for specific malformed files
 const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
     dot: {
-        "empty-file.gv": { shouldRecover: true, description: "Empty file should return empty graph" },
-        "garbage-content.gv": { shouldRecover: true, description: "Garbage should be handled gracefully" },
-        "unclosed-brace.gv": { shouldRecover: true, description: "Unclosed brace should recover partial data" },
-        "unclosed-string.gv": { shouldRecover: true, description: "Unclosed string should recover partial data" },
+        "empty-file.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Empty file is not DOT" },
+        "garbage-content.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Garbage is not DOT" },
+        "unclosed-brace.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Unclosed brace fails" },
+        "unclosed-string.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Unclosed string fails" },
         "invalid-keyword.gv": { shouldRecover: true, description: "Invalid keywords should be skipped" },
         "missing-arrow.gv": { shouldRecover: true, description: "Missing arrow should create nodes only" },
-        "nested-unclosed.gv": { shouldRecover: true, description: "Nested unclosed should recover partial data" },
-        "invalid-attributes.gv": { shouldRecover: true, description: "Invalid attributes should be handled" },
+        "nested-unclosed.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Nested unclosed fails" },
+        "invalid-attributes.gv": {
+            shouldThrow: true,
+            errorPattern: PARSE_FAILED,
+            description: "Attribute syntax fails",
+        },
     },
     graphml: {
         "empty-file.graphml": { shouldThrow: true, description: "Empty file should throw" },
@@ -97,8 +106,8 @@ const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
     gml: {
         "empty-file.gml": { shouldThrow: true, description: "Empty file throws missing graph element" },
         "garbage-content.gml": { shouldThrow: true, description: "Garbage throws missing graph element" },
-        "unclosed-bracket.gml": { shouldRecover: true, description: "Unclosed bracket should recover" },
-        "unclosed-string.gml": { shouldRecover: true, description: "Unclosed string should recover" },
+        "unclosed-bracket.gml": { shouldThrow: true, errorPattern: /line \d+/, description: "Unclosed bracket fails" },
+        "unclosed-string.gml": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Unclosed string fails" },
         "missing-id.gml": { shouldRecover: true, description: "Missing ID should skip node" },
         "missing-edge-target.gml": { shouldRecover: true, description: "Missing target should skip edge" },
         "invalid-value-type.gml": { shouldRecover: true, description: "Invalid value type should be handled" },
@@ -127,13 +136,23 @@ const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
         "binary-content.csv": { shouldRecover: true, description: "Binary content should be handled" },
     },
     pajek: {
-        "empty-file.net": { shouldRecover: true, description: "Empty file should return empty" },
-        "no-vertices-header.net": { shouldRecover: true, description: "No header should try to parse" },
-        "wrong-vertex-count.net": { shouldRecover: true, description: "Wrong count should parse available" },
+        "empty-file.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Empty file is not Pajek" },
+        "no-vertices-header.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "No header fails" },
+        "wrong-vertex-count.net": {
+            shouldRecover: true,
+            nodes: 10,
+            edges: 2,
+            description: "The *Vertices count sets the vertex set, lines or not",
+        },
         "malformed-vertex.net": { shouldRecover: true, description: "Malformed vertex should skip line" },
         "malformed-edge.net": { shouldRecover: true, description: "Malformed edge should skip line" },
-        "garbage-content.net": { shouldRecover: true, description: "Garbage should return empty" },
-        "invalid-edge-reference.net": { shouldRecover: true, description: "Invalid refs should be kept" },
+        "garbage-content.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Garbage is not Pajek" },
+        "invalid-edge-reference.net": {
+            shouldRecover: true,
+            nodes: 3,
+            edges: 2,
+            description: "An edge to a vertex outside *Vertices is dropped and reported",
+        },
         "missing-edges-section.net": { shouldRecover: true, description: "Missing edges should return nodes only" },
     },
     json: {
@@ -235,6 +254,12 @@ describe("Malformed Corpus Tests", () => {
                             // The counts can be 0 or more - we just care that it didn't crash
                             assert.isAtLeast(totalNodes, 0, "Node count should be non-negative");
                             assert.isAtLeast(totalEdges, 0, "Edge count should be non-negative");
+                            if (behavior.nodes !== undefined) {
+                                assert.equal(totalNodes, behavior.nodes, "node records");
+                            }
+                            if (behavior.edges !== undefined) {
+                                assert.equal(totalEdges, behavior.edges, "edge records");
+                            }
                         } catch (error) {
                             // Even if we expected recovery, some errors are acceptable
                             // as long as they're meaningful and don't crash

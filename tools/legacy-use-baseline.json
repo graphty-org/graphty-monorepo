@@ -43,13 +43,6 @@
     "graphty-element/src/algorithms/utils/snapshotGraph.ts legacy-import Graph": 1,
     "graphty-element/src/data/CSVDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
     "graphty-element/src/data/CSVDataSource.ts parser-dependency papaparse": 1,
-    "graphty-element/src/data/DOTDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/DOTDataSource.ts hand-written-parser tokenize": 1,
-    "graphty-element/src/data/GMLDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/GMLDataSource.ts hand-written-parser tokenize": 1,
     "graphty-element/src/data/JsonDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/PajekDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/PajekDataSource.ts hand-written-parser parsePajek": 1,
-    "graphty-element/src/data/PajekDataSource.ts hand-written-parser tokenizeLine": 1,
     "graphty-element/src/data/csv-variant-detection.ts hand-written-parser csv-variant-detection.ts": 1
 }

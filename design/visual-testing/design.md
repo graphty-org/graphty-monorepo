@@ -155,11 +155,75 @@ for this milestone", gives the reason for each.
   as a subprocess. `npm run lint` also type-checks `trusted/` and `capture/` from their JSDoc
   (`tsc --checkJs`, not strict). The CI workflow semantics are proven only by a run of the pull
   request itself (above).
-- **The review page crops.** Thumbnails, side by side, flash and highlight show only the box
-  holding everything that differs from the frame's background colour, plus 16 pixels (highlight
-  widens it to hold the changed box), enlarged up to four times; Z shows the full frame. Most stories are a small component on a 1200 x 900 frame.
-- **A local preview (`serve --results`) offers only Reject.** Accept and Exclude are hidden and
-  refused by the page's API, because Finish accepts only CI captures.
+- **Capture is at device scale factor 2, cropped to the content, as Chromatic's.** Each story and
+  mode renders in a 1200 x 900 viewport at scale 2, and the PNG is cropped to the union of every
+  visible element's box (portals such as tooltips and popovers are elements of the body too) plus
+  a 32 CSS-pixel margin, within the page; a taller story is captured past the viewport. A canvas
+  project (`canvas: true` in `projects.json`: graphty-element, and algorithms and layout when they
+  join) keeps the viewport: its full width, and the content's height plus the margin, never past
+  the viewport, since a larger capture can resize the Babylon canvas and clear it. results.json
+  records `scale: 2` (a file without it is read as 1), and each review record copies it into its
+  `subject`. A block-level wrapper spans the page, so most compact-mantine captures are the full
+  width and cropped only in height (for example 2400 x 192 for an AdvancedButton row).
+- **Determinism at scale 2, cropped (measured 2026-09-27).** Two full captures back to back of
+  each project on the development server (i9-14900KF, no baselines, so every item was also
+  captured twice within each run): compact-mantine, 8 workers, 828 items, 134 s and 124 s;
+  graphty-element, 4 workers, 176 items plus 2 excluded, 477 s and 760 s (the second run shared
+  the machine with a test suite, and other agents held the load average near 80). Every one of the 1,004 captured PNGs was byte-identical between
+  the two runs, and no item was `unstable` or `failed` within either run. This is one machine;
+  runner to runner is still unmeasured (section 6).
+- **The stories with their own `diffThreshold`.** 21 graphty-element captures set one, all with
+  `diffIncludeAntiAliasing: true`: the ten Layout/3D stories (0.3 from the component, D3 0.8),
+  Styles/Graph Skybox (0.3) and ten Styles/Label stories (0.25 to 0.5). Chromatic's per-story
+  verdicts cannot be read without the owner's login cookie (`tools/chromatic-capture.mjs` needs
+  `CHROMATIC_SESSION_COOKIE`, which is not set), so the only Chromatic verdicts at hand are the
+  story list of graphty-element build 1001 in `chromatic-study/03-options/01-build-1001-text.txt`
+  (a branch that changed the label font, so its changes are real, not noise). Under our capture
+  the two runs were byte-identical, so each threshold absorbed nothing: zero pixels differ at the
+  default 0.063 and at the story's own value alike. What a threshold hides only shows once two
+  captures differ, which on one machine they do not; the runner-to-runner measurement decides
+  whether any is still needed. No story parameter was changed.
+
+    | Capture                                                                                                                                        | Threshold | Chromatic build 1001 | Our run a vs run b |
+    | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------- | ------------------ |
+    | layout-3d--circular, --fixed, --force-atlas-2, --force-atlas-2-weighted, --kamada-kawai, --kamada-kawai-weighted, --ngraph, --random, --spring | 0.3       | not listed (passed)  | identical          |
+    | layout-3d--d-3                                                                                                                                 | 0.8       | not listed (passed)  | identical          |
+    | styles-graph--skybox                                                                                                                           | 0.3       | not listed (passed)  | identical          |
+    | styles-label--badge                                                                                                                            | 0.5       | not listed (passed)  | identical          |
+    | styles-label--emoji-labels                                                                                                                     | 0.25      | not listed (passed)  | identical          |
+    | styles-label--background-gradient, --corner-radius, --pointer, --text-outline, --text-shadow, --unicode-text                                   | 0.25      | changed (unreviewed) | identical          |
+    | styles-label--depth-fade, --font-size                                                                                                          | 0.3       | changed (unreviewed) | identical          |
+
+- **The review page shows real size.** One CSS pixel of the page per CSS pixel the story was drawn
+  at (the image's width divided by its scale), each image scrolling in its own frame, with 2x, 4x
+  and 8x (hard pixels from 4x), and "next changed box", which scrolls every frame to the next
+  region of changed pixels. Views: side by side; flash, which alternates the two images
+  themselves at about 1.5 Hz, and hold Space to flash; highlight; and spotlight, the new image
+  dimmed to 65/255 except around the changed pixels grown by 10 image pixels (Chromatic's focus
+  mask). The client-side crop to a background-coloured box is gone: capture crops now.
+- **The grid.** It opens on the undecided items. Failed captures are listed first, in their own
+  list, with their reason, console and stack (capture keeps the whole thrown message and the
+  text of Storybook's error screen, `#error-message` and `#error-stack`); they can only be
+  excluded. The rest is grouped by component (the story id before `--`), components holding a
+  changed item first, then new, unstable and removed; a story's modes sit together. Tiles are
+  numbered in the order the story screen's "N of M" and J / K follow, and coming back from a
+  story outlines and scrolls to its tile. A text filter, a go-to box (a number, or part of a story
+  id), and a per-component "Accept N undecided" (asks first; `/api/accept-all` with `component`)
+  complete it. Escape returns to the grid from a story wherever the focus is.
+- **No decision is silently reversed.** A reject always needs a reason. A, R and E do nothing on a
+  decided item; U or Undo clears it first. The API refuses a different decision on a decided
+  item with 409 and accepts the same one again (opening an item Accept all decided re-sends it).
+- **One commit status per Finish.** "Visual review", posted once when Finish completes, on the
+  pushed commit (or the captured one when nothing was accepted): `failure` with any reject,
+  `pending` while items are undecided, else `success`, with the counts in its description.
+  Chromatic re-posted its status after every accept (27 times on pull request #409). It is
+  information, not a required check; a failed post is reported on the page and undoes nothing.
+- **A local preview (`serve --results`) is look only.** It is the target "local", titled "Local
+  preview", never master or a seed: no Accept, Reject or Exclude, no Finish, and the API refuses
+  every decision and Finish on it, because Finish accepts only CI captures. `--branch` is gone.
+- **The signing key and how to replace it.** The targets screen and Finish's confirmation name the
+  key, where git found it (`git config --show-origin`), and the committer, and print the exact
+  command that starts the same server from the owner's own shell.
 
 The owner's guide to reviewing is `visual-review/README.md`.
 
@@ -362,11 +426,12 @@ that environment, so every measurement is rerun under them before a seed.
 5. **Settings.** Read the story's settings file; for a story with none, take `disableSnapshot`,
    `diffThreshold` and `diffIncludeAntiAliasing` from its parameters and propose a new settings
    file. A parameter that later differs from the file is proposed as a settings item.
-6. Screenshot at 1200 x 900, device scale factor 1, `caret: "hide"`, `animations: "disabled"`.
-   **Viewport only** for canvas projects (graphty-element, algorithms, layout): a full-page
-   capture can resize the Babylon canvas, which clears it and redraws on a later frame the settle
-   wait never saw. **Full height** only for compact-mantine and the graphty app, and only after a
-   full-page run is measured stable. `animations: "disabled"` fast-forwards finite CSS and Web
+6. Screenshot a 1200 x 900 viewport at device scale factor 2 (as Chromatic), `caret: "hide"`,
+   `animations: "disabled"`, cropped to the story's content box (every visible element) plus 32
+   CSS pixels. **Viewport only, full width** for canvas projects (graphty-element, algorithms,
+   layout; cropped only in height): a full-page capture can resize the Babylon canvas, which
+   clears it and redraws on a later frame the settle wait never saw. Other projects may extend past
+   the viewport when their content does; the two-run measurement in section 1a covers it. `animations: "disabled"` fast-forwards finite CSS and Web
    Animations (which matches `pauseAnimationAtEnd`) and resets infinite ones. It does not touch
    timer-driven state such as Mantine Transition phases; if those flake, compact-mantine's preview
    sets Mantine's transition durations to 0 when `chromatic=true`.
@@ -440,6 +505,9 @@ Two more measurements run in parallel and never block a seed:
    the threshold the status is `unchanged` and the old baseline is kept.
 3. **Size changes.** Both images are padded to the larger width and height, anchored top-left,
    with a fixed checkerboard. The padded area counts as changed, and the item carries both sizes.
+   Since captures are cropped to their content, a story that grows or shrinks is a size change.
+   Sizes, boxes and pixel counts are in image pixels (two per CSS pixel at scale 2); the review
+   page states sizes in image pixels only, never mixing units as Chromatic's message does.
 4. **Second capture.** Every item that differs from its baseline, and every new item, is captured
    again in a new browser context. With the same pixelmatch rule:
     - both captures agree and differ from the baseline: `changed` (or `new`);
@@ -882,8 +950,9 @@ boundary the owner must be able to read (section 18).
 **Decisions** are derived from git (signed records on the branch) plus the tool's state file
 (section 8, step 2), never from browser storage.
 
-**Keyboard:** J and K next and previous, A accept, R reject, E exclude, F flash, H highlight, Z
-zoom, Shift+A accept the project.
+**Keyboard:** J and K next and previous, A accept, R reject, E exclude, U undo, F flash, H
+highlight, S spotlight, Z next zoom (real size, 2x, 4x, 8x), N next changed box, Space (hold)
+flash, Shift+A accept the project, Escape back to the grid.
 
 **Where it runs**
 
@@ -1001,10 +1070,11 @@ run), every story without a baseline is `new`, which is the safe side.
 **Before a pull request exists.** An agent or the owner iterates on a story's look locally:
 build the Storybook, then `visual-review capture --project <p> --out tmp/<task>/<p> --stories
 <id prefix>`, which captures only the matching stories in seconds and reports no baseline as
-removed; open the PNG, or serve the directory with `serve --results tmp/<task> --branch <b>`. A
-local capture records `local` (describe and diff hash), and the page offers only Reject on it and
-the API refuses Accept and Exclude: its fonts and graphics stack are not CI's, so a preview can
-never become a baseline.
+removed; open the PNG, or serve the directory with `serve --results tmp/<task>`. The page lists
+it as "Local preview", never as master or a seed, and it is look only: no decision buttons and no
+Finish, and the API refuses every decision and Finish on it. A local capture records `local`
+(describe and diff hash); its fonts and graphics stack are not CI's, so a preview can never
+become a baseline.
 
 **How captures and baselines move.** CI uploads each capture as an artifact. The review server
 lists open pull requests and their newest CI runs with `gh` and downloads the artifacts with `gh

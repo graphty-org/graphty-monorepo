@@ -2,8 +2,8 @@
 
 The files in this directory are served at the site root by Vite's public dir, so the
 app loads them with `handle.loadFromUrl("/samples/<file>", "gml")`. They are
-byte-for-byte copies of the graphty-element test corpus
-(`graphty-element/test/helpers/corpus/gml/`), not retyped or reformatted; the source and
+byte-for-byte copies of the graph-io test corpus
+(`graph-io/test/corpus/gml/`), not retyped or reformatted; the source and
 license fields below are copied from that corpus's `manifest.json`.
 
 The third sample the Welcome state offers, the cat social network, needs no file here:
@@ -16,7 +16,7 @@ it is bundled in `graphty/src/data/sampleGraphs.ts` and loads inline.
 - Source: http://www-personal.umich.edu/~mejn/netdata/
 - License: Academic
 - Credit shown in the app: Zachary 1977
-- Copied from: graphty-element/test/helpers/corpus/gml/karate.gml
+- Copied from: graph-io/test/corpus/gml/karate.gml
 
 Zachary's karate club: the social network of a university karate club that split in
 two, and the classic test case for community detection.
@@ -28,7 +28,7 @@ two, and the classic test case for community detection.
 - Source: http://www-personal.umich.edu/~mejn/netdata/
 - License: Academic
 - Credit shown in the app: Girvan and Newman 2002
-- Copied from: graphty-element/test/helpers/corpus/gml/football.gml
+- Copied from: graph-io/test/corpus/gml/football.gml
 
 American college football games between Division IA teams in the autumn 2000 season,
 with each team tagged by conference.

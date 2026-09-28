@@ -161,7 +161,7 @@ describe("the manifest against the data it describes", () => {
     });
 
     it("records the corpus manifest's counts for the two served GML files", () => {
-        // graphty-element/test/helpers/corpus/gml/manifest.json: karate 34/78,
+        // graph-io/test/corpus/gml/manifest.json: karate 34/78,
         // football 115/613.
         expect(record("karate").size).toEqual({ nodes: 34, edges: 78 });
         expect(record("college-football").size).toEqual({ nodes: 115, edges: 613 });

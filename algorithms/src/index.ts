@@ -84,9 +84,11 @@ export type {
 export { accelerated } from "./indexed/accelerator.js";
 // `Indexed` prefix: @graphty/webgpu-graph-algorithms publishes a different ApspOptions.
 export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
-export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
+export type { ArcOrderOption, BfsOptions, BfsResult, DirectionOptimizedBfsOptions } from "./indexed/bfs.js";
+export type { BipartiteOptions, BipartiteResult } from "./indexed/bipartite.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";
+export type { DfsOptions, DfsResult } from "./indexed/dfs.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
@@ -104,6 +106,7 @@ export type {
     LouvainResult as IndexedLouvainResult,
 } from "./indexed/louvain.js";
 export type { MstOptions, MstResult } from "./indexed/mst.js";
+export type { CondensationResult } from "./indexed/scc.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {
     PageRankOptions as IndexedPageRankOptions,

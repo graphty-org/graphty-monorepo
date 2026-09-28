@@ -6,7 +6,7 @@
  * @module
  */
 
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot, type U32 } from "@graphty/graph-format";
 
 import type { Graph } from "../core/graph.js";
 
@@ -75,4 +75,38 @@ export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): Graph
     const snapshot = builder.freeze({ label: "algorithms.toSnapshot", checksum });
     SNAPSHOT_CACHE.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot });
     return snapshot;
+}
+
+/**
+ * The order a legacy `Graph` hands out each node's neighbours in, as the `arcOrder` option of the
+ * order-sensitive traversals (`depthFirstSearch`, `topologicalSort`, `stronglyConnectedComponents`,
+ * `condensation`, `breadthFirstSearch`). A snapshot row is sorted by neighbour index, while the
+ * legacy adjacency Map is in insertion order, so a traversal that must visit nodes in the legacy
+ * order -- a facade keeping its published result -- passes this.
+ * @param graph - The legacy graph
+ * @param s - A snapshot with the graph's nodes in the same order and its neighbour pairs, such as
+ *   `toSnapshot(graph)`; parallel arcs of one pair are kept together in row order
+ * @returns For every row, its arcs in legacy neighbour order
+ */
+export function legacyArcOrder(graph: Graph, s: GraphSnapshot): U32 {
+    const order = new Uint32Array(s.arcCount);
+    let next = 0;
+    for (const node of graph.nodes()) {
+        const u = s.ids.requireIndex(node.id);
+        if (next !== s.rowPtr[u]) {
+            throw new Error("legacyArcOrder: the snapshot does not hold this graph's nodes and neighbours");
+        }
+        for (const neighbor of graph.neighbors(node.id)) {
+            // Every arc to this neighbour, in row order: the legacy graph holds one edge per pair,
+            // but a multigraph snapshot of it may hold several.
+            const [lo, hi] = s.arcsBetween(u, s.ids.requireIndex(neighbor));
+            for (let a = lo; a < hi; a++) {
+                order[next++] = a;
+            }
+        }
+        if (next !== s.rowPtr[u + 1]) {
+            throw new Error("legacyArcOrder: the snapshot does not hold this graph's nodes and neighbours");
+        }
+    }
+    return order;
 }

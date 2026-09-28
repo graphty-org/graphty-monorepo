@@ -14,9 +14,18 @@
  */
 
 export { allPairsShortestPath, type ApspOptions, type ApspResult } from "./all-pairs.js";
-export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
+export {
+    type ArcOrderOption,
+    type BfsOptions,
+    type BfsResult,
+    breadthFirstSearch,
+    directionOptimizedBfs,
+    type DirectionOptimizedBfsOptions,
+} from "./bfs.js";
+export { type BipartiteOptions, type BipartiteResult, isBipartite } from "./bipartite.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
+export { depthFirstSearch, type DfsOptions, type DfsResult, hasCycle, topologicalSort } from "./dfs.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
@@ -25,4 +34,5 @@ export { labelPropagation, type LabelPropagationOptions, type LabelPropagationRe
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
+export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";

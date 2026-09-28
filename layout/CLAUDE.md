@@ -11,20 +11,15 @@ This file provides guidance to Claude Code when working with the @graphty/layout
 ```
 layout/
 ├── src/
-│   ├── layouts/              # Layout algorithm implementations
-│   │   ├── force-directed/   # Spring, ForceAtlas2, ARF, Kamada-Kawai, Fruchterman-Reingold
-│   │   ├── geometric/        # Circular, Shell, Spiral
-│   │   ├── hierarchical/     # BFS, Bipartite, Multipartite
-│   │   ├── specialized/      # Planar, Spectral
-│   │   └── basic/            # Random
-│   ├── algorithms/           # Supporting algorithms
+│   ├── indexed/              # The fifteen layouts, one file per layout (or pair), over a GraphSnapshot
+│   ├── simulation/           # Steppable ForceAtlas2 and Fruchterman-Reingold simulations, the accelerator seam
+│   ├── positions.ts          # LayoutResult and its conversions (PositionMap, the scene column, rescaleInPlace)
+│   ├── algorithms/
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
-│   ├── generators/           # Deprecated aliases of @graphty/graph-samples/generators (see below)
-│   ├── types/                # TypeScript interfaces
-│   └── utils/                # NumPy-like utilities, rescaling
-├── test/                     # Vitest tests
-├── examples/                 # HTML usage examples
-└── docs/                     # VitePress documentation
+│   ├── types/                # Node, Edge, Graph (the duck type toLayoutSnapshot reads), PositionMap
+│   └── utils/                # NumPy-like helpers, the seeded generator, rescaleLayout
+├── test/                     # Vitest tests; test/layouts/ per layout family, test/types/ compile-only
+└── stories/                  # Storybook stories, one per layout
 ```
 
 ## Essential Commands
@@ -45,56 +40,31 @@ npm run coverage:preview # Serve coverage report (start it through servherd with
 # Linting
 npm run lint             # TypeScript type checking
 
-# Examples
-npm run examples         # Build and serve HTML examples
-
 # Documentation
 npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
 
-## Generators
+## Graph generators
 
-`src/generators/` keeps the public `completeGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `gridGraph`,
-`randomGraph`, `scaleFreeGraph` and `bipartiteGraph` only as `@deprecated` aliases of
-`@graphty/graph-samples/generators` (removed in layout's next major). `sample.ts` adapts a `SampleGraph` to the
-layout `Graph` shape and maps old inputs: an omitted seed draws one from `Math.random` (a new graph per call), any
-other seed becomes `|trunc(seed)| mod 2^53` (non-finite -> 0), counts truncate to non-negative integers, and `p` clamps
-to [0, 1]. Inputs graph-samples rejects (cycle below 3 nodes, wheel below 4, empty star or grid, `m = 0`) keep their
-old output in the alias. graph-samples is a dependency and a peer, like graph-format, so the bundle leaves it external
-and Nx builds it first. layout's `tsconfig.json` uses node10 resolution, which ignores package `exports`; the
-`/generators` subpath resolves through the `typesVersions` map in graph-samples' package.json.
+Layout has no graph generators since 2.0.0: `@graphty/graph-samples/generators` has them, returning a `SampleGraph`
+that `fromEdgeArrays` from `@graphty/graph-format` freezes into a snapshot. graph-samples is a dev dependency, used
+by the tests only.
 
-## Layout Function Interface
+## Layouts
 
-All layouts follow a consistent pattern:
-
-```typescript
-type LayoutFunction = (graph: ReadonlyGraph, options?: LayoutOptions) => PositionMap;
-
-// PositionMap: Map<NodeId, number[]>  (2D or 3D coordinates)
-```
-
-Common options:
-
-- `dim`: Dimension (2 or 3, default: 2)
-- `center`: Center point for the layout
-- `scale`: Scale factor for positions
-- `seed`: Random seed for deterministic layouts
-
-## Index-based layouts
-
-`src/indexed/` holds the index-based form of every layout (graph-format design 14.3), exported from the barrel as
-the `indexed` namespace (`export * as indexed`), so `indexed.circular` never collides with `circularLayout`. Every
-public function has the same signature, `(snapshot: GraphSnapshot, options?: XOptions) => LayoutResult`: node
+`src/indexed/` holds every layout (graph-format design 14.3), exported from the barrel at the top level
+(`circular`, `forceAtlas2`, ...) and, until 3.0.0, through the deprecated `indexed` namespace, which is the same
+functions. Every public function has the same signature, `(snapshot: GraphSnapshot, options?: XOptions) => LayoutResult`: node
 indices in, a flat `dim`-stride `Float32Array` in node-index order out. Options that name nodes take indices, a
 `NodeMask` or a node column name, never ids. The fifteen: `arf`, `bfs`, `bipartite`, `circular`, `forceAtlas2`,
 `fruchtermanReingold`, `grid`, `kamadaKawai`, `multipartite`, `planar`, `radial`, `random`, `shell`, `spectral`,
-`spiral`. `test/types/indexed.test-d.ts` pins each signature and the namespace's member list; a changed parameter
-list, options type or return type fails the test run (vitest `typecheck`, with `tsconfig.types.json`).
+`spiral`. `test/types/exports.test-d.ts` pins each signature, the `indexed` namespace's member list and the
+absence of every name 2.0.0 removed; a changed parameter list, options type or return type fails the test run
+(vitest `typecheck`, with `tsconfig.types.json`).
 
 - `common.ts`: `CommonLayoutOptions` (`dim`, `scale`, `center`, `seed`), `resolve()` (validate and default them),
-  `result()` (f64 rows -> the f32 `LayoutResult`) and `rowsToPositionMap()` (f64 rows -> the legacy id-keyed map).
+  `result()` (f64 rows -> the f32 `LayoutResult`).
 - `start.ts`: `layoutDim()` and `startColumn()`, the stride-3 start column the force layouts seed with
   `seedPositions` from a caller's `pos`.
 - Geometric and structural layouts (`circular`, `grid`, `random`, `shell`, `spiral`, `spectral`, `planar`,
@@ -105,19 +75,13 @@ list, options type or return type fails the test run (vitest `typecheck`, with `
   end of their budget, then rescale. `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and
   runs the existing solver; `arf` is its own loop, unrescaled, as networkx has it.
 
-### The wrapper pattern
+### Golden fixtures
 
-The legacy id-keyed layouts are thin wrappers over this code, so there is one implementation of each algorithm:
-the legacy function keeps its signature and its parameter processing (`_processParams`, `getNodesFromGraph`), calls
-the shared rows helper and converts the rows back with `rowsToPositionMap`. `forceatlas2Layout` and
-`fruchtermanReingoldLayout` convert the graph once with `toLayoutSnapshot`, map the caller's id-keyed `pos` onto
-index rows and call `indexed.forceAtlas2` / `indexed.fruchtermanReingold`; `fruchterman-reingold-legacy.ts` keeps
-the old loop only for inputs the indexed code does not take (a `dim` other than 2 or 3, among others). Where the
-legacy function differs on purpose (`bipartiteLayout` and `multipartiteLayout` centre on the swapped
-`[center[1], center[0]]`), the doc comment says so. `arfLayout` and `kamadaKawaiLayout` are not wrappers yet.
-
-Tests in `test/indexed/` check each indexed layout's geometry and options, and that it matches the legacy
-function on the same graph.
+Layout 1.x had positional, id-keyed versions of these layouts (`circularLayout(G, scale, center, dim)` and the rest).
+Before 2.0.0 removed them, their outputs were recorded into `test/layouts/fixtures/*.golden.json` (rows in node-index
+order), and `test/layouts/` checks the layouts against those fixtures (`goldenFile` / `matchesGolden` in
+`test/layouts/golden.ts`). A fixture cannot be re-recorded: the code that produced it is gone. A deliberate change of
+output replaces the fixture's values and says why in the commit.
 
 ## Simulations
 
@@ -148,10 +112,10 @@ graphty-element's `./webgpu` entry point is the only importer of `@graphty/webgp
   snapshot. A node list becomes an edgeless snapshot; an undirected snapshot is returned as is; a directed one yields
   ONE cached `toUndirected()` copy.
 - `src/positions.ts`: `LayoutResult` (`{ positions, dim, n }`, a flat `dim`-stride `Float32Array` in node-index
-  order, layout units) and its conversions: `toPositionMap` / `fromPositionMap` (the legacy id-keyed map; `fill`
+  order, layout units) and its conversions: `toPositionMap` / `fromPositionMap` (the id-keyed map; `fill`
   writes the row of a node the map does not give), `toPositionColumn` / `fromPositionColumn` (the stride-3
   scene-unit column: `v * scale + center`, a 2D row's z is the centre's z) and `rescaleInPlace` (`rescaleLayout` over
-  a flat array, f64 scratch, within 1e-6 of it). `forceatlas2Layout` is built from them.
+  a flat array, f64 scratch, within 1e-6 of it).
 - `resolveNodeVector(spec, s, fallback)` / `resolveWeights(spec, s)` (`inputs.ts`): the per-node and per-arc inputs
   resolve by graph-format ROLE. A node vector is `null` -> the role-`mass` column when present, else `fallback(i)`; a
   `Float32Array(n)` as given; a numeric node column by name; or the legacy id-keyed record (CPU only: the GPU
@@ -171,7 +135,7 @@ A simulation runs in LAYOUT units (FA2's `[-1, 1)` seed scale; FR's `[0, 1)`) in
 holds SCENE units in f32 (design 7.18). `load()` converts every row as `(v - center[axis]) / scale` (z forced to 0 in
 2D); `step()` writes every FREE node back as `layout * scale + center[axis]` (z = `center.z` in 2D). A fixed row is
 never written: its scene value is the owner's. Nothing rescales the output per step -- the one-shot
-`forceatlas2Layout`'s unit-ball normalisation is NOT reproduced by the steppable classes -- so a pinned or dragged
+`forceAtlas2`'s unit-ball normalisation is NOT reproduced by the steppable classes -- so a pinned or dragged
 node stays where the user put it and `scale` / `center` are the only mapping between the two unit systems.
 
 ### The two CPU classes
@@ -188,11 +152,10 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   therefore not reachable through `createSimulation`'s typed options: `new ForceAtlas2Simulation({ compat: "networkx" })`. Mass is `nodeMass`, else the role-`mass` column,
   else `outDegree + 1`; `weight: true` uses the snapshot's arc weights, a string names an edge column. `nodeSize`,
   `dissuadeHubs`, `seed` and `maxInFlight` are accepted and unused: the CALLER seeds the array with
-  `seedPositions` before `load()`. `iterationsDone` and `reheat()` are public beyond the interface. The legacy
-  `forceatlas2Layout` is a one-shot wrapper over this class (`settleThreshold: 0`, every one of `maxIter`
-  iterations, then `rescaleLayout` as before).
-- `FruchtermanReingoldSimulation` (`fruchterman-reingold.ts`): the loop body of
-  `layouts/force-directed/fruchterman-reingold.ts` made index-based over the CSR arcs, formulas unchanged
+  `seedPositions` before `load()`. `iterationsDone` and `reheat()` are public beyond the interface. The one-shot `forceAtlas2` layout runs this
+  class (`settleThreshold: 0`, every one of `maxIter` iterations) and then rescales.
+- `FruchtermanReingoldSimulation` (`fruchterman-reingold.ts`): the loop body of layout 1.x's
+  `fruchtermanReingoldLayout` made index-based over the CSR arcs, formulas unchanged
   (`k = 1 / sqrt(n)` unless given; `t` starts at 0.1 and cools by `0.1 / (iterations + 1)`; repulsion `k * k / d`
   over every pair, attraction `d * d / k` per arc, displacement capped at `t`). `load()` seeds the NaN rows itself in
   `[0, 1)` from the `seed` option; `fixed` takes a `NodeMask`, the name of a bool node column, or (when null) the
@@ -242,8 +205,8 @@ branch that chooses the CPU); a thrown accelerator error propagates -- there is 
   `networkx` compat (`fixtures/networkx/*.json`, the same fixtures the GPU package pins), weights and mass forms,
   self-loops and parallel arcs, the coincident kick, `scale` / `center`, settlement, pins and drags, option
   validation.
-- `fruchterman-reingold.test.ts`: one `step()` equals one iteration of `fruchtermanReingoldLayout`'s loop on the same
-  start (also with a self-loop, a parallel edge and an isolate); `k` / `scale` / `center`; 2D and 3D; the NaN-row
+- `fruchterman-reingold.test.ts`: one `step()` equals one iteration of layout 1.x's `fruchtermanReingoldLayout` loop
+  on the same start, recorded as a golden fixture (also with a self-loop, a parallel edge and an isolate); `k` / `scale` / `center`; 2D and 3D; the NaN-row
   seeding; the `fixed` forms; settlement by the window and by the budget; reloads.
 
 Use `assert`, not `expect`, as everywhere else in the package.
@@ -251,26 +214,26 @@ Use `assert`, not `expect`, as everywhere else in the package.
 ## Testing Guidelines
 
 - Use `assert` instead of `expect` for test assertions
-- Tests are organized by layout algorithm
-- Graph generators in `src/generators/` help create test graphs
-- All layouts should work with both 2D (`dim=2`) and 3D (`dim=3`)
+- Tests of the layouts are in `test/layouts/`, by family (geometric, structural, force and Kamada-Kawai)
+- Build test graphs with `fromEdgeArrays` or the `@graphty/graph-samples/generators`
+- All layouts should work with both 2D (`dim: 2`) and 3D (`dim: 3`)
 
 ## Key Design Principles
 
 - **NetworkX compatibility**: Algorithms match NetworkX Python behavior where possible
-- **Minimal graph interface**: Works with any object providing `nodes()` and `edges()` methods
-- **3D support**: All layouts support 3D when `dim=3` is specified
+- **Snapshots in, flat arrays out**: every layout takes a `GraphSnapshot` and returns a `LayoutResult`;
+  `toLayoutSnapshot` turns any object providing `nodes()` and `edges()` into a snapshot
+- **3D support**: All layouts support 3D when `dim: 3` is specified
 - **Deterministic**: Layouts produce consistent results with the same seed
 
 ## Adding a New Layout
 
-1. Create implementation in appropriate `src/layouts/` subdirectory
-2. Export from the category's `index.ts`
-3. Export from main `src/index.ts`
-4. Run `npm run build:all` to update bundle
-5. Add tests in `test/`
-6. Add HTML example in `examples/`
-7. Update documentation
+1. Create the implementation in `src/indexed/`, with the `(snapshot, options?) => LayoutResult` signature
+2. Export it from `src/indexed/index.ts` and from the explicit list in `src/index.ts`
+3. Pin its signature in `test/types/exports.test-d.ts`
+4. Add tests in `test/layouts/`
+5. Add a story in `stories/`
+6. Update the README
 
 ## Distribution
 

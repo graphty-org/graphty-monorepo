@@ -18,7 +18,7 @@ export interface GridLayoutOptions extends CommonLayoutOptions {
  * @param center - at least 2 components
  * @returns `2 * n` values
  */
-export function gridRows(n: number, columns: number | null, scale: number, center: readonly number[]): F64 {
+function gridRows(n: number, columns: number | null, scale: number, center: readonly number[]): F64 {
     if (columns !== null && (!Number.isInteger(columns) || columns < 1)) {
         throw new Error("columns must be a positive integer");
     }

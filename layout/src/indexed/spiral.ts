@@ -20,7 +20,7 @@ export interface SpiralLayoutOptions extends CommonLayoutOptions {
  * @param equidistant - see SpiralLayoutOptions
  * @returns `2 * n` values
  */
-export function spiralRows(
+function spiralRows(
     n: number,
     scale: number,
     center: readonly number[],

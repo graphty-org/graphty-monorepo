@@ -3,19 +3,8 @@ import assert from "node:assert";
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 
-import {
-    circularLayout,
-    type CommonLayoutOptions,
-    type Graph,
-    gridLayout,
-    indexed,
-    type LayoutResult,
-    radialLayout,
-    randomLayout,
-    shellLayout,
-    spiralLayout,
-    toLayoutSnapshot,
-} from "../../src";
+import * as layout from "../../src";
+import { type CommonLayoutOptions, type Graph, type LayoutResult, toLayoutSnapshot } from "../../src";
 import { goldenFile, matchesGolden } from "./golden";
 
 /** An edgeless snapshot of `n` nodes with ids 0 .. n - 1. */
@@ -33,17 +22,17 @@ const golden = goldenFile("geometric");
 
 type Run = (s: GraphSnapshot, options: CommonLayoutOptions) => LayoutResult;
 
-// every indexed layout, with the options that make it deterministic
+// every geometric layout, with the options that make it deterministic
 const layouts: Record<string, Run> = {
-    circular: (s, o) => indexed.circular(s, o),
-    shell: (s, o) => indexed.shell(s, o),
-    spiral: (s, o) => indexed.spiral(s, o),
-    grid: (s, o) => indexed.grid(s, o),
-    random: (s, o) => indexed.random(s, { seed: 7, ...o }),
-    radial: (s, o) => indexed.radial(s, o),
+    circular: (s, o) => layout.circular(s, o),
+    shell: (s, o) => layout.shell(s, o),
+    spiral: (s, o) => layout.spiral(s, o),
+    grid: (s, o) => layout.grid(s, o),
+    random: (s, o) => layout.random(s, { seed: 7, ...o }),
+    radial: (s, o) => layout.radial(s, o),
 };
 
-describe("indexed geometric layouts: common options", () => {
+describe("geometric layouts: common options", () => {
     for (const [name, run] of Object.entries(layouts)) {
         for (const dim of [2, 3] as const) {
             it(`${name}: n = 0 gives an empty ${dim}D result`, () => {
@@ -94,11 +83,11 @@ describe("indexed geometric layouts: common options", () => {
     }
 });
 
-describe("indexed geometric layouts: geometry", () => {
+describe("geometric layouts: geometry", () => {
     it("circular puts every node at distance scale from the centre, in 2D and 3D", () => {
         for (const dim of [2, 3] as const) {
             const c = [1, 2, 3];
-            const r = indexed.circular(nodes(12), { dim, scale: 2, center: c });
+            const r = layout.circular(nodes(12), { dim, scale: 2, center: c });
             for (let i = 0; i < 12; i++) {
                 assert.ok(Math.abs(distance(r, i, c) - 2) < 1e-5, `dim ${dim} node ${i}`);
             }
@@ -106,7 +95,7 @@ describe("indexed geometric layouts: geometry", () => {
     });
 
     it("shell steps the radius by scale / shells from the centre node, and a 3D shell layout lies in the centre's z plane", () => {
-        const r = indexed.shell(nodes(7), { dim: 3, scale: 2, center: [0, 0, 4], nlist: [[0], [1, 2, 3], [4, 5, 6]] });
+        const r = layout.shell(nodes(7), { dim: 3, scale: 2, center: [0, 0, 4], nlist: [[0], [1, 2, 3], [4, 5, 6]] });
         assert.deepEqual(row(r, 0), [0, 0, 4]);
         for (let i = 1; i < 7; i++) {
             // three shells, radius step 2 / 3: the single node of the first sits on the centre
@@ -116,22 +105,25 @@ describe("indexed geometric layouts: geometry", () => {
     });
 
     it("spiral's farthest node is at distance scale from the centre", () => {
-        const r = indexed.spiral(nodes(20), { scale: 5 });
+        const r = layout.spiral(nodes(20), { scale: 5 });
         const far = Math.max(...Array.from({ length: 20 }, (_, i) => distance(r, i)));
         assert.ok(Math.abs(far - 5) < 1e-5);
     });
 
     it("grid spans [-scale, scale] along its longer side", () => {
-        const r = indexed.grid(nodes(6), { columns: 2, scale: 2 });
+        const r = layout.grid(nodes(6), { columns: 2, scale: 2 });
         assert.deepEqual(row(r, 0), [-1, -2]);
         assert.deepEqual(row(r, 5), [1, 2]);
-        assert.throws(() => indexed.grid(nodes(3), { columns: 0 }), /columns/);
+        assert.throws(() => layout.grid(nodes(3), { columns: 0 }), /columns/);
     });
 
     it("random stays in [centre, centre + scale) and repeats for a seed", () => {
-        const a = indexed.random(nodes(50), { dim: 3, scale: 2, center: [1, 1, 1], seed: 3 });
+        const a = layout.random(nodes(50), { dim: 3, scale: 2, center: [1, 1, 1], seed: 3 });
         assert.ok(a.positions.every((v) => v >= 1 && v < 3));
-        assert.deepEqual(indexed.random(nodes(50), { dim: 3, scale: 2, center: [1, 1, 1], seed: 3 }).positions, a.positions);
+        assert.deepEqual(
+            layout.random(nodes(50), { dim: 3, scale: 2, center: [1, 1, 1], seed: 3 }).positions,
+            a.positions,
+        );
     });
 
     it("radial puts each node on the ring of its hop distance from the root", () => {
@@ -142,15 +134,15 @@ describe("indexed geometric layouts: geometry", () => {
             src: Uint32Array.of(0, 1, 2, 3),
             dst: Uint32Array.of(1, 2, 3, 4),
         });
-        const r = indexed.radial(s, { root: 0, scale: 5 });
+        const r = layout.radial(s, { root: 0, scale: 5 });
         for (let i = 0; i < 6; i++) {
             assert.ok(Math.abs(distance(r, i) - i) < 1e-5, `node ${i}`);
         }
-        assert.throws(() => indexed.radial(s, { root: 6 }), /root/);
+        assert.throws(() => layout.radial(s, { root: 6 }), /root/);
     });
 });
 
-describe("indexed.shell shells from a node column", () => {
+describe("shell shells from a node column", () => {
     const s = fromEdgeArrays({
         directed: false,
         nodeCount: 6,
@@ -164,25 +156,36 @@ describe("indexed.shell shells from a node column", () => {
     });
 
     it("a u32 column puts equal values on one shell, in ascending value order", () => {
-        assert.deepEqual(indexed.shell(s, { nlist: "level" }).positions, indexed.shell(s, { nlist: [[0], [1, 2, 3], [4, 5]] }).positions);
+        assert.deepEqual(
+            layout.shell(s, { nlist: "level" }).positions,
+            layout.shell(s, { nlist: [[0], [1, 2, 3], [4, 5]] }).positions,
+        );
     });
 
     it("a dict column puts equal values on one shell, in dictionary order", () => {
-        assert.deepEqual(indexed.shell(s, { nlist: "ring" }).positions, indexed.shell(s, { nlist: [[0], [1, 2, 3], [4, 5]] }).positions);
+        assert.deepEqual(
+            layout.shell(s, { nlist: "ring" }).positions,
+            layout.shell(s, { nlist: [[0], [1, 2, 3], [4, 5]] }).positions,
+        );
     });
 
     it("rejects a column of another dtype", () => {
-        assert.throws(() => indexed.shell(s, { nlist: "weight" }), /u32 or dict/);
+        assert.throws(() => layout.shell(s, { nlist: "weight" }), /u32 or dict/);
     });
 
     it("leaves a node in no shell NaN", () => {
-        const r = indexed.shell(s, { nlist: [[0, 1], [2, 3]] });
+        const r = layout.shell(s, {
+            nlist: [
+                [0, 1],
+                [2, 3],
+            ],
+        });
         assert.ok(row(r, 4).every(Number.isNaN));
         assert.ok(row(r, 5).every(Number.isNaN));
     });
 });
 
-describe("indexed geometric layouts match the legacy functions", () => {
+describe("geometric layouts reproduce the positional layouts of layout 1.x", () => {
     const g: Graph = {
         nodes: () => ["h", "a", "b", "c", "d", "e", "f", "x"],
         // the edge order differs from the node order, so ring order follows edges, not indices
@@ -198,40 +201,42 @@ describe("indexed geometric layouts match the legacy functions", () => {
     const s = toLayoutSnapshot(g);
 
     it("circular", () => {
-        matchesGolden(indexed.circular(s, { scale: 2, center: [1, 1] }), golden("circular 2d", s.ids, () => circularLayout(g, 2, [1, 1])));
-        matchesGolden(indexed.circular(s, { dim: 3 }), golden("circular 3d", s.ids, () => circularLayout(g, 1, null, 3)));
+        matchesGolden(layout.circular(s, { scale: 2, center: [1, 1] }), golden("circular 2d"));
+        matchesGolden(layout.circular(s, { dim: 3 }), golden("circular 3d"));
     });
 
     it("shell", () => {
         const nlist = [[0], [1, 2, 3], [4, 5, 6, 7]];
-        const legacy = nlist.map((shell) => shell.map((i) => s.ids.idOf(i)));
-        matchesGolden(indexed.shell(s, { nlist, scale: 3 }), golden("shell", s.ids, () => shellLayout(g, legacy, 3)));
+        matchesGolden(layout.shell(s, { nlist, scale: 3 }), golden("shell"));
     });
 
     it("spiral", () => {
-        matchesGolden(indexed.spiral(s, { scale: 2 }), golden("spiral", s.ids, () => spiralLayout(g, 2)));
-        matchesGolden(indexed.spiral(s, { equidistant: true, resolution: 0.5 }), golden("spiral equidistant", s.ids, () => spiralLayout(g, 1, null, 2, 0.5, true)));
+        matchesGolden(layout.spiral(s, { scale: 2 }), golden("spiral"));
+        matchesGolden(layout.spiral(s, { equidistant: true, resolution: 0.5 }), golden("spiral equidistant"));
     });
 
     it("grid", () => {
-        matchesGolden(indexed.grid(s, { columns: 3, scale: 2, center: [4, 4] }), golden("grid", s.ids, () => gridLayout(g, 3, 2, [4, 4])));
+        matchesGolden(layout.grid(s, { columns: 3, scale: 2, center: [4, 4] }), golden("grid"));
     });
 
     it("random", () => {
-        matchesGolden(indexed.random(s, { dim: 3, seed: 11 }), golden("random", s.ids, () => randomLayout(g, null, 3, 11)));
+        matchesGolden(layout.random(s, { dim: 3, seed: 11 }), golden("random"));
     });
 
     it("radial, including the default root and the neighbour order of the rings", () => {
-        matchesGolden(indexed.radial(s), golden("radial", s.ids, () => radialLayout(g)));
-        matchesGolden(indexed.radial(s, { root: s.ids.indexOf("b"), scale: 4 }), golden("radial root b", s.ids, () => radialLayout(g, "b", 4)));
+        matchesGolden(layout.radial(s), golden("radial"));
+        matchesGolden(layout.radial(s, { root: s.ids.indexOf("b"), scale: 4 }), golden("radial root b"));
     });
 });
 
-describe("indexed.radial ring order and root choice", () => {
+describe("radial ring order and root choice", () => {
     /** Asserts row `i` is at `(cos(theta), sin(theta)) * radius`. */
     const at = (r: LayoutResult, i: number, radius: number, theta: number): void => {
         const [x, y] = row(r, i);
-        assert.ok(Math.abs(x - radius * Math.cos(theta)) < 1e-6 && Math.abs(y - radius * Math.sin(theta)) < 1e-6, `node ${i}: ${x},${y}`);
+        assert.ok(
+            Math.abs(x - radius * Math.cos(theta)) < 1e-6 && Math.abs(y - radius * Math.sin(theta)) < 1e-6,
+            `node ${i}: ${x},${y}`,
+        );
     };
 
     it("visits neighbours in edge order, not node-index order", () => {
@@ -242,7 +247,7 @@ describe("indexed.radial ring order and root choice", () => {
             src: Uint32Array.of(0, 0, 2, 0, 1, 4),
             dst: Uint32Array.of(4, 2, 5, 1, 6, 3),
         });
-        const r = indexed.radial(s, { root: 0 });
+        const r = layout.radial(s, { root: 0 });
         // four rings (the isolated x is the fourth) at radii 0, 1/3, 2/3, 1
         at(r, 0, 0, 0);
         at(r, 4, 1 / 3, 0);
@@ -256,8 +261,13 @@ describe("indexed.radial ring order and root choice", () => {
 
     it("defaults the root to the lowest index on a degree tie", () => {
         // path 0 - 1 - 2 - 3: nodes 1 and 2 both have two neighbours
-        const s = fromEdgeArrays({ directed: false, nodeCount: 4, src: Uint32Array.of(0, 1, 2), dst: Uint32Array.of(1, 2, 3) });
-        assert.deepEqual(row(indexed.radial(s), 1), [0, 0]);
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 4,
+            src: Uint32Array.of(0, 1, 2),
+            dst: Uint32Array.of(1, 2, 3),
+        });
+        assert.deepEqual(row(layout.radial(s), 1), [0, 0]);
     });
 
     it("counts distinct neighbours, not parallel edges, when choosing the default root", () => {
@@ -268,19 +278,24 @@ describe("indexed.radial ring order and root choice", () => {
             src: Uint32Array.of(0, 0, 0, 2, 2),
             dst: Uint32Array.of(1, 1, 1, 3, 4),
         });
-        assert.deepEqual(row(indexed.radial(s), 2), [0, 0]);
+        assert.deepEqual(row(layout.radial(s), 2), [0, 0]);
     });
 
     it("reads a directed snapshot as undirected", () => {
         // 1 -> 0 and 2 -> 1: node 0 has no out-arcs, yet 1 and 2 are one and two hops from it
-        const s = fromEdgeArrays({ directed: true, nodeCount: 3, src: Uint32Array.of(1, 2), dst: Uint32Array.of(0, 1) });
-        const r = indexed.radial(s, { root: 0 });
+        const s = fromEdgeArrays({
+            directed: true,
+            nodeCount: 3,
+            src: Uint32Array.of(1, 2),
+            dst: Uint32Array.of(0, 1),
+        });
+        const r = layout.radial(s, { root: 0 });
         assert.ok(Math.abs(distance(r, 1) - 0.5) < 1e-6);
         assert.ok(Math.abs(distance(r, 2) - 1) < 1e-6);
     });
 });
 
-describe("indexed.shell node checks", () => {
+describe("shell node checks", () => {
     it("leaves a node whose column value is unset NaN", () => {
         const s = fromEdgeArrays({
             directed: false,
@@ -289,64 +304,37 @@ describe("indexed.shell node checks", () => {
             dst: new Uint32Array(0),
             nodeColumns: { level: { data: [0, undefined, 1], decl: { dtype: "u32" } } },
         });
-        const r = indexed.shell(s, { nlist: "level" });
+        const r = layout.shell(s, { nlist: "level" });
         assert.ok(row(r, 1).every(Number.isNaN));
         assert.ok(row(r, 2).every(Number.isFinite));
     });
 
     it("rejects the node index n and accepts n - 1", () => {
-        assert.throws(() => indexed.shell(nodes(3), { nlist: [[3]] }), /not a node/);
-        assert.ok(row(indexed.shell(nodes(3), { nlist: [[2]] }), 2).every(Number.isFinite));
-    });
-});
-
-describe("legacy shellLayout and radialLayout edge cases", () => {
-    // path b - a - c, nodes listed b, a, c
-    const g: Graph = {
-        nodes: () => ["b", "a", "c"],
-        edges: () => [
-            ["b", "a"],
-            ["a", "c"],
-        ],
-    };
-
-    it("radialLayout rejects a centre that is not two coordinates", () => {
-        assert.throws(() => radialLayout(g, null, 1, [5]), /length of center/);
-        assert.throws(() => radialLayout(g, null, 1, [1, 2, 3]), /length of center/);
-    });
-
-    it("return keys in placement order, shell by shell", () => {
-        assert.deepEqual(Object.keys(shellLayout(g, [["c"], ["a", "b"]])), ["c", "a", "b"]);
-        assert.deepEqual(Object.keys(radialLayout(g, "a")), ["a", "b", "c"]);
-    });
-
-    it("shellLayout with no shells places nothing", () => {
-        assert.deepEqual(shellLayout(g, []), {});
-    });
-
-    it("radialLayout places an edge endpoint missing from the node list", () => {
-        const pos = radialLayout({ nodes: () => [1, 2], edges: () => [[1, 2], [2, 9]] });
-        assert.deepEqual(pos[2], [0, 0]);
-        assert.deepEqual(pos[1], [1, 0]);
-        assert.ok(Math.abs(pos[9][0] + 1) < 1e-12 && Math.abs(pos[9][1]) < 1e-12);
+        assert.throws(() => layout.shell(nodes(3), { nlist: [[3]] }), /not a node/);
+        assert.ok(row(layout.shell(nodes(3), { nlist: [[2]] }), 2).every(Number.isFinite));
     });
 });
 
 describe("edge cases of the shared rows", () => {
-    it("indexed.shell in 3D leaves a node in no shell all NaN, z included", () => {
-        const r = indexed.shell(nodes(4), { dim: 3, nlist: [[0, 1, 2]], center: [0, 0, 5] });
+    it("layout.shell in 3D leaves a node in no shell all NaN, z included", () => {
+        const r = layout.shell(nodes(4), { dim: 3, nlist: [[0, 1, 2]], center: [0, 0, 5] });
         assert.ok(row(r, 3).every(Number.isNaN));
         assert.equal(row(r, 0)[2], 5);
     });
 
-    it("gridLayout limits the columns to the node count", () => {
-        const pos = gridLayout(["a", "b", "c"], 10, 1);
-        assert.deepEqual(pos.a, [-1, 0]);
-        assert.deepEqual(pos.b, [0, 0]);
-        assert.deepEqual(pos.c, [1, 0]);
+    it("grid limits the columns to the node count", () => {
+        const r = layout.grid(nodes(3), { columns: 10 });
+        assert.deepEqual(
+            [row(r, 0), row(r, 1), row(r, 2)],
+            [
+                [-1, 0],
+                [0, 0],
+                [1, 0],
+            ],
+        );
     });
 
-    it("radialLayout on an empty graph returns {} whatever the centre", () => {
-        assert.deepEqual(radialLayout({ nodes: () => [], edges: () => [] }, null, 1, [0, 0, 0]), {});
+    it("radial on an empty graph is empty whatever the centre", () => {
+        assert.equal(layout.radial(nodes(0), { center: [0, 0, 0] }).n, 0);
     });
 });

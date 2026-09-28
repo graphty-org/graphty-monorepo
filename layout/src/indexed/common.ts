@@ -1,7 +1,6 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions";
-import type { Node, PositionMap } from "../types";
 
 /** Options every index-based layout takes (graph-format design 14.3). */
 export interface CommonLayoutOptions {
@@ -69,20 +68,4 @@ export function planar(rows: F64, dim: 2 | 3, center: readonly number[]): F64 {
         out[3 * i + 2] = Number.isNaN(rows[2 * i]) ? Number.NaN : center[2];
     }
     return out;
-}
-
-/**
- * The legacy id-keyed map of f64 rows, one row per entry of `nodes` (a later duplicate id overwrites an earlier one,
- * as the legacy layouts did). Kept in f64 so the legacy functions return exactly what they returned before.
- * @param rows - `nodes.length * dim` values
- * @param dim - components per row
- * @param nodes - the id of every row
- * @returns the map
- */
-export function rowsToPositionMap(rows: F64, dim: number, nodes: readonly Node[]): PositionMap {
-    const pos: PositionMap = {};
-    nodes.forEach((node, i) => {
-        pos[node] = Array.from(rows.subarray(dim * i, dim * i + dim));
-    });
-    return pos;
 }

@@ -1,6 +1,6 @@
-import { existsSync,readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
-import { describe, expect,it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 describe("Build Output Tests", () => {
     it("should have correct package.json configuration", () => {
@@ -49,22 +49,9 @@ describe("Build Output Tests", () => {
         expect(existsSync(resolve("./dist/src/index.d.ts"))).toBe(true);
     });
 
-    it.skipIf(!distExists)("should have built all layout modules", () => {
-        // Check that layout modules are built
-        expect(existsSync(resolve("./dist/src/layouts/index.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/layouts/force-directed/index.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/layouts/geometric/index.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/layouts/hierarchical/index.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/layouts/specialized/index.js"))).toBe(true);
-    });
-
-    it.skipIf(!distExists)("should have built all generator modules", () => {
-        // Check that generator modules are built
-        expect(existsSync(resolve("./dist/src/generators/index.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/generators/basic.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/generators/grid.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/generators/bipartite.js"))).toBe(true);
-        expect(existsSync(resolve("./dist/src/generators/scale-free.js"))).toBe(true);
+    it.skipIf(!distExists)("should have built the layout and simulation modules", () => {
+        expect(existsSync(resolve("./dist/src/indexed/index.js"))).toBe(true);
+        expect(existsSync(resolve("./dist/src/simulation/index.js"))).toBe(true);
     });
 
     const typesExist = existsSync(resolve("./dist/layout.d.ts"));

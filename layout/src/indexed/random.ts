@@ -14,7 +14,7 @@ import { type CommonLayoutOptions, resolve, result } from "./common";
  * @param seed - the generator seed, or null for a random one
  * @returns `n * dim` values
  */
-export function randomRows(n: number, dim: number, scale: number, center: readonly number[], seed: number | null): F64 {
+function randomRows(n: number, dim: number, scale: number, center: readonly number[], seed: number | null): F64 {
     const rng = new RandomNumberGenerator(seed ?? undefined);
     const rows = new Float64Array(n * dim);
     for (let i = 0; i < n * dim; i++) {

@@ -36,7 +36,7 @@ function neighboursByEdge(g: GraphSnapshot, u: number): number[] {
  * @param root - the root index, or null for the node with the most distinct neighbours
  * @returns node indices per ring, the root's ring first
  */
-export function radialRings(g: GraphSnapshot, root: number | null): number[][] {
+function radialRings(g: GraphSnapshot, root: number | null): number[][] {
     const n = g.nodeCount;
     if (n === 0) {
         return [];

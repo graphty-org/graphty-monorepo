@@ -21,7 +21,7 @@ export interface BfsLayoutOptions extends CommonLayoutOptions {
  * @returns node indices per layer
  * @throws when a node is not reachable from `start`
  */
-export function bfsLayers(g: GraphSnapshot, start: number): number[][] {
+function bfsLayers(g: GraphSnapshot, start: number): number[][] {
     const n = g.nodeCount;
     if (!Number.isInteger(start) || start < 0 || start >= n) {
         throw new Error(`start node ${String(start)} is not in the graph`);

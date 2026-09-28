@@ -29,7 +29,7 @@ export interface BipartiteLayoutOptions extends CommonLayoutOptions {
  * @param center - the centre, at least 2 components
  * @returns `2 * n` values, NaN for a node on neither line
  */
-export function bipartiteRows(
+function bipartiteRows(
     n: number,
     left: ArrayLike<number>,
     right: ArrayLike<number>,
@@ -58,7 +58,9 @@ export function bipartiteRows(
 function topOf(s: GraphSnapshot, top: NodeMask | string): (i: number) => boolean {
     if (typeof top !== "string") {
         if (top.length < Math.ceil(s.nodeCount / 32)) {
-            throw new Error(`top mask has ${top.length} words; ${s.nodeCount} nodes need ${Math.ceil(s.nodeCount / 32)}`);
+            throw new Error(
+                `top mask has ${top.length} words; ${s.nodeCount} nodes need ${Math.ceil(s.nodeCount / 32)}`,
+            );
         }
         return (i) => ((top[i >>> 5] >>> (i & 31)) & 1) === 1;
     }

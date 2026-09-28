@@ -81,6 +81,7 @@ console.log(shortestPaths.dist[graph.ids.requireIndex("C")]); // 3
 The id-keyed API documented below (the `Graph` class and functions such as `breadthFirstSearch(graph, "A")`) is the
 previous API. It stays available until the next major version; `toSnapshot(graph)` converts one of its graphs to a
 snapshot.
+
 ## Deprecated entry points
 
 Everything this package exported before the `indexed` namespace -- the object `Graph`, `toSnapshot`,

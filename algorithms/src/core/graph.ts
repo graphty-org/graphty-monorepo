@@ -425,7 +425,7 @@ export class Graph {
 
         // For undirected graphs, we need to count each edge only once
         let count = 0;
-         
+
         for (const _edge of this.edges()) {
             count++;
         }

@@ -393,3 +393,39 @@ describe("a pin survives the freeze that renumbers every node", () => {
         assert.deepStrictEqual(out, { x: 11, y: 22, z: 33 }, "holding the coordinates it was pinning");
     });
 });
+
+describe("the fixed layout puts nodes where their data says", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("returns every node to its data position after another layout has moved it, and keeps a later drag", async () => {
+        // A switch to "fixed" used to keep whatever the previous layout had written into the
+        // position array, so a graph that started under the default force layout never reached its
+        // data positions.
+        harness = createHarness();
+        harness.context.getStyles().config.data.knownFields.positionScale = 2;
+        harness.dataManager.addNodes([
+            { id: "a", position: { x: 0, y: 2, z: 0 } },
+            { id: "b", position: { x: -2, y: 0, z: 0 } },
+            { id: "c", position: [2, 0] },
+        ]);
+        const node = (id: string): Node => harness?.dataManager.nodes.get(id) as Node;
+
+        await harness.layoutManager.setLayout("circular", { scale: 7 });
+        assert.notDeepEqual(harness.coordsOf(node("a")), { x: 0, y: 4, z: 0 }, "the circular layout moved a");
+
+        await harness.layoutManager.setLayout("fixed", {});
+        assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 0, y: 4, z: 0 });
+        assert.deepStrictEqual(harness.coordsOf(node("b")), { x: -4, y: 0, z: 0 });
+        assert.deepStrictEqual(harness.coordsOf(node("c")), { x: 4, y: 0, z: 0 });
+
+        harness.layoutManager.layoutEngine?.setNodePosition(node("a"), { x: 12, y: -34, z: 5 });
+        const arrival = harness.add("d");
+        await harness.layoutManager.updatePositions([arrival]);
+        assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 12, y: -34, z: 5 }, "the drag survived a recompute");
+    });
+});

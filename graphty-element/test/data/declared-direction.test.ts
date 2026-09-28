@@ -33,7 +33,6 @@ import { GraphStore } from "../../src/data/GraphStore";
 import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/data/ingest";
 import { JsonDataSource } from "../../src/data/JsonDataSource";
 import { PajekDataSource } from "../../src/data/PajekDataSource";
-import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import { createGraphSession, type GraphSession } from "../../src/session";
 
 /** Where the shipped corpus lives, relative to this file. */
@@ -379,21 +378,12 @@ describe("the direction a file declares", () => {
         });
     });
 
-    it("refuses a DOT file with no opening keyword, and says nothing about its direction", async () => {
-        // Without `graph` or `digraph` the text is not DOT, so it is a parse failure rather than
-        // a graph of unknown direction.
+    it("says nothing for a DOT file with no opening keyword", async () => {
         const source = new DOTDataSource({ data: "{ a -> b }" });
-        let failure: unknown = null;
-        try {
-            for await (const _chunk of source.getData()) {
-                // Drive the parse to the end.
-            }
-        } catch (error) {
-            failure = error;
+        for await (const _chunk of source.getData()) {
+            // Drive the parse to the end.
         }
 
-        assert.isTrue(isGraphtyError(failure));
-        assert.strictEqual((failure as GraphtyError).code, "E_PARSE_FAILED");
         assert.isNull(source.declaredDirection);
     });
 

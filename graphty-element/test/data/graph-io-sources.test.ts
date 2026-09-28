@@ -4,7 +4,11 @@ import { assert, describe, test } from "vitest";
 
 import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 import type { DataSource } from "../../src/data/DataSource.js";
+import { DOTDataSource } from "../../src/data/DOTDataSource.js";
+import { GMLDataSource } from "../../src/data/GMLDataSource.js";
 import { JsonDataSource } from "../../src/data/JsonDataSource.js";
+import { PajekDataSource } from "../../src/data/PajekDataSource.js";
+import { type GraphtyError, isGraphtyError } from "../../src/errors/index.js";
 
 /**
  * Read a source to the end.
@@ -147,6 +151,47 @@ describe("CSV read through graph-io", () => {
         assert.include(ids, edges[0].target);
     });
 
+    test("types each cell on its own, so one text cell leaves a column's numbers numbers", async () => {
+        const source = new CSVDataSource({
+            data: "source,target,weight,ok\na,b,2.5,true\nb,c,NA,FALSE\nc,d,4,maybe\n",
+        });
+        const { edges } = await collect(source);
+
+        assert.deepStrictEqual(
+            edges.map((edge) => [edge.weight, edge.ok]),
+            [
+                [2.5, true],
+                ["NA", false],
+                [4, "maybe"],
+            ],
+        );
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
+
+    test("types each cell of a node list on its own, and leaves the ids as written", async () => {
+        const { nodes } = await collect(new CSVDataSource({ data: "id,size\n1,3\n2,unknown\n", variant: "node-list" }));
+
+        assert.deepStrictEqual(nodes, [
+            { id: "1", size: 3 },
+            { id: "2", size: "unknown" },
+        ]);
+    });
+
+    for (const header of ["Id", "ID"]) {
+        test(`reads a file whose header has an ${header} column and no endpoint pair as a node list`, async () => {
+            const { nodes, edges } = await collect(new CSVDataSource({ data: `${header},Label\na,A\nb,B\n` }));
+
+            assert.deepStrictEqual(
+                nodes.map((node) => [node.id, node.Label]),
+                [
+                    ["a", "A"],
+                    ["b", "B"],
+                ],
+            );
+            assert.deepStrictEqual(edges, []);
+        });
+    }
+
     test("reads an empty file as an empty graph", async () => {
         const source = new CSVDataSource({ data: "" });
         const { nodes, edges } = await collect(source);
@@ -190,7 +235,13 @@ describe("JSON read through graph-io", () => {
     });
 
     test("keeps a value the file carries under the key the element reads the id from", async () => {
-        const data = JSON.stringify({ nodes: [{ name: "a", id: 5 }, { name: "b", id: 6 }], edges: [] });
+        const data = JSON.stringify({
+            nodes: [
+                { name: "a", id: 5 },
+                { name: "b", id: 6 },
+            ],
+            edges: [],
+        });
         const { nodes } = await collect(new JsonDataSource({ data, nodeIdPath: "name" }));
 
         assert.deepStrictEqual(nodes, [
@@ -206,11 +257,82 @@ describe("JSON read through graph-io", () => {
         assert.deepStrictEqual(edges, [{ src: "a", dst: "b", source: "web" }]);
     });
 
-    test("keeps the first record of a repeated node id, as the element does", async () => {
-        const data = JSON.stringify({ nodes: [{ id: "a", v: 1 }, { id: "a", v: 2 }], edges: [] });
+    test("hands a repeated node id over twice, in file order, rather than merging the two", async () => {
+        // The element keeps the first record of an id, by the id key IT is configured with, which
+        // need not be the key the reader chose. graph-io would merge the two, later values winning.
+        const data = JSON.stringify({
+            nodes: [
+                { id: "a", v: 1 },
+                { id: "a", v: 2 },
+            ],
+            edges: [],
+        });
         const { nodes } = await collect(new JsonDataSource({ data }));
 
-        assert.deepStrictEqual(nodes, [{ id: "a", v: 1 }]);
+        assert.deepStrictEqual(nodes, [
+            { id: "a", v: 1 },
+            { id: "a", v: 2 },
+        ]);
+    });
+
+    test("reads the endpoints from the keys the element names with edgeSource and edgeTarget", async () => {
+        // The records also carry source/target keys, which name something else here.
+        const data = JSON.stringify({
+            nodes: [{ id: "x" }, { id: "y" }, { id: "z" }],
+            edges: [
+                { a: "x", b: "y", source: "feedA", target: "feedB" },
+                { a: "y", b: "z", source: "feedA" },
+            ],
+        });
+        const source = new JsonDataSource({ data, edgeSource: "a", edgeTarget: "b" });
+        const { edges } = await collect(source);
+
+        assert.deepStrictEqual(
+            edges.map((edge) => [edge.a, edge.b]),
+            [
+                ["x", "y"],
+                ["y", "z"],
+            ],
+        );
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
+
+    test("hands an edge whose endpoints are not both under the chosen keys to the element as written", async () => {
+        const data = JSON.stringify({
+            nodes: [],
+            edges: [
+                { source: "a", target: "b" },
+                { source: "b", to: "c" },
+            ],
+        });
+        const source = new JsonDataSource({ data });
+        const { edges } = await collect(source);
+
+        assert.deepStrictEqual(edges, [
+            { source: "a", target: "b" },
+            { source: "b", to: "c" },
+        ]);
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
+
+    test("drops and merges no node the element might read with another id key", async () => {
+        const data = JSON.stringify({ nodes: [{ id: 1, name: "a" }, { id: 1, name: "b" }, { name: "c" }], edges: [] });
+        const source = new JsonDataSource({ data });
+        const { nodes } = await collect(source);
+
+        assert.deepStrictEqual(nodes, [{ id: 1, name: "a" }, { id: 1, name: "b" }, { name: "c" }]);
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
+
+    test("names the file's own index of a node it refuses", async () => {
+        const data = JSON.stringify({ nodes: [{ id: "a" }, { id: "a" }, { id: "b" }, { idx: 1 }], edges: [] });
+        const source = new JsonDataSource({ data });
+        await collect(source);
+
+        const errors = source.getErrorAggregator().getErrors();
+        assert.strictEqual(errors.length, 1);
+        assert.strictEqual(errors[0].line, 3);
+        assert.include(errors[0].message, "index 3");
     });
 
     test("reads arrays a JMESPath expression selects", async () => {
@@ -244,4 +366,106 @@ describe("the CSV parser dependency", () => {
         assert.notProperty(manifest.devDependencies, "@types/papaparse");
         assert.strictEqual(manifest.dependencies["@graphty/graph-io"], "workspace:^");
     });
+});
+
+/**
+ * Read a source that is expected to refuse its input.
+ * @param source - the data source
+ * @returns what it threw
+ */
+async function failure(source: DataSource): Promise<GraphtyError> {
+    let thrown: unknown = null;
+    try {
+        await collect(source);
+    } catch (error) {
+        thrown = error;
+    }
+
+    assert.isTrue(isGraphtyError(thrown), "the source read its input");
+    return thrown as GraphtyError;
+}
+
+describe("GML, DOT and Pajek read through graph-io", () => {
+    test("GML keeps the first declaration of a repeated node id, as the element keeps a repeated record", async () => {
+        const { nodes } = await collect(
+            new GMLDataSource({ data: 'graph [ node [ id 1 label "a" ] node [ id 1 label "b" size 2 ] ]' }),
+        );
+
+        assert.deepStrictEqual(nodes, [{ id: 1, label: "a" }]);
+    });
+
+    test("Pajek keeps the first line of a vertex written twice", async () => {
+        const { nodes } = await collect(new PajekDataSource({ data: '*Vertices 2\n1 "a"\n2 "b"\n1 "again"\n' }));
+
+        assert.deepStrictEqual(
+            nodes.map((node) => [node.id, node.label]),
+            [
+                ["1", "a"],
+                ["2", "b"],
+            ],
+        );
+    });
+
+    test("Pajek with no line section declares no direction", async () => {
+        const source = new PajekDataSource({ data: '*Vertices 2\n1 "a"\n2 "b"\n' });
+        await collect(source);
+
+        assert.isNull(source.declaredDirection);
+    });
+
+    test("DOT gives a cluster's members no parent key, and keeps one the file wrote", async () => {
+        const { nodes } = await collect(
+            new DOTDataSource({ data: 'digraph { subgraph cluster_x { a; b [parent="mine"] } }' }),
+        );
+
+        assert.deepStrictEqual(nodes, [{ id: "a" }, { id: "b", parent: "mine" }]);
+    });
+
+    test("DOT draws a cluster as a node only when an edge names it", async () => {
+        const named = await collect(new DOTDataSource({ data: "digraph { subgraph cluster_x { a } b -> cluster_x }" }));
+        const unnamed = await collect(new DOTDataSource({ data: "digraph { subgraph cluster_x { a } b -> a }" }));
+
+        assert.includeMembers(
+            named.nodes.map((node) => node.id),
+            ["cluster_x"],
+        );
+        assert.notInclude(
+            unnamed.nodes.map((node) => node.id),
+            "cluster_x",
+        );
+    });
+
+    test("DOT keeps pos as the text the file wrote", async () => {
+        const { nodes } = await collect(new DOTDataSource({ data: 'graph { a [pos="1,2!"] }' }));
+
+        assert.deepStrictEqual(nodes, [{ id: "a", pos: "1,2!" }]);
+    });
+
+    test("DOT reads a body with no keyword by its edge operators", async () => {
+        const { edges } = await collect(new DOTDataSource({ data: "{ a -> b; b -- c }" }));
+
+        assert.deepStrictEqual(
+            edges.map((edge) => [edge.source, edge.target]),
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
+    });
+
+    // GML is read as NetworkX reads it. These three loaded in the element's own 2.x reader and are
+    // refused now, each naming its line: none of them is GML that NetworkX, igraph or Gephi write.
+    const refused: [string, string][] = [
+        ["a bare-word id", "graph [ node [ id A ] node [ id B ] edge [ source A target B ] ]"],
+        ["directed written as a word", "graph [ directed true node [ id 1 ] ]"],
+        ["a string that runs onto the next line", 'graph [ node [ id 1 label "a\nb" ] ]'],
+    ];
+    for (const [what, data] of refused) {
+        test(`GML refuses ${what} with E_PARSE_FAILED naming the line`, async () => {
+            const error = await failure(new GMLDataSource({ data }));
+
+            assert.strictEqual(error.code, "E_PARSE_FAILED");
+            assert.match(error.message, /at line 1/);
+        });
+    }
 });

@@ -2,7 +2,7 @@ import type { ImportIssue } from "@graphty/graph-io";
 import { GML_ISSUE, gmlImporter } from "@graphty/graph-io/gml";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
-import { importRecords } from "./graphIoImport.js";
+import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
 
 // GML has no additional config currently, so just use the base config
 type GMLDataSourceConfig = BaseDataSourceConfig;
@@ -64,20 +64,24 @@ export class GMLDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const { nodes, edges, direction } = await importRecords(
+        const imported = await importWhole(
             gmlImporter,
             await this.getContent(),
-            this.errorAggregator,
             // The graphics block stays whole in the record, and `value` stays an attribute: the
             // element reads its weight from the record, not from the importer.
-            { positions: false, weightFrom: null },
-            { statedBy: (snapshot, report) => statedBy(snapshot.meta.extra.gml, report.issues) },
+            { ids: "canonical", positions: false, weightFrom: null },
+            this.errorAggregator,
+            // A repeated node id keeps its first declaration, as the element keeps a repeated record.
+            { firstDeclarationWins: true },
+        );
+        const { snapshot, report } = imported;
+        this.declareDirection(
+            snapshot.directed,
+            statedBy(snapshot.meta.extra.gml, report.issues),
+            report.counts.expandedMixed,
         );
 
-        if (direction !== null) {
-            this.declareDirection(direction.directed, direction.statedBy, direction.conflictingEdges);
-        }
-
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
         yield* this.chunkData(nodes, edges);
     }
 }

@@ -1,4 +1,4 @@
-import { jsonImporter } from "@graphty/graph-io";
+import { ImportError, jsonImporter } from "@graphty/graph-io";
 import jmespath from "jmespath";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
@@ -8,7 +8,7 @@ import type { AdHocData } from "../config/common";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
-import { importRecords, recordIssues } from "./graph-io-records";
+import { aggregateErrors, copyColumns, importDocument, type ImportedGraph, toRecords } from "./graph-io-import";
 
 const JsonNodeConfig = z
     .strictObject({
@@ -31,7 +31,13 @@ export const JsonDataSourceConfig = z.object({
     chunkSize: z.number().optional(),
     errorLimit: z.number().optional(),
     nodeIdPath: z.string().optional(),
+    /** The key an edge's source is read from; the element's option name for every format. */
+    edgeSource: z.string().optional(),
+    /** The key an edge's target is read from. See `edgeSource`. */
+    edgeTarget: z.string().optional(),
+    /** The older name of `edgeSource`, still read when `edgeSource` is not given. */
     edgeSrcIdPath: z.string().optional(),
+    /** The older name of `edgeTarget`, still read when `edgeTarget` is not given. */
     edgeDstIdPath: z.string().optional(),
     node: JsonNodeConfig,
     edge: JsonEdgeConfig,
@@ -80,6 +86,30 @@ const ID_KEYS = ["id", "name", "key", "label"] as const;
  */
 function plainKey(expression: string): string | null {
     return /^[A-Za-z_][A-Za-z0-9_]*$/.test(expression) ? expression : null;
+}
+
+/**
+ * Whether a value can be a node id: a string or a finite number.
+ * @param value - the value
+ * @returns true for an id graph-io reads as it is
+ */
+function isIdValue(value: unknown): value is string | number {
+    return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
+}
+
+/**
+ * Put graph-io's reading of the records it was handed back among the records it was not, in file
+ * order. When graph-io did not hand back one record per record it was given, the ones it was
+ * given go through as the file wrote them too.
+ * @param all - every record, as the file wrote it
+ * @param sent - which of them graph-io read
+ * @param read - graph-io's records, in the order they were handed over
+ * @returns the records, in file order
+ */
+function interleave(all: readonly unknown[], sent: readonly boolean[], read: readonly unknown[]): unknown[] {
+    const count = sent.filter(Boolean).length;
+    let next = 0;
+    return all.map((record, index) => (sent[index] && read.length === count ? read[next++] : record));
 }
 
 /**
@@ -146,9 +176,11 @@ export class JsonDataSource extends DataSource {
      * edge's endpoints under the spelling the file uses (`source`/`target`, `src`/`dst` or
      * `from`/`to`), and every other value exactly as the file held it.
      *
-     * Two things graph-io cannot read are handed to the element as the file wrote them: nodes
-     * whose id is a JMESPath expression rather than a key, and edges whose endpoints no key names
-     * -- the element resolves the first and refuses the second, naming the keys the records carry.
+     * A record graph-io cannot read under those keys is handed to the element as the file wrote
+     * it, in its place: a node whose id is a JMESPath expression, is missing or repeats an earlier
+     * id, and an edge whose endpoints are not both under the chosen keys. The element resolves
+     * them with its own keys, keeps the first record of a repeated id, and refuses an edge whose
+     * endpoints no key names, naming the keys the records carry.
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
@@ -189,58 +221,113 @@ export class JsonDataSource extends DataSource {
         const idKey = this.nodeIdKey(rawNodes);
         const endpoints = this.endpointKeys(rawEdges);
 
-        // The element keeps the FIRST record of a repeated node id and skips the rest; graph-io
-        // would merge them with the later values winning, so the repeats are left out here.
+        // graph-io reads the records whose id and endpoints sit under the keys chosen here. Every
+        // other record reaches the element as the file wrote it, in its place, for the element to
+        // resolve with its own keys: a node without the key or repeating an id already read (the
+        // element keeps the first record of an id; graph-io would merge the two), an edge without
+        // both keys. graph-io is never the one to drop or merge a record the element would read.
         const seenIds = new Set<unknown>();
-        const uniqueNodes = rawNodes.filter((node) => {
-            if (idKey === null || !isObject(node) || !(idKey in node)) {
-                return true;
+        const sentNodes = rawNodes.map((node) => {
+            if (idKey === null || !isObject(node) || !isIdValue(node[idKey]) || seenIds.has(node[idKey])) {
+                return false;
             }
 
-            const repeated = seenIds.has(node[idKey]);
             seenIds.add(node[idKey]);
-            return !repeated;
+            return true;
         });
-
-        const imported = await importRecords(
-            jsonImporter,
-            JSON.stringify({ nodes: idKey === null ? [] : uniqueNodes, edges: endpoints === null ? [] : rawEdges }),
-            {
-                dialect: "node-link",
-                nodesPath: "nodes",
-                edgesPath: "edges",
-                nodeIdKey: idKey ?? "id",
-                ...(endpoints === null ? {} : { sourceKey: endpoints.source, targetKey: endpoints.target }),
-                indexLinks: false,
-                weightFrom: null,
-                ids: "keep",
-                defaultDirected: true,
-                errorLimit: this.opts.errorLimit,
-            },
-            true,
+        const sentEdges = rawEdges.map(
+            (edge) =>
+                endpoints !== null &&
+                isObject(edge) &&
+                isIdValue(edge[endpoints.source]) &&
+                isIdValue(edge[endpoints.target]),
         );
-        recordIssues(imported.report, this.errorAggregator);
 
-        // An edge naming a node the file never declared adds that node to the import; the element
-        // materialises such an endpoint itself, and has never been handed a record for it.
-        // The id and endpoints are written last, under the keys the file used, so a value the file
-        // also carries under another of those keys stays where the file put it.
-        const nodes =
-            idKey === null
-                ? rawNodes.filter((node, index) => this.isValidNode(node, index))
-                : imported.nodes
-                      .filter((node) => seenIds.has(node.id))
-                      .map(({ id, data }) => ({ ...data, [idKey]: id }));
-        const edges =
-            endpoints === null
-                ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
-                : imported.edges.map(({ source, target, data }) => ({
-                      ...data,
-                      [endpoints.source]: source,
-                      [endpoints.target]: target,
-                  }));
+        const read = await this.read(
+            rawNodes.filter((_, index) => sentNodes[index]),
+            rawEdges.filter((_, index) => sentEdges[index]),
+            idKey ?? "id",
+            endpoints,
+        );
+
+        const nodes = interleave(rawNodes, sentNodes, read.nodes).filter(
+            (node, index) => sentNodes[index] || this.isValidNode(node, index),
+        );
+        const edges = interleave(rawEdges, sentEdges, read.edges).filter(
+            (edge, index) => sentEdges[index] || this.isValidEdge(edge, index),
+        );
 
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
+    }
+
+    /**
+     * Read node and edge records through graph-io's node-link importer.
+     *
+     * The records that come back keep the keys the file wrote: the id under `idKey`, the endpoints
+     * under the keys chosen for them, and every other value exactly as the file held it. Written
+     * last, so a value the file also carries under another of those keys stays where it was.
+     * @param nodes - node records, each with a unique id under `idKey`
+     * @param edges - edge records, each with both endpoint keys
+     * @param idKey - the key of a node's id
+     * @param endpoints - the keys of an edge's endpoints
+     * @returns graph-io's records, one per record handed over and in the same order, or none when
+     *     graph-io gave up on them
+     */
+    private async read(
+        nodes: unknown[],
+        edges: unknown[],
+        idKey: string,
+        endpoints: { source: string; target: string } | null,
+    ): Promise<{ nodes: unknown[]; edges: unknown[] }> {
+        let imported: ImportedGraph;
+        try {
+            imported = await importDocument(
+                jsonImporter,
+                JSON.stringify({ nodes, edges }),
+                {
+                    dialect: "node-link",
+                    nodesPath: "nodes",
+                    edgesPath: "edges",
+                    nodeIdKey: idKey,
+                    ...(endpoints === null ? {} : { sourceKey: endpoints.source, targetKey: endpoints.target }),
+                    indexLinks: false,
+                    weightFrom: null,
+                    ids: "keep",
+                    defaultDirected: true,
+                    errorLimit: this.opts.errorLimit,
+                },
+                "any",
+                { verbatim: true },
+            );
+        } catch (error) {
+            if (!(error instanceof ImportError)) {
+                throw error;
+            }
+
+            aggregateErrors(error.report, this.errorAggregator, true);
+            return { nodes: [], edges: [] };
+        }
+
+        aggregateErrors(imported.report, this.errorAggregator, true);
+        const { snapshot } = imported;
+        return toRecords(imported, {
+            node: (row, record) => {
+                const { id } = record;
+                delete record.id;
+                copyColumns(snapshot.nodes, row, record);
+                record[idKey] = id;
+            },
+            edge: (row, record) => {
+                const { source, target } = record;
+                delete record.source;
+                delete record.target;
+                copyColumns(snapshot.edges, row, record);
+                if (endpoints !== null) {
+                    record[endpoints.source] = source;
+                    record[endpoints.target] = target;
+                }
+            },
+        });
     }
 
     /**
@@ -310,8 +397,8 @@ export class JsonDataSource extends DataSource {
         let resolved: { source: string; target: string };
         try {
             resolved = resolveEndpoints(edges.filter(isObject), {
-                source: this.opts.edgeSrcIdPath ?? null,
-                target: this.opts.edgeDstIdPath ?? null,
+                source: this.opts.edgeSource ?? this.opts.edgeSrcIdPath ?? null,
+                target: this.opts.edgeTarget ?? this.opts.edgeDstIdPath ?? null,
             });
         } catch {
             return null;

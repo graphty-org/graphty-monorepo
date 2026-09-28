@@ -1,7 +1,7 @@
 import { PAJEK_ISSUE, pajekImporter } from "@graphty/graph-io/pajek";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
-import { importRecords } from "./graphIoImport.js";
+import { copyColumns, importWhole, toRecords } from "./graph-io-import.js";
 
 // Pajek has no additional config currently, so just use the base config
 type PajekDataSourceConfig = BaseDataSourceConfig;
@@ -10,20 +10,18 @@ type PajekDataSourceConfig = BaseDataSourceConfig;
 const DIRECTED_COLUMN = "graphty.directed";
 
 /**
- * Rebuild the 2.x node record: `id`, `label`, and the coordinates as `x`, `y` and `z`.
+ * Rebuild the 2.x node record in place: `id`, `label`, and the coordinates as `x`, `y` and `z`.
  * @param record - the record graph-io's columns produced
  * @param threeD - whether the file's vertex lines write a z coordinate
- * @returns the record the element has always received for a Pajek vertex
  */
-function nodeRecord(record: Record<string, unknown>, threeD: boolean): Record<string, unknown> {
-    const { position, ...rest } = record;
+function nodeRecord(record: Record<string, unknown>, threeD: boolean): void {
+    const { position } = record;
+    delete record.position;
     if (Array.isArray(position)) {
         const [x, y, z] = position as number[];
         // graph-io fills an unwritten z with 0; a file whose vertex lines write two coordinates stays 2D.
-        Object.assign(rest, threeD ? { x, y, z } : { x, y });
+        Object.assign(record, threeD ? { x, y, z } : { x, y });
     }
-
-    return rest;
 }
 
 /**
@@ -62,35 +60,43 @@ export class PajekDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const { nodes, edges, direction } = await importRecords(
+        const imported = await importWhole(
             pajekImporter,
             await this.getContent(),
-            this.errorAggregator,
             // Vertex numbers stay the strings they have always been, and the line's value stays an
             // attribute: the element reads its weight from the record.
             { ids: "keep", weightFrom: null },
-            {
-                node: (record, _row, snapshot) =>
-                    nodeRecord(record, snapshot.nodes.byRole("position")?.meta.extra.sourceDims === 3),
-                edge: ({ value, ...rest }, row, snapshot) => ({
-                    ...rest,
-                    directed: snapshot.edges.get(DIRECTED_COLUMN)?.value(row) ?? snapshot.directed,
-                    ...(value === undefined ? {} : { weight: value }),
-                }),
-                // Direction is stated by a line section header; a file with none states nothing.
-                statedBy: (snapshot, report) => {
-                    if (report.issues.some((issue) => issue.code === PAJEK_ISSUE.NO_LINES)) {
-                        return null;
-                    }
-
-                    return snapshot.directed ? "*Arcs" : "*Edges";
-                },
-            },
+            this.errorAggregator,
+            // A vertex with two lines keeps its first, as the element keeps a repeated record.
+            { firstDeclarationWins: true },
         );
-
-        if (direction !== null) {
-            this.declareDirection(direction.directed, direction.statedBy, direction.conflictingEdges);
+        const { snapshot, report } = imported;
+        // Direction is stated by a line section header; a file with none states nothing.
+        if (!report.issues.some((issue) => issue.code === PAJEK_ISSUE.NO_LINES)) {
+            this.declareDirection(
+                snapshot.directed,
+                snapshot.directed ? "*Arcs" : "*Edges",
+                report.counts.expandedMixed,
+            );
         }
+
+        const threeD = snapshot.nodes.byRole("position")?.meta.extra.sourceDims === 3;
+        const directed = snapshot.edges.get(DIRECTED_COLUMN);
+        const { nodes, edges } = toRecords(imported, {
+            node: (row, record) => {
+                copyColumns(snapshot.nodes, row, record);
+                nodeRecord(record, threeD);
+            },
+            edge: (row, record) => {
+                copyColumns(snapshot.edges, row, record);
+                const { value } = record;
+                delete record.value;
+                record.directed = directed?.value(row) ?? snapshot.directed;
+                if (value !== undefined) {
+                    record.weight = value;
+                }
+            },
+        });
 
         yield* this.chunkData(nodes, edges);
     }

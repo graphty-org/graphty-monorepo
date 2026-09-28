@@ -14,7 +14,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
  * A record may carry `weight: 0`, and the distance of a zero-weight edge is `1 / 0`. Clamping here
  * means zero reads as "as weak as the solver can express": the largest possible distance.
  */
-export const WEIGHT_EPSILON = 1e-6;
+const WEIGHT_EPSILON = 1e-6;
 
 /** The derived edge column the layout reads its distances from. */
 const DISTANCE_COLUMN = "graphty.kamadaKawaiDistance";

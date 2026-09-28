@@ -53,6 +53,10 @@ npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
 
+In a git worktree under `.worktrees/`, build `webgpu-graph-algorithms` and `graphty-element` in that worktree
+before the root `pnpm run docs:build`. Without their `dist/`, module lookup climbs out of the worktree into the main
+checkout's `node_modules`, and TypeDoc fails on two copies of the graph-format types. CI builds everything first.
+
 ## Generators
 
 `src/generators/` keeps the public `completeGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `gridGraph`,
@@ -81,6 +85,45 @@ Common options:
 - `center`: Center point for the layout
 - `scale`: Scale factor for positions
 - `seed`: Random seed for deterministic layouts
+
+## Index-based layouts
+
+`src/indexed/` holds the index-based form of every layout (graph-format design 14.3), exported from the barrel as
+the `indexed` namespace (`export * as indexed`), so `indexed.circular` never collides with `circularLayout`. Every
+public function has the same signature, `(snapshot: GraphSnapshot, options?: XOptions) => LayoutResult`: node
+indices in, a flat `dim`-stride `Float32Array` in node-index order out. Options that name nodes take indices, a
+`NodeMask` or a node column name, never ids. The fifteen: `arf`, `bfs`, `bipartite`, `circular`, `forceAtlas2`,
+`fruchtermanReingold`, `grid`, `kamadaKawai`, `multipartite`, `planar`, `radial`, `random`, `shell`, `spectral`,
+`spiral`. `test/types/indexed.test-d.ts` pins each signature and the namespace's member list; a changed parameter
+list, options type or return type fails the test run (vitest `typecheck`, with `tsconfig.types.json`).
+
+- `common.ts`: `CommonLayoutOptions` (`dim`, `scale`, `center`, `seed`), `resolve()` (validate and default them),
+  `result()` (f64 rows -> the f32 `LayoutResult`) and `rowsToPositionMap()` (f64 rows -> the legacy id-keyed map).
+- `start.ts`: `layoutDim()` and `startColumn()`, the stride-3 start column the force layouts seed with
+  `seedPositions` from a caller's `pos`.
+- Geometric and structural layouts (`circular`, `grid`, `random`, `shell`, `spiral`, `spectral`, `planar`,
+  `radial`, `bfs`, `bipartite`, `multipartite`) split into a `xRows()` / `xLayers()` helper that computes f64 rows
+  (or node-index groups) and the public function that resolves options and calls it. A layout that reads edges takes
+  a directed snapshot as its undirected derived graph.
+- `force.ts`: `forceAtlas2` and `fruchtermanReingold` run the steppable CPU simulations (`src/simulation/`) to the
+  end of their budget, then rescale.
+- `kamada-kawai.ts`: `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and runs the existing
+  solver.
+- `arf.ts`: `arf` is its own loop, unrescaled, as networkx has it.
+
+### The wrapper pattern
+
+The legacy id-keyed layouts are thin wrappers over this code, so there is one implementation of each algorithm:
+the legacy function keeps its signature and its parameter processing (`_processParams`, `getNodesFromGraph`), calls
+the shared rows helper and converts the rows back with `rowsToPositionMap`. `forceatlas2Layout` and
+`fruchtermanReingoldLayout` convert the graph once with `toLayoutSnapshot`, map the caller's id-keyed `pos` onto
+index rows and call `indexed.forceAtlas2` / `indexed.fruchtermanReingold`; `fruchterman-reingold-legacy.ts` keeps
+the old loop only for inputs the indexed code does not take (a `dim` other than 2 or 3, among others). Where the
+legacy function differs on purpose (`bfsLayout`, `bipartiteLayout` and `multipartiteLayout` with `horizontal`
+alignment centre on the swapped `[center[1], center[0]]`), the doc comment says so. `arfLayout` and `kamadaKawaiLayout` are not wrappers yet.
+
+Tests in `test/indexed/` check each indexed layout's geometry and options, and that it matches the legacy
+function on the same graph.
 
 ## Simulations
 

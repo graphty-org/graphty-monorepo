@@ -551,6 +551,55 @@ const column = toPositionColumn(result, 100, [0, 0, 0]); // stride-3 scene units
 const again = fromPositionColumn(column, 2, 100, [0, 0, 0]); // the inverse
 ```
 
+## Index-based layouts
+
+Every layout also comes in an index-based form, under the `indexed` namespace. It runs over a
+[`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) snapshot instead of an id-keyed graph
+and returns a `LayoutResult`: a `Float32Array` of `dim` components per node, row `i` for node index `i`. There is no
+id lookup and no per-node object, so it is the form to use for large graphs or when the caller already holds a
+snapshot. Every function has the same shape, `(snapshot, options?) => LayoutResult`:
+
+```typescript
+import { indexed, toLayoutSnapshot, toPositionMap } from "@graphty/layout";
+
+const s = toLayoutSnapshot(graph); // or any GraphSnapshot, e.g. from fromEdgeArrays() or a graph-io importer
+const r = indexed.forceAtlas2(s, { dim: 3, maxIter: 200, seed: 42 });
+r.positions; // Float32Array of r.n * r.dim values
+const pos = toPositionMap(r, s.ids); // { [id]: [x, y, z] }, the shape the legacy layouts return
+```
+
+| Function                      | Legacy layout               | Its own options (besides `dim`, `scale`, `center`, `seed`)              |
+| ----------------------------- | --------------------------- | ----------------------------------------------------------------------- |
+| `indexed.random`              | `randomLayout`              | --                                                                      |
+| `indexed.circular`            | `circularLayout`            | --                                                                      |
+| `indexed.grid`                | `gridLayout`                | `columns`                                                               |
+| `indexed.shell`               | `shellLayout`               | `nlist`: node-index lists or a node column name                         |
+| `indexed.spiral`              | `spiralLayout`              | `resolution`, `equidistant`                                             |
+| `indexed.spectral`            | `spectralLayout`            | --                                                                      |
+| `indexed.planar`              | `planarLayout`              | --                                                                      |
+| `indexed.radial`              | `radialLayout`              | `root` (a node index)                                                   |
+| `indexed.bfs`                 | `bfsLayout`                 | `start` (a node index), `align`                                         |
+| `indexed.bipartite`           | `bipartiteLayout`           | `top`: a node mask or a `bool` node column name; `align`, `aspectRatio` |
+| `indexed.multipartite`        | `multipartiteLayout`        | `subsets`: node-index lists or a node column name; `align`              |
+| `indexed.kamadaKawai`         | `kamadaKawaiLayout`         | `dist` (an `n * n` distance matrix), `pos`, `weight`                    |
+| `indexed.forceAtlas2`         | `forceatlas2Layout`         | the ForceAtlas2 simulation's options, `maxIter`, `pos`                  |
+| `indexed.fruchtermanReingold` | `fruchtermanReingoldLayout` | the Fruchterman-Reingold simulation's options, `pos`                    |
+| `indexed.arf`                 | `arfLayout`                 | `pos`, `scaling`, `a`, `maxIter` (no `scale` or `center`)               |
+
+- **Nodes are indices.** Options that name nodes (`root`, `start`, `top`, `subsets`, `nlist`) take node indices,
+  a node mask or the name of a node column of the snapshot, never node ids. Use `s.ids.indexOf(id)` to find one;
+  for an id that is not in the graph it returns `INVALID_INDEX` (0xffffffff), not -1.
+- **Weights** come from the snapshot: `weight: true` reads its edge weights and a string names a numeric edge column.
+- **Start positions** (`pos`) are a `Float32Array` of `dim` values per node in index order. For the force layouts
+  and `arf` each `NaN` component is drawn from `seed` and the finite components of the same row are kept;
+  `kamadaKawai` reads `NaN` as 0.
+- **Unplaced nodes**: `shell` and `multipartite` leave the row of a node in no shell or layer as `NaN`.
+- **Directed snapshots** are laid out as their undirected copy by every layout that reads edges.
+- **Horizontal alignment**: `indexed.bfs`, `indexed.bipartite` and `indexed.multipartite` centre a horizontal
+  layout on `center`. Their legacy layouts keep their old behaviour and centre it on `[center[1], center[0]]`.
+- `toPositionColumn(r, scale, center)` turns a result into the stride-3 scene-unit column that graphty-element and the
+  steppable simulations share (see [Position helpers](#position-helpers)).
+
 ## Steppable simulations
 
 Besides the one-shot layout functions, the package exports steppable force simulations that run over a

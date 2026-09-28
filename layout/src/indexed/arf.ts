@@ -10,7 +10,7 @@ export interface ArfOptions {
     readonly dim?: 2 | 3 | undefined;
     /** The seed of the rows `pos` does not give (null or absent: unseeded). */
     readonly seed?: number | null | undefined;
-    /** Start positions, `dim` values per node in index order; a row holding NaN is drawn from the seed in [0, 1). */
+    /** Start positions, `dim` values per node in index order; each NaN component is drawn from the seed in [0, 1), finite ones are kept. */
     readonly pos?: F32 | null | undefined;
     /** The repulsion scale; default 1. */
     readonly scaling?: number | undefined;

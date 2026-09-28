@@ -24,14 +24,14 @@ function wholeCount(count: number): number {
 
 /** Options of indexed.forceAtlas2: the simulation's, without the stepping controls, plus a start. */
 export interface IndexedForceAtlas2Options extends Omit<ForceAtlas2Options, keyof SimulationOptions> {
-    /** Start positions, `dim` values per node in index order; a row holding NaN is drawn from the seed. */
+    /** Start positions, `dim` values per node in index order; each NaN component is drawn from the seed, finite ones are kept. */
     readonly pos?: F32 | null | undefined;
 }
 
 /** Options of indexed.fruchtermanReingold: the simulation's, without the stepping controls, plus a start. */
 export interface IndexedFruchtermanReingoldOptions
     extends Omit<FruchtermanReingoldOptions, keyof SimulationOptions | "cooling"> {
-    /** Start positions, `dim` values per node in index order; a row holding NaN is drawn from the seed. */
+    /** Start positions, `dim` values per node in index order; each NaN component is drawn from the seed, finite ones are kept. */
     readonly pos?: F32 | null | undefined;
 }
 

@@ -13,9 +13,11 @@
 
 import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
+import { ConvergenceError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BfsOptions } from "./bfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
+import { type EigenvectorOptions, minMaxRescale } from "./eigenvector.js";
 import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
 import type { KatzOptions } from "./katz.js";
@@ -104,11 +106,11 @@ export interface CommunityResultLike extends LabelResultLike {
  */
 export interface AlgorithmAccelerator {
     readonly kind: string;
-    pageRank?(s: GraphSnapshot, options?: PageRankOptions): Promise<PageRankResultLike>;
+    pageRank?(s: GraphSnapshot, options?: PageRankOptionsLike): Promise<PageRankResultLike>;
     personalizedPageRank?(
         s: GraphSnapshot,
         personalization: F32 | F64,
-        options?: PageRankOptions,
+        options?: PageRankOptionsLike,
     ): Promise<PageRankResultLike>;
     hits?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<HitsResultLike>;
     eigenvectorCentrality?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<ScoresResultLike>;
@@ -148,6 +150,18 @@ export interface HitsOptionsLike {
 }
 
 /**
+ * PageRank options as the accelerator sees them: the port's `PageRankOptions` without
+ * `initialRanks` and `convergenceNorm`, which the dispatcher keeps on the CPU port.
+ * @public
+ */
+export interface PageRankOptionsLike {
+    readonly dampingFactor?: number | undefined;
+    readonly maxIterations?: number | undefined;
+    readonly tolerance?: number | undefined;
+    readonly weighted?: boolean | undefined;
+}
+
+/**
  * Betweenness options as the accelerator sees them: node INDICES, which is the only form that
  * means anything on a snapshot (plan decision PD-5).
  * @public
@@ -179,6 +193,17 @@ export interface BetweennessAcceleratorOptions {
  * `indexed.labelPropagation` directly for those. webgpu-graph-algorithms does not implement
  * `labelPropagation` yet, so with its accelerator this method runs the CPU port.
  *
+ * `pageRank` and `personalizedPageRank` run the CPU port when `initialRanks` or
+ * `convergenceNorm: "max"` is set: the accelerator members take neither.
+ *
+ * `eigenvectorCentrality` goes to the accelerator only for the question its kernel answers: the
+ * iteration over out-arcs (an undirected snapshot, or `mode: "out"`), unweighted, from the uniform
+ * start. It is called with `{ maxIterations, tolerance, weighted: false }` and its unit-length
+ * vector is rescaled to [0, 1] exactly as the port rescales its own unless `normalized: false`.
+ * A result with `converged: false` raises `ConvergenceError`, as the port does. The kernel iterates
+ * on `A` where the port iterates on `A + I`, so on a periodic graph (a bipartite one, say) it can
+ * report non-convergence where the port converges; that surfaces as the error, never as a CPU rerun.
+ *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
  * answers the port's question -- no options that change the result, at most the port's default
@@ -192,6 +217,12 @@ export interface BetweennessAcceleratorOptions {
 export interface AcceleratedAlgorithms {
     readonly accelerator: AlgorithmAccelerator | null;
     pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<PageRankResultLike>;
+    personalizedPageRank(
+        s: GraphSnapshot,
+        personalization: F32 | F64,
+        options?: PageRankOptions,
+    ): Promise<PageRankResultLike>;
+    eigenvectorCentrality(s: GraphSnapshot, options?: EigenvectorOptions): Promise<ScoresResultLike>;
     sssp(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResult>;
     breadthFirstSearch(s: GraphSnapshot, source: number, options?: BfsOptions): Promise<BfsResultLike>;
     connectedComponents(s: GraphSnapshot): Promise<LabelResultLike>;
@@ -227,6 +258,45 @@ function acceleratorAnswersApsp(s: GraphSnapshot, options: ApspOptions | undefin
 }
 
 /**
+ * Whether a PageRank call asks for something the accelerator members do not take.
+ * @param options - The caller's port options
+ * @returns True when the call must run the CPU port
+ */
+function pageRankNeedsCpu(options: PageRankOptions | undefined): boolean {
+    return options?.initialRanks !== undefined || options?.convergenceNorm === "max";
+}
+
+/**
+ * Whether the accelerator's eigenvector member answers the port's question: the iteration over
+ * out-arcs from the uniform start.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns True when the call may go to the accelerator
+ */
+function acceleratorAnswersEigenvector(s: GraphSnapshot, options: EigenvectorOptions | undefined): boolean {
+    return options?.startVector === undefined && (!s.directed || options?.mode === "out");
+}
+
+/**
+ * Give an accelerator's eigenvector result the port's contract: an unconverged run throws, and the
+ * unit-length vector is rescaled to [0, 1] unless `normalized: false`.
+ * @param like - The accelerator's result
+ * @param options - The caller's port options
+ * @returns The result, rescaled into a new vector when asked
+ */
+function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions | undefined): ScoresResultLike {
+    if (!like.converged) {
+        throw new ConvergenceError("eigenvectorCentrality", options?.maxIterations ?? 100, options?.tolerance ?? 1e-6);
+    }
+    if (options?.normalized === false) {
+        return like;
+    }
+    const scores = Float64Array.from(like.scores);
+    minMaxRescale(scores);
+    return { scores, iterations: like.iterations, converged: true };
+}
+
+/**
  * Attach `pathTo` / `pathEdges` to an accelerator's bare `{ dist, predArc }`, so both paths return
  * the design's `SsspResult` and the element keeps ONE result-writing loop. The GPU package cannot
  * attach them itself: it must not depend on the CPU package at runtime (design 9.2 line 2971, D3).
@@ -255,7 +325,26 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
     return {
         accelerator: acc ?? null,
         pageRank: (s, options) =>
-            acc?.pageRank !== undefined ? acc.pageRank(s, options) : Promise.resolve(indexed.pageRank(s, options)),
+            acc?.pageRank !== undefined && !pageRankNeedsCpu(options)
+                ? acc.pageRank(s, options)
+                : Promise.resolve(indexed.pageRank(s, options)),
+        personalizedPageRank: (s, personalization, options) =>
+            acc?.personalizedPageRank !== undefined && !pageRankNeedsCpu(options)
+                ? acc.personalizedPageRank(s, personalization, options)
+                : Promise.resolve(indexed.personalizedPageRank(s, personalization, options)),
+        eigenvectorCentrality: (s, options) =>
+            acc?.eigenvectorCentrality !== undefined && acceleratorAnswersEigenvector(s, options)
+                ? acc
+                      .eigenvectorCentrality(s, {
+                          maxIterations: options?.maxIterations,
+                          tolerance: options?.tolerance,
+                          weighted: false,
+                      })
+                      .then((like) => finishEigenvector(like, options))
+                : // The executor turns the port's ConvergenceError into a rejection, as on the accelerator path.
+                  new Promise((resolve) => {
+                      resolve(indexed.eigenvectorCentrality(s, options));
+                  }),
         sssp: (s, source, options) =>
             acc?.sssp !== undefined
                 ? acc.sssp(s, source, options).then((like) => decorateSssp(s, source, like))

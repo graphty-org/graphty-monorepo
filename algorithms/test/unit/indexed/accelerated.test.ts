@@ -8,10 +8,12 @@ import {
     type AlgorithmAccelerator,
     type ApspResultLike,
     type BfsResultLike,
+    ConvergenceError,
     indexed,
     type LabelResultLike,
     type MstResultLike,
     type PageRankResultLike,
+    type ScoresResultLike,
     type SsspResultLike,
     toSnapshot,
 } from "../../../src/index.js";
@@ -67,6 +69,7 @@ describe("accelerated(acc)", () => {
         };
         const sssp: SsspResultLike = { dist: Float32Array.of(9, 9, 0), predArc: Uint32Array.of(1, 1, 1) };
         const mst: MstResultLike = { edges: Uint32Array.of(0), totalWeight: 42 };
+        const personalization = Float64Array.of(1, 0, 0);
 
         interface Row {
             readonly method: keyof AlgorithmAccelerator & keyof AcceleratedAlgorithms;
@@ -81,6 +84,16 @@ describe("accelerated(acc)", () => {
                 fake: (log) => ({ kind: "fake", pageRank: (...a) => (log.push(a), Promise.resolve(scores)) }),
                 run: (d) => d.pageRank(s, options),
                 args: [s, options],
+                sentinel: scores,
+            },
+            {
+                method: "personalizedPageRank",
+                fake: (log) => ({
+                    kind: "fake",
+                    personalizedPageRank: (...a) => (log.push(a), Promise.resolve(scores)),
+                }),
+                run: (d) => d.personalizedPageRank(s, personalization, options),
+                args: [s, personalization, options],
                 sentinel: scores,
             },
             {
@@ -399,13 +412,14 @@ describe("accelerated(acc)", () => {
         });
     });
 
-    it("carries exactly the twelve methods whose ports exist", () => {
+    it("carries exactly the fourteen methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
             "allPairsShortestPath",
             "breadthFirstSearch",
             "connectedComponents",
+            "eigenvectorCentrality",
             "hits",
             "kCoreDecomposition",
             "katzCentrality",
@@ -413,8 +427,111 @@ describe("accelerated(acc)", () => {
             "louvain",
             "minimumSpanningTree",
             "pageRank",
+            "personalizedPageRank",
             "sssp",
             "weaklyConnectedComponents",
         ]);
     });
 });
+
+describe("accelerated(acc) routing for PageRank and eigenvector centrality", () => {
+    function undirectedPath(): GraphSnapshot {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b");
+        g.addEdge("b", "c");
+        return toSnapshot(g);
+    }
+
+    const answer: PageRankResultLike = { scores: Float32Array.of(0.2, 0.3, 0.5), iterations: 4, converged: true };
+
+    function pageRankStub(calls: string[]): AlgorithmAccelerator {
+        return {
+            kind: "fake",
+            pageRank: () => (calls.push("pageRank"), Promise.resolve(answer)),
+            personalizedPageRank: () => (calls.push("personalizedPageRank"), Promise.resolve(answer)),
+        };
+    }
+
+    it("runs PageRank on the CPU when initial ranks or the legacy stopping rule are asked for", async () => {
+        const s = cycle();
+        const calls: string[] = [];
+        const dispatcher = accelerated(pageRankStub(calls));
+        const p = Float64Array.of(1, 0, 0);
+        for (const options of [{ initialRanks: Float64Array.of(1, 1, 2) }, { convergenceNorm: "max" as const }]) {
+            const viaPageRank = await dispatcher.pageRank(s, options);
+            expect([...viaPageRank.scores]).toEqual([...indexed.pageRank(s, options).scores]);
+            const viaPersonalized = await dispatcher.personalizedPageRank(s, p, options);
+            expect([...viaPersonalized.scores]).toEqual([...indexed.personalizedPageRank(s, p, options).scores]);
+        }
+        expect(calls).toEqual([]);
+        await dispatcher.pageRank(s, { convergenceNorm: "l1" });
+        await dispatcher.personalizedPageRank(s, p);
+        expect(calls).toEqual(["pageRank", "personalizedPageRank"]);
+    });
+
+    it("runs personalized PageRank on the CPU with no accelerator", async () => {
+        const s = cycle();
+        const p = Float64Array.of(0, 2, 0);
+        const r = await accelerated(null).personalizedPageRank(s, p);
+        expect([...r.scores]).toEqual([...indexed.personalizedPageRank(s, p).scores]);
+    });
+
+    it("runs eigenvector centrality on the CPU with no accelerator, raising ConvergenceError as the port does", async () => {
+        const s = undirectedPath();
+        const r = await accelerated(null).eigenvectorCentrality(s, { maxIterations: 500 });
+        expect([...r.scores]).toEqual([...indexed.eigenvectorCentrality(s, { maxIterations: 500 }).scores]);
+        await expect(accelerated(null).eigenvectorCentrality(s, { maxIterations: 1 })).rejects.toThrow(
+            ConvergenceError,
+        );
+    });
+
+    function eigenStub(calls: unknown[][], result: ScoresResultLike): AlgorithmAccelerator {
+        return {
+            kind: "fake",
+            eigenvectorCentrality: (...a) => (calls.push(a), Promise.resolve(result)),
+        };
+    }
+
+    it("hands eigenvector centrality to the accelerator unweighted, and rescales its unit vector like the port", async () => {
+        const s = undirectedPath();
+        const calls: unknown[][] = [];
+        const unit: ScoresResultLike = { scores: Float32Array.of(0.5, Math.SQRT1_2, 0.5), iterations: 9, converged: true };
+        const dispatcher = accelerated(eigenStub(calls, unit));
+
+        const raw = await dispatcher.eigenvectorCentrality(s, { normalized: false, maxIterations: 50, tolerance: 1e-4 });
+        expect(raw).toBe(unit);
+        expect(calls[0][0]).toBe(s);
+        expect(calls[0][1]).toEqual({ maxIterations: 50, tolerance: 1e-4, weighted: false });
+
+        const scaled = await dispatcher.eigenvectorCentrality(s);
+        expect([...scaled.scores]).toEqual([0, 1, 0]);
+        expect(scaled.iterations).toBe(9);
+        expect(unit.scores[0]).toBeCloseTo(0.5, 6); // the accelerator's vector is not written to
+    });
+
+    it("keeps eigenvector centrality on the CPU for what the accelerator does not compute", async () => {
+        const calls: unknown[][] = [];
+        const unit: ScoresResultLike = { scores: Float32Array.of(1, 1, 1), iterations: 1, converged: true };
+        const dispatcher = accelerated(eigenStub(calls, unit));
+        const directed = cycle();
+        // The accelerator iterates over out-arcs, which is mode "out"; the default "in" and "total" stay here.
+        await dispatcher.eigenvectorCentrality(directed);
+        await dispatcher.eigenvectorCentrality(directed, { mode: "total" });
+        await dispatcher.eigenvectorCentrality(undirectedPath(), {
+            startVector: Float64Array.of(1, 2, 3),
+            maxIterations: 500,
+        });
+        expect(calls).toEqual([]);
+        await dispatcher.eigenvectorCentrality(directed, { mode: "out" });
+        expect(calls).toHaveLength(1);
+    });
+
+    it("raises ConvergenceError when the accelerator did not converge", async () => {
+        const unit: ScoresResultLike = { scores: Float32Array.of(1, 1, 1), iterations: 7, converged: false };
+        const dispatcher = accelerated(eigenStub([], unit));
+        await expect(dispatcher.eigenvectorCentrality(undirectedPath(), { maxIterations: 7 })).rejects.toThrow(
+            "eigenvectorCentrality did not converge in 7 iterations",
+        );
+    });
+});
+

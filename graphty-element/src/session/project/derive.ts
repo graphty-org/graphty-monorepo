@@ -101,8 +101,8 @@ export class DerivationLane {
     /** Moves on every restore, so a pass clears the flag only for restores made before it began. */
     private restores = 0;
     /**
-     * Strict state's invariant check, run at the end of every pass with the state it derived; what
-     * it throws goes where hook errors go. Null outside strict state.
+     * Strict state's invariant check, run at the end of a pass that leaves nothing more to derive,
+     * with live state; what it throws goes where hook errors go. Null outside strict state.
      */
     afterPass: ((target: ProjectState) => void) | null = null;
     /** What the running pass, or the last one, catches up with. */
@@ -273,9 +273,11 @@ export class DerivationLane {
             }
 
             this.shown = target;
-            if (this.afterPass !== null) {
+            // Checked once the picture has caught up with live state: a pass that another will
+            // follow draws a target that writes made since have already moved past.
+            if (this.afterPass !== null && this.next === null) {
                 try {
-                    this.afterPass(target);
+                    this.afterPass(this.state);
                 } catch (error) {
                     this.onError(error);
                 }

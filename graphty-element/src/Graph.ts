@@ -552,11 +552,16 @@ export class Graph implements GraphContext {
             }
 
             // While an import reads, the pass after each chunk builds what arrived but does not
-            // paint; the pass its end schedules paints the whole graph once. Everything else --
-            // an add, a removal, undo, redo, a rollback, an edit, a session verb -- is painted
-            // here, in its own pass.
-            if (this.#importsReading === 0 || cause !== "command") {
+            // paint; the pass its end schedules paints the whole graph once. Likewise a graph
+            // write with another still waiting behind it leaves the paint to the last of them,
+            // so a run of queued adds repaints once, not once per add. Everything else -- undo,
+            // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
+            const dispatcher = dispatcherOf(this.session);
+            if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
+                dispatcher.paintOwed = false;
                 await this.repaintFromSession();
+            } else if (this.#importsReading === 0) {
+                dispatcher.paintOwed = true;
             }
         });
 
@@ -1926,6 +1931,8 @@ export class Graph implements GraphContext {
                 ...options,
             },
         );
+        // Settled once the pass that derives the replacement has drawn and painted it.
+        await dispatcherOf(this.session).lane.settled();
     }
 
     /**
@@ -1970,6 +1977,8 @@ export class Graph implements GraphContext {
                 ...options,
             },
         );
+        // Settled once the pass that derives the replacement has drawn and painted it.
+        await dispatcherOf(this.session).lane.settled();
     }
 
     /**
@@ -2554,12 +2563,10 @@ export class Graph implements GraphContext {
     private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
-        if (options?.skipQueue === true) {
-            await dispatcher.dispatch(command, { beside: true });
-            return;
-        }
-
-        await dispatcher.dispatch(command);
+        await dispatcher.dispatch(command, options?.skipQueue === true ? { beside: true } : undefined);
+        // Settled once the pass that derives it has drawn and painted it: what a caller that
+        // awaited the add reads is the graph with the add in it.
+        await dispatcher.lane.settled();
     }
 
     /**

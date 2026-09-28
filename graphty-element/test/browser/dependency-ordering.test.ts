@@ -564,11 +564,14 @@ describe("Dependency Ordering", () => {
             // Verify both operations executed successfully
             assert.isTrue(executionOrder.includes("data-add"), "data-add should execute");
             // A style edit is written to the session's style stack when it is made, and repainted
-            // on the session's derivation lane, so it takes no turn in the queue; the repaint that
-            // follows the load is the queue's own style-apply. There is no style-init operation:
-            // the element's styles exist from construction.
+            // on the session's derivation lane, so it takes no turn in the queue; so is the load:
+            // the pass that derives it paints it, and no style-apply follows it on the queue.
+            // There is no style-init operation: the element's styles exist from construction.
             assert.isFalse(executionOrder.includes("style-edit"), "the style edit is written at once, not queued");
-            assert.isTrue(executionOrder.includes("style-apply"), "and the load should be painted");
+            assert.isFalse(executionOrder.includes("style-apply"), "the load is painted in its own pass, not queued");
+            for (const node of graph.getNodes()) {
+                assert.isNotNull(graph.getStylePainter().nodePaint(node.index), `and node ${node.id} is painted`);
+            }
 
             // Verify the final state is correct
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");

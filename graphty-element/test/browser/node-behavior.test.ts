@@ -113,8 +113,13 @@ describe("Node Behavior Tests", () => {
 
         // Mock layout manager
         const layoutManager = graph.getLayoutManager();
+        // The add's derivation pass places the newcomer and strict state checks the engine's
+        // edges, both through this stand-in.
         vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
             setNodePosition: vi.fn(),
+            updatePositions: vi.fn(),
+            publishPositions: vi.fn(),
+            edgeProblems: () => [],
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
         const spyTarget = mockLayoutEngine as unknown as {
@@ -146,8 +151,13 @@ describe("Node Behavior Tests", () => {
 
         // Mock layout manager
         const layoutManager = graph.getLayoutManager();
+        // The add's derivation pass places the newcomer and strict state checks the engine's
+        // edges, both through this stand-in.
         vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
             setNodePosition: vi.fn(),
+            updatePositions: vi.fn(),
+            publishPositions: vi.fn(),
+            edgeProblems: () => [],
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
         const spyTarget = mockLayoutEngine as unknown as {

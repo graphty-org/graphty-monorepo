@@ -722,11 +722,14 @@ describe("Nested Operations", () => {
 
             await operationQueueOf(graph).waitForCompletion();
 
-            // The load spawns a style pass of its own, which is the child operation this is
-            // about: nothing queued it directly, and it has to have finished by the time the
-            // queue is idle.
+            // The load used to spawn a style pass of its own on the queue. It is painted by the
+            // derivation pass that derives it now, so it spawns nothing the queue could run out
+            // of order, and it is painted by the time the queue is idle.
             assert.isTrue(operationOrder.includes("data-add"), "data-add should be in operation order");
-            assert.isTrue(operationOrder.includes("style-apply"), "and the repaint it spawned should be too");
+            assert.isFalse(operationOrder.includes("style-apply"), "and it spawns no repaint on the queue");
+            for (const node of graph.getNodes()) {
+                assert.isNotNull(graph.getStylePainter().nodePaint(node.index), `node ${node.id} is painted`);
+            }
         });
 
         it("should not block parent on child completion", async () => {

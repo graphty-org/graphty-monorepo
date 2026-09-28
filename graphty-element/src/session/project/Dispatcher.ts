@@ -1854,6 +1854,8 @@ export class Dispatcher {
             this.seal(group);
         }
 
+        this.graphWriteEnded(job);
+
         if (job.definition.closesBaseline === true) {
             this.baselineOpen = false;
         }
@@ -1881,6 +1883,8 @@ export class Dispatcher {
         } else {
             this.reverted(job.revert?.() ?? []);
         }
+
+        this.graphWriteEnded(job);
 
         if (job.definition.closesBaseline === true) {
             this.baselineOpen = false;
@@ -2198,6 +2202,49 @@ export class Dispatcher {
         job.controller.abort(reason);
         job.slot?.cancel();
         job.reject(reason);
+        this.graphWriteEnded(job);
+    }
+
+    /**
+     * A graph-writing job has ended, however it ended. When a pass left its paint to a later one
+     * while this was waiting or running (`paintOwed`) and nothing is waiting now, the lane is told,
+     * so a pass paints what the run wrote -- even when this one wrote nothing.
+     * @param job - The job.
+     */
+    private graphWriteEnded(job: Job): void {
+        if (this.paintOwed && job.keys.some((key) => sliceOf(key) === "graph") && !this.graphWritesWaiting) {
+            this.paintOwed = false;
+            this.graph.touch("paint");
+        }
+    }
+
+    /**
+     * Set by the renderer's `graph` hook when a pass left its whole-graph repaint to a later one
+     * because a graph write was waiting (`graphWritesWaiting`); cleared once one is scheduled.
+     */
+    paintOwed = false;
+
+    /**
+     * Whether a command that writes the graph is dispatched and not finished. The pass deriving a
+     * graph write leaves the whole-graph repaint to a pass once none is, so a run of queued adds
+     * -- `addEdge` in a loop -- repaints once rather than once per add; the last such command to
+     * end, however it ends, schedules that pass (`paintOwed`).
+     * @returns True while one is.
+     */
+    get graphWritesWaiting(): boolean {
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (
+                    job.status !== "done" &&
+                    job.status !== "cancelled" &&
+                    job.keys.some((key) => sliceOf(key) === "graph")
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -68,8 +68,8 @@ describe("Graph Queue Integration", () => {
 
         // A style edit is an undoable step of the session: the stack holds the layer when the verb
         // returns, and the repaint runs on the session's derivation lane. It takes no turn in the
-        // queue, so no load can overtake it; the repaint that follows a data load is still the
-        // queue's own `style-apply`.
+        // queue, so no load can overtake it. Nor does the repaint of a data load: the derivation
+        // pass that derives the load paints it.
         const added = graph.getSession().styles.add({
             name: "every node blue",
             target: "node",
@@ -89,15 +89,11 @@ describe("Graph Queue Integration", () => {
         await graph.addNodes([{ id: "1", label: "Node 1" }]);
         await graph.waitForSettled();
 
-        const dataAddIndex = operations.indexOf("data-add");
-        const repaintIndex = operations.indexOf("style-apply");
-
         assert.notInclude(operations, "style-edit", "a style edit takes no turn in the queue");
-        assert(dataAddIndex !== -1, "data-add should be present");
-        assert(
-            repaintIndex > dataAddIndex,
-            "and the rows a load added are painted after it, which is what the data-add trigger is for",
-        );
+        assert.include(operations, "data-add", "data-add should be present");
+        assert.notInclude(operations, "style-apply", "the load's repaint takes no turn in the queue either");
+        const node = graph.getNodes()[0];
+        assert.isNotNull(graph.getStylePainter().nodePaint(node.index), "and the rows the load added are painted");
     });
 
     it("should handle batchOperations method", async () => {

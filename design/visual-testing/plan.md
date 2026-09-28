@@ -473,8 +473,9 @@ has no remaining Chromatic review to do for these two projects.
 3. algorithms and layout: measure two-run stability under `taskset -c 0-3`, fix or exclude, seed.
    layout is in `projects.json` and the CI visual matrix with `canvas` true (its 3D stories draw
    into WebGL) and `seedFromMaster` false: set it true once its two runs under `taskset -c 0-3`
-   with the pinned fonts match. Its 17 stories captured identically on two runs with no
-   stable-frame wait, before the fonts were pinned.
+   with the pinned fonts match. Pinned with `taskset -c 0-3`, its 17 stories captured `unchanged`
+   on two runs with no stable-frame wait (10 of them pixel-identical, 7 with a few hundred channel
+   values off by less than the comparison threshold).
    The graphty app after its light mode (preview reads `theme`, the app sets `colorScheme`) and its
    eruda debug button (issue #204) are fixed.
 4. Pre-push: a blocking step before the gate's "No package is affected" exit, failing a push of a

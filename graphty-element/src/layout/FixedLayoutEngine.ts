@@ -2,6 +2,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { readSeedPosition } from "../data/ingest";
 import type { Node } from "../Node";
 import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
@@ -26,11 +27,14 @@ type FixedLayoutConfigType = z.infer<typeof FixedLayoutConfig>;
 type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
 
 /**
- * The fixed layout: every node stays where the element's position array already has it.
+ * The fixed layout: every node goes to its `data.position`, and then stays where it is put.
  *
- * A node's `data.position` reaches that array when the node is loaded (scaled by
- * `data.knownFields.positionScale`), and a drag writes it there too, so this engine computes
- * nothing: it reads the array and places only a node that has no coordinates at all, at the origin.
+ * The first time an engine lays out, every node carrying a `data.position` is placed there (scaled
+ * by `data.knownFields.positionScale`), whatever an earlier layout left in the element's position
+ * array -- switching to "fixed" means "put the nodes where the data says". After that the engine
+ * keeps what the array holds, so a drag survives a later recompute; a node added later reaches the
+ * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
+ * is placed at the origin.
  */
 export class FixedLayout extends SimpleLayoutEngine {
     static type = "fixed";
@@ -38,6 +42,7 @@ export class FixedLayout extends SimpleLayoutEngine {
     static zodOptionsSchema: OptionsSchema = fixedLayoutOptionsSchema;
     config: FixedLayoutConfigType;
     scalingFactor = 1;
+    #placedFromData = false;
 
     /**
      * Create a fixed layout engine
@@ -69,16 +74,29 @@ export class FixedLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Keep every placed row, and put an unplaced one at the origin.
+     * Place every node at its data position on the first run; later, keep every placed row. An
+     * unplaced row goes to the origin.
      */
     doLayout(): void {
         this.stale = false;
+        const fromData = !this.#placedFromData;
+        this.#placedFromData = true;
         const { graph } = this;
         const positions = new Float32Array(3 * graph.nodeCount).fill(Number.NaN);
         const at = { x: 0, y: 0, z: 0 };
         for (const node of this._nodes) {
             const row = this.rowOfId(node.id);
             if (row === INVALID_INDEX) {
+                continue;
+            }
+
+            const seed = fromData ? readSeedPosition(node.data as Record<string, unknown>) : null;
+            if (seed !== null) {
+                const scale = node.parentGraph.getStyles().config.data.knownFields.positionScale;
+                positions.set(
+                    seed.map((c) => c * scale),
+                    3 * row,
+                );
                 continue;
             }
 

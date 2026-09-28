@@ -14,6 +14,7 @@
 import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
+import type { BellmanFordResult } from "./bellman-ford.js";
 import type { BfsOptions } from "./bfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import type { HitsOptions } from "./hits.js";
@@ -187,12 +188,18 @@ export interface BetweennessAcceleratorOptions {
  * Same question is not same bits: both read the snapshot's f32 arc weights, but a GPU member sums
  * them in f32 and returns an f32 `dist`, where the port sums in f64. The two agree exactly while
  * every path sum is an integer below 2^24, and otherwise may differ by f32 rounding.
+ *
+ * `bellmanFord` goes to the accelerator unless the call carries a `weights` override that is not a
+ * `Float32Array`: an accelerator narrows the override to f32, so an f64 one -- the exact weights a
+ * legacy facade passes -- would be answered for different weights. Its result gets the same
+ * `pathTo` / `pathEdges` decoration as `sssp`.
  * @public
  */
 export interface AcceleratedAlgorithms {
     readonly accelerator: AlgorithmAccelerator | null;
     pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<PageRankResultLike>;
     sssp(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResult>;
+    bellmanFord(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResult>;
     breadthFirstSearch(s: GraphSnapshot, source: number, options?: BfsOptions): Promise<BfsResultLike>;
     connectedComponents(s: GraphSnapshot): Promise<LabelResultLike>;
     weaklyConnectedComponents(s: GraphSnapshot): Promise<LabelResultLike>;
@@ -260,6 +267,14 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.sssp !== undefined
                 ? acc.sssp(s, source, options).then((like) => decorateSssp(s, source, like))
                 : Promise.resolve(indexed.dijkstra(s, source, options)),
+        bellmanFord: (s, source, options) =>
+            acc?.bellmanFord !== undefined &&
+            (options?.weights === undefined || options.weights instanceof Float32Array)
+                ? acc.bellmanFord(s, source, options).then((like) => ({
+                      ...decorateSssp(s, source, like),
+                      hasNegativeCycle: like.hasNegativeCycle,
+                  }))
+                : Promise.resolve(indexed.bellmanFord(s, source, options)),
         breadthFirstSearch: (s, source, options) =>
             acc?.breadthFirstSearch !== undefined
                 ? acc.breadthFirstSearch(s, source, options)

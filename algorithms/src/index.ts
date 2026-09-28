@@ -84,6 +84,8 @@ export type {
 export { accelerated } from "./indexed/accelerator.js";
 // `Indexed` prefix: @graphty/webgpu-graph-algorithms publishes a different ApspOptions.
 export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
+// `Indexed` prefix: the flat BellmanFordResult is the legacy function's.
+export type { BellmanFordResult as IndexedBellmanFordResult } from "./indexed/bellman-ford.js";
 export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";

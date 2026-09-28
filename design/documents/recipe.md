@@ -95,114 +95,135 @@ workflows that means:
 
 ```ts
 interface Recipe {
-  kind: "graphty-recipe";
-  version: 1;
-  id: string;                    // stable identity of this recipe, across its versions
-  recipeVersion?: string;        // REQUIRED with doi, citation or source, and in a share save; SemVer RECOMMENDED
-  name: string;
-  description?: string;
-  namespace?: string;            // preferred namespace for its run ids; ^[a-z][a-z0-9-]*$, <= 32
-  source?: string;               // canonical https: URL; informational, never fetched automatically
-  // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
-  generator?: { name: string; version: string };
-  features?: string[];           // must-understand features (README, "Versioning")
-  engine?: EngineVersions;       // the versions it was authored with; see "Extension requirements"
-  requires?: {
-    attributes?: AttributeSlot[];
-    arguments?: ArgumentSlot[];
-    extensions?: ExtensionRequirement[];
-  };
-  steps: Step[];                 // run in order
-  overview?: { readings: string[] };
-  application?: Application;     // written only by a session writer; see "Saving an applied recipe"
-  extensions?: Record<string, unknown>;
+    kind: "graphty-recipe";
+    version: 1;
+    id: string; // stable identity of this recipe, across its versions
+    recipeVersion?: string; // REQUIRED with doi, citation or source, and in a share save; SemVer RECOMMENDED
+    name: string;
+    description?: string;
+    namespace?: string; // preferred namespace for its run ids; ^[a-z][a-z0-9-]*$, <= 32
+    source?: string; // canonical https: URL; informational, never fetched automatically
+    // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
+    generator?: { name: string; version: string };
+    features?: string[]; // must-understand features (README, "Versioning")
+    engine?: EngineVersions; // the versions it was authored with; see "Extension requirements"
+    requires?: {
+        attributes?: AttributeSlot[];
+        arguments?: ArgumentSlot[];
+        extensions?: ExtensionRequirement[];
+    };
+    steps: Step[]; // run in order
+    overview?: { readings: string[] };
+    application?: Application; // written only by a session writer; see "Saving an applied recipe"
+    extensions?: Record<string, unknown>;
 }
 
 interface AttributeSlot {
-  slot: string;                  // ^[a-z][a-z0-9-]*$, unique among slots
-  element: "node" | "edge";
-  name: string;                  // the attribute name the recipe was written against (a field path)
-  nameHints?: string[];          // other names that mean the same thing, in order of preference
-  level?: "categorical" | "ordinal" | "quantitative" | "temporal" | "identifier";   // open
-  role?: string;                 // a graph-format ColumnRole; "weight" or "capacity" for those slots
-  weightRole?: "distance" | "similarity";   // open
-  signed?: boolean;
-  optional?: boolean;            // default false; an optional weight slot runs its steps unweighted
-  description?: string;
-  features?: string[];
+    slot: string; // ^[a-z][a-z0-9-]*$, unique among slots
+    element: "node" | "edge";
+    name: string; // the attribute name the recipe was written against (a field path)
+    nameHints?: string[]; // other names that mean the same thing, in order of preference
+    level?: "categorical" | "ordinal" | "quantitative" | "temporal" | "identifier"; // open
+    role?: string; // a graph-format ColumnRole; "weight" or "capacity" for those slots
+    weightRole?: "distance" | "similarity"; // open
+    signed?: boolean;
+    optional?: boolean; // default false; an optional weight slot runs its steps unweighted
+    description?: string;
+    features?: string[];
 }
 
 interface ArgumentSlot {
-  slot: string;
-  type: "node-id" | "node-set" | "number" | "integer" | "string" | "boolean" | "enum" | "date";
-  choices?: (string | number)[]; // for enum
-  minimum?: number;              // for number, integer, date (as epoch milliseconds)
-  maximum?: number;
-  default?: unknown;             // MUST NOT be an element id in a document written to share
-  description?: string;
-  features?: string[];
+    slot: string;
+    type: "node-id" | "node-set" | "number" | "integer" | "string" | "boolean" | "enum" | "date";
+    choices?: (string | number)[]; // for enum
+    minimum?: number; // for number, integer, date (as epoch milliseconds)
+    maximum?: number;
+    default?: unknown; // MUST NOT be an element id in a document written to share
+    description?: string;
+    features?: string[];
 }
 
 interface ExtensionRequirement {
-  kind: "algorithm" | "layout" | "palette" | "camera" | "format";
-  key: string;                   // the catalogue key
-  package?: string;              // the npm package that provided it when authored (a claim)
-  version?: string;              // that package's version when authored (a claim)
+    kind: "algorithm" | "layout" | "palette" | "camera" | "format";
+    key: string; // the catalogue key
+    package?: string; // the npm package that provided it when authored (a claim)
+    version?: string; // that package's version when authored (a claim)
 }
 
 // graphty-element's EngineVersions: plugins keyed by catalogue key, the value the plugin's own
 // declared version, or null when it declares none (the shipped type omits an undeclared plugin;
 // writing null, graphIo and graphFormat are element changes)
-interface EngineVersions { element: string; algorithms: string; layout: string;
-                           graphIo?: string; graphFormat?: string;   // the packages that read the data
-                           plugins?: Record<string, string | null>;
-                           accelerator?: { package: string; version: string; backend?: string; adapter?: string } }
+interface EngineVersions {
+    element: string;
+    algorithms: string;
+    layout: string;
+    graphIo?: string;
+    graphFormat?: string; // the packages that read the data
+    plugins?: Record<string, string | null>;
+    accelerator?: { package: string; version: string; backend?: string; adapter?: string };
+}
 
 interface Step {
-  id: string;                    // unique in the recipe
-  description?: string;          // why this step is here; shown in the methods text
-  features?: string[];
-  command: AlgorithmRunCommand | LayoutSetCommand;
-  extensions?: Record<string, unknown>;
+    id: string; // unique in the recipe
+    description?: string; // why this step is here; shown in the methods text
+    features?: string[];
+    command: AlgorithmRunCommand | LayoutSetCommand;
+    extensions?: Record<string, unknown>;
 }
 
-interface AlgorithmRunCommand {  // the shipped command, plus the designed `style`, `precision`, `defaults`
-  op: "algo.run";
-  algorithm: string;             // current catalogue key
-  params?: Record<string, Value>;     // the options the author chose
-  defaults?: Record<string, unknown>; // the resolved defaults of every other option; see "Steps" rule 3
-  scope?: RecipeScope;           // default "graph"
-  seed?: number | ArgumentRef;
-  sample?: number | ArgumentRef;
-  exact?: boolean;
-  precision?: "f64";             // require double precision; see "Steps" rule 6
-  as: string;                    // REQUIRED in a recipe; ^[a-z][a-z0-9_-]*$ without "__"
-  style?: boolean | { size?: boolean | [number, number] };  // default true
+interface AlgorithmRunCommand {
+    // the shipped command, plus the designed `style`, `precision`, `defaults`
+    op: "algo.run";
+    algorithm: string; // current catalogue key
+    params?: Record<string, Value>; // the options the author chose
+    defaults?: Record<string, unknown>; // the resolved defaults of every other option; see "Steps" rule 3
+    scope?: RecipeScope; // default "graph"
+    seed?: number | ArgumentRef;
+    sample?: number | ArgumentRef;
+    exact?: boolean;
+    precision?: "f64"; // require double precision; see "Steps" rule 6
+    as: string; // REQUIRED in a recipe; ^[a-z][a-z0-9_-]*$ without "__"
+    style?: boolean | { size?: boolean | [number, number] }; // default true
 }
 
-interface LayoutSetCommand {     // the designed command, plus seed and dimension
-  op: "layout.set";
-  id: string;                    // layout catalogue key
-  params?: Record<string, Value>;
-  defaults?: Record<string, unknown>;
-  scope?: RecipeScope;           // default "graph"
-  seed?: number | ArgumentRef;
-  dimension?: 2 | 3;
-  start?: "current" | "fresh" | "positions";   // default "fresh"
+interface LayoutSetCommand {
+    // the designed command, plus seed and dimension
+    op: "layout.set";
+    id: string; // layout catalogue key
+    params?: Record<string, Value>;
+    defaults?: Record<string, unknown>;
+    scope?: RecipeScope; // default "graph"
+    seed?: number | ArgumentRef;
+    dimension?: 2 | 3;
+    start?: "current" | "fresh" | "positions"; // default "fresh"
 }
 
-type Value = unknown | ArgumentRef | AttributeRef | ResultRef;   // a JSON value, or one whole reference
-interface ArgumentRef { $argument: string }        // an argument slot
-interface AttributeRef { $attribute: string }      // an attribute slot: replaced by the bound attribute name
-interface ResultRef { $result: string; field?: string }   // an earlier step's `as`, and a field of it
+type Value = unknown | ArgumentRef | AttributeRef | ResultRef; // a JSON value, or one whole reference
+interface ArgumentRef {
+    $argument: string;
+} // an argument slot
+interface AttributeRef {
+    $attribute: string;
+} // an attribute slot: replaced by the bound attribute name
+interface ResultRef {
+    $result: string;
+    field?: string;
+} // an earlier step's `as`, and a field of it
 
 type RecipeScope =
-  | "graph" | "largest-component"
-  | { where: string; target?: "node" | "edge"; args?: Record<string, ArgumentRef | unknown> }
-  | { neighborhood: { seeds: ArgumentRef | ResultRef; depth: number | ArgumentRef } }
-  | { range: { attribute: string | AttributeRef; min?: ArgumentRef | string | number; max?: ArgumentRef | string | number } }
-  | { filter: Filter }           // exactly a session filter (envelope.md, "The active filter")
-  | { define: SetDefinition };   // a rule set only; see "Scopes"
+    | "graph"
+    | "largest-component"
+    | { where: string; target?: "node" | "edge"; args?: Record<string, ArgumentRef | unknown> }
+    | { neighborhood: { seeds: ArgumentRef | ResultRef; depth: number | ArgumentRef } }
+    | {
+          range: {
+              attribute: string | AttributeRef;
+              min?: ArgumentRef | string | number;
+              max?: ArgumentRef | string | number;
+          };
+      }
+    | { filter: Filter } // exactly a session filter (envelope.md, "The active filter")
+    | { define: SetDefinition }; // a rule set only; see "Scopes"
 ```
 
 ### Steps
@@ -307,7 +328,7 @@ or a rule set.
 - `{ filter: { nodes?, edges?, component? } }`: exactly what a session filter with the same members
   keeps (envelope.md, "The active filter"): the nodes the node predicate keeps, the edges between
   them that the edge predicate keeps, and every kept node, isolated or not; with `component:
-  "largest"`, then only the largest component of that. A run made under a session filter is
+"largest"`, then only the largest component of that. A run made under a session filter is
   exported with this scope, so a replay sees the same nodes.
 
 A recipe MUST NOT name particular elements: a scope `{ nodes: [...] }`, a scope `{ set: id }` naming
@@ -544,13 +565,13 @@ yields the same recipe, run ids and paths.
 
 ```ts
 interface Application {
-  namespace: string;                              // the namespace used
-  dataPlan?: string;                              // the data plan id it was bound under
-  bindings: Record<string, { attribute: string; by: "explicit" | "recorded" | "name" | "hint"; hint?: number }>;
-  confirmed: string[];                            // slots whose weight role the reader confirmed
-  arguments?: Record<string, unknown>;            // the argument values used
-  digest: string;                                 // the recipe digest ("Identity and namespacing")
-  appliedAt: string;                              // RFC 3339
+    namespace: string; // the namespace used
+    dataPlan?: string; // the data plan id it was bound under
+    bindings: Record<string, { attribute: string; by: "explicit" | "recorded" | "name" | "hint"; hint?: number }>;
+    confirmed: string[]; // slots whose weight role the reader confirmed
+    arguments?: Record<string, unknown>; // the argument values used
+    digest: string; // the recipe digest ("Identity and namespacing")
+    appliedAt: string; // RFC 3339
 }
 ```
 
@@ -684,18 +705,30 @@ confirmation prompt and tell "waiting for me" from "failed":
 
 ```ts
 interface RecipeBinding {
-  slots: { slot: string; boundTo: string | null; by?: "explicit" | "recorded" | "name" | "hint"; hintIndex?: number;
-           candidates: string[]; rejected: { attribute: string; reason: string; code: GraphtyErrorCode }[];
-           /** attributes of the slot's element kind whose level, role and value type do not conflict */
-           compatible: string[] }[];
-  needsConfirmation: { slot: string; attribute: string; role: "distance" | "similarity" | (string & {}) }[];
-  needsArgument: { slot: string; steps: string[] }[];
-  namespace: string;
-  // "waiting": the caller can fix it on this application (a slot, an argument, a confirmation);
-  // "skipped": it cannot be fixed on this application
-  steps: { step: string; state: "planned" | "waiting" | "skipped"; code?: GraphtyErrorCode;
-           exact?: boolean; precision?: "f32" | "f64"; estimateSeconds?: number }[];
-  totalEstimateSeconds: number;
+    slots: {
+        slot: string;
+        boundTo: string | null;
+        by?: "explicit" | "recorded" | "name" | "hint";
+        hintIndex?: number;
+        candidates: string[];
+        rejected: { attribute: string; reason: string; code: GraphtyErrorCode }[];
+        /** attributes of the slot's element kind whose level, role and value type do not conflict */
+        compatible: string[];
+    }[];
+    needsConfirmation: { slot: string; attribute: string; role: "distance" | "similarity" | (string & {}) }[];
+    needsArgument: { slot: string; steps: string[] }[];
+    namespace: string;
+    // "waiting": the caller can fix it on this application (a slot, an argument, a confirmation);
+    // "skipped": it cannot be fixed on this application
+    steps: {
+        step: string;
+        state: "planned" | "waiting" | "skipped";
+        code?: GraphtyErrorCode;
+        exact?: boolean;
+        precision?: "f32" | "f64";
+        estimateSeconds?: number;
+    }[];
+    totalEstimateSeconds: number;
 }
 ```
 
@@ -737,28 +770,28 @@ interface RecipeBinding {
    every parameter, scope and weight convention it could not map, so a networkx or igraph
    reproduction never silently differs.
 6. **Methods text.** graphty-element renders a methods paragraph from the project's records:
-   - it opens with one data sentence per input that carries provenance, from the data source and
-     the import record (envelope.md): the source, release, query ("STRING v12.0, human, combined
-     score at least 0.7", rendered from the published query vocabulary, envelope.md "The data
-     source"), retrieval date, licence, the data plan's id and version, the importer versions, and
-     the counts ("287 of 300 genes matched the expression table"); a joined table with its own
-     provenance (a GEO accession) gets its own sentence;
-   - then one sentence per run and per layout: the algorithm (by its plain name and key, with its
-     catalogue citation), every parameter, the weight attribute and its role ("weighted by STRING
-     combined_score, read as a similarity"), how edge direction was treated, the scope with its
-     node and edge counts and the filter predicate it ran under, the filter active when the figure
-     was exported, exact or sampled with the sample
-     size and seed, precision, convergence and iterations, the engine, accelerator and plugin
-     versions ("unversioned" for a plugin that declares none), and the recipe's id, version, digest,
-     authors and DOI or citation; each step's `description` is appended to its sentence as a
-     quotation of the document, never in the element's own voice;
-   - a stale run is not described as a result: its sentence says why it is stale, and a run record
-     this session did not produce says "recorded by" the file name or origin it was opened from,
-     giving the document's own `name` only as its claim;
-   - superseded and discarded run records (envelope.md, "Run records") are listed as tried and not
-     kept, with their parameters;
-   - it closes by saying which steps behind the conclusions were done outside any recipe (a
-     filter the recipe could not express, a hand merge), when there were any.
+    - it opens with one data sentence per input that carries provenance, from the data source and
+      the import record (envelope.md): the source, release, query ("STRING v12.0, human, combined
+      score at least 0.7", rendered from the published query vocabulary, envelope.md "The data
+      source"), retrieval date, licence, the data plan's id and version, the importer versions, and
+      the counts ("287 of 300 genes matched the expression table"); a joined table with its own
+      provenance (a GEO accession) gets its own sentence;
+    - then one sentence per run and per layout: the algorithm (by its plain name and key, with its
+      catalogue citation), every parameter, the weight attribute and its role ("weighted by STRING
+      combined_score, read as a similarity"), how edge direction was treated, the scope with its
+      node and edge counts and the filter predicate it ran under, the filter active when the figure
+      was exported, exact or sampled with the sample
+      size and seed, precision, convergence and iterations, the engine, accelerator and plugin
+      versions ("unversioned" for a plugin that declares none), and the recipe's id, version, digest,
+      authors and DOI or citation; each step's `description` is appended to its sentence as a
+      quotation of the document, never in the element's own voice;
+    - a stale run is not described as a result: its sentence says why it is stale, and a run record
+      this session did not produce says "recorded by" the file name or origin it was opened from,
+      giving the document's own `name` only as its claim;
+    - superseded and discarded run records (envelope.md, "Run records") are listed as tried and not
+      kept, with their parameters;
+    - it closes by saying which steps behind the conclusions were done outside any recipe (a
+      filter the recipe could not express, a hand merge), when there were any.
 
 ## Security
 
@@ -781,62 +814,62 @@ A recipe spends compute and names extensions, so it is the document an attacker 
 
 ## Conformance
 
-| Input | Required result |
-|---|---|
-| an `algo.run` step without `as` | step skipped, `E_UNSTABLE_RUN_ID` |
-| `as: "hubs__score"` | step skipped: `__` is reserved |
-| a step with `op: "data.import"` | that step and every later step skipped with `E_UNKNOWN_COMMAND`, unless the caller agrees to continue |
-| a step scoped `{ "nodes": ["TP53"] }` or `"selection"` | step skipped, `E_BAD_COMMAND` |
-| a step with no `scope`, applied while a filter hides half the graph | runs on the whole graph |
-| a step scoped `"visible"` | step skipped, `E_BAD_COMMAND` |
-| a step command `{ "op": "algo.run", "algorithm": "betweenness", "as": "b", "sed": 7 }` | that step and every later step skipped, `E_UNKNOWN_OPTION`, suggesting `seed` |
-| two steps with `as: "d"` | the second, and every step reading it, skipped with `E_DUPLICATE_ID` |
-| `defaults: { "personalization": null }` on a reader whose PageRank has no such option | ignored and reported; the step runs |
-| a `where` scope reading `data.padj` with no `padj` slot, on data whose column is `FDR` | implicit slot unbound, `E_UNBOUND_SLOT`; step waiting |
-| a `where` scope that matches no node | step skipped, `E_SCOPE_EMPTY`; dependants skipped |
-| `"largest-component"` on a graph with two 40-node components | the component holding the smallest node id |
-| a closeness or betweenness step produced by a writer | no weight slot written: the shipped descriptors read no weight |
-| a recipe with degree, closeness and PageRank and a similarity `weight` slot | closeness runs unweighted; no `E_WEIGHT_ROLE_MISMATCH` |
-| a PageRank step bound to `combined_score` and a shortest-path step bound to a derived distance column | both run, each with its own weight column; no re-import |
-| a `layout.set` of a layout reading distances, bound to a similarity slot | step skipped, `E_WEIGHT_ROLE_MISMATCH` |
-| a step whose `defaults` say `tolerance: 1e-6` on a release whose default is `1e-8` | runs with `1e-6`; `W_PARAMETER_DIFFERS` reported |
-| a hand-written recipe with no `defaults`, applied and saved as a project | written verbatim; the digest unchanged |
-| a recipe whose envelope also carries a data plan declaring the weight `similarity` | the weight slot still asks for confirmation |
-| a step listing an unknown feature, followed by a PageRank step | both refused (`E_UNSUPPORTED_FEATURE`, then the cascade) unless the caller agrees to continue |
-| a step with no `scope`, while the envelope's active filter keeps half the nodes | the applier passes `"graph"` to the element; runs on every node |
-| a run under an edge filter that isolates 40 nodes, exported and replayed | exported with the `filter` scope; the replay sees the same nodes, isolated ones included |
-| a recipe with a step waiting on an unbound slot, saved, reopened, applied again with `bindings` | resumed: only the waiting step runs; no `E_REPEAT_APPLICATION` |
-| recipe versions `1.9.0` and `1.10.0` | `1.10.0` is newer |
-| recipe versions `2026-09` and `v2` | not ordered; no update offered |
-| a range scope over `first_seen` on data whose column is `firstSeen` | implicit slot unbound, `E_UNBOUND_SLOT`; step waiting, not `E_SCOPE_EMPTY` |
-| a recipe with `doi` and no `engine` | fails the schema |
-| a signed similarity weight used by PageRank, whose descriptor does not accept negative weights | step skipped, `E_NEGATIVE_WEIGHT` |
-| the same recipe with and without `application`, `doi` or a changed `description` | the same digest |
-| a recipe opened with `application.confirmed: ["weight"]`, written by another installation | the weight slot still asks for confirmation; the block is reported as the document's claim |
-| a recipe applied, every step waiting on an unbound slot, applied again with `bindings` | re-bound; not refused as a repeat |
-| v1.3.0 of a recipe applied after v1.2.0 ran, default options | refused, `E_REPEAT_APPLICATION`; the report proposes `replace` naming both versions |
-| a recipe planned at twice the total budget, `run: true` | not started, `E_BUDGET_EXCEEDED` with the estimate |
-| algorithm key `org.example:motif-census`, not registered | that step and the steps depending on it skipped with `E_UNKNOWN_ALGORITHM`; report shows the package and version as the document's claim |
-| the same key registered by a plugin with no `static version` | runs; the report and the run record say "unversioned" beside the document's claim |
-| key `scc` (a 1.10 key) | resolves to `components` with `{ strength: "strong" }`; the report names the current key |
-| slot `weight` (edge, `role: "weight"`, `weightRole: "similarity"`) and the graph's weight column declared `distance` | slot unbound, `E_ROLE_CONFLICT`; dependent steps skipped |
-| slot `weight` bound to `combined_score`, but the graph was imported with weight column `weight` | step waits; `needsReimport` names `combined_score` |
-| a similarity weight slot used by a shortest-path step | step skipped, `E_WEIGHT_ROLE_MISMATCH` |
-| slot `expr` with `name: "logFC"`, `nameHints: ["log2FoldChange"]`; graph has `log2FoldChange` | bound by hint 0; every `data.logFC` in steps and in the envelope's style rewritten to `data.log2FoldChange` |
-| a slot with hints `["combined_score", "score"]`; graph has both | bound to `combined_score` (hint order) |
-| a slot whose name matches `Weight` and `weight` | exact-case `weight` wins; with only `Weight` and `WEIGHT`, unbound with both listed as candidates |
-| a `quantitative` slot whose only candidate holds strings | unbound, `E_ROLE_CONFLICT` |
-| a string literal `'logFC'` inside a predicate | not rewritten |
-| `params: { "weight": "score" }` (a bare string) | a literal; never rewritten |
-| `{ "$result": "modules", "field": "group" }` after namespace `hubs` | resolves to run `hubs__modules`; the step depends on the `modules` step |
-| a style path `results.hubs__score.value` applied with namespace `hubs2` | layer not bound, `E_NAMESPACE_MISMATCH` |
-| applied twice to one session | refused with `E_REPEAT_APPLICATION` by default; with `onRepeat: "add"`, run ids `hubs__...` and `hubs2__...` |
-| saved as a project after applying, reopened, saved again | the same `as` values, paths and `application.namespace` |
-| same `id` and `recipeVersion` as a recorded application, different digest | `E_RECIPE_DIGEST_MISMATCH` |
-| opened with no instruction to run | no run starts; every step in `needsRerun` with an estimate and the total |
-| `precision: "f64"` on a page that would run the algorithm on the GPU in f32 | runs on the CPU in f64 if the element can; otherwise fails with `E_PRECISION_UNAVAILABLE` |
-| `layout.set` with `maxIter: 1e12` | refused, `E_OPTION_RANGE` |
-| `authors: [{ "url": "javascript:alert(1)" }]` | fails the schema; never rendered as a link |
+| Input                                                                                                                | Required result                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| an `algo.run` step without `as`                                                                                      | step skipped, `E_UNSTABLE_RUN_ID`                                                                                                        |
+| `as: "hubs__score"`                                                                                                  | step skipped: `__` is reserved                                                                                                           |
+| a step with `op: "data.import"`                                                                                      | that step and every later step skipped with `E_UNKNOWN_COMMAND`, unless the caller agrees to continue                                    |
+| a step scoped `{ "nodes": ["TP53"] }` or `"selection"`                                                               | step skipped, `E_BAD_COMMAND`                                                                                                            |
+| a step with no `scope`, applied while a filter hides half the graph                                                  | runs on the whole graph                                                                                                                  |
+| a step scoped `"visible"`                                                                                            | step skipped, `E_BAD_COMMAND`                                                                                                            |
+| a step command `{ "op": "algo.run", "algorithm": "betweenness", "as": "b", "sed": 7 }`                               | that step and every later step skipped, `E_UNKNOWN_OPTION`, suggesting `seed`                                                            |
+| two steps with `as: "d"`                                                                                             | the second, and every step reading it, skipped with `E_DUPLICATE_ID`                                                                     |
+| `defaults: { "personalization": null }` on a reader whose PageRank has no such option                                | ignored and reported; the step runs                                                                                                      |
+| a `where` scope reading `data.padj` with no `padj` slot, on data whose column is `FDR`                               | implicit slot unbound, `E_UNBOUND_SLOT`; step waiting                                                                                    |
+| a `where` scope that matches no node                                                                                 | step skipped, `E_SCOPE_EMPTY`; dependants skipped                                                                                        |
+| `"largest-component"` on a graph with two 40-node components                                                         | the component holding the smallest node id                                                                                               |
+| a closeness or betweenness step produced by a writer                                                                 | no weight slot written: the shipped descriptors read no weight                                                                           |
+| a recipe with degree, closeness and PageRank and a similarity `weight` slot                                          | closeness runs unweighted; no `E_WEIGHT_ROLE_MISMATCH`                                                                                   |
+| a PageRank step bound to `combined_score` and a shortest-path step bound to a derived distance column                | both run, each with its own weight column; no re-import                                                                                  |
+| a `layout.set` of a layout reading distances, bound to a similarity slot                                             | step skipped, `E_WEIGHT_ROLE_MISMATCH`                                                                                                   |
+| a step whose `defaults` say `tolerance: 1e-6` on a release whose default is `1e-8`                                   | runs with `1e-6`; `W_PARAMETER_DIFFERS` reported                                                                                         |
+| a hand-written recipe with no `defaults`, applied and saved as a project                                             | written verbatim; the digest unchanged                                                                                                   |
+| a recipe whose envelope also carries a data plan declaring the weight `similarity`                                   | the weight slot still asks for confirmation                                                                                              |
+| a step listing an unknown feature, followed by a PageRank step                                                       | both refused (`E_UNSUPPORTED_FEATURE`, then the cascade) unless the caller agrees to continue                                            |
+| a step with no `scope`, while the envelope's active filter keeps half the nodes                                      | the applier passes `"graph"` to the element; runs on every node                                                                          |
+| a run under an edge filter that isolates 40 nodes, exported and replayed                                             | exported with the `filter` scope; the replay sees the same nodes, isolated ones included                                                 |
+| a recipe with a step waiting on an unbound slot, saved, reopened, applied again with `bindings`                      | resumed: only the waiting step runs; no `E_REPEAT_APPLICATION`                                                                           |
+| recipe versions `1.9.0` and `1.10.0`                                                                                 | `1.10.0` is newer                                                                                                                        |
+| recipe versions `2026-09` and `v2`                                                                                   | not ordered; no update offered                                                                                                           |
+| a range scope over `first_seen` on data whose column is `firstSeen`                                                  | implicit slot unbound, `E_UNBOUND_SLOT`; step waiting, not `E_SCOPE_EMPTY`                                                               |
+| a recipe with `doi` and no `engine`                                                                                  | fails the schema                                                                                                                         |
+| a signed similarity weight used by PageRank, whose descriptor does not accept negative weights                       | step skipped, `E_NEGATIVE_WEIGHT`                                                                                                        |
+| the same recipe with and without `application`, `doi` or a changed `description`                                     | the same digest                                                                                                                          |
+| a recipe opened with `application.confirmed: ["weight"]`, written by another installation                            | the weight slot still asks for confirmation; the block is reported as the document's claim                                               |
+| a recipe applied, every step waiting on an unbound slot, applied again with `bindings`                               | re-bound; not refused as a repeat                                                                                                        |
+| v1.3.0 of a recipe applied after v1.2.0 ran, default options                                                         | refused, `E_REPEAT_APPLICATION`; the report proposes `replace` naming both versions                                                      |
+| a recipe planned at twice the total budget, `run: true`                                                              | not started, `E_BUDGET_EXCEEDED` with the estimate                                                                                       |
+| algorithm key `org.example:motif-census`, not registered                                                             | that step and the steps depending on it skipped with `E_UNKNOWN_ALGORITHM`; report shows the package and version as the document's claim |
+| the same key registered by a plugin with no `static version`                                                         | runs; the report and the run record say "unversioned" beside the document's claim                                                        |
+| key `scc` (a 1.10 key)                                                                                               | resolves to `components` with `{ strength: "strong" }`; the report names the current key                                                 |
+| slot `weight` (edge, `role: "weight"`, `weightRole: "similarity"`) and the graph's weight column declared `distance` | slot unbound, `E_ROLE_CONFLICT`; dependent steps skipped                                                                                 |
+| slot `weight` bound to `combined_score`, but the graph was imported with weight column `weight`                      | step waits; `needsReimport` names `combined_score`                                                                                       |
+| a similarity weight slot used by a shortest-path step                                                                | step skipped, `E_WEIGHT_ROLE_MISMATCH`                                                                                                   |
+| slot `expr` with `name: "logFC"`, `nameHints: ["log2FoldChange"]`; graph has `log2FoldChange`                        | bound by hint 0; every `data.logFC` in steps and in the envelope's style rewritten to `data.log2FoldChange`                              |
+| a slot with hints `["combined_score", "score"]`; graph has both                                                      | bound to `combined_score` (hint order)                                                                                                   |
+| a slot whose name matches `Weight` and `weight`                                                                      | exact-case `weight` wins; with only `Weight` and `WEIGHT`, unbound with both listed as candidates                                        |
+| a `quantitative` slot whose only candidate holds strings                                                             | unbound, `E_ROLE_CONFLICT`                                                                                                               |
+| a string literal `'logFC'` inside a predicate                                                                        | not rewritten                                                                                                                            |
+| `params: { "weight": "score" }` (a bare string)                                                                      | a literal; never rewritten                                                                                                               |
+| `{ "$result": "modules", "field": "group" }` after namespace `hubs`                                                  | resolves to run `hubs__modules`; the step depends on the `modules` step                                                                  |
+| a style path `results.hubs__score.value` applied with namespace `hubs2`                                              | layer not bound, `E_NAMESPACE_MISMATCH`                                                                                                  |
+| applied twice to one session                                                                                         | refused with `E_REPEAT_APPLICATION` by default; with `onRepeat: "add"`, run ids `hubs__...` and `hubs2__...`                             |
+| saved as a project after applying, reopened, saved again                                                             | the same `as` values, paths and `application.namespace`                                                                                  |
+| same `id` and `recipeVersion` as a recorded application, different digest                                            | `E_RECIPE_DIGEST_MISMATCH`                                                                                                               |
+| opened with no instruction to run                                                                                    | no run starts; every step in `needsRerun` with an estimate and the total                                                                 |
+| `precision: "f64"` on a page that would run the algorithm on the GPU in f32                                          | runs on the CPU in f64 if the element can; otherwise fails with `E_PRECISION_UNAVAILABLE`                                                |
+| `layout.set` with `maxIter: 1e12`                                                                                    | refused, `E_OPTION_RANGE`                                                                                                                |
+| `authors: [{ "url": "javascript:alert(1)" }]`                                                                        | fails the schema; never rendered as a link                                                                                               |
 
 ## Worked examples
 
@@ -849,38 +882,71 @@ carries `defaults` on every step.
 
 ```json
 {
-  "kind": "graphty-recipe",
-  "version": 1,
-  "id": "org.example-lab.hub-genes",
-  "recipeVersion": "1.2.0",
-  "name": "Hub genes",
-  "description": "Ranks genes by connectivity and by position between modules.",
-  "namespace": "hubs",
-  "license": "CC-BY-4.0",
-  "authors": [{ "name": "Example Lab", "url": "https://example.org/lab" }],
-  "engine": { "element": "3.1.0", "algorithms": "2.1.0", "layout": "1.3.0" },
-  "requires": {
-    "attributes": [
-      { "slot": "weight", "element": "edge", "name": "weight", "nameHints": ["combined_score", "score"],
-        "level": "quantitative", "role": "weight", "weightRole": "similarity",
-        "description": "Interaction confidence or co-expression strength; larger is closer" }
+    "kind": "graphty-recipe",
+    "version": 1,
+    "id": "org.example-lab.hub-genes",
+    "recipeVersion": "1.2.0",
+    "name": "Hub genes",
+    "description": "Ranks genes by connectivity and by position between modules.",
+    "namespace": "hubs",
+    "license": "CC-BY-4.0",
+    "authors": [{ "name": "Example Lab", "url": "https://example.org/lab" }],
+    "engine": { "element": "3.1.0", "algorithms": "2.1.0", "layout": "1.3.0" },
+    "requires": {
+        "attributes": [
+            {
+                "slot": "weight",
+                "element": "edge",
+                "name": "weight",
+                "nameHints": ["combined_score", "score"],
+                "level": "quantitative",
+                "role": "weight",
+                "weightRole": "similarity",
+                "description": "Interaction confidence or co-expression strength; larger is closer"
+            }
+        ]
+    },
+    "steps": [
+        {
+            "id": "degree",
+            "command": { "op": "algo.run", "algorithm": "degree", "as": "degree", "scope": "graph", "style": false }
+        },
+        {
+            "id": "pagerank",
+            "description": "Weighted PageRank, damping 0.85, as in the lab's methods section.",
+            "command": {
+                "op": "algo.run",
+                "algorithm": "pagerank",
+                "as": "pagerank",
+                "params": {
+                    "dampingFactor": 0.85,
+                    "maxIterations": 100,
+                    "tolerance": 0.000001,
+                    "weight": { "$attribute": "weight" }
+                },
+                "defaults": { "useDelta": true },
+                "scope": "largest-component",
+                "style": { "size": true }
+            }
+        },
+        {
+            "id": "betweenness",
+            "command": {
+                "op": "algo.run",
+                "algorithm": "betweenness",
+                "as": "between",
+                "scope": "largest-component",
+                "seed": 7,
+                "exact": true,
+                "precision": "f64",
+                "style": false
+            }
+        },
+        {
+            "id": "layout",
+            "command": { "op": "layout.set", "id": "force", "seed": 7, "dimension": 2, "scope": "graph" }
+        }
     ]
-  },
-  "steps": [
-    { "id": "degree", "command": { "op": "algo.run", "algorithm": "degree", "as": "degree", "scope": "graph", "style": false } },
-    { "id": "pagerank",
-      "description": "Weighted PageRank, damping 0.85, as in the lab's methods section.",
-      "command": { "op": "algo.run", "algorithm": "pagerank", "as": "pagerank",
-                   "params": { "dampingFactor": 0.85, "maxIterations": 100, "tolerance": 0.000001,
-                               "weight": { "$attribute": "weight" } },
-                   "defaults": { "useDelta": true },
-                   "scope": "largest-component", "style": { "size": true } } },
-    { "id": "betweenness",
-      "command": { "op": "algo.run", "algorithm": "betweenness", "as": "between",
-                   "scope": "largest-component", "seed": 7, "exact": true, "precision": "f64", "style": false } },
-    { "id": "layout",
-      "command": { "op": "layout.set", "id": "force", "seed": 7, "dimension": 2, "scope": "graph" } }
-  ]
 }
 ```
 
@@ -895,21 +961,27 @@ binds by its first name hint, the caller confirms the similarity role, the `page
 
 ```json
 {
-  "kind": "graphty-recipe",
-  "version": 1,
-  "id": "org.example.link-chart.path",
-  "name": "Route between two subjects",
-  "requires": {
-    "arguments": [
-      { "slot": "from", "type": "node-id", "description": "First subject" },
-      { "slot": "to", "type": "node-id", "description": "Second subject" }
+    "kind": "graphty-recipe",
+    "version": 1,
+    "id": "org.example.link-chart.path",
+    "name": "Route between two subjects",
+    "requires": {
+        "arguments": [
+            { "slot": "from", "type": "node-id", "description": "First subject" },
+            { "slot": "to", "type": "node-id", "description": "Second subject" }
+        ]
+    },
+    "steps": [
+        {
+            "id": "route",
+            "command": {
+                "op": "algo.run",
+                "algorithm": "shortest-path",
+                "as": "route",
+                "params": { "source": { "$argument": "from" }, "target": { "$argument": "to" } }
+            }
+        }
     ]
-  },
-  "steps": [
-    { "id": "route",
-      "command": { "op": "algo.run", "algorithm": "shortest-path", "as": "route",
-                   "params": { "source": { "$argument": "from" }, "target": { "$argument": "to" } } } }
-  ]
 }
 ```
 
@@ -920,28 +992,47 @@ transactions since a date.
 
 ```json
 {
-  "kind": "graphty-recipe",
-  "version": 1,
-  "id": "org.example.fraud.triage",
-  "name": "Alert triage",
-  "requires": {
-    "attributes": [
-      { "slot": "first-seen", "element": "edge", "name": "first_seen", "nameHints": ["firstSeen", "timestamp"],
-        "level": "temporal", "description": "When the transaction was first seen" }
-    ],
-    "arguments": [
-      { "slot": "alert", "type": "node-id", "description": "The flagged account" },
-      { "slot": "since", "type": "date", "description": "Start of the window" }
+    "kind": "graphty-recipe",
+    "version": 1,
+    "id": "org.example.fraud.triage",
+    "name": "Alert triage",
+    "requires": {
+        "attributes": [
+            {
+                "slot": "first-seen",
+                "element": "edge",
+                "name": "first_seen",
+                "nameHints": ["firstSeen", "timestamp"],
+                "level": "temporal",
+                "description": "When the transaction was first seen"
+            }
+        ],
+        "arguments": [
+            { "slot": "alert", "type": "node-id", "description": "The flagged account" },
+            { "slot": "since", "type": "date", "description": "Start of the window" }
+        ]
+    },
+    "steps": [
+        {
+            "id": "rings",
+            "command": {
+                "op": "algo.run",
+                "algorithm": "louvain",
+                "as": "rings",
+                "seed": 1,
+                "scope": { "neighborhood": { "seeds": { "$argument": "alert" }, "depth": 2 } }
+            }
+        },
+        {
+            "id": "brokers",
+            "command": {
+                "op": "algo.run",
+                "algorithm": "betweenness",
+                "as": "brokers",
+                "scope": { "range": { "attribute": { "$attribute": "first-seen" }, "min": { "$argument": "since" } } }
+            }
+        }
     ]
-  },
-  "steps": [
-    { "id": "rings",
-      "command": { "op": "algo.run", "algorithm": "louvain", "as": "rings", "seed": 1,
-                   "scope": { "neighborhood": { "seeds": { "$argument": "alert" }, "depth": 2 } } } },
-    { "id": "brokers",
-      "command": { "op": "algo.run", "algorithm": "betweenness", "as": "brokers",
-                   "scope": { "range": { "attribute": { "$attribute": "first-seen" }, "min": { "$argument": "since" } } } } }
-  ]
 }
 ```
 
@@ -952,14 +1043,23 @@ step offered on request.
 
 ```json
 {
-  "kind": "graphty-recipe",
-  "version": 1,
-  "id": "app.graphty.overview.flows",
-  "name": "Flows",
-  "overview": { "readings": ["nodeCount", "edgeCount", "directedness", "components", "selfLoopCount", "degreeRange"] },
-  "steps": [
-    { "id": "strong", "command": { "op": "algo.run", "algorithm": "components", "as": "strong",
-                                   "params": { "strength": "strong" } } }
-  ]
+    "kind": "graphty-recipe",
+    "version": 1,
+    "id": "app.graphty.overview.flows",
+    "name": "Flows",
+    "overview": {
+        "readings": ["nodeCount", "edgeCount", "directedness", "components", "selfLoopCount", "degreeRange"]
+    },
+    "steps": [
+        {
+            "id": "strong",
+            "command": {
+                "op": "algo.run",
+                "algorithm": "components",
+                "as": "strong",
+                "params": { "strength": "strong" }
+            }
+        }
+    ]
 }
 ```

@@ -12,15 +12,15 @@ data file, a data plan, a style, a recipe, a view document and annotations, plus
 ran, in one file a person can hand to a colleague. Its combinations are the cases the owner and the
 personas name:
 
-| Members | What a person calls it | Who needs it |
-|---|---|---|
-| style | a style file | a lab's publication look (`design/designloom/workflows/W20.yaml`) |
-| recipe + style | a starting point | "communities share starting points without sharing their data" (the owner, 2026-09-27) |
-| recipe + style + view | a workspace | a team's standard investigation layout (`W06.yaml`) |
-| data + data plan | a dataset with its reading instructions | data import and validation (`W18.yaml`) |
-| data + annotations | shared findings on shared data | two investigators on one case (`W09.yaml`) |
-| recipe + style + run records, no data, no notes | supplementary material for review | a reproducibility reviewer when the data is under licence (`W25.yaml`); a share save that names `runs` |
-| everything, with `imports`, `runs`, `positions`, `filter`, `sets`, `tables` and (when asked) `results` | a project | the reproducible session of `W25.yaml` (Reproducible Session and Network Publication): the network as it was read, its attribute tables, style, layout, the active filter, the record of every import, run and layout, kept sets and results. Version 1 does not hold several networks (open decision 24): a session holding more than one cannot be saved as one project ("Saving") |
+| Members                                                                                                | What a person calls it                  | Who needs it                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| style                                                                                                  | a style file                            | a lab's publication look (`design/designloom/workflows/W20.yaml`)                                                                                                                                                                                                                                                                                                                    |
+| recipe + style                                                                                         | a starting point                        | "communities share starting points without sharing their data" (the owner, 2026-09-27)                                                                                                                                                                                                                                                                                               |
+| recipe + style + view                                                                                  | a workspace                             | a team's standard investigation layout (`W06.yaml`)                                                                                                                                                                                                                                                                                                                                  |
+| data + data plan                                                                                       | a dataset with its reading instructions | data import and validation (`W18.yaml`)                                                                                                                                                                                                                                                                                                                                              |
+| data + annotations                                                                                     | shared findings on shared data          | two investigators on one case (`W09.yaml`)                                                                                                                                                                                                                                                                                                                                           |
+| recipe + style + run records, no data, no notes                                                        | supplementary material for review       | a reproducibility reviewer when the data is under licence (`W25.yaml`); a share save that names `runs`                                                                                                                                                                                                                                                                               |
+| everything, with `imports`, `runs`, `positions`, `filter`, `sets`, `tables` and (when asked) `results` | a project                               | the reproducible session of `W25.yaml` (Reproducible Session and Network Publication): the network as it was read, its attribute tables, style, layout, the active filter, the record of every import, run and layout, kept sets and results. Version 1 does not hold several networks (open decision 24): a session holding more than one cannot be saved as one project ("Saving") |
 
 The element API design specifies the envelope (`design/element-api/element-api-design.md` section
 4.6.3a) with three rules this specification keeps: every member is optional and binds
@@ -32,64 +32,66 @@ format."
 
 ```ts
 interface GraphtyDocument {
-  kind: "graphty-document";
-  version: 1;
-  createdAt: string;                   // RFC 3339 date-time; never rewritten
-  modifiedAt?: string;                 // RFC 3339 date-time
-  name?: string;
-  description?: string;
-  generator?: { name: string; version: string };   // e.g. graphty-element 3.1.0
-  fingerprint?: string;                // the graph the members were authored against
-  features?: string[];                 // must-understand features (README, "Versioning")
-  // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
-  data?: DataMember;
-  dataSource?: DataSource;             // below, "The data source"; written with or without data
-  dataPlan?: DataPlan;                 // data-plan.md
-  style?: StyleDocument;               // style.md
-  recipes?: Recipe[];                  // recipe.md; in application order
-  view?: ViewDocument;                 // view-preset.md
-  annotations?: AnnotationSet;         // annotations.md
-  imports?: ImportRecord[];            // below, "Import records"
-  runs?: (RunRecord | LayoutRecord)[]; // below, "Run records"
-  positions?: Positions;               // below, "Positions"
-  filter?: Filter;                     // below, "The active filter"
-  sets?: KeptSet[];                    // below, "Kept sets"
-  results?: StoredResult[];            // below, "Stored results"
-  tables?: GroupTable[];               // below, "Groups of results"
-  extensions?: Record<string, unknown>;
+    kind: "graphty-document";
+    version: 1;
+    createdAt: string; // RFC 3339 date-time; never rewritten
+    modifiedAt?: string; // RFC 3339 date-time
+    name?: string;
+    description?: string;
+    generator?: { name: string; version: string }; // e.g. graphty-element 3.1.0
+    fingerprint?: string; // the graph the members were authored against
+    features?: string[]; // must-understand features (README, "Versioning")
+    // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
+    data?: DataMember;
+    dataSource?: DataSource; // below, "The data source"; written with or without data
+    dataPlan?: DataPlan; // data-plan.md
+    style?: StyleDocument; // style.md
+    recipes?: Recipe[]; // recipe.md; in application order
+    view?: ViewDocument; // view-preset.md
+    annotations?: AnnotationSet; // annotations.md
+    imports?: ImportRecord[]; // below, "Import records"
+    runs?: (RunRecord | LayoutRecord)[]; // below, "Run records"
+    positions?: Positions; // below, "Positions"
+    filter?: Filter; // below, "The active filter"
+    sets?: KeptSet[]; // below, "Kept sets"
+    results?: StoredResult[]; // below, "Stored results"
+    tables?: GroupTable[]; // below, "Groups of results"
+    extensions?: Record<string, unknown>;
 }
 
 interface DataMember {
-  format: string;                      // a format id from the element's catalogue, or "graph-format" in a zip
-  formatVersion?: string;              // graph-format's wire major.minor, for format "graph-format"
-  inline?: string;                     // exactly one of inline, url, part
-  url?: string;
-  part?: string;                       // an entry of the zip container; refused outside one
-  digest?: string;                     // "sha256:<64 hex>" of the bytes
-  bytes?: number;
-  options?: Record<string, unknown>;   // import options the format declares; see "Options"
-  inputs?: Record<string, DataInput>;  // further named inputs of the importer; see "Several inputs"
-  provenance?: DataSource;             // the same shape as the top-level dataSource
-  original?: { digest: string; format: string };   // when these bytes are a re-export ("Saving")
+    format: string; // a format id from the element's catalogue, or "graph-format" in a zip
+    formatVersion?: string; // graph-format's wire major.minor, for format "graph-format"
+    inline?: string; // exactly one of inline, url, part
+    url?: string;
+    part?: string; // an entry of the zip container; refused outside one
+    digest?: string; // "sha256:<64 hex>" of the bytes
+    bytes?: number;
+    options?: Record<string, unknown>; // import options the format declares; see "Options"
+    inputs?: Record<string, DataInput>; // further named inputs of the importer; see "Several inputs"
+    provenance?: DataSource; // the same shape as the top-level dataSource
+    original?: { digest: string; format: string }; // when these bytes are a re-export ("Saving")
 }
 
 interface DataSource {
-  source?: string;                     // "STRING", "HR extract"
-  release?: string;                    // "v12.0"
-  retrievedAt?: string;                // RFC 3339
-  query?: Record<string, unknown>;     // { species: 9606, requiredScore: 700 }; see the vocabulary below
-  citation?: string;
-  license?: string;                    // SPDX expression of the data's terms, e.g. "CC-BY-4.0"
-  url?: string;                        // https: where it can be obtained; shown, never fetched
+    source?: string; // "STRING", "HR extract"
+    release?: string; // "v12.0"
+    retrievedAt?: string; // RFC 3339
+    query?: Record<string, unknown>; // { species: 9606, requiredScore: 700 }; see the vocabulary below
+    citation?: string;
+    license?: string; // SPDX expression of the data's terms, e.g. "CC-BY-4.0"
+    url?: string; // https: where it can be obtained; shown, never fetched
 }
 
 interface DataInput {
-  inline?: string; url?: string; part?: string;   // exactly one
-  format?: string;                     // default: the data member's format
-  options?: Record<string, unknown>;   // this input's own import options; never inherited
-  digest?: string;
-  bytes?: number;
-  provenance?: DataSource;             // where this input came from, when it differs from the main one
+    inline?: string;
+    url?: string;
+    part?: string; // exactly one
+    format?: string; // default: the data member's format
+    options?: Record<string, unknown>; // this input's own import options; never inherited
+    digest?: string;
+    bytes?: number;
+    provenance?: DataSource; // where this input came from, when it differs from the main one
 }
 ```
 
@@ -194,66 +196,73 @@ spelling of it:
 
 ```ts
 interface RunRecord {
-  id: string;                          // the run id as it exists in the session (namespaced)
-  algorithm: string;                   // the current catalogue key (README, "Identifiers" rule 4)
-  params: Record<string, unknown>;     // EVERY option, defaults filled in, canonicalised
-  seed: number | null;                 // the effective seed, also when the caller gave none
-  scope: {
-    requested: unknown;                // the scope as asked for; element ids redacted in a share or export
-    nodes: number; edges: number;      // counts, never element ids
-    componentScope?: "all" | "largest";
-    filter?: Filter;                   // the filter it ran under, when a filter narrowed it
-    windowScope?: boolean;
-  };
-  startedAt: string;                   // RFC 3339
-  durationMs: number;
-  engine: {                            // graphty-element's EngineVersions
-    element: string; algorithms: string; layout: string;
-    graphIo?: string; graphFormat?: string;   // the packages that read the data (an element change)
-    plugins?: Record<string, string | null>;   // catalogue key -> the plugin's declared version, null if none
-    accelerator?: { package: string; version: string; backend?: string; adapter?: string };
-  };
-  outcome: {
-    exact: boolean;
-    sampleSize?: number;
-    converged?: boolean;
-    iterations?: number;
-    method?: string;
-    precision: "f32" | "f64";
-    direction: string;                 // how edge direction was treated (the element's RunDirection)
-    partial: boolean;
-    partialReason?: string;
-    notes?: string[];                  // the element's caveat sentences
-    costCap?: number;                  // the cost cap in force, when the caller raised it
-  };
-  stale?: { reason: string; since: string };   // why its numbers no longer describe the graph
-  weight?: { attribute: string; role: "distance" | "similarity" | (string & {}); confirmed: boolean };
-  bindings?: Record<string, string>;   // recipe slot -> the attribute it bound to
-  recipe?: { id: string; recipeVersion?: string; digest: string; step: string; as: string; namespace: string };
-  import?: string;                     // the id of the import record of the graph it ran on
-  data?: { digest?: string; planId?: string; planVersion?: string };   // always written, so a record
-                                       // without its import record still names the data it ran on
-  superseded?: { by?: string; at: string; differences?: string[] };   // replaced or re-run
-  discarded?: { at: string; reason?: string };   // deleted by the person; no results kept
-  fields: { name: string; type: string; role?: string }[];
-  graphFields?: Record<string, unknown>;   // graph-level result fields: min, max, mean, normalization, measured...
-  importedFrom?: { document: string; digest: string }[];   // stamped by a reader, below
+    id: string; // the run id as it exists in the session (namespaced)
+    algorithm: string; // the current catalogue key (README, "Identifiers" rule 4)
+    params: Record<string, unknown>; // EVERY option, defaults filled in, canonicalised
+    seed: number | null; // the effective seed, also when the caller gave none
+    scope: {
+        requested: unknown; // the scope as asked for; element ids redacted in a share or export
+        nodes: number;
+        edges: number; // counts, never element ids
+        componentScope?: "all" | "largest";
+        filter?: Filter; // the filter it ran under, when a filter narrowed it
+        windowScope?: boolean;
+    };
+    startedAt: string; // RFC 3339
+    durationMs: number;
+    engine: {
+        // graphty-element's EngineVersions
+        element: string;
+        algorithms: string;
+        layout: string;
+        graphIo?: string;
+        graphFormat?: string; // the packages that read the data (an element change)
+        plugins?: Record<string, string | null>; // catalogue key -> the plugin's declared version, null if none
+        accelerator?: { package: string; version: string; backend?: string; adapter?: string };
+    };
+    outcome: {
+        exact: boolean;
+        sampleSize?: number;
+        converged?: boolean;
+        iterations?: number;
+        method?: string;
+        precision: "f32" | "f64";
+        direction: string; // how edge direction was treated (the element's RunDirection)
+        partial: boolean;
+        partialReason?: string;
+        notes?: string[]; // the element's caveat sentences
+        costCap?: number; // the cost cap in force, when the caller raised it
+    };
+    stale?: { reason: string; since: string }; // why its numbers no longer describe the graph
+    weight?: { attribute: string; role: "distance" | "similarity" | (string & {}); confirmed: boolean };
+    bindings?: Record<string, string>; // recipe slot -> the attribute it bound to
+    recipe?: { id: string; recipeVersion?: string; digest: string; step: string; as: string; namespace: string };
+    import?: string; // the id of the import record of the graph it ran on
+    data?: { digest?: string; planId?: string; planVersion?: string }; // always written, so a record
+    // without its import record still names the data it ran on
+    superseded?: { by?: string; at: string; differences?: string[] }; // replaced or re-run
+    discarded?: { at: string; reason?: string }; // deleted by the person; no results kept
+    fields: { name: string; type: string; role?: string }[];
+    graphFields?: Record<string, unknown>; // graph-level result fields: min, max, mean, normalization, measured...
+    importedFrom?: { document: string; digest: string }[]; // stamped by a reader, below
 }
 
-interface LayoutRecord {               // a RunRecord whose `layout` replaces `algorithm`
-  weight?: RunRecord["weight"];        // the weight it read, and as what (recipe.md, "Weights" rule 6)
-  id: string;
-  layout: string;                      // the layout catalogue key as asked for ("force")
-  engine: RunRecord["engine"] & { layoutEngine: string; layoutEngineVersion?: string };
-  params: Record<string, unknown>;     // every option, defaults filled in
-  seed: number | null;
-  dimension: 2 | 3;
-  scope: RunRecord["scope"];
-  startedAt: string; durationMs: number;
-  outcome: { iterations?: number; converged?: boolean; partial: boolean };
-  recipe?: RunRecord["recipe"];
-  import?: string;
-  importedFrom?: { document: string; digest: string }[];
+interface LayoutRecord {
+    // a RunRecord whose `layout` replaces `algorithm`
+    weight?: RunRecord["weight"]; // the weight it read, and as what (recipe.md, "Weights" rule 6)
+    id: string;
+    layout: string; // the layout catalogue key as asked for ("force")
+    engine: RunRecord["engine"] & { layoutEngine: string; layoutEngineVersion?: string };
+    params: Record<string, unknown>; // every option, defaults filled in
+    seed: number | null;
+    dimension: 2 | 3;
+    scope: RunRecord["scope"];
+    startedAt: string;
+    durationMs: number;
+    outcome: { iterations?: number; converged?: boolean; partial: boolean };
+    recipe?: RunRecord["recipe"];
+    import?: string;
+    importedFrom?: { document: string; digest: string }[];
 }
 ```
 
@@ -276,7 +285,7 @@ interface LayoutRecord {               // a RunRecord whose `layout` replaces `a
    application supplies one, the receiving user (`by`) -- and the document's own `name` only as the
    document's claim.
 6. **Earlier records are never silently replaced.** When a run is replaced (`onRepeat:
-   "replace"`), re-run after reopening, or re-run with other parameters under the same id, the
+"replace"`), re-run after reopening, or re-run with other parameters under the same id, the
    earlier record is kept, marked `superseded` with the differences listed (`W_ENGINE_DIFFERS`,
    `W_PARAMETER_DIFFERS`), and the report of the re-run says so. A run the person deletes leaves its
    record marked `discarded`, without results, so the alternatives tried and rejected -- a
@@ -290,8 +299,10 @@ interface LayoutRecord {               // a RunRecord whose `layout` replaces `a
 project holds, with an `id` that run records name in `import`:
 
 ```ts
-interface ImportRecord extends ImportReport { id: string; at: string;   // unmatchedIds capped as in the report
-  dataSource?: DataSource;             // as given at import ("The data source")
+interface ImportRecord extends ImportReport {
+    id: string;
+    at: string; // unmatchedIds capped as in the report
+    dataSource?: DataSource; // as given at import ("The data source")
 }
 ```
 
@@ -317,11 +328,11 @@ save and a stored camera still frames it:
 
 ```ts
 interface Positions {
-  layout?: string;                     // the id of the layout record that produced them
-  dimension: 2 | 3;
-  inline?: [id: string | number, x: number, y: number, z?: number][];   // JSON container
-  part?: string;                       // zip container: a graph-format part with the position role
-  digest?: string;
+    layout?: string; // the id of the layout record that produced them
+    dimension: 2 | 3;
+    inline?: [id: string | number, x: number, y: number, z?: number][]; // JSON container
+    part?: string; // zip container: a graph-format part with the position role
+    digest?: string;
 }
 ```
 
@@ -336,9 +347,9 @@ interest) are not lost:
 
 ```ts
 interface Filter {
-  nodes?: string;                      // a predicate over the expression root (README, "Paths")
-  edges?: string;                      // a predicate; edges between kept nodes are kept only when it holds
-  component?: "largest";               // then keep only the largest component of what the predicates keep
+    nodes?: string; // a predicate over the expression root (README, "Paths")
+    edges?: string; // a predicate; edges between kept nodes are kept only when it holds
+    component?: "largest"; // then keep only the largest component of what the predicates keep
 }
 ```
 
@@ -361,14 +372,14 @@ form to "the first project file" (`design/sets/sets-design.md`); this is that fo
 
 ```ts
 interface KeptSet {
-  id: string;                          // what selectors, framings and notes name
-  name: string;
-  description?: string;
-  nodes?: (string | number)[];         // node ids, compared after the import's id coercion
-  edges?: EdgeMember[];                // graphty-element's stable edge identity, never session edge ids
-  features?: string[];
-  importedFrom?: { document: string; digest: string }[];
-  extensions?: Record<string, unknown>;
+    id: string; // what selectors, framings and notes name
+    name: string;
+    description?: string;
+    nodes?: (string | number)[]; // node ids, compared after the import's id coercion
+    edges?: EdgeMember[]; // graphty-element's stable edge identity, never session edge ids
+    features?: string[];
+    importedFrom?: { document: string; digest: string }[];
+    extensions?: Record<string, unknown>;
 }
 ```
 
@@ -386,10 +397,15 @@ form is smaller. So the guarantee that a project reopens with the exact numbers 
 figure does not depend on the container decision.
 
 ```ts
-interface StoredResult { run: string; part?: string; inline?: string;   // exactly one of part, inline
-                         format?: "graph-format" | "csv";   // default graph-format for a part, csv inline
-                         formatVersion?: string; digest?: string;
-                         importedFrom?: { document: string; digest: string }[] }
+interface StoredResult {
+    run: string;
+    part?: string;
+    inline?: string; // exactly one of part, inline
+    format?: "graph-format" | "csv"; // default graph-format for a part, csv inline
+    formatVersion?: string;
+    digest?: string;
+    importedFrom?: { document: string; digest: string }[];
+}
 ```
 
 A stored result whose run has no entry in `runs` is refused, because its numbers would have no
@@ -407,12 +423,16 @@ FDR, genes) computed outside graphty, keyed by a group value of a run -- attache
 field whose values its `key` column holds:
 
 ```ts
-interface GroupTable { id: string; name?: string; description?: string;
-                       run: string; field?: string;   // default: the run's partition field
-                       key: string;                    // the column holding the group value
-                       data: { inline?: string; url?: string; part?: string; format?: string;
-                               digest?: string; provenance?: DataSource };   // a CSV table
-                       importedFrom?: { document: string; digest: string }[] }
+interface GroupTable {
+    id: string;
+    name?: string;
+    description?: string;
+    run: string;
+    field?: string; // default: the run's partition field
+    key: string; // the column holding the group value
+    data: { inline?: string; url?: string; part?: string; format?: string; digest?: string; provenance?: DataSource }; // a CSV table
+    importedFrom?: { document: string; digest: string }[];
+}
 ```
 
 A table whose run is not held is kept and reported as unbound, as a note on a missing run is. A
@@ -464,57 +484,63 @@ members for the next data load (below). A reader MUST:
    skipped and reported with its code; the rest continue.
 4. Apply the members in this order: `dataPlan`, `data`, `positions`, `filter`, `sets`, `results`,
    `tables`, `recipes` (in list order), `style`, `view`, `annotations`; `dataSource`, `imports`
-   and `runs` are read as records.
-   - The data plan applies to the import of the data member that follows it. A data plan in a
-     document with no data member is held for the next import **only when the caller names
-     `dataPlan` in `members`**, whatever `applyTo` says; otherwise it is reported as not applied.
-     A plan changes how the next, unrelated file is read (which columns exist, whether repeated
-     edges merge, which rows a constraint drops), so a starting point opened with `applyTo:
-     "next-import"` cannot slip one in. When a held plan would drop rows (`reject-row`,
-     `include: false`) or merge records (a `repeatedEdges` other than `keep`), the next import waits
-     for the caller to acknowledge the plan, and the import report names the document it came from
-     and that document's digest (`plan.heldFrom`) and lists every field the plan excluded or merged.
-   - **When the data plan is refused** (data-plan.md, "Applying" rule 5, an unknown member of
-     `knownFields`, or typed identity this reader does not implement), the data member MUST NOT be
-     imported with defaults: it is reported as skipped because its reading instructions were
-     unreadable, and so is every member that binds to data. Importing it anyway would build the
-     different graph the refusal exists to prevent. The caller may import it deliberately.
-   - When a data member is present and fails to load, the members that bind to data (sets,
-     results, recipe, style, view, annotations) MUST NOT be applied to whatever graph the session
-     held before; they are reported as skipped because the data they accompany did not load, and
-     returned parsed so the caller can apply them deliberately. This refines the design's "one
-     member failing never fails the open": the open still succeeds and reports, but nothing is
-     bound to the wrong graph.
-   - Each recipe is bound and planned but runs only if the caller passes `run: true`, and then only
-     within the total budget (recipe.md, "Consent"). When a recipe carries an `application` block
-     (recipe.md, "Saving an applied recipe"), its recorded namespace is restored, so a saved
-     project reopens with the same run ids; its recorded bindings, confirmations and arguments are
-     the file's claim and are adopted only when graphty-element's own record shows this
-     installation made them (recipe.md, "Applying"). The style's `results.<as>` paths, and the
-     annotations' run references, are then rewritten to the namespaced ids (recipe.md, "Identity
-     and namespacing").
-   - The style applies next. Layers bound to recipe runs that have not run and have no stored
-     result are reported in `needsRerun` with the recipe step's estimate.
-   - The view applies after the layout the recipe may set; the annotations apply last, when their
-     targets exist. A note on a run the recipe will produce is pending, not orphaned
-     (annotations.md). A view named by `initial` in a document this installation did not write is
-     applied with the effect report of view-preset.md ("Applying" rule 9).
+   and `runs` are read as records. - The data plan applies to the import of the data member that follows it. A data plan in a
+   document with no data member is held for the next import **only when the caller names
+   `dataPlan` in `members`**, whatever `applyTo` says; otherwise it is reported as not applied.
+   A plan changes how the next, unrelated file is read (which columns exist, whether repeated
+   edges merge, which rows a constraint drops), so a starting point opened with `applyTo:
+"next-import"` cannot slip one in. When a held plan would drop rows (`reject-row`,
+   `include: false`) or merge records (a `repeatedEdges` other than `keep`), the next import waits
+   for the caller to acknowledge the plan, and the import report names the document it came from
+   and that document's digest (`plan.heldFrom`) and lists every field the plan excluded or merged. - **When the data plan is refused** (data-plan.md, "Applying" rule 5, an unknown member of
+   `knownFields`, or typed identity this reader does not implement), the data member MUST NOT be
+   imported with defaults: it is reported as skipped because its reading instructions were
+   unreadable, and so is every member that binds to data. Importing it anyway would build the
+   different graph the refusal exists to prevent. The caller may import it deliberately. - When a data member is present and fails to load, the members that bind to data (sets,
+   results, recipe, style, view, annotations) MUST NOT be applied to whatever graph the session
+   held before; they are reported as skipped because the data they accompany did not load, and
+   returned parsed so the caller can apply them deliberately. This refines the design's "one
+   member failing never fails the open": the open still succeeds and reports, but nothing is
+   bound to the wrong graph. - Each recipe is bound and planned but runs only if the caller passes `run: true`, and then only
+   within the total budget (recipe.md, "Consent"). When a recipe carries an `application` block
+   (recipe.md, "Saving an applied recipe"), its recorded namespace is restored, so a saved
+   project reopens with the same run ids; its recorded bindings, confirmations and arguments are
+   the file's claim and are adopted only when graphty-element's own record shows this
+   installation made them (recipe.md, "Applying"). The style's `results.<as>` paths, and the
+   annotations' run references, are then rewritten to the namespaced ids (recipe.md, "Identity
+   and namespacing"). - The style applies next. Layers bound to recipe runs that have not run and have no stored
+   result are reported in `needsRerun` with the recipe step's estimate. - The view applies after the layout the recipe may set; the annotations apply last, when their
+   targets exist. A note on a run the recipe will produce is pending, not orphaned
+   (annotations.md). A view named by `initial` in a document this installation did not write is
+   applied with the effect report of view-preset.md ("Applying" rule 9).
 5. Compare the envelope's `fingerprint` (and each member's own, when present) with the loaded
    graph's and report `match`, `differs` or `unknown`. Never refuse on a difference.
 6. Return a document report:
 
 ```ts
 interface DocumentReport {
-  applied: DocumentMember[];
-  members: Partial<Record<DocumentMember, BindingReport>>;
-  import?: ImportReport;               // README, "Applying a document to new data"
-  skipped: { member: DocumentMember | string; reason: string; code: GraphtyErrorCode }[];
-  fingerprint: "match" | "differs" | "unknown";
-  digest?: "match" | "differs" | "absent";
-  held?: DocumentMember[];             // with applyTo: "next-import"
+    applied: DocumentMember[];
+    members: Partial<Record<DocumentMember, BindingReport>>;
+    import?: ImportReport; // README, "Applying a document to new data"
+    skipped: { member: DocumentMember | string; reason: string; code: GraphtyErrorCode }[];
+    fingerprint: "match" | "differs" | "unknown";
+    digest?: "match" | "differs" | "absent";
+    held?: DocumentMember[]; // with applyTo: "next-import"
 }
-type DocumentMember = "data" | "dataSource" | "dataPlan" | "style" | "recipes" | "view" | "annotations"
-                    | "imports" | "runs" | "positions" | "filter" | "sets" | "results";
+type DocumentMember =
+    | "data"
+    | "dataSource"
+    | "dataPlan"
+    | "style"
+    | "recipes"
+    | "view"
+    | "annotations"
+    | "imports"
+    | "runs"
+    | "positions"
+    | "filter"
+    | "sets"
+    | "results";
 ```
 
 An unknown top-level member is reported in `skipped` by name ("not read by this version") and
@@ -667,14 +693,14 @@ produced by the upgrade never runs without the caller's explicit instruction.
 
 ## Reserved names
 
-| Reserved member | For | Status |
-|---|---|---|
-| `config` | the element's configuration document (`ConfigDocument`, element API design 4.12) | open; an optional member later |
-| `graphs` | several graphs in one document (`W24.yaml`: two conditions and a merged network) | open decision 24; only with envelope version 2 unless decided before release |
-| `sources` | several sources, each with its own data plan, merged into one graph | open decision 27; envelope version 2 |
-| `aliases` | an identity mapping from merged ids to surviving ids | open decision 27; envelope version 2 |
-| `filters` | several named saved filters beyond the active one | open; an optional member later |
-| `styles` | alternative named style stacks beside `style` | open; an optional member later |
+| Reserved member | For                                                                              | Status                                                                       |
+| --------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `config`        | the element's configuration document (`ConfigDocument`, element API design 4.12) | open; an optional member later                                               |
+| `graphs`        | several graphs in one document (`W24.yaml`: two conditions and a merged network) | open decision 24; only with envelope version 2 unless decided before release |
+| `sources`       | several sources, each with its own data plan, merged into one graph              | open decision 27; envelope version 2                                         |
+| `aliases`       | an identity mapping from merged ids to surviving ids                             | open decision 27; envelope version 2                                         |
+| `filters`       | several named saved filters beyond the active one                                | open; an optional member later                                               |
+| `styles`        | alternative named style stacks beside `style`                                    | open; an optional member later                                               |
 
 ## Security
 
@@ -695,56 +721,56 @@ produced by the upgrade never runs without the caller's explicit instruction.
 
 ## Conformance
 
-| Input | Required result |
-|---|---|
-| `{ "kind": "graphty-document", "version": 1, "createdAt": "2026-09-27T12:00:00Z" }` | accepted; nothing applied |
-| an envelope with a valid style and a `recipes` entry with `version: 7` | valid against the envelope schema; style applied; recipe skipped with `E_UNSUPPORTED_VERSION` |
-| a member `"config": {...}` | reported as not read by this version; kept on re-save |
-| a style member with `kind: "graphty-view"` | style member skipped |
-| data `url` on any host, including the envelope's own, no consent given | data not fetched; data-bound members skipped; report says consent is needed |
-| data `url: "//tracker.example/p.csv"` | treated as absolute; consent required for `tracker.example` |
-| data `url: "file:///etc/passwd"` or `"http://169.254.169.254/"` | refused |
-| a consented host answers with a redirect to an unconsented origin | fetch fails; reported |
-| sidecar `network.graphty.json` opened from disk with `files` holding `network.gexf` | data resolved from the supplied file, digest verified, all members applied |
-| the same, without `files` or `resolve` | data member reported `E_CONSENT_REQUIRED` naming `network.gexf`; data-bound members held, not applied to the previous graph |
-| data inline, fails to parse | data-bound members skipped, not applied to the previous graph |
-| a data plan refused for `repeatedEdges: "mean"` | data not imported; every data-bound member skipped |
-| `data.options: { "url": "https://attacker.example" }` | data member skipped: `url` is element-owned |
-| `data.options: { "hyperedges": "clique" }` | data member skipped: the caller's choice only |
-| `data.part` in a JSON container | data member refused |
-| inline data whose digest differs, `requireDigest: true` | data refused with `E_DIGEST_MISMATCH`; data-bound members skipped |
-| envelope and graph fingerprints differ | everything binds as it can; report says `differs` |
-| a project saved, opened and saved again | identical content apart from `generator` and `modifiedAt`; run ids unchanged |
-| `saveDocument({ purpose: "share" })` on a session with notes and a hub set | no annotations, no sets; every `ids` or set-naming unit reported before writing |
-| `saveDocument({ purpose: "share", members: ["data", "annotations"] })` | data and notes written; the element-name report produced first |
-| a zip with two entries named `manifest.json` | archive refused |
-| a zip entry `../../etc/passwd` | archive refused |
-| a zip part declaring 10 MB that inflates past the ratio bound | reading stops at the bound; archive refused |
-| a stored result whose run is not in `runs` | that result refused |
-| a stored result part in a graph-format wire major the reader cannot read | the run in `needsRerun`; `E_UNSUPPORTED_VERSION` with `details.kind: "part"` |
-| data `url` values `../../etc/passwd`, `/etc/passwd`, `\\evil.example\p.csv`, `/\evil.example/p.csv`, ` javascript:alert(1)` | each refused before resolution |
-| a CSV edge table plus a joined expression table, saved as a JSON project, reopened, saved again | the original bytes and digests both times; equal node, edge and attribute counts; identical content |
-| the same after a node merge in the session | data re-exported with a regenerated plan (no joins, `derivedFrom` the original), `original` set, `W_GRAPHTY_MERGES` reported |
-| a CSV-loaded graph laid out, saved as a JSON project, reopened | `positions` written with its layout record; positions identical on reopen |
-| a session holding two graphs (a comparison) | save refused naming both, unless narrowed to one; then `W_GRAPHTY_GRAPHS` names the graph and runs left out |
-| a session with two applied recipes and three runs made by hand | `recipes` holds both recipes and a third, minted recipe for the hand runs |
-| a style layer and a note on a run started from a panel without `as` | the run given an alias; layer and note written against it; both bind on reopen |
-| `saveDocument({ purpose: "share" })` of a session whose data had provenance | `dataSource` written; no data |
-| `saveDocument({ purpose: "share", members: ["recipes", "style", "runs"] })` | the run records written; node ids in their parameters reported before writing |
-| an envelope holding only a data plan, opened with no options | plan not applied, reported; the next import unaffected |
-| an envelope opened after a marked document, then saved | the marking written |
-| a share of recipes and runs, without `imports` | no import records; each run record's `data` names the data digest and plan |
-| an export sidecar of a join with 40 unmatched ids | `unmatchedIds` replaced by the count and a marker; `W_GRAPHTY_REDACTED` |
-| a share with a view filter comparing `data.id` to `'ACC-1042'`, and an encoding `map` keyed by account holders | both reported before writing |
-| a share of a recipe whose step carries a member unknown to this reader | the member written verbatim; the digest unchanged |
-| a style file opened with `applyTo: "next-import"` that also carries a data plan | the plan not held; reported |
-| the largest-component filter active on a STRING import, saved as a JSON project | original bytes and digest written; `filter: { component: "largest" }` |
-| a JSON project saved with `results: true`, reopened | results restored from `inline` CSV; no re-run; shown as computed here |
-| a project reopened, PageRank re-run on a newer engine, saved | the earlier record kept with `superseded` and its differences |
-| a run deleted by the person, then a project save | its record written with `discarded`, without results |
-| a JSON project with a lasso-filtered run | written as a `node-set` argument step; the result restored on reopen by re-running |
-| a TSV main input and a CSV `inputs.expression` without options | each read with its own format's defaults |
-| a Node reader fetching a name that resolves to `10.0.0.5` | refused before connecting |
+| Input                                                                                                                       | Required result                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `{ "kind": "graphty-document", "version": 1, "createdAt": "2026-09-27T12:00:00Z" }`                                         | accepted; nothing applied                                                                                                    |
+| an envelope with a valid style and a `recipes` entry with `version: 7`                                                      | valid against the envelope schema; style applied; recipe skipped with `E_UNSUPPORTED_VERSION`                                |
+| a member `"config": {...}`                                                                                                  | reported as not read by this version; kept on re-save                                                                        |
+| a style member with `kind: "graphty-view"`                                                                                  | style member skipped                                                                                                         |
+| data `url` on any host, including the envelope's own, no consent given                                                      | data not fetched; data-bound members skipped; report says consent is needed                                                  |
+| data `url: "//tracker.example/p.csv"`                                                                                       | treated as absolute; consent required for `tracker.example`                                                                  |
+| data `url: "file:///etc/passwd"` or `"http://169.254.169.254/"`                                                             | refused                                                                                                                      |
+| a consented host answers with a redirect to an unconsented origin                                                           | fetch fails; reported                                                                                                        |
+| sidecar `network.graphty.json` opened from disk with `files` holding `network.gexf`                                         | data resolved from the supplied file, digest verified, all members applied                                                   |
+| the same, without `files` or `resolve`                                                                                      | data member reported `E_CONSENT_REQUIRED` naming `network.gexf`; data-bound members held, not applied to the previous graph  |
+| data inline, fails to parse                                                                                                 | data-bound members skipped, not applied to the previous graph                                                                |
+| a data plan refused for `repeatedEdges: "mean"`                                                                             | data not imported; every data-bound member skipped                                                                           |
+| `data.options: { "url": "https://attacker.example" }`                                                                       | data member skipped: `url` is element-owned                                                                                  |
+| `data.options: { "hyperedges": "clique" }`                                                                                  | data member skipped: the caller's choice only                                                                                |
+| `data.part` in a JSON container                                                                                             | data member refused                                                                                                          |
+| inline data whose digest differs, `requireDigest: true`                                                                     | data refused with `E_DIGEST_MISMATCH`; data-bound members skipped                                                            |
+| envelope and graph fingerprints differ                                                                                      | everything binds as it can; report says `differs`                                                                            |
+| a project saved, opened and saved again                                                                                     | identical content apart from `generator` and `modifiedAt`; run ids unchanged                                                 |
+| `saveDocument({ purpose: "share" })` on a session with notes and a hub set                                                  | no annotations, no sets; every `ids` or set-naming unit reported before writing                                              |
+| `saveDocument({ purpose: "share", members: ["data", "annotations"] })`                                                      | data and notes written; the element-name report produced first                                                               |
+| a zip with two entries named `manifest.json`                                                                                | archive refused                                                                                                              |
+| a zip entry `../../etc/passwd`                                                                                              | archive refused                                                                                                              |
+| a zip part declaring 10 MB that inflates past the ratio bound                                                               | reading stops at the bound; archive refused                                                                                  |
+| a stored result whose run is not in `runs`                                                                                  | that result refused                                                                                                          |
+| a stored result part in a graph-format wire major the reader cannot read                                                    | the run in `needsRerun`; `E_UNSUPPORTED_VERSION` with `details.kind: "part"`                                                 |
+| data `url` values `../../etc/passwd`, `/etc/passwd`, `\\evil.example\p.csv`, `/\evil.example/p.csv`, ` javascript:alert(1)` | each refused before resolution                                                                                               |
+| a CSV edge table plus a joined expression table, saved as a JSON project, reopened, saved again                             | the original bytes and digests both times; equal node, edge and attribute counts; identical content                          |
+| the same after a node merge in the session                                                                                  | data re-exported with a regenerated plan (no joins, `derivedFrom` the original), `original` set, `W_GRAPHTY_MERGES` reported |
+| a CSV-loaded graph laid out, saved as a JSON project, reopened                                                              | `positions` written with its layout record; positions identical on reopen                                                    |
+| a session holding two graphs (a comparison)                                                                                 | save refused naming both, unless narrowed to one; then `W_GRAPHTY_GRAPHS` names the graph and runs left out                  |
+| a session with two applied recipes and three runs made by hand                                                              | `recipes` holds both recipes and a third, minted recipe for the hand runs                                                    |
+| a style layer and a note on a run started from a panel without `as`                                                         | the run given an alias; layer and note written against it; both bind on reopen                                               |
+| `saveDocument({ purpose: "share" })` of a session whose data had provenance                                                 | `dataSource` written; no data                                                                                                |
+| `saveDocument({ purpose: "share", members: ["recipes", "style", "runs"] })`                                                 | the run records written; node ids in their parameters reported before writing                                                |
+| an envelope holding only a data plan, opened with no options                                                                | plan not applied, reported; the next import unaffected                                                                       |
+| an envelope opened after a marked document, then saved                                                                      | the marking written                                                                                                          |
+| a share of recipes and runs, without `imports`                                                                              | no import records; each run record's `data` names the data digest and plan                                                   |
+| an export sidecar of a join with 40 unmatched ids                                                                           | `unmatchedIds` replaced by the count and a marker; `W_GRAPHTY_REDACTED`                                                      |
+| a share with a view filter comparing `data.id` to `'ACC-1042'`, and an encoding `map` keyed by account holders              | both reported before writing                                                                                                 |
+| a share of a recipe whose step carries a member unknown to this reader                                                      | the member written verbatim; the digest unchanged                                                                            |
+| a style file opened with `applyTo: "next-import"` that also carries a data plan                                             | the plan not held; reported                                                                                                  |
+| the largest-component filter active on a STRING import, saved as a JSON project                                             | original bytes and digest written; `filter: { component: "largest" }`                                                        |
+| a JSON project saved with `results: true`, reopened                                                                         | results restored from `inline` CSV; no re-run; shown as computed here                                                        |
+| a project reopened, PageRank re-run on a newer engine, saved                                                                | the earlier record kept with `superseded` and its differences                                                                |
+| a run deleted by the person, then a project save                                                                            | its record written with `discarded`, without results                                                                         |
+| a JSON project with a lasso-filtered run                                                                                    | written as a `node-set` argument step; the result restored on reopen by re-running                                           |
+| a TSV main input and a CSV `inputs.expression` without options                                                              | each read with its own format's defaults                                                                                     |
+| a Node reader fetching a name that resolves to `10.0.0.5`                                                                   | refused before connecting                                                                                                    |
 
 ## Worked examples
 
@@ -755,49 +781,70 @@ apply to their own data.
 
 ```json
 {
-  "kind": "graphty-document",
-  "version": 1,
-  "createdAt": "2026-09-27T12:00:00Z",
-  "name": "Example Lab: hub genes",
-  "authors": [{ "name": "Example Lab", "url": "https://example.org/lab" }],
-  "license": "CC-BY-4.0",
-  "generator": { "name": "graphty-element", "version": "3.1.0" },
-  "dataSource": { "source": "STRING", "release": "v12.0", "query": { "species": 9606, "requiredScore": 700 },
-                  "license": "CC-BY-4.0", "url": "https://string-db.org/" },
-  "recipes": [ {
-    "kind": "graphty-recipe",
+    "kind": "graphty-document",
     "version": 1,
-    "id": "org.example-lab.hub-genes",
-    "recipeVersion": "1.2.0",
-    "name": "Hub genes",
-    "namespace": "hubs",
-    "requires": {
-      "attributes": [
-        { "slot": "weight", "element": "edge", "name": "weight", "nameHints": ["combined_score"],
-          "level": "quantitative", "role": "weight", "weightRole": "similarity" }
-      ]
+    "createdAt": "2026-09-27T12:00:00Z",
+    "name": "Example Lab: hub genes",
+    "authors": [{ "name": "Example Lab", "url": "https://example.org/lab" }],
+    "license": "CC-BY-4.0",
+    "generator": { "name": "graphty-element", "version": "3.1.0" },
+    "dataSource": {
+        "source": "STRING",
+        "release": "v12.0",
+        "query": { "species": 9606, "requiredScore": 700 },
+        "license": "CC-BY-4.0",
+        "url": "https://string-db.org/"
     },
-    "steps": [
-      { "id": "pagerank",
-        "command": { "op": "algo.run", "algorithm": "pagerank", "as": "score",
-                     "params": { "weight": { "$attribute": "weight" } },
-                     "scope": "largest-component", "style": false } }
-    ]
-  } ],
-  "style": {
-    "kind": "graphty-style",
-    "version": 1,
-    "layers": [
-      {
-        "id": "hub-size",
-        "name": "Size by hub score",
-        "target": "node",
-        "kind": "encoding",
-        "selector": { "match": "has", "path": "results.score.value" },
-        "encode": { "node.size": { "by": "results.score.value", "scale": "sqrt", "range": [1, 3] } }
-      }
-    ]
-  }
+    "recipes": [
+        {
+            "kind": "graphty-recipe",
+            "version": 1,
+            "id": "org.example-lab.hub-genes",
+            "recipeVersion": "1.2.0",
+            "name": "Hub genes",
+            "namespace": "hubs",
+            "requires": {
+                "attributes": [
+                    {
+                        "slot": "weight",
+                        "element": "edge",
+                        "name": "weight",
+                        "nameHints": ["combined_score"],
+                        "level": "quantitative",
+                        "role": "weight",
+                        "weightRole": "similarity"
+                    }
+                ]
+            },
+            "steps": [
+                {
+                    "id": "pagerank",
+                    "command": {
+                        "op": "algo.run",
+                        "algorithm": "pagerank",
+                        "as": "score",
+                        "params": { "weight": { "$attribute": "weight" } },
+                        "scope": "largest-component",
+                        "style": false
+                    }
+                }
+            ]
+        }
+    ],
+    "style": {
+        "kind": "graphty-style",
+        "version": 1,
+        "layers": [
+            {
+                "id": "hub-size",
+                "name": "Size by hub score",
+                "target": "node",
+                "kind": "encoding",
+                "selector": { "match": "has", "path": "results.score.value" },
+                "encode": { "node.size": { "by": "results.score.value", "scale": "sqrt", "range": [1, 3] } }
+            }
+        ]
+    }
 }
 ```
 
@@ -814,40 +861,44 @@ the notes.
 
 ```json
 {
-  "kind": "graphty-document",
-  "version": 1,
-  "createdAt": "2026-09-21T10:00:00Z",
-  "name": "Case 4471 link chart",
-  "handling": [ { "marking": "law-enforcement sensitive", "note": "Do not forward outside the task force." } ],
-  "data": {
-    "format": "csv",
-    "inline": "source,target,relation\nP-1,P-2,phone\nP-2,P-3,finance\n",
-    "digest": "sha256:5e45645fa23764638ba55bc05f067536b56aa3e3b775e1a893954d0e0f43d2be",
-    "bytes": 53
-  },
-  "dataPlan": {
-    "kind": "graphty-data-plan",
+    "kind": "graphty-document",
     "version": 1,
-    "knownFields": { "edgeSrcIdPath": "source", "edgeDstIdPath": "target" },
-    "directed": false,
-    "attributes": [ { "element": "edge", "name": "relation", "level": "categorical" } ]
-  },
-  "view": {
-    "kind": "graphty-view",
-    "version": 1,
-    "initial": "all",
-    "views": [ { "id": "all", "name": "Whole chart", "mode": "2d", "framing": { "cameraView": "fitToGraph" } } ]
-  },
-  "annotations": {
-    "kind": "graphty-annotations",
-    "version": 1,
-    "notes": [
-      { "id": "note_01K5M3Q8Z0A1B2C3D4E5F6G7H8", "target": { "node": "P-2" },
-        "text": "Broker between the two cells.",
-        "createdAt": "2026-09-21T09:58:00Z", "updatedAt": "2026-09-21T09:58:00Z",
-        "digest": "sha256:78f6695c78bb6a9a41ad65e3a597bf8011d2354345338d3d98a3d2839524d664" }
-    ]
-  }
+    "createdAt": "2026-09-21T10:00:00Z",
+    "name": "Case 4471 link chart",
+    "handling": [{ "marking": "law-enforcement sensitive", "note": "Do not forward outside the task force." }],
+    "data": {
+        "format": "csv",
+        "inline": "source,target,relation\nP-1,P-2,phone\nP-2,P-3,finance\n",
+        "digest": "sha256:5e45645fa23764638ba55bc05f067536b56aa3e3b775e1a893954d0e0f43d2be",
+        "bytes": 53
+    },
+    "dataPlan": {
+        "kind": "graphty-data-plan",
+        "version": 1,
+        "knownFields": { "edgeSrcIdPath": "source", "edgeDstIdPath": "target" },
+        "directed": false,
+        "attributes": [{ "element": "edge", "name": "relation", "level": "categorical" }]
+    },
+    "view": {
+        "kind": "graphty-view",
+        "version": 1,
+        "initial": "all",
+        "views": [{ "id": "all", "name": "Whole chart", "mode": "2d", "framing": { "cameraView": "fitToGraph" } }]
+    },
+    "annotations": {
+        "kind": "graphty-annotations",
+        "version": 1,
+        "notes": [
+            {
+                "id": "note_01K5M3Q8Z0A1B2C3D4E5F6G7H8",
+                "target": { "node": "P-2" },
+                "text": "Broker between the two cells.",
+                "createdAt": "2026-09-21T09:58:00Z",
+                "updatedAt": "2026-09-21T09:58:00Z",
+                "digest": "sha256:78f6695c78bb6a9a41ad65e3a597bf8011d2354345338d3d98a3d2839524d664"
+            }
+        ]
+    }
 }
 ```
 
@@ -858,25 +909,35 @@ the gene symbol.
 
 ```json
 {
-  "kind": "graphty-document",
-  "version": 1,
-  "createdAt": "2026-09-27T12:00:00Z",
-  "name": "TP53 neighbourhood with DE results",
-  "data": {
-    "format": "csv",
-    "url": "string_interactions.tsv",
-    "options": { "delimiter": "\t" },
-    "inputs": { "expression": { "url": "de_results.csv", "options": { "delimiter": "," },
-                                "provenance": { "source": "GEO", "release": "GSE12345", "license": "CC0-1.0" } } }
-  },
-  "dataSource": { "source": "STRING", "release": "v12.0", "retrievedAt": "2026-09-26T08:00:00Z",
-                  "query": { "species": 9606, "requiredScore": 700 }, "license": "CC-BY-4.0" },
-  "dataPlan": {
-    "kind": "graphty-data-plan",
+    "kind": "graphty-document",
     "version": 1,
-    "knownFields": { "edgeSrcIdPath": "#node1", "edgeDstIdPath": "node2", "edgeWeightPath": "combined_score" },
-    "joins": [ { "input": "expression", "key": "gene", "match": "exact", "onDuplicate": "error" } ]
-  }
+    "createdAt": "2026-09-27T12:00:00Z",
+    "name": "TP53 neighbourhood with DE results",
+    "data": {
+        "format": "csv",
+        "url": "string_interactions.tsv",
+        "options": { "delimiter": "\t" },
+        "inputs": {
+            "expression": {
+                "url": "de_results.csv",
+                "options": { "delimiter": "," },
+                "provenance": { "source": "GEO", "release": "GSE12345", "license": "CC0-1.0" }
+            }
+        }
+    },
+    "dataSource": {
+        "source": "STRING",
+        "release": "v12.0",
+        "retrievedAt": "2026-09-26T08:00:00Z",
+        "query": { "species": 9606, "requiredScore": 700 },
+        "license": "CC-BY-4.0"
+    },
+    "dataPlan": {
+        "kind": "graphty-data-plan",
+        "version": 1,
+        "knownFields": { "edgeSrcIdPath": "#node1", "edgeDstIdPath": "node2", "edgeWeightPath": "combined_score" },
+        "joins": [{ "input": "expression", "key": "gene", "match": "exact", "onDuplicate": "error" }]
+    }
 }
 ```
 

@@ -28,20 +28,20 @@ selector kinds, scales and layer kinds listed here, the value lists of the enume
 not accept, so a style using anything newer is written as version 2. The rules, with the code 2.x
 reports for each:
 
-| 2.x refuses | Code |
-|---|---|
-| an unknown channel, selector kind, scale or layer kind | `E_UNKNOWN_CHANNEL`, `E_BAD_SELECTOR`, `E_UNKNOWN_SCALE`, `E_BAD_LAYER` |
-| a value outside an enumerated channel's list, or a number outside a channel's range (`edge.patternCount` below 2) | `E_OPTION_RANGE` |
-| a value of the wrong type for its channel (a string where a number is taken) | `E_BAD_LAYER` |
-| a layer with neither `set` nor `encode` | `E_BAD_LAYER` |
-| one channel written in both `set` and `encode` of one layer | `E_BAD_LAYER` |
-| a layer with no `target` writing both node and edge channels | `E_BAD_LAYER` |
-| a binding with both an explicit `domain` and `clamp` | `E_BAD_LAYER` |
-| an empty `where` or `has` path | `E_SELECTOR_EMPTY` |
-| a quoted path segment holding a dot | `E_BAD_SELECTOR` |
-| an `everything` selector whose layer encodes from a `results.` path | `E_UNSCOPED_RUN_ENCODING` |
-| `source.by: "element"` | `E_PROTECTED` |
-| a carried palette whose id nobody registered | `E_UNKNOWN_PALETTE`, for the whole document |
+| 2.x refuses                                                                                                       | Code                                                                    |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| an unknown channel, selector kind, scale or layer kind                                                            | `E_UNKNOWN_CHANNEL`, `E_BAD_SELECTOR`, `E_UNKNOWN_SCALE`, `E_BAD_LAYER` |
+| a value outside an enumerated channel's list, or a number outside a channel's range (`edge.patternCount` below 2) | `E_OPTION_RANGE`                                                        |
+| a value of the wrong type for its channel (a string where a number is taken)                                      | `E_BAD_LAYER`                                                           |
+| a layer with neither `set` nor `encode`                                                                           | `E_BAD_LAYER`                                                           |
+| one channel written in both `set` and `encode` of one layer                                                       | `E_BAD_LAYER`                                                           |
+| a layer with no `target` writing both node and edge channels                                                      | `E_BAD_LAYER`                                                           |
+| a binding with both an explicit `domain` and `clamp`                                                              | `E_BAD_LAYER`                                                           |
+| an empty `where` or `has` path                                                                                    | `E_SELECTOR_EMPTY`                                                      |
+| a quoted path segment holding a dot                                                                               | `E_BAD_SELECTOR`                                                        |
+| an `everything` selector whose layer encodes from a `results.` path                                               | `E_UNSCOPED_RUN_ENCODING`                                               |
+| `source.by: "element"`                                                                                            | `E_PROTECTED`                                                           |
+| a carried palette whose id nobody registered                                                                      | `E_UNKNOWN_PALETTE`, for the whole document                             |
 
 So a version 1 style that carries its own palettes is refused by 2.x until the receiver registers
 them; a newer reader registers them for the session (below). The schema expresses what it can of
@@ -64,31 +64,31 @@ material or a node object (root `CLAUDE.md`, "Graph Styling").
 
 ```ts
 interface StyleDocument {
-  kind?: "graphty-style";            // REQUIRED for conforming writers; absent in 2.x output
-  version: 1;
-  name?: string;                     // what a person calls this look
-  description?: string;
-  fingerprint?: string;              // the graph it was authored against; advisory
-  generator?: { name: string; version: string };
-  // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
-  requires?: { attributes?: AttributeSlot[] };   // NEW, optional: recipe.md "Attribute slots"
-  layers: LayerSpec[];               // bottom first
-  palettes?: PaletteDescriptor[];    // the non-built-in palettes the layers name
-  extensions?: Record<string, unknown>;
+    kind?: "graphty-style"; // REQUIRED for conforming writers; absent in 2.x output
+    version: 1;
+    name?: string; // what a person calls this look
+    description?: string;
+    fingerprint?: string; // the graph it was authored against; advisory
+    generator?: { name: string; version: string };
+    // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
+    requires?: { attributes?: AttributeSlot[] }; // NEW, optional: recipe.md "Attribute slots"
+    layers: LayerSpec[]; // bottom first
+    palettes?: PaletteDescriptor[]; // the non-built-in palettes the layers name
+    extensions?: Record<string, unknown>;
 }
 
 interface LayerSpec {
-  id?: string;                       // NEW, optional: an authored key, stable across re-saves
-  name: string;
-  target?: "node" | "edge";          // default: inferred from the channels written
-  kind?: "base" | "encoding" | "highlight" | "custom";   // default "custom"
-  selector: Selector;
-  set?: StaticStyle;                 // literal channel values
-  encode?: Encoding;                 // data-driven channel values
-  source?: LayerSource;              // who made it; 2.x reads a missing one as { by: "user" }
-  enabled?: boolean;                 // default true
-  userData?: Record<string, unknown>;
-  extensions?: Record<string, unknown>;
+    id?: string; // NEW, optional: an authored key, stable across re-saves
+    name: string;
+    target?: "node" | "edge"; // default: inferred from the channels written
+    kind?: "base" | "encoding" | "highlight" | "custom"; // default "custom"
+    selector: Selector;
+    set?: StaticStyle; // literal channel values
+    encode?: Encoding; // data-driven channel values
+    source?: LayerSource; // who made it; 2.x reads a missing one as { by: "user" }
+    enabled?: boolean; // default true
+    userData?: Record<string, unknown>;
+    extensions?: Record<string, unknown>;
 }
 ```
 
@@ -118,14 +118,14 @@ binds note targets to it (open decision 29).
 
 ### Selectors
 
-| `match` | Members | Matches |
-|---|---|---|
-| `everything` | -- | every node, or every edge, of the layer's target |
-| `has` | `path` | elements where the path resolves to a value |
-| `expression` | `where` | elements where the JMESPath predicate is true |
-| `ids` | `nodes`, `edges` | the listed elements: node ids, and (see below) edge ids |
-| `top` | `path`, `n` | the top `n` elements by the value at `path`, which MUST be `results.<run>.<field>`; `n` is a whole number, 0 allowed. "Top" is always the **highest values first**, for every field (`rankEntries`, `graphty-element/src/session/results/statistics.ts`): a `top` over a score is the best-scored, and a `top` over a `rank` field, where 1 is best, is the worst-ranked, so a writer names the score, not the rank. A group of elements sharing a value is taken whole or not at all, and only when the whole group fits inside `n`, so the top never holds more than `n` and can hold fewer; the binding report states the count and the elements left out (graphty-element's `TopRanking` tie policy, `graphty-element/src/session/results/types.ts`). A `top` over a `data.` path, a `ties: "include"` option and an `order: "asc"` are style version 2 additions |
-| `member` | `of` (a scope) | the members of a scope, usually a kept set `{ set: id }` |
+| `match`      | Members          | Matches                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `everything` | --               | every node, or every edge, of the layer's target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `has`        | `path`           | elements where the path resolves to a value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `expression` | `where`          | elements where the JMESPath predicate is true                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `ids`        | `nodes`, `edges` | the listed elements: node ids, and (see below) edge ids                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `top`        | `path`, `n`      | the top `n` elements by the value at `path`, which MUST be `results.<run>.<field>`; `n` is a whole number, 0 allowed. "Top" is always the **highest values first**, for every field (`rankEntries`, `graphty-element/src/session/results/statistics.ts`): a `top` over a score is the best-scored, and a `top` over a `rank` field, where 1 is best, is the worst-ranked, so a writer names the score, not the rank. A group of elements sharing a value is taken whole or not at all, and only when the whole group fits inside `n`, so the top never holds more than `n` and can hold fewer; the binding report states the count and the elements left out (graphty-element's `TopRanking` tie policy, `graphty-element/src/session/results/types.ts`). A `top` over a `data.` path, a `ties: "include"` option and an `order: "asc"` are style version 2 additions |
+| `member`     | `of` (a scope)   | the members of a scope, usually a kept set `{ set: id }`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 `match` is an open enumeration, frozen for version 1 (see "Purpose").
 
@@ -154,19 +154,19 @@ leaves the layer disabled with `E_UNKNOWN_SET`.
 The member names of `set` and `encode` are channel names, a list published by graphty-element
 (`Channel`, `graphty-element/src/catalog/types.ts`). Units:
 
-| Channel group | Value |
-|---|---|
-| colours (`node.color`, `node.outline`, `node.glow`, `edge.color`, `edge.arrowHeadColor`, `edge.arrowTailColor`) | a CSS colour string (hex RECOMMENDED: `#rrggbb` or `#rrggbbaa`) or `{ r, g, b, a }` with r, g, b in 0..255 and a in 0..1 |
-| `node.size`, `edge.width`, `edge.arrowHeadSize`, `edge.arrowTailSize` | a non-negative number in scene units; 1 is the element's default node size |
-| opacities | a number in 0..1 |
-| `node.shape` | a node shape name from the element's catalogue (`NodeShapes` in `graphty-element/src/config/NodeStyle.ts`: `box`, `sphere`, `icosphere`, ...) |
-| `edge.style` | a line pattern name (`EdgeLineTypes`: `solid`, `dot`, `dash`, ...) |
-| `edge.arrowHead`, `edge.arrowTail` | an arrow name (`EdgeArrowTypes`: `normal`, `none`, `diamond`, ...) |
-| `*.label`, `*.tooltip`, `*Text` | a string |
-| `*Style` | a label style record (`LabelStyle`, `graphty-element/src/catalog/label-style.ts`); the applier clamps `sizePx` to 512, `padding`, `borderWidth` and `shadowBlur` to 64 |
-| `node.wireframe`, `node.flat`, `edge.curvature` | a boolean |
-| `edge.patternCount` | an integer, at least 2 (the element's descriptor minimum) |
-| `edge.animationSpeed`, `node.glowStrength` | a non-negative number |
+| Channel group                                                                                                   | Value                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| colours (`node.color`, `node.outline`, `node.glow`, `edge.color`, `edge.arrowHeadColor`, `edge.arrowTailColor`) | a CSS colour string (hex RECOMMENDED: `#rrggbb` or `#rrggbbaa`) or `{ r, g, b, a }` with r, g, b in 0..255 and a in 0..1                                               |
+| `node.size`, `edge.width`, `edge.arrowHeadSize`, `edge.arrowTailSize`                                           | a non-negative number in scene units; 1 is the element's default node size                                                                                             |
+| opacities                                                                                                       | a number in 0..1                                                                                                                                                       |
+| `node.shape`                                                                                                    | a node shape name from the element's catalogue (`NodeShapes` in `graphty-element/src/config/NodeStyle.ts`: `box`, `sphere`, `icosphere`, ...)                          |
+| `edge.style`                                                                                                    | a line pattern name (`EdgeLineTypes`: `solid`, `dot`, `dash`, ...)                                                                                                     |
+| `edge.arrowHead`, `edge.arrowTail`                                                                              | an arrow name (`EdgeArrowTypes`: `normal`, `none`, `diamond`, ...)                                                                                                     |
+| `*.label`, `*.tooltip`, `*Text`                                                                                 | a string                                                                                                                                                               |
+| `*Style`                                                                                                        | a label style record (`LabelStyle`, `graphty-element/src/catalog/label-style.ts`); the applier clamps `sizePx` to 512, `padding`, `borderWidth` and `shadowBlur` to 64 |
+| `node.wireframe`, `node.flat`, `edge.curvature`                                                                 | a boolean                                                                                                                                                              |
+| `edge.patternCount`                                                                                             | an integer, at least 2 (the element's descriptor minimum)                                                                                                              |
+| `edge.animationSpeed`, `node.glowStrength`                                                                      | a non-negative number                                                                                                                                                  |
 
 `node.marker` draws nothing and is reserved for the element's note markers; a layer that writes it
 is disabled with `E_UNSUPPORTED`, the code graphty-element answers today ("the layer is not
@@ -202,7 +202,7 @@ The numeric members mean the following; this is normative, and matches
 3. **`midpoint`** splits the scale in two halves: values from `low` to `midpoint` fill positions 0
    to 0.5, values from `midpoint` to `high` fill 0.5 to 1, each half linear (after the transform).
    So a skewed domain keeps its midpoint at the centre of the palette. Example: `domain: [-1.4,
-   4.8]`, `midpoint: 0`, value `-0.7` is at position `0.5 * (-0.7 - -1.4) / (0 - -1.4) = 0.25`;
+4.8]`, `midpoint: 0`, value `-0.7` is at position `0.5 * (-0.7 - -1.4) / (0 - -1.4) = 0.25`;
    value `2.4` is at `0.5 + 0.5 * 2.4 / 4.8 = 0.75`. A `midpoint` equal to either end is ignored.
 4. **`clamp`** `[p, q]` is a pair of percentiles (0 to 100) of the values present; the domain is
    narrowed to the values at those percentiles before placing, so a few outliers do not flatten the
@@ -325,13 +325,13 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
 6. Layers are added above every layer already present, in document order, as `applyTemplate` does
    today (`stack: [...stack, ...final]`). Replacing the whole stack is an explicit applier option.
 7. **Imported layers are stamped.** Every layer added from a document appends `{ templateId,
-   digest, observed }` (the document's RFC 8785 SHA-256, and the file name or origin the reader
+digest, observed }` (the document's RFC 8785 SHA-256, and the file name or origin the reader
    opened it from) to the layer's import chain, kept by the session and written back in the layer's
    `extensions` under `graphty.imported-from` as a list. A chain found
    in the incoming document is kept as the document's claim and the reader's own entry is appended
    after it; it is never taken as the reader's own record (README, "Extension data" rule 1). A
    document's claim of `source.by: "user"` or `"plugin"` is replaced by `{ by: "template",
-   templateId }`; `source.by: "run"` is kept only when its `runId` binds to a run in this session,
+templateId }`; `source.by: "run"` is kept only when its `runId` binds to a run in this session,
    and is otherwise replaced the same way. A document cannot make its layers look like the
    reader's own.
 8. **Layers that hide or single out elements are noticed by effect, not by form.** The binding
@@ -369,18 +369,18 @@ drop any part silently. The rules restate the migration register's `template-spl
 (`design/element-api/element-api-migration.md`), so an on-read upgrade and an offline conversion
 give the same result:
 
-| 1.x member | Goes to |
-|---|---|
-| `layers` | the `style` member. Each 1.x layer becomes a `LayerSpec` whose `set` holds the channel values its node or edge style set. A 1.x layer with both a node and an edge style is split into two layers. A selector `""` becomes `{ match: "everything" }`; any other 1.x selector string becomes `{ match: "expression", where }`. A 1.x path `algorithmResults.<ns>.<type>.<field>` is rewritten to `results.<as>.<field>`, with the `as` minted below and the field renamed to its 2.0 name (for example `community` to `group`) |
-| a layer's `calculatedStyle` | not convertible: reported with its expression for a person to rewrite as an encoding; the rest of the layer is converted |
-| `data.knownFields`, `data.directed` | the `dataPlan` member |
-| `graph.layoutOptions.weightProperty`, `weightPath` | the data plan's `knownFields.edgeWeightPath`, removed from the layout step (a layout option of that name is refused by 2.x) |
-| `data.algorithms` | one recipe in the `recipes` member, one `algo.run` step per entry. A bare string entry becomes `{ algorithm }`. The key is translated through the element's legacy-key table (`algorithmByLegacyKey`): `graphty:scc` becomes `components` with `{ strength: "strong" }`, `graphty:dijkstra` becomes `shortest-path`. `as` is minted from the current key (the key, then `-2`, `-3`). The recipe never runs without the caller's instruction (recipe.md, "Consent") |
-| `graph.layout`, `graph.layoutOptions` (other options) | the same recipe, one `layout.set` step |
-| `graph.viewMode` | the `view` member, a view with that `mode` and a `fitToGraph` framing |
-| `graph.startingCameraDistance`, `graph.twoD` | not representable (a bare distance is not a view): reported with their values |
-| `metadata` | the envelope's `name` and `description` |
-| `graph.background`, the selection style, `behavior` | not representable in version 1: each is reported with a stated reason |
+| 1.x member                                            | Goes to                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layers`                                              | the `style` member. Each 1.x layer becomes a `LayerSpec` whose `set` holds the channel values its node or edge style set. A 1.x layer with both a node and an edge style is split into two layers. A selector `""` becomes `{ match: "everything" }`; any other 1.x selector string becomes `{ match: "expression", where }`. A 1.x path `algorithmResults.<ns>.<type>.<field>` is rewritten to `results.<as>.<field>`, with the `as` minted below and the field renamed to its 2.0 name (for example `community` to `group`) |
+| a layer's `calculatedStyle`                           | not convertible: reported with its expression for a person to rewrite as an encoding; the rest of the layer is converted                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `data.knownFields`, `data.directed`                   | the `dataPlan` member                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `graph.layoutOptions.weightProperty`, `weightPath`    | the data plan's `knownFields.edgeWeightPath`, removed from the layout step (a layout option of that name is refused by 2.x)                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `data.algorithms`                                     | one recipe in the `recipes` member, one `algo.run` step per entry. A bare string entry becomes `{ algorithm }`. The key is translated through the element's legacy-key table (`algorithmByLegacyKey`): `graphty:scc` becomes `components` with `{ strength: "strong" }`, `graphty:dijkstra` becomes `shortest-path`. `as` is minted from the current key (the key, then `-2`, `-3`). The recipe never runs without the caller's instruction (recipe.md, "Consent")                                                            |
+| `graph.layout`, `graph.layoutOptions` (other options) | the same recipe, one `layout.set` step                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `graph.viewMode`                                      | the `view` member, a view with that `mode` and a `fitToGraph` framing                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `graph.startingCameraDistance`, `graph.twoD`          | not representable (a bare distance is not a view): reported with their values                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `metadata`                                            | the envelope's `name` and `description`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `graph.background`, the selection style, `behavior`   | not representable in version 1: each is reported with a stated reason                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 A 1.x layer that cannot be converted is reported, not dropped. Conformance rows use real 1.x
 fixtures from graphty-element's test suite.
@@ -398,44 +398,44 @@ rule.
 
 A reader conforms when, for each case, it does what the right-hand column says:
 
-| Input | Required result |
-|---|---|
-| `{ "version": 1, "layers": [] }` (2.x output, no `kind`) | accepted as a style document; report `bound: 0` |
-| a document whose `version` is above the highest this reader implements | refused with `E_UNSUPPORTED_VERSION`, naming the version found and the versions read |
-| a layer with neither `set` nor `encode` | added disabled, `E_BAD_LAYER`; the other layers apply |
-| a binding with both `domain` and `clamp` | layer added disabled, `E_BAD_LAYER` |
-| `edge.patternCount: 1` | layer added disabled, `E_OPTION_RANGE` |
-| `node.shape: "star"` in a version 1 style | fails the schema; a reader adds the layer disabled, `E_OPTION_RANGE` |
-| one channel in both `set` and `encode` | layer added disabled, `E_BAD_LAYER` |
-| an `everything` layer encoding `node.size` by `results.hubs.value` | layer added disabled, `E_UNSCOPED_RUN_ENCODING` |
-| a `top` selector with `n: 10` over `results.hubs.rank` | the ten highest rank numbers (the worst); a writer names the score instead |
-| a 65,536-character literal `node.label` on every node | layer added disabled, `E_OPTION_RANGE` |
-| `node.size: 1e308` | layer added disabled, `E_OPTION_RANGE` |
-| a layer `{ match: "has", path: "data.constructor" }` | matches nothing: inherited members are not data |
-| a binding with `legend.labels: { "2": "ribosome biogenesis" }` | painted as without it; the legend's key 2 reads "ribosome biogenesis" |
-| a layer painting 12 nodes the background colour | applied; reported as a notice (contrast below the threshold, 12 elements) |
-| `"node.color": "red\" URL=\"javascript:alert(1)"` | does not parse as a colour; layer added disabled, `E_BAD_LAYER` |
-| a layer setting `node.color` to `#ffffff00` on one node picked by an `expression` naming its id | applied; reported as a notice (alpha below the threshold, one element) |
-| 1,001 layers, or layers whose estimated work exceeds the budget | the excess added disabled with the reason; the rest apply |
-| a layer writing `"node.colour": "#f00"` and `"node.size": 2` | `node.colour` dropped with `E_UNKNOWN_CHANNEL`; the layer applies its size |
-| a layer writing `node.marker` | that channel refused with `E_UNSUPPORTED` |
-| a layer whose `where` is 20,000 characters | disabled with `E_BAD_SELECTOR`; the other layers apply |
-| an unknown top-level member `"x-note": 1` | ignored, reported `W_UNKNOWN_MEMBER`, written back on save |
-| a layer reading `data.logFC` on a graph with no `logFC` | added disabled, `unresolvedPaths` contains `data.logFC` |
-| a layer ``{ match: "expression", where: "data.adj.P.Val < `0.05`" }`` on a graph with attribute `adj.P.Val` | matches the elements whose `adj.P.Val` is below 0.05 (flat keys) |
-| ``where: "data.\"adj.P.Val\" < `0.05`"`` | layer added disabled, `E_BAD_SELECTOR`: a quoted segment carries no dot |
-| a layer naming palette `lab-reds`, carried, unregistered | palette registered for this session and reported; layer binds |
-| a layer naming palette `lab-reds`, neither carried nor registered | disabled with `E_UNKNOWN_PALETTE` |
-| a carried descriptor under the id `viridis` | descriptor ignored and reported; the built-in palette is used |
-| a node layer with `ids: { nodes: ["A"], edges: ["17"] }` | node `A` selected; `edges` ignored and reported |
-| an edge layer with `ids: { edges: ["17"] }` (a session edge id, as 2.x writes) | layer added disabled, `E_UNSTABLE_EDGE_ID` |
-| version 1, `ids.edges` holding an `EdgeMember` object | layer added disabled: an edge reference is a version 2 value |
-| a layer with `source: { by: "user" }` from a document | stored as `{ by: "template", templateId }` with the import chain |
-| a document applied twice without a `templateId` option | both stamped with the document's digest as `templateId` |
-| a `top` selector with `n: 10` whose ranks run 1 to 8, then three nodes tied at 9 | 8 elements painted; the report says 3 were left out at the tie |
-| a `top` selector with `path: "data.degree"` | layer added disabled, `E_BAD_SELECTOR`: the path is `results.<run>.<field>` |
-| `encode: { "node.color": { "by": "data.x", "domain": [-1.4, 4.8], "midpoint": 0 } }`, value -0.7 | palette position 0.25 |
-| a style with a slot `padj` (name `padj`, hint `FDR`) applied to data with `FDR` | bound by hint; `data.padj` rewritten to `data.FDR` |
+| Input                                                                                                       | Required result                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `{ "version": 1, "layers": [] }` (2.x output, no `kind`)                                                    | accepted as a style document; report `bound: 0`                                      |
+| a document whose `version` is above the highest this reader implements                                      | refused with `E_UNSUPPORTED_VERSION`, naming the version found and the versions read |
+| a layer with neither `set` nor `encode`                                                                     | added disabled, `E_BAD_LAYER`; the other layers apply                                |
+| a binding with both `domain` and `clamp`                                                                    | layer added disabled, `E_BAD_LAYER`                                                  |
+| `edge.patternCount: 1`                                                                                      | layer added disabled, `E_OPTION_RANGE`                                               |
+| `node.shape: "star"` in a version 1 style                                                                   | fails the schema; a reader adds the layer disabled, `E_OPTION_RANGE`                 |
+| one channel in both `set` and `encode`                                                                      | layer added disabled, `E_BAD_LAYER`                                                  |
+| an `everything` layer encoding `node.size` by `results.hubs.value`                                          | layer added disabled, `E_UNSCOPED_RUN_ENCODING`                                      |
+| a `top` selector with `n: 10` over `results.hubs.rank`                                                      | the ten highest rank numbers (the worst); a writer names the score instead           |
+| a 65,536-character literal `node.label` on every node                                                       | layer added disabled, `E_OPTION_RANGE`                                               |
+| `node.size: 1e308`                                                                                          | layer added disabled, `E_OPTION_RANGE`                                               |
+| a layer `{ match: "has", path: "data.constructor" }`                                                        | matches nothing: inherited members are not data                                      |
+| a binding with `legend.labels: { "2": "ribosome biogenesis" }`                                              | painted as without it; the legend's key 2 reads "ribosome biogenesis"                |
+| a layer painting 12 nodes the background colour                                                             | applied; reported as a notice (contrast below the threshold, 12 elements)            |
+| `"node.color": "red\" URL=\"javascript:alert(1)"`                                                           | does not parse as a colour; layer added disabled, `E_BAD_LAYER`                      |
+| a layer setting `node.color` to `#ffffff00` on one node picked by an `expression` naming its id             | applied; reported as a notice (alpha below the threshold, one element)               |
+| 1,001 layers, or layers whose estimated work exceeds the budget                                             | the excess added disabled with the reason; the rest apply                            |
+| a layer writing `"node.colour": "#f00"` and `"node.size": 2`                                                | `node.colour` dropped with `E_UNKNOWN_CHANNEL`; the layer applies its size           |
+| a layer writing `node.marker`                                                                               | that channel refused with `E_UNSUPPORTED`                                            |
+| a layer whose `where` is 20,000 characters                                                                  | disabled with `E_BAD_SELECTOR`; the other layers apply                               |
+| an unknown top-level member `"x-note": 1`                                                                   | ignored, reported `W_UNKNOWN_MEMBER`, written back on save                           |
+| a layer reading `data.logFC` on a graph with no `logFC`                                                     | added disabled, `unresolvedPaths` contains `data.logFC`                              |
+| a layer ``{ match: "expression", where: "data.adj.P.Val < `0.05`" }`` on a graph with attribute `adj.P.Val` | matches the elements whose `adj.P.Val` is below 0.05 (flat keys)                     |
+| ``where: "data.\"adj.P.Val\" < `0.05`"``                                                                    | layer added disabled, `E_BAD_SELECTOR`: a quoted segment carries no dot              |
+| a layer naming palette `lab-reds`, carried, unregistered                                                    | palette registered for this session and reported; layer binds                        |
+| a layer naming palette `lab-reds`, neither carried nor registered                                           | disabled with `E_UNKNOWN_PALETTE`                                                    |
+| a carried descriptor under the id `viridis`                                                                 | descriptor ignored and reported; the built-in palette is used                        |
+| a node layer with `ids: { nodes: ["A"], edges: ["17"] }`                                                    | node `A` selected; `edges` ignored and reported                                      |
+| an edge layer with `ids: { edges: ["17"] }` (a session edge id, as 2.x writes)                              | layer added disabled, `E_UNSTABLE_EDGE_ID`                                           |
+| version 1, `ids.edges` holding an `EdgeMember` object                                                       | layer added disabled: an edge reference is a version 2 value                         |
+| a layer with `source: { by: "user" }` from a document                                                       | stored as `{ by: "template", templateId }` with the import chain                     |
+| a document applied twice without a `templateId` option                                                      | both stamped with the document's digest as `templateId`                              |
+| a `top` selector with `n: 10` whose ranks run 1 to 8, then three nodes tied at 9                            | 8 elements painted; the report says 3 were left out at the tie                       |
+| a `top` selector with `path: "data.degree"`                                                                 | layer added disabled, `E_BAD_SELECTOR`: the path is `results.<run>.<field>`          |
+| `encode: { "node.color": { "by": "data.x", "domain": [-1.4, 4.8], "midpoint": 0 } }`, value -0.7            | palette position 0.25                                                                |
+| a style with a slot `padj` (name `padj`, hint `FDR`) applied to data with `FDR`                             | bound by hint; `data.padj` rewritten to `data.FDR`                                   |
 
 A writer conforms when its output validates against the schema, carries `kind`, omits
 element-owned layers, carries exactly the non-built-in palettes named, writes stable edge
@@ -457,37 +457,56 @@ value, so a legend can say so.
 
 ```json
 {
-  "kind": "graphty-style",
-  "version": 1,
-  "name": "Expression overlay (logFC)",
-  "requires": {
-    "attributes": [
-      { "slot": "lfc", "element": "node", "name": "logFC", "nameHints": ["log2FoldChange"], "level": "quantitative" },
-      { "slot": "padj", "element": "node", "name": "padj", "nameHints": ["FDR", "adj.P.Val"], "level": "quantitative" }
-    ]
-  },
-  "layers": [
-    {
-      "id": "logfc",
-      "name": "Log fold change",
-      "target": "node",
-      "kind": "encoding",
-      "selector": { "match": "everything" },
-      "encode": {
-        "node.color": { "by": "data.logFC", "scale": "linear", "palette": "red-blue", "reverse": true,
-                        "domain": [-3, 3], "midpoint": 0, "missing": { "value": "#bdbdbd" },
-                        "legend": { "title": "log2 fold change, tumour vs normal", "missingLabel": "not measured" } }
-      }
+    "kind": "graphty-style",
+    "version": 1,
+    "name": "Expression overlay (logFC)",
+    "requires": {
+        "attributes": [
+            {
+                "slot": "lfc",
+                "element": "node",
+                "name": "logFC",
+                "nameHints": ["log2FoldChange"],
+                "level": "quantitative"
+            },
+            {
+                "slot": "padj",
+                "element": "node",
+                "name": "padj",
+                "nameHints": ["FDR", "adj.P.Val"],
+                "level": "quantitative"
+            }
+        ]
     },
-    {
-      "id": "significant",
-      "name": "padj below 0.05",
-      "target": "node",
-      "kind": "highlight",
-      "selector": { "match": "expression", "where": "data.padj < `0.05`" },
-      "set": { "node.outline": "#000000" }
-    }
-  ]
+    "layers": [
+        {
+            "id": "logfc",
+            "name": "Log fold change",
+            "target": "node",
+            "kind": "encoding",
+            "selector": { "match": "everything" },
+            "encode": {
+                "node.color": {
+                    "by": "data.logFC",
+                    "scale": "linear",
+                    "palette": "red-blue",
+                    "reverse": true,
+                    "domain": [-3, 3],
+                    "midpoint": 0,
+                    "missing": { "value": "#bdbdbd" },
+                    "legend": { "title": "log2 fold change, tumour vs normal", "missingLabel": "not measured" }
+                }
+            }
+        },
+        {
+            "id": "significant",
+            "name": "padj below 0.05",
+            "target": "node",
+            "kind": "highlight",
+            "selector": { "match": "expression", "where": "data.padj < `0.05`" },
+            "set": { "node.outline": "#000000" }
+        }
+    ]
 }
 ```
 
@@ -505,27 +524,27 @@ the run completes.
 
 ```json
 {
-  "kind": "graphty-style",
-  "version": 1,
-  "name": "Hub genes",
-  "layers": [
-    {
-      "id": "hub-size",
-      "name": "Size by hub score",
-      "target": "node",
-      "kind": "encoding",
-      "selector": { "match": "has", "path": "results.hubs.value" },
-      "encode": { "node.size": { "by": "results.hubs.value", "scale": "sqrt", "range": [1, 3] } },
-      "source": { "by": "run", "runId": "hubs", "algorithm": "pagerank", "params": {} }
-    },
-    {
-      "id": "top-ten",
-      "name": "Top ten hubs, labelled",
-      "target": "node",
-      "kind": "highlight",
-      "selector": { "match": "top", "path": "results.hubs.value", "n": 10 },
-      "encode": { "node.label": { "by": "data.name", "scale": "passthrough" } }
-    }
-  ]
+    "kind": "graphty-style",
+    "version": 1,
+    "name": "Hub genes",
+    "layers": [
+        {
+            "id": "hub-size",
+            "name": "Size by hub score",
+            "target": "node",
+            "kind": "encoding",
+            "selector": { "match": "has", "path": "results.hubs.value" },
+            "encode": { "node.size": { "by": "results.hubs.value", "scale": "sqrt", "range": [1, 3] } },
+            "source": { "by": "run", "runId": "hubs", "algorithm": "pagerank", "params": {} }
+        },
+        {
+            "id": "top-ten",
+            "name": "Top ten hubs, labelled",
+            "target": "node",
+            "kind": "highlight",
+            "selector": { "match": "top", "path": "results.hubs.value", "n": 10 },
+            "encode": { "node.label": { "by": "data.name", "scale": "passthrough" } }
+        }
+    ]
 }
 ```

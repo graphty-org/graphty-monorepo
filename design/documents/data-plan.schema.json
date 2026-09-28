@@ -1,522 +1,442 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://graphty.app/schema/documents/graphty-data-plan/v1.json",
-  "title": "graphty data plan, version 1",
-  "description": "Normative for what a conforming writer produces. Unknown members of the top level and of knownFields refuse the plan (data-plan.md, Applying rule 5; every legitimate addition there carries a feature name, README Versioning rule 8), which is why both are closed here; attribute declarations and joins are validated one by one.",
-  "type": "object",
-  "required": [
-    "kind",
-    "version"
-  ],
-  "properties": {
-    "$schema": {
-      "type": "string"
-    },
-    "kind": {
-      "const": "graphty-data-plan"
-    },
-    "version": {
-      "const": 1
-    },
-    "name": {
-      "type": "string"
-    },
-    "description": {
-      "type": "string"
-    },
-    "fingerprint": {
-      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
-    },
-    "generator": {
-      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
-    },
-    "format": {
-      "type": "string",
-      "description": "The format id this plan was written for, from the element's format catalogue. Advisory."
-    },
-    "knownFields": {
-      "type": "object",
-      "properties": {
-        "nodeIdPath": {
-          "$ref": "#/$defs/fieldPath"
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-data-plan/v1.json",
+    "title": "graphty data plan, version 1",
+    "description": "Normative for what a conforming writer produces. Unknown members of the top level and of knownFields refuse the plan (data-plan.md, Applying rule 5; every legitimate addition there carries a feature name, README Versioning rule 8), which is why both are closed here; attribute declarations and joins are validated one by one.",
+    "type": "object",
+    "required": ["kind", "version"],
+    "properties": {
+        "$schema": {
+            "type": "string"
         },
-        "nodeLabelPath": {
-          "$ref": "#/$defs/nullableFieldPath"
+        "kind": {
+            "const": "graphty-data-plan"
         },
-        "nodeWeightPath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "nodeTimePath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "nodeTypePath": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/nullableFieldPath"
-            },
-            {
-              "$ref": "#/$defs/typeSource"
-            }
-          ]
-        },
-        "edgeSrcIdPath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "edgeDstIdPath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "edgeIdPath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "edgeWeightPath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "edgeTimePath": {
-          "$ref": "#/$defs/nullableFieldPath"
-        },
-        "edgeSrcType": {
-          "$ref": "#/$defs/typeSource"
-        },
-        "edgeDstType": {
-          "$ref": "#/$defs/typeSource"
-        },
-        "repeatedEdges": {
-          "enum": [
-            "keep",
-            "error",
-            "first",
-            "last",
-            "sum",
-            "min",
-            "max"
-          ]
-        },
-        "repeatedNodes": {
-          "enum": [
-            "merge",
-            "error"
-          ]
-        },
-        "missingEndpoints": {
-          "enum": [
-            "create",
-            "report",
-            "reject"
-          ]
-        },
-        "positionScale": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 1000000
-        },
-        "idCoercion": {
-          "enum": [
-            "canonical",
-            "keep"
-          ]
-        },
-        "edgeTypePath": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/nullableFieldPath"
-            },
-            {
-              "$ref": "#/$defs/typeSource"
-            }
-          ]
-        },
-        "idsQualified": {
-          "type": "boolean",
-          "description": "Typed identity only: the ids are already type-qualified (data-plan.md, Node types)."
-        }
-      },
-      "additionalProperties": false
-    },
-    "directed": {
-      "oneOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "const": "auto"
-        }
-      ]
-    },
-    "attributes": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/attribute"
-      }
-    },
-    "extensions": {
-      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
-    },
-    "id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "planVersion": {
-      "type": "string",
-      "minLength": 1
-    },
-    "formatOptions": {
-      "type": "object"
-    },
-    "joins": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/join"
-      }
-    },
-    "sourceVersion": {
-      "type": "string",
-      "minLength": 1
-    },
-    "types": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "term": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
-          },
-          "element": {
-            "enum": [
-              "node",
-              "edge"
-            ]
-          }
-        }
-      }
-    },
-    "missingValues": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Cell texts that mean no value, for every column of every input unless a declaration says otherwise."
-    }
-  },
-  "$defs": {
-    "fieldPath": {
-      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-    },
-    "nullableFieldPath": {
-      "oneOf": [
-        {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "attribute": {
-      "type": "object",
-      "required": [
-        "element",
-        "name"
-      ],
-      "properties": {
-        "element": {
-          "enum": [
-            "node",
-            "edge"
-          ]
+        "version": {
+            "const": 1
         },
         "name": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-        },
-        "rename": {
-          "type": "string",
-          "minLength": 1
-        },
-        "include": {
-          "type": "boolean"
-        },
-        "type": {
-          "enum": [
-            "string",
-            "number",
-            "integer",
-            "boolean",
-            "date",
-            "list"
-          ]
-        },
-        "role": {
-          "type": "string",
-          "minLength": 1,
-          "description": "A graph-format ColumnRole: a known role or any other string."
-        },
-        "level": {
-          "type": "string",
-          "minLength": 1,
-          "description": "categorical, ordinal, quantitative, temporal, identifier; an open enumeration"
-        },
-        "weightRole": {
-          "type": "string",
-          "minLength": 1,
-          "description": "distance or similarity; an open enumeration"
-        },
-        "signed": {
-          "type": "boolean"
-        },
-        "missingValues": {
-          "type": "array",
-          "items": {
             "type": "string"
-          }
         },
         "description": {
-          "type": "string"
+            "type": "string"
         },
-        "extensions": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+        "fingerprint": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
         },
-        "constraints": {
-          "type": "object",
-          "properties": {
-            "required": {
-              "type": "boolean"
-            },
-            "unique": {
-              "type": "boolean"
-            },
-            "enum": {
-              "type": "array",
-              "items": {
-                "type": [
-                  "string",
-                  "number"
-                ]
-              }
-            },
-            "minimum": {
-              "type": "number"
-            },
-            "maximum": {
-              "type": "number"
-            },
-            "pattern": {
-              "type": "string",
-              "maxLength": 1024,
-              "description": "An I-Regexp (RFC 9485), matched in linear time."
-            },
-            "onViolation": {
-              "enum": [
-                "report",
-                "reject-row",
-                "fail"
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "input": {
-          "type": "string",
-          "minLength": 1
-        },
-        "types": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+        "generator": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
         },
         "format": {
-          "type": "string",
-          "minLength": 1,
-          "description": "For type date: iso8601 (default), epoch-ms, epoch-s."
+            "type": "string",
+            "description": "The format id this plan was written for, from the element's format catalogue. Advisory."
         },
-        "delimiter": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8
+        "knownFields": {
+            "type": "object",
+            "properties": {
+                "nodeIdPath": {
+                    "$ref": "#/$defs/fieldPath"
+                },
+                "nodeLabelPath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "nodeWeightPath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "nodeTimePath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "nodeTypePath": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/nullableFieldPath"
+                        },
+                        {
+                            "$ref": "#/$defs/typeSource"
+                        }
+                    ]
+                },
+                "edgeSrcIdPath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "edgeDstIdPath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "edgeIdPath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "edgeWeightPath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "edgeTimePath": {
+                    "$ref": "#/$defs/nullableFieldPath"
+                },
+                "edgeSrcType": {
+                    "$ref": "#/$defs/typeSource"
+                },
+                "edgeDstType": {
+                    "$ref": "#/$defs/typeSource"
+                },
+                "repeatedEdges": {
+                    "enum": ["keep", "error", "first", "last", "sum", "min", "max"]
+                },
+                "repeatedNodes": {
+                    "enum": ["merge", "error"]
+                },
+                "missingEndpoints": {
+                    "enum": ["create", "report", "reject"]
+                },
+                "positionScale": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000
+                },
+                "idCoercion": {
+                    "enum": ["canonical", "keep"]
+                },
+                "edgeTypePath": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/nullableFieldPath"
+                        },
+                        {
+                            "$ref": "#/$defs/typeSource"
+                        }
+                    ]
+                },
+                "idsQualified": {
+                    "type": "boolean",
+                    "description": "Typed identity only: the ids are already type-qualified (data-plan.md, Node types)."
+                }
+            },
+            "additionalProperties": false
         },
-        "order": {
-          "type": "array",
-          "items": {
-            "type": [
-              "string",
-              "number"
+        "directed": {
+            "oneOf": [
+                {
+                    "type": "boolean"
+                },
+                {
+                    "const": "auto"
+                }
             ]
-          }
         },
-        "derive": {
-          "type": "object",
-          "required": [
-            "from",
-            "transform"
-          ],
-          "properties": {
-            "from": {
-              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-            },
-            "transform": {
-              "enum": [
-                "one-minus",
-                "reciprocal",
-                "neg-log"
-              ]
+        "attributes": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/attribute"
             }
-          }
         },
-        "term": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
+        "extensions": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
         },
-        "idNamespace": {
-          "type": "string",
-          "minLength": 1
+        "id": {
+            "type": "string",
+            "minLength": 1
         },
-        "origin": {
-          "type": "object",
-          "required": [
-            "run",
-            "field"
-          ],
-          "properties": {
-            "run": {
-              "type": "string",
-              "minLength": 1
-            },
-            "field": {
-              "type": "string",
-              "minLength": 1
-            },
-            "caveat": {
-              "enum": [
-                "estimated",
-                "missing"
-              ]
+        "planVersion": {
+            "type": "string",
+            "minLength": 1
+        },
+        "formatOptions": {
+            "type": "object"
+        },
+        "joins": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/join"
             }
-          }
         },
-        "features": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+        "sourceVersion": {
+            "type": "string",
+            "minLength": 1
+        },
+        "types": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "term": {
+                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
+                    },
+                    "element": {
+                        "enum": ["node", "edge"]
+                    }
+                }
+            }
+        },
+        "missingValues": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Cell texts that mean no value, for every column of every input unless a declaration says otherwise."
         }
-      },
-      "if": {
-        "required": [
-          "signed"
-        ],
-        "properties": {
-          "signed": {
-            "const": true
-          }
-        }
-      },
-      "then": {
-        "required": [
-          "weightRole"
-        ],
-        "properties": {
-          "weightRole": {
-            "const": "similarity"
-          }
-        }
-      }
     },
-    "typeSource": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "object",
-          "required": [
-            "path"
-          ],
-          "properties": {
-            "path": {
-              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "value"
-          ],
-          "properties": {
-            "value": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "join": {
-      "type": "object",
-      "required": [
-        "input",
-        "key"
-      ],
-      "properties": {
-        "input": {
-          "type": "string",
-          "minLength": 1
-        },
-        "element": {
-          "const": "node"
-        },
-        "key": {
-          "anyOf": [
-            {
-              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-            },
-            {
-              "const": ""
-            }
-          ],
-          "description": "The key column of the joined table; the empty string names a column whose header is empty."
-        },
-        "on": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-        },
-        "match": {
-          "enum": [
-            "exact",
-            "case-insensitive"
-          ]
-        },
-        "onDuplicate": {
-          "enum": [
-            "error",
-            "first",
-            "last"
-          ]
-        },
-        "columns": {
-          "type": "array",
-          "items": {
+    "$defs": {
+        "fieldPath": {
             "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
-          }
         },
-        "type": {
-          "type": "string",
-          "minLength": 1
+        "nullableFieldPath": {
+            "oneOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                },
+                {
+                    "type": "null"
+                }
+            ]
         },
-        "features": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+        "attribute": {
+            "type": "object",
+            "required": ["element", "name"],
+            "properties": {
+                "element": {
+                    "enum": ["node", "edge"]
+                },
+                "name": {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                },
+                "rename": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "include": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "enum": ["string", "number", "integer", "boolean", "date", "list"]
+                },
+                "role": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A graph-format ColumnRole: a known role or any other string."
+                },
+                "level": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "categorical, ordinal, quantitative, temporal, identifier; an open enumeration"
+                },
+                "weightRole": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "distance or similarity; an open enumeration"
+                },
+                "signed": {
+                    "type": "boolean"
+                },
+                "missingValues": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "extensions": {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+                },
+                "constraints": {
+                    "type": "object",
+                    "properties": {
+                        "required": {
+                            "type": "boolean"
+                        },
+                        "unique": {
+                            "type": "boolean"
+                        },
+                        "enum": {
+                            "type": "array",
+                            "items": {
+                                "type": ["string", "number"]
+                            }
+                        },
+                        "minimum": {
+                            "type": "number"
+                        },
+                        "maximum": {
+                            "type": "number"
+                        },
+                        "pattern": {
+                            "type": "string",
+                            "maxLength": 1024,
+                            "description": "An I-Regexp (RFC 9485), matched in linear time."
+                        },
+                        "onViolation": {
+                            "enum": ["report", "reject-row", "fail"]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "input": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "format": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "For type date: iso8601 (default), epoch-ms, epoch-s."
+                },
+                "delimiter": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8
+                },
+                "order": {
+                    "type": "array",
+                    "items": {
+                        "type": ["string", "number"]
+                    }
+                },
+                "derive": {
+                    "type": "object",
+                    "required": ["from", "transform"],
+                    "properties": {
+                        "from": {
+                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                        },
+                        "transform": {
+                            "enum": ["one-minus", "reciprocal", "neg-log"]
+                        }
+                    }
+                },
+                "term": {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
+                },
+                "idNamespace": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "origin": {
+                    "type": "object",
+                    "required": ["run", "field"],
+                    "properties": {
+                        "run": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "field": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "caveat": {
+                            "enum": ["estimated", "missing"]
+                        }
+                    }
+                },
+                "features": {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+                }
+            },
+            "if": {
+                "required": ["signed"],
+                "properties": {
+                    "signed": {
+                        "const": true
+                    }
+                }
+            },
+            "then": {
+                "required": ["weightRole"],
+                "properties": {
+                    "weightRole": {
+                        "const": "similarity"
+                    }
+                }
+            }
+        },
+        "typeSource": {
+            "oneOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "required": ["path"],
+                    "properties": {
+                        "path": {
+                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "required": ["value"],
+                    "properties": {
+                        "value": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "join": {
+            "type": "object",
+            "required": ["input", "key"],
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "element": {
+                    "const": "node"
+                },
+                "key": {
+                    "anyOf": [
+                        {
+                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                        },
+                        {
+                            "const": ""
+                        }
+                    ],
+                    "description": "The key column of the joined table; the empty string names a column whose header is empty."
+                },
+                "on": {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                },
+                "match": {
+                    "enum": ["exact", "case-insensitive"]
+                },
+                "onDuplicate": {
+                    "enum": ["error", "first", "last"]
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "features": {
+                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+                }
+            }
         }
-      }
-    }
-  },
-  "allOf": [
-    {
-      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
-    }
-  ],
-  "unevaluatedProperties": false
+    },
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
+        }
+    ],
+    "unevaluatedProperties": false
 }

@@ -39,11 +39,11 @@ thickness), and reports `LossNote { code, message, column, count }` from `check(
 So an element export is two steps:
 
 1. **Build the export snapshot.** graphty-element builds a snapshot whose columns are:
-   - the imported attributes, as columns with their graph-format roles;
-   - the current drawn positions, as the `position` role column, when the caller includes positions;
-   - one column per published result field of each included run (below);
-   - the resolved appearance of each element, as the `color`, `size`, `shape` and `thickness` role
-     columns, when the caller includes style and the format's `viz` is true.
+    - the imported attributes, as columns with their graph-format roles;
+    - the current drawn positions, as the `position` role column, when the caller includes positions;
+    - one column per published result field of each included run (below);
+    - the resolved appearance of each element, as the `color`, `size`, `shape` and `thickness` role
+      columns, when the caller includes style and the format's `viz` is true.
 2. **Write it** through the format's graph-io exporter, returning graph-io's loss notes plus the
    notes graphty-element adds for what it did not put in the snapshot.
 
@@ -145,48 +145,48 @@ one included is reported (`W_GRAPHTY_HIGHLIGHT_BAKED`).
 
 The channel-to-role table:
 
-| Element channel | graph-format role | Translation | Loss note when it cannot be written |
-|---|---|---|---|
-| `node.color` | `color` (node) | the resolved RGBA; alpha kept where the format has it | `W_GRAPHTY_CHANNEL` |
-| `node.size` | `size` (node) | scene units, written as the number | `W_GRAPHTY_CHANNEL` |
-| `node.shape` | `shape` (node) | the shape table below | `W_GRAPHTY_SHAPE` for each translated or dropped shape |
-| `node.opacity` | folded into the colour's alpha | alpha times opacity | -- |
-| `edge.color` | `color` (edge) | as nodes | `W_GRAPHTY_CHANNEL` |
-| `edge.width` | `thickness` (edge) | scene units | `W_GRAPHTY_CHANNEL` |
-| `edge.style` | `shape` (edge) | `solid` to solid, `dash` to dashed, `dot` to dotted, others to solid | `W_GRAPHTY_SHAPE` |
-| `node.label`, `edge.label` | `label`, only when the data has no label column | the resolved text | -- |
-| any channel of a layer with `kind: "highlight"`, or of a layer whose selector names elements | not baked unless the caller includes it | -- | `W_GRAPHTY_LAYER_EXCLUDED`, or `W_GRAPHTY_HIGHLIGHT_BAKED` when included |
-| every other channel (outline, glow, arrows, label styles, tooltips, curvature, animation, wireframe, flat) | none | -- | `W_GRAPHTY_CHANNEL`, one note per channel with the count of elements it painted |
+| Element channel                                                                                            | graph-format role                               | Translation                                                          | Loss note when it cannot be written                                             |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `node.color`                                                                                               | `color` (node)                                  | the resolved RGBA; alpha kept where the format has it                | `W_GRAPHTY_CHANNEL`                                                             |
+| `node.size`                                                                                                | `size` (node)                                   | scene units, written as the number                                   | `W_GRAPHTY_CHANNEL`                                                             |
+| `node.shape`                                                                                               | `shape` (node)                                  | the shape table below                                                | `W_GRAPHTY_SHAPE` for each translated or dropped shape                          |
+| `node.opacity`                                                                                             | folded into the colour's alpha                  | alpha times opacity                                                  | --                                                                              |
+| `edge.color`                                                                                               | `color` (edge)                                  | as nodes                                                             | `W_GRAPHTY_CHANNEL`                                                             |
+| `edge.width`                                                                                               | `thickness` (edge)                              | scene units                                                          | `W_GRAPHTY_CHANNEL`                                                             |
+| `edge.style`                                                                                               | `shape` (edge)                                  | `solid` to solid, `dash` to dashed, `dot` to dotted, others to solid | `W_GRAPHTY_SHAPE`                                                               |
+| `node.label`, `edge.label`                                                                                 | `label`, only when the data has no label column | the resolved text                                                    | --                                                                              |
+| any channel of a layer with `kind: "highlight"`, or of a layer whose selector names elements               | not baked unless the caller includes it         | --                                                                   | `W_GRAPHTY_LAYER_EXCLUDED`, or `W_GRAPHTY_HIGHLIGHT_BAKED` when included        |
+| every other channel (outline, glow, arrows, label styles, tooltips, curvature, animation, wireframe, flat) | none                                            | --                                                                   | `W_GRAPHTY_CHANNEL`, one note per channel with the count of elements it painted |
 
 Node shapes. The element draws 3D solids; GEXF has `disc`, `square`, `triangle`, `diamond` and
 `image`:
 
-| Element shape | GEXF shape |
-|---|---|
-| `sphere`, `icosphere`, `geodesic`, `goldberg`, `capsule`, `cylinder`, `torus`, `torus-knot` | `disc` |
-| `box` and the prisms | `square` |
-| `tetrahedron`, `cone` and the pyramids | `triangle` |
-| `octahedron` and the dipyramids | `diamond` |
-| any other | `disc`, reported |
+| Element shape                                                                               | GEXF shape       |
+| ------------------------------------------------------------------------------------------- | ---------------- |
+| `sphere`, `icosphere`, `geodesic`, `goldberg`, `capsule`, `cylinder`, `torus`, `torus-knot` | `disc`           |
+| `box` and the prisms                                                                        | `square`         |
+| `tetrahedron`, `cone` and the pyramids                                                      | `triangle`       |
+| `octahedron` and the dipyramids                                                             | `diamond`        |
+| any other                                                                                   | `disc`, reported |
 
 ## Per format
 
 "Today" is what graph-io's exporters write now. "Proposed" is new graph-io writer work needed for
 "whatever the format supports" to be true; it is listed as an open decision (README).
 
-| Format | Attributes | Positions | Results as attributes | Resolved appearance today | Proposed appearance writer | Graph-level attributes |
-|---|---|---|---|---|---|---|
-| GEXF 1.3 | yes, typed | yes, with z | yes | yes: `viz:color`, `viz:size`, `viz:shape`, edge `viz:thickness` and shape | -- | no |
-| GraphML | yes, typed (no lists or nested values) | no | yes | no | yFiles `y:ShapeNode` geometry, fill, shape and `y:PolyLineEdge` line style and width; this also gives positions | yes |
-| GML | yes | yes | yes | no | the `graphics` block (`x`, `y`, `w`, `h`, `fill`, `type`, `width`) | yes |
-| DOT | yes, as attributes | yes (`pos`) | yes | no | `color`, `fillcolor`, `shape`, `penwidth`, `width`, `style` | yes |
-| Pajek | a fixed set (label, shape, parameters) | yes | numbers as vectors or partitions only; others reported | no | the vertex shape and colour parameters Pajek's `.net` defines | no |
-| CSV | yes, one node table and one edge table | as columns `x`, `y` (and `z`) when the caller includes positions, declared in the sidecar's data plan and restored from the sidecar's `positions` | yes | no | none: CSV has no appearance; write colour and size as ordinary columns only when the caller asks | no |
-| JSON node-link, JGF, graphology | yes, including nested values | no | yes | no | none standard | yes |
-| JSON d3, vis | yes | no | yes | no | vis: `color`, `size`, `shape`, `width` per element | no |
-| JSON Cytoscape | yes | yes | yes | no | the `style` array and per-element `classes`; this is the one JSON dialect that can hold rules as well as values | yes |
-| CX2 (Cytoscape Exchange, NDEx) | -- | -- | -- | not written today | proposed first: attributes as `attributeDeclarations` and node and edge attributes, positions as `cartesianLayout`, results as attributes, and style rules as `visualProperties` (defaults, and continuous, discrete and passthrough mappings from bindings of `everything` layers); a layer with any other selector (`expression`, `has`, `top`, `member`, `ids`) is evaluated and written as `nodeBypasses` / `edgeBypasses` on the elements it matches, reported with `W_GRAPHTY_CX2_BYPASS` (the rule is lost, the values are kept) | `networkAttributes` |
-| Neo4j | yes, as properties | no | yes | no | none: a database has no appearance | no |
+| Format                          | Attributes                             | Positions                                                                                                                                         | Results as attributes                                  | Resolved appearance today                                                 | Proposed appearance writer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Graph-level attributes |
+| ------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| GEXF 1.3                        | yes, typed                             | yes, with z                                                                                                                                       | yes                                                    | yes: `viz:color`, `viz:size`, `viz:shape`, edge `viz:thickness` and shape | --                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | no                     |
+| GraphML                         | yes, typed (no lists or nested values) | no                                                                                                                                                | yes                                                    | no                                                                        | yFiles `y:ShapeNode` geometry, fill, shape and `y:PolyLineEdge` line style and width; this also gives positions                                                                                                                                                                                                                                                                                                                                                                                                                         | yes                    |
+| GML                             | yes                                    | yes                                                                                                                                               | yes                                                    | no                                                                        | the `graphics` block (`x`, `y`, `w`, `h`, `fill`, `type`, `width`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | yes                    |
+| DOT                             | yes, as attributes                     | yes (`pos`)                                                                                                                                       | yes                                                    | no                                                                        | `color`, `fillcolor`, `shape`, `penwidth`, `width`, `style`                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | yes                    |
+| Pajek                           | a fixed set (label, shape, parameters) | yes                                                                                                                                               | numbers as vectors or partitions only; others reported | no                                                                        | the vertex shape and colour parameters Pajek's `.net` defines                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | no                     |
+| CSV                             | yes, one node table and one edge table | as columns `x`, `y` (and `z`) when the caller includes positions, declared in the sidecar's data plan and restored from the sidecar's `positions` | yes                                                    | no                                                                        | none: CSV has no appearance; write colour and size as ordinary columns only when the caller asks                                                                                                                                                                                                                                                                                                                                                                                                                                        | no                     |
+| JSON node-link, JGF, graphology | yes, including nested values           | no                                                                                                                                                | yes                                                    | no                                                                        | none standard                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | yes                    |
+| JSON d3, vis                    | yes                                    | no                                                                                                                                                | yes                                                    | no                                                                        | vis: `color`, `size`, `shape`, `width` per element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | no                     |
+| JSON Cytoscape                  | yes                                    | yes                                                                                                                                               | yes                                                    | no                                                                        | the `style` array and per-element `classes`; this is the one JSON dialect that can hold rules as well as values                                                                                                                                                                                                                                                                                                                                                                                                                         | yes                    |
+| CX2 (Cytoscape Exchange, NDEx)  | --                                     | --                                                                                                                                                | --                                                     | not written today                                                         | proposed first: attributes as `attributeDeclarations` and node and edge attributes, positions as `cartesianLayout`, results as attributes, and style rules as `visualProperties` (defaults, and continuous, discrete and passthrough mappings from bindings of `everything` layers); a layer with any other selector (`expression`, `has`, `top`, `member`, `ids`) is evaluated and written as `nodeBypasses` / `edgeBypasses` on the elements it matches, reported with `W_GRAPHTY_CX2_BYPASS` (the rule is lost, the values are kept) | `networkAttributes`    |
+| Neo4j                           | yes, as properties                     | no                                                                                                                                                | yes                                                    | no                                                                        | none: a database has no appearance                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | no                     |
 
 Number precision and the Excel byte-order mark that the data-export capability asks for
 (`design/designloom/capabilities/data-export.yaml`: six decimals, an optional BOM) are not options of
@@ -252,33 +252,33 @@ does not write it yet, and it is the first proposed writer, above.)
 
 An export therefore reports each member it did not carry:
 
-| Code | When | `column` | `count` |
-|---|---|---|---|
-| `W_GRAPHTY_STYLE_RULES` | the session has authored style layers; values may have been baked, the rules were not written | null | number of layers |
-| `W_GRAPHTY_CHANNEL` | a painted channel has no place in the format | the channel name | elements painted |
-| `W_GRAPHTY_SHAPE` | a shape or line pattern was translated or dropped | the channel name | elements affected |
-| `W_GRAPHTY_RECIPE` | results were written, the steps that produced them were not | null | number of runs |
-| `W_GRAPHTY_VIEW` | the session has saved views | null | number of views |
-| `W_GRAPHTY_NOTES` | the session has notes and they were not written | null | number of notes |
-| `W_GRAPHTY_DATA_PLAN` | declared measurement levels or weight roles were not written | the column | null |
-| `W_GRAPHTY_RUN_EXCLUDED` | a run the session holds was not written | the run id | elements |
-| `W_GRAPHTY_RESULT_NAME` | a result column was renamed for the format | the new name | null |
-| `W_GRAPHTY_HIGHLIGHT_BAKED` | a highlight layer's values were baked into the appearance | the layer id or name | elements painted |
-| `W_GRAPHTY_TYPED_ID` | typed identity columns could not be written | null | nodes |
-| `W_GRAPHTY_CSV_NEUTRALIZED` | cells were prefixed so a spreadsheet does not run them | the column | cells |
-| `W_GRAPHTY_TEXT_QUOTED` | text that a format could read as markup was written quoted | the column | values |
-| `W_GRAPHTY_FILTER` | a filter was active and could not be expressed as predicates | null | elements hidden |
-| `W_GRAPHTY_FILTERED` | the caller exported only the elements the active filter keeps | the filter's predicates | elements dropped |
-| `W_GRAPHTY_CX2_BYPASS` | a predicate layer was written to CX2 as per-element bypasses | the layer id or name | elements |
-| `W_GRAPHTY_LAYER_EXCLUDED` | a layer carrying a judgement was left out of the baked appearance | the layer id or name | elements it paints |
-| `W_GRAPHTY_ROLE_TAKEN` | a column lost a graph-format role to another claimant | the column | null |
-| `W_GRAPHTY_GRAPH_FIELDS` | a run's graph-level result fields have no place in the format | the run id | fields |
-| `W_GRAPHTY_HANDLING` | handling markings have no place in the format | null | markings |
-| `W_GRAPHTY_REDACTED` | element ids in run parameters, arguments or scopes were redacted | the run id | values |
-| `W_GRAPHTY_GRAPHS` | graphs the session holds were left out (envelope.md, "Saving") | the graph | runs left out |
-| `W_GRAPHTY_MERGES` | node merges were baked into the data with no record of what merged | null | nodes merged |
-| `W_GRAPHTY_TABLES` | per-group tables were not written (the format has no place for them) | the run id | tables |
-| `W_GRAPHTY_CYTOSCAPE_MAPPING` | a Cytoscape mapping could not be converted exactly (below) | the visual property | points |
+| Code                          | When                                                                                          | `column`                | `count`            |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | ----------------------- | ------------------ |
+| `W_GRAPHTY_STYLE_RULES`       | the session has authored style layers; values may have been baked, the rules were not written | null                    | number of layers   |
+| `W_GRAPHTY_CHANNEL`           | a painted channel has no place in the format                                                  | the channel name        | elements painted   |
+| `W_GRAPHTY_SHAPE`             | a shape or line pattern was translated or dropped                                             | the channel name        | elements affected  |
+| `W_GRAPHTY_RECIPE`            | results were written, the steps that produced them were not                                   | null                    | number of runs     |
+| `W_GRAPHTY_VIEW`              | the session has saved views                                                                   | null                    | number of views    |
+| `W_GRAPHTY_NOTES`             | the session has notes and they were not written                                               | null                    | number of notes    |
+| `W_GRAPHTY_DATA_PLAN`         | declared measurement levels or weight roles were not written                                  | the column              | null               |
+| `W_GRAPHTY_RUN_EXCLUDED`      | a run the session holds was not written                                                       | the run id              | elements           |
+| `W_GRAPHTY_RESULT_NAME`       | a result column was renamed for the format                                                    | the new name            | null               |
+| `W_GRAPHTY_HIGHLIGHT_BAKED`   | a highlight layer's values were baked into the appearance                                     | the layer id or name    | elements painted   |
+| `W_GRAPHTY_TYPED_ID`          | typed identity columns could not be written                                                   | null                    | nodes              |
+| `W_GRAPHTY_CSV_NEUTRALIZED`   | cells were prefixed so a spreadsheet does not run them                                        | the column              | cells              |
+| `W_GRAPHTY_TEXT_QUOTED`       | text that a format could read as markup was written quoted                                    | the column              | values             |
+| `W_GRAPHTY_FILTER`            | a filter was active and could not be expressed as predicates                                  | null                    | elements hidden    |
+| `W_GRAPHTY_FILTERED`          | the caller exported only the elements the active filter keeps                                 | the filter's predicates | elements dropped   |
+| `W_GRAPHTY_CX2_BYPASS`        | a predicate layer was written to CX2 as per-element bypasses                                  | the layer id or name    | elements           |
+| `W_GRAPHTY_LAYER_EXCLUDED`    | a layer carrying a judgement was left out of the baked appearance                             | the layer id or name    | elements it paints |
+| `W_GRAPHTY_ROLE_TAKEN`        | a column lost a graph-format role to another claimant                                         | the column              | null               |
+| `W_GRAPHTY_GRAPH_FIELDS`      | a run's graph-level result fields have no place in the format                                 | the run id              | fields             |
+| `W_GRAPHTY_HANDLING`          | handling markings have no place in the format                                                 | null                    | markings           |
+| `W_GRAPHTY_REDACTED`          | element ids in run parameters, arguments or scopes were redacted                              | the run id              | values             |
+| `W_GRAPHTY_GRAPHS`            | graphs the session holds were left out (envelope.md, "Saving")                                | the graph               | runs left out      |
+| `W_GRAPHTY_MERGES`            | node merges were baked into the data with no record of what merged                            | null                    | nodes merged       |
+| `W_GRAPHTY_TABLES`            | per-group tables were not written (the format has no place for them)                          | the run id              | tables             |
+| `W_GRAPHTY_CYTOSCAPE_MAPPING` | a Cytoscape mapping could not be converted exactly (below)                                    | the visual property     | points             |
 
 These codes are new and, like graph-io's, are a published contract.
 

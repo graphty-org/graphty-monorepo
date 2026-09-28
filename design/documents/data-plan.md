@@ -50,91 +50,96 @@ spelling survives in the published catalogue is open decision 32.
 
 ```ts
 interface DataPlan {
-  kind: "graphty-data-plan";
-  version: 1;
-  id?: string;                        // stable identity of this plan across its versions
-  planVersion?: string;               // this plan's own revision; one id and planVersion name one content
-  sourceVersion?: string;             // NEW: the version of the source's shape it reads, e.g. "STRING 12.0"
-  name?: string;
-  description?: string;
-  fingerprint?: string;
-  generator?: { name: string; version: string };
-  features?: string[];                // README, "Versioning" rules 7 and 8
-  format?: string;                    // the format id this plan was written for; advisory
-  formatOptions?: Record<string, unknown>;   // that format's import options, e.g. { delimiter: "\t" }
-  knownFields?: {                     // exactly DataConfig's GraphKnownFields, plus NEW members
-    nodeIdPath?: string;              // default "id"
-    nodeLabelPath?: string | null;    // default null: readers fall back to the id
-    nodeWeightPath?: string | null;   // default null
-    nodeTimePath?: string | null;     // default null
-    nodeTypePath?: TypeSource | string | null;   // NEW, feature "typed-identity"; default null; a string is { path }
-    edgeSrcIdPath?: string | null;    // default null: probe source/target, src/dst, from/to
-    edgeDstIdPath?: string | null;    // default null: as above
-    edgeSrcType?: TypeSource | null;  // NEW, feature "typed-identity"; default null (see "Node types")
-    edgeDstType?: TypeSource | null;  // NEW, feature "typed-identity"; default null
-    idsQualified?: boolean;           // NEW, feature "typed-identity"; default false
-    edgeTypePath?: TypeSource | string | null;   // NEW; default null: the edge's type or predicate (role `kind`),
-                                      // a column, or a constant for a file holding one predicate
-    edgeIdPath?: string | null;       // default null: edges carry no identity
-    edgeWeightPath?: string | null;   // default "weight"
-    edgeTimePath?: string | null;     // default null
-    repeatedEdges?: "keep" | "error" | "first" | "last" | "sum" | "min" | "max";  // default "keep"
-    repeatedNodes?: "merge" | "error";   // NEW; default "merge" (graph-format's onDuplicateNode)
-    missingEndpoints?: "create" | "report" | "reject";   // NEW; default "create", "report" with types
-    positionScale?: number;           // default 1; > 0
-    idCoercion?: "canonical" | "keep";   // default "canonical"
-  };
-  directed?: boolean | "auto";        // default "auto": the file header decides
-  missingValues?: string[];           // NEW: cell texts meaning "no value" in every column of every input,
-                                      // unless a declaration gives its own (Frictionless puts it at table level)
-  types?: { name: string; element?: "node" | "edge"; term?: string }[];   // NEW, informational; term an IRI
-  attributes?: AttributeDeclaration[];
-  joins?: Join[];
-  extensions?: Record<string, unknown>;
+    kind: "graphty-data-plan";
+    version: 1;
+    id?: string; // stable identity of this plan across its versions
+    planVersion?: string; // this plan's own revision; one id and planVersion name one content
+    sourceVersion?: string; // NEW: the version of the source's shape it reads, e.g. "STRING 12.0"
+    name?: string;
+    description?: string;
+    fingerprint?: string;
+    generator?: { name: string; version: string };
+    features?: string[]; // README, "Versioning" rules 7 and 8
+    format?: string; // the format id this plan was written for; advisory
+    formatOptions?: Record<string, unknown>; // that format's import options, e.g. { delimiter: "\t" }
+    knownFields?: {
+        // exactly DataConfig's GraphKnownFields, plus NEW members
+        nodeIdPath?: string; // default "id"
+        nodeLabelPath?: string | null; // default null: readers fall back to the id
+        nodeWeightPath?: string | null; // default null
+        nodeTimePath?: string | null; // default null
+        nodeTypePath?: TypeSource | string | null; // NEW, feature "typed-identity"; default null; a string is { path }
+        edgeSrcIdPath?: string | null; // default null: probe source/target, src/dst, from/to
+        edgeDstIdPath?: string | null; // default null: as above
+        edgeSrcType?: TypeSource | null; // NEW, feature "typed-identity"; default null (see "Node types")
+        edgeDstType?: TypeSource | null; // NEW, feature "typed-identity"; default null
+        idsQualified?: boolean; // NEW, feature "typed-identity"; default false
+        edgeTypePath?: TypeSource | string | null; // NEW; default null: the edge's type or predicate (role `kind`),
+        // a column, or a constant for a file holding one predicate
+        edgeIdPath?: string | null; // default null: edges carry no identity
+        edgeWeightPath?: string | null; // default "weight"
+        edgeTimePath?: string | null; // default null
+        repeatedEdges?: "keep" | "error" | "first" | "last" | "sum" | "min" | "max"; // default "keep"
+        repeatedNodes?: "merge" | "error"; // NEW; default "merge" (graph-format's onDuplicateNode)
+        missingEndpoints?: "create" | "report" | "reject"; // NEW; default "create", "report" with types
+        positionScale?: number; // default 1; > 0
+        idCoercion?: "canonical" | "keep"; // default "canonical"
+    };
+    directed?: boolean | "auto"; // default "auto": the file header decides
+    missingValues?: string[]; // NEW: cell texts meaning "no value" in every column of every input,
+    // unless a declaration gives its own (Frictionless puts it at table level)
+    types?: { name: string; element?: "node" | "edge"; term?: string }[]; // NEW, informational; term an IRI
+    attributes?: AttributeDeclaration[];
+    joins?: Join[];
+    extensions?: Record<string, unknown>;
 }
 
-type TypeSource = { path: string } | { value: string };   // a field of the record, or a constant
+type TypeSource = { path: string } | { value: string }; // a field of the record, or a constant
 
 interface AttributeDeclaration {
-  element: "node" | "edge";
-  name: string;                       // a column key (README, "Paths" rule 3)
-  input?: string;                     // NEW: the named input it describes; default the main input
-  types?: string[];                   // NEW: applies only to elements of these node or edge types
-  rename?: string;                    // the attribute name to store it under
-  include?: boolean;                  // default true; false leaves the field out of the graph
-  type?: "string" | "number" | "integer" | "boolean" | "date" | "list";
-  format?: string;                    // NEW, for type "date": "iso8601" (default), "epoch-ms", "epoch-s"
-  delimiter?: string;                 // NEW, for type "list" in a text cell; default ";"
-  role?: ColumnRole;                  // graph-format's role vocabulary, open
-  level?: "categorical" | "ordinal" | "quantitative" | "temporal" | "identifier";   // open
-  order?: (string | number)[];        // NEW, for level "ordinal": the categories, lowest first
-  weightRole?: "distance" | "similarity";   // open
-  signed?: boolean;                   // only with weightRole "similarity"; default false
-  derive?: { from: string; transform: "one-minus" | "reciprocal" | "neg-log" };   // NEW
-  term?: string;                      // NEW, informational: an absolute IRI (http, https or urn), never fetched
-  idNamespace?: string;               // NEW, informational, with level "identifier": "Entrez", "UniProt"
-  origin?: { run: string; field: string; caveat?: "estimated" | "missing" };   // NEW: a result column
-  missingValues?: string[];           // cell texts that mean "no value", e.g. "NA", ""
-  constraints?: {
-    required?: boolean; unique?: boolean;
-    enum?: (string | number)[]; minimum?: number; maximum?: number; pattern?: string;
-    onViolation?: "report" | "reject-row" | "fail";   // NEW; default "report"
-  };
-  description?: string;
-  features?: string[];
-  extensions?: Record<string, unknown>;
+    element: "node" | "edge";
+    name: string; // a column key (README, "Paths" rule 3)
+    input?: string; // NEW: the named input it describes; default the main input
+    types?: string[]; // NEW: applies only to elements of these node or edge types
+    rename?: string; // the attribute name to store it under
+    include?: boolean; // default true; false leaves the field out of the graph
+    type?: "string" | "number" | "integer" | "boolean" | "date" | "list";
+    format?: string; // NEW, for type "date": "iso8601" (default), "epoch-ms", "epoch-s"
+    delimiter?: string; // NEW, for type "list" in a text cell; default ";"
+    role?: ColumnRole; // graph-format's role vocabulary, open
+    level?: "categorical" | "ordinal" | "quantitative" | "temporal" | "identifier"; // open
+    order?: (string | number)[]; // NEW, for level "ordinal": the categories, lowest first
+    weightRole?: "distance" | "similarity"; // open
+    signed?: boolean; // only with weightRole "similarity"; default false
+    derive?: { from: string; transform: "one-minus" | "reciprocal" | "neg-log" }; // NEW
+    term?: string; // NEW, informational: an absolute IRI (http, https or urn), never fetched
+    idNamespace?: string; // NEW, informational, with level "identifier": "Entrez", "UniProt"
+    origin?: { run: string; field: string; caveat?: "estimated" | "missing" }; // NEW: a result column
+    missingValues?: string[]; // cell texts that mean "no value", e.g. "NA", ""
+    constraints?: {
+        required?: boolean;
+        unique?: boolean;
+        enum?: (string | number)[];
+        minimum?: number;
+        maximum?: number;
+        pattern?: string;
+        onViolation?: "report" | "reject-row" | "fail"; // NEW; default "report"
+    };
+    description?: string;
+    features?: string[];
+    extensions?: Record<string, unknown>;
 }
 
 interface Join {
-  input: string;                      // a named input of the import (envelope.md, "Several inputs")
-  element?: "node";                   // version 1 joins onto nodes only
-  key: string;                        // the key column of the joined table; "" names an empty header
-  on?: string;                        // the node column it matches; default the node id; "originalId" with types
-  type?: string;                      // NEW: join onto nodes of this type only
-  match?: "exact" | "case-insensitive";   // default "exact"
-  onDuplicate?: "error" | "first" | "last";   // a key repeated in the table; default "error"
-  columns?: string[];                 // which columns to take; default all but the key
-  features?: string[];
+    input: string; // a named input of the import (envelope.md, "Several inputs")
+    element?: "node"; // version 1 joins onto nodes only
+    key: string; // the key column of the joined table; "" names an empty header
+    on?: string; // the node column it matches; default the node id; "originalId" with types
+    type?: string; // NEW: join onto nodes of this type only
+    match?: "exact" | "case-insensitive"; // default "exact"
+    onDuplicate?: "error" | "first" | "last"; // a key repeated in the table; default "error"
+    columns?: string[]; // which columns to take; default all but the key
+    features?: string[];
 }
 ```
 
@@ -249,7 +254,7 @@ a STRING network (`W20.yaml`), an HR extract joined onto an entity list (`W13.ya
 
 1. Each record of the joined table is matched to the node whose `on` column (default: the id)
    equals the record's `key`, compared after the import's `idCoercion`, and with `match:
-   "case-insensitive"` without regard to case. With typed identity, the id is the qualified one;
+"case-insensitive"` without regard to case. With typed identity, the id is the qualified one;
    to join a table keyed by the untyped id, set `on: "originalId"` and, usually, `type`.
 2. A key repeated in the table follows `onDuplicate`; the default `error` refuses the join (not the
    import) and reports the repeated keys. A key that matches several nodes (a non-unique `on`
@@ -320,7 +325,7 @@ are the nodes `account:123` and `device:123`.
    the qualified form: the type is read from the `nodeTypePath` column for nodes and parsed from an
    edge end at its first unescaped `:`, and nothing is qualified again. It is what the data plan
    regenerated for an export of a typed graph writes (`nodeIdPath: "id"`, `nodeTypePath:
-   "idSpace"`, `idsQualified: true`; export-mapping.md, "Typed node identity"), so the re-import
+"idSpace"`, `idsQualified: true`; export-mapping.md, "Typed node identity"), so the re-import
    keeps the graph typed, its per-type constraints in scope and its typed joins working.
 7. **Type versus class.** A type here is a namespace: it changes identity. A knowledge graph whose
    ids are already global (IRIs, UUIDs) and whose types are classes, possibly several per node,
@@ -412,49 +417,49 @@ A data plan applied while no data is loaded is held for the next import only whe
 
 ## Conformance
 
-| Input | Required result |
-|---|---|
-| a plan with only `kind` and `version` | accepted; every default applies |
-| `knownFields: { repeatedEdges: "sum-weights" }` (the withdrawn design spelling) | refused with `E_BAD_COMMAND`, naming the accepted values |
-| `"repeatedEdge": "max"` at the top level | refused with `E_BAD_COMMAND`, suggesting `knownFields.repeatedEdges` |
-| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "score", role: "weight" }` | accepted |
-| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "cost", role: "weight" }` | refused: two fields claim the weight role |
-| an attribute `{ element: "edge", name: "corr", weightRole: "distance" }` where some `corr` < 0 | import reports the negative distances; nothing is silently made positive |
-| an attribute `{ element: "edge", name: "w", signed: true }` | that declaration ignored with `E_BAD_COMMAND`; fails the schema |
-| `knownFields.nodeIdPath: "emp_id"` on records that have `employee_id` and a row-counter `id` | import refused, naming `nodeIdPath` |
-| `edgeWeightPath` left out, and an attribute `{ element: "edge", name: "cost", role: "weight" }` | accepted; `cost` is the weight |
-| `edgeWeightPath: null` on records with a numeric `value` | graph weighted by `value` today; `fieldsUsed.edgeWeightPath` says `value` |
-| a top-level `edgeKeyPath` with `features: ["edge-keys"]`, on a reader that does not know the feature | refused with `E_UNSUPPORTED_FEATURE`, not `E_BAD_COMMAND` |
-| `formatOptions: { "sourceColumn": "a" }` | refused: endpoint columns are named only in `knownFields` |
-| `constraints: { pattern: "^(a|aa)+$" }` and a 41-character cell `aaaa...ab` | evaluated in linear time; the violation reported |
-| `type: "date"` and the cell `03/04/2026` | coercion failure reported; no month guessed |
-| `derive: { from: "combined_score", transform: "one-minus" }` on `distance` | the distance column computed; zero-valued inputs reported only for `reciprocal` and `neg-log` |
-| an HR table joined with `on: "originalId"`, `type: "person"`, onto typed nodes `person:E123` | matched |
-| typed identity; types `ex:Person` with id `1` and `ex` with id `Person:1` | two nodes, `ex%3APerson:1` and `ex:Person:1` |
-| typed identity; a node record with an empty type | record rejected and reported |
-| typed identity; an edge end typed `person` where the node file says `Person` | reported under `unmatchedTypes`; no silent node unless `missingEndpoints: "create"` was set |
-| a typed graph exported to each format and re-imported through its regenerated plan (`idsQualified: true`) | equal node counts; `account:123` and `device:123` stay two nodes; the graph is still typed |
-| `repeatedEdges: "first"`, `edgeTypePath: "predicate"`, a pair with `worksFor` and `advises` | both edges kept |
-| a STRING TSV whose header line is `#node1<TAB>node2<TAB>...` | the header read as the header, `#node1` a column key (depends on the graph-io change below) |
-| `knownFields.nodeIdPath: "(((id)))"` | refused: no column has that key |
-| a join on `gene` where 37 genes have no node | 37 unmatched, listed in the import report; no node created |
-| `runOnLoad` present (an element API design draft field) | refused as an unknown top-level member, with the reason "load-time runs belong in a recipe" |
-| applied after a graph is loaded | `needsReimport`; the loaded graph is unchanged |
-| `nodeTypePath` set, listing the feature `typed-identity`, on a reader without it | refused with `E_UNSUPPORTED_FEATURE` |
-| `nodeTypePath` set without listing `typed-identity` | refused with `E_BAD_COMMAND`: the member needs its feature |
-| `knownFields.nodeTypePath: null` | valid; the documented default |
-| `edgeTypePath: { "value": "worksFor" }` on a file holding one predicate | every edge has type `worksFor` |
-| `{ element: "node", name: "email", types: ["Person"], constraints: { required: true, onViolation: "fail" } }` and no record has `email` | import refused, every in-scope record violating |
-| a declaration naming a missing column, no constraints | ignored; `counts.ignoredDeclarations` 1 |
-| `constraints: { onviolation: "fail" }` | declaration disabled, the member unknown in a closed place |
-| `term: "http://purl.org/dc/terms/title"` | valid; the declaration applies |
-| label declarations `fullName` for `Person` and `legalName` for `Org`, both `role: "label"` | accepted; one label column filled per type |
-| a join with `key: ""` on an R `write.csv` table | the empty-header column is the key |
-| plan `missingValues: ["NA"]` and a joined `log2FoldChange` column holding `NA` | the column is numeric; `NA` cells missing |
-| a plan carrying `createdAt` | valid; shared metadata |
-| `data.checkImport` on a 2-million-row file with `sampleRows: 1000` | report and 1,000 records returned; the session's graph unchanged |
-| a typed export's regenerated plan (`nodeTypePath: "idSpace"`, `idsQualified: true`) re-imported | the same typed nodes and edges; per-type constraints still in scope |
-| typed identity; an edge row with `account_id: "123"`, `device_id: "123"`, `edgeSrcType: { value: "account" }`, `edgeDstType: { value: "device" }` | two distinct ends, `account:123` and `device:123` |
+| Input                                                                                                                                             | Required result                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| a plan with only `kind` and `version`                                                                                                             | accepted; every default applies                                                               |
+| `knownFields: { repeatedEdges: "sum-weights" }` (the withdrawn design spelling)                                                                   | refused with `E_BAD_COMMAND`, naming the accepted values                                      |
+| `"repeatedEdge": "max"` at the top level                                                                                                          | refused with `E_BAD_COMMAND`, suggesting `knownFields.repeatedEdges`                          |
+| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "score", role: "weight" }`                                       | accepted                                                                                      |
+| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "cost", role: "weight" }`                                        | refused: two fields claim the weight role                                                     |
+| an attribute `{ element: "edge", name: "corr", weightRole: "distance" }` where some `corr` < 0                                                    | import reports the negative distances; nothing is silently made positive                      |
+| an attribute `{ element: "edge", name: "w", signed: true }`                                                                                       | that declaration ignored with `E_BAD_COMMAND`; fails the schema                               |
+| `knownFields.nodeIdPath: "emp_id"` on records that have `employee_id` and a row-counter `id`                                                      | import refused, naming `nodeIdPath`                                                           |
+| `edgeWeightPath` left out, and an attribute `{ element: "edge", name: "cost", role: "weight" }`                                                   | accepted; `cost` is the weight                                                                |
+| `edgeWeightPath: null` on records with a numeric `value`                                                                                          | graph weighted by `value` today; `fieldsUsed.edgeWeightPath` says `value`                     |
+| a top-level `edgeKeyPath` with `features: ["edge-keys"]`, on a reader that does not know the feature                                              | refused with `E_UNSUPPORTED_FEATURE`, not `E_BAD_COMMAND`                                     |
+| `formatOptions: { "sourceColumn": "a" }`                                                                                                          | refused: endpoint columns are named only in `knownFields`                                     |
+| `constraints: { pattern: "^(a                                                                                                                     | aa)+$" }`and a 41-character cell`aaaa...ab`                                                   | evaluated in linear time; the violation reported |
+| `type: "date"` and the cell `03/04/2026`                                                                                                          | coercion failure reported; no month guessed                                                   |
+| `derive: { from: "combined_score", transform: "one-minus" }` on `distance`                                                                        | the distance column computed; zero-valued inputs reported only for `reciprocal` and `neg-log` |
+| an HR table joined with `on: "originalId"`, `type: "person"`, onto typed nodes `person:E123`                                                      | matched                                                                                       |
+| typed identity; types `ex:Person` with id `1` and `ex` with id `Person:1`                                                                         | two nodes, `ex%3APerson:1` and `ex:Person:1`                                                  |
+| typed identity; a node record with an empty type                                                                                                  | record rejected and reported                                                                  |
+| typed identity; an edge end typed `person` where the node file says `Person`                                                                      | reported under `unmatchedTypes`; no silent node unless `missingEndpoints: "create"` was set   |
+| a typed graph exported to each format and re-imported through its regenerated plan (`idsQualified: true`)                                         | equal node counts; `account:123` and `device:123` stay two nodes; the graph is still typed    |
+| `repeatedEdges: "first"`, `edgeTypePath: "predicate"`, a pair with `worksFor` and `advises`                                                       | both edges kept                                                                               |
+| a STRING TSV whose header line is `#node1<TAB>node2<TAB>...`                                                                                      | the header read as the header, `#node1` a column key (depends on the graph-io change below)   |
+| `knownFields.nodeIdPath: "(((id)))"`                                                                                                              | refused: no column has that key                                                               |
+| a join on `gene` where 37 genes have no node                                                                                                      | 37 unmatched, listed in the import report; no node created                                    |
+| `runOnLoad` present (an element API design draft field)                                                                                           | refused as an unknown top-level member, with the reason "load-time runs belong in a recipe"   |
+| applied after a graph is loaded                                                                                                                   | `needsReimport`; the loaded graph is unchanged                                                |
+| `nodeTypePath` set, listing the feature `typed-identity`, on a reader without it                                                                  | refused with `E_UNSUPPORTED_FEATURE`                                                          |
+| `nodeTypePath` set without listing `typed-identity`                                                                                               | refused with `E_BAD_COMMAND`: the member needs its feature                                    |
+| `knownFields.nodeTypePath: null`                                                                                                                  | valid; the documented default                                                                 |
+| `edgeTypePath: { "value": "worksFor" }` on a file holding one predicate                                                                           | every edge has type `worksFor`                                                                |
+| `{ element: "node", name: "email", types: ["Person"], constraints: { required: true, onViolation: "fail" } }` and no record has `email`           | import refused, every in-scope record violating                                               |
+| a declaration naming a missing column, no constraints                                                                                             | ignored; `counts.ignoredDeclarations` 1                                                       |
+| `constraints: { onviolation: "fail" }`                                                                                                            | declaration disabled, the member unknown in a closed place                                    |
+| `term: "http://purl.org/dc/terms/title"`                                                                                                          | valid; the declaration applies                                                                |
+| label declarations `fullName` for `Person` and `legalName` for `Org`, both `role: "label"`                                                        | accepted; one label column filled per type                                                    |
+| a join with `key: ""` on an R `write.csv` table                                                                                                   | the empty-header column is the key                                                            |
+| plan `missingValues: ["NA"]` and a joined `log2FoldChange` column holding `NA`                                                                    | the column is numeric; `NA` cells missing                                                     |
+| a plan carrying `createdAt`                                                                                                                       | valid; shared metadata                                                                        |
+| `data.checkImport` on a 2-million-row file with `sampleRows: 1000`                                                                                | report and 1,000 records returned; the session's graph unchanged                              |
+| a typed export's regenerated plan (`nodeTypePath: "idSpace"`, `idsQualified: true`) re-imported                                                   | the same typed nodes and edges; per-type constraints still in scope                           |
+| typed identity; an edge row with `account_id: "123"`, `device_id: "123"`, `edgeSrcType: { value: "account" }`, `edgeDstType: { value: "device" }` | two distinct ends, `account:123` and `device:123`                                             |
 
 ## Worked examples
 
@@ -474,27 +479,33 @@ line, because no record carries `#node1`.
 
 ```json
 {
-  "kind": "graphty-data-plan",
-  "version": 1,
-  "id": "org.example-lab.string-tsv",
-  "planVersion": "2",
-  "sourceVersion": "STRING 12.0",
-  "name": "STRING interactions (TSV export)",
-  "format": "csv",
-  "formatOptions": { "delimiter": "\t" },
-  "knownFields": {
-    "edgeSrcIdPath": "#node1",
-    "edgeDstIdPath": "node2",
-    "edgeWeightPath": "combined_score",
-    "repeatedEdges": "max"
-  },
-  "directed": false,
-  "attributes": [
-    { "element": "edge", "name": "combined_score", "type": "number", "role": "weight",
-      "level": "quantitative", "weightRole": "similarity",
-      "constraints": { "minimum": 0, "maximum": 1 },
-      "description": "STRING combined confidence, 0 to 1" }
-  ]
+    "kind": "graphty-data-plan",
+    "version": 1,
+    "id": "org.example-lab.string-tsv",
+    "planVersion": "2",
+    "sourceVersion": "STRING 12.0",
+    "name": "STRING interactions (TSV export)",
+    "format": "csv",
+    "formatOptions": { "delimiter": "\t" },
+    "knownFields": {
+        "edgeSrcIdPath": "#node1",
+        "edgeDstIdPath": "node2",
+        "edgeWeightPath": "combined_score",
+        "repeatedEdges": "max"
+    },
+    "directed": false,
+    "attributes": [
+        {
+            "element": "edge",
+            "name": "combined_score",
+            "type": "number",
+            "role": "weight",
+            "level": "quantitative",
+            "weightRole": "similarity",
+            "constraints": { "minimum": 0, "maximum": 1 },
+            "description": "STRING combined confidence, 0 to 1"
+        }
+    ]
 }
 ```
 
@@ -505,16 +516,22 @@ anti-correlation and must not be folded into correlation.
 
 ```json
 {
-  "kind": "graphty-data-plan",
-  "version": 1,
-  "name": "WGCNA co-expression edges",
-  "knownFields": { "edgeSrcIdPath": "fromNode", "edgeDstIdPath": "toNode", "edgeWeightPath": "weight" },
-  "directed": false,
-  "attributes": [
-    { "element": "edge", "name": "weight", "type": "number", "level": "quantitative",
-      "weightRole": "similarity", "signed": true },
-    { "element": "node", "name": "module", "level": "categorical", "role": "community" }
-  ]
+    "kind": "graphty-data-plan",
+    "version": 1,
+    "name": "WGCNA co-expression edges",
+    "knownFields": { "edgeSrcIdPath": "fromNode", "edgeDstIdPath": "toNode", "edgeWeightPath": "weight" },
+    "directed": false,
+    "attributes": [
+        {
+            "element": "edge",
+            "name": "weight",
+            "type": "number",
+            "level": "quantitative",
+            "weightRole": "similarity",
+            "signed": true
+        },
+        { "element": "node", "name": "module", "level": "categorical", "role": "community" }
+    ]
 }
 ```
 
@@ -528,25 +545,31 @@ decision 27.)
 
 ```json
 {
-  "kind": "graphty-data-plan",
-  "version": 1,
-  "name": "Account-device links",
-  "features": ["typed-identity"],
-  "knownFields": {
-    "nodeIdPath": "id",
-    "nodeTypePath": "entity_type",
-    "edgeSrcIdPath": "account_id",
-    "edgeSrcType": { "value": "account" },
-    "edgeDstIdPath": "device_id",
-    "edgeDstType": { "value": "device" },
-    "edgeIdPath": "login_id",
-    "edgeTimePath": "first_seen",
-    "missingEndpoints": "report"
-  },
-  "directed": false,
-  "attributes": [
-    { "element": "edge", "name": "first_seen", "type": "date", "level": "temporal", "role": "timestamp" },
-    { "element": "node", "name": "risk_score", "type": "number", "level": "quantitative", "missingValues": ["", "NA"] }
-  ]
+    "kind": "graphty-data-plan",
+    "version": 1,
+    "name": "Account-device links",
+    "features": ["typed-identity"],
+    "knownFields": {
+        "nodeIdPath": "id",
+        "nodeTypePath": "entity_type",
+        "edgeSrcIdPath": "account_id",
+        "edgeSrcType": { "value": "account" },
+        "edgeDstIdPath": "device_id",
+        "edgeDstType": { "value": "device" },
+        "edgeIdPath": "login_id",
+        "edgeTimePath": "first_seen",
+        "missingEndpoints": "report"
+    },
+    "directed": false,
+    "attributes": [
+        { "element": "edge", "name": "first_seen", "type": "date", "level": "temporal", "role": "timestamp" },
+        {
+            "element": "node",
+            "name": "risk_score",
+            "type": "number",
+            "level": "quantitative",
+            "missingValues": ["", "NA"]
+        }
+    ]
 }
 ```

@@ -51,52 +51,67 @@ labels that cluster's members, while the note carries the text and the reasoning
 
 ```ts
 interface AnnotationSet {
-  kind: "graphty-annotations";
-  version: 1;
-  name?: string;
-  fingerprint?: string;          // the graph the notes were written on (topology only)
-  dataDigest?: string;           // "sha256:<hex>" of the data bytes the notes were written against
-  binding?: "exact-data" | "by-id";   // default "by-id"; "exact-data": bind only to data with dataDigest
-  generator?: { name: string; version: string };
-  // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
-  notes: Note[];                 // order is meaningful: it is the reading order a report uses
-  extensions?: Record<string, unknown>;
+    kind: "graphty-annotations";
+    version: 1;
+    name?: string;
+    fingerprint?: string; // the graph the notes were written on (topology only)
+    dataDigest?: string; // "sha256:<hex>" of the data bytes the notes were written against
+    binding?: "exact-data" | "by-id"; // default "by-id"; "exact-data": bind only to data with dataDigest
+    generator?: { name: string; version: string };
+    // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
+    notes: Note[]; // order is meaningful: it is the reading order a report uses
+    extensions?: Record<string, unknown>;
 }
 
 interface Note {
-  id: string;                    // globally unique: "note_" plus a ULID or UUID the writer mints
-  target: NoteTarget;
-  text: string;                  // plain text; see "Security"
-  tags?: string[];               // default []
-  author?: string;
-  createdAt: string;             // RFC 3339 date-time
-  updatedAt: string;             // RFC 3339 date-time, >= createdAt
-  status?: "open" | "confirmed" | "cleared" | "escalated" | "retracted";   // default "open"; open enumeration
-  confidence?: "low" | "medium" | "high";   // open enumeration; a finding's confidence
-  quotes?: { path: string; value: unknown; at?: string }[];   // values the note quotes
-  cites?: string[];              // run ids the note cites
-  runsAt?: Record<string, string>;   // run id -> digest of the run record the note was written against
-  digest: string;                // "sha256:<hex>" of the note's canonical content (below); REQUIRED
-  revisions?: { text: string; status?: string; target?: NoteTarget; tags?: string[];
-                quotes?: unknown[]; cites?: string[]; updatedAt: string; author?: string; digest?: string }[];
-  orphaned?: { since: string; lastTarget: string };
-  importedFrom?: { document: string; digest: string; at: string;   // appended by each applier
-                   observed?: string; by?: string; installation?: string }[];
-  userData?: Record<string, unknown>;   // round-trips untouched
-  features?: string[];
-  extensions?: Record<string, unknown>;
+    id: string; // globally unique: "note_" plus a ULID or UUID the writer mints
+    target: NoteTarget;
+    text: string; // plain text; see "Security"
+    tags?: string[]; // default []
+    author?: string;
+    createdAt: string; // RFC 3339 date-time
+    updatedAt: string; // RFC 3339 date-time, >= createdAt
+    status?: "open" | "confirmed" | "cleared" | "escalated" | "retracted"; // default "open"; open enumeration
+    confidence?: "low" | "medium" | "high"; // open enumeration; a finding's confidence
+    quotes?: { path: string; value: unknown; at?: string }[]; // values the note quotes
+    cites?: string[]; // run ids the note cites
+    runsAt?: Record<string, string>; // run id -> digest of the run record the note was written against
+    digest: string; // "sha256:<hex>" of the note's canonical content (below); REQUIRED
+    revisions?: {
+        text: string;
+        status?: string;
+        target?: NoteTarget;
+        tags?: string[];
+        quotes?: unknown[];
+        cites?: string[];
+        updatedAt: string;
+        author?: string;
+        digest?: string;
+    }[];
+    orphaned?: { since: string; lastTarget: string };
+    importedFrom?: {
+        document: string;
+        digest: string;
+        at: string; // appended by each applier
+        observed?: string;
+        by?: string;
+        installation?: string;
+    }[];
+    userData?: Record<string, unknown>; // round-trips untouched
+    features?: string[];
+    extensions?: Record<string, unknown>;
 }
 
 type NoteTarget =
-  | { node: string | number }
-  | { edge: EdgeMember; check?: Check | Check[] }   // EdgeMember reused unchanged
-  | { group: { run: string; field?: string; value: string | number; members: (string | number)[] } }
-  | { set: string }              // a kept set (envelope.md, "Kept sets")
-  | { point: [x: number, y: number, z: number] }   // scene units
-  | { graph: true }
-  | { run: string; recipe?: string }   // a run id, or a recipe's `as` when `recipe` names the recipe id
-  | { layer: string };           // a style layer's authored id, else its name
-type Check = { path: string; value: unknown };   // an attribute value the edge must have
+    | { node: string | number }
+    | { edge: EdgeMember; check?: Check | Check[] } // EdgeMember reused unchanged
+    | { group: { run: string; field?: string; value: string | number; members: (string | number)[] } }
+    | { set: string } // a kept set (envelope.md, "Kept sets")
+    | { point: [x: number, y: number, z: number] } // scene units
+    | { graph: true }
+    | { run: string; recipe?: string } // a run id, or a recipe's `as` when `recipe` names the recipe id
+    | { layer: string }; // a style layer's authored id, else its name
+type Check = { path: string; value: unknown }; // an attribute value the edge must have
 ```
 
 **Statuses.** `open` is a note nobody has decided. `confirmed`, `cleared` and `escalated` are
@@ -112,8 +127,14 @@ reads one, so these documents do not use it.
 
 ```ts
 // for reference; declared in graphty-element
-interface EdgeMember { source: NodeId; target: NodeId; id?: string | number; key?: string | number;
-                       ordinal?: number; among?: number }
+interface EdgeMember {
+    source: NodeId;
+    target: NodeId;
+    id?: string | number;
+    key?: string | number;
+    ordinal?: number;
+    among?: number;
+}
 ```
 
 ### Targets
@@ -133,7 +154,7 @@ interface EdgeMember { source: NodeId; target: NodeId; id?: string | number; key
   binds by ordinal only when the notes' `dataDigest` matches the loaded data's bytes (or the
   project's `data.original.digest`, rule 9). On different data it binds **by its check** instead:
   an edge target MAY carry `check`, one attribute value the edge must have (`{ path:
-  "data.timestamp", value: "2026-09-17T02:14:00Z" }`) or a list of them acting as a composite key
+"data.timestamp", value: "2026-09-17T02:14:00Z" }`) or a list of them acting as a composite key
   (caller, callee and timestamp); when exactly one edge of the pair (in either order on an
   undirected graph) satisfies every check, the note binds to it and is reported as rebound by
   check. With none or several, it is orphaned with the reason "ordinal reference on different
@@ -174,7 +195,7 @@ A note is never about another note.
    scheme is approved (README). Its options select what is written, for writing notes for someone
    else: `select` (by tag, status, author or target), `withoutRetracted`, and `withoutRevisions`.
    Without revisions, each note carries a marker `{ revisionsDropped: <count>, digest: <digest of
-   the dropped history> }` in its `extensions` under `graphty.revisions-dropped`, so the history is
+the dropped history> }` in its `extensions` under `graphty.revisions-dropped`, so the history is
    visibly truncated rather than silently missing. A project save keeps the full history; a share
    (envelope.md, "Saving" rule 2) lists every retracted note and every note with revisions before
    writing.
@@ -216,34 +237,34 @@ A note is never about another note.
    whose `id` is held but whose `target` differs is a different note, whatever `onConflict` says: it
    is added under a new id and reported as renamed. A note whose `id` and target are held with
    different content follows these rules, in order:
-   - **History decides first.** When one side's `revisions` contain the other side's digest, that
-     side descends from the other and wins, whatever its status, under every `onConflict` policy;
-     the other version goes into `revisions`. So a note I reopened or confirmed after clearing it
-     reaches a colleague who holds the old cleared copy, and a colleague's stale cleared copy (an
-     ancestor of my confirmed note) cannot overturn it. A note whose history the incoming one
-     descends from, and whose status the merge changes, is reported as a notice naming both
-     statuses.
-   - **A status change from someone else is a proposal.** When neither history contains the other
-     and the two sides differ in status -- one side retracted, cleared, confirmed or escalated --
-     the held note is not changed: the incoming version is kept as a pending proposal on the note
-     and reported with `W_STATUS_PROPOSED`, naming both statuses and the incoming document, until
-     the caller accepts or rejects it per note. A notes file sent back by someone who received a
-     case file can therefore never retract, clear or confirm the investigator's note on its own, and
-     a colleague's genuine retraction still reaches the note as a proposal the investigator sees.
-   - Otherwise the applier's `onConflict` option decides: `"keep-both"` (the default) adds the
-     incoming note under a new id and reports both ids as renamed, so a person can reconcile them;
-     `"newer"` replaces the held note when the incoming `updatedAt` is later, moving the held
-     version into `revisions`, and otherwise keeps the held note and reports the incoming one.
-   - A timestamp later than the reader's clock plus five minutes is not believed: it is reported,
-     and the note is treated as having no `updatedAt` for this comparison, so a note dated 9999
-     cannot win every later merge.
+    - **History decides first.** When one side's `revisions` contain the other side's digest, that
+      side descends from the other and wins, whatever its status, under every `onConflict` policy;
+      the other version goes into `revisions`. So a note I reopened or confirmed after clearing it
+      reaches a colleague who holds the old cleared copy, and a colleague's stale cleared copy (an
+      ancestor of my confirmed note) cannot overturn it. A note whose history the incoming one
+      descends from, and whose status the merge changes, is reported as a notice naming both
+      statuses.
+    - **A status change from someone else is a proposal.** When neither history contains the other
+      and the two sides differ in status -- one side retracted, cleared, confirmed or escalated --
+      the held note is not changed: the incoming version is kept as a pending proposal on the note
+      and reported with `W_STATUS_PROPOSED`, naming both statuses and the incoming document, until
+      the caller accepts or rejects it per note. A notes file sent back by someone who received a
+      case file can therefore never retract, clear or confirm the investigator's note on its own, and
+      a colleague's genuine retraction still reaches the note as a proposal the investigator sees.
+    - Otherwise the applier's `onConflict` option decides: `"keep-both"` (the default) adds the
+      incoming note under a new id and reports both ids as renamed, so a person can reconcile them;
+      `"newer"` replaces the held note when the incoming `updatedAt` is later, moving the held
+      version into `revisions`, and otherwise keeps the held note and reports the incoming one.
+    - A timestamp later than the reader's clock plus five minutes is not believed: it is reported,
+      and the note is treated as having no `updatedAt` for this comparison, so a note dated 9999
+      cannot win every later merge.
 2. Each note binds its target:
-   - node and edge targets bind to the one element with that identity;
-   - a run target binds to the run with that id (in an envelope with a recipe, after the recipe's
-     namespacing has been applied to the target, `cites` and quote paths, recipe.md);
-   - a group or set target binds as "Targets" describes;
-   - a layer target binds to the layer with that authored id, else that name;
-   - a point or the graph always binds.
+    - node and edge targets bind to the one element with that identity;
+    - a run target binds to the run with that id (in an envelope with a recipe, after the recipe's
+      namespacing has been applied to the target, `cites` and quote paths, recipe.md);
+    - a group or set target binds as "Targets" describes;
+    - a layer target binds to the layer with that authored id, else that name;
+    - a point or the graph always binds.
 3. A note whose run target will be produced by the recipe of the same envelope, or by a recipe
    already applied and not yet run, is **pending**: listed in `needsRerun`, not orphaned, and binds
    when the run completes. Opening a project without re-running its analysis therefore never marks
@@ -318,46 +339,46 @@ A note is never about another note.
 
 ## Conformance
 
-| Input | Required result |
-|---|---|
-| a note on `{ "node": "ACC-1042" }` where that node exists | bound |
-| a note on `{ "node": "ACC-9999" }` where it does not | added orphaned; reported; still listed |
-| a note on `{ "node": "1042" }` on a graph imported with `canonical` coercion whose node id is the number 1042 | bound |
-| a note on `{ "node": "01" }` where the node id is the number 1 | orphaned: `"01"` stays text under `canonical` |
-| a note on `{ "edge": { "source": "A", "target": "B", "ordinal": 1, "among": 2 } }` where the pair has 3 edges | orphaned: the count no longer matches, so no edge is guessed |
-| an edge target with `key` | fails the schema; kept verbatim, reported |
-| two notes with the same `id` in one document | the second is reported and added under a new id |
-| an incoming note whose `id` is held with different text, default options | added under a new id; both ids reported; the held note unchanged |
-| the same, `onConflict: "newer"`, incoming `updatedAt` later | the held note replaced; its previous version in `revisions` |
-| an incoming note with `status: "retracted"` for a held open note, neither history containing the other | the held note unchanged; the retraction kept as a proposal, `W_STATUS_PROPOSED` |
-| a held retracted note and an incoming open copy that is its ancestor | the held note stays retracted; no second note |
-| a held cleared note and an incoming `confirmed` note whose `revisions` hold the cleared digest | the held note becomes confirmed; a notice names both statuses |
-| a held `confirmed` note and an incoming stale `cleared` copy whose digest is in the held note's `revisions` | the held note stays confirmed |
-| a forged `retracted` copy of a held note from a file sent back by a recipient | the held note unchanged; a proposal the caller must accept |
-| notes with `binding: "exact-data"` opened on different data, no caller option | nothing bound; `differs` reported |
-| notes on the exhibit (digest A) reopened from a project re-exported after a merge (`data.original.digest` A) | `match` via the original digest; ordinal references bind |
-| an ordinal edge note with `check` on caller, callee and timestamp, on an extract with calls appended | bound to the one matching edge; reported as rebound by check |
-| `toDocument({ withoutRevisions: true, withoutRetracted: true })` | no retracted notes; each note carries the dropped-history marker |
-| a note with `status: "escalated"` | valid; a determination |
-| an incoming note with the held note's `id` but a different target | added under a new id, whatever `onConflict` says |
-| an incoming note dated `9999-12-31T23:59:59Z`, `onConflict: "newer"` | timestamp reported; not treated as newer |
-| a note whose text was edited without updating `digest` | kept, shown with `W_DIGEST_MISMATCH` |
-| notes with `dataDigest` A applied to data with digest B, `requireDigest: true` | nothing bound; notes returned parsed; `differs` reported |
-| the same without `requireDigest` | `differs` reported; notes whose targets exist bind |
-| an ordinal edge reference, data digest differs | orphaned: "ordinal reference on different data" |
-| a note on a run started from a panel without `as`, saved and reopened | the run given an alias on save; the note written against it; bound on reopen |
-| a group note on cluster 3 with `status: "confirmed"`, re-run so the best match gained members | not rebound without the caller's confirmation; added and removed members reported |
-| a note citing a run whose record digest changed after `onRepeat: "replace"` | shown as written against an earlier run, `W_RUN_CHANGED` |
-| my own saved notes file reopened | no import entry appended |
-| a note passed through two colleagues' files | two entries in `importedFrom`, oldest first, each naming the observed file, not the document's `name` |
-| `text` containing `<img src=x onerror=...>` | stored and displayed as those characters |
-| a note on `{ "run": "rings" }` in an envelope whose recipe step has `as: "rings"`, applied with namespace `fraud` | target, `cites` and quote paths rewritten to `fraud__rings`; bound |
-| a standalone notes file with `{ "run": "rings", "recipe": "org.example.fraud" }`, applied after that recipe ran with namespace `fraud2` | bound to `fraud2__rings` |
-| a project opened without running its recipe; a note on `{ "run": "modules" }` | pending, listed in `needsRerun`; no `orphaned` stamp written |
-| a target `{ "node": "TP53", "graphId": "disease" }` on a version 1 reader, without the feature `graphs` | fails the schema (targets are closed on their discriminators); kept verbatim, not bound |
-| a note carrying `orphaned` whose node exists again | bound; stamp cleared; reported as rebound |
-| a group note on cluster 3 of `modules` with recorded members, after a re-run renumbers it to 5 | bound to cluster 5; reported as rebound |
-| a note quoting `data.risk_score` 0.91 on a node whose value is now 0.12 | bound; `W_STALE_QUOTE` with both values |
+| Input                                                                                                                                   | Required result                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| a note on `{ "node": "ACC-1042" }` where that node exists                                                                               | bound                                                                                                 |
+| a note on `{ "node": "ACC-9999" }` where it does not                                                                                    | added orphaned; reported; still listed                                                                |
+| a note on `{ "node": "1042" }` on a graph imported with `canonical` coercion whose node id is the number 1042                           | bound                                                                                                 |
+| a note on `{ "node": "01" }` where the node id is the number 1                                                                          | orphaned: `"01"` stays text under `canonical`                                                         |
+| a note on `{ "edge": { "source": "A", "target": "B", "ordinal": 1, "among": 2 } }` where the pair has 3 edges                           | orphaned: the count no longer matches, so no edge is guessed                                          |
+| an edge target with `key`                                                                                                               | fails the schema; kept verbatim, reported                                                             |
+| two notes with the same `id` in one document                                                                                            | the second is reported and added under a new id                                                       |
+| an incoming note whose `id` is held with different text, default options                                                                | added under a new id; both ids reported; the held note unchanged                                      |
+| the same, `onConflict: "newer"`, incoming `updatedAt` later                                                                             | the held note replaced; its previous version in `revisions`                                           |
+| an incoming note with `status: "retracted"` for a held open note, neither history containing the other                                  | the held note unchanged; the retraction kept as a proposal, `W_STATUS_PROPOSED`                       |
+| a held retracted note and an incoming open copy that is its ancestor                                                                    | the held note stays retracted; no second note                                                         |
+| a held cleared note and an incoming `confirmed` note whose `revisions` hold the cleared digest                                          | the held note becomes confirmed; a notice names both statuses                                         |
+| a held `confirmed` note and an incoming stale `cleared` copy whose digest is in the held note's `revisions`                             | the held note stays confirmed                                                                         |
+| a forged `retracted` copy of a held note from a file sent back by a recipient                                                           | the held note unchanged; a proposal the caller must accept                                            |
+| notes with `binding: "exact-data"` opened on different data, no caller option                                                           | nothing bound; `differs` reported                                                                     |
+| notes on the exhibit (digest A) reopened from a project re-exported after a merge (`data.original.digest` A)                            | `match` via the original digest; ordinal references bind                                              |
+| an ordinal edge note with `check` on caller, callee and timestamp, on an extract with calls appended                                    | bound to the one matching edge; reported as rebound by check                                          |
+| `toDocument({ withoutRevisions: true, withoutRetracted: true })`                                                                        | no retracted notes; each note carries the dropped-history marker                                      |
+| a note with `status: "escalated"`                                                                                                       | valid; a determination                                                                                |
+| an incoming note with the held note's `id` but a different target                                                                       | added under a new id, whatever `onConflict` says                                                      |
+| an incoming note dated `9999-12-31T23:59:59Z`, `onConflict: "newer"`                                                                    | timestamp reported; not treated as newer                                                              |
+| a note whose text was edited without updating `digest`                                                                                  | kept, shown with `W_DIGEST_MISMATCH`                                                                  |
+| notes with `dataDigest` A applied to data with digest B, `requireDigest: true`                                                          | nothing bound; notes returned parsed; `differs` reported                                              |
+| the same without `requireDigest`                                                                                                        | `differs` reported; notes whose targets exist bind                                                    |
+| an ordinal edge reference, data digest differs                                                                                          | orphaned: "ordinal reference on different data"                                                       |
+| a note on a run started from a panel without `as`, saved and reopened                                                                   | the run given an alias on save; the note written against it; bound on reopen                          |
+| a group note on cluster 3 with `status: "confirmed"`, re-run so the best match gained members                                           | not rebound without the caller's confirmation; added and removed members reported                     |
+| a note citing a run whose record digest changed after `onRepeat: "replace"`                                                             | shown as written against an earlier run, `W_RUN_CHANGED`                                              |
+| my own saved notes file reopened                                                                                                        | no import entry appended                                                                              |
+| a note passed through two colleagues' files                                                                                             | two entries in `importedFrom`, oldest first, each naming the observed file, not the document's `name` |
+| `text` containing `<img src=x onerror=...>`                                                                                             | stored and displayed as those characters                                                              |
+| a note on `{ "run": "rings" }` in an envelope whose recipe step has `as: "rings"`, applied with namespace `fraud`                       | target, `cites` and quote paths rewritten to `fraud__rings`; bound                                    |
+| a standalone notes file with `{ "run": "rings", "recipe": "org.example.fraud" }`, applied after that recipe ran with namespace `fraud2` | bound to `fraud2__rings`                                                                              |
+| a project opened without running its recipe; a note on `{ "run": "modules" }`                                                           | pending, listed in `needsRerun`; no `orphaned` stamp written                                          |
+| a target `{ "node": "TP53", "graphId": "disease" }` on a version 1 reader, without the feature `graphs`                                 | fails the schema (targets are closed on their discriminators); kept verbatim, not bound               |
+| a note carrying `orphaned` whose node exists again                                                                                      | bound; stamp cleared; reported as rebound                                                             |
+| a group note on cluster 3 of `modules` with recorded members, after a re-run renumbers it to 5                                          | bound to cluster 5; reported as rebound                                                               |
+| a note quoting `data.risk_score` 0.91 on a node whose value is now 0.12                                                                 | bound; `W_STALE_QUOTE` with both values                                                               |
 
 ## Worked examples
 
@@ -367,44 +388,44 @@ A note is never about another note.
 
 ```json
 {
-  "kind": "graphty-annotations",
-  "version": 1,
-  "name": "Ring A findings",
-  "dataDigest": "sha256:9b1d0e6a3c5f7e2d4b8a1c0f9e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c4",
-  "handling": [ { "marking": "internal", "note": "Evidence notes; do not forward outside the fraud team." } ],
-  "notes": [
-    {
-      "id": "note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V",
-      "target": { "node": "ACC-1042" },
-      "text": "Opened the same day as ACC-1043 and ACC-1044 from one device.",
-      "tags": ["suspect", "ring-a"],
-      "status": "open",
-      "author": "j.rivera",
-      "createdAt": "2026-09-20T14:02:11Z",
-      "updatedAt": "2026-09-20T14:02:11Z",
-      "digest": "sha256:0fa003dd014ac6f0df99d16880e2eddf3042664319054d86a40cde97f3f484d0",
-      "quotes": [{ "path": "data.risk_score", "value": 0.91 }]
-    },
-    {
-      "id": "note_01K5KZ8A4B5C6D7E8F9G0H1J2K",
-      "target": { "edge": { "source": "ACC-1042", "target": "DEV-77", "id": "login-2026-09-18" } },
-      "text": "First shared login; the chargebacks start 36 hours later.",
-      "tags": ["evidence"],
-      "author": "j.rivera",
-      "createdAt": "2026-09-20T14:10:40Z",
-      "updatedAt": "2026-09-21T09:00:00Z",
-      "digest": "sha256:0191561bd5da0479745f5a55c6d5a829db246999aac117cbb1a9189393e0faf8"
-    },
-    {
-      "id": "note_01K5M1C3D4E5F6G7H8J9K0M1N2",
-      "target": { "run": "rings" },
-      "text": "Louvain at resolution 1.0 separates ring A from the merchant cluster; 0.5 does not.",
-      "cites": ["rings"],
-      "createdAt": "2026-09-21T09:30:00Z",
-      "updatedAt": "2026-09-21T09:30:00Z",
-      "digest": "sha256:b9270656d1f83d00b02983e0fa53cc6259fb82014d4dc8d150ebfb229633a77c"
-    }
-  ]
+    "kind": "graphty-annotations",
+    "version": 1,
+    "name": "Ring A findings",
+    "dataDigest": "sha256:9b1d0e6a3c5f7e2d4b8a1c0f9e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c4",
+    "handling": [{ "marking": "internal", "note": "Evidence notes; do not forward outside the fraud team." }],
+    "notes": [
+        {
+            "id": "note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V",
+            "target": { "node": "ACC-1042" },
+            "text": "Opened the same day as ACC-1043 and ACC-1044 from one device.",
+            "tags": ["suspect", "ring-a"],
+            "status": "open",
+            "author": "j.rivera",
+            "createdAt": "2026-09-20T14:02:11Z",
+            "updatedAt": "2026-09-20T14:02:11Z",
+            "digest": "sha256:0fa003dd014ac6f0df99d16880e2eddf3042664319054d86a40cde97f3f484d0",
+            "quotes": [{ "path": "data.risk_score", "value": 0.91 }]
+        },
+        {
+            "id": "note_01K5KZ8A4B5C6D7E8F9G0H1J2K",
+            "target": { "edge": { "source": "ACC-1042", "target": "DEV-77", "id": "login-2026-09-18" } },
+            "text": "First shared login; the chargebacks start 36 hours later.",
+            "tags": ["evidence"],
+            "author": "j.rivera",
+            "createdAt": "2026-09-20T14:10:40Z",
+            "updatedAt": "2026-09-21T09:00:00Z",
+            "digest": "sha256:0191561bd5da0479745f5a55c6d5a829db246999aac117cbb1a9189393e0faf8"
+        },
+        {
+            "id": "note_01K5M1C3D4E5F6G7H8J9K0M1N2",
+            "target": { "run": "rings" },
+            "text": "Louvain at resolution 1.0 separates ring A from the merchant cluster; 0.5 does not.",
+            "cites": ["rings"],
+            "createdAt": "2026-09-21T09:30:00Z",
+            "updatedAt": "2026-09-21T09:30:00Z",
+            "digest": "sha256:b9270656d1f83d00b02983e0fa53cc6259fb82014d4dc8d150ebfb229633a77c"
+        }
+    ]
 }
 ```
 
@@ -415,18 +436,18 @@ target layers, so they bind wherever the style is applied.
 
 ```json
 {
-  "kind": "graphty-annotations",
-  "version": 1,
-  "notes": [
-    {
-      "id": "note_01K5F2A0B1C2D3E4F5G6H7J8K9",
-      "target": { "layer": "logfc" },
-      "text": "Red is up-regulated, blue down; the scale is clamped at |logFC| = 3.",
-      "createdAt": "2026-09-19T10:00:00Z",
-      "updatedAt": "2026-09-19T10:00:00Z",
-      "digest": "sha256:3a0d427335871f83162866bb16f102224cc7583b7864e2893f3b0cf0cad751b4"
-    }
-  ]
+    "kind": "graphty-annotations",
+    "version": 1,
+    "notes": [
+        {
+            "id": "note_01K5F2A0B1C2D3E4F5G6H7J8K9",
+            "target": { "layer": "logfc" },
+            "text": "Red is up-regulated, blue down; the scale is clamped at |logFC| = 3.",
+            "createdAt": "2026-09-19T10:00:00Z",
+            "updatedAt": "2026-09-19T10:00:00Z",
+            "digest": "sha256:3a0d427335871f83162866bb16f102224cc7583b7864e2893f3b0cf0cad751b4"
+        }
+    ]
 }
 ```
 
@@ -437,18 +458,18 @@ top enrichment term, bound to the cluster by its members so the label follows it
 
 ```json
 {
-  "kind": "graphty-annotations",
-  "version": 1,
-  "notes": [
-    {
-      "id": "note_01K5Q0R1S2T3V4W5X6Y7Z8A9B0",
-      "target": { "group": { "run": "modules", "value": 2, "members": ["RPL5", "RPL11", "NOP56", "FBL"] } },
-      "text": "Ribosome biogenesis (GO:0042254, FDR 1e-12).",
-      "tags": ["cluster-label"],
-      "createdAt": "2026-09-22T10:00:00Z",
-      "updatedAt": "2026-09-22T10:00:00Z",
-      "digest": "sha256:15a24f5f94b8cb7e94eac17d33808c4cbac5de5632e77abc1b8b7bc0bfc05b00"
-    }
-  ]
+    "kind": "graphty-annotations",
+    "version": 1,
+    "notes": [
+        {
+            "id": "note_01K5Q0R1S2T3V4W5X6Y7Z8A9B0",
+            "target": { "group": { "run": "modules", "value": 2, "members": ["RPL5", "RPL11", "NOP56", "FBL"] } },
+            "text": "Ribosome biogenesis (GO:0042254, FDR 1e-12).",
+            "tags": ["cluster-label"],
+            "createdAt": "2026-09-22T10:00:00Z",
+            "updatedAt": "2026-09-22T10:00:00Z",
+            "digest": "sha256:15a24f5f94b8cb7e94eac17d33808c4cbac5de5632e77abc1b8b7bc0bfc05b00"
+        }
+    ]
 }
 ```

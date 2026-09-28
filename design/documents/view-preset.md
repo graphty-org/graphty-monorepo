@@ -27,8 +27,7 @@ The word names three different things in this repository; this document is only 
    holds the filter (`filter`), the layers switched on (`layers`) and the notes a view shows
    (`notes`), so four report pages can show four different subsets and emphases; each of the other
    captures can be added as an optional member later without a new major version. Canvas callouts
-   and the image export of a page, which report pages need (`W15.yaml`), are open decisions 14 and
-   33.
+   and the image export of a page, which report pages need (`W15.yaml`), are open decisions 14 and 33.
 
 ### Changes from the element API design
 
@@ -52,56 +51,63 @@ This document changes it in three ways:
 
 ```ts
 interface ViewDocument {
-  kind: "graphty-view";
-  version: 1;
-  name?: string;
-  fingerprint?: string;          // the graph the stored cameras were taken on
-  generator?: { name: string; version: string };
-  initial?: string;              // id of the view to apply on open
-  views: View[];                 // in order; the order is meaningful (report page order)
-  extensions?: Record<string, unknown>;
+    kind: "graphty-view";
+    version: 1;
+    name?: string;
+    fingerprint?: string; // the graph the stored cameras were taken on
+    generator?: { name: string; version: string };
+    initial?: string; // id of the view to apply on open
+    views: View[]; // in order; the order is meaningful (report page order)
+    extensions?: Record<string, unknown>;
 }
 
 interface View {
-  id: string;                    // unique in the document
-  name: string;
-  caption?: string;
-  mode?: "2d" | "3d" | "vr" | "ar";   // default: leave the current mode
-  camera?: StoredCamera;         // at least one of camera and framing
-  framing?: Framing;
-  prefer?: "camera" | "framing"; // with both, which to use when the graph's identity is unknown; default "framing"
-  filter?: Filter;               // what this page shows (envelope.md, "The active filter"); default: no filter
-  layers?: string[];             // ids (else names) of the style layers switched on; default: leave them as they are
-  notes?: string[];              // ids of the notes this view (report page) shows, in order
-  export?: FigureSettings;       // how this view is exported as a figure; see "Figures"
-  features?: string[];
-  extensions?: Record<string, unknown>;
+    id: string; // unique in the document
+    name: string;
+    caption?: string;
+    mode?: "2d" | "3d" | "vr" | "ar"; // default: leave the current mode
+    camera?: StoredCamera; // at least one of camera and framing
+    framing?: Framing;
+    prefer?: "camera" | "framing"; // with both, which to use when the graph's identity is unknown; default "framing"
+    filter?: Filter; // what this page shows (envelope.md, "The active filter"); default: no filter
+    layers?: string[]; // ids (else names) of the style layers switched on; default: leave them as they are
+    notes?: string[]; // ids of the notes this view (report page) shows, in order
+    export?: FigureSettings; // how this view is exported as a figure; see "Figures"
+    features?: string[];
+    extensions?: Record<string, unknown>;
 }
 
 type StoredCamera =
-  | { projection: "perspective";
-      position: [x: number, y: number, z: number];   // scene units
-      target: [x: number, y: number, z: number];     // scene units
-      up?: [x: number, y: number, z: number];        // default [0, 1, 0]
-      fovDeg?: number }                              // vertical field of view; default: the element's
-  | { projection: "orthographic";
-      center: [x: number, y: number];                // scene units, the point at the viewport centre
-      height: number;                                // scene units visible from top to bottom edge
-      rotationDeg?: number };                        // counter-clockwise; default 0
+    | {
+          projection: "perspective";
+          position: [x: number, y: number, z: number]; // scene units
+          target: [x: number, y: number, z: number]; // scene units
+          up?: [x: number, y: number, z: number]; // default [0, 1, 0]
+          fovDeg?: number;
+      } // vertical field of view; default: the element's
+    | {
+          projection: "orthographic";
+          center: [x: number, y: number]; // scene units, the point at the viewport centre
+          height: number; // scene units visible from top to bottom edge
+          rotationDeg?: number;
+      }; // counter-clockwise; default 0
 
 interface FigureSettings {
-  width?: number; height?: number;   // pixels of the exported image
-  pixelRatio?: number;               // device pixels per CSS pixel
-  dpi?: number;                      // written into the image's metadata
-  legend?: { include?: boolean;      // default true
-             placement?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "outside-right" | "outside-bottom" };
-  notes?: boolean;                   // append the view's notes as a numbered caption list; default true when it has notes
+    width?: number;
+    height?: number; // pixels of the exported image
+    pixelRatio?: number; // device pixels per CSS pixel
+    dpi?: number; // written into the image's metadata
+    legend?: {
+        include?: boolean; // default true
+        placement?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "outside-right" | "outside-bottom";
+    };
+    notes?: boolean; // append the view's notes as a numbered caption list; default true when it has notes
 }
 
 interface Framing {
-  cameraView: string;            // a camera view id from the element's catalogue
-  params?: Record<string, unknown>;   // that camera view's options, as applyCameraView takes them
-  fit?: Scope;                   // what to frame; default: the whole graph
+    cameraView: string; // a camera view id from the element's catalogue
+    params?: Record<string, unknown>; // that camera view's options, as applyCameraView takes them
+    fit?: Scope; // what to frame; default: the whole graph
 }
 ```
 
@@ -197,25 +203,25 @@ VR or AR remains behind the browser's own permission and gesture rules.
 
 ## Conformance
 
-| Input | Required result |
-|---|---|
-| `{ "kind": "graphty-view", "version": 1, "views": [] }` | accepted; nothing changes |
-| a view with neither `camera` nor `framing` | that view kept unapplied, reported with `E_BAD_COMMAND` |
-| a view with `camera: { "projection": "fisheye", ... }` and a valid framing | framing applied; camera reported |
-| a view framed on `{ "set": "set_ring_a" }` that the session does not hold | `E_UNKNOWN_SET`; whole graph framed |
-| a view with both, no fingerprint anywhere | the framing is used; `unknown` reported |
-| the same with `prefer: "camera"`, or applied with `reproduce` | the stored camera is used; `unknown` reported |
-| a view with `filter: { "nodes": "data.community == `3`" }` | only community 3 shown while the view is applied |
-| a view with `layers` naming a layer id the stack lacks | reported; the other listed layers on, the rest off |
-| views saved while a hand-picked hide is active | saved; `W_GRAPHTY_FILTER` reported |
-| a framing naming `cameraView: "orbitFromNorth"` that nothing registered | view kept, reported `E_UNKNOWN_CAMERA` |
-| a view with both, on a graph whose fingerprint differs | the framing is used |
-| `initial` naming an id not in `views` | reported; no view applied |
-| `mode: "vr"` on a desktop browser without WebXR | camera applied in the current mode; `E_UNSUPPORTED` reported |
-| a framing naming `orbitFromNorth`, which only a saved camera snapshot of the session holds | `E_UNKNOWN_CAMERA`; the snapshot is not applied |
-| a view with `export: { width: 2400, height: 1600, legend: { placement: "outside-right" } }`, exported on two screens | the same crop and legend placement both times |
-| a view whose `layers` name `"Hubs"`, held by two layers | reported ambiguous; neither switched |
-| an envelope from another installation whose `initial` view filters out one node and lists only `base` | applied; the report names the hidden count and every layer switched off; the reader's own layers left on |
+| Input                                                                                                                | Required result                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `{ "kind": "graphty-view", "version": 1, "views": [] }`                                                              | accepted; nothing changes                                                                                |
+| a view with neither `camera` nor `framing`                                                                           | that view kept unapplied, reported with `E_BAD_COMMAND`                                                  |
+| a view with `camera: { "projection": "fisheye", ... }` and a valid framing                                           | framing applied; camera reported                                                                         |
+| a view framed on `{ "set": "set_ring_a" }` that the session does not hold                                            | `E_UNKNOWN_SET`; whole graph framed                                                                      |
+| a view with both, no fingerprint anywhere                                                                            | the framing is used; `unknown` reported                                                                  |
+| the same with `prefer: "camera"`, or applied with `reproduce`                                                        | the stored camera is used; `unknown` reported                                                            |
+| a view with `filter: { "nodes": "data.community == `3`" }`                                                           | only community 3 shown while the view is applied                                                         |
+| a view with `layers` naming a layer id the stack lacks                                                               | reported; the other listed layers on, the rest off                                                       |
+| views saved while a hand-picked hide is active                                                                       | saved; `W_GRAPHTY_FILTER` reported                                                                       |
+| a framing naming `cameraView: "orbitFromNorth"` that nothing registered                                              | view kept, reported `E_UNKNOWN_CAMERA`                                                                   |
+| a view with both, on a graph whose fingerprint differs                                                               | the framing is used                                                                                      |
+| `initial` naming an id not in `views`                                                                                | reported; no view applied                                                                                |
+| `mode: "vr"` on a desktop browser without WebXR                                                                      | camera applied in the current mode; `E_UNSUPPORTED` reported                                             |
+| a framing naming `orbitFromNorth`, which only a saved camera snapshot of the session holds                           | `E_UNKNOWN_CAMERA`; the snapshot is not applied                                                          |
+| a view with `export: { width: 2400, height: 1600, legend: { placement: "outside-right" } }`, exported on two screens | the same crop and legend placement both times                                                            |
+| a view whose `layers` name `"Hubs"`, held by two layers                                                              | reported ambiguous; neither switched                                                                     |
+| an envelope from another installation whose `initial` view filters out one node and lists only `base`                | applied; the report names the hidden count and every layer switched off; the reader's own layers left on |
 
 ## Worked examples
 
@@ -225,30 +231,30 @@ VR or AR remains behind the browser's own permission and gesture rules.
 
 ```json
 {
-  "kind": "graphty-view",
-  "version": 1,
-  "name": "Briefing pages",
-  "initial": "overview",
-  "views": [
-    {
-      "id": "overview",
-      "name": "Whole network",
-      "mode": "2d",
-      "framing": { "cameraView": "topView", "fit": "graph" }
-    },
-    {
-      "id": "ring-a",
-      "name": "Ring A, close",
-      "caption": "Twelve accounts sharing three devices",
-      "mode": "2d",
-      "camera": { "projection": "orthographic", "center": [142.5, -38.0], "height": 60 },
-      "framing": { "cameraView": "fitToGraph", "fit": { "set": "set_ring_a" } },
-      "filter": { "nodes": "data.ring == 'A'" },
-      "layers": ["base", "ring-a-highlight"],
-      "notes": ["note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V", "note_01K5KZ8A4B5C6D7E8F9G0H1J2K"],
-      "export": { "width": 1920, "height": 1080, "legend": { "placement": "outside-right" } }
-    }
-  ]
+    "kind": "graphty-view",
+    "version": 1,
+    "name": "Briefing pages",
+    "initial": "overview",
+    "views": [
+        {
+            "id": "overview",
+            "name": "Whole network",
+            "mode": "2d",
+            "framing": { "cameraView": "topView", "fit": "graph" }
+        },
+        {
+            "id": "ring-a",
+            "name": "Ring A, close",
+            "caption": "Twelve accounts sharing three devices",
+            "mode": "2d",
+            "camera": { "projection": "orthographic", "center": [142.5, -38.0], "height": 60 },
+            "framing": { "cameraView": "fitToGraph", "fit": { "set": "set_ring_a" } },
+            "filter": { "nodes": "data.ring == 'A'" },
+            "layers": ["base", "ring-a-highlight"],
+            "notes": ["note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V", "note_01K5KZ8A4B5C6D7E8F9G0H1J2K"],
+            "export": { "width": 1920, "height": 1080, "legend": { "placement": "outside-right" } }
+        }
+    ]
 }
 ```
 
@@ -261,18 +267,23 @@ the same layout.
 
 ```json
 {
-  "kind": "graphty-view",
-  "version": 1,
-  "views": [
-    {
-      "id": "figure-2",
-      "name": "Figure 2",
-      "mode": "3d",
-      "camera": { "projection": "perspective", "position": [220, 180, 260], "target": [0, 0, 0], "fovDeg": 45 },
-      "framing": { "cameraView": "isometric", "fit": "graph" },
-      "prefer": "camera",
-      "export": { "width": 2400, "height": 1800, "dpi": 300, "legend": { "include": true, "placement": "outside-right" } }
-    }
-  ]
+    "kind": "graphty-view",
+    "version": 1,
+    "views": [
+        {
+            "id": "figure-2",
+            "name": "Figure 2",
+            "mode": "3d",
+            "camera": { "projection": "perspective", "position": [220, 180, 260], "target": [0, 0, 0], "fovDeg": 45 },
+            "framing": { "cameraView": "isometric", "fit": "graph" },
+            "prefer": "camera",
+            "export": {
+                "width": 2400,
+                "height": 1800,
+                "dpi": 300,
+                "legend": { "include": true, "placement": "outside-right" }
+            }
+        }
+    ]
 }
 ```

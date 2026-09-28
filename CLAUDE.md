@@ -121,14 +121,14 @@ workarounds available to them and no way to know they are not alone.
 
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.0.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.2.1 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.2.0 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.0 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
-| `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
-| `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.1.0 | React wrapper application (private, Mantine UI) |
+| `@graphty/graph-format` | `graph-format/` | 1.1.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | 0.3.7 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.10 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | 0.1.5 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
+| `@graphty/algorithms` | `algorithms/` | 2.1.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
+| `@graphty/layout` | `layout/` | 1.10.3 | Graph layout algorithms (NetworkX TypeScript port) |
+| `@graphty/graphty-element` | `graphty-element/` | 2.6.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
+| `@graphty/graphty` | `graphty/` | 0.8.16 | React wrapper application (private, Mantine UI) |
 
 ## Monorepo Structure
 

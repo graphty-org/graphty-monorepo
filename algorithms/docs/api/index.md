@@ -150,6 +150,9 @@ Bipartite matching algorithms.
 - `maxBipartiteMatching()` - Maximum matching
 - `hungarianAlgorithm()` - Weighted matching
 - `hopcroftKarp()` - Fast bipartite matching
+- `indexed.maximumBipartiteMatching()` - Maximum bipartite matching over a snapshot, as a typed array of partners; the sides come from `indexed.isBipartite()` or are passed as node masks
+- `indexed.greedyBipartiteMatching()` - Greedy maximal bipartite matching over a snapshot, in node index order
+- `indexed.isGraphIsomorphic()`, `indexed.findAllIsomorphisms()` - VF2 isomorphism search between two snapshots, with node and edge predicates taking indices
 
 [Matching functions in the generated TypeDoc](./generated/index/)
 

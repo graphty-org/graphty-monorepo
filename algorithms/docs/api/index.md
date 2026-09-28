@@ -44,6 +44,7 @@ Find optimal paths between nodes.
 - `dijkstra()` - Weighted non-negative edges
 - `bellmanFord()` - Handles negative weights
 - `floydWarshall()` - All pairs shortest paths
+- `indexed.allPairsShortestPath()` - All pairs shortest paths over a snapshot, as a typed-array matrix
 - `aStar()` - Heuristic-guided search
 
 [Shortest Path functions in the generated TypeDoc](./generated/index/)

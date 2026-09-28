@@ -13,6 +13,7 @@
 
 import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
+import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BfsOptions } from "./bfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import type { HitsOptions } from "./hits.js";
@@ -72,6 +73,10 @@ export interface EdgeScoresResultLike {
 export interface ApspResultLike {
     readonly dist: NumericVector;
     readonly n: number;
+}
+/** ApspResultLike plus the negative-cycle flag. @public */
+export interface ApspCycleResultLike extends ApspResultLike {
+    readonly hasNegativeCycle: boolean;
 }
 /** Per-node coreness. @public */
 export interface CorenessResultLike {
@@ -167,6 +172,15 @@ export interface BetweennessAcceleratorOptions {
  * `alpha` / `beta` or Louvain's `resolution`, and one that is handed them would answer a different
  * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
  * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
+ *
+ * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
+ * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
+ * answers the port's question -- no options that change the result, at most the port's default
+ * 5,792 nodes, and non-negative finite snapshot weights -- and runs the CPU port otherwise. That is
+ * routing decided from the inputs, not a fallback: an error the accelerator raises still propagates.
+ * Same question is not same bits: both read the snapshot's f32 arc weights, but a GPU member sums
+ * them in f32 and returns an f32 `dist`, where the port sums in f64. The two agree exactly while
+ * every path sum is an integer below 2^24, and otherwise may differ by f32 rounding.
  * @public
  */
 export interface AcceleratedAlgorithms {
@@ -181,6 +195,28 @@ export interface AcceleratedAlgorithms {
     katzCentrality(s: GraphSnapshot, options?: KatzOptions): Promise<ScoresResultLike>;
     hits(s: GraphSnapshot, options?: HitsOptions): Promise<HitsResultLike>;
     louvain(s: GraphSnapshot, options?: LouvainOptions): Promise<CommunityResultLike>;
+    allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
+}
+
+/**
+ * Whether the accelerator's all-pairs member, called with the snapshot alone, answers the question
+ * the CPU port would (at its own precision; see `AcceleratedAlgorithms`): no option that changes the answer, a size the port accepts by default, and
+ * weights under which no negative cycle can exist, so `hasNegativeCycle: false` is true.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns True when the call may go to the accelerator
+ */
+function acceleratorAnswersApsp(s: GraphSnapshot, options: ApspOptions | undefined): boolean {
+    return (
+        options?.weights === undefined &&
+        (options?.method ?? "auto") === "auto" &&
+        options?.maxNodes === undefined &&
+        options?.paths !== true &&
+        options?.weighted !== false &&
+        s.nodeCount <= APSP_DEFAULT_MAX_NODES &&
+        s.flags.nonNegativeWeights &&
+        s.flags.finiteWeights
+    );
 }
 
 /**
@@ -245,5 +281,9 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.hits !== undefined ? acc.hits(s, options) : Promise.resolve(indexed.hits(s, options)),
         louvain: (s, options) =>
             acc?.louvain !== undefined ? acc.louvain(s, options) : Promise.resolve(indexed.louvain(s, options)),
+        allPairsShortestPath: (s, options) =>
+            acc?.allPairsShortestPath !== undefined && acceleratorAnswersApsp(s, options)
+                ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
+                : Promise.resolve(indexed.allPairsShortestPath(s, options)),
     };
 }

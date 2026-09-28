@@ -85,6 +85,7 @@ export function algorithmName<TNodeId = unknown>(
 ```
 
 Key principles:
+
 - Generic `TNodeId` type for flexible node identification
 - Read-only graph interface for safety
 - Optional configuration with sensible defaults
@@ -93,13 +94,18 @@ Key principles:
 ## Testing Guidelines
 
 - **Test projects**: `default` (happy-dom) and `browser` (Playwright)
-- **IMPORTANT**: Do not increase test coverage for floyd-warshall module - it causes vitest to hang
+- **IMPORTANT**: Do not increase test coverage for floyd-warshall module - it causes vitest to hang.
+  This is the legacy `src/algorithms/shortest-path/floyd-warshall.ts` only. The index-based
+  `indexed.allPairsShortestPath` (`src/indexed/all-pairs.ts`) is tested normally in
+  `test/unit/indexed/all-pairs.test.ts`, which calls the legacy function only as a reference and
+  leaves its coverage unchanged
 - Performance regression tests track algorithm speed over time
 - Use `npm run test:performance:update` to update baselines after intentional changes
 
 ## Optimized Implementations
 
 The `src/optimized/` directory contains high-performance implementations:
+
 - **CSRGraph**: Compressed Sparse Row format for memory efficiency
 - **Bit-packed structures**: TypedFastBitSet for large graphs
 - **Direction-optimized BFS**: Automatic switching between top-down and bottom-up

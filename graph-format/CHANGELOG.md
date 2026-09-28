@@ -1,3 +1,13 @@
+## 1.1.0 (2026-09-28)
+
+### 🚀 Features
+
+- **graph-format:** word-wise mask algebra ([070c7bd2](https://github.com/graphty-org/graphty-monorepo/commit/070c7bd2))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.0.7 (2026-09-27)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

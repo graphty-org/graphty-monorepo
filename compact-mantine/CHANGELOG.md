@@ -1,3 +1,13 @@
+## 0.8.9 (2026-09-28)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name modal close buttons and drop the menu focus placeholder ([01615522](https://github.com/graphty-org/graphty-monorepo/commit/01615522))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.8 (2026-09-27)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

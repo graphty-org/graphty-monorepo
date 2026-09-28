@@ -18,6 +18,7 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
 
@@ -217,6 +218,7 @@ export class RenderManager implements Manager {
 
                 // Don't stop render loop on error, but log it
                 console.error("Error in render loop:", error);
+                reportCaught(error);
             }
         });
     }

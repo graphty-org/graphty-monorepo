@@ -22,6 +22,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fakeClock, fakeLayout, heldScheduler, runGate } from "./fakes";
 import { blankSession, fixtureSession, paintBaseline } from "./fixture-session";
 import {
@@ -178,7 +179,7 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
  */
 async function runSeed(seed: number, numRuns: number): Promise<void> {
     await fc.assert(
-        fc.asyncProperty(
+        guardedAsyncProperty(
             fc.constantFrom(...STARTS),
             fc.scheduler(),
             fc.commands(COMMANDS, { maxCommands: MAX_COMMANDS, size: "max" }),

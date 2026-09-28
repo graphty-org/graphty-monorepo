@@ -13,6 +13,7 @@ import type { SetDefinitionInput, SetId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { createSetsApi } from "../../../src/session/sets/SetsApi";
 import { SetsStore } from "../../../src/session/sets/store";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 
 const ID = fc.constantFrom<string | number>("a", "b", "c", 1, 2);
@@ -81,7 +82,7 @@ const OP: fc.Arbitrary<Op> = fc.oneof(
 describe("the sets store under random operations", () => {
     it("never reissues an id, keeps records valid and orders distinct, and only grows the register", async () => {
         await fc.assert(
-            fc.asyncProperty(fc.array(OP, { maxLength: 25 }), async (ops) => {
+            guardedAsyncProperty(fc.array(OP, { maxLength: 25 }), async (ops) => {
                 const store = new SetsStore();
                 const sets = createSetsApi({ edgeMember: () => undefined }, store);
                 // Every id a create returned, and the ones returned inside the open group.

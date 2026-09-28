@@ -22,6 +22,7 @@ import { setsOfSession } from "../../../src/session/GraphSession";
 import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import type { SetsStore } from "../../../src/session/sets/store";
 import type { SetsApi } from "../../../src/session/sets/types";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 import type { EdgeRecord, LoadOptions } from "../../session/sets/graphs";
 import { type Driver, Model, opsFor, Step } from "../../session/sets/refreeze-model";
@@ -226,7 +227,7 @@ describe("every kept set survives the data manager's edits and re-freezes", () =
         const ops = opsFor({ embed: false, declared: false }).map((arb) => arb.map((op) => new Step(op)));
         await fc
             .assert(
-                fc.asyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
+                guardedAsyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
                     graph.getDataManager().clear();
                     driver.path = null;
                     await fc.asyncModelRun(() => ({ model: new Model(), real: driver }), commands);

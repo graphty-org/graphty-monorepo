@@ -8,6 +8,7 @@ import fc from "fast-check";
 import { assert, describe, it } from "vitest";
 
 import { cacheCounters } from "../../../src/session/sets/cache";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 import { TestGraph } from "./graphs";
 import { Model, opsFor, Step } from "./refreeze-model";
@@ -17,7 +18,7 @@ describe("every kept set survives any sequence of edits and re-freezes", () => {
         const ops = opsFor({ embed: true, declared: true }).map((arb) => arb.map((op) => new Step(op)));
         const { hits } = cacheCounters;
         await fc.assert(
-            fc.asyncProperty(fc.commands(ops, { maxCommands: 40, size: "+1" }), async (commands) => {
+            guardedAsyncProperty(fc.commands(ops, { maxCommands: 40, size: "+1" }), async (commands) => {
                 await fc.asyncModelRun(() => ({ model: new Model(), real: new TestGraph() }), commands);
             }),
             fcParams(1000),

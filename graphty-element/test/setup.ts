@@ -4,6 +4,11 @@ import { afterEach, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
+import { caughtFailure, installCaughtErrors, takeCaughtErrors } from "./helpers/caught-errors";
+
+// An error the element caught and carried on past, or one nobody caught, fails the test it
+// happened in (test/helpers/caught-errors.ts).
+installCaughtErrors();
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
@@ -66,7 +71,7 @@ export function createMockInputSystem(): MockDeviceInputSystem {
 }
 
 // Cleanup after each test
-afterEach(() => {
+afterEach(async () => {
     // Strict state's full sweep: no typed array state kept was written in place during the test.
     // Registered by src/session/project/strict.ts once a test has loaded it.
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
@@ -81,6 +86,13 @@ afterEach(() => {
         // Reset body styles
         document.body.style.margin = "0";
         document.body.style.padding = "0";
+    }
+
+    // Let a late throw land, then fail the test on anything caught during it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const caught = caughtFailure(takeCaughtErrors());
+    if (caught !== undefined) {
+        throw caught;
     }
 });
 

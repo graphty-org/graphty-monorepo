@@ -204,3 +204,14 @@ if (strictStateEnabled()) {
         verifyRetainedArrays();
     };
 }
+
+/**
+ * Hand an error the element caught and carried on past -- the render loop's catch, a lane hook
+ * that reports and goes on -- to whoever is watching: the element's own tests install
+ * `globalThis.__GRAPHTY_CAUGHT__` and fail the test it happened in. Nothing is installed in
+ * production, so this does nothing there.
+ * @param error - What was caught.
+ */
+export function reportCaught(error: unknown): void {
+    (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__?.(error);
+}

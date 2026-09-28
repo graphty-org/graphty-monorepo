@@ -15,6 +15,7 @@ import type { CentralityOptions, CentralityResult } from "../../types/index.js";
  *
  * Time complexity: O(V + E) per iteration
  * Space complexity: O(V)
+ * @deprecated Use `IndexedKatzOptions`, which `indexed.katzCentrality` takes. Removed in algorithms 3.0.0.
  */
 
 export interface KatzCentralityOptions extends CentralityOptions {

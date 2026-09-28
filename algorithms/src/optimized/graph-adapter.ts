@@ -158,6 +158,8 @@ export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
 
 /**
  * Configuration for graph algorithm optimizations
+ * @deprecated Removed in algorithms 3.0.0. Nothing replaces it: the `indexed` functions take a `GraphSnapshot` and
+ *   need no adapter.
  */
 export interface GraphAlgorithmConfig {
     // Enable optimizations

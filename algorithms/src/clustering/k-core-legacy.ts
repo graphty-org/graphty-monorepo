@@ -43,6 +43,9 @@ export function graphToAdjacencySet(graph: Graph): Map<string, Set<string>> {
     return adjacency;
 }
 
+/**
+ * @deprecated Use `CorenessResult`, which `indexed.kCoreDecomposition` returns. Removed in algorithms 3.0.0.
+ */
 export interface KCoreResult<T> {
     cores: Map<number, Set<T>>;
     coreness: Map<T, number>;

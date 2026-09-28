@@ -51,6 +51,7 @@ export interface PageRankOptions {
 
 /**
  * PageRank algorithm result
+ * @deprecated Use `IndexedPageRankResult`, which `indexed.pageRank` returns. Removed in algorithms 3.0.0.
  */
 export interface PageRankResult {
     /**

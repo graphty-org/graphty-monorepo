@@ -269,7 +269,9 @@ export default tseslint.config(
     // itself, so no-deprecated is off inside the directories algorithms 3.0.0 deletes, and in the
     // files that go with them: the package barrel, which must keep re-exporting the deprecated
     // names until then; `toSnapshot`, the bridge from the legacy `Graph`; and the legacy
-    // benchmark, which the removal release migrates. It stays an error everywhere else --
+    // benchmark, which the removal release migrates; the legacy types module and the
+    // `indexed` facade, which declare and convert to the deprecated result types. It stays an
+    // error everywhere else --
     // including the `indexed` code, layout, graphty-element, webgpu-graph-algorithms and the
     // graphty app -- so nothing new is built on a deprecated name.
     {
@@ -286,6 +288,8 @@ export default tseslint.config(
             "algorithms/src/utils/graph-utilities.ts",
             "algorithms/src/index.ts",
             "algorithms/src/indexed/to-snapshot.ts",
+            "algorithms/src/indexed/facade.ts",
+            "algorithms/src/types/index.ts",
             "algorithms/src/benchmark-all-algorithms.ts",
         ],
         rules: {

@@ -12,6 +12,7 @@ import type { NodeId } from "../../types/index.js";
  *
  * Time complexity: O(n! × n) worst case, but typically much faster
  * Space complexity: O(n)
+ * @deprecated Use `IndexedIsomorphismResult`, which `indexed.isGraphIsomorphic` returns. Removed in algorithms 3.0.0.
  */
 
 export interface IsomorphismResult {
@@ -19,6 +20,9 @@ export interface IsomorphismResult {
     mapping?: Map<NodeId, NodeId>; // Maps nodes from graph1 to graph2
 }
 
+/**
+ * @deprecated Use `IndexedIsomorphismOptions`, which `indexed.isGraphIsomorphic` takes. Removed in algorithms 3.0.0.
+ */
 export interface IsomorphismOptions {
     nodeMatch?: (node1: NodeId, node2: NodeId, g1: Graph, g2: Graph) => boolean;
     edgeMatch?: (edge1: [NodeId, NodeId], edge2: [NodeId, NodeId], g1: Graph, g2: Graph) => boolean;

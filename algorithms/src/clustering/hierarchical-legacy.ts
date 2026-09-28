@@ -43,6 +43,9 @@ function graphToAdjacencySet(graph: Graph): Map<string, Set<string>> {
     return adjacency;
 }
 
+/**
+ * @deprecated Use `HierarchicalResult`, which `indexed.hierarchicalClustering` returns. Removed in algorithms 3.0.0.
+ */
 export interface ClusterNode<T> {
     id: string;
     members: Set<T>;
@@ -54,12 +57,18 @@ export interface ClusterNode<T> {
     trees?: ClusterNode<T>[] | undefined;
 }
 
+/**
+ * @deprecated Use `HierarchicalResult`, which `indexed.hierarchicalClustering` returns. Removed in algorithms 3.0.0.
+ */
 export interface HierarchicalClusteringResult<T> {
     root: ClusterNode<T>;
     dendrogram: ClusterNode<T>[];
     clusters: Map<number, Set<T>[]>;
 }
 
+/**
+ * @deprecated Use `Linkage`, which `indexed.hierarchicalClustering` takes. Removed in algorithms 3.0.0.
+ */
 export type LinkageMethod = "single" | "complete" | "average" | "ward";
 
 /**

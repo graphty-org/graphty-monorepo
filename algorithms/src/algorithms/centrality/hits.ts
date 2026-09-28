@@ -15,6 +15,7 @@ import type { CentralityOptions } from "../../types/index.js";
  *
  * Time complexity: O(V + E) per iteration
  * Space complexity: O(V)
+ * @deprecated Use `IndexedHitsResult`, which `indexed.hits` returns. Removed in algorithms 3.0.0.
  */
 
 export interface HITSResult {
@@ -22,6 +23,9 @@ export interface HITSResult {
     authorities: Record<string, number>;
 }
 
+/**
+ * @deprecated Use `IndexedHitsOptions`, which `indexed.hits` takes. Removed in algorithms 3.0.0.
+ */
 export interface HITSOptions extends CentralityOptions {
     maxIterations?: number; // Maximum iterations (default: 100)
     tolerance?: number; // Convergence tolerance (default: 1e-6)

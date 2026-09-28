@@ -4,6 +4,7 @@ import { euclideanDistance, SeededRandom } from "../utils/math-utilities.js";
 
 /**
  * Configuration options for the SynC (Synergistic Deep Graph Clustering) algorithm
+ * @deprecated Use `IndexedSyncClusteringOptions`, which `indexed.syncClustering` takes. Removed in algorithms 3.0.0.
  */
 export interface SynCConfig {
     /** Number of clusters to find */
@@ -22,6 +23,7 @@ export interface SynCConfig {
 
 /**
  * Result of the SynC clustering algorithm
+ * @deprecated Use `IndexedSyncClusteringResult`, which `indexed.syncClustering` returns. Removed in algorithms 3.0.0.
  */
 export interface SynCResult {
     /** Cluster assignments for each node */

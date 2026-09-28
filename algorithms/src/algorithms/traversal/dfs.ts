@@ -19,6 +19,7 @@ import type { NodeId, TraversalOptions, TraversalResult } from "../../types/inde
 
 /**
  * DFS traversal options
+ * @deprecated Use `DfsOptions`, which `indexed.depthFirstSearch` takes. Removed in algorithms 3.0.0.
  */
 export interface DFSOptions extends TraversalOptions {
     recursive?: boolean; // Use recursive implementation (default: false for browser safety)

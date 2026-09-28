@@ -12,6 +12,9 @@ import type { Graph } from "../../core/graph.js";
 import { graphToMap } from "../../utils/graph-converters.js";
 import { SeededRandom, shuffle } from "../../utils/math-utilities.js";
 
+/**
+ * @deprecated Use `IndexedLeidenOptions`, which `indexed.leiden` takes. Removed in algorithms 3.0.0.
+ */
 export interface LeidenOptions {
     resolution?: number;
     randomSeed?: number;
@@ -19,6 +22,9 @@ export interface LeidenOptions {
     threshold?: number;
 }
 
+/**
+ * @deprecated Use `IndexedLeidenResult`, which `indexed.leiden` returns. Removed in algorithms 3.0.0.
+ */
 export interface LeidenResult {
     communities: Map<string, number>;
     modularity: number;

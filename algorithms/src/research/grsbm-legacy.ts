@@ -4,6 +4,7 @@ import { SeededRandom } from "../utils/math-utilities.js";
 
 /**
  * Configuration options for the GRSBM (Greedy Recursive Spectral Bisection) algorithm
+ * @deprecated Use `IndexedGrsbmOptions`, which `indexed.grsbm` takes. Removed in algorithms 3.0.0.
  */
 export interface GRSBMConfig {
     /** Maximum depth of recursive bisection */
@@ -22,6 +23,7 @@ export interface GRSBMConfig {
 
 /**
  * Represents a cluster in the hierarchical structure
+ * @deprecated Use `IndexedGrsbmCluster`, which `indexed.grsbm` returns. Removed in algorithms 3.0.0.
  */
 export interface GRSBMCluster {
     /** Unique identifier for this cluster */
@@ -42,6 +44,7 @@ export interface GRSBMCluster {
 
 /**
  * Result of the GRSBM clustering algorithm
+ * @deprecated Use `IndexedGrsbmResult`, which `indexed.grsbm` returns. Removed in algorithms 3.0.0.
  */
 export interface GRSBMResult {
     /** Root of the cluster hierarchy */
@@ -58,6 +61,7 @@ export interface GRSBMResult {
 
 /**
  * Explanation for a cluster split decision
+ * @deprecated Use `IndexedGrsbmSplit`, which `indexed.grsbm` returns. Removed in algorithms 3.0.0.
  */
 export interface ClusterExplanation {
     /** Cluster that was split */

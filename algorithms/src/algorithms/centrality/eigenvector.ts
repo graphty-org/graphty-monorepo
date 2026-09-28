@@ -14,6 +14,8 @@ import type { CentralityOptions, CentralityResult } from "../../types/index.js";
  *
  * Time complexity: O(V + E) per iteration
  * Space complexity: O(V + E)
+ * @deprecated Use `IndexedEigenvectorOptions`, which `indexed.eigenvectorCentrality` takes. Removed in algorithms
+ *   3.0.0.
  */
 
 export interface EigenvectorCentralityOptions extends CentralityOptions {

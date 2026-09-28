@@ -10,6 +10,7 @@ import { euclideanDistance, SeededRandom } from "../utils/math-utilities.js";
  *
  * Time complexity: O(V³) for eigendecomposition
  * Space complexity: O(V²)
+ * @deprecated Use `SpectralOptions`, which `indexed.spectralClustering` takes. Removed in algorithms 3.0.0.
  */
 
 export interface SpectralClusteringOptions {
@@ -20,6 +21,9 @@ export interface SpectralClusteringOptions {
     seed?: number; // Random seed for reproducible results
 }
 
+/**
+ * @deprecated Use `SpectralResult`, which `indexed.spectralClustering` returns. Removed in algorithms 3.0.0.
+ */
 export interface SpectralClusteringResult {
     communities: NodeId[][];
     clusterAssignments: Map<NodeId, number>;

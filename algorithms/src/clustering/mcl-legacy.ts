@@ -11,6 +11,7 @@ import type { NodeId } from "../types/index.js";
  *
  * Time complexity: O(V³) per iteration
  * Space complexity: O(V²)
+ * @deprecated Use `MarkovOptions`, which `indexed.markovClustering` takes. Removed in algorithms 3.0.0.
  */
 
 export interface MCLOptions {
@@ -22,6 +23,9 @@ export interface MCLOptions {
     selfLoops?: boolean; // Add self-loops (default: true)
 }
 
+/**
+ * @deprecated Use `MarkovResult`, which `indexed.markovClustering` returns. Removed in algorithms 3.0.0.
+ */
 export interface MCLResult {
     communities: NodeId[][];
     attractors: Set<NodeId>; // Attractor nodes (cluster representatives)

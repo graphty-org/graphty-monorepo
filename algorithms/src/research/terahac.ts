@@ -3,6 +3,7 @@ import type { NodeId } from "../types/index.js";
 
 /**
  * Configuration options for the TeraHAC (Hierarchical Agglomerative Clustering) algorithm
+ * @deprecated Use `IndexedTeraHacOptions`, which `indexed.teraHAC` takes. Removed in algorithms 3.0.0.
  */
 export interface TeraHACConfig {
     /** Linkage criterion: 'single', 'complete', 'average', 'ward' */
@@ -21,6 +22,7 @@ export interface TeraHACConfig {
 
 /**
  * Represents a node in the dendrogram/cluster hierarchy
+ * @deprecated Use `IndexedTeraHacResult`, which `indexed.teraHAC` returns. Removed in algorithms 3.0.0.
  */
 export interface ClusterNode {
     /** Unique identifier for this cluster */
@@ -39,6 +41,7 @@ export interface ClusterNode {
 
 /**
  * Result of the TeraHAC clustering algorithm
+ * @deprecated Use `IndexedTeraHacResult`, which `indexed.teraHAC` returns. Removed in algorithms 3.0.0.
  */
 export interface TeraHACResult {
     /** Root of the dendrogram */

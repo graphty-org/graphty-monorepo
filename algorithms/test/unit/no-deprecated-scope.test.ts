@@ -22,6 +22,8 @@ describe("no-deprecated exemption", () => {
     it("is off in the legacy code 3.0.0 deletes", async () => {
         expect(await ruleFor("algorithms/src/utils/graph-converters.ts")).toBe(0);
         expect(await ruleFor("algorithms/src/core/graph.ts")).toBe(0);
+        expect(await ruleFor("algorithms/src/types/index.ts")).toBe(0);
+        expect(await ruleFor("algorithms/src/indexed/facade.ts")).toBe(0);
     });
 
     it("stays an error in code that outlives 3.0.0", async () => {

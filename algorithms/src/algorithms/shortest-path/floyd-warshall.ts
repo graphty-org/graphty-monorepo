@@ -142,8 +142,9 @@ export function floydWarshallPath(
  * @param graph - The graph to compute transitive closure for
  * @returns A map of each node to the set of nodes reachable from it, itself included, in node order
  * @throws RangeError on a NaN or -Infinity edge weight
- * @deprecated Use `indexed.allPairsShortestPath` over a `GraphSnapshot`; a pair is reachable when its `dist` entry is
- *   finite. Removed in algorithms 3.0.0.
+ * @deprecated Use `indexed.allPairsShortestPath` over a `GraphSnapshot`, with `weighted: false` (a negative cycle
+ *   would otherwise leave every `dist` entry NaN) and `maxNodes: Infinity`; a pair is reachable when its `dist` entry
+ *   is finite. Removed in algorithms 3.0.0.
  */
 export function transitiveClosure(graph: Graph): Map<NodeId, Set<NodeId>> {
     const s = toSnapshot(withoutInfinite(graph, "transitiveClosure").finite);

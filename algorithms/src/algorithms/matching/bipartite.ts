@@ -10,6 +10,8 @@ import { bfsColoringWithPartitions } from "../traversal/bfs-variants.js";
  *
  * Time complexity: O(√V × E)
  * Space complexity: O(V)
+ * @deprecated Use `IndexedBipartiteMatchingResult`, which `indexed.maximumBipartiteMatching` returns. Removed in
+ *   algorithms 3.0.0.
  */
 
 export interface BipartiteMatchingResult {
@@ -17,6 +19,10 @@ export interface BipartiteMatchingResult {
     size: number; // Number of matched pairs
 }
 
+/**
+ * @deprecated Use `IndexedBipartiteMatchingOptions`, which `indexed.maximumBipartiteMatching` takes. Removed in
+ *   algorithms 3.0.0.
+ */
 export interface BipartiteMatchingOptions {
     leftNodes?: Set<NodeId>; // Optional: specify left partition
     rightNodes?: Set<NodeId>; // Optional: specify right partition

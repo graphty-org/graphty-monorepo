@@ -8,6 +8,9 @@ import type { Graph } from "../core/graph.js";
 import { graphToMap } from "../utils/graph-converters.js";
 import { fordFulkerson } from "./ford-fulkerson.js";
 
+/**
+ * @deprecated Use `IndexedMinCutResult`, which `indexed.minSTCut` returns. Removed in algorithms 3.0.0.
+ */
 export interface MinCutResult {
     cutValue: number;
     partition1: Set<string>;

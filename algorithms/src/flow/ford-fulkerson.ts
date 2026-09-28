@@ -7,6 +7,8 @@ import { graphToMap } from "../utils/graph-converters.js";
  *
  * Finds the maximum flow from source to sink in a flow network
  * using the method of augmenting paths.
+ * @deprecated Removed in algorithms 3.0.0. `indexed.maxFlow` reads each arc's capacity from the `GraphSnapshot`'s
+ *   weights.
  */
 
 export interface FlowEdge {
@@ -16,11 +18,18 @@ export interface FlowEdge {
     flow: number;
 }
 
+/**
+ * @deprecated Use `IndexedBipartiteFlowNetwork`, which `indexed.bipartiteFlowNetwork` returns. Removed in algorithms
+ *   3.0.0.
+ */
 export interface FlowNetwork {
     nodes: Set<string>;
     edges: Map<string, Map<string, FlowEdge>>;
 }
 
+/**
+ * @deprecated Use `IndexedMaxFlowResult`, which `indexed.maxFlow` returns. Removed in algorithms 3.0.0.
+ */
 export interface MaxFlowResult {
     maxFlow: number;
     flowGraph: Map<string, Map<string, number>>;

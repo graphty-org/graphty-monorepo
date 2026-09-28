@@ -16,6 +16,7 @@ import type { NodeId } from "../../types/index.js";
  * - Adaptive convergence detection per vertex
  *
  * Expected speedup: 10-100x for incremental updates on large graphs
+ * @deprecated Use `DeltaPageRankEngineOptions`, which `indexed.DeltaPageRank` takes. Removed in algorithms 3.0.0.
  */
 
 export interface DeltaPageRankOptions {

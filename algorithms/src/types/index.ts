@@ -6,6 +6,10 @@
 export type NodeId = string | number;
 
 // Edge representation
+/**
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder` from `@graphty/graph-format`
+ *   and call the `indexed` functions on it.
+ */
 export interface Edge {
     source: NodeId;
     target: NodeId;
@@ -15,12 +19,20 @@ export interface Edge {
 }
 
 // Node representation
+/**
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder` from `@graphty/graph-format`
+ *   and call the `indexed` functions on it.
+ */
 export interface Node {
     id: NodeId;
     data?: Record<string, unknown> | undefined;
 }
 
 // Graph configuration
+/**
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder` from `@graphty/graph-format`
+ *   and call the `indexed` functions on it.
+ */
 export interface GraphConfig {
     directed: boolean;
     allowSelfLoops: boolean;
@@ -32,36 +44,57 @@ export interface GraphConfig {
 }
 
 // Algorithm result interfaces
+/**
+ * @deprecated Use `PathResult`, which `indexed.bidirectionalDijkstra` returns. Removed in algorithms 3.0.0.
+ */
 export interface ShortestPathResult {
     distance: number;
     path: NodeId[];
     predecessor: Map<NodeId, NodeId | null>;
 }
 
+/**
+ * @deprecated Use `ScoresResult`, which `indexed.betweennessCentrality` returns. Removed in algorithms 3.0.0.
+ */
 export type CentralityResult = Record<string, number>;
 
+/**
+ * @deprecated Use `BfsResult`, which `indexed.breadthFirstSearch` returns. Removed in algorithms 3.0.0.
+ */
 export interface TraversalResult {
     visited: Set<NodeId>;
     order: NodeId[];
     tree?: Map<NodeId, NodeId | null>;
 }
 
+/**
+ * @deprecated Use `IndexedLouvainResult`, which `indexed.louvain` returns. Removed in algorithms 3.0.0.
+ */
 export interface CommunityResult {
     communities: NodeId[][];
     modularity: number;
     iterations?: number;
 }
 
+/**
+ * @deprecated Use `LabelResult`, which `indexed.connectedComponents` returns. Removed in algorithms 3.0.0.
+ */
 export interface ComponentResult {
     components: NodeId[][];
     componentMap: Map<NodeId, number>;
 }
 
+/**
+ * @deprecated Use `MstResult`, which `indexed.kruskalMST` returns. Removed in algorithms 3.0.0.
+ */
 export interface MSTResult {
     edges: Edge[];
     totalWeight: number;
 }
 
+/**
+ * @deprecated Use `IndexedApspResult`, which `indexed.allPairsShortestPath` returns. Removed in algorithms 3.0.0.
+ */
 export interface FloydWarshallResult {
     distances: Map<NodeId, Map<NodeId, number>>;
     predecessors: Map<NodeId, Map<NodeId, NodeId | null>>;
@@ -69,11 +102,17 @@ export interface FloydWarshallResult {
 }
 
 // Algorithm options interfaces
+/**
+ * @deprecated Use `BfsOptions`, which `indexed.breadthFirstSearch` takes. Removed in algorithms 3.0.0.
+ */
 export interface TraversalOptions {
     targetNode?: NodeId;
     visitCallback?: (node: NodeId, level: number) => void;
 }
 
+/**
+ * @deprecated Use `SsspOptions`, which `indexed.dijkstra` takes. Removed in algorithms 3.0.0.
+ */
 export interface DijkstraOptions {
     target?: NodeId;
     /**
@@ -84,6 +123,9 @@ export interface DijkstraOptions {
     bidirectional?: boolean;
 }
 
+/**
+ * @deprecated Use `IndexedBellmanFordResult`, which `indexed.bellmanFord` returns. Removed in algorithms 3.0.0.
+ */
 export interface BellmanFordResult {
     distances: Map<NodeId, number>;
     previous: Map<NodeId, NodeId | null>;
@@ -91,6 +133,10 @@ export interface BellmanFordResult {
     negativeCycleNodes?: NodeId[];
 }
 
+/**
+ * @deprecated Removed in algorithms 3.0.0. Each `indexed` centrality function takes its own options, such as
+ *   `BetweennessOptions` for `indexed.betweennessCentrality`.
+ */
 export interface CentralityOptions {
     normalized?: boolean;
     endpoints?: boolean;
@@ -109,6 +155,9 @@ export interface PageRankOptions {
     personalization?: Map<NodeId, number>; // Personalized PageRank
 }
 
+/**
+ * @deprecated Use `IndexedLouvainOptions`, which `indexed.louvain` takes. Removed in algorithms 3.0.0.
+ */
 export interface LouvainOptions {
     resolution?: number; // Resolution parameter (default: 1.0)
     maxIterations?: number; // Maximum iterations (default: 100)
@@ -116,6 +165,9 @@ export interface LouvainOptions {
     useOptimized?: boolean; // Use optimized implementation for large graphs (default: true for graphs > 50 nodes)
 }
 
+/**
+ * @deprecated Use `IndexedGirvanNewmanOptions`, which `indexed.girvanNewman` takes. Removed in algorithms 3.0.0.
+ */
 export interface GirvanNewmanOptions {
     maxCommunities?: number; // Stop when this many communities reached
     minCommunitySize?: number; // Minimum size for valid community

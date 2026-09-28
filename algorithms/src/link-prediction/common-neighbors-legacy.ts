@@ -11,6 +11,8 @@ import { getCommonNeighbors, getIntermediateNodes } from "../utils/graph-utiliti
  *
  * Time complexity: O(k²) where k is the average degree
  * Space complexity: O(k)
+ * @deprecated Use `LinkPredictionResult`, which `indexed.commonNeighborsPrediction` returns. Removed in algorithms
+ *   3.0.0.
  */
 
 export interface LinkPredictionScore {
@@ -19,6 +21,10 @@ export interface LinkPredictionScore {
     score: number;
 }
 
+/**
+ * @deprecated Use `IndexedLinkPredictionOptions`, which `indexed.commonNeighborsPrediction` takes. Removed in
+ *   algorithms 3.0.0.
+ */
 export interface LinkPredictionOptions {
     directed?: boolean; // Consider direction (default: false)
     includeExisting?: boolean; // Include existing edges (default: false)

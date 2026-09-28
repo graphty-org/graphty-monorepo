@@ -15,6 +15,7 @@ import { reconstructPath } from "../../utils/graph-utilities.js";
 
 /**
  * Bellman-Ford algorithm options
+ * @deprecated Use `SsspOptions`, which `indexed.bellmanFord` takes. Removed in algorithms 3.0.0.
  */
 export interface BellmanFordOptions {
     /**

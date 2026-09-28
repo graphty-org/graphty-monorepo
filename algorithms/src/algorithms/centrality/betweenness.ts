@@ -21,6 +21,7 @@ import { bfsWithPathCounting } from "../traversal/bfs-variants.js";
  * Every member is `readonly` and carries `| undefined`: the GPU package compiles this declaration
  * a second time under `exactOptionalPropertyTypes`, where `sources?: readonly number[]` and
  * `sources?: readonly number[] | undefined` are different types (plan decision PD-6).
+ * @deprecated Use `BetweennessOptions`, which `indexed.betweennessCentrality` takes. Removed in algorithms 3.0.0.
  */
 export interface BetweennessCentralityOptions {
     /** Whether to normalize the centrality values (default: false) */

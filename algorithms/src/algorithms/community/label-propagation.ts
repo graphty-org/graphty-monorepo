@@ -15,11 +15,19 @@ import { toSnapshot } from "../../indexed/to-snapshot.js";
 import { graphToMap } from "../../utils/graph-converters.js";
 import { SeededRandom, shuffle } from "../../utils/math-utilities.js";
 
+/**
+ * @deprecated Use `IndexedLabelPropagationOptions`, which `indexed.labelPropagation` takes. Removed in algorithms
+ *   3.0.0.
+ */
 export interface LabelPropagationOptions {
     maxIterations?: number;
     randomSeed?: number;
 }
 
+/**
+ * @deprecated Use `IndexedLabelPropagationResult`, which `indexed.labelPropagation` returns. Removed in algorithms
+ *   3.0.0.
+ */
 export interface LabelPropagationResult {
     communities: Map<string, number>;
     iterations: number;

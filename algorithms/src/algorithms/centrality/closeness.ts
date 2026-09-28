@@ -20,6 +20,7 @@ import { bfsDistancesOnly, bfsWeightedDistances } from "../traversal/bfs-variant
 
 /**
  * Closeness centrality options
+ * @deprecated Use `ClosenessOptions`, which `indexed.closenessCentrality` takes. Removed in algorithms 3.0.0.
  */
 export interface ClosenessCentralityOptions {
     /**

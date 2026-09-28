@@ -7,27 +7,24 @@ layout) off the legacy positional functions of `@graphty/layout` and onto the sn
 graphty-element story whose picture changed, why, and what the owner is asked to accept.
 The owner has not reviewed any of it yet.
 
-| Story                                                                          | What you see                                              | Recommended verdict |
-| ------------------------------------------------------------------------------ | --------------------------------------------------------- | ------------------- |
-| Layout/2D / Arf (`layout-2d--arf`)                                             | a different drawing of the same graph                     | accept              |
-| Layout/3D / Kamada Kawai Weighted (`layout-3d--kamada-kawai-weighted`)         | a different drawing of the same graph                     | accept              |
-| Layout/3D / Kamada Kawai (`layout-3d--kamada-kawai`)                           | a few nodes shifted by about a pixel                      | accept              |
-| Layout/3D / Random (`layout-3d--random`)                                       | 8 anti-aliased pixels                                     | accept              |
-| Styles/Layered / Label Enabled Layers (`styles-layered--label-enabled-layers`) | sometimes, nodes scattered away from their data positions | reject: a defect    |
+| Story                                                                  | What you see                          | Recommended verdict |
+| ---------------------------------------------------------------------- | ------------------------------------- | ------------------- |
+| Layout/2D / Arf (`layout-2d--arf`)                                     | a different drawing of the same graph | accept              |
+| Layout/3D / Kamada Kawai Weighted (`layout-3d--kamada-kawai-weighted`) | a different drawing of the same graph | accept              |
+| Layout/3D / Kamada Kawai (`layout-3d--kamada-kawai`)                   | a few nodes shifted by about a pixel  | accept              |
+| Layout/3D / Random (`layout-3d--random`)                               | 8 anti-aliased pixels                 | accept              |
 
-Every other static layout story is unchanged, and so is every Styles, Data and Sets story except
-the one fixed-layout story in the table, which is a defect (see "A fixed-layout story sometimes
-ignores its data positions"). The force-directed stories (ForceAtlas2, Spring,
-D3, NGraph, the GPU stories) use engines this commit did not touch; they differ between two
-renders of the same build as well, so a difference there says nothing about this change (see
-"Stories that differ from run to run").
+Every other static layout story is unchanged, and so is every Styles, Data and Sets story. One
+fixed-layout story, Styles/Layered / Label Enabled Layers, was drawn with its nodes away from their
+data positions by `d055587d`; that was a defect, and it is fixed on this branch (see "Switching to
+the fixed layout kept the previous layout's coordinates"). The force-directed stories
+(ForceAtlas2, Spring, D3, NGraph) use engines this commit did not touch. The three GPU stories are
+captured on the real GPU (see "Layout/GPU"). Three engines the commit rewrote, grid, radial and
+spectral, have no story; they were compared numerically (see "Engines with no story").
 
-**visual-review cannot show these changes today.** Its capture of graphty-element crops each
-story to the page's visible content, and it looks for that content only in the light DOM. The
-element draws into a canvas inside its shadow root, so for 168 of the 174 element stories it
-captures, every layout story among them, the capture is a 2400x168 strip of the top of the frame
-with no graph in it (see "Every other graphty-element story"). Until that is fixed, the captures on
-this page are the review; the owner accepts or rejects each change here.
+visual-review's own capture now shows these stories. It used to crop each graphty-element story to
+a strip with no graph in it, because it looked for content only outside the element's shadow root;
+that is fixed on this branch (see "visual-review's capture of graphty-element").
 
 ## What was compared
 
@@ -37,14 +34,13 @@ this page are the review; the owner accepts or rejects each change here.
 - All 27 stories under Layout/2D, Layout/3D and Layout/GPU with `tools/diff-stories.mjs`
   (1000x800, SwiftShader WebGL, node and camera positions read from the element), then each
   differing pair through `tools/pixel-diff.mjs` (threshold 12).
-- The three GPU stories (`layout-gpu--*`) time out on the screenshot under SwiftShader on both
-  builds, so `diff-stories.mjs` has no pair for them. They run ForceAtlas2 and Spring, which
-  `d055587d` did not change.
+- The three GPU stories (`layout-gpu--*`) on the real GPU (an RTX 4070 SUPER through ANGLE on
+  Vulkan), on 77c84820, on `d055587d` alone, and on the after build, each rendered twice.
 - Every Styles, Data and Sets story (107) with `diff-stories.mjs`, because most of them use the
   fixed layout.
-- Every graphty-element story, before and after, with visual-review's own capture (`capture
---project graphty-element`, the before capture used as the baseline). See "Every other
-  graphty-element story".
+- Every Layout story and Label Enabled Layers, before and after, with visual-review's own capture
+  (`capture --project graphty-element`, the before capture used as the baseline), once its
+  capture could see the element. See "visual-review's capture of graphty-element".
 
 ## Why the four stories changed: the start and the result are now float32
 
@@ -111,31 +107,37 @@ Before, after, and the pixel diff, 3x around the eight changed pixels.
 
 ![Random 3D, before, after and diff, 3x crop](random-3d-crop-3x.png)
 
-## A fixed-layout story sometimes ignores its data positions
+## Switching to the fixed layout kept the previous layout's coordinates
 
 Styles/Layered / Label Enabled Layers uses the fixed layout with five nodes at data positions
-(A at 0,2,0, B at -2,0,0, ...). On the after build, some renders draw the nodes scattered several
-units from those positions, with the fixed layout active; the others draw the intended diamond.
-On the before build every render is the diamond.
+(A at 0,2,0, B at -2,0,0, ...). On the build with `d055587d`, some renders drew the nodes scattered
+several units from those positions (1 of 8 renders run alone, and repeatedly inside
+`diff-stories.mjs` batches); on the before build every render was the intended diamond.
 
-- `diff-stories.mjs` over the Styles, Data and Sets stories rendered it scattered, and the same
-  story rendered twice from the after build came out scattered again.
-- Rendering it one at a time: 1 of 8 renders of the after build scattered (A at -3.0,-3.2,4.3
-  instead of 0,2,0, the largest move 7.3 units), 0 of 8 of the before build.
-
-![Label Enabled Layers, a scattered render of the after build](label-enabled-layers-scattered.png)
+![Label Enabled Layers, a scattered render before the fix](label-enabled-layers-scattered.png)
 ![Label Enabled Layers, the intended picture](label-enabled-layers-placed.png)
 
-The mechanism is not proven. What the code shows: the element's default layout is `ngraph`, and
-since `d055587d` the fixed layout keeps whatever coordinates the element's position array holds,
-"its data.position ... or wherever a drag or an earlier layout put it", where it used to place
-every node at `data.position`. The scattered coordinates look like an ngraph start. So a render in
-which ngraph runs before the story's `layout: "fixed"` takes effect would keep ngraph's
-coordinates. The other Styles/Layered stories, with the same data and layout, render the same
-bytes on both builds, and this one is right in most renders, so this is a race, and
-visual-review's capture would show it as a flaky or changed story once its capture sees the
-canvas. This needs an element fix (or a decision that a
-switch to the fixed layout returns every node with a `data.position` to it), not an accept.
+The cause was not a race in the story but a change of behaviour for every consumer. Before
+`d055587d`, the fixed layout put every node at its `data.position` each time it ran. After it, the
+fixed layout kept whatever the element's position array held, and a node's `data.position` reached
+that array only when the node's row was still empty. So a graph that another layout had already
+arranged kept that arrangement when the layout was switched to `"fixed"`: in the graphty app,
+switching the layout control from ngraph to fixed always left the ngraph positions. The story hit
+it only sometimes because its helper sets the data before the layout, so the default ngraph layout
+runs first for as long as it takes the layout setting to arrive.
+
+Fixed on this branch in `graphty-element/src/layout/FixedLayoutEngine.ts`: the first time a fixed
+layout engine lays out, every node carrying a `data.position` goes there (scaled by
+`data.knownFields.positionScale`), whatever an earlier layout left in the array. After that it keeps
+the array, so a drag still survives a later recompute, which is what `d055587d` was after. A test in
+`graphty-element/test/layout/pin-state.test.ts` switches from circular to fixed and checks each
+node's data position, then drags a node, adds another and checks the drag held; it fails on the
+unfixed engine.
+
+On the fixed build: 8 of 8 renders of Label Enabled Layers are byte-identical to the before build,
+and all 107 Styles, Data and Sets stories render the same bytes as the before build except Data /
+Json, which runs ngraph, and Styles / Label Animation, whose label pulses outside Chromatic; both
+of those match the before build when the two builds are rendered in the same run.
 
 ## Stories that did not change
 
@@ -145,9 +147,7 @@ Force Atlas 2 Weighted. Layout/3D Circular's nodes move by under 0.001 scene uni
 rounding) and render the same bytes.
 
 The fixed layout reads the element's position array instead of moving meshes itself. Layout/3D
-Fixed and every Styles, Data and Sets story (107 stories, most on the fixed layout) render the
-same bytes before and after with `diff-stories.mjs`, apart from Label Enabled Layers above and
-Data / Json, which runs ngraph and differs between two renders of either build.
+Fixed renders the same bytes before and after.
 
 ## Stories that differ from run to run
 
@@ -159,24 +159,56 @@ D3, Force Atlas 2 (3D) and NGraph; two renders of the after build for Force Atla
 Atlas 2 Weighted (2D), Spring (2D) and NGraph. None of these engines is a static engine, and
 `d055587d` did not change them.
 
-## Every other graphty-element story
+## Layout/GPU
 
-visual-review's own capture of all 178 graphty-element stories, the before build as the baseline:
-173 `unchanged`, 1 `changed` (Layout/2D Arf), 2 `failed` (Layout/GPU Force Atlas 2 Fake and
-Spring Fake time out on the screenshot on both builds) and 2 `excluded` by their stories'
-`disableSnapshot`.
+Under SwiftShader, `diff-stories.mjs` timed out on the screenshot of these three stories on both
+builds. On the real GPU each renders in about two seconds:
 
-That count cannot be read as "nothing else changed". 168 of the 174 captures are the same
-2400x168 strip: `contentClip` in `visual-review/capture/capture.mjs` walks
-`document.body.children` and never enters a shadow root, so the canvas graphty-element renders
-into its shadow root is invisible to it and the crop keeps only the top 84 CSS pixels of the
-frame. 116 of those strips are byte-identical to each other. Arf shows as `changed` only because
-some of its edges cross that strip; the Kamada-Kawai 3D and Random 3D changes above fall outside
-it and show as `unchanged`. The six full-height captures are the stories whose light DOM holds
-content of its own.
+- **ForceAtlas2 (fake accelerator)** and **Spring (fake accelerator)**: the same bytes on 77c84820,
+  on `d055587d` and on the after build, and the same bytes on every repeat. visual-review's own
+  capture (SwiftShader, with its stable-frame wait) also reports both `unchanged`.
+- **ForceAtlas2 (WebGPU)** runs ForceAtlas2 on the device, and is excluded from visual-review by its
+  story's `disableSnapshot`. It draws one of two nearly identical pictures (the same arrangement,
+  2.3% of the pixels different). Which one depends on CPU scheduling, not on the build: the story
+  animates outside Chromatic, and how many device batches land before the layout settles depends
+  on how the frame loop and the batch readbacks interleave. Pinned to one CPU core with `taskset -c
+0`, 77c84820, `d055587d` and the after build render the same bytes, twice each.
 
-The fixed layout's move onto the position array is covered by the `diff-stories.mjs` captures
-above (Layout/3D Fixed is identical, and its node positions agree), not by visual-review.
+![ForceAtlas2 (fake accelerator)](gpu-force-atlas-2-fake.png)
+![Spring (fake accelerator)](gpu-spring-fake.png)
+![ForceAtlas2 (WebGPU), one of its two pictures](gpu-force-atlas-2-webgpu-a.png)
+![ForceAtlas2 (WebGPU), the other](gpu-force-atlas-2-webgpu-b.png)
+
+## Engines with no story
+
+`d055587d` also rewrote the grid, radial and spectral engines, and no graphty-element story uses
+them, so no capture can show them. Their layouts were compared on the same Les Miserables graph
+with each engine's default options, the legacy function against the snapshot layout:
+
+- grid: the same positions exactly.
+- radial: the same positions to 3e-8 (float32 rounding).
+- spectral: the same positions to 3e-8 when both are given the same seed. The engine passes no
+  seed, so both the old and the new layout start power iteration from a random vector, and two runs
+  of the same code draw the graph either as it is or mirrored; that was already so before this
+  commit.
+
+## visual-review's capture of graphty-element
+
+visual-review crops each capture to the story's content. `contentClip` in
+`visual-review/capture/capture.mjs` looked for that content only among ordinary child elements and
+never entered a shadow root, and graphty-element draws into a canvas inside its shadow root. So 168
+of the 174 element stories it captured were the same 2400x168 strip of the top of the frame with no
+graph in it, and it reported Kamada-Kawai 3D and Random 3D `unchanged` because their changes fell
+outside that strip. It now walks open shadow roots too; a test in
+`visual-review/test/capture-run.test.mjs` crops a story whose only drawing is inside a shadow root,
+and fails on the old capture.
+
+With the fix, the element's Layout stories capture at their full height (2400x1264). Before build
+as the baseline, after build captured against it: Layout/2D Arf and Layout/3D Kamada Kawai Weighted
+`changed`, 24 stories `unchanged` (Kamada-Kawai 3D and Random 3D among them: their few hundred and
+eight changed pixels are within visual-review's threshold), ForceAtlas2 (WebGPU) `excluded`, and
+Label Enabled Layers `unchanged`. Every graphty-element capture will change once this lands, which
+does not matter today: master has no graphty-element baselines yet.
 
 ## Reproducing
 
@@ -194,7 +226,9 @@ node visual-review/trusted/cli.mjs capture --project graphty-element \
 ```
 
 Running `diff-stories.mjs` with the same Storybook on both sides shows which stories differ from
-run to run. The position figures come from a `tsx` script that imports the legacy
+run to run. The GPU captures come from the same stories opened in headless Chromium with the flags
+`--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface` and
+`LD_LIBRARY_PATH` pointing at an extracted libEGL (this machine has none installed). The position figures come from a `tsx` script that imports the legacy
 `kamadaKawaiLayout`, `arfLayout` and `randomLayout` from `layout/src` at `77c84820` and
 `kamadaKawai`, `arf` and `random` from `layout/src` at the after commit, and compares their
 results on `data3.json` with the story's options.

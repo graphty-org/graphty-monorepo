@@ -94,6 +94,7 @@ Speedups on the reference card in Chromium, at 10k / 100k / 1M nodes:
 | k-core                         | 0.15x / 0.82x / 4.02x      | 0.04x / 0.44x / 2.16x     | marginal, and further from the line |
 | Louvain, primitive model       | 0.31x / 2.50x / 17.8x      | 0.65x / 14.6x / 105x      | earns on this model                 |
 | Louvain, cuGraph-derived bound | 0.09x / 0.16x / 0.62x      | 0.20x / 0.94x / 3.61x     | loses on this bound                 |
+| label propagation, 100 passes  | 4.37x / 20.8x / 97.3x      | 8.45x / 39.3x / 184x      | earns (39x at 100k)                 |
 
 The 10k and 100k columns are measured. The 1M column is not: it is the old estimate scaled by that
 algorithm's measured-to-estimated ratio at 100k, which assumes the estimate's error holds from 100k
@@ -101,6 +102,23 @@ to 1M. Every class in this record is decided at 100k and below, so the classes a
 measurement alone. "Loses at 10k" follows the precedent of the minimum spanning tree row, which is
 classed as earning although it loses at 10k; this record never defines how long a CPU call must be
 to count as "long enough to notice", and the Katz and HITS classes are the first to hinge on it.
+
+The label propagation row was added the same way on 2026-09-27, after the port landed
+(`indexed.labelPropagation`, design `design/algorithms/label-propagation-indexed-port-design.md`).
+Its port baseline is 100 times the port's one-sweep minimum from `port-bench.ts` -- 0.8 ms, 3.6 ms
+and 38.3 ms at 1k, 10k and 100k, load average 11.6 at the start and 7.3 at the end -- because the
+GPU is costed at 100 synchronous passes; the 1M point is the old estimate scaled by the 100k ratio,
+1.89x. The unchanged script reproduced the old row (4.37x / 20.8x / 97.3x) before the baseline was
+replaced; the other label propagation rows move with it (group-by at 1.3 ns: 5.75x / 12.9x / 44.9x;
+readback every pass: 1.66x / 14.1x / 145x). A first sweep touches the most distinct labels, so 100
+of them overstate the CPU side, and the estimated port turned out about half the measured cost:
+the GPU's advantage roughly doubled.
+
+Time to answer, which is not the same question and is kept out of the table: the port at its
+defaults converges on the 100k bench graph in 13 sweep-equivalents, 372 ms minimum, against the
+model's 97.5 ms for the GPU's 100 passes on the reference card in Chromium. The port's stop rule
+does most of the work the GPU's pass count spends; the GPU still answers first on this model, by
+about 3.8x.
 
 THE PORTS MOVED IN OPPOSITE DIRECTIONS, and that is the finding. The Katz, HITS and k-core ports
 came in two to four times FASTER than estimated, so the GPU's advantage against each shrank by the

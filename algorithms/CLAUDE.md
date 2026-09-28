@@ -37,6 +37,12 @@ algorithms/
 └── docs/                  # VitePress documentation
 ```
 
+`src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
+`indexed` namespace: BFS, Dijkstra, connected components, Kruskal MST, PageRank, HITS, Katz,
+common neighbours, k-core, Louvain and label propagation. Each lands beside its legacy function
+without replacing it; tests live in `test/unit/indexed/` and before/after timings in
+`benchmarks/port-bench.ts`.
+
 ## Essential Commands
 
 ```bash

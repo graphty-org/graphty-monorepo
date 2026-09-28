@@ -35,11 +35,13 @@ A second, independent part of the gap is semantic, not per-arc overhead: the shi
 random. On tie-rich graphs (paths, trees, road networks) it therefore never stops. Measured against
 `algorithms/dist`: a 1,000-node path ran all 100 iterations and returned `converged: false` on seeds
 1, 2 and 3, and planted-partition graphs took 8-35 iterations (research probe run for this design).
-The cost record's own bench graphs (random, 10 edges per node) show the same thing: the shipped
-function ran to its cap of 100 passes on every size (`final-model.md` line 97, "label propagation
-100 (the cap it hit)"), and the GPU model is costed at 100 passes. A port that fixes the stop rule
-is faster on those graphs for a reason unrelated to typed arrays, and the benchmark in section 9
-keeps the two effects apart.
+The cost record's own bench graphs (random, 10 edges per node, integer weights 1..100) show the same
+thing: the shipped function ran to its cap of 100 passes at 10k and 100k (`final-model.md` line 97,
+"label propagation 100 (the cap it hit)"), and the GPU model is costed at 100 passes. A port that
+fixes the stop rule is faster on those graphs for a reason unrelated to typed arrays, and the
+benchmark in section 9 keeps the two effects apart. On UNWEIGHTED random graphs of the same shape
+the shipped function does converge -- in 4, 8 and 18 sweeps at 1k, 10k and 100k on the graphs of
+`port-bench.ts` (section 11) -- so there the measured gap is per-arc cost, not the stop rule.
 
 ## 2. What the port computes
 
@@ -417,14 +419,14 @@ Traag and Subelj's maximality proof) and it does not depend on the RNG.
 | Single node; edgeless graph of 5                                                                                                   | Singletons, `iterations` 1, `converged` true                                                                                                                                                                      |
 | Two triangles plus an isolated node                                                                                                | Labels exactly `[0,0,0,1,1,1,2]`                                                                                                                                                                                  |
 | Complete graph K6; two disjoint five-cliques                                                                                       | One community per clique, for seeds 1..10                                                                                                                                                                         |
-| Self-loop on a node of a triangle; a self-loop-only node                                                                           | Result equals the same graph without the loop (same seed)                                                                                                                                                         |
+| Self-loops on three nodes of the karate club; a self-loop-only node                                                                | Result equals the same graph without the loops (same seed). A triangle cannot show the difference: it ends as one community either way                                                                            |
 | Two five-cliques A and B; x joined to A's member a1 by two parallel edges and to B's member b1 by one                              | Weighted, seeds 1..10: each clique holds one label, `label(x) === label(a1)`, and the dominance oracle passes. `weighted: false`, seeds 1..50: x ends with A on some seeds and with B on others (the tie is real) |
 | The same two five-cliques; x with arc weight 3 to a1 and 1 + 1 to b1 and b2                                                        | Seeds 1..10: each clique holds one label, `label(x) === label(a1)`, and the dominance oracle passes                                                                                                               |
 | Directed: two triangles T1 and T2 (arcs both ways), plus node x with a reciprocal pair to A in T1 and a single arc x->B to B in T2 | x counts A twice and B once, so it lands in T1's community on every seed; the dominance oracle, run on the symmetrised view, passes                                                                               |
 | Directed: two directed triangles, one arc per edge, one direction each                                                             | Same partition as the undirected triangles (in-arcs are read, so each node sees both neighbours)                                                                                                                  |
 | Directed, `weighted: false`, reciprocal pair                                                                                       | Counts the pair once                                                                                                                                                                                              |
 | Zero-weight arcs only                                                                                                              | Node keeps its own label                                                                                                                                                                                          |
-| Negative, NaN, infinite weight                                                                                                     | `RangeError`; nothing written                                                                                                                                                                                     |
+| Negative, NaN, infinite weight                                                                                                     | `RangeError`; nothing written. `GraphBuilder` refuses a NaN weight, so that case overlays a NaN weight array on a real snapshot                                                                                   |
 | Even path of 1,000; star; complete bipartite K(3,4) (tie-heavy)                                                                    | `converged: true` on seeds 1..10 under the default cap, and the dominance oracle passes -- the case where the shipped function spins to its cap                                                                   |
 | `maxIterations: 0`                                                                                                                 | Identity labelling; `converged: false` when some node has a positive-weight neighbour, `true` on an edgeless or all-zero-weight graph                                                                             |
 | `maxIterations: 1` on a 1,000-node random graph                                                                                    | Stops at `iterations` <= 1 with `converged: false`, and the cap is honoured exactly                                                                                                                               |
@@ -500,7 +502,8 @@ Two measurements, because they answer different questions.
   consecutive minima do not.
 
 - **Size ladder:** 1k, 10k, 100k and 1M nodes, undirected, 10 edges per node from the seeded LCG
-  `port-bench.ts` uses -- the graphs the GPU cost record measured. The shipped function runs at
+  `port-bench.ts` uses -- the shape the GPU cost record measured, though unweighted and from a
+  different generator (the record's graphs carry integer weights 1..100). The shipped function runs at
   1M once, and is skipped when its 100k median times 10 exceeds a 600 s budget.
 - **Tie-heavy tier:** `pathGraph({ n: 100000 })` from graph-samples, where the shipped function
   runs to its cap.
@@ -539,3 +542,58 @@ Two measurements, because they answer different questions.
   removes the size limit with no reset branch, which no test could reach without 2^31 visits.
 - `randomSeed` is validated as a finite integer, rather than coerced silently, so a fractional or
   NaN seed is reported instead of quietly aliasing seed 0.
+
+## 11. Results (2026-09-27)
+
+Measured on the shared development machine (Intel i9-14900) against the shipped implementation on
+this branch. Both runs are kept under `tmp/label-propagation-port/` in the worktree.
+
+### 11.1 Shipped against the port, interleaved
+
+`npx tsx benchmarks/label-propagation-bench.ts` from `algorithms/`. Both sides at their defaults
+(`maxIterations` 100, `randomSeed` 42, weighted). Runs alternate shipped, port; medians and minima
+in milliseconds unless marked; "sweeps" is each side's `iterations`. Load average (1 / 5 / 15 min)
+7.31 / 6.73 / 6.45 at the start and 8.37 / 10.78 / 8.50 at the end; it peaked at 19 during the 1M
+row, which ran one pair.
+
+| graph                                  | pairs | shipped median | shipped min | shipped sweeps, converged | port median | port min | port sweeps, converged | ratio of medians |
+| -------------------------------------- | ----- | -------------- | ----------- | ------------------------- | ----------- | -------- | ---------------------- | ---------------- |
+| random 1k, 10k edges                   | 7     | 7.7            | 6.7         | 4, true                   | 0.6         | 0.5      | 3, true                | 13.4x            |
+| random 10k, 100k edges                 | 7     | 217.8          | 213.7       | 8, true                   | 11.1        | 10.8     | 6, true                | 19.6x            |
+| random 100k, 1M edges                  | 3     | 9,878          | 8,614       | 18, true                  | 363.6       | 360.9    | 13, true               | 27.2x            |
+| random 1M, 10M edges                   | 1     | 519.9 s        | 519.9 s     | 35, true                  | 22.2 s      | 22.2 s   | 24, true               | 23.4x            |
+| path of 100k (tie-heavy)               | 3     | 18.5 s         | 15.1 s      | 100, false                | 12.1        | 10.4     | 2, true                | 1,522x           |
+| planted partition 100 x 1k, degree ~10 | 3     | 30.2 s         | 27.9 s      | 100, false                | 106.6       | 101.1    | 8, true                | 284x             |
+
+What it shows:
+
+- **Per-arc cost.** On the unweighted random ladder both sides converge, and the port also runs
+  fewer sweep-equivalents (the queue skips settled nodes), so 13-27x is typed arrays plus the queue.
+  Per sweep the port is about 10-20x faster up to 100k. At 1M a port sweep costs about 0.9 s
+  against 28 ms at 100k: the label reads become cache misses once the arrays outgrow the cache.
+- **Stop rule.** On the path and the planted partition the shipped function runs to its cap
+  without converging while the port settles in 2 and 8 sweep-equivalents. That, not the per-arc
+  cost, is where the 284x and 1,522x come from.
+- **Quality.** On planted partitions of 4 groups of 50 (`pIn` 0.3, `pOut` 0.01, seeds 1..10) the
+  port's mean adjusted Rand index against the planted groups is 0.971 and the shipped function's
+  1.000 (the unit test's bar is >= 0.9 and within 0.05 of the shipped mean). FLPA occasionally
+  merges two groups on these small graphs; it never failed to converge.
+
+### 11.2 `port-bench.ts` rows
+
+Minimum of 3 runs up to 10k, 1 at 100k, consecutive (not interleaved); load average 11.57 / 7.13 /
+6.54 at the start and 7.31 / 6.73 / 6.45 at the end.
+
+| n    | port, converged | shipped | ratio | port, one sweep (`maxIterations: 1`) |
+| ---- | --------------- | ------- | ----- | ------------------------------------ |
+| 1k   | 2.3 ms          | 9.4 ms  | 4.0x  | 0.8 ms                               |
+| 10k  | 10.8 ms         | 193 ms  | 17.8x | 3.6 ms                               |
+| 100k | 372 ms          | 11.5 s  | 30.9x | 38.3 ms                              |
+
+### 11.3 The cost record's row
+
+100 times the one-sweep minimum -- 80 ms, 360 ms and 3,830 ms at 1k, 10k and 100k -- replaces the
+estimated port (6 x PageRank-100) in the appendix B script, with 1M scaled from the old estimate by
+the 100k ratio (1.89x). The re-derived row is in
+`design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md` under "Re-derived against the
+measured ports".

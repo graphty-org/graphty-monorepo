@@ -103,6 +103,34 @@ const communities = labelPropagation(graph, {
 });
 ```
 
+### Over a graph-format snapshot
+
+`indexed.labelPropagation` runs the same idea over a `GraphSnapshot` from `@graphty/graph-format`
+with typed arrays and no per-edge allocation. It is fast label propagation (FLPA, Traag and
+Subelj 2023): nodes wait in a queue and only nodes whose neighbourhood changed are revisited, so
+it stops once every node's label is the most common among its neighbours, even on paths and trees
+where the legacy function runs to its iteration cap. For the same `randomSeed` it returns
+different partitions than `labelPropagation`.
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const result = indexed.labelPropagation(s, {
+  maxIterations: 100, // work cap, in full-sweep equivalents
+  randomSeed: 42, // visit order and tie draws; one seed gives one result
+  weighted: true, // false: each distinct neighbour votes once
+});
+
+result.labels; // Uint32Array: community per node index
+result.count; // number of communities
+result.groups(); // node indices per community
+result.converged; // true when every label is dominant among its neighbours
+```
+
+Self-loops are ignored and parallel edges are summed. On a directed snapshot a node's neighbours
+are its out- and in-neighbours. A negative, NaN or infinite weight throws a `RangeError`.
+
 ## K-Clique Communities
 
 Finds overlapping communities based on clique percolation.

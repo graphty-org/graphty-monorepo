@@ -36,8 +36,10 @@ Tests first:
   0: `converged` true.
 - `RangeError` for `maxIterations` -1, 1.5, NaN; for `maxIterations * n > Number.MAX_SAFE_INTEGER`
   (`maxIterations: 2 ** 53` on a 2-node graph); for `randomSeed` 1.5, NaN, Infinity.
-- `RangeError` for a negative, a NaN and an infinite arc weight (build with
+- `RangeError` for a negative and an infinite arc weight (build with
   `GraphBuilder(...).freeze({ checksum: true })`); `s.validate({ checksum: true })` passes after.
+  `GraphBuilder` refuses a NaN weight (`E_INVALID_WEIGHT`), so the NaN case overlays a NaN weight
+  array on a real snapshot with `Object.create`.
 
 Code: the `LabelPropagationOptions` and `LabelPropagationResult` interfaces exactly as in section
 7; argument checks; weight scan (only when `weighted !== false` and `s.weights !== null`), which
@@ -88,8 +90,9 @@ Files: same two.
 
 Tests first:
 
-- A triangle with a self-loop on one node gives the same labels as the triangle without it, for
-  seeds 1..10; a node whose only arc is a self-loop stays a singleton.
+- The karate club with self-loops on three of its nodes gives the same labels as without them, for
+  seeds 1..10; a node whose only arc is a self-loop stays a singleton. (A triangle cannot tell the
+  two apart: it ends as one community whether or not the loop votes.)
 - Parallel edges, built with `GraphBuilder` (the legacy `Graph` cannot hold them): two five-cliques
   A and B, x joined to a1 of A by two parallel edges and to b1 of B by one. Default `weighted`,
   seeds 1..10: each clique holds one label, `label(x) === label(a1)`, `dominanceHolds`. With

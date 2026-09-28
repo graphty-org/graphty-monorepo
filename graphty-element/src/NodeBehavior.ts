@@ -651,13 +651,21 @@ export class NodeBehavior {
                     // is right for a file that really does carry two, and would double every
                     // known edge on every expand. Only the call site knows which of the two
                     // this is, and this one knows.
-                    const dataManager = context.getDataManager();
-                    dataManager.addNodes([...nodes]);
-                    dataManager.addEdges([...edges], {
-                        repeated: "first",
-                        source: endpoints.source,
-                        target: endpoints.target,
-                    });
+                    //
+                    // Through the graph's own queued adds, like any other push: they end in
+                    // the post-add repaint and start the load-time algorithm list, so the
+                    // fetched nodes and edges get results and paint like the rest.
+                    const report = (error: unknown): void => {
+                        console.error("[NodeBehavior] Expanding a node failed:", error);
+                    };
+                    graph.addNodes([...nodes]).catch(report);
+                    graph
+                        .addEdges([...edges], {
+                            repeated: "first",
+                            source: endpoints.source,
+                            target: endpoints.target,
+                        })
+                        .catch(report);
 
                     // TODO: fetch and add secondary edges
                 },

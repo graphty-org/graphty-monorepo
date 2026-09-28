@@ -4,7 +4,7 @@
  * records, composition, lifecycle, and every error code the builder names.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX, MAX_COUNT } from "../../src/constants.js";
@@ -445,6 +445,25 @@ describe("GraphBuilder edges", () => {
         b.removeNode("a");
         expect(Array.from(b.outEdgesOf(0))).toEqual([]);
         expect(Array.from(b.inEdgesOf(1))).toEqual([]);
+    });
+
+    it("findEdges walks the shorter endpoint's incidence lists, so a hub-to-leaf lookup costs the leaf", () => {
+        for (const directed of [true, false]) {
+            const b = new GraphBuilder({ directed });
+            for (let i = 0; i < 1000; i++) {
+                b.addEdge("hub", `leaf${i}`);
+            }
+            b.addEdge("hub", "leaf500");
+            const hub = b.indexOf("hub");
+            const leaf = b.indexOf("leaf500");
+            // The link columns are what a walk steps along; count the steps.
+            const { staging } = b as unknown as { staging: { nextOut: { get: () => number }; nextIn: { get: () => number } } };
+            const outSteps = vi.spyOn(staging.nextOut, "get");
+            const inSteps = vi.spyOn(staging.nextIn, "get");
+            expect(Array.from(b.findEdges(hub, leaf))).toEqual([500, 1000]);
+            expect(Array.from(b.findEdges(leaf, hub))).toEqual(directed ? [] : [500, 1000]);
+            expect(outSteps.mock.calls.length + inSteps.mock.calls.length).toBeLessThan(20);
+        }
     });
 
     it("findEdges on an undirected builder matches either orientation", () => {

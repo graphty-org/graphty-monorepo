@@ -24,7 +24,7 @@ import {
 } from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../data/report";
-import { Edge, EdgeMap } from "../Edge";
+import { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
@@ -160,7 +160,6 @@ export class DataManager implements Manager {
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
-    edgeCache = new EdgeMap();
 
     /**
      * Render objects by their store edge index, so a freeze report's `edgeRemap` -- and a removal,
@@ -460,7 +459,7 @@ export class DataManager implements Manager {
      * @returns the existing edges, oldest first; empty when the pair is new
      */
     private existingBetween(sourceId: NodeIdType, targetId: NodeIdType): ExistingEdge[] {
-        const built = this.edgeCache.get(sourceId, targetId);
+        const built = this.getEdgesBetween(sourceId, targetId);
         const pending = this.pendingByPair.get(sourceId)?.get(targetId) ?? [];
         return [
             ...built.map((edge) => ({ edgeIndex: edge.index, edge, pending: null })),
@@ -566,7 +565,6 @@ export class DataManager implements Manager {
         this.edges.clear();
         this.edgeVersion++;
         this.nodeCache.clear();
-        this.edgeCache.clear();
 
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
@@ -763,7 +761,7 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Record a freshly built render edge in all three of the places that index it.
+     * Record a freshly built render edge in both of the places that index it.
      * @param edge - the new render object
      * @param edgeIndex - the index the builder gave this edge. Never INVALID_INDEX: an edge whose
      *     endpoint ids graph-format will not store is rejected before it reaches here
@@ -771,7 +769,6 @@ export class DataManager implements Manager {
     private registerEdge(edge: Edge, edgeIndex: number): void {
         edge.index = edgeIndex;
         this.edgesByIndex[edgeIndex] = edge;
-        this.edgeCache.set(edge.srcId, edge.dstId, edge);
         this.edges.set(edge.id, edge);
         this.edgeVersion++;
     }
@@ -919,7 +916,6 @@ export class DataManager implements Manager {
     private teardownEdge(edge: Edge, edgeIndex: number): void {
         this.edges.delete(edge.id);
         this.edgeVersion++;
-        this.edgeCache.delete(edge.srcId, edge.dstId, edge);
         this.edgesByIndex[edgeIndex] = undefined;
         edge.index = INVALID_INDEX;
 
@@ -1272,12 +1268,36 @@ export class DataManager implements Manager {
      *
      * Plural because "the edge between a and b" stopped being a single thing the moment parallel
      * edges became representable.
+     *
+     * Answered by the store: the builder's incidence lists name the live edges between the two
+     * rows, and `edgesByIndex` turns each into its render object. An edge whose render object is
+     * still pending is left out, and so, in an undirected graph, is an edge recorded the other way
+     * round -- the pair is ORDERED, the same question for either direction.
      * @param srcNodeId - Source node identifier
      * @param dstNodeId - Destination node identifier
      * @returns the edges, oldest first; empty when there are none
      */
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[] {
-        return this.edgeCache.get(srcNodeId, dstNodeId);
+        if (!isStorableId(srcNodeId) || !isStorableId(dstNodeId)) {
+            return [];
+        }
+
+        const { builder } = this.store;
+        const u = builder.indexOf(srcNodeId);
+        const v = builder.indexOf(dstNodeId);
+        if (u === INVALID_INDEX || v === INVALID_INDEX) {
+            return [];
+        }
+
+        const found: Edge[] = [];
+        for (const e of builder.findEdges(u, v)) {
+            const edge = this.edgesByIndex[e];
+            if (edge !== undefined && builder.indexOf(edge.srcId) === u) {
+                found.push(edge);
+            }
+        }
+
+        return found;
     }
 
     /**
@@ -1856,7 +1876,7 @@ export class DataManager implements Manager {
      * report exists to end rather than to repeat one level down.
      * @returns the node and edge counts the graph holds
      */
-    private heldCounts(): { nodes: number; edges: number } {
+    heldCounts(): { nodes: number; edges: number } {
         return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
     }
 
@@ -1913,7 +1933,6 @@ export class DataManager implements Manager {
         this.edges.clear();
         this.edgeVersion++;
         this.nodeCache.clear();
-        this.edgeCache.clear();
 
         // The dataset boundary, announced BEFORE the store goes: clearing freezes no replacement,
         // so `snapshot-replaced` never fires and a holder of per-snapshot resources -- an
@@ -1951,16 +1970,18 @@ export class DataManager implements Manager {
 
     /**
      * Get statistics about the data
-     * @returns Object containing node count, edge count, and cached mesh count
+     * @returns the node and edge counts the graph holds -- the same numbers `statistics()` and the
+     *     stats panel give -- and the cached mesh count
      */
     getStats(): {
         nodeCount: number;
         edgeCount: number;
         cachedMeshes: number;
     } {
+        const { nodes, edges } = this.heldCounts();
         return {
-            nodeCount: this.nodes.size,
-            edgeCount: this.edges.size,
+            nodeCount: nodes,
+            edgeCount: edges,
             cachedMeshes: this.meshCache.size(),
         };
     }

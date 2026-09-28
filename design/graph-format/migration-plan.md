@@ -35,7 +35,7 @@ graphty-element 2.6.0, webgpu-graph-algorithms 0.6.10, graph-samples 0.1.5, grap
 | A1 (algorithms `toSnapshot`)   | Done, inside the accelerator seam work (algorithms 1.8.0). `algorithms/src/indexed/to-snapshot.ts`, `Graph.mutationCount` in `algorithms/src/core/graph.ts`, differential harness in `algorithms/test/helpers/snapshot-differential.ts`.                                                                                                                                                    |
 | A2 (algorithms ports, facades) | About one eighth done. 11 `indexed.*` functions in `algorithms/src/indexed/` (bfs, commonNeighborsScore, connectedComponents, weaklyConnectedComponents, dijkstra, hits, kCoreDecomposition, katzCentrality, louvain, kruskalMST, pageRank). Two more on local branches (section 4). No legacy function delegates to a port and none accepts a snapshot.                                    |
 | L1 (layout)                    | The simulation half is done (`layout/src/simulation/`, `toLayoutSnapshot`, ForceAtlas2 and Fruchterman-Reingold simulations). On `feat/graph-format-migration`, not yet on master: the `indexed` namespace of 15 layouts over snapshots, `LayoutResult` and the position helpers, with 13 legacy layouts as wrappers over it; `arfLayout` and `kamadaKawaiLayout` keep their own internals. |
-| E1 (graphty-element)           | Data layer done (`graphty-element/src/data/GraphStore.ts` owns the builder; positions are an element-owned column). 5 of 25 algorithm adapters use the dispatcher; 20 still build a legacy `Graph` through `algorithmGraph()`. 13 static layout engines call positional layout functions. `EdgeMap` survives. On-load algorithms still start once per data chunk.                           |
+| E1 (graphty-element)           | Data layer done (`graphty-element/src/data/GraphStore.ts` owns the builder; positions are an element-owned column). 5 of 25 algorithm adapters use the dispatcher; 20 still build a legacy `Graph` through `algorithmGraph()`. 13 static layout engines call positional layout functions. `EdgeMap` is deleted; on-load algorithms start once per load.                                     |
 | W1 (webgpu-graph-algorithms)   | Done.                                                                                                                                                                                                                                                                                                                                                                                       |
 | IO1 (graph-io + element)       | graph-io half done (eight formats, corpus, benchmark). The element half has not started: the seven element `DataSource` classes still parse files themselves, and the element has no exporter.                                                                                                                                                                                              |
 | D1 (deprecations)              | Not started.                                                                                                                                                                                                                                                                                                                                                                                |
@@ -683,11 +683,11 @@ Each changes a published contract that the design never specified.
       newly mapped node to earlier ones, so an arc into that node from an earlier one, and every
       self-loop, is never compared. The port offers every arc and every self-loop once. Counts
       under a weight-comparing `edgeMatch` can therefore be lower than legacy's.
-   Options: (a) approve all three and delegate the four functions, listing the changes in section
-   4.3 (recommended: the legacy results in the second and third cases are wrong for a matching and
-   an isomorphism, and the first is an order-dependent heuristic); (b) delegate only
-   `maximumBipartiteMatching` and `isGraphIsomorphic` / `findAllIsomorphisms` without `edgeMatch`,
-   and leave the rest on legacy code until the removal release.
+      Options: (a) approve all three and delegate the four functions, listing the changes in section
+      4.3 (recommended: the legacy results in the second and third cases are wrong for a matching and
+      an isomorphism, and the first is an order-dependent heuristic); (b) delegate only
+      `maximumBipartiteMatching` and `isGraphIsomorphic` / `findAllIsomorphisms` without `edgeMatch`,
+      and leave the rest on legacy code until the removal release.
 
 ## 7. How completion is verified
 

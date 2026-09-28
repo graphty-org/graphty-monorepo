@@ -223,14 +223,14 @@ export class Edge {
     /**
      * Where this edge sits among the edges sharing its ordered endpoint pair, counting from zero.
      *
-     * Derived on every read from the data manager's edge cache rather than stored, so a removal
-     * cannot leave it stale. Nothing draws with it yet -- two parallel edges still render as two
+     * Derived on every read from the graph store rather than stored, so a removal cannot leave it
+     * stale. Nothing draws with it yet -- two parallel edges still render as two
      * coincident lines -- but a style layer can read it, and the geometry work that eventually
      * separates parallel edges needs exactly this number.
-     * @returns the rank, or -1 for an edge the cache no longer holds
+     * @returns the rank, or -1 for an edge the store no longer holds
      */
     get parallelRank(): number {
-        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).indexOf(this);
+        return this.context.getDataManager().getEdgesBetween(this.srcId, this.dstId).indexOf(this);
     }
 
     /**
@@ -238,7 +238,7 @@ export class Edge {
      * @returns the count
      */
     get parallelCount(): number {
-        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).length;
+        return this.context.getDataManager().getEdgesBetween(this.srcId, this.dstId).length;
     }
 
     /**
@@ -1613,136 +1613,5 @@ export class Edge {
             offset: placement.attachOffset,
             attachPosition: placement.attachPosition,
         };
-    }
-}
-
-/** The one empty array every miss answers with, so a lookup for an absent pair allocates nothing. */
-const EMPTY_EDGES: readonly Edge[] = Object.freeze([]);
-
-/**
- * Every edge the graph holds, indexed by its ordered endpoint pair.
- *
- * The inner value is an ARRAY, not one edge: two edges between the same ordered pair are two
- * edges. This class used to throw `"Attempting to create duplicate Edge"` on the second one, which
- * is why the data manager carried two separate guards that dropped a repeated record before it
- * could reach here -- and those drops are what pinned `statistics().repeatedEdgeCount` at zero for
- * every multigraph the element has ever loaded.
- *
- * Ask {@link EdgeMap.first} when the question genuinely has one answer, and {@link EdgeMap.get}
- * otherwise. Neither ever returns undefined for the pair itself: an absent pair is an empty array.
- */
-export class EdgeMap {
-    map = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
-
-    /**
-     * Whether any edge runs between the specified source and destination nodes.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns True when at least one edge exists, false otherwise
-     */
-    has(srcId: NodeIdType, dstId: NodeIdType): boolean {
-        return this.get(srcId, dstId).length > 0;
-    }
-
-    /**
-     * Adds an edge to the map, alongside any edges already running between the same pair.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @param e - The edge instance to store
-     */
-    set(srcId: NodeIdType, dstId: NodeIdType, e: Edge): void {
-        let dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            dstMap = new Map();
-            this.map.set(srcId, dstMap);
-        }
-
-        const parallel = dstMap.get(dstId);
-        if (parallel) {
-            parallel.push(e);
-            return;
-        }
-
-        dstMap.set(dstId, [e]);
-    }
-
-    /**
-     * Every edge running from one node to another, in the order they were added.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns The edges, which is an empty array when there are none
-     */
-    get(srcId: NodeIdType, dstId: NodeIdType): readonly Edge[] {
-        return this.map.get(srcId)?.get(dstId) ?? EMPTY_EDGES;
-    }
-
-    /**
-     * The first edge running from one node to another, for a caller whose question has one answer.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns The oldest edge between the pair, or undefined when there is none
-     */
-    first(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined {
-        return this.get(srcId, dstId)[0];
-    }
-
-    /**
-     * How many EDGES the map holds, which under parallel edges is more than the number of pairs.
-     * @returns The total count of all edges
-     */
-    get size(): number {
-        let sz = 0;
-        for (const dstMap of this.map.values()) {
-            for (const parallel of dstMap.values()) {
-                sz += parallel.length;
-            }
-        }
-
-        return sz;
-    }
-
-    /**
-     * Removes ONE edge from the map, leaving any other edges between the same pair alone.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @param e - The edge to remove
-     * @returns True if that edge was removed, false if the map did not hold it
-     */
-    delete(srcId: NodeIdType, dstId: NodeIdType, e: Edge): boolean {
-        const dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            return false;
-        }
-
-        const parallel = dstMap.get(dstId);
-        if (!parallel) {
-            return false;
-        }
-
-        const at = parallel.indexOf(e);
-        if (at === -1) {
-            return false;
-        }
-
-        parallel.splice(at, 1);
-
-        // Clean up empty levels, so `map.size` keeps meaning "pairs with an edge between them"
-        // and an iteration over the map never visits an empty array.
-        if (parallel.length === 0) {
-            dstMap.delete(dstId);
-        }
-
-        if (dstMap.size === 0) {
-            this.map.delete(srcId);
-        }
-
-        return true;
-    }
-
-    /**
-     * Removes all edges from the map.
-     */
-    clear(): void {
-        this.map.clear();
     }
 }

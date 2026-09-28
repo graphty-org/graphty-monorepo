@@ -395,8 +395,7 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
     };
     const holderPath = nodesPath === null ? [] : nodesPath.slice(0, -1);
     const holder = valueAt(root, holderPath);
-    // the keys the paths replace: the nodes key, and every edge key when edgesPath names the edges,
-    // with the holder's key that edgesPath descends through when the edges sit inside the holder
+    // the keys the paths replace: the nodes key, and every edge key when edgesPath names the edges
     const replaced = new Set<string>();
     if (nodesPath !== null) {
         replaced.add(nodesPath[nodesPath.length - 1]);
@@ -404,13 +403,16 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
     if (edgesPath !== null) {
         replaced.add("edges");
         replaced.add("links");
-        if (edgesPath.length > holderPath.length && holderPath.every((key, i) => edgesPath[i] === key)) {
-            replaced.add(edgesPath[holderPath.length]);
-        }
     }
-    const record: JsonRecord = Object.fromEntries(
+    let record: JsonRecord = Object.fromEntries(
         Object.entries(isJsonObject(holder) ? holder : {}).filter(([key]) => !replaced.has(key)),
     );
+    // edges inside the holder (`data.graph.links` under `data`) leave the holder, and only they do:
+    // the rest of the key they sit in (the `graph` attributes) is still read
+    if (edgesPath !== null && edgesPath.length > holderPath.length && holderPath.every((k, i) => edgesPath[i] === k)) {
+        const rest = withoutPath(record, edgesPath.slice(holderPath.length));
+        record = isJsonObject(rest) ? rest : {};
+    }
     if (nodesPath !== null) {
         record.nodes = lookup("nodesPath", nodesPath);
     }
@@ -418,6 +420,28 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
         record[pathEdgesKey(json, edgesPath)] = lookup("edgesPath", edgesPath);
     }
     return record;
+}
+
+/**
+ * A value with the entry at a path of object keys removed; undefined when the path is empty (the
+ * value itself goes) or nothing but that entry is left.
+ * @param value - the value
+ * @param segments - the keys down to the entry
+ * @returns the value without the entry
+ */
+function withoutPath(value: unknown, segments: readonly string[]): unknown {
+    if (segments.length === 0) {
+        return undefined;
+    }
+    const [head, ...tail] = segments;
+    if (!isJsonObject(value) || !hasKey(value, head)) {
+        return value;
+    }
+    // a parsed JSON value is never undefined, so undefined marks the entries to drop
+    const entries = Object.entries(value)
+        .map(([key, v]) => [key, key === head ? withoutPath(v, tail) : v] as const)
+        .filter(([, v]) => v !== undefined);
+    return entries.length === 0 ? undefined : Object.fromEntries(entries);
 }
 
 /**

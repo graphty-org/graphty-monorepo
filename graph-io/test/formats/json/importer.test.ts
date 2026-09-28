@@ -1355,6 +1355,24 @@ describe("nodesPath and edgesPath", () => {
         }
     });
 
+    it("keeps the rest of the graph key when edgesPath passes through it", async () => {
+        const doc = {
+            data: { graph: { name: "g", links: [{ source: "a", target: "b" }] }, nodes: [{ id: "a" }, { id: "b" }] },
+        };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.graph.links" });
+        expect(edge(s, 0)).toBe("a->b");
+        expect(names(s, "graph")).toEqual(["name"]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("keeps an edgesPath that ends in links under links, so a bare d3 document stays d3", async () => {
+        const doc = { data: { nodes: [{ id: "a" }, { id: "b" }], rel: { links: [{ source: "a", target: "b" }] } } };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.rel.links" });
+        expect(edge(s, 0)).toBe("a->b");
+        expect((s.meta.extra.json as { dialect: string }).dialect).toBe("d3");
+        expect(report.issues).toEqual([]);
+    });
+
     it("still refuses a path that names something other than an array", async () => {
         const error = await expectImportError(json({ data: { nodes: {} } }), { nodesPath: "data.nodes" });
         expect(error.report.issues[0].code).toBe(JSON_ISSUE.SHAPE);

@@ -585,7 +585,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 ### Visual review
 
-CI screenshots every story of compact-mantine and graphty-element; the owner compares them with
+CI screenshots every story of compact-mantine, graphty-element and layout; the owner compares them with
 the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
 machine (`visual-review/`, design in `design/visual-testing/design.md`). Start the page through
 servherd; its log prints the URL with the session token at every start:

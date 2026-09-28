@@ -115,7 +115,7 @@ different things.
 - **Timing** runs only where coverage is off. CI runs `default` and `browser` with v8 coverage,
   which makes milliseconds meaningless, and the repository already keeps timing in the `bench`
   project (`*.bench.test.ts`) for that reason. `bench` runs in Node, so phase 21 adds a
-  `bench-browser` project for the one timing file that needs a real scene. Byte counts, retained
+  `browser-bench` project for the one timing file that needs a real scene. Byte counts, retained
   sizes and "one rebuild ran" counters are not timing and stay in ordinary tests.
 
 Strict state (design section 12.1) is switched on by one call in each setup file, which together
@@ -1750,11 +1750,11 @@ scale, including a million nodes (design sections 12.5, 12.6).
   the file reports that figure rather than budgeting it. It needs a project of its own: the Node `bench` project's include
   (`test/**/*.bench.test.ts`) would otherwise pick it up and run it with no DOM, and CI already
   runs `vitest run --project=bench` in the `graphty-element-default` job.
-- `graphty-element/vitest.config.ts`: a new `bench-browser` project (browser mode on Chromium,
+- `graphty-element/vitest.config.ts`: a new `browser-bench` project (browser mode on Chromium,
   like `browser`, including only `test/browser/**/*.bench.test.ts`); `test/browser/**` is
   excluded from `bench`, and `test/browser/**/*.bench.test.ts` from `browser`.
 - `.github/workflows/ci.yml`: the `graphty-element-browser-1` job, which already has Chromium
-  installed, gains a step `pnpm exec vitest run --project=bench-browser` with no `--coverage`.
+  installed, gains a step `pnpm exec vitest run --project=browser-bench` with no `--coverage`.
   There is no million-node browser run, behind `GRAPHTY_SCALE` or otherwise: the element refuses
   to load past its 50,000-node ceiling, so the byte budget at that size is enforced by
   `scale.test.ts` alone.
@@ -1776,7 +1776,7 @@ random test is not the only thing that knows about it. If the deep-freeze cost i
 switch to lazy freezing on first hand-out as design section 14 describes.
 
 **Done when.** All pass at the default sizes within CI time limits; `--project=bench` no
-longer lists the browser timing file and `--project=bench-browser` runs it; the no-skips test
+longer lists the browser timing file and `--project=browser-bench` runs it; the no-skips test
 passes; the million-node byte assertions pass in `default`; the local browser timings at
 50,000 nodes are recorded in that file's header comment; lint, knip, build green.
 

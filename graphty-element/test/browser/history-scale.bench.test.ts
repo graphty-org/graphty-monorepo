@@ -3,7 +3,7 @@
  * and all: the render objects an undo tears down or builds again are the dominant cost, and a
  * headless session has none. See design/undo/undo-design.md sections 7 and 12.6.
  *
- * Runs in the `bench-browser` project, never under coverage, with strict state off. The graph is
+ * Runs in the `browser-bench` project, never under coverage, with strict state off. The graph is
  * the element's node ceiling (`DEFAULT_LIMITS.renderCeiling`, 50,000 today) with half as many
  * edges, laid out once by a one-shot layout, with the render loop stopped so nothing but the
  * undo moves, and loaded as the baseline, so `restoreTo(null)` returns to it. A million nodes is

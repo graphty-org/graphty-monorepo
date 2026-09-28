@@ -223,7 +223,7 @@ export default defineConfig({
                     // One file at a time: a benchmark timed beside another measures the other.
                     fileParallelism: false,
                     // A browser benchmark needs a page, which this project has not got: it runs in
-                    // "bench-browser" below.
+                    // "browser-bench" below.
                     exclude: ["test/browser/**", "**/node_modules/**"],
                 },
             },
@@ -446,10 +446,11 @@ export default defineConfig({
                 // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
                 // reason "bench" is kept out of "default": nothing here runs under coverage, which
                 // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
-                // with: npx vitest run --project=bench-browser.
+                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // sets timing rows' project below, which never runs in CI.
                 optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
                 test: {
-                    name: "bench-browser",
+                    name: "browser-bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/browser/**/*.bench.test.ts"],
                     fileParallelism: false,
@@ -499,7 +500,7 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
-                        // And the timing benchmarks: see "bench-browser"
+                        // And the timing benchmarks: see "browser-bench"
                         "test/browser/**/*.bench.test.ts",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",

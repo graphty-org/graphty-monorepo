@@ -86,3 +86,7 @@ type Removed =
     | "starGraph"
     | "wheelGraph";
 expectTypeOf<Extract<keyof typeof layout, Removed>>().toEqualTypeOf<never>();
+
+// The unused 1.x `Embedding` type is gone as well.
+// @ts-expect-error -- layout 2.0.0 exports no Embedding type
+export type NoEmbedding = layout.Embedding;

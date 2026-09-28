@@ -29,8 +29,10 @@ export interface IndexedForceAtlas2Options extends Omit<ForceAtlas2Options, keyo
 }
 
 /** Options of indexed.fruchtermanReingold: the simulation's, without the stepping controls, plus a start. */
-export interface IndexedFruchtermanReingoldOptions
-    extends Omit<FruchtermanReingoldOptions, keyof SimulationOptions | "cooling"> {
+export interface IndexedFruchtermanReingoldOptions extends Omit<
+    FruchtermanReingoldOptions,
+    keyof SimulationOptions | "cooling"
+> {
     /** Start positions, `dim` values per node in index order; each NaN component is drawn from the seed, finite ones are kept. */
     readonly pos?: F32 | null | undefined;
 }

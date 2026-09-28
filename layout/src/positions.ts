@@ -16,16 +16,20 @@ export interface LayoutResult {
 }
 
 /**
- * The legacy id-keyed map of a layout result.
+ * The id-keyed map of a layout result. A node the layout left unplaced (every component `NaN`, as `shell` and
+ * `multipartite` leave a node in no shell or layer) has no entry.
  * @param r - the layout result
  * @param ids - the id map of the snapshot the layout ran over
- * @returns one `dim`-component row per node, keyed by the node's id
+ * @returns one `dim`-component row per placed node, keyed by the node's id
  */
 export function toPositionMap(r: LayoutResult, ids: NodeIdMap): PositionMap {
     const { positions, dim, n } = r;
     const out: PositionMap = {};
     for (let i = 0; i < n; i++) {
-        out[ids.idOf(i)] = Array.from(positions.subarray(dim * i, dim * i + dim));
+        const row = Array.from(positions.subarray(dim * i, dim * i + dim));
+        if (!row.every(Number.isNaN)) {
+            out[ids.idOf(i)] = row;
+        }
     }
     return out;
 }
@@ -118,7 +122,12 @@ export function fromPositionColumn(
  * @param center - the target centre (missing components are 0)
  * @returns `positions`
  */
-export function rescaleInPlace<T extends F32 | F64>(positions: T, dim: number, scale = 1, center?: ArrayLike<number>): T {
+export function rescaleInPlace<T extends F32 | F64>(
+    positions: T,
+    dim: number,
+    scale = 1,
+    center?: ArrayLike<number>,
+): T {
     const n = Math.floor(positions.length / dim);
     const mean = new Float64Array(dim);
     const counts = new Float64Array(dim);

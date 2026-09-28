@@ -79,7 +79,8 @@ Every layout has the same shape, `(snapshot, options?) => LayoutResult`. A `Layo
 - **Start positions** (`pos`) are a `Float32Array` of `dim` values per node in index order. For the force layouts
   and `arf` each `NaN` component is drawn from `seed` and the finite components of the same row are kept;
   `kamadaKawai` reads `NaN` as 0.
-- **Unplaced nodes**: `shell` and `multipartite` leave the row of a node in no shell or layer as `NaN`.
+- **Unplaced nodes**: `shell` and `multipartite` leave the row of a node in no shell or layer as `NaN`, and
+  `toPositionMap` leaves such a node out of its map.
 - **Directed snapshots** are laid out as their undirected copy by every layout that reads edges.
 
 ```typescript
@@ -196,7 +197,10 @@ Where the results differ from 1.x:
 - `fruchtermanReingold` rejects a negative or infinite `k`, which `fruchtermanReingoldLayout` ran through its older
   loop, and leaves a pinned single node where `pos` put it (1.x moved it to `center`).
 - `bfs`, `bipartite` and `multipartite` centre a horizontal layout on `center`; 1.x's functions centred it on
-  `[center[1], center[0]]`.
+  `[center[1], center[0]]`. With the default centre (the origin) nothing moves.
+- `multipartite` without `subsets` reads the node column `subset` and throws when the snapshot has none, as a
+  snapshot from `toLayoutSnapshot` does not; 1.x's `multipartiteLayout(G)` put every node in one layer. Pass the
+  layers as `subsets`.
 - Positions are `Float32Array` values; 1.x returned f64 numbers.
 
 ## Error handling
@@ -209,8 +213,8 @@ try {
 }
 ```
 
-`arf` throws when `a <= 1`, `bfs` for a disconnected graph or a start outside it, and every layout for a `dim` other
-than 2 or 3.
+`arf` throws when `a <= 1`, `bfs` for a disconnected graph or a start outside it, `multipartite`, `shell` and
+`bipartite` for a node column the snapshot does not have, and every layout for a `dim` other than 2 or 3.
 
 ## Development
 

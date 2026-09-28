@@ -748,7 +748,6 @@ export const SimpleLayoutConfig = z.looseObject({
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
-
 /** What a static engine reads the graph through: the element's data manager, or nothing. */
 interface GraphSource {
     getSnapshot(): GraphSnapshot;
@@ -1003,7 +1002,8 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     reload(change: SnapshotReplacement, loading: boolean): void {
         this.stale = true;
-        this.#keep = !loading && this.#laidOut !== null && this.#laidOut === change.previous ? existingRows(change) : null;
+        this.#keep =
+            !loading && this.#laidOut !== null && this.#laidOut === change.previous ? existingRows(change) : null;
     }
 
     /**

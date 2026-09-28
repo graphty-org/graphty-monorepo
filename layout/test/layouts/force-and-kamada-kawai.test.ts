@@ -188,6 +188,25 @@ describe("kamadaKawai", () => {
             Array.from(layout.kamadaKawai(s, { pos: withZero }).positions),
         );
     });
+
+    it("starts a 3D layout from seed 42 by default", () => {
+        // recorded output on a 4-node path; a change to the default 3D start moves it
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 4,
+            src: Uint32Array.of(0, 1, 2),
+            dst: Uint32Array.of(1, 2, 3),
+        });
+        const expected = [
+            -0.7830331325531006, -0.6201992034912109, -0.047009311616420746, -0.2615945339202881, -0.20616191625595093,
+            -0.013450900092720985, 0.26123684644699097, 0.20655201375484467, 0.014248745515942574, 0.7833908200263977,
+            0.6198091506958008, 0.04621146619319916,
+        ];
+        const actual = Array.from(layout.kamadaKawai(s, { dim: 3 }).positions);
+        assert.equal(actual.length, expected.length);
+        expected.forEach((v, k) => assert.closeTo(actual[k], v, 1e-6, `component ${k}`));
+        assert.deepEqual(Array.from(layout.kamadaKawai(s, { dim: 3, seed: 42 }).positions), actual);
+    });
 });
 
 describe("forceAtlas2", () => {

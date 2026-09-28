@@ -149,6 +149,10 @@ describe("multipartite", () => {
         );
     });
 
+    it("throws without subsets when the snapshot has no subset column", () => {
+        assert.throws(() => layout.multipartite(graph(3)), /no node column named "subset"/);
+    });
+
     it("rejects a missing column and a column of another dtype", () => {
         assert.throws(() => layout.multipartite(s, { subsets: "missing" }));
         assert.throws(() => layout.multipartite(s, { subsets: "weight" }), /u32 or dict/);
@@ -254,6 +258,15 @@ describe("bfs", () => {
         });
         const r = layout.bfs(s);
         assert.ok(row(r, 0)[0] < row(r, 1)[0] && row(r, 1)[0] < row(r, 2)[0]);
+    });
+
+    it("centres a horizontal layout on the centre asked for", () => {
+        // 1.x bfsLayout centred a horizontal layout on the swapped centre [center[1], center[0]]
+        const r = layout.bfs(path(4), { align: "horizontal", center: [10, -5] });
+        const mean = [0, 1].map((k) => [0, 1, 2, 3].reduce((sum, i) => sum + row(r, i)[k], 0) / 4);
+        assert.ok(Math.abs(mean[0] - 10) < 1e-5 && Math.abs(mean[1] + 5) < 1e-5, mean.join(","));
+        // the layers are rows: y steps by one layer
+        assert.ok(row(r, 0)[1] !== row(r, 1)[1]);
     });
 
     it("throws for a disconnected graph and a start outside the graph", () => {

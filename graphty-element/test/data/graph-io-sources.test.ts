@@ -64,6 +64,96 @@ describe("CSV read through graph-io", () => {
 
         assert.deepStrictEqual(edges, [{ source: "a", target: "b", weight: 0.1 }]);
     });
+
+    test("carries adjacency weights that f32 holds exactly", async () => {
+        const { edges } = await collect(new CSVDataSource({ data: "a,b:2,c:3.5\n", variant: "adjacency-list" }));
+
+        assert.deepStrictEqual(edges, [
+            { source: "a", target: "b", weight: 2 },
+            { source: "a", target: "c", weight: 3.5 },
+        ]);
+    });
+
+    test("reads row 1 as the header when every cell of the file is a word", async () => {
+        const source = new CSVDataSource({
+            data: "user,friend\nalice,bob\ncarol,dave\n",
+            edgeSource: "user",
+            edgeTarget: "friend",
+        });
+        const { edges } = await collect(source);
+
+        assert.deepStrictEqual(edges, [
+            { source: "alice", target: "bob" },
+            { source: "carol", target: "dave" },
+        ]);
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
+
+    const unread: [string, Record<string, unknown>[]][] = [
+        ["person,knows", [{ person: "alice", knows: "bob" }]],
+        ["a,b", [{ a: "n1", b: "n2" }]],
+        ["name,friend", [{ name: "alice", friend: "bob" }]],
+        ["source,dest", [{ source: "alice", dest: "bob" }]],
+    ];
+    for (const [header, rows] of unread) {
+        test(`hands the rows of a ${header} file, which names no endpoint pair, to the element unread`, async () => {
+            const values = rows.map((row) => Object.values(row).join(",")).join("\n");
+            const source = new CSVDataSource({ data: `${header}\n${values}\n` });
+            const { nodes, edges } = await collect(source);
+
+            assert.deepStrictEqual(nodes, []);
+            assert.deepStrictEqual(edges, rows);
+            assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+        });
+    }
+
+    test("keeps every row handed over unread, however often a cell repeats", async () => {
+        const { edges } = await collect(new CSVDataSource({ data: "name,friend\nalice,bob\nalice,carol\n" }));
+
+        assert.deepStrictEqual(edges, [
+            { name: "alice", friend: "bob" },
+            { name: "alice", friend: "carol" },
+        ]);
+    });
+
+    test("takes both endpoints from one pair of columns", async () => {
+        const { edges } = await collect(new CSVDataSource({ data: "from,to,source\na,b,web\n" }));
+
+        assert.strictEqual(edges.length, 1);
+        assert.strictEqual(edges[0].source, "a");
+        assert.strictEqual(edges[0].target, "b");
+    });
+
+    test("records a configured column the file does not have, instead of throwing", async () => {
+        const edgeList = new CSVDataSource({ data: "source,target\na,b\n", edgeSource: "sourc" });
+        const nodeList = new CSVDataSource({ data: "id,x\na,1\n", variant: "node-list", idColumn: "ident" });
+
+        for (const source of [edgeList, nodeList]) {
+            const { nodes, edges } = await collect(source);
+            assert.strictEqual(nodes.length + edges.length, 0);
+            assert.strictEqual(source.getErrorAggregator().getErrorCount(), 1);
+        }
+    });
+
+    test("keeps a Neo4j node's id when the file also has a property named id", async () => {
+        const { nodes, edges } = await collect(
+            new CSVDataSource({
+                data: "id:ID(Person),name\n1,Ann\n2,Bo\n:START_ID(Person),:END_ID(Person)\n1,2\n",
+            }),
+        );
+
+        const ids = nodes.map((node) => node.id);
+        assert.include(ids, edges[0].source);
+        assert.include(ids, edges[0].target);
+    });
+
+    test("reads an empty file as an empty graph", async () => {
+        const source = new CSVDataSource({ data: "" });
+        const { nodes, edges } = await collect(source);
+
+        assert.strictEqual(nodes.length + edges.length, 0);
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
 });
 
 describe("JSON read through graph-io", () => {
@@ -97,6 +187,30 @@ describe("JSON read through graph-io", () => {
         const { nodes } = await collect(new JsonDataSource({ data, edge: { path: "links" } }));
 
         assert.deepStrictEqual(nodes, [{ name: "a", group: 1 }]);
+    });
+
+    test("keeps a value the file carries under the key the element reads the id from", async () => {
+        const data = JSON.stringify({ nodes: [{ name: "a", id: 5 }, { name: "b", id: 6 }], edges: [] });
+        const { nodes } = await collect(new JsonDataSource({ data, nodeIdPath: "name" }));
+
+        assert.deepStrictEqual(nodes, [
+            { name: "a", id: 5 },
+            { name: "b", id: 6 },
+        ]);
+    });
+
+    test("keeps a value the file carries under the key the element reads an endpoint from", async () => {
+        const data = JSON.stringify({ nodes: [], edges: [{ src: "a", dst: "b", source: "web" }] });
+        const { edges } = await collect(new JsonDataSource({ data, edgeSrcIdPath: "src", edgeDstIdPath: "dst" }));
+
+        assert.deepStrictEqual(edges, [{ src: "a", dst: "b", source: "web" }]);
+    });
+
+    test("keeps the first record of a repeated node id, as the element does", async () => {
+        const data = JSON.stringify({ nodes: [{ id: "a", v: 1 }, { id: "a", v: 2 }], edges: [] });
+        const { nodes } = await collect(new JsonDataSource({ data }));
+
+        assert.deepStrictEqual(nodes, [{ id: "a", v: 1 }]);
     });
 
     test("reads arrays a JMESPath expression selects", async () => {

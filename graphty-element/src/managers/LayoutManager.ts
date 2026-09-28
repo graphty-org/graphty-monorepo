@@ -1648,8 +1648,17 @@ export class LayoutManager implements Manager {
         // `updatePositions` is declared on the base class and the element's ten blind steps are
         // its default, so the manager no longer has to tell "did not implement it" from
         // "implemented it as a deliberate no-op" by looking for a property.
-        this.layoutEngine.updatePositions(nodes);
-        this.layoutEngine.publishPositions();
+        // Reported, not thrown. This runs inside the derivation pass of the add, and a throw there
+        // would abort the rest of that pass -- its repaint -- over a layout that cannot place the
+        // graph as it stands: bfs over nodes whose edges have not arrived yet is disconnected
+        // until they do. A frame that cannot step is reported the same way.
+        try {
+            this.layoutEngine.updatePositions(nodes);
+            this.layoutEngine.publishPositions();
+        } catch (error) {
+            this.reportLayoutFailure(this.layoutEngine.type, error, "stepped");
+            return Promise.resolve();
+        }
 
         // Emit event that layout was updated
         this.eventManager.emitGraphEvent("layout-updated", {

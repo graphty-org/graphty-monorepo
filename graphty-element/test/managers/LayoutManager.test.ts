@@ -468,6 +468,22 @@ describe("LayoutManager", () => {
         });
     });
 
+    describe("a layout that cannot place the graph as it stands", () => {
+        it("reports it on the error channel and the add is still drawn and painted", async () => {
+            await graph.setLayout("bfs", { start: "a" });
+            const errors: unknown[] = [];
+            graph.on("error", (event) => errors.push(event));
+
+            // Two nodes and no edge: disconnected, which bfs refuses until the edge arrives.
+            await graph.addNodes([{ id: "a" }, { id: "b" }]);
+
+            assert.lengthOf(errors, 1, "reported once, on the element's error channel");
+            for (const node of graph.getNodes()) {
+                assert.isNotNull(graph.getStylePainter().nodePaint(node.index), `node ${node.id} is painted`);
+            }
+        });
+    });
+
     describe("while the lane is restoring", () => {
         it("neither a frame nor newcomers step the layout", async () => {
             const dataManager = graph.getDataManager();

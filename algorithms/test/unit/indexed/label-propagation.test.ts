@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { labelPropagation } from "../../../src/indexed/label-propagation.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
-import { gnm, undirectedFixtures } from "./port-fixtures.js";
+import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 
 // ------------------------------------------------------------------ independent helpers
 // Both read the graph from s.edgeList() -- a different view than the CSR rows the port walks -- and
@@ -518,5 +518,108 @@ describe("indexed.labelPropagation: self-loops, parallel edges and weights", () 
         }
         expect(withB).toBe(true);
         s.validate({ checksum: true });
+    });
+});
+
+function directedTriangles(): GraphBuilder {
+    const b = new GraphBuilder({ directed: true });
+    for (const [p, q] of [
+        ["A1", "A2"],
+        ["A2", "A3"],
+        ["A3", "A1"],
+        ["B1", "B2"],
+        ["B2", "B3"],
+        ["B3", "B1"],
+    ]) {
+        b.addEdge(p, q);
+        b.addEdge(q, p);
+    }
+    return b;
+}
+
+describe("indexed.labelPropagation: directed snapshots", () => {
+    it("reads in-arcs: two one-way triangles give the undirected triangles' partition", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b");
+        g.addEdge("b", "c");
+        g.addEdge("c", "a");
+        g.addEdge("d", "e");
+        g.addEdge("e", "f");
+        g.addEdge("f", "d");
+        g.addNode("z");
+        const s = checksummedSnapshot(g);
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect([...r.labels]).toEqual([0, 0, 0, 1, 1, 1, 2]);
+            expect(r.converged).toBe(true);
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("counts a reciprocal pair twice: x joins the triangle it has a pair with", () => {
+        const b = directedTriangles();
+        b.addEdge("x", "A1");
+        b.addEdge("A1", "x");
+        b.addEdge("x", "B1");
+        const s = b.freeze({ checksum: true });
+        const at = (id: string): number => s.ids.indexOf(id);
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect(r.labels[at("x")]).toBe(r.labels[at("A1")]);
+            expect(r.labels[at("A1")]).toBe(r.labels[at("A2")]);
+            expect(dominanceHolds(s, r.labels)).toBe(true);
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("counts a reciprocal pair once with weighted: false", () => {
+        const b = directedTriangles();
+        b.addEdge("x", "A1");
+        b.addEdge("A1", "x");
+        b.addEdge("x", "B1");
+        b.addEdge("B2", "x");
+        const s = b.freeze({ checksum: true });
+        const at = (id: string): number => s.ids.indexOf(id);
+        let withA = false;
+        let withB = false;
+        for (const seed of SEEDS_10) {
+            const weighted = labelPropagation(s, { randomSeed: seed });
+            withA ||= weighted.labels[at("x")] === weighted.labels[at("A1")];
+            withB ||= weighted.labels[at("x")] === weighted.labels[at("B1")];
+            const r = labelPropagation(s, { randomSeed: seed, weighted: false });
+            expect(r.labels[at("x")]).toBe(r.labels[at("B1")]);
+            expect(dominanceHolds(s, r.labels, false)).toBe(true);
+        }
+        expect(withA && withB).toBe(true);
+        s.validate({ checksum: true });
+    });
+
+    it("converges on a one-way chain whose last node is reached only by an in-arc", () => {
+        const g = new Graph({ directed: true });
+        for (let i = 1; i < 10; i++) {
+            g.addEdge(`p${i - 1}`, `p${i}`);
+        }
+        const s = checksummedSnapshot(g);
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect(r.converged).toBe(true);
+            expect(dominanceHolds(s, r.labels)).toBe(true);
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("matches the reference FLPA and ends dominant on every directed fixture", () => {
+        for (const { name, graph } of directedFixtures()) {
+            const s = checksummedSnapshot(graph);
+            for (const seed of SEEDS_10) {
+                for (const weighted of [true, false]) {
+                    const r = labelPropagation(s, { randomSeed: seed, weighted });
+                    expect([...r.labels], `${name}, seed ${seed}`).toEqual(referenceFlpa(s, seed, weighted, "uniform"));
+                    expect(r.converged).toBe(true);
+                    expect(dominanceHolds(s, r.labels, weighted)).toBe(true);
+                }
+            }
+            s.validate({ checksum: true });
+        }
     });
 });

@@ -112,10 +112,13 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
         return { ...withGroups(labels, count), iterations: 0, converged: !hasVotingArc(s, weights) };
     }
 
-    if (s.directed) {
-        throw new Error("indexed.labelPropagation: directed snapshots are not supported yet");
-    }
-    const { rowPtr, colIdx } = s;
+    // A node's neighbours are its out-row and, on a directed snapshot, its in-row read from the
+    // cached reverse view: the simple symmetric view without materialising it (design section 2.3).
+    const rev = s.directed ? s.reverse() : null;
+    const sides = rev === null ? 1 : 2;
+    const rowPtrs = [s.rowPtr, rev === null ? s.rowPtr : rev.rowPtr];
+    const colIdxs = [s.colIdx, rev === null ? s.colIdx : rev.colIdx];
+    const arcWeights = [weights, weights === null || rev === null ? weights : rev.weights];
     const rand = mulberry32(randomSeed);
     const acc = new Float64Array(n);
     // Visit number that last wrote acc[c]. Float64 and started at -1, so label 0 is an ordinary
@@ -150,26 +153,31 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
         queued[u] = 0;
         const visit = visits++;
         let count = 0;
-        const end = rowPtr[u + 1];
-        for (let a = rowPtr[u]; a < end; a++) {
-            const v = colIdx[a];
-            if (v === u) {
-                continue; // a self-loop does not vote
-            }
-            if (seen !== null) {
-                if (seen[v] === visit) {
-                    continue;
+        for (let side = 0; side < sides; side++) {
+            const rowPtr = rowPtrs[side];
+            const colIdx = colIdxs[side];
+            const w = arcWeights[side];
+            const end = rowPtr[u + 1];
+            for (let a = rowPtr[u]; a < end; a++) {
+                const v = colIdx[a];
+                if (v === u) {
+                    continue; // a self-loop does not vote
                 }
-                seen[v] = visit;
-            }
-            const c = label[v];
-            const w = weights === null ? 1 : weights[a];
-            if (stamp[c] !== visit) {
-                stamp[c] = visit;
-                acc[c] = w;
-                touched[count++] = c;
-            } else {
-                acc[c] += w;
+                if (seen !== null) {
+                    if (seen[v] === visit) {
+                        continue;
+                    }
+                    seen[v] = visit;
+                }
+                const c = label[v];
+                const vote = w === null ? 1 : w[a];
+                if (stamp[c] !== visit) {
+                    stamp[c] = visit;
+                    acc[c] = vote;
+                    touched[count++] = c;
+                } else {
+                    acc[c] += vote;
+                }
             }
         }
         let max = 0;
@@ -199,13 +207,19 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
         }
         label[u] = pick;
         // A neighbour already holding the new label can only have been strengthened by the move.
-        for (let a = rowPtr[u]; a < end; a++) {
-            const v = colIdx[a];
-            if (queued[v] === 0 && label[v] !== pick) {
-                queued[v] = 1;
-                queue[tail] = v;
-                tail = tail + 1 === capacity ? 0 : tail + 1;
-                size++;
+        // Both rows, so on a directed snapshot the nodes that read u are requeued too.
+        for (let side = 0; side < sides; side++) {
+            const rowPtr = rowPtrs[side];
+            const colIdx = colIdxs[side];
+            const end = rowPtr[u + 1];
+            for (let a = rowPtr[u]; a < end; a++) {
+                const v = colIdx[a];
+                if (queued[v] === 0 && label[v] !== pick) {
+                    queued[v] = 1;
+                    queue[tail] = v;
+                    tail = tail + 1 === capacity ? 0 : tail + 1;
+                    size++;
+                }
             }
         }
     }

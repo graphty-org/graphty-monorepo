@@ -1,7 +1,9 @@
 /**
- * Index-based layouts over `@graphty/graph-format` snapshots (graph-format design 14.3): every function takes a
- * `GraphSnapshot` first and an options object last, and returns a `LayoutResult` whose row `i` is node index `i`.
- * Reached as the `indexed` namespace of `@graphty/layout`; `toPositionMap` turns a result into the legacy id-keyed map.
+ * Index-based layouts over `@graphty/graph-format` snapshots: every function takes a `GraphSnapshot` first and an
+ * options object last, and returns a `LayoutResult` whose row `i` is node index `i`. Reached as the `indexed`
+ * namespace of `@graphty/layout`. The position helpers exported beside it convert a result: `toPositionMap` to the
+ * id-keyed map the legacy layouts return, `toPositionColumn` to the stride-3 scene-unit column graphty-element and the
+ * steppable simulations share, and `fromPositionColumn` back.
  * @module
  */
 

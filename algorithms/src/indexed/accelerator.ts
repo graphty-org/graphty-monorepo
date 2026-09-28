@@ -17,8 +17,9 @@ import { ConvergenceError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
 import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
-import type { BfsOptions } from "./bfs.js";
+import type { ArcOrderOption, BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
+import type { LabelResult } from "./components.js";
 import type { DfsOptions, DfsResult } from "./dfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { type EigenvectorOptions, minMaxRescale } from "./eigenvector.js";
@@ -291,7 +292,7 @@ export interface AcceleratedAlgorithms {
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ScoresResultLike>;
     depthFirstSearch(s: GraphSnapshot, start: number, options?: DfsOptions): Promise<DfsResult>;
-    stronglyConnectedComponents(s: GraphSnapshot): Promise<LabelResultLike>;
+    stronglyConnectedComponents(s: GraphSnapshot, options?: ArcOrderOption): Promise<LabelResult>;
     leiden(s: GraphSnapshot, options?: LeidenOptions): Promise<LeidenResult>;
     girvanNewman(s: GraphSnapshot, options?: GirvanNewmanOptions): Promise<GirvanNewmanResult>;
     maxFlow(s: GraphSnapshot, source: number, sink: number, options?: MaxFlowOptions): Promise<MaxFlowResult>;
@@ -585,7 +586,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
         depthFirstSearch: (s, start, options) => onCpu(() => indexed.depthFirstSearch(s, start, options)),
-        stronglyConnectedComponents: (s) => onCpu(() => indexed.stronglyConnectedComponents(s)),
+        stronglyConnectedComponents: (s, options) => onCpu(() => indexed.stronglyConnectedComponents(s, options)),
         leiden: (s, options) => onCpu(() => indexed.leiden(s, options)),
         girvanNewman: (s, options) => onCpu(() => indexed.girvanNewman(s, options)),
         maxFlow: (s, source, sink, options) => onCpu(() => indexed.maxFlow(s, source, sink, options)),

@@ -893,11 +893,24 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
 
 describe("accelerated(acc) CPU routes for the traversal, community, flow and link families", () => {
     // No accelerator declares these members, so every call runs the port -- with or without one attached.
+    // An accelerator for the nearest declared members: reaching any of them fails the test.
+    const refuse = (): Promise<never> => Promise.reject(new Error("the accelerator was called"));
+    const neighbours: AlgorithmAccelerator = {
+        kind: "fake",
+        breadthFirstSearch: refuse,
+        connectedComponents: refuse,
+        weaklyConnectedComponents: refuse,
+        louvain: refuse,
+        labelPropagation: refuse,
+        sssp: refuse,
+        edgeBetweennessCentrality: refuse,
+        minimumSpanningTree: refuse,
+    };
     const directed = toSnapshot(gnm(24, 60, true, 7, true));
     const undirected = toSnapshot(gnm(24, 60, false, 11, true));
     const dispatchers: [string, AcceleratedAlgorithms][] = [
         ["no accelerator", accelerated(null)],
-        ["an accelerator with every other member", accelerated({ kind: "fake" })],
+        ["an accelerator whose neighbouring members all reject", accelerated(neighbours)],
     ];
 
     describe.each(dispatchers)("with %s", (_, d) => {
@@ -914,6 +927,24 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
             expect(got.count).toBe(want.count);
             expect([...got.labels]).toEqual([...want.labels]);
             expect(got.groups().map((g) => [...g])).toEqual(want.groups().map((g) => [...g]));
+        });
+
+        it("stronglyConnectedComponents forwards an arc order", async () => {
+            // a -> b and a -> c: trying a's arcs in reverse finishes c before b, so the labels change.
+            const g = new Graph({ directed: true });
+            g.addEdge("a", "b");
+            g.addEdge("a", "c");
+            const s = toSnapshot(g);
+            const arcOrder = new Uint32Array(s.arcCount);
+            for (let u = 0; u < s.nodeCount; u++) {
+                for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
+                    arcOrder[k] = s.rowPtr[u] + s.rowPtr[u + 1] - 1 - k;
+                }
+            }
+            const got = await d.stronglyConnectedComponents(s, { arcOrder });
+            const want = indexed.stronglyConnectedComponents(s, { arcOrder });
+            expect([...got.labels]).toEqual([...want.labels]);
+            expect([...got.labels]).not.toEqual([...indexed.stronglyConnectedComponents(s).labels]);
         });
 
         it("leiden equals the port", async () => {
@@ -934,7 +965,10 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
         });
 
         it("maxFlow and minSTCut equal the port, including an exact f64 capacity override", async () => {
-            const weights = expandEdges(directed, Float64Array.from({ length: directed.edgeCount }, (_, i) => 0.1 * (i + 1)));
+            const weights = expandEdges(
+                directed,
+                Float64Array.from({ length: directed.edgeCount }, (_, i) => 0.1 * (i + 1)),
+            );
             const flow = await d.maxFlow(directed, 0, 5, { weights });
             expect(flow).toEqual(indexed.maxFlow(directed, 0, 5, { weights }));
             const cut = await d.minSTCut(directed, 0, 5, { weights });

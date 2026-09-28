@@ -1,3 +1,19 @@
+## 0.8.17 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.11
+- Updated compact-mantine to 0.8.10
+- Updated graphty-element to 2.6.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.16 (2026-09-28)
 
 ### 🚀 Features

@@ -27,17 +27,13 @@ import { fileURLToPath } from "node:url";
 
 /** Problems the element still has; each is removed by the change that fixes it. */
 const PENDING = [
-    "graphty-element/src/data/CSVDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/CSVDataSource.ts: imports papaparse",
     "graphty-element/src/data/DOTDataSource.ts: defines the parser function tokenize",
     "graphty-element/src/data/DOTDataSource.ts: does not import its importer from @graphty/graph-io",
     "graphty-element/src/data/GMLDataSource.ts: defines the parser function tokenize",
     "graphty-element/src/data/GMLDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/JsonDataSource.ts: does not import its importer from @graphty/graph-io",
     "graphty-element/src/data/PajekDataSource.ts: defines the parser function parsePajek",
     "graphty-element/src/data/PajekDataSource.ts: defines the parser function tokenizeLine",
     "graphty-element/src/data/PajekDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/csv-variant-detection.ts: exists",
 ];
 
 const DATA_DIR = "graphty-element/src/data";

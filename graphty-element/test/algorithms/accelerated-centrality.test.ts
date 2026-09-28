@@ -1,0 +1,316 @@
+/**
+ * @file HITS, Katz and eigenvector centrality through `accelerated()`, on both sides of their floors.
+ *
+ * Each adapter runs over the index-based port through the dispatcher, so its CPU answer is held
+ * to the `@graphty/algorithms` function over the same simplified graph. Then the routing, with a
+ * fake accelerator and the built-in floors in force: at a capability's floor the run reaches the
+ * accelerator and says `f32`, one node below it the run stays on the CPU port and says `f64`.
+ */
+
+import { readFileSync } from "node:fs";
+
+import { eigenvectorCentrality, hits, katzCentrality } from "@graphty/algorithms";
+import type { GraphSnapshot } from "@graphty/graph-format";
+import { assert, describe, it } from "vitest";
+
+import { AccelerationController } from "../../src/acceleration/AccelerationController";
+import { narrowAlgorithms } from "../../src/acceleration/narrow";
+import { AcceleratorRegistry } from "../../src/acceleration/registry";
+import { ACCELERATION_MIN_NODES_BY_CAPABILITY, type FlooredCapability } from "../../src/acceleration/types";
+import { EigenvectorCentralityAlgorithm } from "../../src/algorithms/EigenvectorCentralityAlgorithm";
+import { HITSAlgorithm } from "../../src/algorithms/HITSAlgorithm";
+import { KatzCentralityAlgorithm } from "../../src/algorithms/KatzCentralityAlgorithm";
+import type { MetricAlgorithm } from "../../src/algorithms/metrics/MetricAlgorithm";
+import { toAlgorithmGraph } from "../../src/algorithms/utils/snapshotGraph";
+import type { NodeId } from "../../src/catalog/types";
+import { isGraphtyError } from "../../src/errors";
+import type { Graph } from "../../src/Graph";
+import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
+
+/** Two triangles joined by a path, with a parallel pair and a reciprocal pair. */
+const MULTI: MockGraphOpts = {
+    nodes: ["A", "B", "C", "D", "E", "F", "G"].map((id) => ({ id })),
+    edges: [
+        { srcId: "A", dstId: "B" },
+        { srcId: "A", dstId: "B" },
+        { srcId: "B", dstId: "C" },
+        { srcId: "C", dstId: "A" },
+        { srcId: "C", dstId: "D" },
+        { srcId: "D", dstId: "C" },
+        { srcId: "D", dstId: "E" },
+        { srcId: "E", dstId: "F" },
+        { srcId: "F", dstId: "G" },
+        { srcId: "G", dstId: "E" },
+    ],
+};
+
+/** Les Miserables co-appearances, the fixture the per-adapter tests already use. */
+const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
+
+/**
+ * A ring of n nodes with one chord closing a triangle, so no component is bipartite whatever n is
+ * and eigenvector centrality is a question the device kernel answers the port's way.
+ * @param n - The node count.
+ * @returns The records.
+ */
+function chordedRing(n: number): MockGraphOpts {
+    const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
+    const edges = nodes.map((node, i) => ({ srcId: node.id, dstId: `n${String((i + 1) % n)}` }));
+    edges.push({ srcId: "n0", dstId: "n2" });
+    return { nodes, edges };
+}
+
+/**
+ * A plain ring of an even count: bipartite, which the dispatcher keeps off the device for
+ * eigenvector centrality.
+ * @param n - The node count, even.
+ * @returns The records.
+ */
+function evenRing(n: number): MockGraphOpts {
+    const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
+    return { nodes, edges: nodes.map((node, i) => ({ srcId: node.id, dstId: `n${String((i + 1) % n)}` })) };
+}
+
+/**
+ * The element's graph, with an accelerator attached when the case wants one.
+ * @param opts - The records.
+ * @param fake - The accelerator.
+ * @param floors - Whether the built-in per-capability floors apply.
+ * @returns The graph.
+ */
+async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, floors = false): Promise<Graph> {
+    const graph = await createMockGraph(opts);
+    if (floors) {
+        // The shared mock pins the threshold at 0, which switches the built-in floors off; a
+        // controller left at its default is what a consumer who set nothing gets.
+        (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
+            policy: "auto",
+            registry: new AcceleratorRegistry(),
+        });
+    }
+    if (fake !== undefined) {
+        graph.acceleration.setAccelerator(fake);
+    }
+    return graph;
+}
+
+/**
+ * Run a metric and read what it published.
+ * @param graph - The graph it ran over.
+ * @param algorithm - The metric.
+ * @returns The values per node id, and the precision caveat.
+ */
+async function measured(
+    graph: Graph,
+    algorithm: MetricAlgorithm,
+): Promise<{ values: Map<NodeId, Record<string, unknown>>; precision: string }> {
+    await algorithm.run();
+    const { result } = algorithm;
+    assert.isDefined(result);
+    const values = new Map<NodeId, Record<string, unknown>>();
+    for (const id of graph.getDataManager().nodes.keys()) {
+        values.set(id, result.node(id) ?? {});
+    }
+    return { values, precision: result.summary().caveats.precision };
+}
+
+/**
+ * Relative agreement to 1e-9.
+ * @param actual - The adapter's value.
+ * @param expected - The reference value.
+ * @param what - What is compared, for the message.
+ */
+function close(actual: unknown, expected: number | undefined, what: string): void {
+    assert.isNumber(actual, what);
+    assert.isDefined(expected, what);
+    assert.approximately(actual as number, expected, 1e-9 * Math.max(1, Math.abs(expected)), what);
+}
+
+/** A fake that implements the three members and counts the calls to each. */
+function centralityFake(): { fake: FakeAccelerator; calls: Record<string, number> } {
+    const calls = { hits: 0, katzCentrality: 0, eigenvectorCentrality: 0 };
+    const flat = (s: GraphSnapshot): Float32Array => new Float32Array(s.nodeCount).fill(0.5);
+    const fake = createFakeAccelerator({
+        members: {
+            hits: (s: GraphSnapshot) => {
+                calls.hits++;
+                return Promise.resolve({ hubs: flat(s), authorities: flat(s), iterations: 3, converged: true });
+            },
+            katzCentrality: (s: GraphSnapshot) => {
+                calls.katzCentrality++;
+                return Promise.resolve({ scores: flat(s), iterations: 3, converged: true });
+            },
+            eigenvectorCentrality: (s: GraphSnapshot) => {
+                calls.eigenvectorCentrality++;
+                return Promise.resolve({ scores: flat(s), iterations: 3, converged: true });
+            },
+        },
+    });
+    return { fake, calls };
+}
+
+/**
+ * The built-in floor of a capability.
+ * @param capability - The capability.
+ * @returns Its floor.
+ */
+function floorOf(capability: FlooredCapability): number {
+    const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
+    assert.isDefined(floor, `${capability} has a floor`);
+    return floor;
+}
+
+const FIXTURES: readonly [string, MockGraphOpts][] = [
+    ["a multigraph", MULTI],
+    ["les miserables", LES_MIS],
+];
+
+describe("hits, katz and eigenvector centrality through accelerated()", () => {
+    describe("the CPU port answers what the @graphty/algorithms function answers", () => {
+        for (const [name, opts] of FIXTURES) {
+            it(`hits, ${name}`, async () => {
+                const graph = await graphWith(opts);
+                const { values, precision } = await measured(graph, new HITSAlgorithm(graph));
+                const reference = hits(toAlgorithmGraph(graph.getDataManager(), "directed"));
+                assert.strictEqual(precision, "f64");
+                for (const [id, value] of values) {
+                    const hub = reference.hubs[String(id)];
+                    const authority = reference.authorities[String(id)];
+                    close(value.hub, hub, `hub of ${String(id)}`);
+                    close(value.authority, authority, `authority of ${String(id)}`);
+                    close(value.value, (hub + authority) / 2, `value of ${String(id)}`);
+                }
+            });
+
+            it(`katz, ${name}`, async () => {
+                const graph = await graphWith(opts);
+                const { values, precision } = await measured(graph, new KatzCentralityAlgorithm(graph));
+                const reference = katzCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+                assert.strictEqual(precision, "f64");
+                for (const [id, value] of values) {
+                    close(value.value, reference[String(id)], `score of ${String(id)}`);
+                }
+            });
+
+            it(`eigenvector, ${name}`, async () => {
+                const graph = await graphWith(opts);
+                const { values, precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
+                const reference = eigenvectorCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
+                    maxIterations: 1000,
+                });
+                assert.strictEqual(precision, "f64");
+                for (const [id, value] of values) {
+                    close(value.value, reference[String(id)], `score of ${String(id)}`);
+                }
+            });
+        }
+
+        it("hits unnormalised and katz raw agree too", async () => {
+            const graph = await graphWith(LES_MIS);
+            const hitsRun = await measured(graph, new HITSAlgorithm(graph, { normalized: false }));
+            const katzRun = await measured(graph, new KatzCentralityAlgorithm(graph, { normalized: false }));
+            const hitsRef = hits(toAlgorithmGraph(graph.getDataManager(), "directed"), { normalized: false });
+            const katzRef = katzCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
+                normalized: false,
+            });
+            for (const id of graph.getDataManager().nodes.keys()) {
+                close(hitsRun.values.get(id)?.hub, hitsRef.hubs[String(id)], `hub of ${String(id)}`);
+                close(katzRun.values.get(id)?.value, katzRef[String(id)], `katz of ${String(id)}`);
+            }
+        });
+    });
+
+    describe("routing", () => {
+        it("carries the measured floors and forwards the three members, and not the unmeasured ones", () => {
+            assert.strictEqual(floorOf("hits"), 4_000);
+            assert.strictEqual(floorOf("katzCentrality"), 6_600);
+            assert.strictEqual(floorOf("eigenvectorCentrality"), 6_600);
+
+            const noop = (): Promise<never> => Promise.reject(new Error("not called"));
+            const narrowed = narrowAlgorithms(
+                createFakeAccelerator({
+                    members: {
+                        hits: noop,
+                        katzCentrality: noop,
+                        eigenvectorCentrality: noop,
+                        labelPropagation: noop,
+                        allPairsShortestPath: noop,
+                    },
+                }),
+            );
+            assert.isFunction(narrowed.hits);
+            assert.isFunction(narrowed.katzCentrality);
+            assert.isFunction(narrowed.eigenvectorCentrality);
+            assert.isFalse("labelPropagation" in narrowed);
+            assert.isFalse("allPairsShortestPath" in narrowed);
+        });
+
+        const cases: readonly [FlooredCapability, (graph: Graph) => MetricAlgorithm][] = [
+            ["hits", (graph) => new HITSAlgorithm(graph)],
+            ["katzCentrality", (graph) => new KatzCentralityAlgorithm(graph)],
+            ["eigenvectorCentrality", (graph) => new EigenvectorCentralityAlgorithm(graph)],
+        ];
+
+        for (const [capability, make] of cases) {
+            it(`${capability} at its floor runs on the accelerator and says f32`, async () => {
+                const { fake, calls } = centralityFake();
+                const graph = await graphWith(chordedRing(floorOf(capability)), fake, true);
+                const { values, precision } = await measured(graph, make(graph));
+                assert.strictEqual(calls[capability], 1);
+                assert.strictEqual(precision, "f32");
+                // The fake's flat 0.5 is what was published (eigenvector's is rescaled to 1 by the
+                // dispatcher, as the port rescales its own), so the numbers are the accelerator's.
+                const expected = capability === "eigenvectorCentrality" ? 1 : 0.5;
+                assert.strictEqual(values.get("n0")?.value, expected);
+            });
+
+            it(`${capability} one node below its floor runs on the CPU port and says f64`, async () => {
+                const { fake, calls } = centralityFake();
+                const graph = await graphWith(chordedRing(floorOf(capability) - 1), fake, true);
+                const { precision } = await measured(graph, make(graph));
+                assert.strictEqual(calls[capability], 0);
+                assert.strictEqual(precision, "f64");
+            });
+        }
+
+        it("eigenvector above its floor on a graph the device cannot answer runs the port and says f64", async () => {
+            const { fake, calls } = centralityFake();
+            const graph = await graphWith(evenRing(floorOf("eigenvectorCentrality") + 2), fake, true);
+            const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
+            assert.strictEqual(calls.eigenvectorCentrality, 0);
+            assert.strictEqual(precision, "f64");
+        });
+
+        it("eigenvector that does not converge on the accelerator fails with E_NOT_CONVERGED", async () => {
+            const fake = createFakeAccelerator({
+                members: {
+                    eigenvectorCentrality: (s: GraphSnapshot) =>
+                        Promise.resolve({ scores: new Float32Array(s.nodeCount), iterations: 1000, converged: false }),
+                },
+            });
+            const graph = await graphWith(chordedRing(floorOf("eigenvectorCentrality")), fake, true);
+            const algorithm = new EigenvectorCentralityAlgorithm(graph);
+            let thrown: unknown;
+            try {
+                await algorithm.run();
+            } catch (error) {
+                thrown = error;
+            }
+            assert.isTrue(isGraphtyError(thrown), String(thrown));
+            assert.strictEqual((thrown as { code: string }).code, "E_NOT_CONVERGED");
+            assert.isUndefined(algorithm.result);
+        });
+    });
+
+    it("none of the three adapters imports a legacy algorithm function", () => {
+        for (const file of ["HITSAlgorithm", "KatzCentralityAlgorithm", "EigenvectorCentralityAlgorithm"]) {
+            const source = readFileSync(new URL(`../../src/algorithms/${file}.ts`, import.meta.url), "utf8");
+            const imported = /import\s*\{([^}]*)\}\s*from\s*"@graphty\/algorithms"/.exec(source)?.[1] ?? "";
+            for (const legacy of ["hits", "katzCentrality", "eigenvectorCentrality"]) {
+                assert.notMatch(imported, new RegExp(`\\b${legacy}\\b`), `${file} imports ${legacy}`);
+            }
+            assert.notInclude(source, "this.algorithmGraph(", `${file} builds a legacy graph`);
+        }
+    });
+});

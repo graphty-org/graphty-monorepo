@@ -444,12 +444,23 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {
+                // The dispatcher may still answer on the CPU port with an accelerator attached --
+                // eigenvector centrality over a graph whose iteration the device kernel cannot
+                // match, say -- so the precision follows whether a member was actually reached.
+                let reached = false;
                 const outcome = await controller.run(work, (accelerator) =>
-                    fn(accelerated(narrowAlgorithms(accelerator)), snapshot),
+                    fn(
+                        accelerated(
+                            narrowAlgorithms(accelerator, () => {
+                                reached = true;
+                            }),
+                        ),
+                        snapshot,
+                    ),
                 );
 
                 if (outcome.accelerated) {
-                    return { value: outcome.value, precision: outcome.precision };
+                    return { value: outcome.value, precision: reached ? outcome.precision : CPU_PRECISION };
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one

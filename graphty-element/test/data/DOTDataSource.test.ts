@@ -234,6 +234,23 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 3);
     });
 
+    test("gives a cluster member only the attributes the file wrote", async () => {
+        const dot = 'digraph { subgraph cluster_x { a [parent="mine"]; b } }';
+        const source = new DOTDataSource({ data: dot });
+        const nodes = [];
+        for await (const chunk of source.getData()) {
+            nodes.push(...chunk.nodes);
+        }
+
+        assert.deepStrictEqual(
+            nodes.map((node) => [node.id, node.parent]),
+            [
+                ["a", "mine"],
+                ["b", undefined],
+            ],
+        );
+    });
+
     test("handles HTML-like labels", async () => {
         const dot = `digraph {
   a [label=<<B>Bold</B> text>];

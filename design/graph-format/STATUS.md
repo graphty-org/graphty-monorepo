@@ -852,6 +852,11 @@ GML:
   `position#graphics` on collision) and the remaining keys stay a `graphics` json column
   (`positions: false` keeps the record); the dictionary heuristic applies to string-only scalar
   columns (`dictionaries: false` disables it).
+- The graph's `directed` key is recorded as written under `meta.extra.gml.directed` (the token's
+  text, a string's body without its quotes), so a reader can tell `directed 0` from a file that
+  relies on the default; nothing is recorded when the key is absent. A flag written as a quoted
+  integer (`directed "1"`) is read as that integer with `W_GML_FLAG_VALUE`; any other non-integer
+  flag stays `E_GML_FLAG_TYPE`.
 - Top-level keys other than `graph` / `Creator` / `Version` become graph columns with
   `extra.gmlTopLevel`; `Creator` -> `meta.creator`, `Version` -> `meta.sourceVersion`.
 - Capabilities: no mixed direction (`E_MIXED_DIRECTION` by default), `multigraph 1` from
@@ -876,7 +881,8 @@ DOT:
   `mismatchedEdgeOperator: "header" | "error"` for the other behaviours).
 - `key` becomes the edge id role column; `strict` merges parallel edges last-write-wins. HTML
   strings keep their outer brackets. `pos` -> `pos` (f32 x3, role position); `!` sets a `pin`
-  bool attribute. `viz: false`; non-cluster subgraph attributes are reported.
+  bool attribute; the `positions: false` option keeps a node's `pos` as the text the file wrote,
+  like any other attribute, with no position or `pin` column. `viz: false`; non-cluster subgraph attributes are reported.
 - Untyped attribute cells go through `TextCellWriter` (the 5.1 grammar per column, backed by the
   sink's `widenNodeColumn` / `widenEdgeColumn`): an all-`2.0` column stays f64 and the lexical
   forms of a column that ends up string (`1e5`, `-0`, `1.0`) are kept; a sink without the widening
@@ -1021,7 +1027,7 @@ Integration (registry, sniffing, children, build):
 ## graph-io: known gaps and open issues
 
 - Core-side: `GraphBuilder.setMeta()` replaces `extra` as a whole; importers that record
-  `meta.extra.<format>` (JSON, GEXF, GraphML, Pajek) overwrite extras a caller set on the sink.
+  `meta.extra.<format>` (JSON, GEXF, GraphML, GML, Pajek) overwrite extras a caller set on the sink.
 - JSON attributes are inferred, not declared (research note 07 section 2.4): a JSON key whose value a
   caller-declared column of another dtype refuses is a per-element `E_COLUMN_TYPE` issue and the
   value is dropped; the 5.6 rename rule applies to declared attributes only. A snapshot's f32 / u32 /

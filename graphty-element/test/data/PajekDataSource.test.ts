@@ -84,6 +84,18 @@ describe("PajekDataSource", () => {
             assert.isUndefined(chunk.value.nodes[1].x);
         });
 
+        it("keeps a z written on a later line of a file whose first coordinates are 2D", async () => {
+            const data = `*Vertices 2
+1 "A" 0.5 0.5
+2 "B" 0.1 0.2 0.3`;
+            const source = new PajekDataSource({ data });
+            const chunk = await source.sourceFetchData().next();
+
+            assert.ok(chunk.value);
+            assert.isUndefined(chunk.value.nodes[0].z);
+            assert.equal(chunk.value.nodes[1].z, 0.3);
+        });
+
         it("should convert 1-indexed IDs to strings", async () => {
             const data = `*Vertices 3
 1 "First"

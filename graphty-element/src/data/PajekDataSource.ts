@@ -12,15 +12,16 @@ const DIRECTED_COLUMN = "graphty.directed";
 /**
  * Rebuild the 2.x node record: `id`, `label`, and the coordinates as `x`, `y` and `z`.
  * @param record - the record graph-io's columns produced
- * @param threeD - whether the file's vertex lines write a z coordinate
+ * @param threeD - whether the file's first vertex line with coordinates writes a z
  * @returns the record the element has always received for a Pajek vertex
  */
 function nodeRecord(record: Record<string, unknown>, threeD: boolean): Record<string, unknown> {
     const { position, ...rest } = record;
     if (Array.isArray(position)) {
         const [x, y, z] = position as number[];
-        // graph-io fills an unwritten z with 0; a file whose vertex lines write two coordinates stays 2D.
-        Object.assign(rest, threeD ? { x, y, z } : { x, y });
+        // graph-io fills an unwritten z with 0, so a 2D file stays 2D; a non-zero z was written,
+        // even on a line of a file whose first coordinates were 2D.
+        Object.assign(rest, threeD || z !== 0 ? { x, y, z } : { x, y });
     }
 
     return rest;

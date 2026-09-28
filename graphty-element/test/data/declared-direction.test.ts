@@ -414,6 +414,15 @@ describe("the direction a file declares", () => {
         });
     });
 
+    it("says nothing for a Pajek file with no edge section", async () => {
+        const source = new PajekDataSource({ data: '*Vertices 2\n1 "a"\n2 "b"\n' });
+        for await (const _chunk of source.getData()) {
+            // Drive the parse to the end.
+        }
+
+        assert.isNull(source.declaredDirection);
+    });
+
     it("reads a Gephi CSV's Type column, and counts the rows it overrides", async () => {
         assert.deepStrictEqual(await declarationOf("csv", "csv/dolphins-medium.csv"), {
             directed: false,

@@ -8,8 +8,6 @@ type DOTDataSourceConfig = BaseDataSourceConfig;
 
 /** graph-io marks a cluster subgraph's container node with this node column. */
 const CLUSTER_COLUMN = "graphty.cluster";
-/** graph-io gives a cluster member the row of its container in this node column. */
-const PARENT_COLUMN = "graphty.parent";
 
 /**
  * Data source for loading graph data from DOT (Graphviz) format files, read by `@graphty/graph-io`'s
@@ -18,8 +16,8 @@ const PARENT_COLUMN = "graphty.parent";
  * Node records carry `id` and the node's attributes, including those a `node [ ... ]` default
  * statement gives it; edge records carry `source`, `target` and the edge's attributes. A port on an
  * edge endpoint (`a:p1 -> b`) names a place on the node, not another node, so it is not part of
- * the id. A cluster subgraph is not drawn as a node unless an edge names it as an endpoint; each of
- * its members carries the cluster's name as `parent`. `pos` stays the text the file wrote.
+ * the id. A cluster subgraph is not drawn as a node unless an edge names it as an endpoint. `pos`
+ * stays the text the file wrote.
  *
  * DOT states direction once, in the keyword that opens the file. A file that does not open with
  * `graph` or `digraph` is not DOT, and fails with `E_PARSE_FAILED` rather than loading a guess.
@@ -61,8 +59,7 @@ export class DOTDataSource extends DataSource {
                         clusters.add(record.id);
                     }
 
-                    const parent = snapshot.nodes.get(PARENT_COLUMN)?.value(row);
-                    return typeof parent === "number" ? { ...record, parent: snapshot.ids.idOf(parent) } : record;
+                    return record;
                 },
                 statedBy: (snapshot) => (snapshot.directed ? "digraph" : "graph"),
             },

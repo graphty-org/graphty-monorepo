@@ -40,9 +40,14 @@ Merged into the branch after `77c84820` and not yet counted in the tables below:
 - layout: `layout/README.md` and `layout/CLAUDE.md` document `indexed.*`, and
   `layout/test/types/indexed.test-d.ts` pins the indexed signatures, which closes the "Missing"
   clause of the L1 row.
+- layout 2.0 removal: the 15 snapshot layouts (`arf` through `spiral`) are top-level exports and
+  `indexed` is a deprecated alias of them; the 16 positional, id-keyed layout functions and the 8
+  generator aliases are deleted (45ded070). The layout row and the L1 and D1 rows below still
+  describe the 1.x API.
 - graphty-element: `EdgeMap` is deleted (the store answers edge-pair lookups and the stats counts)
-  and on-load algorithms start once per load, not once per chunk; the centrality and community
-  adapters run on the dispatcher, and HITS, Katz and eigenvector centrality are forwarded to an
+  and on-load algorithms start once per load, not once per chunk; the computed static layout
+  engines call the snapshot layouts (d055587d, 8c63ea00); the centrality and community adapters
+  run on the dispatcher, and HITS, Katz and eigenvector centrality are forwarded to an
   accelerator above 15,000, 28,000 and 28,000 nodes; `GEXFDataSource` and `GraphMLDataSource` read
   through graph-io importers.
 

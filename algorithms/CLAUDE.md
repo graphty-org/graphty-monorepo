@@ -41,7 +41,7 @@ algorithms/
 `indexed` namespace. Ported so far: BFS, direction-optimized BFS, DFS, cycle detection, topological
 sort, bipartite check, strongly connected components, condensation, Dijkstra, Bellman-Ford,
 bidirectional Dijkstra, A\*, connected components, Kruskal MST, Prim MST, PageRank, personalized
-PageRank, the delta PageRank engines (`deltaPageRank`, `DeltaPageRank`, `PriorityDeltaPageRank`),
+PageRank, the delta PageRank engines (`DeltaPageRank`, `PriorityDeltaPageRank`),
 HITS, Katz, eigenvector centrality, degree centrality, closeness centrality, betweenness centrality,
 edge betweenness centrality, common neighbours, k-core, Louvain, Leiden, Girvan-Newman, label
 propagation, all-pairs shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum

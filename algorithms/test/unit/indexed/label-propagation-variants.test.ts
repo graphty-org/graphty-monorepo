@@ -273,7 +273,7 @@ describe("indexed.labelPropagationSynchronous", () => {
     it("settles a single edge that the legacy synchronous function swaps for ever", () => {
         const g = new Graph({ directed: false });
         g.addEdge("a", "b");
-        const legacy = legacyResult<LabelPropagationResult>();
+        const legacy = legacyResult() as LabelPropagationResult;
         expect(legacy.converged).toBe(false);
         expect(new Set(legacy.communities.values()).size).toBe(2);
 

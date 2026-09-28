@@ -236,7 +236,7 @@ describe("indexed.spectralClustering", () => {
                     );
                     expect(port, name).not.toBeNull();
                     for (let seed = 1; seed <= 5; seed++) {
-                        const legacy = ritzTrace(l, legacyResult<SpectralClusteringResult>().eigenvectors ?? []);
+                        const legacy = ritzTrace(l, (legacyResult() as SpectralClusteringResult).eigenvectors ?? []);
                         if (legacy !== null) {
                             expect(port as number, `${name} ${type} k=${k} seed ${seed}`).toBeLessThanOrEqual(
                                 legacy + 1e-9,
@@ -264,7 +264,7 @@ describe("indexed.spectralClustering", () => {
                     );
                     let sum = 0;
                     for (let seed = 1; seed <= 10; seed++) {
-                        const legacy = legacyResult<SpectralClusteringResult>();
+                        const legacy = legacyResult() as SpectralClusteringResult;
                         sum += normalisedCut(graph, s, legacyLabels(s, legacy.communities));
                     }
                     expect(port, `${name} ${type} k=${k}`).toBeLessThanOrEqual(sum / 10 + 1e-9);

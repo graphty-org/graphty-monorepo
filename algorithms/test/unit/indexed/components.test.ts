@@ -85,9 +85,7 @@ describe("indexed.connectedComponents", () => {
             .groups()
             .map((group) => key([...group].map((u) => String(s.ids.idOf(u)))))
             .sort();
-        const legacy = legacyResult<NodeId[][]>()
-            .map((component) => key(component.map((id) => String(id))))
-            .sort();
+        const legacy = (legacyResult() as NodeId[][]).map((component) => key(component.map((id) => String(id)))).sort();
         expect(ported).toEqual(legacy);
         s.validate({ checksum: true });
     });

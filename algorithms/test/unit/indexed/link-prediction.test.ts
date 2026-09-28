@@ -15,7 +15,7 @@ import {
     getTopCandidatesForNode,
     type LinkPredictionResult,
 } from "../../../src/indexed/link-prediction.js";
-import * as adamicAdarLegacy from "../../../src/link-prediction/adamic-adar.js";
+import type * as adamicAdarLegacy from "../../../src/link-prediction/adamic-adar.js";
 import type { LinkPredictionScore } from "../../../src/link-prediction/index.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { legacyResult } from "../../helpers/golden.js";
@@ -191,13 +191,13 @@ describe("indexed link prediction, against legacy", () => {
                     const at = `${c.name} ${JSON.stringify(o)}`;
                     expectScoresMatch(
                         toLegacy(s, commonNeighborsPrediction(s, o)),
-                        legacyResult<LinkPredictionScore[]>(),
+                        legacyResult() as LinkPredictionScore[],
                         `common neighbours ${at}`,
                     );
                     expectRankingMatch(
                         toLegacy(s, adamicAdarPrediction(s, o)),
-                        legacyResult<LinkPredictionScore[]>(),
-                        () => legacyResult<number>(),
+                        legacyResult() as LinkPredictionScore[],
+                        () => legacyResult() as number,
                         `Adamic-Adar ${at}`,
                     );
                 }
@@ -209,8 +209,8 @@ describe("indexed link prediction, against legacy", () => {
                 for (const o of OPTIONS) {
                     const cn = commonNeighborsForPairs(s, pairs, o);
                     const aa = adamicAdarForPairs(s, pairs, o);
-                    const legacyCn = legacyResult<LinkPredictionScore[]>();
-                    const legacyAa = legacyResult<LinkPredictionScore[]>();
+                    const legacyCn = legacyResult() as LinkPredictionScore[];
+                    const legacyAa = legacyResult() as LinkPredictionScore[];
                     legacyCn.forEach((x, k) => {
                         expect(cn[k], `common neighbours ${String(x.source)}-${String(x.target)}`).toBe(x.score);
                     });
@@ -237,13 +237,13 @@ describe("indexed link prediction, against legacy", () => {
                         const at = `${String(id)} ${JSON.stringify(o)}`;
                         expectScoresMatch(
                             toLegacy(s, getTopCandidatesForNode(s, u, o)),
-                            legacyResult<LinkPredictionScore[]>(),
+                            legacyResult() as LinkPredictionScore[],
                             `common neighbours ${at}`,
                         );
                         expectRankingMatch(
                             toLegacy(s, getTopAdamicAdarCandidatesForNode(s, u, { ...o, candidates })),
-                            legacyResult<LinkPredictionScore[]>(),
-                            () => legacyResult<number>(),
+                            legacyResult() as LinkPredictionScore[],
+                            () => legacyResult() as number,
                             `Adamic-Adar ${at}`,
                         );
                     }
@@ -257,19 +257,19 @@ describe("indexed link prediction, against legacy", () => {
                     const at = `${c.name} ${JSON.stringify(o)}`;
                     expectMetricsMatch(
                         evaluateCommonNeighbors(s, test, non, o),
-                        legacyResult<{ precision: number; recall: number; f1Score: number; auc: number }>(),
+                        legacyResult() as { precision: number; recall: number; f1Score: number; auc: number },
                         `common neighbours ${at}`,
                     );
                     expectMetricsMatch(
                         evaluateAdamicAdar(s, test, non, o),
-                        legacyResult<{ precision: number; recall: number; f1Score: number; auc: number }>(),
+                        legacyResult() as { precision: number; recall: number; f1Score: number; auc: number },
                         `Adamic-Adar ${at}`,
                     );
                     const both = compareAdamicAdarWithCommonNeighbors(s, test, non, o);
-                    const legacyBoth = legacyResult<{
+                    const legacyBoth = legacyResult() as {
                         adamicAdar: ReturnType<typeof adamicAdarLegacy.evaluateAdamicAdar>;
                         commonNeighbors: { precision: number; recall: number; f1Score: number; auc: number };
-                    }>();
+                    };
                     expectMetricsMatch(both.adamicAdar, legacyBoth.adamicAdar, `compare, Adamic-Adar ${at}`);
                     expectMetricsMatch(both.commonNeighbors, legacyBoth.commonNeighbors, `compare, CN ${at}`);
                 }
@@ -315,7 +315,7 @@ describe("indexed link prediction", () => {
         ]) {
             graph.addEdge(u, v);
         }
-        expect(legacyResult<number>()).toBe(1 / Math.log(3));
+        expect(legacyResult() as number).toBe(1 / Math.log(3));
         const s = checksummedSnapshot(graph);
         expect(adamicAdarScore(s, s.ids.indexOf("x"), s.ids.indexOf("y"))).not.toBe(1 / Math.log(3));
     });
@@ -387,7 +387,7 @@ describe("indexed link prediction", () => {
         const o = { includeExisting: true };
         const scores = adamicAdarForPairs(s, indexed([...test, ...non]), o);
         expect(new Set(scores).size).toBe(1);
-        legacyResult<LinkPredictionScore[]>().forEach((x, k) => {
+        (legacyResult() as LinkPredictionScore[]).forEach((x, k) => {
             expectClose(scores[k], x.score, `${String(x.source)}-${String(x.target)}`);
         });
         const metrics = evaluateAdamicAdar(s, indexed(test), indexed(non), o);

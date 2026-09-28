@@ -99,7 +99,7 @@ describe("indexed.kCoreDecomposition", () => {
         it(`agrees with the legacy kCoreDecomposition on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             const ported = kCoreDecomposition(s);
-            const legacy = legacyResult<KCoreResult<string>>();
+            const legacy = legacyResult() as KCoreResult<string>;
             expect(ported.maxCore).toBe(legacy.maxCore);
             for (let u = 0; u < s.nodeCount; u++) {
                 expect(ported.coreness[u]).toBe(legacy.coreness.get(String(s.ids.idOf(u))));

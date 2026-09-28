@@ -204,7 +204,7 @@ describe("indexed.maxFlow against legacy", () => {
                 const s = toSnapshot(fixture.graph, { checksum: true });
                 const weights = exactWeights(s);
                 for (const [sourceId, sinkId] of fixture.pairs) {
-                    const expected = legacyResult<LegacyMaxFlowResult>();
+                    const expected = legacyResult() as LegacyMaxFlowResult;
                     const source = resolveNode(s.ids, sourceId);
                     const sink = resolveNode(s.ids, sinkId);
                     const r = maxFlow(s, source, sink, { algorithm, weights });
@@ -235,7 +235,7 @@ describe("indexed.maxFlow against legacy", () => {
         g.addEdge("b", "t", 3);
         const s = toSnapshot(g, { checksum: true });
         for (const algorithm of ["edmonds-karp", "ford-fulkerson"] as const) {
-            const legacy = legacyResult<LegacyMaxFlowResult>();
+            const legacy = legacyResult() as LegacyMaxFlowResult;
             const source = s.ids.indexOf("s");
             const sink = s.ids.indexOf("t");
             const r = maxFlow(s, source, sink, { algorithm });
@@ -342,7 +342,7 @@ describe("indexed.minSTCut against legacy", () => {
             const s = toSnapshot(fixture.graph, { checksum: true });
             const weights = exactWeights(s);
             for (const [sourceId, sinkId] of fixture.pairs) {
-                const expected = legacyResult<MinCutResult>();
+                const expected = legacyResult() as MinCutResult;
                 const r = minSTCut(s, resolveNode(s.ids, sourceId), resolveNode(s.ids, sinkId), { weights });
                 const at = `${sourceId} -> ${sinkId}`;
                 expect(r.cutValue, at).toBe(expected.cutValue);
@@ -403,7 +403,7 @@ describe("indexed.minSTCut against legacy", () => {
             const source = String(id(0));
             const sink = String(id(n - 1));
             const r = minSTCut(s, resolveNode(s.ids, source), resolveNode(s.ids, sink), { weights });
-            expect(r.cutValue, `trial ${trial}`).toBe(legacyResult<MinCutResult>().cutValue);
+            expect(r.cutValue, `trial ${trial}`).toBe((legacyResult() as MinCutResult).cutValue);
             compared++;
         }
         expect(compared).toBe(60);
@@ -438,7 +438,7 @@ describe("indexed.bipartiteFlowNetwork", () => {
     });
 
     it("gives the same flow as legacy edmondsKarp over createBipartiteFlowNetwork", () => {
-        const expected = legacyResult<LegacyMaxFlowResult>();
+        const expected = legacyResult() as LegacyMaxFlowResult;
         const { snapshot, source, sink } = bipartiteFlowNetwork(left, right, edges);
         const r = maxFlow(snapshot, source, sink);
         expect(r.maxFlow).toBe(expected.maxFlow);

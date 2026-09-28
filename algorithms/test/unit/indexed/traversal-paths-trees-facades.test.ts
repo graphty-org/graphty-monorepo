@@ -98,7 +98,7 @@ describe("breadth-first search facades", () => {
     it("breadthFirstSearch stops at a target where legacy does, and ignores one not in the graph", () => {
         const run = (bfs: typeof breadthFirstSearch) =>
             fromEachStart((g, start) => {
-                const targetNode = middleOf(legacyResult<TraversalResult>().order);
+                const targetNode = middleOf((legacyResult() as TraversalResult).order);
                 return [
                     withVisits((visitCallback) => bfs(g, start, { targetNode, visitCallback })),
                     bfs(g, start, { targetNode: "no such node" }),
@@ -156,7 +156,7 @@ describe("depth-first search facades", () => {
     it("depthFirstSearch stops at a target where legacy does, in every mode", () => {
         const run = (dfs: typeof depthFirstSearch) =>
             fromEachStart((g, start) => {
-                const targetNode = middleOf(legacyResult<TraversalResult>().order);
+                const targetNode = middleOf((legacyResult() as TraversalResult).order);
                 return optionSets.map((options) =>
                     withVisits((visitCallback) => dfs(g, start, { ...options, targetNode, visitCallback })),
                 );

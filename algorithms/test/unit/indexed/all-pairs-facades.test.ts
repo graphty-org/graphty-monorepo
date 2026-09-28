@@ -53,7 +53,7 @@ const ids = (g: Graph): NodeId[] => Array.from(g.nodes(), (n) => n.id);
 function dijkstraMatrix(g: Graph): Map<NodeId, Map<NodeId, number>> {
     return new Map(
         ids(g).map((i) => {
-            const reached = legacyResult<Map<NodeId, number>>();
+            const reached = legacyResult() as Map<NodeId, number>;
             return [i, new Map(ids(g).map((j) => [j, reached.get(j) ?? Infinity]))];
         }),
     );

@@ -35,7 +35,7 @@ describe("indexed.bellmanFord", () => {
                 expect(weights === undefined, name).toBe(g === graph);
                 const source = 0;
                 const r = bellmanFord(s, source, { weights });
-                const legacy = legacyResult<BellmanFordResult>();
+                const legacy = legacyResult() as BellmanFordResult;
                 expect(r.hasNegativeCycle, name).toBe(false);
                 expect(legacy.hasNegativeCycle, name).toBe(false);
                 for (let i = 0; i < s.nodeCount; i++) {
@@ -88,7 +88,7 @@ describe("indexed.bellmanFord", () => {
         const s = checksummedSnapshot(g);
         const r = bellmanFord(s, s.ids.requireIndex("a"));
         expect(r.dist[s.ids.requireIndex("c")]).toBe(5);
-        expect(legacyResult<BellmanFordResult>().distances.get("c")).toBe(5);
+        expect((legacyResult() as BellmanFordResult).distances.get("c")).toBe(5);
     });
 
     it("reports a negative cycle as legacy does, directed and undirected", () => {
@@ -103,7 +103,7 @@ describe("indexed.bellmanFord", () => {
         for (const g of [directed, undirected]) {
             const s = checksummedSnapshot(g);
             expect(bellmanFord(s, 0).hasNegativeCycle).toBe(true);
-            expect(legacyResult<BellmanFordResult>().hasNegativeCycle).toBe(true);
+            expect((legacyResult() as BellmanFordResult).hasNegativeCycle).toBe(true);
         }
     });
 
@@ -115,7 +115,7 @@ describe("indexed.bellmanFord", () => {
         const s = checksummedSnapshot(g);
         const r = bellmanFord(s, 0);
         expect(r.hasNegativeCycle).toBe(false);
-        expect(legacyResult<BellmanFordResult>().hasNegativeCycle).toBe(false);
+        expect((legacyResult() as BellmanFordResult).hasNegativeCycle).toBe(false);
         expect(r.dist[s.ids.requireIndex("c")]).toBe(Infinity);
     });
 

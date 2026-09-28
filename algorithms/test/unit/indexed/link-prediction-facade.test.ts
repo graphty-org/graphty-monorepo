@@ -143,11 +143,11 @@ describe("common-neighbour link prediction facades", () => {
     it("ignores a NaN weight, as legacy does", () => {
         const g = nanWeighted();
         const pairs = pairsOf(g);
-        expect(commonNeighborsPrediction(g)).toEqual(legacyResult<LinkPredictionScore[]>());
-        expect(commonNeighborsForPairs(g, pairs)).toEqual(legacyResult<LinkPredictionScore[]>());
-        expect(getTopCandidatesForNode(g, "a")).toEqual(legacyResult<LinkPredictionScore[]>());
+        expect(commonNeighborsPrediction(g)).toEqual(legacyResult() as LinkPredictionScore[]);
+        expect(commonNeighborsForPairs(g, pairs)).toEqual(legacyResult() as LinkPredictionScore[]);
+        expect(getTopCandidatesForNode(g, "a")).toEqual(legacyResult() as LinkPredictionScore[]);
         expect(evaluateCommonNeighbors(g, pairs.slice(0, 5), pairs.slice(5))).toEqual(
-            legacyResult<{ precision: number; recall: number; f1Score: number; auc: number }>(),
+            legacyResult() as { precision: number; recall: number; f1Score: number; auc: number },
         );
         expect(commonNeighborsPrediction(g).length).toBeGreaterThan(0);
     });

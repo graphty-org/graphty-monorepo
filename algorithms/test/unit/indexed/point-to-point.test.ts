@@ -55,7 +55,7 @@ describe("indexed.bidirectionalDijkstra", () => {
             expect(weights !== undefined, name).toBe(offGrid);
             for (let t = 0; t < s.nodeCount; t++) {
                 const r = bidirectionalDijkstra(s, 0, t, { weights });
-                const legacy = legacyResult<ShortestPathResult | null>();
+                const legacy = legacyResult() as ShortestPathResult | null;
                 const at = `${name}: 0 -> ${String(t)}`;
                 if (legacy === null) {
                     expect(r.distance, at).toBe(Infinity);
@@ -158,7 +158,7 @@ describe("indexed.bidirectionalDijkstra", () => {
         for (let i = 0; i < 10; i++) {
             g.addNode(`pad${String(i)}`); // more than 10 nodes, so legacy dijkstraPath goes bidirectional
         }
-        expect(() => legacyResult<ShortestPathResult | null>()).toThrow("does not support negative edge weights");
+        expect(() => legacyResult() as ShortestPathResult | null).toThrow("does not support negative edge weights");
         const s = checksummedSnapshot(g);
         const [from, to] = [s.ids.requireIndex("s"), s.ids.requireIndex("t")];
         expect(() => bidirectionalDijkstra(s, from, to)).toThrow("does not support negative edge weights");
@@ -183,7 +183,7 @@ describe("indexed.astar", () => {
                     ["half", (i: number): number => half(i)],
                 ] as const) {
                     const r = astar(s, 0, t, h, { weights });
-                    const legacy = legacyResult<{ path: string[]; cost: number } | null>();
+                    const legacy = legacyResult() as { path: string[]; cost: number } | null;
                     const at = `${name}, ${label}: 0 -> ${String(t)}`;
                     if (legacy === null) {
                         expect(r.distance, at).toBe(Infinity);
@@ -209,13 +209,13 @@ describe("indexed.astar", () => {
         const s = fromAdjacencyMap(adjacency);
         const target = 7;
         const r = astar(s, 0, target, () => 0, { weights: exactArcWeights(s) });
-        const legacy = legacyResult<{
+        const legacy = legacyResult() as {
             path: string[] | null;
             cost: number;
             visited: Set<string>;
             gScores: Map<string, number>;
             fScores: Map<string, number>;
-        }>();
+        };
         for (const [id, g] of legacy.gScores) {
             expect(r.gScore[s.ids.requireIndex(id)]).toBe(g);
         }
@@ -242,13 +242,13 @@ describe("indexed.astar", () => {
             ["t", new Map<string, number>()],
         ]);
         const h = new Map([["b", 5]]);
-        const legacy = legacyResult<{
+        const legacy = legacyResult() as {
             path: string[] | null;
             cost: number;
             visited: Set<string>;
             gScores: Map<string, number>;
             fScores: Map<string, number>;
-        }>();
+        };
         const s = fromAdjacencyMap(adjacency);
         const r = astar(s, s.ids.requireIndex("s"), s.ids.requireIndex("t"), (i) => h.get(String(s.ids.idOf(i))) ?? 0);
         expect(legacy.cost).toBe(14);

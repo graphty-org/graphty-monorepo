@@ -31,8 +31,12 @@ interface FacadeParityOptions {
  * Compare `actual` with `expected` structurally, including what `toEqual` ignores and a legacy
  * caller can observe: Map and Set iteration order, a property set to undefined against a missing
  * one, and the prototype (an array is not a typed array). Object property order is not compared.
+ * @param actual - The facade's result
+ * @param expected - The legacy result
+ * @param tolerance - See {@link FacadeParityOptions}
+ * @param at - Where in the result this is, for the failure message
  */
-function expectSame(actual: unknown, expected: unknown, tolerance: number, at: string): void {
+export function expectSame(actual: unknown, expected: unknown, tolerance: number, at: string): void {
     if (typeof expected === "number" && typeof actual === "number") {
         if (actual === expected || (Number.isNaN(actual) && Number.isNaN(expected))) {
             return;
@@ -98,7 +102,7 @@ export function expectFacadeMatchesLegacy(
         // A graph with a NaN weight has no weighted snapshot; its facade may still run.
         const s = toSnapshotOrNull(graph, { checksum: true });
         const mutations = graph.mutationCount;
-        const expected = legacyResult<unknown>();
+        const expected = legacyResult();
         const actual = facade(graph);
         expectSame(actual, expected, tolerance, name);
         expect(graph.mutationCount, `${name}: the graph was mutated`).toBe(mutations);

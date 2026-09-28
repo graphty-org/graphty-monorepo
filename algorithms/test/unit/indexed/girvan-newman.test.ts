@@ -29,7 +29,7 @@ describe("indexed.girvanNewman", () => {
         it(`gives the legacy dendrogram level for level, with the same modularity, on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             const r = girvanNewman(s);
-            const legacy = legacyResult<CommunityResult[]>();
+            const legacy = legacyResult() as CommunityResult[];
             expect(r.levels.length).toBe(legacy.length);
             expect(r.modularity.length).toBe(legacy.length);
             for (let i = 0; i < legacy.length; i++) {
@@ -53,7 +53,7 @@ describe("indexed.girvanNewman", () => {
             { maxIterations: 0 },
         ]) {
             const r = girvanNewman(s, options);
-            const legacy = legacyResult<CommunityResult[]>();
+            const legacy = legacyResult() as CommunityResult[];
             expect(r.levels.length).toBe(legacy.length);
             for (let i = 0; i < legacy.length; i++) {
                 expect(levelGroups(s, r.levels[i], options.minCommunitySize)).toEqual(canonical(legacy[i].communities));
@@ -119,7 +119,7 @@ describe("indexed.girvanNewman", () => {
         g.addEdge("c", "d", 2);
         const s = checksummedSnapshot(g);
         const r = girvanNewman(s);
-        const legacy = legacyResult<CommunityResult[]>();
+        const legacy = legacyResult() as CommunityResult[];
         for (let i = 0; i < legacy.length; i++) {
             expect(r.modularity[i]).toBe(legacy[i].modularity);
         }

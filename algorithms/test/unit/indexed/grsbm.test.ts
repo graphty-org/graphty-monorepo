@@ -179,7 +179,7 @@ describe("indexed.grsbm", () => {
         expect(grsbm(s).modularityScores[0]).toBeCloseTo(0, 12);
         expect(grsbm(s, { weighted: false }).modularityScores[0]).toBeCloseTo(0, 12);
         // Legacy counts a self-loop once in the degree and half in the internal edges, so it does not.
-        expect(legacyResult<GRSBMResult>().modularityScores[0]).not.toBeCloseTo(0, 6);
+        expect((legacyResult() as GRSBMResult).modularityScores[0]).not.toBeCloseTo(0, 6);
     });
 
     it("leaves self-loops out of the bisection vector", () => {
@@ -214,7 +214,7 @@ describe("indexed.grsbm", () => {
         for (let i = 0; i < 8; i++) {
             plain.addEdge(i, (i + 1) % 8);
         }
-        expect(legacyResult<GRSBMResult>().modularityScores[0]).toBeCloseTo(-0.5, 12);
+        expect((legacyResult() as GRSBMResult).modularityScores[0]).toBeCloseTo(-0.5, 12);
         expect(graph.nodeCount).toBe(8);
     });
 

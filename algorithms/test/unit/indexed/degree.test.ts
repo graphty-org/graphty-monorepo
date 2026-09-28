@@ -45,7 +45,7 @@ describe("indexed.degreeCentrality", () => {
             const s = checksummedSnapshot(graph);
             for (const options of OPTION_SETS) {
                 const ported = degreeCentrality(s, options);
-                const legacy = legacyResult<CentralityResult>();
+                const legacy = legacyResult() as CentralityResult;
                 for (let v = 0; v < s.nodeCount; v++) {
                     expect(ported[v]).toBe(legacy[String(s.ids.idOf(v))]);
                 }
@@ -58,7 +58,7 @@ describe("indexed.degreeCentrality", () => {
         it(`counts distinct neighbours on the ${name}, as legacy does on the merged graph`, () => {
             for (const options of OPTION_SETS) {
                 const ported = degreeCentrality(snapshot, options);
-                const want = legacyResult<CentralityResult>();
+                const want = legacyResult() as CentralityResult;
                 for (let v = 0; v < snapshot.nodeCount; v++) {
                     expect(ported[v], `${String(snapshot.ids.idOf(v))} ${JSON.stringify(options)}`).toBe(
                         want[String(snapshot.ids.idOf(v))],

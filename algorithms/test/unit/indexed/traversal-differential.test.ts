@@ -86,10 +86,10 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
         for (const { name, s, arcOrder } of cases(all)) {
             for (const start of starts(s)) {
                 const at = `${name} from ${String(s.ids.idOf(start))}`;
-                const { legacy, legacyDepths } = legacyResult<{
+                const { legacy, legacyDepths } = legacyResult() as {
                     legacy: TraversalResult;
                     legacyDepths: Map<NodeId, number>;
-                }>();
+                };
                 const port = depthFirstSearch(s, start, { arcOrder });
                 s.validate({ checksum: true });
                 expect(ids(s, port.order), at).toEqual(legacy.order);
@@ -106,7 +106,7 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
     it("gives the post-order on every fixture", () => {
         for (const { name, s, arcOrder } of cases(all)) {
             for (const start of starts(s)) {
-                const legacy = legacyResult<TraversalResult>();
+                const legacy = legacyResult() as TraversalResult;
                 const port = depthFirstSearch(s, start, { order: "post", arcOrder });
                 s.validate({ checksum: true });
                 expect(ids(s, port.order), name).toEqual(legacy.order);
@@ -122,7 +122,7 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
             }
             const full = depthFirstSearch(s, 0, { arcOrder });
             const target = full.order[full.visitedCount >> 1];
-            const legacy = legacyResult<TraversalResult>();
+            const legacy = legacyResult() as TraversalResult;
             const port = depthFirstSearch(s, 0, { target, arcOrder });
             s.validate({ checksum: true });
             expect(ids(s, port.order), name).toEqual(legacy.order);
@@ -137,7 +137,7 @@ describe("indexed.hasCycle against legacy hasCycleDFS", () => {
         for (const { name, s } of cases(all)) {
             const port = hasCycle(s);
             s.validate({ checksum: true });
-            expect(port, name).toBe(legacyResult<boolean>());
+            expect(port, name).toBe(legacyResult() as boolean);
         }
     });
 });
@@ -146,7 +146,7 @@ describe("indexed.topologicalSort against legacy topologicalSort", () => {
     it("gives the same order, or null, on every directed fixture", () => {
         let sorted = 0;
         for (const { name, s, arcOrder } of cases(directed)) {
-            const legacy = legacyResult<NodeId[] | null>();
+            const legacy = legacyResult() as NodeId[] | null;
             const port = topologicalSort(s, { arcOrder });
             s.validate({ checksum: true });
             expect(port === null ? null : ids(s, port), name).toEqual(legacy);
@@ -166,8 +166,8 @@ describe("indexed.isBipartite against legacy isBipartite and bipartitePartition"
         for (const { name, s } of cases(all)) {
             const port = isBipartite(s);
             s.validate({ checksum: true });
-            expect(port.bipartite, name).toBe(legacyResult<boolean>());
-            const partition = legacyResult<{ left: Set<NodeId>; right: Set<NodeId> } | null>();
+            expect(port.bipartite, name).toBe(legacyResult() as boolean);
+            const partition = legacyResult() as { left: Set<NodeId>; right: Set<NodeId> } | null;
             expect(port.bipartite, name).toBe(partition !== null);
             if (partition === null) {
                 expect(port.sides, name).toBeNull();
@@ -193,7 +193,7 @@ describe("indexed.isBipartite against legacy isBipartite and bipartitePartition"
         for (const { name, s } of cases(directed)) {
             const port = isBipartite(s, { arcs: "out" });
             s.validate({ checksum: true });
-            const partition = legacyResult<{ left: Set<NodeId>; right: Set<NodeId> } | null>();
+            const partition = legacyResult() as { left: Set<NodeId>; right: Set<NodeId> } | null;
             expect(port.bipartite, name).toBe(partition !== null);
             differs += isBipartite(s).bipartite === port.bipartite ? 0 : 1;
             if (partition === null) {
@@ -222,7 +222,7 @@ describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju
         for (const { name, s, arcOrder } of cases(directed)) {
             const port = stronglyConnectedComponents(s, { arcOrder });
             s.validate({ checksum: true });
-            const legacy = legacyResult<NodeId[][]>();
+            const legacy = legacyResult() as NodeId[][];
             expect(port.count, name).toBe(legacy.length);
             const expected = new Map<NodeId, number>();
             legacy.forEach((members, label) => {
@@ -244,8 +244,8 @@ describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju
             const port = stronglyConnectedComponents(s);
             s.validate({ checksum: true });
             const groups = port.groups().map((g) => ids(s, g));
-            expect(partition(groups), name).toEqual(partition(legacyResult<NodeId[][]>()));
-            expect(partition(groups), name).toEqual(partition(legacyResult<NodeId[][]>()));
+            expect(partition(groups), name).toEqual(partition(legacyResult() as NodeId[][]));
+            expect(partition(groups), name).toEqual(partition(legacyResult() as NodeId[][]));
         }
     });
 });
@@ -255,7 +255,7 @@ describe("indexed.condensation against legacy condensationGraph", () => {
         for (const { name, s, arcOrder } of cases(directed)) {
             const { components, condensed } = condensation(s, { arcOrder });
             s.validate({ checksum: true });
-            const legacy = legacyResult<{ componentMap: Map<NodeId, number>; nodeCount: number; edges: string[] }>();
+            const legacy = legacyResult() as { componentMap: Map<NodeId, number>; nodeCount: number; edges: string[] };
             const portMap = Array.from(components.labels, (label, i) => [s.ids.idOf(i), label]);
             expect(portMap.sort(), name).toEqual([...legacy.componentMap].sort());
 
@@ -285,7 +285,7 @@ describe("indexed.directionOptimizedBfs against legacy directionOptimizedBFS", (
             for (const { name, s } of list) {
                 for (const start of starts(s)) {
                     const at = `${name} from ${String(s.ids.idOf(start))}`;
-                    const legacy = legacyResult<BFSResult<NodeId>>();
+                    const legacy = legacyResult() as BFSResult<NodeId>;
                     const port = directionOptimizedBfs(s, start);
                     s.validate({ checksum: true });
                     expect(port.visitedCount, at).toBe(legacy.visitedCount);
@@ -331,7 +331,7 @@ describe("indexed.breadthFirstSearch target option against legacy breadthFirstSe
             }
             const full = breadthFirstSearch(s, 0, { arcOrder });
             for (const target of [full.order[full.visitedCount - 1], full.order[full.visitedCount >> 1]]) {
-                const legacy = legacyResult<TraversalResult>();
+                const legacy = legacyResult() as TraversalResult;
                 const port = breadthFirstSearch(s, 0, { target, arcOrder });
                 s.validate({ checksum: true });
                 const visited = ids(s, port.order);

@@ -231,7 +231,7 @@ describe("edgeScoresToPairMap", () => {
         g.addEdge("b", "a");
         g.addEdge("c", "b");
         g.addEdge("c", "d");
-        const legacy = legacyResult<Map<string, number>>();
+        const legacy = legacyResult() as Map<string, number>;
         const s = toSnapshot(g);
         const { src, dst } = s.edgeList();
         const scores = Float64Array.from({ length: s.edgeCount }, (_, e) => {

@@ -7,13 +7,17 @@
  * order, number versus string keys, `undefined` properties, `-0`, `NaN` and the infinities all
  * survive the round trip, and every finite number is exact (JSON writes the shortest decimal that
  * parses back to the same f64).
+ *
+ * The records are frozen: the suites no longer call the legacy code, so nothing re-records them.
+ * Two tests of one file sharing a name, and a record that a whole passing run of its file never
+ * reads, both fail the file, so a renamed test or a dropped fixture cannot go unnoticed.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gunzipSync } from "node:zlib";
 
-import { afterAll, beforeEach, expect } from "vitest";
+import { afterAll, beforeEach, expect, type RunnerTask, type RunnerTestSuite } from "vitest";
 
 import { ConvergenceError, PathWalkError } from "../../src/errors.js";
 
@@ -32,7 +36,7 @@ type Encoded =
     | { $throws: { name: string; message: string } };
 
 /** A recorded throw is replayed as an instance of its class, so `toThrow(ConvergenceError)` still holds. */
-const ERRORS: Record<string, { prototype: Error }> = { ConvergenceError, PathWalkError };
+const ERRORS: Record<string, { prototype: Error }> = { ConvergenceError, PathWalkError, RangeError, TypeError };
 
 const TYPED: Record<string, new (values: number[]) => ArrayLike<number>> = {
     Float64Array,
@@ -44,53 +48,6 @@ const TYPED: Record<string, new (values: number[]) => ArrayLike<number>> = {
     Uint16Array,
     Int16Array,
 };
-
-function encode(value: unknown, at: string): Encoded {
-    if (value === undefined) {
-        return { $undefined: true };
-    }
-    if (value === null || typeof value === "boolean" || typeof value === "string") {
-        return value;
-    }
-    if (typeof value === "number") {
-        if (Number.isNaN(value)) {
-            return { $number: "NaN" };
-        }
-        if (value === Infinity) {
-            return { $number: "Infinity" };
-        }
-        if (value === -Infinity) {
-            return { $number: "-Infinity" };
-        }
-        return Object.is(value, -0) ? { $number: "-0" } : value;
-    }
-    if (value instanceof Map) {
-        return {
-            $map: [...value].map(([k, v], i) => [encode(k, `${at} key ${i}`), encode(v, `${at}.get(${String(k)})`)]),
-        };
-    }
-    if (value instanceof Set) {
-        return { $set: [...value].map((v, i) => encode(v, `${at} member ${i}`)) };
-    }
-    if (Array.isArray(value)) {
-        return value.map((v, i) => encode(v, `${at}[${i}]`));
-    }
-    if (ArrayBuffer.isView(value)) {
-        const { name } = value.constructor;
-        if (!(name in TYPED)) {
-            throw new Error(`${at}: cannot record a ${name}`);
-        }
-        return { $typed: name, values: [...(value as unknown as ArrayLike<number>)].map((v) => encode(v, at)) };
-    }
-    if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
-        const out: Record<string, Encoded> = {};
-        for (const [k, v] of Object.entries(value)) {
-            out[k] = encode(v, `${at}.${k}`);
-        }
-        return { $object: out };
-    }
-    throw new Error(`${at}: cannot record ${Object.prototype.toString.call(value)}`);
-}
 
 function decode(value: Encoded): unknown {
     if (value === null || typeof value !== "object") {
@@ -127,19 +84,34 @@ function decode(value: Encoded): unknown {
 const TEST_ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const files = new Map<string, Record<string, Encoded>>();
 const calls = new Map<string, number>();
-let recording = 0;
-beforeEach(() => {
+const read = new Set<string>();
+/** Full test name to the id of the test that owns it, to catch two tests sharing a name. */
+const owners = new Map<string, string>();
+let testFile: RunnerTestSuite | undefined;
+beforeEach(({ task }) => {
     calls.clear();
+    testFile = task.file;
+    const name = expect.getState().currentTestName ?? task.name;
+    const owner = owners.get(name);
+    if (owner !== undefined && owner !== task.id) {
+        throw new Error(`two tests are named "${name}": their golden records would collide`);
+    }
+    owners.set(name, task.id);
 });
+
+function tasksOf(suite: RunnerTestSuite): RunnerTask[] {
+    return suite.tasks.flatMap((t) => (t.type === "suite" ? tasksOf(t) : [t]));
+}
+
 afterAll(() => {
-    if (process.env.GOLDEN_RECORD === "1") {
-        for (const [file, records] of files) {
-            mkdirSync(dirname(file), { recursive: true });
-            // One record per line, gzipped: the suites record about 40 MB of JSON. `zcat` reads a file.
-            const lines = Object.entries(records).map(
-                ([key, value]) => `${JSON.stringify(key)}: ${JSON.stringify(value)}`,
-            );
-            writeFileSync(file, gzipSync(`{\n${lines.join(",\n")}\n}\n`, { level: 9 }));
+    // Only a run of every test of the file, all passing, is expected to read every record.
+    if (testFile === undefined || !tasksOf(testFile).every((t) => t.mode === "run" && t.result?.state === "pass")) {
+        return;
+    }
+    for (const [file, records] of files) {
+        const unread = Object.keys(records).filter((key) => !read.has(`${file} ${key}`));
+        if (unread.length > 0) {
+            throw new Error(`${file}: ${unread.length} records no test read, first ${unread[0]}`);
         }
     }
 });
@@ -151,25 +123,18 @@ function goldenFile(testPath: string): string {
 function load(file: string): Record<string, Encoded> {
     let records = files.get(file);
     if (records === undefined) {
-        records =
-            process.env.GOLDEN_RECORD === "1"
-                ? {}
-                : (JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Record<string, Encoded>);
+        records = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Record<string, Encoded>;
         files.set(file, records);
     }
     return records;
 }
 
 /**
- * The value the legacy function returned at this point of the running test.
- * @param record - Only while recording (`GOLDEN_RECORD=1`): the legacy call to run and record
- * @returns The recorded legacy result
+ * The value the legacy function returned at this point of the running test. A recorded throw is
+ * thrown again, as an instance of its class when that class is in `ERRORS`.
+ * @returns The recorded legacy result, for the caller to assert the type of
  */
-export function legacyResult<T>(record?: () => T): T {
-    if (recording > 0 && record !== undefined) {
-        // A legacy call inside one being recorded is part of that record, not a record of its own.
-        return record();
-    }
+export function legacyResult(): unknown {
     const { currentTestName, testPath } = expect.getState();
     if (currentTestName === undefined || testPath === undefined) {
         throw new Error("legacyResult() is only callable inside a test");
@@ -179,36 +144,22 @@ export function legacyResult<T>(record?: () => T): T {
     const key = `${currentTestName} #${n}`;
     const file = goldenFile(testPath);
     const records = load(file);
-    if (process.env.GOLDEN_RECORD === "1") {
-        if (record === undefined) {
-            throw new Error(`${key}: nothing to record`);
-        }
-        if (key in records) {
-            throw new Error(`${key}: recorded twice (two tests share a name?)`);
-        }
-        let value: T;
-        recording++;
-        try {
-            value = record();
-        } catch (error) {
-            const { name, message } = error as Error;
-            records[key] = { $throws: { name, message } };
-            throw error;
-        } finally {
-            recording--;
-        }
-        records[key] = encode(value, key);
-        return value;
-    }
     if (!(key in records)) {
         throw new Error(`${key}: no recorded legacy result in ${file}`);
     }
+    read.add(`${file} ${key}`);
     const value = decode(records[key]);
     if (value !== null && typeof value === "object" && "$throws" in value) {
         const { name, message } = (value as { $throws: { name: string; message: string } }).$throws;
-        const error = Object.create((ERRORS[name] ?? Error).prototype) as Error;
-        Object.defineProperties(error, { name: { value: name }, message: { value: message } });
+        const known = ERRORS[name] as { prototype: Error } | undefined;
+        // A real Error (vitest's toThrow(new RangeError(...)) accepts nothing else) given the recorded
+        // class's prototype, without running a custom error class's constructor.
+        const error = new Error(message);
+        Object.setPrototypeOf(error, (known ?? Error).prototype);
+        if (known === undefined) {
+            Object.defineProperty(error, "name", { value: name, writable: true, configurable: true });
+        }
         throw error;
     }
-    return value as T;
+    return value;
 }

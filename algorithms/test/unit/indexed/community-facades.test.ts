@@ -170,7 +170,7 @@ describe("girvanNewman facade", () => {
 
     it("throws on a directed graph, as the old code did", () => {
         const g = directedFixtures()[0].graph;
-        expect(() => legacyResult<CommunityResult[]>()).toThrow("requires an undirected graph");
+        expect(() => legacyResult() as CommunityResult[]).toThrow("requires an undirected graph");
         expect(() => girvanNewman(g)).toThrow("requires an undirected graph");
     });
 });

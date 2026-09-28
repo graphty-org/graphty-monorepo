@@ -134,7 +134,7 @@ describe("indexed.findAllIsomorphisms", () => {
             const s1 = checksummedSnapshot(g1);
             const s2 = checksummedSnapshot(g2);
             const all = findAllIsomorphisms(s1, s2);
-            expect(all.length).toBe(legacyResult<Map<NodeId, NodeId>[]>().length);
+            expect(all.length).toBe((legacyResult() as Map<NodeId, NodeId>[]).length);
             if (c.automorphisms !== undefined) {
                 expect(all.length).toBe(c.automorphisms);
             }
@@ -144,7 +144,7 @@ describe("indexed.findAllIsomorphisms", () => {
             }
 
             const one = isGraphIsomorphic(s1, s2);
-            expect(one.isomorphic).toBe(legacyResult<IsomorphismResult>().isIsomorphic);
+            expect(one.isomorphic).toBe((legacyResult() as IsomorphismResult).isIsomorphic);
             expect(one.isomorphic).toBe(true);
             assertIsomorphism(s1, s2, one.mapping ?? new Uint32Array(0));
             s1.validate({ checksum: true });
@@ -159,7 +159,7 @@ describe("indexed.findAllIsomorphisms", () => {
         const s2 = checksummedSnapshot(g2);
         // Only nodes whose original label has the same parity may correspond.
         const parity = (id: NodeId): number => Number(String(id).replace("x", "")) % 2;
-        const legacy = legacyResult<Map<NodeId, NodeId>[]>();
+        const legacy = legacyResult() as Map<NodeId, NodeId>[];
         const ported = findAllIsomorphisms(s1, s2, {
             nodeMatch: (i1, i2, a, b) => parity(a.ids.idOf(i1)) === parity(b.ids.idOf(i2)),
         });
@@ -182,7 +182,7 @@ describe("indexed.findAllIsomorphisms", () => {
         const s2 = checksummedSnapshot(g2);
         const w1 = s1.edgeList().weights;
         const w2 = s2.edgeList().weights;
-        const legacy = legacyResult<Map<NodeId, NodeId>[]>();
+        const legacy = legacyResult() as Map<NodeId, NodeId>[];
         const ported = findAllIsomorphisms(s1, s2, { edgeMatch: (e1, e2) => w1?.[e1] === w2?.[e2] });
         expect(legacy.length).toBe(6);
         expect(ported.length).toBe(legacy.length);
@@ -238,7 +238,7 @@ describe("indexed.findAllIsomorphisms", () => {
     it("finds none between graphs with the same degrees that are not isomorphic", () => {
         const cycle = fromPairs(false, "a-b b-c c-d d-e e-f f-a");
         const triangles = fromPairs(false, "a-b b-c c-a d-e e-f f-d");
-        expect(legacyResult<Map<NodeId, NodeId>[]>()).toHaveLength(0);
+        expect(legacyResult() as Map<NodeId, NodeId>[]).toHaveLength(0);
         expect(findAllIsomorphisms(checksummedSnapshot(cycle), checksummedSnapshot(triangles))).toHaveLength(0);
         expect(isGraphIsomorphic(checksummedSnapshot(cycle), checksummedSnapshot(triangles))).toEqual({
             isomorphic: false,
@@ -249,7 +249,7 @@ describe("indexed.findAllIsomorphisms", () => {
     it("keeps arc direction: a directed path is not an in-star", () => {
         const path = fromPairs(true, "a-b b-c");
         const inStar = fromPairs(true, "a-b c-b");
-        expect(legacyResult<IsomorphismResult>().isIsomorphic).toBe(false);
+        expect((legacyResult() as IsomorphismResult).isIsomorphic).toBe(false);
         expect(isGraphIsomorphic(checksummedSnapshot(path), checksummedSnapshot(inStar)).isomorphic).toBe(false);
     });
 
@@ -263,7 +263,7 @@ describe("indexed.findAllIsomorphisms", () => {
 
     it("gives two empty graphs one isomorphism, the empty mapping, as legacy does", () => {
         const empty = new GraphBuilder({ directed: false }).freeze();
-        expect(legacyResult<Map<NodeId, NodeId>[]>()).toHaveLength(1);
+        expect(legacyResult() as Map<NodeId, NodeId>[]).toHaveLength(1);
         expect(findAllIsomorphisms(empty, empty)).toEqual([new Uint32Array(0)]);
         expect(isGraphIsomorphic(empty, empty)).toEqual({ isomorphic: true, mapping: new Uint32Array(0) });
     });

@@ -13,14 +13,14 @@ import {
     hierarchicalClustering,
     type LinkageMethod,
 } from "../../../src/clustering/hierarchical.js";
-import * as hierarchicalLegacy from "../../../src/clustering/hierarchical-legacy.js";
+import type * as hierarchicalLegacy from "../../../src/clustering/hierarchical-legacy.js";
 import { markovClustering, type MCLOptions } from "../../../src/clustering/mcl.js";
-import * as mclLegacy from "../../../src/clustering/mcl-legacy.js";
+import type * as mclLegacy from "../../../src/clustering/mcl-legacy.js";
 import { Graph } from "../../../src/core/graph.js";
 import { grsbm } from "../../../src/research/grsbm.js";
-import * as grsbmLegacy from "../../../src/research/grsbm-legacy.js";
+import type * as grsbmLegacy from "../../../src/research/grsbm-legacy.js";
 import { syncClustering, type SynCConfig } from "../../../src/research/sync.js";
-import * as syncLegacy from "../../../src/research/sync-legacy.js";
+import type * as syncLegacy from "../../../src/research/sync-legacy.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { numericIdsFromZero } from "./multigraph-fixtures.js";
@@ -97,13 +97,13 @@ describe("a NaN weight", () => {
     it("is ignored where legacy ignores it and gets legacy's answer where it is read", () => {
         const g = nanWeighted();
         expect(hierarchicalClustering(g, "average")).toEqual(
-            legacyResult<hierarchicalLegacy.HierarchicalClusteringResult<string>>(),
+            legacyResult() as hierarchicalLegacy.HierarchicalClusteringResult<string>,
         );
-        expect(markovClustering(g)).toEqual(legacyResult<mclLegacy.MCLResult>());
-        expect(grsbm(g)).toEqual(legacyResult<grsbmLegacy.GRSBMResult>());
+        expect(markovClustering(g)).toEqual(legacyResult() as mclLegacy.MCLResult);
+        expect(grsbm(g)).toEqual(legacyResult() as grsbmLegacy.GRSBMResult);
         const embeddings = (r: { embeddings: Map<unknown, number[]> }): number[] => [...r.embeddings.values()].flat();
         const port = syncClustering(g, { numClusters: 2 });
-        const old = legacyResult<syncLegacy.SynCResult>();
+        const old = legacyResult() as syncLegacy.SynCResult;
         expect(port.clusters).toEqual(old.clusters);
         const drift = embeddings(port).map((x, i) => Math.abs(x - embeddings(old)[i]));
         expect(drift.length).toBe(embeddings(old).length);
@@ -211,7 +211,7 @@ describe("markovClustering facade after a weight change in place", () => {
             for (const [u, v] of [...triangles, ["c", "d"]]) {
                 g.addEdge(u, v);
             }
-            expect(markovClustering(g)).toEqual(legacyResult<mclLegacy.MCLResult>());
+            expect(markovClustering(g)).toEqual(legacyResult() as mclLegacy.MCLResult);
             for (const [u, v] of triangles) {
                 const edge = g.getEdge(u, v);
                 if (edge !== undefined) {
@@ -222,7 +222,7 @@ describe("markovClustering facade after a weight change in place", () => {
             if (bridge !== undefined) {
                 bridge.weight = 100;
             }
-            expect(markovClustering(g)).toEqual(legacyResult<mclLegacy.MCLResult>());
+            expect(markovClustering(g)).toEqual(legacyResult() as mclLegacy.MCLResult);
         },
     );
 });
@@ -257,8 +257,19 @@ describe("syncClustering facade", () => {
                 expectFacadeMatchesLegacy(nonEmpty.slice(0, 3), sync(syncClustering, config));
                 // ...and otherwise fails the same way.
                 const g = nonEmpty[0].graph;
-                expect(() => syncClustering(g, { numClusters })).toThrow("Invalid array length");
-                expect(() => legacyResult<syncLegacy.SynCResult>()).toThrow("Invalid array length");
+                for (const run of [
+                    () => syncClustering(g, { numClusters }),
+                    () => legacyResult() as syncLegacy.SynCResult,
+                ]) {
+                    let thrown: unknown;
+                    try {
+                        run();
+                    } catch (error) {
+                        thrown = error;
+                    }
+                    expect(thrown).toBeInstanceOf(RangeError);
+                    expect((thrown as Error).message).toBe("Invalid array length");
+                }
             }
         } finally {
             Math.random = before;
@@ -267,17 +278,10 @@ describe("syncClustering facade", () => {
 
     it("throws legacy's message for a cluster count out of range", () => {
         const g = undirectedFixtures()[1].graph;
-        // Legacy leaves its seeded generator in Math.random when it throws.
-        const before = Math.random;
         for (const numClusters of [0, -1, 7, Infinity]) {
-            const run = (fn: typeof syncClustering) => () => fn(g, { numClusters });
-            expect(run(syncClustering), String(numClusters)).toThrow(
+            expect(() => syncClustering(g, { numClusters }), String(numClusters)).toThrow(
                 `Invalid number of clusters: ${String(numClusters)}. Must be between 1 and 6`,
             );
-            expect(run(syncLegacy.syncClustering), String(numClusters)).toThrow(
-                `Invalid number of clusters: ${String(numClusters)}. Must be between 1 and 6`,
-            );
-            Math.random = before;
         }
     });
 

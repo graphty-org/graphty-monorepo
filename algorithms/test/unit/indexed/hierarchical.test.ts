@@ -110,7 +110,7 @@ describe("indexed.hierarchicalClustering", () => {
         it(`builds the legacy dendrogram exactly with ${linkage} linkage on every fixture`, () => {
             for (const { name, graph } of [...undirectedFixtures(), ...directedFixtures()]) {
                 const s = checksummedSnapshot(graph);
-                const legacy = legacyResult<HierarchicalClusteringResult<string>>();
+                const legacy = legacyResult() as HierarchicalClusteringResult<string>;
                 const port = hierarchicalClustering(s, { linkage });
                 expect(plainPort(s, port), name).toEqual(plainLegacy(legacy.root));
                 // One dendrogram entry per leaf and merge, plus the legacy forest node.
@@ -123,7 +123,7 @@ describe("indexed.hierarchicalClustering", () => {
                 const trees = legacy.root.trees ?? [legacy.root];
                 for (let h = 0; h <= legacy.root.height; h++) {
                     const cut = port.cut(h).map((c) => Array.from(c, (i) => String(s.ids.idOf(i))));
-                    const expected = trees.flatMap(() => legacyResult<Set<string>[]>()).map((set) => [...set]);
+                    const expected = trees.flatMap(() => legacyResult() as Set<string>[]).map((set) => [...set]);
                     expect(cut, `${name} at height ${h}`).toEqual(expected);
                     if (trees.length === 1) {
                         expect(expected, `${name} at height ${h}`).toEqual(
@@ -161,7 +161,7 @@ describe("indexed.hierarchicalClustering", () => {
             for (const linkage of LINKAGES) {
                 const port = hierarchicalClustering(s, { linkage });
                 expect(plainPort(s, port), `trial ${trial} ${linkage}`).toEqual(
-                    plainLegacy(legacyResult<HierarchicalClusteringResult<string>>().root),
+                    plainLegacy((legacyResult() as HierarchicalClusteringResult<string>).root),
                 );
             }
         }

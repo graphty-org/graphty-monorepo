@@ -103,7 +103,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true }).scores,
-                    legacyResult<Record<string, number>>(),
+                    legacyResult() as Record<string, number>,
                 );
             }
         }
@@ -141,7 +141,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true }).scores,
-                    legacyResult<Record<string, number>>(),
+                    legacyResult() as Record<string, number>,
                 );
             }
         }
@@ -163,7 +163,7 @@ describe("indexed.closenessCentrality", () => {
             expectMatches(
                 s,
                 closenessCentrality(s, { ...options, weighted: true }).scores,
-                legacyResult<Record<string, number>>(),
+                legacyResult() as Record<string, number>,
             );
         }
     });
@@ -181,13 +181,13 @@ describe("indexed.closenessCentrality", () => {
             const s = checksummedSnapshot(graph);
             const weights = exactArcWeights(s);
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1, normalized: true }]) {
-                expectMatches(s, closenessCentrality(s, options).scores, legacyResult<Record<string, number>>());
+                expectMatches(s, closenessCentrality(s, options).scores, legacyResult() as Record<string, number>);
             }
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1.5, harmonic: true }]) {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true, weights }).scores,
-                    legacyResult<Record<string, number>>(),
+                    legacyResult() as Record<string, number>,
                 );
             }
             s.validate({ checksum: true });
@@ -203,7 +203,7 @@ describe("indexed.closenessCentrality", () => {
             expectMatches(
                 s,
                 closenessCentrality(s, { ...options, weighted: true, weights }).scores,
-                legacyResult<Record<string, number>>(),
+                legacyResult() as Record<string, number>,
             );
         }
         s.validate({ checksum: true });
@@ -215,7 +215,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     snapshot,
                     closenessCentrality(snapshot, options).scores,
-                    legacyResult<Record<string, number>>(),
+                    legacyResult() as Record<string, number>,
                 );
             }
             snapshot.validate({ checksum: true });
@@ -234,7 +234,7 @@ describe("indexed.nodeClosenessCentrality", () => {
                 expect(nodeClosenessCentrality(s, v, options)).toBe(all[v]);
             }
         }
-        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyResult<number>());
+        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyResult() as number);
         s.validate({ checksum: true });
     });
 

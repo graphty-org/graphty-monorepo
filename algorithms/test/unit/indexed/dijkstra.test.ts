@@ -104,7 +104,7 @@ describe("indexed.dijkstra", () => {
             graph.addEdge("c", "b", 2);
             const s = checksummedSnapshot(graph);
             const r = dijkstra(s, 0);
-            const legacy = legacyResult<Map<NodeId, ShortestPathResult>>();
+            const legacy = legacyResult() as Map<NodeId, ShortestPathResult>;
             for (let i = 0; i < s.nodeCount; i++) {
                 const expected = legacy.get(s.ids.idOf(i))?.distance;
                 if (expected === undefined || !Number.isFinite(expected)) {

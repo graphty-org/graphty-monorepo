@@ -91,7 +91,7 @@ describe("indexed.hits", () => {
             // largest single-node change; the only difference is the order the sums are accumulated in.
             for (const options of [{}, { maxIterations: 4 }, { normalized: false }]) {
                 const ported = hits(s, options);
-                const legacy = legacyResult<HITSResult>();
+                const legacy = legacyResult() as HITSResult;
                 for (let u = 0; u < s.nodeCount; u++) {
                     const id = String(s.ids.idOf(u));
                     expect(ported.hubs[u]).toBeCloseTo(legacy.hubs[id], 9);

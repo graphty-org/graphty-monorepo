@@ -11,7 +11,7 @@ import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
-/** The port's dendrogram in the legacy shape, with node indices as ids (what `numbered` gives legacy). */
+/** The port's dendrogram in the legacy shape, with node indices as ids (the ids legacy was recorded with: the same graph renumbered 0..n-1). */
 function portShape(g: Graph, config: TeraHACConfig): { dendrogram: ClusterNode; distances: number[] } {
     const s = checksummedSnapshot(g);
     const r = teraHAC(s, config);
@@ -36,7 +36,7 @@ function portShape(g: Graph, config: TeraHACConfig): { dendrogram: ClusterNode; 
 }
 
 /**
- * Whether a legacy cluster Map (over a `numbered` graph, so each key is a node index) and the port's
+ * Whether a legacy cluster Map (recorded over the graph renumbered 0..n-1, so each key is a node index) and the port's
  * labels describe the same partition.
  */
 function expectSamePartition(legacy: Map<NodeId, number>, labels: Uint32Array): void {
@@ -132,7 +132,7 @@ describe("indexed.teraHAC", () => {
                 expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, config));
                 for (const { graph } of fixtures) {
                     expectSamePartition(
-                        legacyResult<TeraHACResult>().clusters,
+                        (legacyResult() as TeraHACResult).clusters,
                         teraHAC(toSnapshot(graph), config).labels,
                     );
                 }
@@ -149,7 +149,10 @@ describe("indexed.teraHAC", () => {
         ]) {
             expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, config));
             for (const { graph } of fixtures) {
-                expectSamePartition(legacyResult<TeraHACResult>().clusters, teraHAC(toSnapshot(graph), config).labels);
+                expectSamePartition(
+                    (legacyResult() as TeraHACResult).clusters,
+                    teraHAC(toSnapshot(graph), config).labels,
+                );
             }
         }
     });

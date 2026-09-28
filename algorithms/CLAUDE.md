@@ -83,10 +83,17 @@ No test runs a legacy function as an oracle any more. What each legacy call retu
 differential and facade suites of `test/unit/indexed/` is recorded in `test/golden/` (one gzipped
 JSON file per suite, one record per line, `zcat` to read), and `legacyResult()` in
 `test/helpers/golden.ts` hands it back in its original shape: Map and Set order, number or string
-keys, `-0`, `NaN` and the infinities, exact f64 values, and thrown errors with their class. Records
-are keyed by the test's full name and the call's position in it, so renaming a test or reordering
-its legacy calls breaks the lookup; there is nothing left to re-record them from once the legacy
-code is gone.
+keys, `-0`, `NaN` and the infinities, and exact f64 values. A recorded throw is thrown again with its
+message; it is an instance of its class for `ConvergenceError`, `PathWalkError`, `RangeError` and
+`TypeError`, and a plain `Error` carrying the recorded name otherwise.
+
+The records are frozen: nothing re-records them. Each is keyed by the test's full name and the
+call's position within that test, and `expectFacadeMatchesLegacy` makes one call per fixture, so
+renaming a test, reordering its `legacyResult()` calls, or adding, removing or reordering a fixture
+in `port-fixtures.ts` or another shared fixture list breaks the lookup. Two tests of one file with
+the same name, and a record that a full passing run of its file never reads, fail that file. A
+comment beside a `legacyResult()` call says which legacy call and inputs a record came from when the
+test itself no longer shows them.
 
 ## Essential Commands
 

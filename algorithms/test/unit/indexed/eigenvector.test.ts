@@ -83,7 +83,7 @@ describe("indexed.eigenvectorCentrality", () => {
         }
         let legacy: unknown;
         try {
-            legacyResult<CentralityResult>();
+            legacyResult() as CentralityResult;
         } catch (error) {
             legacy = error;
         }
@@ -92,7 +92,7 @@ describe("indexed.eigenvectorCentrality", () => {
         expect((ported as ConvergenceError).message).toBe((legacy as ConvergenceError).message);
         expect((ported as ConvergenceError).iterations).toBe(20);
         expect(() => eigenvectorCentrality(s)).toThrow(ConvergenceError);
-        expect(() => legacyResult<CentralityResult>()).toThrow(ConvergenceError);
+        expect(() => legacyResult() as CentralityResult).toThrow(ConvergenceError);
         expect(eigenvectorCentrality(s, { maxIterations: 1000 }).converged).toBe(true);
         s.validate({ checksum: true });
     });
@@ -103,7 +103,7 @@ describe("indexed.eigenvectorCentrality", () => {
         const start = new Float64Array(s.nodeCount).fill(1);
         start[0] = 5;
         const ported = eigenvectorCentrality(s, { startVector: start, normalized: false, maxIterations: 1000 });
-        const legacy = legacyResult<CentralityResult>();
+        const legacy = legacyResult() as CentralityResult;
         for (let u = 0; u < s.nodeCount; u++) {
             expect(ported.scores[u]).toBeCloseTo(legacy[String(s.ids.idOf(u))], 9);
         }
@@ -123,7 +123,7 @@ describe("indexed.eigenvectorCentrality", () => {
                     const options = { mode, normalized, maxIterations: 2000 };
                     let legacy: Record<string, number> | ConvergenceError;
                     try {
-                        legacy = legacyResult<CentralityResult>();
+                        legacy = legacyResult() as CentralityResult;
                     } catch (error) {
                         legacy = error as ConvergenceError;
                     }

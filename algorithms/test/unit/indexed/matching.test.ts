@@ -146,7 +146,7 @@ describe("indexed.maximumBipartiteMatching", () => {
             const graph = fixture.graph();
             const s = checksummedSnapshot(graph);
             const options = { arcs: "out" as const };
-            const legacy = legacyResult<BipartiteMatchingResult>();
+            const legacy = legacyResult() as BipartiteMatchingResult;
             const result = maximumBipartiteMatching(s, graph.isDirected ? options : {});
             expect(result.size).toBe(legacy.size);
             assertValidMatching(s, result, leftMaskOf(s));
@@ -157,7 +157,6 @@ describe("indexed.maximumBipartiteMatching", () => {
     it("ignores arc direction by default, as the legacy function does on the undirected graph", () => {
         // Every arc points right to left, so following out-arcs of the left side finds nothing.
         const directed = new Graph({ directed: true });
-        const undirected = new Graph({ directed: false });
         for (const [u, v] of [
             ["r0", "l0"],
             ["r1", "l0"],
@@ -165,10 +164,10 @@ describe("indexed.maximumBipartiteMatching", () => {
             ["r2", "l2"],
         ]) {
             directed.addEdge(u, v);
-            undirected.addEdge(u, v);
         }
         const s = checksummedSnapshot(directed);
-        expect(maximumBipartiteMatching(s).size).toBe(legacyResult<BipartiteMatchingResult>().size);
+        // legacy: maximumBipartiteMatching on an undirected graph with the same edges
+        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as BipartiteMatchingResult).size);
         expect(maximumBipartiteMatching(s).size).toBe(3);
     });
 
@@ -223,7 +222,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         }
         const s = b.freeze();
         expect(s.flags.multigraph).toBe(true);
-        expect(maximumBipartiteMatching(s).size).toBe(legacyResult<BipartiteMatchingResult>().size);
+        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as BipartiteMatchingResult).size);
     });
 
     it("uses explicit sides as given and never matches a node on neither side", () => {
@@ -240,7 +239,7 @@ describe("indexed.maximumBipartiteMatching", () => {
             maskSet(right, s.ids.indexOf(id), true);
         }
         const result = maximumBipartiteMatching(s, { left, right });
-        const legacy = legacyResult<BipartiteMatchingResult>();
+        const legacy = legacyResult() as BipartiteMatchingResult;
         expect(result.size).toBe(legacy.size);
         expect(result.size).toBe(2);
         expect(result.matching[s.ids.indexOf("a2")]).toBe(INVALID_INDEX);
@@ -262,7 +261,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         g.addEdge("a", "b");
         g.addEdge("b", "c");
         g.addEdge("c", "a");
-        expect(() => legacyResult<BipartiteMatchingResult>()).toThrow("Graph is not bipartite");
+        expect(() => legacyResult() as BipartiteMatchingResult).toThrow("Graph is not bipartite");
         expect(() => maximumBipartiteMatching(checksummedSnapshot(g))).toThrow("Graph is not bipartite");
     });
 
@@ -309,7 +308,7 @@ describe("indexed.greedyBipartiteMatching", () => {
             for (let i = 0; i < s.nodeCount; i++) {
                 (maskTest(left, i) ? leftNodes : rightNodes).add(i);
             }
-            const legacy = legacyResult<BipartiteMatchingResult>();
+            const legacy = legacyResult() as BipartiteMatchingResult;
             expect(result.size).toBe(legacy.size);
             for (let u = 0; u < s.nodeCount; u++) {
                 expect(result.matching[u]).toBe(legacy.matching.get(u) ?? INVALID_INDEX);

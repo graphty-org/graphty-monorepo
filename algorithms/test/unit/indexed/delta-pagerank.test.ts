@@ -206,7 +206,7 @@ describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
         twin.addEdge("a", "c", 1);
         twin.addEdge("b", "c", 1);
         twin.addEdge("c", "a", 1);
-        const legacy = legacyResult<PageRankResult>();
+        const legacy = legacyResult() as PageRankResult;
         const r = deltaPageRank(s);
         for (let i = 0; i < 3; i++) {
             expect(r.scores[i]).toBeCloseTo(legacy.ranks[String(s.ids.idOf(i))], 12);
@@ -263,7 +263,7 @@ describe("indexed.DeltaPageRank", () => {
     it("update() skips an index outside the graph but still runs, as legacy does for an unknown id", () => {
         for (const { graph: g } of fixtures()) {
             const s = snapshotOf(g);
-            const [legacyUnknown, legacyMixed] = legacyResult<[Map<NodeId, number>, Map<NodeId, number>]>();
+            const [legacyUnknown, legacyMixed] = legacyResult() as [Map<NodeId, number>, Map<NodeId, number>];
             const port = new DeltaPageRank(s, { weights: exactArcWeights(s) });
             port.compute();
             const onlyUnknown = [legacyUnknown, toMap(s, port.update([s.nodeCount, -1]))];

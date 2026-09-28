@@ -103,7 +103,7 @@ describe("indexed.syncClustering", () => {
                 const before = syncClustering(s, { ...config, maxIterations: port.iterations - 1 });
                 expect(port.loss).not.toBe(before.loss);
                 expect(Math.abs(port.loss - before.loss)).toBeLessThan(config.tolerance);
-                expect(legacyResult<SynCResult>().loss).toBe(before.loss);
+                expect((legacyResult() as SynCResult).loss).toBe(before.loss);
                 expect(port.previousLoss).toBe(before.loss);
             }
         }
@@ -119,7 +119,7 @@ describe("indexed.syncClustering", () => {
                 { numClusters: 2, tolerance: 1e-3 },
                 { numClusters: 3, maxIterations: 3 },
             ]) {
-                const legacy = legacyResult<SynCResult>();
+                const legacy = legacyResult() as SynCResult;
                 const port = syncClustering(toSnapshot(graph), config);
                 expect(port.converged).toBe(legacy.converged);
                 if (port.converged) {

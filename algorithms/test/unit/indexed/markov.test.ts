@@ -115,7 +115,7 @@ describe("indexed.markovClustering", () => {
         it(`equals legacy markovClustering with ${JSON.stringify(options)} on every fixture`, () => {
             for (const { name, graph } of fixtures()) {
                 const s = checksummedSnapshot(graph);
-                const legacy = legacyResult<MCLResult>();
+                const legacy = legacyResult() as MCLResult;
                 const port = markovClustering(s, { ...options, weights: exactArcWeights(s) });
                 expect(labelsToGroups(s.ids, port.labels, port.count), name).toEqual(legacy.communities);
                 expect(
@@ -138,7 +138,7 @@ describe("indexed.modularity", () => {
             const { labels } = markovClustering(s, { weights: exactArcWeights(s) });
             const weights = exactArcWeights(s);
             for (const resolution of [1, 0.5, 2]) {
-                const expected = legacyResult<number>();
+                const expected = legacyResult() as number;
                 expect(modularity(s, labels, { resolution, weights }), name).toBeCloseTo(expected, 12);
             }
             s.validate({ checksum: true });
@@ -163,8 +163,8 @@ describe("indexed.modularity", () => {
         expect(modularity(s, one)).toBeCloseTo(0, 15);
         expect(modularity(s, two)).toBeCloseTo(0.5, 15);
         // The legacy MCL modularity collects the null-model term over the edges only.
-        expect(legacyResult<number>()).toBeCloseTo(1 / 3, 15);
-        expect(legacyResult<number>()).toBeCloseTo(1 / 3, 15);
+        expect(legacyResult() as number).toBeCloseTo(1 / 3, 15);
+        expect(legacyResult() as number).toBeCloseTo(1 / 3, 15);
     });
 
     it("reads edge weights by default, which calculateMCLModularity ignores", () => {

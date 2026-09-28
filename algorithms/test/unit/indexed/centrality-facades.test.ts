@@ -426,16 +426,16 @@ describe("graphs the facades leave to legacy code", () => {
     it("every facade returns what its legacy implementation returns", () => {
         expectSameOnAll(
             (g) => [
-                legacyResult<CentralityResult>(),
-                legacyResult<Record<string, number>>(),
-                [...legacyResult<Map<string, number>>()],
-                byNode(g, () => legacyResult<number>()),
-                byNode(g, () => legacyResult<number>()),
-                outcome(() => legacyResult<HITSResult>()),
-                outcome(() => legacyResult<CentralityResult>()),
-                outcome(() => legacyResult<CentralityResult>()),
-                outcome(() => legacyResult<PageRankResult>()),
-                outcome(() => legacyResult<PageRankResult>()),
+                legacyResult() as CentralityResult,
+                legacyResult() as Record<string, number>,
+                [...(legacyResult() as Map<string, number>)],
+                byNode(g, () => legacyResult() as number),
+                byNode(g, () => legacyResult() as number),
+                outcome(() => legacyResult() as HITSResult),
+                outcome(() => legacyResult() as CentralityResult),
+                outcome(() => legacyResult() as CentralityResult),
+                outcome(() => legacyResult() as PageRankResult),
+                outcome(() => legacyResult() as PageRankResult),
             ],
             (g) => [
                 degreeCentrality(g),
@@ -455,8 +455,8 @@ describe("graphs the facades leave to legacy code", () => {
     it("the whole-graph closeness functions equal legacy's per-node loop", () => {
         expectSameOnAll(
             (g) => [
-                Object.fromEntries(ids(g).map((id) => [String(id), legacyResult<number>()])),
-                Object.fromEntries(ids(g).map((id) => [String(id), legacyResult<number>()])),
+                Object.fromEntries(ids(g).map((id) => [String(id), legacyResult() as number])),
+                Object.fromEntries(ids(g).map((id) => [String(id), legacyResult() as number])),
             ],
             (g) => [closenessCentrality(g), weightedClosenessCentrality(g)],
         );

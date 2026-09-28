@@ -59,7 +59,7 @@ describe("indexed.breadthFirstSearch", () => {
             for (let i = 0; i < result.visitedCount; i++) {
                 visited.add(String(s.ids.idOf(result.order[i])));
             }
-            const legacy = new Set([...legacyResult<TraversalResult>().visited].map((id) => String(id)));
+            const legacy = new Set([...(legacyResult() as TraversalResult).visited].map((id) => String(id)));
             expect(visited).toEqual(legacy);
             s.validate({ checksum: true });
         }

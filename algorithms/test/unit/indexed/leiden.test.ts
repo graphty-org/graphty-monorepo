@@ -32,15 +32,15 @@ describe("indexed.leiden", () => {
             // Both are randomised heuristics with different random streams, so for one seed either
             // can come out ahead; the claim is the default seed and the mean over forty seeds.
             const s = checksummedSnapshot(graph);
-            expect(leiden(s).modularity).toBeGreaterThanOrEqual(legacyResult<LeidenResult>().modularity - 1e-12);
+            expect(leiden(s).modularity).toBeGreaterThanOrEqual((legacyResult() as LeidenResult).modularity - 1e-12);
             let ported = 0;
             let legacy = 0;
             for (const randomSeed of MANY_SEEDS) {
                 const r = leiden(s, { randomSeed });
                 ported += r.modularity;
-                legacy += legacyResult<LeidenResult>().modularity;
+                legacy += (legacyResult() as LeidenResult).modularity;
                 // The reported modularity is the package's own formula applied to the partition.
-                expect(r.modularity).toBeCloseTo(legacyResult<number>(), 12);
+                expect(r.modularity).toBeCloseTo(legacyResult() as number, 12);
                 expect(communitiesConnected(s, r.groups())).toBe(true);
                 s.validate({ checksum: true });
             }
@@ -106,7 +106,7 @@ describe("indexed.leiden", () => {
         const s = checksummedSnapshot(g);
         const r = leiden(s);
         expect([...r.labels]).toEqual([0, 0, 1, 1]);
-        expect(r.modularity).toBeCloseTo(legacyResult<number>(), 15);
+        expect(r.modularity).toBeCloseTo(legacyResult() as number, 15);
         s.validate({ checksum: true });
     });
 

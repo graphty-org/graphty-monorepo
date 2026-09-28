@@ -17,6 +17,7 @@ export * from "./positions";
 // Index-based layouts over graph-format snapshots. A namespace: indexed.circular and the rest would otherwise sit
 // beside the legacy circularLayout family under names that differ only by suffix.
 export * as indexed from "./indexed";
+export type { CommonLayoutOptions } from "./indexed/common";
 
 // Re-export all layout algorithms
 export * from "./layouts";

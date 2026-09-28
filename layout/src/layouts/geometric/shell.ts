@@ -2,7 +2,8 @@
  * Shell layout algorithm
  */
 
-import { rowsToPositionMap } from "../../indexed/common";
+import type { F64 } from "@graphty/graph-format";
+
 import { shellRows } from "../../indexed/shell";
 import { Graph, Node, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
@@ -53,5 +54,23 @@ export function shellLayout(
             return row;
         }),
     );
-    return rowsToPositionMap(shellRows(rowIds.length, shells, scale, center), 2, rowIds, true);
+    return shellsToPositionMap(shellRows(rowIds.length, shells, scale, center), shells, rowIds);
+}
+
+/**
+ * The id-keyed map of shell rows, keys in placement order (shell by shell, a node listed twice at its first place),
+ * as the legacy shell and radial layouts returned it. A node in no shell is left out.
+ * @param rows - `2 * ids.length` values
+ * @param shells - row indices per shell
+ * @param ids - the id of every row
+ * @returns the map
+ */
+export function shellsToPositionMap(rows: F64, shells: readonly (readonly number[])[], ids: readonly Node[]): PositionMap {
+    const pos: PositionMap = {};
+    for (const shell of shells) {
+        for (const i of shell) {
+            pos[ids[i]] = [rows[2 * i], rows[2 * i + 1]];
+        }
+    }
+    return pos;
 }

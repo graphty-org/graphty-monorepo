@@ -76,15 +76,12 @@ export function planar(rows: F64, dim: 2 | 3, center: readonly number[]): F64 {
  * @param rows - `nodes.length * dim` values
  * @param dim - components per row
  * @param nodes - the id of every row
- * @param skipUnplaced - leave out a row whose first component is NaN (a node the layout did not place)
  * @returns the map
  */
-export function rowsToPositionMap(rows: F64, dim: number, nodes: readonly Node[], skipUnplaced = false): PositionMap {
+export function rowsToPositionMap(rows: F64, dim: number, nodes: readonly Node[]): PositionMap {
     const pos: PositionMap = {};
     nodes.forEach((node, i) => {
-        if (!(skipUnplaced && Number.isNaN(rows[dim * i]))) {
-            pos[node] = Array.from(rows.subarray(dim * i, dim * i + dim));
-        }
+        pos[node] = Array.from(rows.subarray(dim * i, dim * i + dim));
     });
     return pos;
 }

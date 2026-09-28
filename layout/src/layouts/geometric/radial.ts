@@ -2,11 +2,12 @@
  * Radial layout algorithm
  */
 
-import { rowsToPositionMap } from "../../indexed/common";
 import { radialRings } from "../../indexed/radial";
 import { shellRows } from "../../indexed/shell";
 import { toLayoutSnapshot } from "../../simulation/snapshot";
 import type { Graph, Node, PositionMap } from "../../types";
+import { _processParams } from "../../utils/params";
+import { shellsToPositionMap } from "./shell";
 
 /**
  * Position nodes on concentric rings by their hop distance from a root node.
@@ -28,6 +29,7 @@ export function radialLayout(
     scale: number = 1,
     center: number[] | null = null,
 ): PositionMap {
+    ({ center } = _processParams(G, center, 2));
     const s = toLayoutSnapshot(G);
     if (s.nodeCount === 0) {
         return {};
@@ -41,5 +43,5 @@ export function radialLayout(
     // shells space n rings scale / n apart with the root's ring at radius 0, so the outermost ring
     // would sit at scale * (n - 1) / n; stretch it so the outermost ring lands on scale.
     const stretch = rings.length > 1 ? rings.length / (rings.length - 1) : 1;
-    return rowsToPositionMap(shellRows(s.nodeCount, rings, scale * stretch, center ?? [0, 0]), 2, ids);
+    return shellsToPositionMap(shellRows(s.nodeCount, rings, scale * stretch, center), rings, ids);
 }

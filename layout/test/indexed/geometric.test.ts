@@ -5,6 +5,7 @@ import { describe, it } from "vitest";
 
 import {
     circularLayout,
+    type CommonLayoutOptions,
     type Graph,
     gridLayout,
     indexed,
@@ -40,7 +41,7 @@ function matchesLegacy(actual: PositionMap, expected: PositionMap): void {
     }
 }
 
-type Run = (s: GraphSnapshot, options: indexed.CommonLayoutOptions) => LayoutResult;
+type Run = (s: GraphSnapshot, options: CommonLayoutOptions) => LayoutResult;
 
 // every indexed layout, with the options that make it deterministic
 const layouts: Record<string, Run> = {
@@ -234,5 +235,110 @@ describe("indexed geometric layouts match the legacy functions", () => {
     it("radial, including the default root and the neighbour order of the rings", () => {
         matchesLegacy(map(indexed.radial(s)), radialLayout(g));
         matchesLegacy(map(indexed.radial(s, { root: s.ids.indexOf("b"), scale: 4 })), radialLayout(g, "b", 4));
+    });
+});
+
+describe("indexed.radial ring order and root choice", () => {
+    /** Asserts row `i` is at `(cos(theta), sin(theta)) * radius`. */
+    const at = (r: LayoutResult, i: number, radius: number, theta: number): void => {
+        const [x, y] = row(r, i);
+        assert.ok(Math.abs(x - radius * Math.cos(theta)) < 1e-6 && Math.abs(y - radius * Math.sin(theta)) < 1e-6, `node ${i}: ${x},${y}`);
+    };
+
+    it("visits neighbours in edge order, not node-index order", () => {
+        // nodes h a b c d e f x = indices 0 .. 7; the edges reach d, b, a from h in that order
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 8,
+            src: Uint32Array.of(0, 0, 2, 0, 1, 4),
+            dst: Uint32Array.of(4, 2, 5, 1, 6, 3),
+        });
+        const r = indexed.radial(s, { root: 0 });
+        // four rings (the isolated x is the fourth) at radii 0, 1/3, 2/3, 1
+        at(r, 0, 0, 0);
+        at(r, 4, 1 / 3, 0);
+        at(r, 2, 1 / 3, (2 * Math.PI) / 3);
+        at(r, 1, 1 / 3, (4 * Math.PI) / 3);
+        at(r, 3, 2 / 3, 0);
+        at(r, 5, 2 / 3, (2 * Math.PI) / 3);
+        at(r, 6, 2 / 3, (4 * Math.PI) / 3);
+        at(r, 7, 1, 0);
+    });
+
+    it("defaults the root to the lowest index on a degree tie", () => {
+        // path 0 - 1 - 2 - 3: nodes 1 and 2 both have two neighbours
+        const s = fromEdgeArrays({ directed: false, nodeCount: 4, src: Uint32Array.of(0, 1, 2), dst: Uint32Array.of(1, 2, 3) });
+        assert.deepEqual(row(indexed.radial(s), 1), [0, 0]);
+    });
+
+    it("counts distinct neighbours, not parallel edges, when choosing the default root", () => {
+        // node 0 has three parallel edges to 1; node 2 has two distinct neighbours
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 5,
+            src: Uint32Array.of(0, 0, 0, 2, 2),
+            dst: Uint32Array.of(1, 1, 1, 3, 4),
+        });
+        assert.deepEqual(row(indexed.radial(s), 2), [0, 0]);
+    });
+
+    it("reads a directed snapshot as undirected", () => {
+        // 1 -> 0 and 2 -> 1: node 0 has no out-arcs, yet 1 and 2 are one and two hops from it
+        const s = fromEdgeArrays({ directed: true, nodeCount: 3, src: Uint32Array.of(1, 2), dst: Uint32Array.of(0, 1) });
+        const r = indexed.radial(s, { root: 0 });
+        assert.ok(Math.abs(distance(r, 1) - 0.5) < 1e-6);
+        assert.ok(Math.abs(distance(r, 2) - 1) < 1e-6);
+    });
+});
+
+describe("indexed.shell node checks", () => {
+    it("leaves a node whose column value is unset NaN", () => {
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 3,
+            src: new Uint32Array(0),
+            dst: new Uint32Array(0),
+            nodeColumns: { level: { data: [0, undefined, 1], decl: { dtype: "u32" } } },
+        });
+        const r = indexed.shell(s, { nlist: "level" });
+        assert.ok(row(r, 1).every(Number.isNaN));
+        assert.ok(row(r, 2).every(Number.isFinite));
+    });
+
+    it("rejects the node index n and accepts n - 1", () => {
+        assert.throws(() => indexed.shell(nodes(3), { nlist: [[3]] }), /not a node/);
+        assert.ok(row(indexed.shell(nodes(3), { nlist: [[2]] }), 2).every(Number.isFinite));
+    });
+});
+
+describe("legacy shellLayout and radialLayout edge cases", () => {
+    // path b - a - c, nodes listed b, a, c
+    const g: Graph = {
+        nodes: () => ["b", "a", "c"],
+        edges: () => [
+            ["b", "a"],
+            ["a", "c"],
+        ],
+    };
+
+    it("radialLayout rejects a centre that is not two coordinates", () => {
+        assert.throws(() => radialLayout(g, null, 1, [5]), /length of center/);
+        assert.throws(() => radialLayout(g, null, 1, [1, 2, 3]), /length of center/);
+    });
+
+    it("return keys in placement order, shell by shell", () => {
+        assert.deepEqual(Object.keys(shellLayout(g, [["c"], ["a", "b"]])), ["c", "a", "b"]);
+        assert.deepEqual(Object.keys(radialLayout(g, "a")), ["a", "b", "c"]);
+    });
+
+    it("shellLayout with no shells places nothing", () => {
+        assert.deepEqual(shellLayout(g, []), {});
+    });
+
+    it("radialLayout places an edge endpoint missing from the node list", () => {
+        const pos = radialLayout({ nodes: () => [1, 2], edges: () => [[1, 2], [2, 9]] });
+        assert.deepEqual(pos[2], [0, 0]);
+        assert.deepEqual(pos[1], [1, 0]);
+        assert.ok(Math.abs(pos[9][0] + 1) < 1e-12 && Math.abs(pos[9][1]) < 1e-12);
     });
 });

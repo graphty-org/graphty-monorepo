@@ -95,15 +95,32 @@ If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 
-| Format  | Extension  | Description                           |
-| ------- | ---------- | ------------------------------------- |
-| JSON    | `.json`    | Native format with nodes/edges arrays |
-| GraphML | `.graphml` | XML-based graph format                |
-| GEXF    | `.gexf`    | Gephi exchange format                 |
-| GML     | `.gml`     | Graph Modeling Language               |
-| DOT     | `.dot`     | Graphviz format                       |
-| CSV     | `.csv`, `.tsv`, `.tab` | Delimited edge or node list       |
-| Pajek   | `.net`     | Pajek network format                  |
+| Format  | Extensions                                | Description                           |
+| ------- | ----------------------------------------- | ------------------------------------- |
+| JSON    | `.json`                                   | Native format with nodes/edges arrays |
+| GraphML | `.graphml`, `.xml`                        | XML-based graph format                |
+| GEXF    | `.gexf`, `.xml`                           | Gephi exchange format                 |
+| GML     | `.gml`                                    | Graph Modeling Language               |
+| DOT     | `.dot`, `.gv`                             | Graphviz format                       |
+| CSV     | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
+| Pajek   | `.net`, `.paj`                            | Pajek network format                  |
+
+### How the format is chosen
+
+`loadFromFile` and `loadFromUrl` pick the format from the file name first. When two formats claim
+the extension (`.xml` is GraphML or GEXF), or the name has no extension the element knows, the
+first bytes decide, using the content checks of the matching
+`@graphty/graph-io` importers. A file is named by its content
+only when an importer recognises it, not merely tolerates it: a headerless CSV table needs its
+`.csv`, `.tsv` or `.tab` extension. When neither settles it, name the format explicitly.
+
+The same detection is published, so a drop target can ask before it loads anything:
+
+```ts
+import { detectFormat } from "@graphty/graphty-element/catalog";
+
+detectFormat({ filename: "graph.xml", sample: firstKilobytes }); // "graphml" or "gexf"
+```
 
 ## Directed or Undirected
 

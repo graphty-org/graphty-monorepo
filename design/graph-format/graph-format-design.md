@@ -4359,7 +4359,7 @@ export function fromPositionMap(
     dim: 2 | 3,
     fill: (i: number, out: F32) => void,
 ): F32;
-export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLike<number> | null, out?: F32): F32; // n * 3 SCENE units, zero z; writes into `out` (the owner's array) when given (C14, section 5.2)
+export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLike<number> | null, out?: F32): F32; // n * 3 SCENE units; a 2D row's z is the centre's z (0 for a null centre); writes into `out` (the owner's array) when given (C14, section 5.2)
 export function fromPositionColumn(
     column: F32,
     dim: 2 | 3,

@@ -107,9 +107,15 @@ graphty-element's `./webgpu` entry point is the only importer of `@graphty/webgp
   `"forceatlas2" | "fruchtermanReingold" | "spring" | "spring-electrical"`; `"spring"` is graphty-element's name for
   Fruchterman-Reingold.
 - `toLayoutSnapshot(G, weightAttr?)` (`snapshot.ts`): the undirected snapshot of any layout input. A duck-typed
-  `nodes()` / `edges()` graph is walked once through a `GraphBuilder` (weights read through `getEdgeData` when
-  `weightAttr` is given) and cached in a `WeakMap`; a node list becomes an edgeless snapshot; an undirected snapshot
-  is returned as is; a directed one yields ONE cached `toUndirected()` copy.
+  `nodes()` / `edges()` graph is walked through a `GraphBuilder` on EVERY call (weights read through `getEdgeData`
+  when `weightAttr` is given); it is never cached by object identity, because a mutated object would return a stale
+  snapshot. A node list becomes an edgeless snapshot; an undirected snapshot is returned as is; a directed one yields
+  ONE cached `toUndirected()` copy.
+- `src/positions.ts`: `LayoutResult` (`{ positions, dim, n }`, a flat `dim`-stride `Float32Array` in node-index
+  order, layout units) and its conversions: `toPositionMap` / `fromPositionMap` (the legacy id-keyed map; `fill`
+  writes the row of a node the map does not give), `toPositionColumn` / `fromPositionColumn` (the stride-3
+  scene-unit column: `v * scale + center`, a 2D row's z is the centre's z) and `rescaleInPlace` (`rescaleLayout` over
+  a flat array, f64 scratch, within 1e-6 of it). `forceatlas2Layout` is built from them.
 - `resolveNodeVector(spec, s, fallback)` / `resolveWeights(spec, s)` (`inputs.ts`): the per-node and per-arc inputs
   resolve by graph-format ROLE. A node vector is `null` -> the role-`mass` column when present, else `fallback(i)`; a
   `Float32Array(n)` as given; a numeric node column by name; or the legacy id-keyed record (CPU only: the GPU
@@ -191,7 +197,7 @@ branch that chooses the CPU); a thrown accelerator error propagates -- there is 
 
 - `seed.test.ts`: the LCG constants and 10,000 draws against `RandomNumberGenerator` (the W1 cross-test); the
   seeding rules (index order, the finite-rows box, `scale` / `center`, `"fr"`, validation).
-- `snapshot.test.ts`: `toLayoutSnapshot` over a duck graph (walked once, cached), a node list, `getEdgeData` weights,
+- `snapshot.test.ts`: `toLayoutSnapshot` over a duck graph (walked again after a mutation), a node list, `getEdgeData` weights,
   a directed and an undirected snapshot.
 - `inputs.test.ts`: every form of `resolveNodeVector` / `resolveWeights` and the error cases.
 - `create-simulation.test.ts`: delegation to the accelerator, the CPU path, `"spring"`, a throwing accelerator, and

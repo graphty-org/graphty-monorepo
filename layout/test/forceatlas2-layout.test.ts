@@ -1,4 +1,4 @@
-import { assert,describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import {
     completeGraph,
@@ -24,6 +24,27 @@ describe("ForceAtlas2 Layout", () => {
                 assert.isNumber(positions[node][0]);
                 assert.isNumber(positions[node][1]);
             });
+        });
+
+        it("lays out a node added to the same graph object between two calls", () => {
+            const nodes = [0, 1, 2];
+            const edges: [number, number][] = [
+                [0, 1],
+                [1, 2],
+            ];
+            const graph = { nodes: () => [...nodes], edges: () => [...edges] };
+            assert.equal(
+                Object.keys(
+                    forceatlas2Layout(graph, null, 10, 1, 2, 1, false, false, null, null, null, false, false, 42),
+                ).length,
+                3,
+            );
+            nodes.push(3);
+            edges.push([2, 3]);
+            const after = forceatlas2Layout(graph, null, 10, 1, 2, 1, false, false, null, null, null, false, false, 42);
+            assert.equal(Object.keys(after).length, 4);
+            assert.isDefined(after[3]);
+            assert.isTrue(after[3].every(Number.isFinite));
         });
 
         it("should handle empty graph", () => {
@@ -56,6 +77,23 @@ describe("ForceAtlas2 Layout", () => {
 
             assert.equal(Object.keys(positions).length, 6);
             // Disconnected components should be separated by gravity
+        });
+
+        it("draws a missing x or y of a given row from the seed, and reads a missing 3D z as 0", () => {
+            const graph = {
+                nodes: () => ["a", "b", "c"],
+                edges: () => [
+                    ["a", "b"],
+                    ["b", "c"],
+                ],
+            };
+            const run = (pos: Record<string, number[]>, dim: number): Record<string, number[]> =>
+                forceatlas2Layout(graph, pos, 0, 1, 2, 1, false, false, null, null, null, false, false, 7, dim);
+            const rest = { b: [1, 0], c: [0, 1] };
+            // a zero-filled y would lay out exactly as an explicit 0
+            assert.notDeepEqual(run({ a: [5], ...rest }, 2), run({ a: [5, 0], ...rest }, 2));
+            assert.notDeepEqual(run({ a: [5], ...rest }, 3), run({ a: [5, 0], ...rest }, 3));
+            assert.deepEqual(run({ a: [5, 1], ...rest }, 3), run({ a: [5, 1, 0], ...rest }, 3));
         });
 
         it("should use initial positions if provided", () => {
@@ -380,7 +418,6 @@ describe("ForceAtlas2 Layout", () => {
 
         it("should read distinct edge weights through getEdgeData and differ from the unweighted layout", () => {
             // the weight attribute NAME is consumed by toLayoutSnapshot (getEdgeData -> the snapshot's arc weights)
-            // and the snapshot of a duck graph is cached per graph OBJECT, so each run gets its own graph
             const weightOf = {
                 "0-1": 1,
                 "1-2": 2,

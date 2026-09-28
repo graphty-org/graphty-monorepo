@@ -1,17 +1,17 @@
+import { fromPositionColumn, fromPositionMap, rescaleInPlace, toPositionColumn, toPositionMap } from "../../positions";
 import { ForceAtlas2Simulation, seedPositions, toLayoutSnapshot } from "../../simulation";
 import type { Graph, Node, PositionMap } from "../../types";
-import { rescaleLayout } from "../../utils/rescale";
 
 /**
  * Position nodes using the ForceAtlas2 force-directed algorithm.
  *
  * A one-shot wrapper over the steppable ForceAtlas2Simulation of the layout seam (design 9.3, D-17): the legacy
  * graph is converted to an undirected snapshot once, the caller's positions seed the stride-3 array (missing rows
- * and components are drawn from the seed), the simulation runs every one of maxIter iterations, and the result is
- * rescaled exactly as the legacy body did. The positional signature and the return type are unchanged. Documented
- * behaviour changes (design 9.3, 7.2; graph-format design 14.3): the published FA2 laws replace the port's 1/d^2
- * repulsion; force-based swing / traction; the attraction sums over parallel arcs (the dense matrix collapsed
- * them); mass defaults to outDegree() + 1 (a self-loop counted once); nodeSize is inert until the adjustSizes slice
+ * and a missing x or y are drawn from the seed, a missing 3D z is 0), the simulation runs every one of maxIter iterations, and the result is
+ * rescaled as the legacy body did (f64 scratch, f32 output). The positional signature and the return type are
+ * unchanged. Documented behaviour changes (design 9.3, 7.2; graph-format design 14.3): the published FA2 laws
+ * replace the port's 1/d^2 repulsion; force-based swing / traction; the attraction sums over parallel arcs (the
+ * dense matrix collapsed them); mass defaults to outDegree() + 1 (a self-loop counted once); nodeSize is inert until the adjustSizes slice
  * lands (design 7.14, Q-25).
  * @param G - Graph
  * @param pos - Initial positions for nodes
@@ -52,17 +52,20 @@ export function forceatlas2Layout(
     const s = toLayoutSnapshot(G, weight);
     const n = s.nodeCount;
     const dimension: 2 | 3 = dim === 3 ? 3 : 2;
-    const positions = new Float32Array(3 * n).fill(Number.NaN);
-    if (pos !== null) {
-        for (let i = 0; i < n; i++) {
-            const given = pos[s.ids.idOf(i)];
-            if (given !== undefined) {
-                positions[3 * i] = given[0];
-                positions[3 * i + 1] = given[1];
-                positions[3 * i + 2] = dimension === 3 ? (given[2] ?? 0) : 0;
+    // an unseeded row is NaN, which seedPositions then draws from the seed
+    const given = fromPositionMap(pos, s.ids, dimension, (i, out) =>
+        out.fill(Number.NaN, dimension * i, dimension * (i + 1)),
+    );
+    // fromPositionMap reads a missing component as 0; here only a missing z is 0, and a missing x or y is NaN too
+    for (let i = 0; pos !== null && i < n; i++) {
+        const row = pos[s.ids.idOf(i)];
+        for (let k = 0; row !== undefined && k < 2; k++) {
+            if (row[k] === undefined) {
+                given[dimension * i + k] = Number.NaN;
             }
         }
     }
+    const positions = toPositionColumn({ positions: given, dim: dimension, n }, 1, null);
     seedPositions(s, positions, seed, dimension, 1, null, "fa2");
     // legacy tolerance: the old `for (iter = 0; iter < maxIter; iter++)` ran ceil(maxIter) iterations and none for
     // maxIter <= 0 or NaN; the simulation's option and step() count must be integers >= 1, so the count is
@@ -91,13 +94,6 @@ export function forceatlas2Layout(
         sim.step(iterations);
     }
     sim.dispose();
-    const result: PositionMap = {};
-    for (let i = 0; i < n; i++) {
-        const row = [positions[3 * i], positions[3 * i + 1]];
-        if (dimension === 3) {
-            row.push(positions[3 * i + 2]);
-        }
-        result[s.ids.idOf(i)] = row;
-    }
-    return rescaleLayout(result) as PositionMap; // rescaleLayout is typed PositionMap | number[][]; the legacy body casts the same way
+    const result = rescaleInPlace(fromPositionColumn(positions, dimension, 1, null), dimension);
+    return toPositionMap({ positions: result, dim: dimension, n }, s.ids);
 }

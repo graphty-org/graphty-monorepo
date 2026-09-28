@@ -595,6 +595,8 @@ const pos = toPositionMap(r, s.ids); // { [id]: [x, y, z] }, the shape the legac
   `kamadaKawai` reads `NaN` as 0.
 - **Unplaced nodes**: `shell` and `multipartite` leave the row of a node in no shell or layer as `NaN`.
 - **Directed snapshots** are laid out as their undirected copy by every layout that reads edges.
+- **Horizontal alignment**: `indexed.bfs`, `indexed.bipartite` and `indexed.multipartite` centre a horizontal
+  layout on `center`. Their legacy layouts keep their old behaviour and centre it on `[center[1], center[0]]`.
 - `toPositionColumn(r, scale, center)` turns a result into the stride-3 scene-unit column that graphty-element and the
   steppable simulations share (see [Position helpers](#position-helpers)).
 

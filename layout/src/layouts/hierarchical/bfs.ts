@@ -10,6 +10,9 @@ import { shellsToPositionMap } from "../geometric/shell";
  * Position nodes according to breadth-first search algorithm: layer k holds the nodes k hops from `start`, laid out
  * as `multipartiteLayout` lays out its layers. Each node's neighbours are visited in node order (the order of
  * `G.nodes()`), not edge order.
+ *
+ * With `horizontal` alignment the layout is rescaled around `center` before x and y are swapped, so it is centred
+ * on `[center[1], center[0]]`; `indexed.bfs` centres on `center` itself.
  * @param G - Graph
  * @param start - Starting node for bfs
  * @param align - The alignment of layers: 'vertical' or 'horizontal'

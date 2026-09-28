@@ -53,6 +53,10 @@ npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
 
+In a git worktree under `.worktrees/`, build `webgpu-graph-algorithms` and `graphty-element` in that worktree
+before the root `pnpm run docs:build`. Without their `dist/`, module lookup climbs out of the worktree into the main
+checkout's `node_modules`, and TypeDoc fails on two copies of the graph-format types. CI builds everything first.
+
 ## Generators
 
 `src/generators/` keeps the public `completeGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `gridGraph`,
@@ -102,8 +106,10 @@ list, options type or return type fails the test run (vitest `typecheck`, with `
   (or node-index groups) and the public function that resolves options and calls it. A layout that reads edges takes
   a directed snapshot as its undirected derived graph.
 - `force.ts`: `forceAtlas2` and `fruchtermanReingold` run the steppable CPU simulations (`src/simulation/`) to the
-  end of their budget, then rescale. `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and
-  runs the existing solver; `arf` is its own loop, unrescaled, as networkx has it.
+  end of their budget, then rescale.
+- `kamada-kawai.ts`: `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and runs the existing
+  solver.
+- `arf.ts`: `arf` is its own loop, unrescaled, as networkx has it.
 
 ### The wrapper pattern
 
@@ -113,8 +119,8 @@ the shared rows helper and converts the rows back with `rowsToPositionMap`. `for
 `fruchtermanReingoldLayout` convert the graph once with `toLayoutSnapshot`, map the caller's id-keyed `pos` onto
 index rows and call `indexed.forceAtlas2` / `indexed.fruchtermanReingold`; `fruchterman-reingold-legacy.ts` keeps
 the old loop only for inputs the indexed code does not take (a `dim` other than 2 or 3, among others). Where the
-legacy function differs on purpose (`bipartiteLayout` and `multipartiteLayout` centre on the swapped
-`[center[1], center[0]]`), the doc comment says so. `arfLayout` and `kamadaKawaiLayout` are not wrappers yet.
+legacy function differs on purpose (`bfsLayout`, `bipartiteLayout` and `multipartiteLayout` with `horizontal`
+alignment centre on the swapped `[center[1], center[0]]`), the doc comment says so. `arfLayout` and `kamadaKawaiLayout` are not wrappers yet.
 
 Tests in `test/indexed/` check each indexed layout's geometry and options, and that it matches the legacy
 function on the same graph.

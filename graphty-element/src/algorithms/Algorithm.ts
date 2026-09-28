@@ -525,6 +525,33 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     }
 
     /**
+     * Refuse, before the run starts, a graph carrying an edge weight this algorithm cannot read.
+     *
+     * The stored weights are single precision, so a weight above about 3.4e38 is already Infinity
+     * by the time a run sees it. Left to the run, a bad weight would surface as an internal fault
+     * rather than as what it is: a property of the data that no retry changes.
+     * @param snapshot - The graph the work runs over.
+     * @param allowNegative - Whether a negative weight is readable, as it is for a distance.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` (`details.reason` is `"edge-weight"`) naming
+     *   the first weight that is not finite, or that is negative when `allowNegative` is false.
+     */
+    protected requireReadableWeights(snapshot: GraphSnapshot, allowNegative: boolean): void {
+        for (const weight of snapshot.weights ?? []) {
+            if (Number.isFinite(weight) && (allowNegative || weight >= 0)) {
+                continue;
+            }
+
+            const needs = allowNegative ? "finite weights" : "finite, non-negative weights";
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `${this.type} needs ${needs}, and the graph has an edge of weight ${String(weight)}`,
+                source: "run",
+                details: { reason: "edge-weight", weight },
+            });
+        }
+    }
+
+    /**
      * Resolves and validates options against the schema
      * @param options - User-provided options (partial)
      * @returns Fully resolved options with defaults applied

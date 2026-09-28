@@ -1,4 +1,4 @@
-import { katzCentrality } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
@@ -196,10 +196,12 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
      * @returns One score per node, scaled as the options asked for.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        // `mode` and `endpoints` are accepted and change nothing: the run is undirected and counts
+        // walks rather than paths, and the legacy function never read either.
+        const { alpha, beta, maxIterations, tolerance, normalized } = this.schemaOptions;
 
         // Undirected: every neighbour counts as an influence, whichever way the record declared it.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("katzCentrality", "undirected");
 
         context.report({
             phase: "iterating",
@@ -207,22 +209,16 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             total: nodeIds.length,
             message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
         });
-        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
-        // The element's own half -- reading the scores back out -- is chunked below.
-        const scores = katzCentrality(graphData, {
-            normalized,
-            alpha,
-            beta,
-            maxIterations,
-            tolerance,
-            mode,
-            endpoints,
-        });
+        const { value, precision } = await run((dispatch, s) =>
+            dispatch.katzCentrality(s, { alpha, beta, maxIterations, tolerance, normalized }),
+        );
         context.signal.throwIfAborted();
 
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const score = scores[String(nodeId)];
+            const index = ids.indexOf(nodeId);
+            const score = index === INVALID_INDEX ? undefined : value.scores[index];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 
@@ -235,14 +231,16 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
                 exact: true,
                 direction: "undirected",
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "katz-iteration",
-                // `converged` and `iterations` are deliberately absent: the implementation stops
-                // either at its tolerance or at its iteration cap and reports neither.
+                converged: value.converged,
+                iterations: value.iterations,
                 notes: [
                     `Every node starts with a base influence of ${String(beta)}, and a path of length k contributes ${String(alpha)} to the power k.`,
                     `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
-                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    ...(value.converged
+                        ? []
+                        : [`It stopped at the ${String(maxIterations)}-pass cap without reaching the tolerance.`]),
                     "Edge weights are not read.",
                 ],
             },

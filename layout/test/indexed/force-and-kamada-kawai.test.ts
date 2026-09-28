@@ -12,6 +12,9 @@ import {
 import { idealDistances } from "../../src/indexed/kamada-kawai";
 import { fruchtermanReingoldLayoutLegacy } from "../../src/layouts/force-directed/fruchterman-reingold-legacy";
 import { RandomNumberGenerator } from "../../src/utils/random";
+import { goldenFile, matchesGolden } from "./golden";
+
+const golden = goldenFile("force-and-kamada-kawai");
 
 type NodeColumns = NonNullable<Parameters<typeof fromEdgeArrays>[0]["nodeColumns"]>;
 
@@ -69,13 +72,6 @@ function allPairs(n: number, edges: [number, number, number][]): Float64Array {
         }
     }
     return d;
-}
-
-function assertClose(actual: ArrayLike<number>, expected: ArrayLike<number>, tol: number, what: string): void {
-    assert.equal(actual.length, expected.length, `${what}: length`);
-    for (let i = 0; i < actual.length; i++) {
-        assert.approximately(actual[i], expected[i], tol, `${what}[${i}]`);
-    }
 }
 
 describe("indexed.kamadaKawai", () => {
@@ -229,10 +225,10 @@ describe("indexed.forceAtlas2", () => {
         const s = grid(4, 3);
         const r = indexed.forceAtlas2(s, { seed: 3, maxIter: 40, dim: 3 });
         const graph = { nodes: () => s.ids.toArray(), edges: () => Array.from(s.edgeList().src, (u, e) => [u, s.edgeList().dst[e]] as [number, number]) };
-        const legacy = forceatlas2Layout(graph as never, null, 40, 1, 2, 1, false, false, null, null, null, false, false, 3, 3);
-        for (let i = 0; i < s.nodeCount; i++) {
-            assert.deepEqual(legacy[i], Array.from(r.positions.subarray(3 * i, 3 * i + 3)));
-        }
+        const legacy = golden("forceAtlas2 grid 4x3 3d", s.ids, () =>
+            forceatlas2Layout(graph as never, null, 40, 1, 2, 1, false, false, null, null, null, false, false, 3, 3),
+        );
+        matchesGolden(r, legacy, 0);
     });
 
     it("keeps the given rows of pos and seeds the NaN ones, and runs no iteration for maxIter 0", () => {
@@ -326,11 +322,10 @@ describe("indexed.fruchtermanReingold", () => {
             for (let i = 0; i < s.nodeCount; i++) {
                 start[i] = (rng.rand(dim) as number[]).map(Math.fround);
             }
-            const expected = fruchtermanReingoldLayoutLegacy(graph, null, start, null, 50, 1, null, dim, 42);
-            const actual = fruchtermanReingoldLayout(graph, null, null, null, 50, 1, null, dim, 42);
-            for (let i = 0; i < s.nodeCount; i++) {
-                assertClose(actual[i], expected[i], 1e-6, `dim ${dim} node ${i}`);
-            }
+            const expected = golden(`fruchtermanReingold loop ${dim}d`, s.ids, () =>
+                fruchtermanReingoldLayoutLegacy(graph, null, start, null, 50, 1, null, dim, 42),
+            );
+            matchesGolden(indexed.fruchtermanReingold(s, { iterations: 50, dim, seed: 42 }), expected);
         }
     });
 
@@ -374,20 +369,14 @@ describe("indexed.arf", () => {
             start[i] = [pos[2 * i], pos[2 * i + 1]];
         }
         const graph = { nodes: () => s.ids.toArray(), edges: () => Array.from(s.edgeList().src, (u, e) => [u, s.edgeList().dst[e]] as [number, number]) };
-        const legacy = arfLayout(graph as never, start, 1, 1.5, 300);
-        for (let i = 0; i < 12; i++) {
-            assertClose([r.positions[2 * i], r.positions[2 * i + 1]], legacy[i], 1e-5, `node ${i}`);
-        }
+        matchesGolden(r, golden("arf from a start", s.ids, () => arfLayout(graph as never, start, 1, 1.5, 300)), 1e-5);
     });
 
     it("seeds from the seed as arfLayout does, rejects a <= 1 and handles n = 0", () => {
         const s = grid(3, 3);
         const graph = { nodes: () => s.ids.toArray(), edges: () => Array.from(s.edgeList().src, (u, e) => [u, s.edgeList().dst[e]] as [number, number]) };
         const r = indexed.arf(s, { seed: 9, maxIter: 50 });
-        const legacy = arfLayout(graph as never, null, 1, 1.1, 50, 9);
-        for (let i = 0; i < 9; i++) {
-            assertClose([r.positions[2 * i], r.positions[2 * i + 1]], legacy[i], 1e-4, `node ${i}`);
-        }
+        matchesGolden(r, golden("arf seeded", s.ids, () => arfLayout(graph as never, null, 1, 1.1, 50, 9)), 1e-4);
         assert.throws(() => indexed.arf(s, { a: 1 }), /larger than 1/);
         assert.equal(indexed.arf(grid(0, 0)).n, 0);
     });

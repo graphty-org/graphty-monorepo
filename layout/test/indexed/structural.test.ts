@@ -1,15 +1,14 @@
 import assert from "node:assert";
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import { completeGraph, gridGraph, wheelGraph } from "@graphty/graph-samples/generators";
 import { afterEach, describe, it, vi } from "vitest";
 
 import {
     bfsLayout,
     bipartiteLayout,
     type CommonLayoutOptions,
-    completeGraph,
     type Graph,
-    gridGraph,
     indexed,
     type LayoutResult,
     multipartiteLayout,
@@ -18,9 +17,8 @@ import {
     type PositionMap,
     spectralLayout,
     toLayoutSnapshot,
-    toPositionMap,
-    wheelGraph,
 } from "../../src";
+import { goldenFile, matchesGolden } from "./golden";
 
 /** An undirected snapshot of `n` nodes (ids 0 .. n - 1) and the given edges. */
 const graph = (n: number, edges: readonly (readonly [number, number])[] = []): GraphSnapshot =>
@@ -65,6 +63,8 @@ const path = (n: number): GraphSnapshot =>
         n,
         Array.from({ length: n - 1 }, (_, i) => [i, i + 1] as const),
     );
+
+const golden = goldenFile("structural");
 
 type Run = (s: GraphSnapshot, options: CommonLayoutOptions) => LayoutResult;
 
@@ -133,12 +133,14 @@ describe("indexed.multipartite", () => {
     it("matches the legacy layout for the same layers, vertical and horizontal", () => {
         const layers = [[5], [0, 1, 2], [3, 4]];
         const legacy = layers.map((layer) => layer.map((i) => s.ids.idOf(i) as Node));
-        const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
-        matchesLegacy(map(indexed.multipartite(s, { subsets: layers, scale: 2, center: [1, -1] })), multipartiteLayout(duck(s), legacy, "vertical", 2, [1, -1]));
-        // the legacy layout rescales around the centre before it swaps x and y, so it lands on the swapped centre
-        matchesLegacy(
-            map(indexed.multipartite(s, { subsets: layers, align: "horizontal", center: [1, -1] })),
-            multipartiteLayout(duck(s), legacy, "horizontal", 1, [-1, 1]),
+        matchesGolden(
+            indexed.multipartite(s, { subsets: layers, scale: 2, center: [1, -1] }),
+            golden("multipartite vertical", s.ids, () => multipartiteLayout(duck(s), legacy, "vertical", 2, [1, -1])),
+        );
+        // the legacy layout rescaled around the centre before it swapped x and y, so it landed on the swapped centre
+        matchesGolden(
+            indexed.multipartite(s, { subsets: layers, align: "horizontal", center: [1, -1] }),
+            golden("multipartite horizontal", s.ids, () => multipartiteLayout(duck(s), legacy, "horizontal", 1, [-1, 1])),
         );
     });
 
@@ -190,15 +192,17 @@ describe("indexed.bipartite", () => {
             weight: Float32Array.of(1, 2, 3, 4, 5, 6, 7),
         },
     });
-    const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
     const topIds: Node[] = [0, 3, 5];
 
     it("matches the legacy layout for a mask, vertical and horizontal", () => {
         const mask = Uint32Array.of(0b0101001);
-        matchesLegacy(map(indexed.bipartite(s, { top: mask, scale: 2, center: [3, 4] })), bipartiteLayout(duck(s), topIds, "vertical", 2, [3, 4]));
-        matchesLegacy(
-            map(indexed.bipartite(s, { top: mask, align: "horizontal", aspectRatio: 2, center: [3, 4] })),
-            bipartiteLayout(duck(s), topIds, "horizontal", 1, [4, 3], 2),
+        matchesGolden(
+            indexed.bipartite(s, { top: mask, scale: 2, center: [3, 4] }),
+            golden("bipartite vertical", s.ids, () => bipartiteLayout(duck(s), topIds, "vertical", 2, [3, 4])),
+        );
+        matchesGolden(
+            indexed.bipartite(s, { top: mask, align: "horizontal", aspectRatio: 2, center: [3, 4] }),
+            golden("bipartite horizontal", s.ids, () => bipartiteLayout(duck(s), topIds, "horizontal", 1, [4, 3], 2)),
         );
     });
 
@@ -207,7 +211,7 @@ describe("indexed.bipartite", () => {
     });
 
     it("defaults to the even node indices, as the legacy layout does", () => {
-        matchesLegacy(map(indexed.bipartite(s)), bipartiteLayout(duck(s)));
+        matchesGolden(indexed.bipartite(s), golden("bipartite default", s.ids, () => bipartiteLayout(duck(s))));
     });
 
     it("rejects a column that is not bool and a mask too short for the graph", () => {
@@ -226,9 +230,11 @@ describe("indexed.bfs", () => {
             [2, 5],
             [2, 6],
         ]);
-        const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
-        matchesLegacy(map(indexed.bfs(s, { start: 0, scale: 2, center: [1, 1] })), bfsLayout(duck(s), 0, "vertical", 2, [1, 1]));
-        matchesLegacy(map(indexed.bfs(s, { start: 4 })), bfsLayout(duck(s), 4));
+        matchesGolden(
+            indexed.bfs(s, { start: 0, scale: 2, center: [1, 1] }),
+            golden("bfs start 0", s.ids, () => bfsLayout(duck(s), 0, "vertical", 2, [1, 1])),
+        );
+        matchesGolden(indexed.bfs(s, { start: 4 }), golden("bfs start 4", s.ids, () => bfsLayout(duck(s), 4)));
     });
 
     it("visits neighbours in ascending node index, whatever the edge order", () => {
@@ -265,23 +271,26 @@ describe("indexed.bfs", () => {
 
 describe("indexed.planar", () => {
     it("matches the legacy layout when the edges are listed in ascending order", () => {
-        for (const g of [gridGraph(3, 4), wheelGraph(7), wheelGraph(12)]) {
-            const s = toLayoutSnapshot(g);
-            const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
-            matchesLegacy(map(indexed.planar(s, { seed: 5, scale: 2, center: [1, -1] })), planarLayout(duck(s), 2, [1, -1], 2, 5));
+        const graphs = { "grid 3x4": gridGraph({ rows: 3, cols: 4 }), "wheel 7": wheelGraph({ n: 7 }), "wheel 12": wheelGraph({ n: 12 }) };
+        for (const [name, sample] of Object.entries(graphs)) {
+            const s = fromEdgeArrays(sample);
+            matchesGolden(
+                indexed.planar(s, { seed: 5, scale: 2, center: [1, -1] }),
+                golden(`planar ${name}`, s.ids, () => planarLayout(duck(s), 2, [1, -1], 2, 5)),
+            );
         }
         // a tree has no cycle: every node on the outer circle
         const tree = graph(10, Array.from({ length: 9 }, (_, i) => [Math.floor(i / 2), i + 1] as const));
-        matchesLegacy(toPositionMap(indexed.planar(tree, { seed: 1 }), tree.ids), planarLayout(duck(tree), 1, null, 2, 1));
+        matchesGolden(indexed.planar(tree, { seed: 1 }), golden("planar tree", tree.ids, () => planarLayout(duck(tree), 1, null, 2, 1)));
     });
 
     it("repeats for a seed", () => {
-        const s = toLayoutSnapshot(wheelGraph(12));
+        const s = fromEdgeArrays(wheelGraph({ n: 12 }));
         assert.deepEqual(indexed.planar(s, { seed: 9 }).positions, indexed.planar(s, { seed: 9 }).positions);
     });
 
     it("rejects K5, K3,3 and a connected graph of more than 3n - 6 edges", () => {
-        assert.throws(() => indexed.planar(toLayoutSnapshot(completeGraph(5))), /G is not planar/);
+        assert.throws(() => indexed.planar(fromEdgeArrays(completeGraph({ n: 5 }))), /G is not planar/);
         const k33: [number, number][] = [];
         for (const u of [0, 1, 2]) {
             for (const v of [3, 4, 5]) {
@@ -289,7 +298,7 @@ describe("indexed.planar", () => {
             }
         }
         assert.throws(() => indexed.planar(graph(6, k33)), /G is not planar/);
-        assert.throws(() => indexed.planar(toLayoutSnapshot(completeGraph(7))), /G is not planar/);
+        assert.throws(() => indexed.planar(fromEdgeArrays(completeGraph({ n: 7 }))), /G is not planar/);
     });
 
     it("lays out a disconnected graph and puts an isolated interior node on the centre", () => {
@@ -322,9 +331,11 @@ describe("indexed.spectral", () => {
             ],
         };
         const s = toLayoutSnapshot(g);
-        const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
-        matchesLegacy(map(indexed.spectral(s, { seed: 4, scale: 2, center: [1, 2] })), spectralLayout(g, 2, [1, 2], 2, 4));
-        matchesLegacy(map(indexed.spectral(s, { seed: 8, dim: 3 })), spectralLayout(g, 1, null, 3, 8));
+        matchesGolden(
+            indexed.spectral(s, { seed: 4, scale: 2, center: [1, 2] }),
+            golden("spectral 2d", s.ids, () => spectralLayout(g, 2, [1, 2], 2, 4)),
+        );
+        matchesGolden(indexed.spectral(s, { seed: 8, dim: 3 }), golden("spectral 3d", s.ids, () => spectralLayout(g, 1, null, 3, 8)));
     });
 
     it("puts two nodes at the centre minus and plus scale", () => {
@@ -459,7 +470,7 @@ describe("legacy wrappers over the indexed layouts", () => {
     });
 
     it("bfsLayout rejects a start node that is not in the graph", () => {
-        assert.throws(() => bfsLayout(completeGraph(3), 7), /start node 7 is not in the graph/);
+        assert.throws(() => bfsLayout(duck(fromEdgeArrays(completeGraph({ n: 3 }))), 7), /start node 7 is not in the graph/);
     });
 
     it("keep their key order: layer by layer for the layered layouts, node order for the others", () => {

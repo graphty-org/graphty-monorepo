@@ -10,14 +10,13 @@ import {
     gridLayout,
     indexed,
     type LayoutResult,
-    type PositionMap,
     radialLayout,
     randomLayout,
     shellLayout,
     spiralLayout,
     toLayoutSnapshot,
-    toPositionMap,
 } from "../../src";
+import { goldenFile, matchesGolden } from "./golden";
 
 /** An edgeless snapshot of `n` nodes with ids 0 .. n - 1. */
 const nodes = (n: number): GraphSnapshot =>
@@ -30,16 +29,7 @@ const row = (r: LayoutResult, i: number): number[] => Array.from(r.positions.sub
 const distance = (r: LayoutResult, i: number, c: readonly number[] = [0, 0, 0]): number =>
     Math.hypot(...row(r, i).map((v, k) => v - c[k]));
 
-/** Every value of `actual` is within 1e-6 of the legacy map's (f32 output against f64). */
-function matchesLegacy(actual: PositionMap, expected: PositionMap): void {
-    assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort());
-    for (const [node, p] of Object.entries(expected)) {
-        assert.equal(actual[node].length, p.length, `node ${node} length`);
-        p.forEach((v, k) => {
-            assert.ok(Math.abs(actual[node][k] - v) <= 1e-6, `node ${node}[${k}]: ${actual[node][k]} vs ${v}`);
-        });
-    }
-}
+const golden = goldenFile("geometric");
 
 type Run = (s: GraphSnapshot, options: CommonLayoutOptions) => LayoutResult;
 
@@ -206,35 +196,34 @@ describe("indexed geometric layouts match the legacy functions", () => {
         ],
     };
     const s = toLayoutSnapshot(g);
-    const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
 
     it("circular", () => {
-        matchesLegacy(map(indexed.circular(s, { scale: 2, center: [1, 1] })), circularLayout(g, 2, [1, 1]));
-        matchesLegacy(map(indexed.circular(s, { dim: 3 })), circularLayout(g, 1, null, 3));
+        matchesGolden(indexed.circular(s, { scale: 2, center: [1, 1] }), golden("circular 2d", s.ids, () => circularLayout(g, 2, [1, 1])));
+        matchesGolden(indexed.circular(s, { dim: 3 }), golden("circular 3d", s.ids, () => circularLayout(g, 1, null, 3)));
     });
 
     it("shell", () => {
         const nlist = [[0], [1, 2, 3], [4, 5, 6, 7]];
         const legacy = nlist.map((shell) => shell.map((i) => s.ids.idOf(i)));
-        matchesLegacy(map(indexed.shell(s, { nlist, scale: 3 })), shellLayout(g, legacy, 3));
+        matchesGolden(indexed.shell(s, { nlist, scale: 3 }), golden("shell", s.ids, () => shellLayout(g, legacy, 3)));
     });
 
     it("spiral", () => {
-        matchesLegacy(map(indexed.spiral(s, { scale: 2 })), spiralLayout(g, 2));
-        matchesLegacy(map(indexed.spiral(s, { equidistant: true, resolution: 0.5 })), spiralLayout(g, 1, null, 2, 0.5, true));
+        matchesGolden(indexed.spiral(s, { scale: 2 }), golden("spiral", s.ids, () => spiralLayout(g, 2)));
+        matchesGolden(indexed.spiral(s, { equidistant: true, resolution: 0.5 }), golden("spiral equidistant", s.ids, () => spiralLayout(g, 1, null, 2, 0.5, true)));
     });
 
     it("grid", () => {
-        matchesLegacy(map(indexed.grid(s, { columns: 3, scale: 2, center: [4, 4] })), gridLayout(g, 3, 2, [4, 4]));
+        matchesGolden(indexed.grid(s, { columns: 3, scale: 2, center: [4, 4] }), golden("grid", s.ids, () => gridLayout(g, 3, 2, [4, 4])));
     });
 
     it("random", () => {
-        matchesLegacy(map(indexed.random(s, { dim: 3, seed: 11 })), randomLayout(g, null, 3, 11));
+        matchesGolden(indexed.random(s, { dim: 3, seed: 11 }), golden("random", s.ids, () => randomLayout(g, null, 3, 11)));
     });
 
     it("radial, including the default root and the neighbour order of the rings", () => {
-        matchesLegacy(map(indexed.radial(s)), radialLayout(g));
-        matchesLegacy(map(indexed.radial(s, { root: s.ids.indexOf("b"), scale: 4 })), radialLayout(g, "b", 4));
+        matchesGolden(indexed.radial(s), golden("radial", s.ids, () => radialLayout(g)));
+        matchesGolden(indexed.radial(s, { root: s.ids.indexOf("b"), scale: 4 }), golden("radial root b", s.ids, () => radialLayout(g, "b", 4)));
     });
 });
 

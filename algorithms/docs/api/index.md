@@ -51,7 +51,7 @@ Find optimal paths between nodes.
 - `bellmanFord()` - Handles negative weights
 - `indexed.bellmanFord()` - Bellman-Ford over a snapshot, with the negative-cycle flag
 - `indexed.bidirectionalDijkstra()` - One shortest path over a snapshot, naming the exact edges taken
-- `indexed.astar()` - A* over a snapshot, the heuristic taking node indices
+- `indexed.astar()` - A\* over a snapshot, the heuristic taking node indices
 - `floydWarshall()` - All pairs shortest paths
 - `indexed.allPairsShortestPath()` - All pairs shortest paths over a snapshot, as a typed-array matrix
 - `aStar()` - Heuristic-guided search
@@ -105,8 +105,12 @@ Identify node communities.
 
 - `louvain()` - Fast modularity optimization
 - `girvanNewman()` - Edge betweenness removal
+- `indexed.girvanNewman()` - Girvan-Newman over a snapshot: one typed-array partition and modularity per level
+- `indexed.leiden()` - Leiden over a snapshot: connected communities and their modularity
 - `labelPropagation()` - Near-linear time detection
 - `indexed.labelPropagation()` - Seeded fast label propagation over a snapshot, as a typed-array partition
+- `indexed.labelPropagationSemiSupervised()` - Fast label propagation with some nodes held at a given label
+- `indexed.labelPropagationSynchronous()` - Deterministic label propagation in synchronous passes
 - `kCliqueCommunities()` - Overlapping communities
 - `modularity()` - Partition quality measure
 

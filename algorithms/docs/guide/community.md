@@ -69,6 +69,10 @@ const result = girvanNewman(graph, {
 });
 ```
 
+Over a snapshot, `indexed.girvanNewman(s, { maxCommunities, minCommunitySize, maxIterations })`
+returns every level as a `Uint32Array` partition, the uncut graph first, with each level's modularity
+in a `Float64Array`. It needs an undirected snapshot.
+
 ::: tip
 Girvan-Newman is slower than Louvain but can be more accurate for small networks. Use Louvain for large graphs.
 :::
@@ -130,6 +134,27 @@ result.converged; // true when every label is dominant among its neighbours
 
 Self-loops are ignored and parallel edges are summed. On a directed snapshot a node's neighbours
 are its out- and in-neighbours. A negative, NaN or infinite weight throws a `RangeError`.
+
+To hold some nodes at a known community, pass one seed per node to
+`indexed.labelPropagationSemiSupervised`: a label for a fixed node, `INVALID_INDEX` for a free one.
+Seeded nodes never move, seeds with the same label share a community, and seeds with different
+labels never do. The result is renumbered like every partition here, so read a seed's community
+through `labels[seedNode]`.
+
+```typescript
+import { INVALID_INDEX } from "@graphty/graph-format";
+
+const seeds = new Uint32Array(s.nodeCount).fill(INVALID_INDEX);
+seeds[s.ids.requireIndex("alice")] = 0;
+seeds[s.ids.requireIndex("bob")] = 1;
+const held = indexed.labelPropagationSemiSupervised(s, seeds, { randomSeed: 42 });
+```
+
+`indexed.labelPropagationSynchronous(s, { maxIterations, weighted })` updates every node at once
+from the previous pass and uses no random numbers, so it gives one answer per graph. Passes
+alternate between allowing only moves to a higher label and only to a lower one, which stops two
+neighbours trading labels for ever; it ends after one quiet pass of each kind. Some weighted graphs
+still cycle, and then it stops with `converged: false`.
 
 ## K-Clique Communities
 

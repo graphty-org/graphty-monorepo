@@ -755,6 +755,10 @@ const communities = leiden(graph, {
 // Returns: { communities: Map<NodeId, number>, modularity: number }
 ```
 
+Over a `@graphty/graph-format` snapshot, `indexed.leiden(s, { resolution, randomSeed, maxIterations, threshold })`
+returns `{ labels, count, groups(), modularity, iterations }` with every community connected. Its
+`maxIterations` caps whole passes (each running every level it needs), not single levels.
+
 #### Label Propagation
 
 ```typescript
@@ -779,6 +783,14 @@ randomSeed, weighted })` runs fast label propagation (FLPA) on typed arrays and 
 also converges on paths and trees. `labelPropagation` delegates to it, so for the same integer seed both
 return the same partition.
 
+`indexed.labelPropagationSemiSupervised(s, seeds, options)` runs the same kernel with some nodes held:
+`seeds` is a `Uint32Array` with one entry per node, a fixed label or `INVALID_INDEX` for a free node.
+Seeds with equal labels share a community and seeds with different labels never do; the result is
+renumbered, so read a seed's community through `labels[seedNode]`.
+`indexed.labelPropagationSynchronous(s, { maxIterations, weighted })` updates every node at once from
+the previous pass, with no random stream, alternating up and down passes so neighbours cannot swap
+labels for ever.
+
 #### Girvan-Newman Algorithm
 
 ```typescript
@@ -790,6 +802,10 @@ const dendrogram = girvanNewman(graph, {
 });
 // Returns: { levels: Array<{ modularity: number, communities: NodeId[][] }> }
 ```
+
+Over a snapshot, `indexed.girvanNewman(s, { maxCommunities, minCommunitySize, maxIterations })` returns
+`{ levels, modularity }`: one `Uint32Array` partition per level, the uncut graph first, and the
+modularity of each level.
 
 ### Pathfinding Algorithms
 

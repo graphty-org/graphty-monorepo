@@ -82,10 +82,20 @@ first:
 | Synchronous passes, lowest-label tie, cuGraph's alternating up/down move rule, stop after two quiet passes -- the GPU's semantics on PR #550 | repository review                  | Rejected as the default. It gives bitwise CPU/GPU agreement, but (a) it makes `randomSeed` a published option with no effect, (b) on PR #550 it ran to the 100-pass cap on the random 100k and 1M graphs, where an asynchronous run converges, and (c) the up/down rule exists only because synchronous updates make neighbours swap labels forever (cuGraph `cpp/src/community/detail/common_methods.cuh#L117-L152`); a sequential in-place update does not oscillate. The GPU plan already judges CPU/GPU parity by planted-partition recovery (adjusted Rand index >= 0.9), never bitwise (`design/webgpu/plans/2026-09-23-webgpu-p11-structure-and-community.md` lines 529-535), so bitwise agreement is not required. |
 | Retention (keep the current label when it is dominant) with the lowest tied label otherwise, over a queue                                    | implementations review             | Rejected as the default. It is deterministic and provably stops after at most m label changes on unweighted graphs (Cordasco and Gargano, https://arxiv.org/pdf/1103.4550, Theorem 1), but it changes the answer: on Erdos-Renyi graphs it stops almost at once with a near-singleton partition and on stochastic block models it splits each planted group into many small clusters, where the original and FLPA recover the planted partition (Traag and Subelj, Retention strategy section; Subelj review https://arxiv.org/pdf/1709.05634 section 1.1.4). On the Power grid network Barber and Clark's retention rule gave modularity about 0.6 against about 0.8 for random ties (Cordasco and Gargano, Results).     |
 
+Added alongside the default, as separate functions:
+
+- **A synchronous CPU mode, `labelPropagationSynchronous`.** Synchronous passes, keep the label
+  while it is dominant, lowest tied label otherwise, cuGraph's alternating up/down rule, stop after
+  two quiet passes. It is the counterpart of the legacy `labelPropagationAsync`, which despite its
+  name is synchronous and lacks the up/down rule. The up/down rule does not stop every cycle: some
+  weighted graphs settle into a period-2 cycle, which the function detects and ends with
+  `converged: false`.
+- **Semi-supervised input, `labelPropagationSemiSupervised`.** One seed per node, a fixed label or
+  `INVALID_INDEX`. Fixed nodes never enter the queue of the FLPA kernel above; with no seed it is
+  `labelPropagation` bit for bit.
+
 Not implemented, and why:
 
-- **A synchronous CPU mode for bitwise GPU parity.** Parity is by adjusted Rand index today. Add it
-  only if someone needs bitwise comparison; the kernel's group-by would be reused unchanged.
 - **Semi-synchronous colouring (Cordasco and Gargano; NetworkX `label_propagation_communities`).**
   Its benefit is parallelism inside a colour class, which single-threaded JavaScript does not have,
   and it needs a greedy colouring first.
@@ -106,9 +116,8 @@ Not implemented, and why:
   one.
 - **A post-pass splitting a label that covers several disconnected groups** (Raghavan section V).
   It changes the result shape relative to the shipped function; add it as an option when asked.
-- **Semi-supervised input (fixed and initial labels, igraph's `initial` / `fixed`).** The same queue
-  kernel supports it -- fixed nodes simply never enter the queue -- but nothing in graphty-element
-  calls `labelPropagationSemiSupervised`. A later change can add it without touching this one.
+- **Initial labels that are free to move (igraph's `initial` without `fixed`).** Every free node
+  starts in its own community.
 
 cuGraph ships no label propagation to port: its community module has Louvain, Leiden, ECG, spectral
 clustering, triangle count and k-truss only

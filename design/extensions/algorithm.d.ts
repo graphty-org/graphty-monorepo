@@ -229,6 +229,30 @@ export declare function nodeMetricFields(value: {
     readonly type?: "number" | "integer";
 }): readonly FieldDescriptor[];
 
+/**
+ * PROPOSED (simple-tier.md section 6): the fields of an edge-metric result, beside nodeMetricFields,
+ * so neither tier writes the shape contract's field list by hand.
+ */
+export declare function edgeMetricFields(value: {
+    readonly plainName: string;
+    readonly technicalName: string;
+    readonly type?: "number" | "integer";
+}): readonly FieldDescriptor[];
+
+/**
+ * PROPOSED (simple-tier.md section 6): the fields of a community result -- group, groupSize,
+ * groupCount and sizes, and modularity when asked for -- with the derived ones marked, so an author
+ * declares them with one call and publishes only what communityFieldSpecs lists.
+ */
+export declare function communityFields(value: {
+    readonly plainName: string;
+    readonly technicalName: string;
+    readonly modularity?: boolean;
+}): readonly FieldDescriptor[];
+
+/** PROPOSED: the ResultFieldSpec list a community run fills (group, and modularity when declared). */
+export declare function communityFieldSpecs(options?: { readonly modularity?: boolean }): readonly ResultFieldSpec[];
+
 /** The ResultFieldSpec list a node-metric or edge-metric run fills. */
 export declare function metricFieldSpecs(
     kind: "node" | "edge",

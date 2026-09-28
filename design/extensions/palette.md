@@ -32,16 +32,23 @@ A first palette is one call (`simple-tier.md` section 4.5):
 ```ts
 import { definePalette } from "@graphty/graphty-element/extend";
 
-definePalette("acme-brand", "categorical", ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"]);
-definePalette("acme-brand-ramp", "sequential", ["#E8F1FA", "#1B7F79", "#0B1D51"]);
+definePalette({
+    id: "acme-brand",
+    kind: "categorical",
+    colors: ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"],
+});
+definePalette({ id: "acme-brand-ramp", kind: "sequential", colors: ["#E8F1FA", "#1B7F79", "#0B1D51"] });
 ```
 
 `definePalette` builds a `PaletteRegistration` -- `plainName` from the id, `capacity` derived,
-`colorblindSafe` empty unless the optional fourth argument makes a claim -- and calls
-`registerPalette`, so there is one validation path and one registry. Two changes make the brand
-case complete: `registerPalette`'s published parameter type narrows to `PaletteRegistration`, and
-an element-scoped default palette lets a brand palette apply everywhere without being named in
-every binding (README section 12, item 35).
+`colorblindSafe` empty unless the definition makes a claim -- and calls `registerPalette`, so
+there is one validation path and one registry. Two changes make the brand case complete:
+`registerPalette`'s published parameter type narrows to `PaletteRegistration`, and
+`element.setDefaultPalettes({ categorical: "acme-brand", sequential: "acme-brand-ramp" })` makes a
+brand palette apply everywhere without being named in every binding (README section 12, item 35).
+`var(...)` colours are not resolved, and a categorical palette never wraps: groups past its last
+colour keep the base colour and are reported as `E_CAP_EXCEEDED` (section 7). Nothing here runs
+in 2.6.1 (`simple-tier.md`, status).
 
 **Sections 2 onwards specify the advanced tier: the descriptor form.**
 

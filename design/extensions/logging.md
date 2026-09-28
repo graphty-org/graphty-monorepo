@@ -36,16 +36,19 @@ defineLogDestination({
     write: (record) =>
         fetch("https://telemetry.acme.example/v1/errors", {
             method: "POST",
-            body: JSON.stringify({ time: record.time, source: record.category, message: record.message }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(record),
         }),
 });
 ```
 
 `defineLogDestination` registers a `LogSinkRegistration` (descriptor defaulted) and attaches it at
 once. It receives records at its own level whether or not the logger is globally enabled (README
-section 12, item 34). When `write` returns a promise, the element queues, orders, retries, flushes
-on `pagehide` and drains on removal, so the buffering rule of section 4 is the element's, not the
-author's. Move to the advanced tier for declared options, a custom `flush` or `dispose`, or the
+section 12, item 34). The record's `error` is plain `{ name, message, stack }`, so
+`JSON.stringify(record)` keeps it. When `write` returns a promise, the element queues, orders,
+retries -- a rejection and a resolved `Response` that is not `ok` both count as failures --
+flushes on `pagehide` and drains on removal. Section 4 gives an advanced `Sink` the same. Nothing
+here runs in 2.6.1 (`simple-tier.md`, status). Move to the advanced tier for declared options, a custom `flush` or `dispose`, or the
 full `LogRecord`.
 
 **Sections 2 onwards specify the advanced tier.**
@@ -94,10 +97,14 @@ non-empty; `description` a sentence; `options` an array (README section 7).
 
 ## 4. The destination's obligations
 
-1. `write` MUST be synchronous and MUST NOT block: a network destination buffers in `write` and
-   sends in `flush`, as the element's own remote destination does. A promise returned from `write`
-   is ignored, so an `async write` that rejects becomes an unhandled rejection rather than a
-   reported failure; `write` MUST NOT be `async`.
+1. `write` MUST NOT block. It MAY return a promise (proposed with the simple tier,
+   `simple-tier.md` section 6): the element then queues records, sends them in order, treats a
+   rejection or a resolved `Response` whose `ok` is false as a failure, reports it on the console,
+   retries a bounded number of times, awaits the queue in `flush`, drains it with a timeout on
+   removal, and flushes every destination on `pagehide` -- the batching the built-in `remote`
+   destination has. A synchronous `write` that buffers and sends in `flush` stays conforming.
+   **(not yet met)** 2.6.1 ignores a returned promise, so there an `async write` that rejects
+   becomes an unhandled rejection; a 2.6.1 destination MUST NOT be `async`.
 2. `write` MUST NOT mutate the record; the record and its `data` are frozen, and the same object is
    handed to every destination in turn.
 3. `write` MUST NOT log through `GraphtyLogger` (a destination that logs about its own delivery

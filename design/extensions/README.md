@@ -29,7 +29,8 @@ is where an author goes for full control. Each point's specification opens with 
 | `logging.md`, `logging.d.ts`         | A destination the element's log records are delivered to                                                                                       |
 | `candidates.md`                      | Seams that are NOT official extension points, with a recommendation for each                                                                   |
 | `simple-tier.md`, `simple.d.ts`      | The simple tier of every point: one `define*` function each, and how it wraps the contracts above                                              |
-| `complexity-review.md`               | What the first plugin of each point costs today and under the simple tier, against prior art                                                   |
+| `extend.d.ts`, `conformance.d.ts`    | The whole `./extend` entry point as one file; the conformance kit's simple-tier helpers                                                        |
+| `complexity-review.md`               | What the first plugin of each point costs today and under the simple tier, against prior art, and what blind authors met                       |
 
 ## 1. Conventions
 
@@ -740,15 +741,24 @@ against real first plugins every point had grown far past what prior art asks
 possible". This section makes the first half normative for every extension point, present and
 future.
 
-1. **The budget.** For every point there is a named first-plugin task (item 4). Written against the
+1. **The budget.** For every point there is a named first-plugin task (item 5). Written against the
    point's simple tier from the published guide alone, it MUST take about 15 lines of author code
-   and MUST NOT exceed 20, and it MUST NOT name any internal concept (item 3). Author lines are
-   non-blank, non-comment lines, not counting `import` lines or the one consumer call that turns
-   the extension on.
-2. **Every point has a simple tier** that meets the budget, specified before its advanced contract
+   and MUST NOT exceed 20, and it MUST NOT name any internal concept (item 4). Author lines are
+   non-blank, non-comment lines, not counting `import` lines. The count is END TO END: from a page
+   with the element on it to a visible result, so it INCLUDES the consumer lines that switch the
+   extension on and show it (a run, `setLayout`, a load, a default palette, a motion), and the
+   counted example MUST handle the malformed input the conformance kit's fixture for its point
+   supplies (a short row, a missing attribute, a body of the wrong shape, an HTTP error). The
+   budget is a cost of the finished task: an example that fits by leaving out a check the task
+   needs has not met it.
+2. **Setup is part of the budget.** The simple tier's declarations MUST type-check with the element
+   installed and nothing else, under any `lib` from ES2020 up, with no path mapping; the no-bundler
+   route (the self-contained bundle) MUST export every simple-tier verb; and the guide MUST show
+   both routes. A plugin that compiles only after a `tsconfig` change has failed the budget.
+3. **Every point has a simple tier** that meets the budget, specified before its advanced contract
    (`simple-tier.md`; the "Simple tier" section of each point's specification). A future point is
    not accepted without one.
-3. **Internal concepts.** A first plugin that needs any of these fails the budget, whatever its
+4. **Internal concepts.** A first plugin that needs any of these fails the budget, whatever its
    length:
     - storage: snapshot, snapshot row, row index, compressed sparse rows (`rowPtr`, `colIdx`), arc,
       typed array, `Float32Array` output, column union, validity bitmap, mask (`NodeMask`,
@@ -770,7 +780,7 @@ future.
     A term the point's domain uses anyway (a colour, a kind of palette, a file extension, a node,
     an edge, an attribute, 2D and 3D, a log level) is domain knowledge, not an internal concept.
 
-4. **The first-plugin tasks.** Chosen as the most common real request at each point, not to
+5. **The first-plugin tasks.** Chosen as the most common real request at each point, not to
    exercise the contract:
 
     | Point       | First-plugin task                                                                        |
@@ -783,7 +793,7 @@ future.
     | Camera      | a slow orbit; a named corner view                                                        |
     | Logging     | errors sent to a telemetry endpoint                                                      |
 
-5. **The blind-author check.** The budget is TESTED, not asserted. For each task, an author who
+6. **The blind-author check.** The budget is TESTED, not asserted. For each task, an author who
    has never read this directory or the element's source writes the plugin from the published
    guide (`graphty-element/docs/guide/extending/`) and the `./extend` declarations only. The
    authors are agents playing the plugin-author personas in `design/designloom/personas/`:
@@ -792,21 +802,40 @@ future.
    `plugin-author-graph-library-author` (layout and algorithm, who also graduates one plugin to the
    advanced tier under the same id, `simple-tier.md` section 5). Each run records the author
    lines, every internal concept the plugin or the author's notes named, how many attempts it
-   took, and every error message the author could not act on. It passes when the plugin fits the
-   budget, passes the conformance kit (section 11.2), and was finished within three attempts with
-   every error acted on from its first line. The results are recorded in `complexity-review.md`.
-   The check runs on every change to a guide page under `extending/`, to the `./extend` exports or
-   to a point's specification, and before every release.
-6. **The static half.** A CI check, beside `check-examples.mjs`, fails when the first TypeScript
+   took, every error message the author could not act on, and every place the author got stuck
+   with its severity. It passes when the plugin fits the budget, passes the conformance kit
+   (section 11.2), and was finished within three attempts with every error acted on from its first
+   line. The results are recorded in `complexity-review.md`. The check runs on every change to a
+   guide page under `extending/`, to the `./extend` exports or to a point's specification, and
+   before every release. Three rules keep it honest:
+    - **It runs the plugin.** A type-check against declarations is not a pass: the author works
+      against a runtime where `define*` executes -- the released element, or before release a
+      playground story that loads the proposed simple tier -- so the "acted on from its first
+      line" half is exercised by real error messages, not assumed.
+    - **A silent wrong result is a failure of its own.** The kit's fixtures include the traps a
+      beginner meets: an undirected graph for a plugin that reads direction, an attribute spelt
+      wrong, a numeric column with negative values through a read-write-read round trip, a pager
+      whose API repeats its last page. A plugin that compiles, runs and returns a plausible wrong
+      answer fails the check, and the fix goes in the element or the guide, not in a warning to
+      the author.
+    - **It includes getting the result on screen.** An author who registers the extension but
+      cannot run it, load it or see it has not finished; the stuck point is recorded against the
+      guide.
+7. **The static half.** A CI check, beside `check-examples.mjs`, fails when the first TypeScript
    block of a guide page under `extending/` does not type-check, exceeds 20 author lines, imports
-   anything but a simple-tier verb and its types, or names a term from item 3.
-7. **Review rule.** A change that adds an obligation on an extension author (a MUST, a required
+   anything but a simple-tier verb and its types, or names a term from item 4.
+8. **Review rule.** A change that adds an obligation on an extension author (a MUST, a required
    member, a rule the author has to remember) states which tier carries it. If it lands on the
    simple tier the change fails review unless the element absorbs it instead; on the advanced tier
    it is allowed, and the simple tier's generated registration MUST satisfy it automatically.
-8. **Parity is unchanged.** The budget never removes a capability: the advanced tier keeps every
-   route section 8 lists, and the simple tier reaches every one of them because it registers
-   through the same verbs (`simple-tier.md` section 3).
+9. **Adversarial review of the easy path.** Every review round of a point includes one reviewer
+   whose only question is "where does a newcomer get a plausible wrong answer, or no answer, with
+   no error?" -- a default that hides a mistake (`?? 0`, a defaulted `direction`, strings where
+   numbers were meant), an example trimmed to fit the budget, a step the guide never shows. Each
+   finding is fixed by the element absorbing the check, or recorded with the reason it was not.
+10. **Parity is unchanged.** The budget never removes a capability: the advanced tier keeps every
+    route section 8 lists, and the simple tier reaches every one of them because it registers
+    through the same verbs (`simple-tier.md` section 3).
 
 ## 9. Lifecycle, isolation and error containment
 
@@ -900,15 +929,19 @@ Consequences:
 
 What the element does when an extension misbehaves at use time, per point:
 
-| Point                   | Extension throws or rejects           | Element's obligation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Palette                 | cannot (data)                         | n/a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Format `detect`         | treated as "does not claim this file" | MUST NOT fail the detection or the load                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Format reader           | the load fails                        | MUST emit the load failure the built-ins emit; a non-`GraphtyError` MUST be wrapped as `E_PARSE_FAILED` (or `E_FETCH_FAILED` when fetching failed) with the original as `cause`. A load with `replace: true` MUST leave the previous graph as it was. A default (adding) load that fails part-way keeps, unmarked, the rows that arrived before the failure, for built-ins too; that is a DEFECT, not a parity promise, and open decision 20 recommends staged loads committed only on success (`file-format.md` section 7 item 3)                                     |
-| Camera `compute`        | the view fails                        | MUST reject the call that asked for the view with a `GraphtyError` (`E_INTERNAL`, `source: "view"`, when it is not already one); MUST NOT leave the camera partly moved **(not yet met:** 2.6.1 returns `compute(input)` unguarded, so the caller receives the plain error**)**                                                                                                                                                                                                                                                                                        |
-| Layout engine           | the layout fails                      | MUST report it once as a `GraphtyError` (wrapping as `E_INTERNAL` with `source: "layout"` when needed); MUST stop stepping that engine; nodes keep their last published positions. **(not yet met:** `LayoutManager.step()` calls `step()` and `publishPositions()` unguarded; the throw reaches the render loop's catch, which skips drawing that frame, emits an uncoded error in category `"other"`, and leaves the engine running, so it repeats every frame. The fix wraps both calls in `LayoutManager`, sets the engine stopped and emits one coded error.**)** |
-| Algorithm               | the run fails                         | MUST settle the run as failed with the error's code (wrapping as `E_INTERNAL` with `source: "run"` when needed); MUST NOT publish anything from a FAILED run; other runs continue. A run that stops at a limit the caller set MAY publish a partial result marked as such (`algorithm.md` section 2.2 item 9)                                                                                                                                                                                                                                                          |
-| Log destination `write` | swallowed                             | MUST catch it, MUST still deliver the record to every other destination, and MUST NOT recurse (a failure while reporting a destination's failure is dropped)                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Point                   | Extension throws or rejects           | Element's obligation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Palette                 | cannot (data)                         | n/a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Format `detect`         | treated as "does not claim this file" | MUST NOT fail the detection or the load                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Format reader           | the load fails                        | MUST emit the load failure the built-ins emit; a non-`GraphtyError` MUST be wrapped as `E_PARSE_FAILED` (or `E_FETCH_FAILED` when fetching failed) with the original as `cause`. A load with `replace: true` MUST leave the previous graph as it was. A default (adding) load that fails part-way keeps, unmarked, the rows that arrived before the failure, for built-ins too; that is a DEFECT, not a parity promise, and open decision 20 recommends staged loads committed only on success (`file-format.md` section 7 item 3)                                             |
+| Camera `compute`        | the view fails                        | MUST reject the call that asked for the view with a `GraphtyError` (`E_EXTENSION_FAILED`, `source: "view"`, when it is not already one); MUST NOT leave the camera partly moved **(not yet met:** 2.6.1 returns `compute(input)` unguarded, so the caller receives the plain error**)**                                                                                                                                                                                                                                                                                        |
+| Layout engine           | the layout fails                      | MUST report it once as a `GraphtyError` (wrapping as `E_EXTENSION_FAILED` with `source: "layout"` when needed); MUST stop stepping that engine; nodes keep their last published positions. **(not yet met:** `LayoutManager.step()` calls `step()` and `publishPositions()` unguarded; the throw reaches the render loop's catch, which skips drawing that frame, emits an uncoded error in category `"other"`, and leaves the engine running, so it repeats every frame. The fix wraps both calls in `LayoutManager`, sets the engine stopped and emits one coded error.**)** |
+| Algorithm               | the run fails                         | MUST settle the run as failed with the error's code (wrapping as `E_EXTENSION_FAILED` with `source: "run"` when needed); MUST NOT publish anything from a FAILED run; other runs continue. A run that stops at a limit the caller set MAY publish a partial result marked as such (`algorithm.md` section 2.2 item 9)                                                                                                                                                                                                                                                          |
+| Log destination `write` | swallowed                             | MUST catch it, MUST still deliver the record to every other destination, and MUST NOT recurse (a failure while reporting a destination's failure is dropped)                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+`E_EXTENSION_FAILED` is proposed (open decision 37); 2.6.1 wraps these throws as `E_INTERNAL`,
+whose published meaning is a defect in the element itself, so a plugin's own bug tells its reader
+to file an issue against graphty-element.
 
 In every row, a failure in one extension MUST NOT prevent the use of any other extension or
 built-in, and MUST NOT affect a session that never uses the failing extension.
@@ -1122,7 +1155,12 @@ Requirements on the kit:
 8. Every `check*` function also accepts the id of a registered extension, so a simple-tier
    extension is checked by exactly the checks an advanced one is; the kit publishes
    `graphView({ nodes, edges })`, which builds the simple tier's graph view from plain objects for
-   a unit test of a `place`, `node`, `edge`, `nodes` or `groups` function.
+   a unit test of a `place`, `node`, `edge`, `nodes` or `groups` function; `loadContext({ options,
+responses })`, a data source's load context with a stub fetch; and `checkSameResults(id,
+AdvancedClass)`, which compares a simple extension with the advanced class meant to replace it
+   under the same id (`conformance.d.ts`). Every format check includes a read-write-read round
+   trip of a file with a negative number column and an isolated node, which the declared `keeps`
+   must survive.
 
 An extension **conforms** to this specification when every check its point lists passes or is
 skipped for a stated reason.
@@ -1877,11 +1915,19 @@ options, dimension, scope }` in the project, with no extension version, which pr
     each deciding the result shape, with result fields `value` and `group`; `place` returning a
     `Map` from id to position, where a missing node is unplaced; `read(text)` and `write(graph)`
     over plain records, with `keeps` for loss notes; `load(context)` returning one batch, a promise
-    or an async iterable; `definePalette(id, kind, colors, extra?)` as positional arguments; the
+    or an async iterable; `definePalette({ id, kind, colors })` taking one object like every other
+    verb; `ViewFrame.orbit(azimuth, elevation?)` with `up`, `azimuth` and `elevation`, and the
+    camera callbacks' `{ options }` context; `edge.other(node)`, and directed accessors that throw
+    unless the definition declares `direction: "directed"`; a `progress` that returns a promise
+    and yields; `note` and `converged` on the algorithm context and the `weights` and `passes`
+    definition members; `PlainLogRecord.error` as plain data; the
     short option form of `simple-tier.md` section 2.2, including the new `on: "node" | "edge"`
-    option member; the new `edgeMetricFields` builder; the new catalogue kind
-    `session.catalog.sources()`; and the conformance kit's `graphView` builder. Also a shape
-    choice: an id's derived display name is the id in sentence case.
+    option member; the new `edgeMetricFields`, `communityFields` and `communityFieldSpecs`
+    builders; the new catalogue kind `session.catalog.sources()`; the element's
+    `setSourceCredential` and `allowSourceHosts`; and the conformance kit's `graphView`,
+    `loadContext` and `checkSameResults`. Also shape choices: an id's derived display name is the
+    id in sentence case, and records from a simple reader or source are typed on load
+    (`simple-tier.md` section 2.6).
 34. **Delivery to a log destination attached in code.** Today nothing reaches any destination until
     something calls `GraphtyLogger.configure({ enabled: true })`, and the global level caps every
     destination. **Recommended:** a destination the embedder attaches in code (through
@@ -1892,8 +1938,9 @@ options, dimension, scope }` in the project, with no extension version, which pr
     This changes what an existing `addSink` call receives, so it is a behaviour change to decide,
     not only a new name.
 35. **Element-scoped default palettes.** **Recommended:**
-    `session.styles.setDefaultPalettes({ categorical, continuous })` (and the equivalent element
-    configuration key), resolved when a layer is WRITTEN: a binding or `encode()` with no palette
+    `setDefaultPalettes({ categorical, sequential, diverging })` on the element and on
+    `session.styles` (and the equivalent element configuration key), one slot per palette kind so
+    the vocabulary is the palette's own, resolved when a layer is WRITTEN: a binding or `encode()` with no palette
     records the resolved id, so a saved document always names a concrete palette and its meaning
     never depends on the page that opens it. The fallbacks stay `okabe-ito` and `ylorbr`.
 36. **Camera motions.** **Recommended:** a camera view may declare itself a motion; its input gains
@@ -1901,7 +1948,26 @@ options, dimension, scope }` in the project, with no extension version, which pr
     and an element attribute that starts one; "orbit" is a reserved built-in motion; a motion
     pauses on input the element owns and resumes three seconds after it ends, never starts under
     `prefers-reduced-motion`, and can be recorded by `captureAnimation`. Purity is kept: a motion
-    is a pure function of time, the frame and its options.
+    is a pure function of time, the frame and its options. On resume after input, time restarts at
+    0 and the frame is re-measured, so a motion written from the frame's current azimuth continues
+    from where the reader left the camera; an undeclared option rejects `playCameraMotion` with
+    `E_UNKNOWN_OPTION`, and a drawing mode outside the motion's `modes` with `E_UNSUPPORTED`.
+37. **A code for a failure inside an extension.** 2.6.1 wraps a plugin's own throw as
+    `E_INTERNAL`, whose published meaning is "a bug in graphty-element; file an issue", so a
+    beginner's `TypeError` tells them the library is broken and sends plugin bugs to the wrong
+    tracker. **Recommended:** a new published code, `E_EXTENSION_FAILED`, with `details.extension`
+    (the id) and `details.member` (the function that threw), used by both tiers wherever a
+    plugin's non-`GraphtyError` throw is wrapped today (section 9.3); `E_INTERNAL` stays for
+    defects inside the element. Adding a code is a minor release (`common.d.ts`), but a consumer
+    that switches on `E_INTERNAL` for plugin failures would see a new code, so it is recorded here.
+38. **Attribute options checked before a run.** Today an "attribute" option naming an attribute no
+    node or edge carries reads as absent everywhere, so a misspelling computes zeros or publishes
+    nothing, with no error. **Recommended:** at the start of every run and layout, the element
+    resolves each declared "attribute" option against the attributes the graph carries (nodes, or
+    edges with `on: "edge"`) and refuses a name nothing carries with `E_OPTION_RANGE`, listing the
+    attributes that do exist; and a run whose every value came back unmeasured completes with a
+    warning in its run record. Both tiers. It changes what a 2.6.1 run with a misspelt attribute
+    does (refused instead of silently empty), so it is a behaviour change to decide.
 
 ## 13. Corrections this specification makes to existing documents
 
@@ -1986,3 +2052,16 @@ Points raised in review and not adopted, with the reason.
 | `KNOWN_LAYOUT_IDS` in `layout.d.ts` should list `spiral` and `planar`                                                                                    | The Published section describes the constant as 2.6.1 builds it, which omits them. The omission is recorded as not yet met (section 5 item 4) and the fix belongs in the element; the declaration file notes it                                                                                                                                                                                                                                            |
 | Loosen `LayoutEngine.register`'s bound so the tiers example compiles                                                                                     | The example is changed instead (its options interface no longer extends the index-signature `SimpleLayoutOpts`), and it now compiles against 2.6.1's `./extend`; the published bound needs no change for a plugin to be written without a cast                                                                                                                                                                                                             |
 | Recommend that an export write run provenance only when the caller opts in                                                                               | Reproducibility (`design/designloom/workflows/W25.yaml`) wants provenance by default and operational security (`design/designloom/workflows/W07.yaml`) wants it off; which default wins is the owner's reading of his own export decision. Open decision 24 records the conflict and recommends an explicit export option whose default he sets                                                                                                            |
+| Return a handle (`{ id, remove() }`) from every `define*` function                                                                                       | Removing a registration needs an unregister verb on every advanced registry first (the simple tier may not gain what the advanced tier lacks), and none exists; tests restore registries through the conformance kit's snapshot and restore (section 11.2 item 5), and `defineLogDestination` keeps its detach function                                                                                                                                    |
+| Default a simple algorithm's `direction` to the loaded graph's declared direction                                                                        | The same plugin would then compute different things on different files with no sign of it. The directed accessors instead throw unless the definition declares `direction: "directed"` (`simple-tier.md` section 2.3 item 6)                                                                                                                                                                                                                               |
+| Orient the edges `node.edges()` returns so that `source` is the node they were reached from, as NetworkX's `G.edges(n)` does                             | One edge would then have two different sources depending on the route, and in a directed view `source` must be the direction; `edge.other(node)` gives the far end without changing what `source` means                                                                                                                                                                                                                                                    |
+| Let `number()` parse numeric strings in both tiers                                                                                                       | The advanced tier reads typed columns, so the two tiers would disagree; the element instead types number columns once on load (`simple-tier.md` section 2.6), which also fixes the round trip of negative numbers through a text format                                                                                                                                                                                                                    |
+| Make a simple extension's default run id its own id, so `results.<id>.value` works without `as`                                                          | The run-id derivation is part of every saved selector's meaning (section 4.4 item 5), and a special case for one tier would be a second rule; every example names its run with `as` instead                                                                                                                                                                                                                                                                |
+| Rewrite the option types so a type error prints `(node, context) => Score` instead of the options type                                                   | Typing the options from the declaration with no generic written needs the generic; `simple-tier.md` section 2.4 item 6 says the last line of the error names the mismatch                                                                                                                                                                                                                                                                                  |
+| Add a `string-list` option type for a list of identifiers (a gene list)                                                                                  | An addition to the published option-type union for one source; the comma-separated string the author splits is enough until a second point needs a list                                                                                                                                                                                                                                                                                                    |
+| Scope a registration or a log destination to one element on the page                                                                                     | Registries are page-wide in both tiers by design (section 4); scoping is an advanced-contract change no built-in needs. `simple-tier.md` section 2.1 item 8 states the rule                                                                                                                                                                                                                                                                                |
+| Take weighted modularity, a worker route and canonical group renumbering now, for a 100,000-node community plugin                                        | They are open decisions 9, 16, 17, 18 and 32, the owner's to take; the simple tier's ceiling now says to start at the advanced tier for that task                                                                                                                                                                                                                                                                                                          |
+| Publish `forEachChunkedRange(context, phase, count, step)` so a loop over row numbers needs no array                                                     | A hand-written loop that checks the signal and awaits `yieldNow` once per chunk already conforms to `algorithm.md` section 5.1 item 2, which now says so                                                                                                                                                                                                                                                                                                   |
+| Warn at definition time when a string option's default equals an attribute name                                                                          | Attributes are unknown until data is loaded; the guide puts the attribute rows first in the option table and says a bare string is not an attribute, and the run-start check of open decision 38 catches the misspelling                                                                                                                                                                                                                                   |
+| Derive a format's `keeps` by running `write` on the kit's graph and diffing the output                                                                   | A diff guesses at what a text layout means; the default now claims only edge attributes, and the kit's read-write-read round trip checks any larger claim                                                                                                                                                                                                                                                                                                  |
+| Rename `E_BAD_COMMAND` for a malformed definition                                                                                                        | It is a published code; `simple-tier.md` section 2.4 documents it as "a malformed call or definition" and every message starts with the plain rule                                                                                                                                                                                                                                                                                                         |

@@ -10,12 +10,16 @@
  * the point's published registration verb. There is no second registry and no private path: a
  * simple-tier extension IS an advanced-tier extension once registered (simple-tier.md section 3).
  *
+ * SELF-CONTAINED: this file imports only common, camera and palette, none of which reaches
+ * @graphty/graph-format, so a plugin that uses only the simple tier type-checks with the element
+ * installed and nothing else, under any lib from ES2020 up. The whole ./extend entry point, both
+ * tiers, is extend.d.ts.
+ *
  * Type-check with: pnpm exec tsc -p design/extensions
  */
 import type { OptionDescriptor, OptionType, RegisterOptions } from "./common";
 import type { CameraState, DrawingMode, Vec3 } from "./camera";
 import type { ColorVisionDeficiency, PaletteDescriptor } from "./palette";
-import type { FieldDescriptor } from "./algorithm";
 
 // =============================================================================================
 // Shared by every point
@@ -93,8 +97,9 @@ export interface DefinitionBase<O extends OptionsShorthand> {
 
 /**
  * The whole graph, as nodes and edges with real ids. Built by the element from the snapshot; an
- * author never sees a row, a mask or a typed array. Iteration order is stable: nodes by id, edges
- * by id, so a result does not depend on the order records were loaded in.
+ * author never sees a row, a mask or a typed array. Iteration order is stable: numeric ids
+ * ascending, then string ids in code-unit order (edges likewise by edge id), so a result does not
+ * depend on the order records were loaded in.
  */
 export interface GraphView {
     /** True when the definition asked for `direction: "directed"` and the graph has directed edges. */
@@ -114,10 +119,15 @@ export interface NodeView {
     readonly degree: number;
     /** Every adjacent node once, whichever way the edge points. */
     neighbors(): readonly NodeView[];
-    /** In an undirected view, the same as neighbors(). */
+    /**
+     * The directed forms. They throw unless the definition declares `direction: "directed"`
+     * ("acme-pr: outEdges() needs direction: \"directed\" in the definition"), so a plugin never
+     * reads direction the view was not built with. With `direction: "directed"`, an undirected edge
+     * counts both ways: it is in both outEdges() and inEdges() of each end.
+     */
     outNeighbors(): readonly NodeView[];
     inNeighbors(): readonly NodeView[];
-    /** Every edge touching this node, parallel edges included. */
+    /** Every edge touching this node, parallel edges included. Use edge.other(node) for the far end. */
     edges(): readonly EdgeView[];
     outEdges(): readonly EdgeView[];
     inEdges(): readonly EdgeView[];
@@ -127,15 +137,26 @@ export interface NodeView {
      * "attribute" option's value here to let the reader choose the attribute.
      */
     attr(path: string): unknown;
-    /** attr(path) when it is a finite number (or a numeric string); undefined otherwise. */
+    /**
+     * attr(path) when it is a finite number; undefined otherwise. A numeric string is NOT parsed
+     * here: columns are typed when the data is loaded (simple-tier.md section 2.6), so both tiers
+     * read the same values.
+     */
     number(path: string): number | undefined;
 }
 
 export interface EdgeView {
     /** The element's edge id: the same id a selection, a style and an export use. */
     readonly id: string;
+    /**
+     * The endpoints as the data stored them. In a directed view `source` is where the edge starts.
+     * In an undirected view the two are just the two ends: `source` is NOT the node the edge was
+     * reached from. Use other(node).
+     */
     readonly source: NodeView;
     readonly target: NodeView;
+    /** The end that is not `node` (a self-loop returns `node`). Throws when `node` is not an end. */
+    other(node: NodeView): NodeView;
     attr(path: string): unknown;
     number(path: string): number | undefined;
 }
@@ -149,16 +170,35 @@ export interface AlgorithmContext<V> {
     readonly graph: GraphView;
     /** Aborted when the run is cancelled. Only a whole-graph function needs it. */
     readonly signal: AbortSignal;
-    /** Only a whole-graph function needs it: the share of the work done, 0 to 1. */
-    progress(fraction: number): void;
+    /**
+     * Only a whole-graph function needs it: the share of the work done, 0 to 1. AWAIT it inside a
+     * loop: the promise lets the page draw a frame when the frame's time is spent, and rejects with
+     * the abort reason when the run was cancelled, so `await progress(i / n)` once per pass is the
+     * whole of keeping the page responsive.
+     */
+    progress(fraction: number): Promise<void>;
+    /** A sentence for the run record's caveats ("Dangling mass returns to the seeds."). */
+    note(text: string): void;
+    /** Record how an iterative method ended; a run that did not converge says so in its caveats. */
+    converged(converged: boolean, iterations: number): void;
 }
 
 /** A score. undefined, null, NaN or an infinity means "not measured": the element publishes nothing for it. */
 export type Score = number | null | undefined;
 
 interface AlgorithmDefinitionBase<O extends OptionsShorthand> extends DefinitionBase<O> {
-    /** "undirected" (the default) ignores edge direction; "directed" keeps it. */
+    /**
+     * "undirected" (the default) ignores edge direction, and the directed accessors of the view
+     * throw; "directed" keeps it.
+     */
     readonly direction?: "undirected" | "directed";
+    /** The edge "attribute" option that holds weights, and what they mean. Recorded in the caveats. */
+    readonly weights?: { readonly option: keyof O & string; readonly meaning: "distance" | "strength" };
+    /**
+     * For a whole-graph function that walks the graph repeatedly: the integer option that caps the
+     * number of passes (maxIterations). The cost estimate is multiplied by it.
+     */
+    readonly passes?: keyof O & string;
 }
 
 /** A score per node, computed one node at a time. Published as a node-metric result, field "value". */
@@ -229,7 +269,8 @@ export interface LayoutContext<V> {
     /** Seeded random numbers in [0, 1). Deterministic unless the definition sets `random: true`. */
     random(): number;
     readonly signal: AbortSignal;
-    progress(fraction: number): void;
+    /** As AlgorithmContext.progress: await it inside a loop to keep the page responsive. */
+    progress(fraction: number): Promise<void>;
 }
 
 export interface LayoutDefinition<O extends OptionsShorthand> extends DefinitionBase<O> {
@@ -238,9 +279,11 @@ export interface LayoutDefinition<O extends OptionsShorthand> extends Definition
     /** True when the result should change from run to run; the element then draws and records a seed. */
     readonly random?: boolean;
     /**
-     * Where each node goes. A node missing from the map, or mapped to null or to a non-finite
-     * number, is UNPLACED: drawn the one way the element draws unplaced nodes and listed in the
-     * settled report. A value for a pinned or held node is ignored.
+     * Where each node goes, in scene units (a node at the default size is 1 unit across). A plain
+     * `new Map()` filled with `positions.set(node.id, [x, y])` is enough; no type is written. A
+     * node missing from the map, or mapped to null or to a non-finite number, is UNPLACED: drawn
+     * the one way the element draws unplaced nodes and listed in the settled report. A value for a
+     * pinned or held node is ignored.
      */
     readonly place: (
         graph: GraphView,
@@ -258,7 +301,14 @@ export declare function defineLayout<const O extends OptionsShorthand = {}>(
 // File format -- simple-tier.md section 4.3
 // =============================================================================================
 
-/** A node record ({ id, ...attributes }) or an edge record ({ source, target, ...attributes }). */
+/**
+ * A node record ({ id, ...attributes }) or an edge record ({ source, target, ...attributes }).
+ * `weight` is the edge strength algorithms and styles read by default; `position` ({ x, y, z })
+ * places a node; `id` on an edge is its edge id. Reserved, never ordinary attributes: `src`/`dst`,
+ * `from`/`to` (read as endpoints) and every key beginning with `graphty`. An edge may name a node
+ * no record declared; the element creates it. String values that are all numbers in a column are
+ * typed as numbers on load (simple-tier.md section 2.6).
+ */
 export type PlainRecord = Readonly<Record<string, unknown>>;
 
 /** What a reader or a data source hands back: plain records, in one batch or many. */
@@ -283,8 +333,9 @@ export interface WritableGraph {
     readonly nodes: readonly PlainRecord[];
     /** { id, source, target, ...attributes }; mixed-direction pairs already folded. */
     readonly edges: readonly PlainRecord[];
-    /** Every attribute name that appears on at least one node, in a stable order. */
+    /** Every attribute name that appears on at least one node, in a stable order; never `id`. */
     readonly nodeColumns: readonly string[];
+    /** The same for edges; never `id`, `source` or `target`. */
     readonly edgeColumns: readonly string[];
 }
 
@@ -311,8 +362,10 @@ export interface FormatDefinition<O extends OptionsShorthand> extends Definition
         context: WriteContext<OptionValuesOf<O>>,
     ) => string | Promise<string> | AsyncIterable<string>;
     /**
-     * What `write` carries, so the element can report what an export loses. Default: every node
-     * and edge attribute and isolated nodes; no positions (positions are then not handed over).
+     * What `write` carries, so the element can report what an export loses. Default: edge
+     * attributes only -- what an edge list provably carries. A writer that also writes node
+     * records says so (`nodeAttributes`, `isolatedNodes`); positions are handed over only when
+     * `positions` is true. The conformance kit checks the claim by a read-write-read round trip.
      */
     readonly keeps?: {
         readonly nodeAttributes?: boolean;
@@ -337,9 +390,14 @@ export interface LoadContext<V> {
     /** The source's options, with the credential removed. */
     readonly options: V;
     /**
-     * The element's fetch: checks the URL against `hosts`, confirms the host with the reader on
-     * first use, attaches the credential, retries with backoff, applies the timeout and the rate
-     * limit, honours the signal, and turns a failed response into E_FETCH_FAILED.
+     * The element's fetch. A URL on `hosts` is fetched without a prompt: the embedder chose the
+     * source when it installed it. A URL off `hosts` (from an option the reader edited) is fetched
+     * only after the reader confirms it, or when the embedder allowed its origin
+     * (DataSourceControls.allowSourceHosts); with no reader to ask it is refused. The fetch also
+     * attaches the credential, retries with backoff, applies the timeout and the rate limit,
+     * honours the signal, and turns a failed response into E_FETCH_FAILED. It refuses the same URL
+     * twice in one load and more than `maxRequests` requests (E_FETCH_FAILED, details.reason
+     * "repeated" or "limit"), so a pager whose API repeats its `next` link stops.
      */
     fetch(
         url: string,
@@ -350,6 +408,7 @@ export interface LoadContext<V> {
         },
     ): Promise<Response>;
     readonly signal: AbortSignal;
+    /** Any unit (pages, records); the element shows done / total, or a count when total is absent. */
     progress(done: number, total?: number): void;
     warn(message: string): void;
 }
@@ -362,6 +421,8 @@ export interface DataSourceDefinition<O extends OptionsShorthand> extends Defini
      * element's fetch sends it as `<header>: <scheme> <secret>` (default "Authorization: Bearer").
      */
     readonly credential?: { readonly name?: string; readonly header?: string; readonly scheme?: string };
+    /** The most requests one load may make. Default 1000. */
+    readonly maxRequests?: number;
     /** One batch, a promise of one, or an async iterable of batches (a pager). */
     readonly load: (context: LoadContext<OptionValuesOf<O>>) => Records | Promise<Records> | AsyncIterable<Records>;
 }
@@ -372,22 +433,52 @@ export declare function defineDataSource<const O extends OptionsShorthand = {}>(
     options?: RegisterOptions,
 ): void;
 
+/**
+ * Added to the element (a consumer API, not an extension verb). addDataFromSource(id, options)
+ * already exists on it.
+ */
+export interface DataSourceControls {
+    /** Supply a source's credential in code, for an embedder that already holds a token. Never saved. */
+    setSourceCredential(sourceId: string, secret: string): void;
+    /** Origins a source may fetch from without asking the reader, beyond the hosts it declared. */
+    allowSourceHosts(sourceId: string, origins: readonly string[]): void;
+}
+
 // =============================================================================================
 // Palette -- simple-tier.md section 4.5
 // =============================================================================================
 
+export interface PaletteDefinition {
+    readonly id: string;
+    readonly kind: PaletteDescriptor["kind"];
+    /**
+     * Any colour CSS can parse EXCEPT var(): a custom property is not resolved (read it first with
+     * getComputedStyle(document.documentElement).getPropertyValue("--brand-navy")). Normalised to
+     * six-digit hex. A categorical palette has one colour per group; the element never wraps, so
+     * groups past the last colour are left in the base colour and reported (E_CAP_EXCEEDED).
+     */
+    readonly colors: readonly string[];
+    readonly name?: string;
+    readonly description?: string;
+    /** A claim the element takes on trust. Default: no claim. */
+    readonly colorblindSafe?: readonly ColorVisionDeficiency[];
+}
+
 /** Register a palette from a kind and a list of colours. Calls registerPalette. */
-export declare function definePalette(
-    id: string,
-    kind: PaletteDescriptor["kind"],
-    colors: readonly string[],
-    extra?: {
-        readonly name?: string;
-        readonly description?: string;
-        readonly colorblindSafe?: readonly ColorVisionDeficiency[];
-    },
-    options?: RegisterOptions,
-): void;
+export declare function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
+
+/**
+ * Added to the element and to session.styles (a consumer API). The palette a colour binding uses
+ * when it names none, one per kind. Resolved when a layer is written, so a saved document always
+ * names a concrete palette.
+ */
+export interface DefaultPaletteControls {
+    setDefaultPalettes(palettes: {
+        readonly categorical?: string;
+        readonly sequential?: string;
+        readonly diverging?: string;
+    }): void;
+}
 
 // =============================================================================================
 // Camera -- simple-tier.md section 4.6
@@ -395,6 +486,17 @@ export declare function definePalette(
 
 /** What a simple view or motion is computed from. */
 export interface ViewFrame {
+    /** The scene's up direction. A view that uses orbit() never needs it. */
+    readonly up: Vec3;
+    /** The current camera's angle round `up`, and above the horizontal, both in radians. */
+    readonly azimuth: number;
+    readonly elevation: number;
+    /**
+     * The camera on a sphere of `fitDistance` round `center`, at `azimuth` radians round the up
+     * axis and `elevation` radians above the horizontal (default: the current elevation), looking
+     * at the centre. So `orbit(frame.azimuth + angle)` turns from wherever the camera is now.
+     */
+    orbit(azimuth: number, elevation?: number): CameraState;
     /** The centre of the box being framed. */
     readonly center: Vec3;
     readonly size: Vec3;
@@ -411,13 +513,18 @@ export interface CameraViewDefinition<O extends OptionsShorthand> extends Defini
     /** Default ["3d"]. */
     readonly modes?: readonly DrawingMode[];
     /** Where the camera stands. Pure: no clock, no DOM, no random numbers. */
-    readonly view: (frame: ViewFrame, options: OptionValuesOf<O>) => CameraState;
+    readonly view: (frame: ViewFrame, context: { readonly options: OptionValuesOf<O> }) => CameraState;
 }
 
 export interface CameraMotionDefinition<O extends OptionsShorthand> extends DefinitionBase<O> {
     readonly modes?: readonly DrawingMode[];
-    /** Where the camera stands `t` milliseconds into the motion. Pure in `t`, `frame` and `options`. */
-    readonly motion: (t: number, frame: ViewFrame, options: OptionValuesOf<O>) => CameraState;
+    /**
+     * Where the camera stands `t` milliseconds into the motion. Pure in `t`, `frame` and `options`.
+     * When the motion resumes after the reader moved the camera, `t` starts again at 0 and `frame`
+     * is measured afresh, so a motion written from frame.azimuth continues from where the reader
+     * left the camera instead of jumping back.
+     */
+    readonly motion: (t: number, frame: ViewFrame, context: { readonly options: OptionValuesOf<O> }) => CameraState;
 }
 
 export declare function defineCameraView<const O extends OptionsShorthand = {}>(
@@ -431,10 +538,16 @@ export declare function defineCameraMotion<const O extends OptionsShorthand = {}
 ): void;
 
 /**
- * Added to the element (a consumer API, not an extension verb). "orbit" is a built-in motion.
- * A motion pauses on any input the element owns and resumes 3 seconds after it ends.
+ * Added to the element (a consumer API, not an extension verb), so
+ * document.querySelector("graphty-element") is already typed with it. "orbit" is a built-in
+ * motion. A motion pauses on any input the element owns and resumes 3 seconds after it ends.
  */
 export interface CameraMotionControls {
+    /**
+     * Starts the motion; settles when it stops. Rejects at once with E_UNKNOWN_OPTION for an option
+     * the motion does not declare, E_UNKNOWN_CAMERA for an unknown id, and E_UNSUPPORTED when the
+     * drawing mode is not in the motion's `modes`.
+     */
     playCameraMotion(id: string, options?: Readonly<Record<string, unknown>>): Promise<void>;
     stopCameraMotion(): void;
 }
@@ -454,7 +567,8 @@ export interface PlainLogRecord {
     readonly message: string;
     /** Removed by the element's redaction unless the embedder turned it off (logging.md 7). */
     readonly data?: Readonly<Record<string, unknown>>;
-    readonly error?: Error;
+    /** The failure as plain data, so JSON.stringify(record) keeps it (an Error would become {}). */
+    readonly error?: { readonly name: string; readonly message: string; readonly stack?: string };
 }
 
 export interface LogDestinationDefinition {
@@ -465,7 +579,11 @@ export interface LogDestinationDefinition {
     readonly level?: LogLevelName;
     /** Only records whose category contains one of these segments. */
     readonly categories?: readonly string[];
-    /** May return a promise (a fetch); the element queues, orders, retries and flushes. */
+    /**
+     * May return a promise (a fetch); the element queues, orders, retries and flushes. A rejection,
+     * or a promise that resolves to a fetch Response whose `ok` is false, counts as a failed send.
+     * Context the page owns (a session id) comes from the author's own closure.
+     */
     readonly write: (record: PlainLogRecord) => void | Promise<unknown>;
     /** Attach now (the default) or only register, for a configuration to turn on by id. */
     readonly attach?: boolean;
@@ -478,20 +596,11 @@ export declare function defineLogDestination(
 ): () => void;
 
 // =============================================================================================
-// Additions the advanced tier needs so the simple tier can be built on it (additive)
+// Additions the advanced tier needs so the simple tier can be built on it (additive). The field
+// builders edgeMetricFields, communityFields and communityFieldSpecs are declared in algorithm.d.ts.
 // =============================================================================================
 
 /** Added to OptionDescriptor: which element an "attribute" or "partition" option reads. Default "node". */
 export interface OptionDescriptorDomain {
     readonly on?: "node" | "edge";
 }
-
-/**
- * Added to ./extend beside nodeMetricFields: the fields of an edge-metric result, so neither tier
- * writes the shape contract's field list by hand.
- */
-export declare function edgeMetricFields(value: {
-    readonly plainName: string;
-    readonly technicalName: string;
-    readonly type?: "number" | "integer";
-}): readonly FieldDescriptor[];

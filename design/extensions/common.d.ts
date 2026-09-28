@@ -183,6 +183,12 @@ export type ExtensionErrorCode =
     | "E_NO_ACCELERATOR"
     | "E_EDGE_ENDPOINTS_UNRESOLVED"
     | "E_PROTECTED"
+    /**
+     * PROPOSED (README section 12, item 37): an extension's own code threw. details.extension is
+     * the extension's id and details.member the function that threw ("node", "place", "read").
+     * E_INTERNAL is kept for a defect inside the element itself.
+     */
+    | "E_EXTENSION_FAILED"
     | "E_INTERNAL";
 
 /** The area of the element a failure belongs to. CLOSED. */

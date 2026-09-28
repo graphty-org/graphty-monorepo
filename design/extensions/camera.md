@@ -37,26 +37,21 @@ import { defineCameraMotion, defineCameraView } from "@graphty/graphty-element/e
 defineCameraMotion({
     id: "acme-slow-orbit",
     options: { secondsPerTurn: 60 },
-    motion: (t, { center: c, fitDistance: d }, { secondsPerTurn }) => {
-        const angle = (t / 1000 / secondsPerTurn) * 2 * Math.PI;
-        return { position: { x: c.x + d * Math.sin(angle), y: c.y, z: c.z + d * Math.cos(angle) }, target: { ...c } };
-    },
+    motion: (t, frame, { options }) => frame.orbit(frame.azimuth + (t / 1000 / options.secondsPerTurn) * 2 * Math.PI),
 });
 
-defineCameraView({
-    id: "acme-corner",
-    view: ({ center: c, fitDistance: d }) => ({
-        position: { x: c.x + d / Math.sqrt(3), y: c.y + d / Math.sqrt(3), z: c.z + d / Math.sqrt(3) },
-        target: { ...c },
-    }),
-});
+// Looking down on the graph from 45 degrees round and 35 degrees up.
+defineCameraView({ id: "acme-corner", view: (frame) => frame.orbit(Math.PI / 4, (35 * Math.PI) / 180) });
 ```
 
 `defineCameraView` calls `registerCameraView` with the descriptor defaulted (`modes` default
-`["3d"]`) and a `compute` that builds the frame from `CameraViewInput`. A motion is a view with
+`["3d"]`) and a `compute` that builds the frame from `CameraViewInput`; `frame.orbit(azimuth,
+elevation?)` turns round the scene's up axis at the distance where the graph fills the view, so
+the author never depends on the axis convention of open decision 27. A motion is a view with
 elapsed time as one more input; it keeps the purity rule of section 3 (it reads time as an
-argument, never from a clock), and the element owns the frame loop, pausing on input, resuming,
-reduced-motion and recording. Move to the advanced tier when a view needs the viewport in pixels
+argument, never from a clock), and the element owns the frame loop, pausing on input, resuming
+from the camera's new position (`t` restarts at 0 and the frame is re-measured), reduced-motion
+and recording. Nothing here runs in 2.6.1 (`simple-tier.md`, status). Move to the advanced tier when a view needs the viewport in pixels
 or the current camera state.
 
 **Sections 2 onwards specify the advanced tier.**
@@ -104,7 +99,7 @@ or the current camera state.
    (`CameraStateUp` in `camera.d.ts`), and the units, are open decision 27 -- ONE route, never two
    with no stated precedence.
 6. Every number returned MUST be finite. A non-finite value MUST be refused by the element with
-   `E_INTERNAL`, `source: "view"`, and the camera MUST NOT move. **(not yet met)** 2.6.1 ends
+   `E_EXTENSION_FAILED` (`E_INTERNAL` in 2.6.1; README section 12, item 37), `source: "view"`, and the camera MUST NOT move. **(not yet met)** 2.6.1 ends
    `resolveCameraView` (`graphty-element/src/camera/resolve.ts`) with `return compute(input)`: it
    checks no returned number, so a `NaN` reaches `setCameraState`.
 7. `compute` SHOULD return in under a millisecond; it may be called once per animation request.
@@ -181,7 +176,7 @@ it SHOULD treat a zero extent as a small positive one.
 | `E_PROTECTED`                        | `saveCameraPreset` names a registered view                                            | the name                                                                              |
 
 A throw from `compute` MUST reject the call that asked for the view with a `GraphtyError`
-(`E_INTERNAL`, `source: "view"`, the original as `cause`, when it is not already one) and MUST NOT
+(`E_EXTENSION_FAILED` (`E_INTERNAL` in 2.6.1; README section 12, item 37), `source: "view"`, the original as `cause`, when it is not already one) and MUST NOT
 move the camera. **(not yet met)** 2.6.1 does not wrap it: the caller receives the plain error,
 which a consumer switching on `error.code` cannot handle.
 

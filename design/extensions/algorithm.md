@@ -33,43 +33,51 @@ options in short form, and ONE function that decides the result. `node(node, con
 score per node, `edge(edge, context)` a score per edge, `nodes(graph, context)` a map of scores
 computed over the whole graph, and `groups(graph, context)` a map of group labels (a clustering).
 The author works with the graph view of `simple-tier.md` section 2.3 -- nodes and edges with real
-ids, `neighbors()`, `edges()`, `attr(path)` and `number(path)` -- and never with snapshot rows.
+ids, `neighbors()`, `edges()`, `edge.other(node)`, `attr(path)` and `number(path)` -- and never
+with snapshot rows. Nothing here runs in 2.6.1 (`simple-tier.md`, status).
 
 ```ts
-import { defineAlgorithm, type NodeView } from "@graphty/graphty-element/extend";
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
 
-// The sum of the confidence of every edge touching a node.
-const weightedDegree = (node: NodeView, attribute: string) =>
-    node.edges().reduce((sum, edge) => sum + (edge.number(attribute) ?? 0), 0);
-
+// The sum of the confidence of every edge touching a node. An edge with no confidence adds 0;
+// return undefined instead to leave such a node unmeasured.
 defineAlgorithm({
     id: "acme-confidence-degree",
     options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
-    node: (node, { options }) => weightedDegree(node, options.confidence),
+    node: (node, { options }) => node.edges().reduce((sum, edge) => sum + (edge.number(options.confidence) ?? 0), 0),
 });
 
+// An edge's confidence relative to the confidence-weighted degrees of its two ends.
 defineAlgorithm({
     id: "acme-confidence-share",
-    options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
-    edge: (edge, { options }) =>
-        (edge.number(options.confidence) ?? 0) /
-        Math.sqrt(weightedDegree(edge.source, options.confidence) * weightedDegree(edge.target, options.confidence)),
+    options: {
+        confidence: { type: "attribute", on: "edge", default: "confidence" },
+        strength: { type: "attribute", default: "results.strength.value" },
+    },
+    edge: (edge, { options }) => {
+        const c = edge.number(options.confidence);
+        const a = edge.source.number(options.strength);
+        const b = edge.target.number(options.strength);
+        return c === undefined || !a || !b ? undefined : c / Math.sqrt(a * b);
+    },
 });
 ```
 
 The element generates the `DeclaredAlgorithm` subclass this document specifies from the
 definition: the descriptor (key, names, category "custom", shape and fields from the function),
 the input (`context.input`, undirected unless `direction: "directed"`, every parallel edge kept),
-attribute reads through `input.column`, the chunked loop with progress and cancellation, id
-mapping through `ids.idOf` and `input.edgeId`, the output, caveats (`method` = the name) and a
-cost estimate. A score that is `undefined`, `null`, `NaN` or infinite publishes nothing, which is
+"attribute" options resolved up front through `input.column` (a name no element carries is
+refused with `E_OPTION_RANGE` before any code runs), the chunked loop with progress and
+cancellation, id mapping through `ids.idOf` and `input.edgeId`, the output, caveats and a cost
+estimate. The run is started with `element.run("acme-confidence-degree", {}, { as: "strength" })`
+and paints the graph on its first completion; its values are at `results.strength.value`. A score that is `undefined`, `null`, `NaN` or infinite publishes nothing, which is
 the measured-only rule of section 2.2. The generated class is registered with
 `DeclaredAlgorithm.register`, so every clause of section 5 applies to it unchanged.
 
 Move to the advanced tier (the rest of this document) for any other result shape, several fields
-in one result, work per element that grows faster than its degree, weights with a stated meaning,
-a seed or sampling, or typed-array speed. Graduation keeps the id and the field names
-(`simple-tier.md` section 5).
+in one result, work per element that grows faster than its degree, a seed or sampling, or
+typed-array speed -- and START there for an iterative method over about 100,000 nodes or more.
+Graduation keeps the id, the field names and the input policy (`simple-tier.md` section 5).
 
 **Sections 2 onwards specify the advanced tier.**
 
@@ -451,7 +459,9 @@ is not assignable to one from another. Therefore:
    `context.signal` at least once per chunk of work and MUST let the abort propagate (never catch
    and swallow it). A cancelled run MUST NOT publish anything. `compute` SHOULD report progress at
    least once per second of work and MUST await `context.yieldNow()` (or use `forEachChunked`)
-   between chunks of work done ON THE MAIN THREAD, so the page stays responsive. Work a plugin moves
+   between chunks of work done ON THE MAIN THREAD, so the page stays responsive. A hand-written
+   loop over row numbers that checks the signal and awaits `yieldNow` once per chunk conforms
+   exactly as `forEachChunked` does; no array of rows is needed to drive it. Work a plugin moves
    into a worker (item 6) is not subject to the yield rule; until the `context.worker` helper of open
    decision 9 exists, such a plugin relays progress and cancellation itself, and the kit reports
    "yields" as skipped when the plugin declares that it works in a worker.
@@ -554,7 +564,7 @@ is not assignable to one from another. Therefore:
 | `E_SUPERSEDED`                       | the run was replaced by a newer run of the same name                                                                       |
 
 1. `compute` SHOULD throw a `GraphtyError` with `source: "run"` and one of the codes above.
-2. A non-`GraphtyError` throw is wrapped by the element (`E_INTERNAL`, `source: "run"`, original as
+2. A non-`GraphtyError` throw is wrapped by the element (`E_EXTENSION_FAILED` (`E_INTERNAL` in 2.6.1; README section 12, item 37), `source: "run"`, original as
    `cause`) before it reaches the caller.
 3. The abort reason from `context.signal` MUST propagate unchanged.
 4. A failed run publishes nothing and leaves previous results of other runs untouched.
@@ -736,7 +746,13 @@ const run = session.runs.start("acmehub-neighbourhood-density", { epsilon: 1.7 }
 ```
 
 `rowPtr`, `colIdx`, `nodeCount` and `ids` are graph-format 1.x's published snapshot members
-(`graph-format/src/types/snapshot.ts`, `AdjacencyView`).
+(`graph-format/src/types/snapshot.ts`, `AdjacencyView`). The members a plugin reads: `nodeCount`;
+`rowPtr` (length `nodeCount + 1`) and `colIdx`, where the neighbours of row `r` are
+`colIdx[rowPtr[r] .. rowPtr[r + 1])`; `arcCount` (`colIdx.length`); `weights`, one per arc when
+present; and `ids.idOf(row)`. An undirected input stores every edge as two arcs, one in each row;
+a self-loop is one arc in its own row. A plugin imports `GraphSnapshot` from `./extend`, never from
+its own copy of graph-format, and resolves graph-format from its installed package, not this
+repository's source.
 
 ## 13. Known gaps
 

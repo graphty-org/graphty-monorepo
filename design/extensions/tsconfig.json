@@ -21,6 +21,8 @@
         "layout.d.ts",
         "algorithm.d.ts",
         "logging.d.ts",
-        "simple.d.ts"
+        "simple.d.ts",
+        "extend.d.ts",
+        "conformance.d.ts"
     ]
 }

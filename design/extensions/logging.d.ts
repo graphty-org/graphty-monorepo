@@ -40,8 +40,11 @@ export interface Sink {
      * (logging.md section 3 item 4; not yet met in 2.6.1, which keys by this name).
      */
     name: string;
-    /** Synchronous, fire-and-forget. A throw is caught and reported; a returned promise is ignored. */
-    write(record: LogRecord): void;
+    /**
+     * Must not block. A throw is caught and reported. PROPOSED (logging.md section 4 item 1): a
+     * returned promise is queued, ordered, retried and flushed by the element; 2.6.1 ignores it.
+     */
+    write(record: LogRecord): void | Promise<unknown>;
     /** Send anything buffered. */
     flush?(): Promise<void>;
     /** Narrows (never widens) the global level for this destination. */

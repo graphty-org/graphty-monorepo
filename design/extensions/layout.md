@@ -23,7 +23,8 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 
 A first layout is written with `defineLayout` (`simple-tier.md` section 4.2): an id, the options
 in short form, and `place(graph, context)`, which returns a map from node id to `[x, y]` or
-`[x, y, z]` in scene units. A node the map leaves out is unplaced.
+`[x, y, z]` in scene units. A node the map leaves out is unplaced. Nothing here runs in 2.6.1
+(`simple-tier.md`, status).
 
 ```ts
 import { defineLayout } from "@graphty/graphty-element/extend";
@@ -31,17 +32,18 @@ import { defineLayout } from "@graphty/graphty-element/extend";
 defineLayout({
     id: "acme-tiers",
     dimensions: 2,
-    options: { tier: { type: "attribute", attributeType: "integer", default: "tier" }, spacing: 1 },
+    options: { tier: { type: "attribute", default: "tier" }, spacing: 2 },
     place(graph, { options }) {
-        const used = new Map<number, number>();
-        return new Map(
-            graph.nodes().map((node) => {
-                const tier = node.number(options.tier) ?? -1; // no tier: a row of its own below tier 0
-                const column = used.get(tier) ?? 0;
-                used.set(tier, column + 1);
-                return [node.id, [column * options.spacing, tier * options.spacing]] as const;
-            }),
-        );
+        const positions = new Map();
+        const used = new Map();
+        for (const node of graph.nodes()) {
+            const tier = node.number(options.tier);
+            if (tier === undefined) continue; // no tier: left unplaced, and listed as such
+            const column = used.get(tier) ?? 0;
+            used.set(tier, column + 1);
+            positions.set(node.id, [column * options.spacing, tier * options.spacing]);
+        }
+        return positions;
     },
 });
 ```
@@ -54,8 +56,9 @@ node), pinned and held nodes copied over whatever `place` returned, the view dim
 error coding. Placing nodes at coordinates their data carries needs no plugin once the built-in
 `fixed` layout takes attribute options (`simple-tier.md` section 4.2).
 
-Move to the advanced tier for a live layout, direct typed-array output on very large graphs,
-worker or GPU work, weights read in bulk, or chunking inside `place`.
+It is applied with `element.setLayout("acme-tiers", { spacing: 3 })`. Move to the advanced tier
+for a live layout, direct typed-array output on very large graphs, worker or GPU work, or weights
+read in bulk.
 
 **Sections 2 onwards specify the advanced tier.**
 
@@ -296,7 +299,7 @@ Obligations:
 | `E_UNSUPPORTED`                      | a scope passed to an engine without `static scoped`                                                                                               |
 
 A `GraphtyError` thrown from the constructor or `init` MUST reach the consumer with its code
-unchanged; anything else MUST be wrapped as `E_INTERNAL`, `source: "layout"`, with the original as
+unchanged; anything else MUST be wrapped as `E_EXTENSION_FAILED` (`E_INTERNAL` in 2.6.1; README section 12, item 37), `source: "layout"`, with the original as
 `cause`. A throw from `step`, `getNodePosition` or `publishPositions` MUST stop the element
 stepping that engine and MUST be reported the same way, once; nodes keep their last published
 positions. **(not yet met)** `LayoutManager.step()` calls `step()` and `publishPositions()`

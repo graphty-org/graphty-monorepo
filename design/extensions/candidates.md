@@ -130,8 +130,9 @@ failures to `E_FETCH_FAILED`. The credential is never visible to `load`, logged 
 source is its own catalogue kind, so it invents no file extension.
 
 **Shape if promoted (the advanced tier).** Members of the same definition that declare `options` (the
-query form), `hosts` (the origins it contacts, checked against the embedder's allowlist and shown to the
-reader before any fetch), and `refresh` (`"none" | "manual" | "interval" | "stream"`, the last for
+query form), `hosts` (the origins it contacts, fetched without a prompt because the embedder chose to
+install the source; a URL off the list, from an option the reader edited, is fetched only after the
+reader confirms it or the embedder allowed its origin, and is refused with nobody to ask), and `refresh` (`"none" | "manual" | "interval" | "stream"`, the last for
 pushed feeds over WebSocket or server-sent events); a credential slot whose values the element
 keeps and never logs or serialises; the service release it queried and the query parameters,
 recorded as provenance; a found and not-found identifier report; and a `publish` direction for

@@ -7,7 +7,7 @@ against is normative in `README.md` section 8.1; the remedy is `simple-tier.md`.
 ## What was measured
 
 For each extension point, the most common real first plugin (the task table in `README.md`
-section 8.1 item 4) was written three ways:
+section 8.1 item 5) was written three ways:
 
 1. **Today**: against the contract as specified, using only what graphty-element 2.6.1 publishes
    or the owner has decided.
@@ -17,20 +17,24 @@ section 8.1 item 4) was written three ways:
 
 "Lines" are author lines: non-blank, non-comment, excluding `import` lines. "Internal concepts"
 are things the author must learn that belong to graphty-element's implementation rather than to
-the task (`README.md` section 8.1 item 3 lists them); "domain concepts" are the task's own
+the task (`README.md` section 8.1 item 4 lists them); "domain concepts" are the task's own
 (a formula, a file layout, a colour, an endpoint).
 
 ## Summary
 
-| Point       | Task                                          | Today: lines                                                           | Today: internal / domain concepts | Simple tier: lines                                                         | Simple tier: internal concepts | Prior art: lines           |
-| ----------- | --------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------- | ------------------------------ | -------------------------- |
-| Algorithm   | confidence-weighted degree and its edge share | 111                                                                    | 29 / 7                            | 14 (7 for the node score alone)                                            | 0                              | 3 to 15 (Gephi about 120)  |
-| Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 16 and about 5; 0 once the built-in `fixed` layout takes attribute options | 0                              | 1 to 10 (Gephi 150 to 200) |
-| File format | tab-separated edge list, read and write       | 114                                                                    | 26 / 5                            | 18 (11 to read, 6 to write)                                                | 0                              | 4 to 16 (Gephi about 180)  |
-| Data source | paged REST API with a bearer token            | 75, and still no cancellation, retries, host check or credential store | 16 / 4                            | 14                                                                         | 0                              | 8 to 40                    |
-| Palette     | brand categorical and sequential colours      | 17 (13 without types)                                                  | 9 / 5                             | 2                                                                          | 0                              | 1 to 4                     |
-| Camera      | slow orbit; a corner view                     | 34, outside the extension point (the orbit cannot be an extension)     | 11 / 4                            | 1 for the built-in orbit; 8 for a custom motion; 7 for the view            | 0                              | 1 to 9                     |
-| Logging     | errors to a telemetry endpoint                | 58 (20 for a shorter form that breaks the spec)                        | 17 / 4                            | 9                                                                          | 0                              | 2 to 10                    |
+"Simple tier, end to end" is the current `simple-tier.md` example plus its "use it" lines, with
+the input checks the task needs (`README.md` section 8.1 item 1); the first simple-tier draft's
+count, which left both out, is in brackets.
+
+| Point       | Task                                          | Today: lines                                                           | Today: internal / domain concepts | Simple tier, end to end: lines                                                             | Simple tier: internal concepts | Prior art: lines           |
+| ----------- | --------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ | -------------------------- |
+| Algorithm   | confidence-weighted degree and its edge share | 111                                                                    | 29 / 7                            | 20 (14)                                                                                    | 0                              | 3 to 15 (Gephi about 120)  |
+| Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 18 (16) and about 8; 1 once the built-in `fixed` layout takes attribute options            | 0                              | 1 to 10 (Gephi 150 to 200) |
+| File format | tab-separated edge list, read and write       | 114                                                                    | 26 / 5                            | 18 (18, with no check of a malformed row)                                                  | 0                              | 4 to 16 (Gephi about 180)  |
+| Data source | paged REST API with a bearer token            | 75, and still no cancellation, retries, host check or credential store | 16 / 4                            | 17 (14, with no check of the response body)                                                | 0                              | 8 to 40                    |
+| Palette     | brand categorical and sequential colours      | 17 (13 without types)                                                  | 9 / 5                             | 3, with the default-palette call (2)                                                       | 0                              | 1 to 4                     |
+| Camera      | slow orbit; a corner view                     | 34, outside the extension point (the orbit cannot be an extension)     | 11 / 4                            | 1 for the built-in orbit; 5 for a custom motion (8) and 1 for the view (7), plus 1 to play | 0                              | 1 to 9                     |
+| Logging     | errors to a telemetry endpoint                | 58 (20 for a shorter form that breaks the spec)                        | 17 / 4                            | 10 (9, which lost the error and ignored an HTTP 500)                                       | 0                              | 2 to 10                    |
 
 Every point except palettes cost five to ten times what the same task costs in the libraries a
 plugin author is coming from, and the excess was almost entirely internal concepts. The simple
@@ -71,8 +75,9 @@ closest analogue with a catalogue and a results table, costs about 120 lines but
 storage (https://github.com/gephi/gephi-plugins-bootcamp). NetworkX keeps a simple function as
 the public face and an optional backend for speed, the tiering adopted here.
 
-**Simple tier, 14 lines** (`simple-tier.md` section 4.1): two `defineAlgorithm` calls, each with
-one function over the graph view.
+**Simple tier, 20 lines end to end** (`simple-tier.md` section 4.1): two `defineAlgorithm` calls,
+each with one function over the graph view, the edge score reading the node score's result, and
+the two `run` calls that colour the graph.
 
 ## Layout
 
@@ -110,7 +115,7 @@ a positions function, 1 to 3 lines, and a registered layout is a `run()` that ca
 lines (https://gephi.org/gephi/0.9.2/apidocs/org/gephi/layout/spi/Layout.html); today's contract
 sat closer to Gephi than to Cytoscape.js.
 
-**Simple tier, 16 and about 5 lines** (`simple-tier.md` section 4.2): `defineLayout` with a `place`
+**Simple tier, 18 and about 8 lines end to end** (`simple-tier.md` section 4.2): `defineLayout` with a `place`
 function returning a map from id to position; the preset task drops to a built-in call once
 `fixed` takes attribute options.
 
@@ -147,8 +152,9 @@ node and edge drafts by id, never storage
 (https://github.com/gephi/gephi/tree/master/modules/ImportPlugin). Every system gives a reader
 text and takes ids and attributes, and gives a writer ids and attributes and takes text.
 
-**Simple tier, 18 lines** (`simple-tier.md` section 4.3): `defineFormat` with `read(text)` and
-`write(graph)` over plain records.
+**Simple tier, 18 lines end to end** (`simple-tier.md` section 4.3): `defineFormat` with
+`read(text)`, which warns about a malformed row, and `write(graph)` over plain records, and the
+load call.
 
 ## Data source
 
@@ -174,7 +180,7 @@ cancellation (https://grafana.com/developers/plugin-tools/tutorials/build-a-data
 graphology, Cytoscape.js, NetworkX and d3: a fetch loop and an add call, 8 to 12 lines, with no
 registration.
 
-**Simple tier, 14 lines** (`simple-tier.md` section 4.4): `defineDataSource` with `load`, where the
+**Simple tier, 17 lines end to end** (`simple-tier.md` section 4.4): `defineDataSource` with `load`, where the
 element's own `fetch` carries the host check, the credential, retries and cancellation.
 
 ## Palette
@@ -198,7 +204,8 @@ matplotlib `ListedColormap` and `LinearSegmentedColormap.from_list`, about 4 lin
 brand colours the default for a chart, the missing hook (https://echarts.apache.org/en/api.html#echarts.registerTheme;
 from memory, not re-checked).
 
-**Simple tier, 2 lines** (`simple-tier.md` section 4.5), plus an element-scoped default palette.
+**Simple tier, 3 lines** (`simple-tier.md` section 4.5): two palettes and the element-scoped
+default that makes them the brand's colours everywhere.
 
 ## Camera
 
@@ -222,7 +229,7 @@ model-viewer, an `auto-rotate` attribute (https://modelviewer.dev/docs/#entrydoc
 (https://github.com/vasturiano/3d-force-graph/blob/master/example/camera-auto-orbit/index.html).
 
 **Simple tier** (`simple-tier.md` section 4.6): the built-in orbit is one call; a custom motion is
-8 lines and a still view 7.
+5 lines and a still view 1, through `frame.orbit`, plus the call that plays it.
 
 ## Logging
 
@@ -250,8 +257,57 @@ function, with an adapter for async sinks (https://logtape.org/manual/sinks). VS
 `TelemetrySender`, about 8 lines, with the host owning enablement and redaction
 (https://code.visualstudio.com/api/references/vscode-api#TelemetrySender).
 
-**Simple tier, 9 lines** (`simple-tier.md` section 4.7): `defineLogDestination` with a `write`
+**Simple tier, 10 lines** (`simple-tier.md` section 4.7): `defineLogDestination` with a `write`
 that may return a promise.
+
+## The first blind-author round
+
+Twelve blind authors -- the four plugin-author personas, and three workflow personas (an expert
+analyst, a business analyst and a bioinformatics researcher) -- each wrote a plugin for a task of
+their own from `simple-tier.md` and `simple.d.ts` alone, and type-checked it. All twelve succeeded
+on the simple tier, and the graph library author graduated one plugin to the advanced tier.
+
+| Persona                   | Point       | Task                                            | Author lines | Worst stuck point                                             |
+| ------------------------- | ----------- | ----------------------------------------------- | ------------ | ------------------------------------------------------------- |
+| data scientist            | algorithm   | confidence-weighted degree and edge share       | 15           | declarations needed lib ES2024 and a path to graph-format     |
+| data scientist            | layout      | tiers by a number; preset coordinates           | 37 (two)     | not released; unsure whether the built-in `fixed` does it     |
+| front-end developer       | palette     | brand categorical and sequential                | 12           | making the palette the default was prose, in no declaration   |
+| front-end developer       | camera      | slow orbit                                      | 15           | not released; the camera would jump back after a drag         |
+| front-end developer       | logging     | errors to telemetry                             | 17           | declarations needed lib ES2024; an `Error` serialises to {}   |
+| domain researcher         | file format | tab-separated edge list, read and write         | 26           | not released; nothing showed how to open the file             |
+| domain researcher         | algorithm   | a score from a paper, over edge confidence      | 19           | nothing showed how to run it and see the colour               |
+| graph library author      | algorithm   | community detection at 100,000 nodes (advanced) | 28, then 154 | no way to yield in the simple tier; community fields by hand  |
+| graph library author      | data source | a paged REST API                                | 23           | not released; record conventions only in a comment            |
+| expert analyst            | algorithm   | personalised PageRank                           | 46           | `edge.source` in an undirected view gave silently wrong ranks |
+| business analyst          | layout      | rows by a category column                       | 21           | not released; declarations needed lib ES2024                  |
+| bioinformatics researcher | data source | a STRING-style interaction service              | 56           | not released; record conventions only in an advanced document |
+
+What they met, by kind:
+
+1. **Nothing runs yet.** Seven of the twelve stopped, or would have in real life, at "proposed:
+   nothing here is built in 2.6.1". This is the release state, not a document defect; the guide
+   rule is now that a page leads with a simple-tier example only in the release that ships it.
+2. **Setup that is not the task.** Five authors needed `lib` ES2024 and a path mapping to
+   graph-format, a package they had never heard of, because one import pulled the advanced
+   declarations into the simple ones. `simple.d.ts` is now self-contained and `extend.d.ts` covers
+   the whole entry point with one path.
+3. **No way to see the result.** Seven authors registered an extension and could not find how to
+   run it, apply it, open a file with it or make it the default. The worst case was the researcher
+   whose whole goal was a coloured network. Every example now ends with its "use it" lines, and a
+   one-page example goes from an empty page to a coloured graph.
+4. **Silent wrong results.** The examples taught `?? 0` (a misspelt attribute gives zero
+   everywhere, then NaN, then nothing published); `edge.source` in an undirected view is not the
+   node an edge was reached from; a text reader's numbers stayed strings, so a writer would have
+   turned `-2.31` into text; `JSON.stringify` of an `Error` is `{}`; a fetch that returns HTTP 500
+   resolves, so "retry" never ran; an undeclared `direction` made `outEdges()` return every edge.
+   Each is now caught by the element: attribute options are checked before a run, directed
+   accessors throw unless declared, `edge.other(node)` exists, columns are typed on load, the
+   record's error is plain data, and a response that is not `ok` counts as a failure.
+5. **No path for heavy work.** Two authors with iterative methods had no way to yield, and one
+   improvised `await Promise.resolve()`, which lets no frame draw. `progress()` now returns a
+   promise that yields.
+6. **Blame in the wrong place.** A plugin's own exception was reported as `E_INTERNAL`, "a bug in
+   graphty-element". It is now `E_EXTENSION_FAILED`, naming the plugin and the function.
 
 ## Why the specifications missed it
 
@@ -287,6 +343,23 @@ everything except what a first plugin costs:
    five of the seven points without anyone noticing, because nobody used them as their only
    source.
 
+The first simple tier then repeated three of these mistakes in a smaller form, which the blind
+round above found:
+
+8. **The budget counted the example, not the task.** Lines were counted from the `define*` call
+   to its closing bracket. So the examples fitted by leaving out what the task needs -- the
+   malformed-row warning, the response check, the call that shows the result -- and the authors
+   who put those back ran over. Setup (the `tsconfig`, loading without a bundler) was not counted
+   at all, and that is where five authors got stuck.
+9. **Type-checking stood in for running.** The examples were checked by the compiler, and the
+   first blind round could only type-check, because nothing is built. A compiler cannot see a
+   silent wrong answer: every trap in item 4 above compiles cleanly. No error message was ever
+   read by an author.
+10. **Nobody looked for wrong answers, only for long ones.** The review asked "how short is it?"
+    and never "where does it give a plausible wrong answer with no error?". Defaults that hide a
+    mistake (`?? 0`, direction defaulted to undirected, text where numbers were meant) are the
+    cheapest thing to write and the most expensive thing to debug.
+
 ## What changes
 
 1. **The adoption budget is normative** (`README.md` section 8.1): about 15 author lines, at most
@@ -295,11 +368,19 @@ everything except what a first plugin costs:
    not accepted without one (`simple-tier.md`).
 3. **The blind-author check** runs the four plugin-author personas against the published guide
    only, on every change to a guide, to `./extend` or to a specification, and before every
-   release; its results replace the table above.
-4. **A static CI check** fails a guide page whose first example is over budget or names an
+   release; its results replace the table above. It runs the plugin (a playground story before
+   release), counts a silent wrong result on the kit's trap fixtures as a failure of its own, and
+   is not finished until the author sees the result (`README.md` section 8.1 item 6).
+4. **The budget is end to end** (`README.md` section 8.1 items 1 and 2): the "use it" lines, the
+   input checks the task needs and the setup all count, and the simple-tier declarations must
+   compile with the element installed and nothing else.
+5. **A static CI check** fails a guide page whose first example is over budget or names an
    internal concept.
-5. **Review rule**: a change that adds an author obligation states which tier carries it; one that
+6. **Review rule**: a change that adds an author obligation states which tier carries it; one that
    lands on the simple tier fails review unless the element absorbs it.
-6. **Dogfood**: some built-ins are built on the simple tier, so the tier is exercised by the
+7. **Adversarial review of the easy path**: every review round has one reviewer who looks only for
+   plausible wrong answers with no error, and each is fixed in the element or recorded with the
+   reason (`README.md` section 8.1 item 9).
+8. **Dogfood**: some built-ins are built on the simple tier, so the tier is exercised by the
    element's own code and cannot quietly lose capability.
-7. **The guide defects above are corrections** listed in `README.md` section 13.
+9. **The guide defects above are corrections** listed in `README.md` section 13.

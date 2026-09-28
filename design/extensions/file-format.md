@@ -29,22 +29,24 @@ section 12.4).
 
 A first format is written with `defineFormat` (`simple-tier.md` section 4.3): an id, the file
 extensions, `read(text)` returning plain records and `write(graph)` returning text. Either
-function may be left out.
+function may be left out. Nothing here runs in 2.6.1 (`simple-tier.md`, status).
 
 ```ts
 import { defineFormat } from "@graphty/graphty-element/extend";
 
 defineFormat({
     id: "acme-tsv",
-    name: "Tab-separated edge list",
     extensions: [".tsv"],
-    read(text) {
-        const [header = "", ...rows] = text.split(/\r?\n/).filter((line) => line !== "");
-        const columns = header.split("\t");
-        if (!columns.includes("source") || !columns.includes("target")) {
+    read(text, { warn }) {
+        const [header, ...rows] = text
+            .trim()
+            .split(/\r?\n/)
+            .map((line) => line.split("\t"));
+        if (!header.includes("source") || !header.includes("target")) {
             throw new Error("the first line must name a source and a target column");
         }
-        return { edges: rows.map((row) => Object.fromEntries(row.split("\t").map((cell, i) => [columns[i], cell]))) };
+        rows.forEach((cells, i) => cells.length === header.length || warn(`expected ${header.length} cells`, i + 2));
+        return { edges: rows.map((cells) => Object.fromEntries(cells.map((cell, c) => [header[c], cell]))) };
     },
     write({ edges, edgeColumns }) {
         const header = ["source", "target", ...edgeColumns];
@@ -55,12 +57,16 @@ defineFormat({
 ```
 
 The element generates the `DataSource` subclass of section 3 (descriptor, constructor, option
-resolution, input reading with its retry and size limits, chunking, record branding) and wraps a
-throw from `read` as `E_PARSE_FAILED`. For `write` it builds the graph-io exporter registered
-through `registerFormatWriter` (section 8): it resolves the snapshot into plain records -- ids
-resolved, mixed-direction pairs folded, internal columns removed, unmeasured values left out --
-neutralises spreadsheet formulas by column type, derives the capability table and loss notes from
-`keeps`, and encodes the text. One catalogue entry covers both directions.
+resolution, input reading with its retry and size limits, chunking, record branding), types
+number and boolean columns on load so a cell of `-2.31` is a number and not text
+(`simple-tier.md` section 2.6), and wraps a throw from `read` as `E_PARSE_FAILED`. For `write` it
+builds the graph-io exporter registered through `registerFormatWriter` (section 8): it resolves the
+snapshot into plain records -- ids resolved, mixed-direction pairs folded, internal columns
+removed, unmeasured values left out -- neutralises formula-looking STRING cells only for a
+spreadsheet format (`.csv`, `.tsv`, `text/csv`, `text/tab-separated-values`; rule 4 of section 4),
+derives the capability table and loss notes from `keeps` (default: edge attributes only), and
+encodes the text. One catalogue entry covers both directions. A file is opened with
+`element.loadFromUrl(url)` or `loadFromFile(file)`; the extension picks the format.
 
 Move to the advanced tier for a binary format, streaming without holding the whole text, a
 declared attribute schema, a place for style or hierarchy, custom loss notes, or byte-level
@@ -497,7 +503,7 @@ These requirements apply only if option A is chosen.
    24).
 6. A throw from the exporter MUST reach the consumer as a `GraphtyError`: `E_UNSUPPORTED` when the
    exporter refuses input it cannot represent under the chosen options (for example
-   `onMixedDirection: "error"`), otherwise `E_INTERNAL` with `source: "data"`, the original as
+   `onMixedDirection: "error"`), otherwise `E_EXTENSION_FAILED` (`E_INTERNAL` in 2.6.1; README section 12, item 37) with `source: "data"`, the original as
    `cause`.
 7. Loss-note codes are the exporter's; they SHOULD follow graph-io's `W_` prefix convention and
    MUST be stable across the exporter's minor versions.

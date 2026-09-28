@@ -146,12 +146,15 @@ undirected edge count, as SciPy's stored-entry count does for a symmetric matrix
 1. `w` is absent, or every value is 1, or `options.weighted === false`: **BFS**, one per source,
    hop counts.
 2. Some weight is negative: **Floyd-Warshall**.
-3. `A < n * n / 4`: **Dijkstra**, one per source.
+3. `A < 0.4 n^2` (computed as `5 A < 2 n^2`): **Dijkstra**, one per source.
 4. Otherwise: **Floyd-Warshall**.
 
-Rule 3 is SciPy's threshold. igraph's is lower (0.1 n^2 edges, about 0.2 n^2 arcs undirected). The
-measured crossover in section 2 (average out-degree n/4 to n/3) agrees with SciPy's, so this design
-takes SciPy's.
+Rule 3 started as SciPy's threshold, `A < n^2 / 4`. igraph's is lower (0.1 n^2 edges, about 0.2 n^2
+arcs undirected). The scratch benchmark of section 2 put the crossover at an average out-degree of
+n/4 to n/3, but the benchmark of the shipped code (section 12) measured it at 0.39 n^2 arcs on 512
+nodes: at SciPy's n^2 / 4 the Dijkstra rows were still 26 percent faster than the sweep, and the two
+tied only at average degree 200. The scratch figures at 1,024 nodes in section 2 put it near 0.43
+n^2. So the port uses 0.4 n^2, the measured crossover, not SciPy's.
 
 `options.method` overrides the rule: `"floyd-warshall"` always sweeps (with unit weights when rule
 1 would have applied); `"per-source"` runs BFS under rule 1 and Dijkstra otherwise, and throws when
@@ -470,7 +473,7 @@ edge, deliberately; this suite adds its own cases for those.
 | undirected graph with one negative edge | `hasNegativeCycle` before the sweep |
 | `NaN`, `+Infinity` weight; override of the wrong length | `RangeError` |
 | `maxNodes: 2` on three nodes | `RangeError` naming 3, 2 and the bytes; nothing allocated |
-| a 20-node graph on each side of `A = n^2 / 4` | `auto` reports `dijkstra` below and `floyd-warshall` at or above |
+| a 20-node graph on each side of `A = 0.4 n^2` (159 and 160 arcs) | `auto` reports `dijkstra` below and `floyd-warshall` at or above |
 | every fixture, `floyd-warshall` and `per-source` forced, on the fixture's own weights and on an override of 2 on every arc | the reference matrix for the same weights, exactly, and the triangle inequality; the override makes `per-source` run Dijkstra on the unit-weight fixtures, which would otherwise take BFS |
 | every fixture, `paths: true`, both forced strategies, own weights and the all-2 override | for every reachable pair the weight sum along `pathEdges` equals `dist`, `pathTo` starts at i and ends at j, consecutive nodes are joined by the named edges |
 | every fixture, Floyd-Warshall strategy, f64 override | bit-identical to the shipped `floydWarshall` distances, mapped through the snapshot's id map |
@@ -519,7 +522,7 @@ never a mean; before anything is timed, each port arm's matrix is compared cell 
 first port arm's (and with the shipped function's where it runs). The shipped arm stops at 512
 (4.2 s per call).
 
-The measured table is added to this document as section 12 when the plan's benchmark step runs.
+The measured table is section 12.
 
 ## 10. Needs the owner's decision
 
@@ -548,3 +551,70 @@ The measured table is added to this document as section 12 when the plan's bench
   strategy on sparse graphs the CPU is 3-10x faster than that, so the GPU's advantage and its
   routing floor should be re-derived from section 12's table once pull request #549 merges.
 - The Tree variant and WASM SIMD (section 3.2), if dense Floyd-Warshall becomes a bottleneck.
+
+## 12. Measured
+
+`npx tsx benchmarks/all-pairs-bench.ts` from `algorithms/`, timing the shipped
+`indexed.allPairsShortestPath` and the shipped `floydWarshall`; Node v22.22.1 on the i9-14900,
+2026-09-27. Load average (1, 5, 15 minutes) 10.30, 7.00, 6.52 before the first size and 12.71, 8.53, 7.12 after the last: the
+machine was shared, so the arms ran interleaved within each pass and every figure is a median or a
+minimum, never a mean. Before any timing, every port arm's matrix equalled the Floyd-Warshall arm's
+cell for cell, and the shipped function's where it ran; the unweighted arm equalled half of a
+Dijkstra run with every weight 2. Graphs: 10 n unique undirected edges, integer weights 1-100, and
+an unweighted copy of the same edges.
+
+| nodes | arm | strategy | median ms | min ms | median vs shipped | passes |
+| ----: | --- | --- | ----: | ----: | ----: | ----: |
+| 64 | shipped floydWarshall |  | 11.0 | 10.7 |  | 15 |
+| 64 | port floyd-warshall | floyd-warshall | 0.38 | 0.37 | 28.7x | 15 |
+| 64 | port auto (weighted) | dijkstra | 0.47 | 0.45 | 23.3x | 15 |
+| 64 | port auto (unweighted) | bfs | 0.14 | 0.14 | 76.8x | 15 |
+| 128 | shipped floydWarshall |  | 90.1 | 89.0 |  | 15 |
+| 128 | port floyd-warshall | floyd-warshall | 2.32 | 2.26 | 38.9x | 15 |
+| 128 | port auto (weighted) | dijkstra | 2.08 | 2.03 | 43.3x | 15 |
+| 128 | port auto (unweighted) | bfs | 0.61 | 0.57 | 148.1x | 15 |
+| 256 | shipped floydWarshall |  | 760 | 704 |  | 15 |
+| 256 | port floyd-warshall | floyd-warshall | 16.8 | 16.1 | 45.2x | 15 |
+| 256 | port auto (weighted) | dijkstra | 8.88 | 8.45 | 85.6x | 15 |
+| 256 | port auto (unweighted) | bfs | 2.41 | 2.25 | 315.7x | 15 |
+| 512 | shipped floydWarshall |  | 7035 | 6955 |  | 5 |
+| 512 | port floyd-warshall | floyd-warshall | 120 | 112 | 58.7x | 5 |
+| 512 | port auto (weighted) | dijkstra | 36.1 | 35.3 | 195.1x | 5 |
+| 512 | port auto (unweighted) | bfs | 9.54 | 9.05 | 737.2x | 5 |
+| 1024 | port floyd-warshall | floyd-warshall | 854 | 838 |  | 5 |
+| 1024 | port auto (weighted) | dijkstra | 151 | 148 |  | 5 |
+| 1024 | port auto (unweighted) | bfs | 36.9 | 36.6 |  | 5 |
+| 2048 | port floyd-warshall | floyd-warshall | 7274 | 7267 |  | 3 |
+| 2048 | port auto (weighted) | dijkstra | 720 | 657 |  | 3 |
+| 2048 | port auto (unweighted) | bfs | 163 | 159 |  | 3 |
+| 4096 | port auto (weighted) | dijkstra | 2942 | 2932 |  | 3 |
+| 4096 | port auto (unweighted) | bfs | 687 | 663 |  | 3 |
+| 5792 | port auto (weighted) | dijkstra | 6449 | 6212 |  | 3 |
+| 5792 | port auto (unweighted) | bfs | 1551 | 1412 |  | 3 |
+
+The shipped function was not timed above 512 nodes (7 s per call there). "median vs shipped" is the
+shipped median divided by the arm's median. At 512 nodes the port is 59x faster with
+Floyd-Warshall forced, 195x with `auto` on the weighted graph (Dijkstra rows) and 737x with `auto`
+on the unweighted graph (BFS rows). At 64 nodes `auto` picks Dijkstra, which is slower there than
+the sweep (0.47 against 0.38 ms); below a millisecond that is not worth a rule of its own.
+
+Density at 512 nodes, weights 1-100, both strategies forced:
+
+| average degree | arcs / n^2 | auto picks | floyd-warshall median ms | min | per-source median ms | min | per-source / fw |
+| ----: | ----: | --- | ----: | ----: | ----: | ----: | ----: |
+| 20 | 0.039 | dijkstra | 114 | 113 | 36.2 | 35.8 | 0.32 |
+| 64 | 0.125 | dijkstra | 130 | 130 | 64.7 | 64.3 | 0.50 |
+| 128 | 0.250 | dijkstra | 152 | 135 | 116 | 98.9 | 0.76 |
+| 170 | 0.332 | dijkstra | 135 | 128 | 126 | 123 | 0.94 |
+| 200 | 0.391 | dijkstra | 130 | 129 | 137 | 134 | 1.05 |
+| 256 | 0.500 | floyd-warshall | 127 | 125 | 164 | 162 | 1.29 |
+| 480 | 0.938 | floyd-warshall | 128 | 124 | 291 | 277 | 2.28 |
+
+**The crossover moved the threshold.** The plan asked whether the crossover sits between an average
+degree of n/4 and n/3 (arcs / n^2 of 0.25 to 0.33), which would confirm SciPy's n^2 / 4. It does
+not: the Dijkstra rows are still 24 percent faster at 0.25 and 6 percent faster at 0.33, and the two
+strategies meet at about 0.38 (average degree 200 gave a ratio of 1.00 in the first full run and
+1.05 in this one, which ran on the final code). The scratch figures at 1,024 nodes in section 2 put
+the crossover near 0.43. So rule 3 of section 4 is `A < 0.4 n^2`, and the "auto picks" column above
+is that rule. Near the threshold the two strategies are within about 5 percent of each other, so
+the exact constant costs little either way.

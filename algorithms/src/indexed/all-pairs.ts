@@ -15,7 +15,7 @@ export interface ApspOptions {
     readonly weighted?: boolean | undefined;
     /**
      * Strategy override. `"auto"` (the default): BFS rows on unit weights, Floyd-Warshall on any
-     * negative weight, Dijkstra rows below arcCount n^2 / 4, Floyd-Warshall otherwise.
+     * negative weight, Dijkstra rows below arcCount 0.4 n^2, Floyd-Warshall otherwise.
      * `"floyd-warshall"` always sweeps; `"per-source"` runs BFS or Dijkstra rows and throws on a
      * negative weight.
      */
@@ -268,8 +268,9 @@ function pickStrategy(
         }
         return "floyd-warshall";
     }
+    // The measured crossover (design section 12): 0.4 n^2 arcs, above SciPy's n^2 / 4. Integer form, no rounding.
     const n = s.nodeCount;
-    return method === "per-source" || s.arcCount < (n * n) / 4 ? "dijkstra" : "floyd-warshall";
+    return method === "per-source" || 5 * s.arcCount < 2 * n * n ? "dijkstra" : "floyd-warshall";
 }
 
 /**

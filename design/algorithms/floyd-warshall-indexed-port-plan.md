@@ -108,7 +108,7 @@ straight into row i of `dist` (and, for step 5, the discovering arc). Dijkstra r
 `IndexedMinHeap(n)` from `./structures/min-heap.js`, created once and reused across sources (it is
 empty after each drain), relaxing straight into `dist.subarray(i * n, i * n + n)`; do not call
 `indexed.dijkstra` per source (design section 4 says why). The `auto` rule: unit weights -> BFS; any negative weight ->
-Floyd-Warshall; `arcCount < n * n / 4` -> Dijkstra; else Floyd-Warshall. `method: "per-source"`
+Floyd-Warshall; `arcCount < 0.4 n^2` (`5 * arcCount < 2 * n * n`) -> Dijkstra; else Floyd-Warshall. `method: "per-source"`
 with a negative weight throws `Error`. Set `method` in the result to the strategy that ran.
 
 Tests:
@@ -119,7 +119,7 @@ Tests:
 - every fixture, default options, equals the oracle exactly;
 - unweighted fixtures report `method: "bfs"` and equal `apspRowsOracle`; a weighted fixture with
   `weighted: false` equals `apspRowsOracle` too;
-- a 20-node directed graph with 99 arcs (below 400 / 4 = 100) reports `"dijkstra"`, and with 100
+- a 20-node directed graph with 159 arcs (below 0.4 * 400 = 160) reports `"dijkstra"`, and with 160
   arcs reports `"floyd-warshall"`; weights 2 on every arc so rule 1 does not apply;
 - real weights 0.1-0.9 on a 30-node graph: Dijkstra rows equal the oracle within relative 1e-12;
 - the tie case of section 8 (a square with two equal routes): on weights of 2,

@@ -286,7 +286,7 @@ function directed20(arcs: number): GraphSnapshot {
     let added = 0;
     for (let i = 0; i < 20 && added < arcs; i++) {
         for (let j = 0; j < 20 && added < arcs; j++) {
-            if (i !== j) {
+            if (j !== 0) {
                 b.addEdge(`n${i}`, `n${(i + j) % 20}`, 2);
                 added++;
             }
@@ -338,12 +338,12 @@ describe("indexed.allPairsShortestPath -- per-source strategies and the rule", (
         }
     });
 
-    it("switches from Dijkstra to Floyd-Warshall at arcCount n^2 / 4", () => {
-        const below = directed20(99);
-        expect(below.arcCount).toBe(99);
+    it("switches from Dijkstra to Floyd-Warshall at arcCount 0.4 n^2", () => {
+        const below = directed20(159);
+        expect(below.arcCount).toBe(159);
         expect(allPairsShortestPath(below).method).toBe("dijkstra");
-        const at = directed20(100);
-        expect(at.arcCount).toBe(100);
+        const at = directed20(160);
+        expect(at.arcCount).toBe(160);
         expect(allPairsShortestPath(at).method).toBe("floyd-warshall");
         below.validate({ checksum: true });
         at.validate({ checksum: true });

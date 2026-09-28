@@ -21,8 +21,9 @@ class DeclaringBuilder extends GraphBuilder {
     readonly declared = new Set<NodeId>();
 
     override addNode(id: NodeId): number {
+        const row = super.addNode(id);
         this.declared.add(id);
-        return super.addNode(id);
+        return row;
     }
 }
 
@@ -151,7 +152,7 @@ export interface RecordMapping {
 /**
  * Rebuild the element's node and edge records from an imported graph.
  *
- * Only declared nodes become records. Each logical edge of the file becomes one record: when the
+ * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the
  * importer expanded an edge into two halves to hold a mixed-direction file, the mirror half (the
  * one whose `pair` points at a lower row) is skipped. An edge carries `weight` only when the file
  * gave it one, at the precision the importer read it with.
@@ -163,14 +164,13 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
     const { snapshot, declared } = imported;
     const { ids } = snapshot;
 
+    // In the order the file declared them: a node an edge names before its declaration has an
+    // earlier row than the nodes declared between the two.
     const nodes: Record<string, unknown>[] = [];
-    for (let row = 0; row < snapshot.nodeCount; row++) {
-        const id = ids.idOf(row);
-        if (declared.has(id)) {
-            const record: Record<string, unknown> = { id };
-            mapping.node(row, record);
-            nodes.push(record);
-        }
+    for (const id of declared) {
+        const record: Record<string, unknown> = { id };
+        mapping.node(ids.indexOf(id), record);
+        nodes.push(record);
     }
 
     const pair = snapshot.edges.byRole("pair");

@@ -25,25 +25,6 @@ const YFILES_SHAPES: Readonly<Record<string, string>> = {
 };
 
 /**
- * A yFiles colour in the element's form: `#RRGGBB`, upper case, with `#RGB` expanded.
- * Anything else (a colour with alpha, a name) is kept as written.
- * @param color - the colour as the file wrote it
- * @returns the colour
- */
-function normalizeColor(color: string): string {
-    if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
-        return color.toUpperCase();
-    }
-
-    if (/^#[0-9A-Fa-f]{3}$/.test(color)) {
-        const [, r, g, b] = color;
-        return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
-    }
-
-    return color;
-}
-
-/**
  * Write one yFiles value onto a record under the element's key for it.
  * @param key - the column name without its `yfiles.` prefix
  * @param column - the column
@@ -57,10 +38,6 @@ function writeYFiles(key: string, column: Column, row: number, record: Record<st
             record.position = { x, y, z: 0 };
             break;
         }
-        case "color":
-        case "borderColor":
-            record[key] = normalizeColor(column.value(row) as string);
-            break;
         case "shape":
             record.shape = YFILES_SHAPES[(column.value(row) as string).toLowerCase()] ?? "box";
             break;
@@ -72,10 +49,9 @@ function writeYFiles(key: string, column: Column, row: number, record: Record<st
 /**
  * Copy a row's declared keys and yFiles graphics onto its record.
  *
- * A key the file declared lands under its `attr.name`; a value graph-io kept as an XML tree lands
- * as that tree's JSON text, as it always has. The raw yFiles graphics tree is left out, because its
- * readable parts (position, size, colours, label, shape, arrows) are written from the `yfiles.*`
- * columns instead.
+ * A key the file declared lands under its `attr.name`. The raw yFiles graphics tree is left out,
+ * because its readable parts (position, size, colours, label, shape, arrows) are written from the
+ * `yfiles.*` columns instead.
  * @param table - the node or edge table
  * @param row - the row
  * @param record - the record being built
@@ -90,8 +66,7 @@ function writeRow(table: Iterable<Column>, row: number, record: Record<string, u
         if (name.startsWith(YFILES)) {
             writeYFiles(name.slice(YFILES.length), column, row, record);
         } else if (typeof origin?.id === "string" && origin.namespace !== "yfiles" && column.meta.role !== "id") {
-            const value = cell(column, row);
-            record[attributeTitle(name, origin.id)] = column.dtype === "json" ? JSON.stringify(value) : value;
+            record[attributeTitle(name, origin.id)] = cell(column, row);
         }
     }
 }

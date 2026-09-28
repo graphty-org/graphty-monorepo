@@ -265,6 +265,14 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 
     return {
         node(row, record): void {
+            // The order the keys are written in is the order they win in: an attribute titled
+            // `label` overrides the label= attribute, and the viz values override an attribute
+            // titled `position`, `color` or `size`.
+            const label = nodes.byRole("label");
+            if (label?.isSet(row)) {
+                record.label = label.value(row);
+            }
+
             common(nodes, row, record);
             for (const column of nodes) {
                 if (!column.isSet(row)) {
@@ -272,9 +280,6 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                 }
 
                 switch (column.meta.role) {
-                    case "label":
-                        record.label = column.value(row);
-                        break;
                     case "position": {
                         const [x, y, z] = components(column, row);
                         record.position = { x, y, z };
@@ -294,7 +299,6 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
             }
         },
         edge(row, record): void {
-            common(edges, row, record);
             const id = edges.byRole("id");
             if (id?.isSet(row)) {
                 record.gexfId = id.value(row);
@@ -310,6 +314,9 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
             } else if (directed !== null && directed.value(row) !== graphDirected) {
                 record.type = graphDirected ? "undirected" : "directed";
             }
+
+            // Last, so an attribute titled `label` or `type` overrides the edge's own.
+            common(edges, row, record);
         },
     };
 }

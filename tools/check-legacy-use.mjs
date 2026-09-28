@@ -1,0 +1,447 @@
+#!/usr/bin/env node
+/**
+ * Fails when a workspace package's src uses the legacy graph API that the graph-format migration
+ * replaces (design/graph-format/migration-plan.md, section 7).
+ *
+ * Rules, each reported as `<file> <rule> <name>`:
+ *   legacy-import                 imports a legacy name from @graphty/algorithms or @graphty/layout:
+ *                                 anything tagged @deprecated, and every export declared outside the
+ *                                 replacement code (algorithms: indexed/, data-structures/, types/,
+ *                                 utils/ except graph-converters.ts, errors.ts; layout: everything but
+ *                                 layouts/, generators/ and utils/rescale.ts)
+ *   legacy-graph-bridge           calls toAlgorithmGraph or algorithmGraph
+ *   legacy-graph-construction     constructs the legacy Graph class of @graphty/algorithms
+ *   positional-layout-call        calls a positional layout function of @graphty/layout
+ *   data-source-without-graph-io  a *DataSource.ts in graphty-element/src/data imports nothing
+ *                                 from graph-io (the package or one of its format subpaths)
+ *   parser-dependency             graphty-element src imports papaparse or fast-xml-parser
+ *   hand-written-parser           graphty-element/src/data holds csv-variant-detection.ts, parsePajek
+ *                                 or a tokeniser (tokenize, tokenizeLine, ...)
+ *
+ * The legacy names are read from the algorithms and layout sources with the TypeScript compiler,
+ * so a name that gains @deprecated is caught without editing this file.
+ *
+ * Uses that exist while the migration is under way are listed in tools/legacy-use-baseline.json,
+ * as key -> count. A use not in the baseline, or more uses of a key than it records, fails. An
+ * entry that no longer matches only prints a note, so a branch that removes a use does not have
+ * to touch the baseline; `--update-baseline` rewrites it. The migration is finished when the
+ * baseline is `{}`.
+ *
+ * Usage: node tools/check-legacy-use.mjs                   (exit 1 on a use the baseline lacks)
+ *        node tools/check-legacy-use.mjs --update-baseline (record the current uses)
+ *        node tools/check-legacy-use.mjs --self-test       (prove each rule fires on a seeded fixture)
+ */
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+
+const ALGORITHMS = "@graphty/algorithms";
+const LAYOUT = "@graphty/layout";
+const PARSER_DEPENDENCIES = new Set(["papaparse", "fast-xml-parser"]);
+const BRIDGE_CALLS = new Set(["toAlgorithmGraph", "algorithmGraph"]);
+const PARSER_NAME = /^(parsePajek|tokeni[sz]e\w*)$/;
+const DATA_DIR = "graphty-element/src/data/";
+
+/**
+ * Whether a file of @graphty/algorithms (path relative to its src) holds legacy code.
+ * @param path - the path, with forward slashes
+ * @returns true for legacy code
+ */
+function algorithmsLegacyFile(path) {
+    if (path === "utils/graph-converters.ts") {
+        return true;
+    }
+    return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts"].some((p) => path.startsWith(p));
+}
+
+/**
+ * Whether a file of @graphty/layout (path relative to its src) holds legacy code.
+ * @param path - the path, with forward slashes
+ * @returns true for legacy code
+ */
+function layoutLegacyFile(path) {
+    return path.startsWith("layouts/") || path.startsWith("generators/") || path === "utils/rescale.ts";
+}
+
+/**
+ * The legacy exports of algorithms and layout, read from their src/index.ts.
+ * @param rootDir - the workspace root
+ * @returns package name -> export name -> { positional, graphClass }
+ */
+function legacyExports(rootDir) {
+    const entries = { [ALGORITHMS]: "algorithms", [LAYOUT]: "layout" };
+    const files = Object.values(entries).map((d) => join(rootDir, d, "src", "index.ts"));
+    const program = ts.createProgram(files, {
+        noEmit: true,
+        skipLibCheck: true,
+        noLib: true,
+        types: [],
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+    });
+    const checker = program.getTypeChecker();
+    const result = new Map();
+    for (const [pkg, dir] of Object.entries(entries)) {
+        const srcDir = join(rootDir, dir, "src");
+        const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(join(srcDir, "index.ts")));
+        const names = new Map();
+        for (const exported of checker.getExportsOfModule(moduleSymbol)) {
+            const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+            const decl = symbol.declarations?.[0];
+            if (decl === undefined) {
+                continue;
+            }
+            const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
+            const deprecated = [exported, symbol].some((s) => s.getJsDocTags().some((t) => t.name === "deprecated"));
+            const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
+            if (legacy || deprecated) {
+                names.set(exported.name, {
+                    positional: pkg === LAYOUT && path.startsWith("layouts/"),
+                    graphClass:
+                        pkg === ALGORITHMS && path === "core/graph.ts" && (symbol.flags & ts.SymbolFlags.Class) !== 0,
+                });
+            }
+        }
+        result.set(pkg, names);
+    }
+    return result;
+}
+
+/**
+ * Every source file under a directory, skipping declaration files.
+ * @param dir - the directory
+ * @returns absolute paths
+ */
+function sourceFiles(dir) {
+    if (!existsSync(dir)) {
+        return [];
+    }
+    return readdirSync(dir, { recursive: true, withFileTypes: true })
+        .filter((e) => e.isFile() && /\.(m?[jt]sx?)$/.test(e.name) && !e.name.endsWith(".d.ts"))
+        .map((e) => join(e.parentPath, e.name));
+}
+
+/**
+ * The name a call or `new` targets: `f(...)` -> f, `a.b.f(...)` -> f.
+ * @param expr - the callee
+ * @returns the name, or undefined
+ */
+function calleeName(expr) {
+    if (ts.isIdentifier(expr)) {
+        return expr.text;
+    }
+    if (ts.isPropertyAccessExpression(expr)) {
+        return expr.name.text;
+    }
+    return undefined;
+}
+
+/**
+ * Checks one source file.
+ * @param file - the file's path relative to the root, with forward slashes
+ * @param text - its contents
+ * @param legacy - the result of legacyExports
+ * @returns the findings
+ */
+function checkFile(file, text, legacy) {
+    const findings = [];
+    const report = (rule, name) => findings.push({ file, rule, name });
+    const inElement = file.startsWith("graphty-element/src/");
+    const inData = file.startsWith(DATA_DIR);
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.ESNext, true);
+    // local identifier -> the legacy export it binds; namespace local -> its package
+    const locals = new Map();
+    const namespaces = new Map();
+    let importsGraphIo = false;
+
+    const specifierUse = (spec) => {
+        if (spec === "@graphty/graph-io" || spec.startsWith("@graphty/graph-io/")) {
+            importsGraphIo = true;
+        }
+        if (inElement && PARSER_DEPENDENCIES.has(spec)) {
+            report("parser-dependency", spec);
+        }
+    };
+    const namedLegacy = (spec, elements) => {
+        const names = legacy.get(spec);
+        for (const el of names === undefined ? [] : elements) {
+            const name = (el.propertyName ?? el.name).text;
+            const info = names.get(name);
+            if (info !== undefined) {
+                report("legacy-import", name);
+                locals.set(el.name.text, info);
+            }
+        }
+    };
+
+    const visit = (node) => {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+            const spec = node.moduleSpecifier.text;
+            specifierUse(spec);
+            const bindings = node.importClause?.namedBindings;
+            if (bindings !== undefined && ts.isNamedImports(bindings)) {
+                namedLegacy(spec, bindings.elements);
+            } else if (bindings !== undefined && legacy.has(spec)) {
+                namespaces.set(bindings.name.text, legacy.get(spec));
+            }
+        } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+            specifierUse(node.moduleSpecifier.text);
+            if (node.exportClause !== undefined && ts.isNamedExports(node.exportClause)) {
+                namedLegacy(node.moduleSpecifier.text, node.exportClause.elements);
+            }
+        } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+            const [arg] = node.arguments;
+            if (arg !== undefined && ts.isStringLiteral(arg)) {
+                specifierUse(arg.text);
+            }
+        } else if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+            const name = calleeName(node.expression);
+            // `ns.circularLayout()` on `import * as ns from "@graphty/layout"`
+            const target = node.expression;
+            const info = !ts.isPropertyAccessExpression(target)
+                ? locals.get(name)
+                : ts.isIdentifier(target.expression)
+                  ? namespaces.get(target.expression.text)?.get(name)
+                  : undefined;
+            if (ts.isCallExpression(node) && BRIDGE_CALLS.has(name)) {
+                report("legacy-graph-bridge", name);
+            } else if (ts.isCallExpression(node) && info?.positional) {
+                report("positional-layout-call", name);
+            } else if (ts.isNewExpression(node) && info?.graphClass) {
+                report("legacy-graph-construction", name);
+            }
+        }
+        if (
+            inData &&
+            (ts.isFunctionDeclaration(node) ||
+                ts.isMethodDeclaration(node) ||
+                ts.isPropertyDeclaration(node) ||
+                ts.isVariableDeclaration(node)) &&
+            node.name !== undefined &&
+            ts.isIdentifier(node.name) &&
+            PARSER_NAME.test(node.name.text)
+        ) {
+            report("hand-written-parser", node.name.text);
+        }
+        ts.forEachChild(node, visit);
+    };
+    visit(source);
+
+    const base = file.slice(file.lastIndexOf("/") + 1);
+    if (inData && base === "csv-variant-detection.ts") {
+        report("hand-written-parser", base);
+    }
+    if (inData && base.endsWith("DataSource.ts") && base !== "DataSource.ts" && !importsGraphIo) {
+        report("data-source-without-graph-io", "@graphty/graph-io");
+    }
+    return findings;
+}
+
+/**
+ * Checks the src of every workspace package.
+ * @param rootDir - the workspace root (holds pnpm-workspace.yaml)
+ * @returns the findings, sorted
+ */
+function check(rootDir) {
+    const legacy = legacyExports(rootDir);
+    const workspaceYaml = readFileSync(join(rootDir, "pnpm-workspace.yaml"), "utf8");
+    const packagesBlock = workspaceYaml.split(/^packages:\s*$/m)[1]?.split(/^\S/m)[0] ?? "";
+    const dirs = [...packagesBlock.matchAll(/^\s*-\s*["']?([^"'\s]+)["']?/gm)].map((m) => m[1]);
+    const findings = [];
+    for (const dir of dirs) {
+        for (const abs of sourceFiles(join(rootDir, dir, "src"))) {
+            const file = relative(rootDir, abs).split(sep).join("/");
+            findings.push(...checkFile(file, readFileSync(abs, "utf8"), legacy));
+        }
+    }
+    return findings.map((f) => `${f.file} ${f.rule} ${f.name}`).sort();
+}
+
+/**
+ * Counts each key.
+ * @param keys - the finding keys
+ * @returns key -> count, keys sorted
+ */
+function countKeys(keys) {
+    const counts = {};
+    for (const k of keys) {
+        counts[k] = (counts[k] ?? 0) + 1;
+    }
+    return counts;
+}
+
+/**
+ * Compares the findings with a baseline.
+ * @param keys - the finding keys
+ * @param baseline - key -> count
+ * @returns uses beyond the baseline, and baseline entries with fewer uses than recorded
+ */
+function compare(keys, baseline) {
+    const counts = countKeys(keys);
+    const added = Object.entries(counts)
+        .filter(([k, n]) => n > (baseline[k] ?? 0))
+        .map(([k, n]) => `${k} (${n} use(s), baseline ${baseline[k] ?? 0})`);
+    const stale = Object.entries(baseline)
+        .filter(([k, n]) => (counts[k] ?? 0) < n)
+        .map(([k, n]) => `${k} (${counts[k] ?? 0} use(s), baseline ${n})`);
+    return { added, stale };
+}
+
+/**
+ * Builds a small workspace with one seeded use per rule and checks each is reported, that the
+ * replacement API is not, and that the baseline admits exactly what it records.
+ */
+function selfTest() {
+    const dir = mkdtempSync(join(tmpdir(), "legacy-use-"));
+    const write = (file, body) => {
+        mkdirSync(dirname(join(dir, file)), { recursive: true });
+        writeFileSync(join(dir, file), body);
+    };
+    try {
+        write(
+            "pnpm-workspace.yaml",
+            'packages:\n    - "algorithms"\n    - "layout"\n    - "graphty-element"\n    - "app"\n',
+        );
+        write(
+            "algorithms/src/index.ts",
+            [
+                'export { Graph } from "./core/graph.js";',
+                'export * from "./algorithms/index.js";',
+                'export * from "./data-structures/index.js";',
+                'export * as indexed from "./indexed/index.js";',
+                'export { toSnapshot } from "./indexed/to-snapshot.js";',
+                'export { graphToMap } from "./utils/graph-converters.js";',
+            ].join("\n"),
+        );
+        write("algorithms/src/core/graph.ts", "export class Graph {}\n");
+        write("algorithms/src/algorithms/index.ts", "export function dijkstra(): void {}\n");
+        write(
+            "algorithms/src/data-structures/index.ts",
+            "export class PriorityQueue {}\n/** @deprecated use indexed.x */\nexport function oldQueue(): void {}\n",
+        );
+        write("algorithms/src/indexed/index.ts", "export function dijkstra(): void {}\n");
+        write("algorithms/src/indexed/to-snapshot.ts", "export function toSnapshot(): void {}\n");
+        write("algorithms/src/utils/graph-converters.ts", "export function graphToMap(): void {}\n");
+        write(
+            "layout/src/index.ts",
+            'export * from "./layouts";\nexport * as indexed from "./indexed";\nexport * from "./simulation";\n',
+        );
+        write("layout/src/layouts/index.ts", "export function circularLayout(): void {}\n");
+        write("layout/src/indexed/index.ts", "export function circular(): void {}\n");
+        write("layout/src/simulation/index.ts", "export function createSimulation(): void {}\n");
+
+        // Uses of the replacement API only: nothing may be reported for this file.
+        write(
+            "app/src/clean.ts",
+            [
+                'import { indexed, PriorityQueue, toSnapshot } from "@graphty/algorithms";',
+                'import { createSimulation, indexed as layouts } from "@graphty/layout";',
+                "new PriorityQueue();",
+                "indexed.dijkstra(toSnapshot());",
+                "layouts.circular();",
+                "createSimulation();",
+            ].join("\n"),
+        );
+        write(
+            "app/src/uses.ts",
+            [
+                'import { Graph as G, dijkstra, oldQueue } from "@graphty/algorithms";',
+                'import * as L from "@graphty/layout";',
+                'export { graphToMap } from "@graphty/algorithms";',
+                "new G();",
+                "L.circularLayout();",
+                "this.algorithmGraph();",
+                "toAlgorithmGraph();",
+            ].join("\n"),
+        );
+        write(
+            "graphty-element/src/data/CSVDataSource.ts",
+            'import Papa from "papaparse";\nexport class CSVDataSource { private tokenize(): void {} }\n',
+        );
+        write(
+            "graphty-element/src/data/GMLDataSource.ts",
+            'import { importGml } from "@graphty/graph-io/gml";\nexport class GMLDataSource {}\n',
+        );
+        write("graphty-element/src/data/DataSource.ts", "export class DataSource {}\n");
+        write("graphty-element/src/data/csv-variant-detection.ts", "export {};\n");
+        write(
+            "graphty-element/src/data/PajekDataSource.ts",
+            'import "@graphty/graph-io";\nconst parsePajek = () => 0;\nfunction tokenizeLine() {}\nawait import("fast-xml-parser");\n',
+        );
+
+        const expected = [
+            "app/src/uses.ts legacy-graph-bridge algorithmGraph",
+            "app/src/uses.ts legacy-graph-bridge toAlgorithmGraph",
+            "app/src/uses.ts legacy-graph-construction G",
+            "app/src/uses.ts legacy-import Graph",
+            "app/src/uses.ts legacy-import dijkstra",
+            "app/src/uses.ts legacy-import graphToMap",
+            "app/src/uses.ts legacy-import oldQueue",
+            "app/src/uses.ts positional-layout-call circularLayout",
+            "graphty-element/src/data/CSVDataSource.ts data-source-without-graph-io @graphty/graph-io",
+            "graphty-element/src/data/CSVDataSource.ts hand-written-parser tokenize",
+            "graphty-element/src/data/CSVDataSource.ts parser-dependency papaparse",
+            "graphty-element/src/data/PajekDataSource.ts hand-written-parser parsePajek",
+            "graphty-element/src/data/PajekDataSource.ts hand-written-parser tokenizeLine",
+            "graphty-element/src/data/PajekDataSource.ts parser-dependency fast-xml-parser",
+            "graphty-element/src/data/csv-variant-detection.ts hand-written-parser csv-variant-detection.ts",
+        ].sort();
+        const found = check(dir);
+        if (JSON.stringify(found) !== JSON.stringify(expected)) {
+            const missing = expected.filter((k) => !found.includes(k));
+            const extra = found.filter((k) => !expected.includes(k));
+            throw new Error(`self-test: missing ${JSON.stringify(missing)}, unexpected ${JSON.stringify(extra)}`);
+        }
+        const baseline = countKeys(found);
+        if (compare(found, baseline).added.length !== 0) {
+            throw new Error("self-test: a use the baseline records was reported as new");
+        }
+        delete baseline[expected[0]];
+        if (compare(found, baseline).added.length !== 1) {
+            throw new Error("self-test: a use missing from the baseline was not reported");
+        }
+        if (compare([], countKeys(found)).stale.length !== expected.length) {
+            throw new Error("self-test: removed uses were not listed as stale");
+        }
+        console.log(`check-legacy-use self-test: passed (${expected.length} seeded uses, 7 rules)`);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    if (process.argv.includes("--self-test")) {
+        selfTest();
+        process.exit(0);
+    }
+    const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const baselineFile = join(rootDir, "tools", "legacy-use-baseline.json");
+    const keys = check(rootDir);
+    if (process.argv.includes("--update-baseline")) {
+        writeFileSync(baselineFile, `${JSON.stringify(countKeys(keys), null, 4)}\n`);
+        console.log(`check-legacy-use: recorded ${keys.length} use(s) in tools/legacy-use-baseline.json`);
+        process.exit(0);
+    }
+    const baseline = existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, "utf8")) : {};
+    const { added, stale } = compare(keys, baseline);
+    if (stale.length > 0) {
+        console.log(`Baseline entries with fewer uses than recorded (run --update-baseline to drop them):`);
+        for (const s of stale) {
+            console.log(`  ${s}`);
+        }
+    }
+    if (added.length > 0) {
+        for (const a of added) {
+            console.error(a);
+        }
+        console.error(
+            `\n${added.length} new use(s) of the legacy graph API. Use the graph-format replacement ` +
+                "(design/graph-format/migration-plan.md); see the rules at the top of tools/check-legacy-use.mjs.",
+        );
+        process.exit(1);
+    }
+    console.log(`check-legacy-use: no new legacy use (${keys.length} recorded in the baseline still present)`);
+}

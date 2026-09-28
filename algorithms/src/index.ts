@@ -103,6 +103,14 @@ export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,
 } from "./indexed/louvain.js";
+// Aliased: the flat LinkPredictionOptions names the legacy functions' options.
+export type {
+    CandidateOptions as IndexedCandidateOptions,
+    LinkPredictionOptions as IndexedLinkPredictionOptions,
+    LinkPredictionMetrics,
+    LinkPredictionResult,
+    NodePairs,
+} from "./indexed/link-prediction.js";
 export type { MstOptions, MstResult } from "./indexed/mst.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {

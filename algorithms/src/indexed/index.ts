@@ -22,6 +22,23 @@ export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
+export {
+    adamicAdarForPairs,
+    adamicAdarPrediction,
+    adamicAdarScore,
+    type CandidateOptions,
+    commonNeighborsForPairs,
+    commonNeighborsPrediction,
+    compareAdamicAdarWithCommonNeighbors,
+    evaluateAdamicAdar,
+    evaluateCommonNeighbors,
+    getTopAdamicAdarCandidatesForNode,
+    getTopCandidatesForNode,
+    type LinkPredictionMetrics,
+    type LinkPredictionOptions,
+    type LinkPredictionResult,
+    type NodePairs,
+} from "./link-prediction.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";

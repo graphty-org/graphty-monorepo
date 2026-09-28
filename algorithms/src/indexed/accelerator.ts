@@ -221,7 +221,9 @@ export interface BetweennessAcceleratorOptions {
  * rescaled to unit length, or to a largest entry of 1 under `normalized: false`, as the port does.
  * Katz runs the CPU port under `normalized: false` (the raw sums cannot be recovered from a
  * rescaled vector), with `alpha` 0, and when every node has the same in-degree (or in-weight):
- * there every score is equal, and the port leaves an equal vector unscaled. The iteration counts
+ * there every score is equal, and the port leaves an equal vector unscaled. It also runs the CPU
+ * port unless `alpha` times the largest in-arc total is below 1, where the series is certain to
+ * converge: past that an f32 accelerator can overflow to Infinity. The iteration counts
  * of the two paths differ.
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
@@ -498,9 +500,12 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
 
 /**
  * Whether the accelerator's Katz member answers the port's question: the min-max rescaled score
- * of a vector that is not constant. Raw sums (`normalized: false`) are lost to the accelerator's
- * own rescaling, and a constant vector -- `alpha` 0, or the same in-degree (in-weight) everywhere
- * -- is one the port leaves unscaled.
+ * of a vector that is not constant, from a series certain to converge. Raw sums (`normalized:
+ * false`) are lost to the accelerator's own rescaling, and a constant vector -- `alpha` 0, or the
+ * same in-degree (in-weight) everywhere -- is one the port leaves unscaled. The series converges
+ * when `alpha` times the largest in-arc total is below 1, which bounds the spectral radius; past
+ * that an accelerator iterating in f32 with no per-iteration normaliser can overflow to Infinity
+ * where the f64 port stays finite and reports `converged: false`.
  * @param s - The snapshot
  * @param options - The caller's port options
  * @returns True when the call may go to the accelerator
@@ -512,17 +517,20 @@ function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefin
     const rev = s.reverse();
     const weights = options?.weighted === true ? rev.weights : null;
     let first: number | undefined;
+    let uneven = false;
+    let largest = 0;
     for (let v = 0; v < s.nodeCount; v++) {
         let inWeight = 0;
+        let inTotal = 0;
         for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
             inWeight += weights === null ? 1 : weights[a];
+            inTotal += weights === null ? 1 : Math.abs(weights[a]);
         }
         first ??= inWeight;
-        if (inWeight !== first) {
-            return true;
-        }
+        uneven ||= inWeight !== first;
+        largest = Math.max(largest, inTotal);
     }
-    return false;
+    return uneven && Math.abs(options?.alpha ?? 0.1) * largest < 1;
 }
 
 /**

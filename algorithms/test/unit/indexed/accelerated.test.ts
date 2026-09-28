@@ -1114,6 +1114,23 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         expectClose(r.scores, indexed.katzCentrality(s, { weighted: true }).scores);
     });
 
+    it("keeps Katz on the port when its series may diverge: alpha times the largest in-arc count reaches 1", async () => {
+        // A hub with ten in-arcs: at alpha 0.1 the bound is exactly 1, where an f32 iteration with
+        // no normaliser can overflow. Just below the bound the accelerator is asked.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 10; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+        }
+        const s = toSnapshot(g);
+        const calls: unknown[][] = [];
+        const dispatcher = accelerated(deviceLike(calls));
+        const onPort = await dispatcher.katzCentrality(s, { alpha: 0.1 });
+        expect(calls).toEqual([]);
+        expect([...onPort.scores]).toEqual([...indexed.katzCentrality(s, { alpha: 0.1 }).scores]);
+        await dispatcher.katzCentrality(s, { alpha: 0.099 });
+        expect(calls).toHaveLength(1);
+    });
+
     it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {
         const calls: unknown[][] = [];
         const s = uneven(true);

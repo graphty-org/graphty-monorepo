@@ -403,7 +403,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * implement that" up front, and under `acceleration="required"` it throws `E_NO_ACCELERATOR`
      * rather than answering quietly. Two answers stay on the CPU even under `"required"`, because
      * the device is not the element's to offer for them: a capability the element does not
-     * forward (betweenness and closeness today) never asks the controller, and a call the
+     * forward (betweenness, closeness, k-core and Louvain today) never asks the controller, and a call the
      * dispatcher itself keeps on the CPU port (an option or a graph shape the device's kernel is
      * not defined for) runs there. Both say `f64`. After the work has started there is no second decision: a
      * failure from the accelerator propagates with its code and fails the run, because a number

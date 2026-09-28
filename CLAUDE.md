@@ -85,6 +85,20 @@ When the element fix genuinely cannot land first -- a release is in flight, the 
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
 record. It is not done until the element is fixed and the workaround is deleted.
 
+### Easy things easy, hard things possible
+
+Every public API and extension point has a simple path and an advanced path. The simple path's
+first working example fits in about 15 lines of author code and names no internal concept: no
+snapshot rows, compressed sparse rows, typed arrays, masks, cost formulas or descriptor
+bookkeeping. The advanced path exposes the machinery for authors who need speed or control, and
+the simple path wraps it, so the parity rule for extension points still holds.
+
+A spec or design for a public API is not reviewed until an author who sees only the published
+docs, and never the repository, has written its canonical example and compiled it against the
+published types. Every review workflow includes a developer-experience lens and the developer
+personas in `design/designloom/personas/`, alongside security, evolution and implementability. A
+spec whose simplest example needs internal knowledge fails review.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"

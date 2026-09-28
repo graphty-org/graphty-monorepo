@@ -910,6 +910,18 @@ CSV:
   text. Gephi `timeset` is not implemented.
 - The record reader (`csv/records.ts`) is the package's one RFC 4180 reader, shared with Neo4j;
   papaparse is gone.
+- `table: "adjacency"` reads and writes an adjacency table: no header by default, each row a node
+  then its neighbours, `id:weight` when the text after the last colon is a number (`id:` for an
+  id holding a colon and no weight). It is never sniffed. An empty file is the empty graph, which
+  is what the exporter writes for it. Its delimiter sniff also skips a candidate under which a
+  closing quote is followed by other text, since its rows vary in width; every other table keeps
+  the fatal `E_CSV_QUOTE`. The export keeps ids, node order, isolated nodes, edge order and
+  explicit weights, and drops direction and every column (`W_CSV_DIRECTION_DROPPED`,
+  `W_CSV_EDGE_COLUMNS`, `W_CSV_NODE_TABLE`).
+- `rowNumberIds: true` gives a node table without an id column its 0-based data row numbers as ids,
+  coerced by `ids`. It applies to the node table only (the `nodes` input, else the input itself),
+  whose first row it makes a header under `header: "auto"`; a paired edge table without endpoint
+  columns still fails with `E_CSV_NO_ENDPOINT_COLUMNS`.
 
 JSON:
 
@@ -917,6 +929,11 @@ JSON:
   node-link path reproduces its rules. A missing `nodes` / `edges` array is a recoverable
   `E_MISSING_SECTION`; empty input, invalid JSON, an unrecognised shape and a wrong section type
   are fatal.
+- `nodesPath` / `edgesPath` (node-link, d3, vis, graphology) are dotted paths of object keys to the
+  node and edge arrays; the object holding the nodes is the graph record. A path naming nothing is
+  a recoverable `E_MISSING_SECTION` with an empty array in its place. An edge path through the
+  holder's `graph` key removes only the edge array, so the graph attributes are still read. No
+  array indices or other JMESPath syntax.
 - Exporter dialect defaults to the one recorded under `meta.extra.json` (node-link otherwise); the
   static `capabilities` is the node-link table, `jsonCapabilities(dialect)` gives the others; the
   tables list what the untyped re-import restores (dtypes f64 / i32 / bool / string, no lists /

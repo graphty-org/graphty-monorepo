@@ -1,4 +1,4 @@
-import { expandEdges, type GraphSnapshot, maskTest } from "@graphty/graph-format";
+import { expandEdges, GraphBuilder, type GraphSnapshot, maskTest } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
@@ -259,6 +259,40 @@ describe("indexed.maxFlow against legacy", () => {
         s.validate({ checksum: true });
     });
 
+    it("splits a pair's flow over parallel edges within capacity and treats capacity <= 0 as none", () => {
+        // Parallel edges and non-positive capacities exist only on a snapshot; the legacy Graph
+        // keeps one edge per pair.
+        const b = new GraphBuilder({ directed: true, duplicateEdges: "keep" });
+        b.addEdge("s", "a", 1);
+        b.addEdge("s", "a", 2);
+        b.addEdge("s", "b", -1);
+        b.addEdge("s", "b", 2);
+        b.addEdge("s", "t", 0);
+        b.addEdge("a", "t", 10);
+        b.addEdge("b", "t", 10);
+        const s = b.freeze();
+        expect(s.edgeCount).toBe(7);
+        const source = s.ids.indexOf("s");
+        const sink = s.ids.indexOf("t");
+        for (const algorithm of ["edmonds-karp", "ford-fulkerson"] as const) {
+            const r = maxFlow(s, source, sink, { algorithm });
+            expect(r.maxFlow).toBe(5);
+            expect(Array.from(r.flow)).toEqual([1, 2, 0, 2, 0, 3, 2]);
+            expect(sideIds(s, r, true)).toEqual(["s"]);
+            // The zero and negative edges leave the source side but carry nothing, so they are not cut.
+            expect(Array.from(r.cutEdges)).toEqual([0, 1, 3]);
+        }
+
+        const u = new GraphBuilder({ directed: false, duplicateEdges: "keep" });
+        u.addEdge("s", "a", 1);
+        u.addEdge("a", "s", 2);
+        u.addEdge("a", "t", 10);
+        const us = u.freeze();
+        const ur = maxFlow(us, us.ids.indexOf("s"), us.ids.indexOf("t"));
+        expect(ur.maxFlow).toBe(3);
+        expect(Array.from(ur.flow)).toEqual([1, -2, 3]);
+    });
+
     it("reads f32 arc weights without the override", () => {
         const s = toSnapshot(directedNetwork(), { checksum: true });
         expect(maxFlow(s, s.ids.indexOf("s"), s.ids.indexOf("t")).maxFlow).toBe(23);
@@ -346,6 +380,42 @@ describe("indexed.minSTCut against legacy", () => {
             s.validate({ checksum: true });
         });
     }
+
+    it("reports the same cut value as legacy on 0.01-step weights, bit for bit", () => {
+        // Legacy minSTCut always runs fordFulkerson. Decimal weights are not binary fractions, so
+        // summing the same bottlenecks in another order (Edmonds-Karp) changes the last bits.
+        let state = 7;
+        const random = (): number => {
+            state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+            return state / 4294967296;
+        };
+        let compared = 0;
+        for (let trial = 0; trial < 60; trial++) {
+            const directed = trial % 2 === 0;
+            const numeric = trial % 3 === 0;
+            const n = 4 + Math.floor(random() * 12);
+            const id = (i: number): string | number => (numeric ? i : `v${i}`);
+            const g = new Graph({ directed });
+            for (let i = 0; i < n; i++) {
+                g.addNode(id(i));
+            }
+            for (let k = 0; k < n * 2; k++) {
+                const u = id(Math.floor(random() * n));
+                const v = id(Math.floor(random() * n));
+                if (u !== v && !g.hasEdge(u, v) && !g.hasEdge(v, u)) {
+                    g.addEdge(u, v, Math.round((0.05 + random() * 2) * 100) / 100);
+                }
+            }
+            const s = toSnapshot(g);
+            const weights = exactWeights(s);
+            const source = String(id(0));
+            const sink = String(id(n - 1));
+            const r = minSTCut(s, resolveNode(s.ids, source), resolveNode(s.ids, sink), { weights });
+            expect(r.cutValue, `trial ${trial}`).toBe(legacyMinSTCut(g, source, sink).cutValue);
+            compared++;
+        }
+        expect(compared).toBe(60);
+    });
 });
 
 describe("indexed.bipartiteFlowNetwork", () => {

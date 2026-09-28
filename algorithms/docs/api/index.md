@@ -119,6 +119,9 @@ Network flow and cuts.
 - `fordFulkerson()` - Augmenting path method
 - `edmondsKarp()` - BFS-based flow
 - `minCut()` - Minimum cut
+- `indexed.maxFlow()` - Maximum flow over a snapshot, with per-edge flows as a typed array
+- `indexed.minSTCut()`, `indexed.stoerWagner()`, `indexed.kargerMinCut()` - s-t, global and seeded randomized minimum cuts over a snapshot
+- `indexed.bipartiteFlowNetwork()` - Builds the unit-capacity matching network as a snapshot
 
 [Flow functions in the generated TypeDoc](./generated/index/)
 

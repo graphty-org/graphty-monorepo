@@ -16,9 +16,10 @@ import {
 export interface MaxFlowOptions {
     /**
      * How augmenting paths are found: `"edmonds-karp"` (breadth-first, shortest paths first,
-     * O(V E^2)) or `"ford-fulkerson"` (depth-first, O(E f)). Default `"edmonds-karp"`. Both give
-     * the same flow value and the same source side; the per-edge flows can differ where the
-     * maximum flow is not unique.
+     * O(V E^2)) or `"ford-fulkerson"` (depth-first, O(E f)). Default `"edmonds-karp"` for
+     * {@link maxFlow} and `"ford-fulkerson"` for {@link minSTCut}. Both give the same source side
+     * and the same flow value up to floating-point rounding; the per-edge flows can differ where
+     * the maximum flow is not unique.
      */
     readonly algorithm?: "edmonds-karp" | "ford-fulkerson" | undefined;
     /**
@@ -302,7 +303,7 @@ function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed
                     continue; // a reverse arc carries no edge
                 }
                 if (lastEdge >= 0) {
-                    const x = Math.min(remaining, capacity[lastEdge]);
+                    const x = Math.min(remaining, Math.max(capacity[lastEdge], 0));
                     flow[lastEdge] += lastSign * x;
                     remaining -= x;
                 }
@@ -320,7 +321,9 @@ function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed
 /**
  * Minimum s-t cut: the source side and value of a maximum flow (max-flow min-cut theorem). The
  * side is the set reachable from the source in the final residual graph, which is the same for
- * every maximum flow, so the path search does not change it.
+ * every maximum flow, so the path search does not change it. The search defaults to
+ * `"ford-fulkerson"`, as the legacy `minSTCut` uses: on weights that are not binary fractions
+ * another search adds the bottlenecks in another order and the value can differ in its last bits.
  * @param s - The snapshot
  * @param source - The source node index
  * @param sink - The sink node index
@@ -330,7 +333,7 @@ function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed
  * @public
  */
 export function minSTCut(s: GraphSnapshot, source: number, sink: number, options: MaxFlowOptions = {}): MinCutResult {
-    const r = maxFlow(s, source, sink, options);
+    const r = maxFlow(s, source, sink, { ...options, algorithm: options.algorithm ?? "ford-fulkerson" });
     return { cutValue: r.maxFlow, side: r.sourceSide, cutEdges: r.cutEdges };
 }
 

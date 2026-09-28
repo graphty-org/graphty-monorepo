@@ -155,6 +155,38 @@ for (const [edge, flow] of result.flow) {
 }
 ```
 
+## Over a graph-format snapshot
+
+The `indexed` functions take a `GraphSnapshot` from `@graphty/graph-format` and node indices
+instead of ids. Results are typed arrays indexed by node or by logical edge. Edge weights are the
+capacities, and an unweighted snapshot gives every edge capacity 1. Capacities of zero or less
+carry no flow.
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const source = s.ids.indexOf("s");
+const sink = s.ids.indexOf("t");
+
+const flow = indexed.maxFlow(s, source, sink, { algorithm: "edmonds-karp" }); // or "ford-fulkerson"
+flow.maxFlow; // the flow value
+flow.flow; // Float64Array: net flow per logical edge (negative = against its declared direction)
+flow.cutEdges; // Uint32Array: edge indices of a minimum cut
+
+const st = indexed.minSTCut(s, source, sink); // { cutValue, side, cutEdges }; side is a node mask
+const global = indexed.stoerWagner(s); // global minimum cut, deterministic
+const random = indexed.kargerMinCut(s, { iterations: 50, randomSeed: 42 }); // one seed, one result
+
+// Bipartite matching: a network with a source, a sink and capacity 1 everywhere
+const net = indexed.bipartiteFlowNetwork(["alice", "bob"], ["job1", "job2"], [
+    ["alice", "job1"],
+    ["bob", "job1"],
+    ["bob", "job2"],
+]);
+indexed.maxFlow(net.snapshot, net.source, net.sink).maxFlow; // 2
+```
+
 ## Algorithm Comparison
 
 | Algorithm | Time Complexity | Notes |

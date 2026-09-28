@@ -56,12 +56,16 @@ re-declare a graph-io type.
 Each included run contributes one column per published field of its result, per element kind.
 
 - **Column name.** `<name>.<field>`, where `<name>` is the recipe's own `as` for a run a recipe
-  produced (`score.rank`) and the run id for any other run (`pagerank.value`, `rings.group`), so a
-  script reads the same column whichever namespace the session gave the run and whatever else was
-  applied first. When two runs would give one name (a recipe applied twice with `onRepeat: "add"`,
-  two recipes sharing an `as`), the first in run order keeps it and each later one is written under
-  its namespaced run id (`hubs2__score.rank`) and reported (`W_GRAPHTY_RESULT_NAME`). The naming is
-  a published contract for scripts in R and Python, so it is open decision 23.
+  produced (`score.rank`) and the run's author-assigned id otherwise (`pagerank.value`,
+  `rings.group`). A run started from a panel has a derived id (`pagerank_0k3x9a1b7c2d4e`), which
+  changes whenever a parameter or the scope changes, so before naming columns the export gives it
+  an alias by README "Identifiers" rule 2 (`pagerank`, `pagerank_2`, `label_propagation`) and
+  records it on the run; a script therefore reads the same column after a parameter is tuned. When
+  two runs would give one name (a recipe applied twice with `onRepeat: "add"`, two recipes sharing
+  an `as`), the export is refused, naming both, unless the caller passes a column-name map
+  (`columnNames`) or asks for namespaced names for every such run (`hubs2__score.rank`), so the
+  column a script reads never depends on which recipe was applied first. The naming is a published
+  contract for scripts in R and Python, so it is open decision 23.
 - **Reading one back.** Re-imported, such a column is an ordinary attribute whose key contains a
   dot, read as `data.pagerank.value` (keys are flat, README "Paths").
 - **Names per format.** GEXF, GraphML, CSV, the JSON dialects, DOT (quoted ids) and Neo4j
@@ -88,10 +92,16 @@ Each included run contributes one column per published field of its result, per 
   `<column>__estimated` (boolean) and a column `<column>__missing` (the reason word:
   `not-computed`, `no-value`). They are written for every run that was not requested `exact: true`,
   whether or not it sampled, so the column set depends on the recipe, not on which algorithms a
-  release can estimate, and a script does not break on the dataset where nothing was sampled. How a
-  value was estimated (the method and sample size) is in the run record (below), which the
-  `__estimated` column points to; a missing value is an empty CSV cell, JSON `null`, or an absent
-  GraphML `<data>` element.
+  release can estimate, and a script does not break on the dataset where nothing was sampled. The
+  caller MAY turn them off per run, and they are omitted for an algorithm whose catalogue
+  descriptor says it never estimates (degree, PageRank), so a table pasted into a paper does not
+  carry ten always-false columns. How a value was estimated (the method and sample size) is in the
+  run record (below), which the `__estimated` column points to; a missing value is an empty CSV
+  cell, JSON `null`, or an absent GraphML `<data>` element.
+- **Precision.** A result computed in single precision on the GPU is not distinguishable from a
+  double-precision one by its values, so each run's precision is written as the graph-level
+  attribute `<name>.precision` (`f32`, `f64`) where the format has graph-level attributes, and in
+  the CSV column dictionary (below) where it does not.
 - **Graph-level fields.** A metric result also publishes fields about the whole graph (`min`,
   `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin`; the `kind: "graph"` fields of
   `graphty-element/src/catalog/algorithms.ts`). They are written in each run record's
@@ -101,6 +111,15 @@ Each included run contributes one column per published field of its result, per 
 - **Default scope.** Every run the session holds. The caller may name runs; a run left out is
   reported with `W_GRAPHTY_RUN_EXCLUDED` (`column`: the run id). Hiding a layer never changes which
   columns a file has.
+- **Which elements.** Recommended default, pending the owner (open decision 33): every node and
+  edge, whatever the active filter hides, with the active filter written in the sidecar (`filter`)
+  and in the manifest, so a co-author can tell whether a GraphML holds the 180 pathways of the
+  figure or all 1,400, and read the cutoffs. A caller who passes `scope: "visible"` gets only the
+  kept elements, and the loss note `W_GRAPHTY_FILTERED` names the filter's predicates and the
+  number of nodes and edges dropped.
+- **A column dictionary beside CSV.** A CSV export writes `<name>.columns.csv`: one row per column,
+  with the run, the recipe id, the step, the field, the caveat and the precision, so an R or Python
+  script needs no JSON parser to know what a column is.
 
 ### Resolved appearance
 
@@ -162,11 +181,11 @@ Node shapes. The element draws 3D solids; GEXF has `disc`, `square`, `triangle`,
 | GML | yes | yes | yes | no | the `graphics` block (`x`, `y`, `w`, `h`, `fill`, `type`, `width`) | yes |
 | DOT | yes, as attributes | yes (`pos`) | yes | no | `color`, `fillcolor`, `shape`, `penwidth`, `width`, `style` | yes |
 | Pajek | a fixed set (label, shape, parameters) | yes | numbers as vectors or partitions only; others reported | no | the vertex shape and colour parameters Pajek's `.net` defines | no |
-| CSV | yes, one node table and one edge table | no | yes | no | none: CSV has no appearance; write colour and size as ordinary columns only when the caller asks | no |
+| CSV | yes, one node table and one edge table | as columns `x`, `y` (and `z`) when the caller includes positions, declared in the sidecar's data plan and restored from the sidecar's `positions` | yes | no | none: CSV has no appearance; write colour and size as ordinary columns only when the caller asks | no |
 | JSON node-link, JGF, graphology | yes, including nested values | no | yes | no | none standard | yes |
 | JSON d3, vis | yes | no | yes | no | vis: `color`, `size`, `shape`, `width` per element | no |
 | JSON Cytoscape | yes | yes | yes | no | the `style` array and per-element `classes`; this is the one JSON dialect that can hold rules as well as values | yes |
-| CX2 (Cytoscape Exchange, NDEx) | -- | -- | -- | not written today | proposed first: attributes as `attributeDeclarations` and node and edge attributes, positions as `cartesianLayout`, results as attributes, and style rules as `visualProperties` (defaults, and continuous, discrete and passthrough mappings from bindings), with per-element values as `nodeBypasses` / `edgeBypasses` only where a layer names ids | `networkAttributes` |
+| CX2 (Cytoscape Exchange, NDEx) | -- | -- | -- | not written today | proposed first: attributes as `attributeDeclarations` and node and edge attributes, positions as `cartesianLayout`, results as attributes, and style rules as `visualProperties` (defaults, and continuous, discrete and passthrough mappings from bindings of `everything` layers); a layer with any other selector (`expression`, `has`, `top`, `member`, `ids`) is evaluated and written as `nodeBypasses` / `edgeBypasses` on the elements it matches, reported with `W_GRAPHTY_CX2_BYPASS` (the rule is lost, the values are kept) | `networkAttributes` |
 | Neo4j | yes, as properties | no | yes | no | none: a database has no appearance | no |
 
 Number precision and the Excel byte-order mark that the data-export capability asks for
@@ -187,8 +206,9 @@ the loss is seen. Publishing to NDEx itself is out of scope.
 
 **Typed node identity.** When the graph has type-qualified ids (data-plan.md, "Node types"), every
 format writes the qualified id (`"account:123"`) as the node id and adds the `idSpace` column and
-the plain `originalId` column (no role), so a re-import through the regenerated data plan
-round-trips exactly. The graph-format `originalId` role is never used for it: graph-io's exporters
+the plain `originalId` column (no role), so a re-import through the regenerated data plan -- which
+says `nodeTypePath: "idSpace"`, `idsQualified: true` and lists the feature `typed-identity`
+(data-plan.md, "Node types" rule 6) -- round-trips exactly, typed. The graph-format `originalId` role is never used for it: graph-io's exporters
 do not write that role as a column (`checkCapabilities`, `graph-io/src/common/export.ts`) and the GML
 importer restores it as the node id, which would merge nodes of different types. A format that
 cannot hold the extra columns reports `W_GRAPHTY_TYPED_ID`. The Neo4j format can hold typed identity
@@ -219,7 +239,10 @@ much: GraphML with every attribute and result column typed (Cytoscape reads Grap
 not positions or appearance from graph-io's GraphML), or CSV node and edge tables for Cytoscape's
 table import, plus the graphty sidecar. No positions or style reach Cytoscape from any format
 graph-io writes today. The CX2 writer, with graphty styles written as CX2 `visualProperties`, is
-the recommended first writer (open decision 20), and any "export as CX2" entry waits for it.
+the recommended first writer (open decision 20), and any "export as CX2" entry waits for it. The
+matching CX2 **network reader** -- so a collaborator's `.cx2` from NDEx opens in graphty, with its
+attributes, positions and visual properties (the last through the style reader below) -- is
+proposed beside it (open decisions 19 and 20).
 
 ## graphty's documents beside an export
 
@@ -245,6 +268,8 @@ An export therefore reports each member it did not carry:
 | `W_GRAPHTY_CSV_NEUTRALIZED` | cells were prefixed so a spreadsheet does not run them | the column | cells |
 | `W_GRAPHTY_TEXT_QUOTED` | text that a format could read as markup was written quoted | the column | values |
 | `W_GRAPHTY_FILTER` | a filter was active and could not be expressed as predicates | null | elements hidden |
+| `W_GRAPHTY_FILTERED` | the caller exported only the elements the active filter keeps | the filter's predicates | elements dropped |
+| `W_GRAPHTY_CX2_BYPASS` | a predicate layer was written to CX2 as per-element bypasses | the layer id or name | elements |
 | `W_GRAPHTY_LAYER_EXCLUDED` | a layer carrying a judgement was left out of the baked appearance | the layer id or name | elements it paints |
 | `W_GRAPHTY_ROLE_TAKEN` | a column lost a graph-format role to another claimant | the column | null |
 | `W_GRAPHTY_GRAPH_FIELDS` | a run's graph-level result fields have no place in the format | the run id | fields |
@@ -252,7 +277,7 @@ An export therefore reports each member it did not carry:
 | `W_GRAPHTY_REDACTED` | element ids in run parameters, arguments or scopes were redacted | the run id | values |
 | `W_GRAPHTY_GRAPHS` | graphs the session holds were left out (envelope.md, "Saving") | the graph | runs left out |
 | `W_GRAPHTY_MERGES` | node merges were baked into the data with no record of what merged | null | nodes merged |
-| `W_GRAPHTY_TABLES` | per-group result tables were not written | the run id | tables |
+| `W_GRAPHTY_TABLES` | per-group tables were not written (the format has no place for them) | the run id | tables |
 | `W_GRAPHTY_CYTOSCAPE_MAPPING` | a Cytoscape mapping could not be converted exactly (below) | the visual property | points |
 
 These codes are new and, like graph-io's, are a published contract.
@@ -261,10 +286,11 @@ To keep them, the export API SHOULD offer a **sidecar envelope**: an envelope (e
 data member names the exported file (`url` relative to the envelope, `digest`, `format`, `options`;
 for CSV the edge table as the main input and the node table as `inputs.nodes`) and whose other
 members are the session's `dataSource` (so the STRING release and query survive the export), style,
-recipes, view, a data plan for the exported file, `imports` and `runs`. Because a sidecar goes to
-someone else, it is written under the share rules (envelope.md, "Saving" rule 2): no `application`
-block, the element-name report produced before writing, and layers carrying a judgement left out as
-above. Annotations are written only when the caller asks, and otherwise reported under
+recipes, view, a data plan for the exported file, the active `filter`, `imports`, `runs` and, for
+CSV, `positions`. Because a sidecar goes to someone else, it is written under the share rules
+(envelope.md, "Saving" rule 2): no `application` block, the element-name report produced before
+writing, the element ids in import records redacted (envelope.md, "Import records"), and layers
+carrying a judgement left out as above. Annotations are written only when the caller asks, and otherwise reported under
 `W_GRAPHTY_NOTES`, for the reason given under "Notes in a data export".
 
 1. **The sidecar's data plan is regenerated for the exported file**, never copied from the original
@@ -275,11 +301,17 @@ above. Annotations are written only when the caller asks, and otherwise reported
    plan is named in `derivedFrom`.
 2. **Reopening.** The pair `network.graphml` and `network.graphty.json`, opened by an application
    that passes both files (envelope.md, "Fetching"), reopens with the same data, style, view, run
-   records and recipes. When the data's digest verifies and a result column's declared `origin`
-   names a run in the sidecar's `runs` with that field, the reader rebinds the column as that run's
-   stored result, marked "restored from export columns", so the style layers that read
-   `results.pagerank.value` paint at once, with the exact published numbers and no re-run. A column
-   that does not verify comes back only as an attribute. The GraphML file stays a plain GraphML file
+   records and recipes. When a result column's declared `origin` names a run in the sidecar's
+   `runs` with that field, the reader rebinds the column as that run's stored result, so the style
+   layers that read `results.pagerank.value` paint at once, with the exact published numbers and
+   no re-run. When the data's digest verifies it is marked "restored from export columns"; when
+   the digest differs -- a collaborator added a column in R and wrote the file back, the normal
+   round trip -- but every origin-declared column is present, it is marked "restored, data
+   changed, unverified" and reported. Either way it is also "not recomputed by this installation"
+   (recipe.md, "Reproducing"): the sidecar supplies both the digest and the file, so a matching
+   digest proves the file was not altered after the sidecar was written, never that the numbers
+   were computed as the run records say. A caller who needs the digest to match passes
+   `requireDigest`, and then a differing file comes back with its columns only as attributes. The GraphML file stays a plain GraphML file
    for every other tool. With the zip container, the exported file can be a part of the archive
    instead.
 
@@ -360,20 +392,38 @@ logFC mapping with a yellow above-colour, a discrete mapping, and a passthrough 
 
 ## Images
 
-Figure export is graphty-element work that reads the style documents of this directory and writes
-no document of its own; its API is open decision 33. What it contains is specified here, because a
-figure whose legend has to be redrawn by hand is the genomics persona's named frustration
+Figure export is graphty-element work that reads the style and view documents of this directory
+and writes no document of its own; its API is open decision 33. What it contains is specified here,
+because a figure whose legend has to be redrawn by hand is the genomics persona's named frustration
 (`design/designloom/personas/genomics-cytoscape-user.yaml`; `W20.yaml`, `W21.yaml`, `W25.yaml`):
 
 1. An image export (PNG, SVG, PDF) includes a legend by default; the caller may leave it out or
    place it. The legend can also be exported on its own as SVG.
 2. The legend is derived from every enabled layer's bindings, bottom to top, skipping any binding
    with `legend.hidden`: a colour ramp with its domain, its midpoint and a mark at each clamped end;
-   a size mapping with sample sizes; one key per category of an ordinal or categorical binding;
-   the `missing` value's swatch with its `missingLabel`; each binding's `title` and `units`. A
-   literal layer appears as one key with the layer's name when it is a highlight.
+   a size mapping with sample sizes; one key per category of an ordinal or categorical binding,
+   labelled by the binding's `legend.labels`, else by the first line of a group note on that
+   category's group, else by the value; the `missing` value's swatch with its `missingLabel`; each
+   binding's `title` and `units`. A literal layer appears as one key with the layer's name when it
+   is a highlight.
 3. The legend states nothing the layers do not paint, and every figure exported this way carries
    the same legend when re-exported from the saved project.
+4. **A view's figure settings are used.** Exporting a view that carries `export` (view-preset.md,
+   "Figures") uses its width, height, pixel ratio or DPI and legend placement, so the crop and the
+   legend are the same on any screen.
+5. **A report page carries its notes.** Exporting a view that lists `notes` appends them below the
+   figure as a numbered caption list, each with its target named, unless the view's `export.notes`
+   is false. Canvas callouts remain open decision 14; this is how a briefing is produced in
+   version 1.
+6. **Handling markings.** Every handling marking that applies to what the image shows is written
+   into the file's metadata -- SVG `<metadata>`, the PDF document information, a PNG `tEXt` chunk --
+   and, by default whenever a marking is held, drawn as a visible banner on the image; the caller
+   may turn the banner off. A marking that cannot be written is reported with `W_GRAPHTY_HANDLING`.
+7. **Text is never markup here either.** Every string an image export writes that came from a
+   document or the data -- legend titles, units, labels, layer names, note texts -- is XML-escaped
+   in SVG and written as text in PDF. An SVG export contains no `<script>`, no `<foreignObject>`,
+   no event attributes and no links, so a legend carrying `</text><script>...` is shown as those
+   characters when the SVG is served inline from a wiki.
 
 ## Worked example
 

@@ -34,7 +34,7 @@
     "extensions": {
       "type": "object",
       "propertyNames": {
-        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$"
+        "pattern": "^(graphty|[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+)$"
       }
     },
     "features": {
@@ -55,7 +55,14 @@
       "minLength": 1,
       "maxLength": 256,
       "pattern": "^[^\\u0000-\\u001f]+$",
-      "description": "README, Paths rule 3: a column key written as the column is named (dots are part of the key); never an expression."
+      "description": "README, Paths rule 3: a column key written as the column is named (dots are part of the key); never an expression.",
+      "not": {
+        "enum": [
+          "__proto__",
+          "constructor",
+          "prototype"
+        ]
+      }
     },
     "expression": {
       "type": "string",
@@ -291,6 +298,9 @@
         },
         "extensions": {
           "$ref": "#/$defs/extensions"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
         }
       }
     },
@@ -359,6 +369,10 @@
         },
         "edges": {
           "$ref": "#/$defs/expression"
+        },
+        "component": {
+          "const": "largest",
+          "description": "Keep only the largest weakly connected component of what the predicates keep (recipe.md, Scopes, for the tie rule)."
         }
       }
     },
@@ -386,10 +400,28 @@
           },
           "at": {
             "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+          },
+          "by": {
+            "type": "string",
+            "description": "The receiving user, supplied by the reader's application; never taken from the file."
+          },
+          "installation": {
+            "type": "string",
+            "description": "The reader installation that appended the entry."
+          },
+          "observed": {
+            "type": "string",
+            "description": "The file name or origin the reader opened the document from."
           }
         }
       },
       "description": "Import chain: each reader appends its own entry; entries found in a file are that file's claim (README, Trust rule 6)."
+    },
+    "iri": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^(https?|urn):[^\\s]+$",
+      "description": "An absolute IRI naming a concept (http, https or urn). An identifier, never fetched and never rendered as a link."
     }
   }
 }

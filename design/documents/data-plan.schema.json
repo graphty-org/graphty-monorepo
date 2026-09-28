@@ -50,7 +50,7 @@
           "$ref": "#/$defs/nullableFieldPath"
         },
         "nodeTypePath": {
-          "oneOf": [
+          "anyOf": [
             {
               "$ref": "#/$defs/nullableFieldPath"
             },
@@ -106,7 +106,8 @@
         },
         "positionScale": {
           "type": "number",
-          "exclusiveMinimum": 0
+          "exclusiveMinimum": 0,
+          "maximum": 1000000
         },
         "idCoercion": {
           "enum": [
@@ -115,7 +116,18 @@
           ]
         },
         "edgeTypePath": {
-          "$ref": "#/$defs/nullableFieldPath"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/nullableFieldPath"
+            },
+            {
+              "$ref": "#/$defs/typeSource"
+            }
+          ]
+        },
+        "idsQualified": {
+          "type": "boolean",
+          "description": "Typed identity only: the ids are already type-qualified (data-plan.md, Node types)."
         }
       },
       "additionalProperties": false
@@ -173,10 +185,23 @@
             "minLength": 1
           },
           "term": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/httpsUrl"
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
+          },
+          "element": {
+            "enum": [
+              "node",
+              "edge"
+            ]
           }
         }
       }
+    },
+    "missingValues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Cell texts that mean no value, for every column of every input unless a declaration says otherwise."
     }
   },
   "$defs": {
@@ -292,7 +317,8 @@
                 "fail"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         },
         "input": {
           "type": "string",
@@ -344,7 +370,7 @@
           }
         },
         "term": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/httpsUrl"
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
         },
         "idNamespace": {
           "type": "string",
@@ -445,7 +471,15 @@
           "const": "node"
         },
         "key": {
-          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+          "anyOf": [
+            {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "The key column of the joined table; the empty string names a column whose header is empty."
         },
         "on": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"

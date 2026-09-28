@@ -22,11 +22,31 @@ here is that shape plus optional members. Every document graphty-element 2.x has
 conforming version 1 style document.
 
 **Version 1 is frozen to what 2.x accepts** (README, "Versioning" rule 2): the channel names,
-selector kinds, scales and layer kinds listed here, and the value rules 2.x checks (edge ids in an
-`ids` selector are session ids, `top` never paints more than `n`, a layer writes at least one
-channel, `edge.patternCount` is at least 2, a binding has `domain` or `clamp` but not both). A
-released 2.x reader refuses the whole document for one value it does not accept, so a style using
-anything newer is written as version 2. New optional members (`id`, `legend`, `requires`,
+selector kinds, scales and layer kinds listed here, the value lists of the enumerated channels
+(node shapes, line patterns, arrows), and every rule 2.x's `checkLayerSpec`, `compileSelector` and
+`checkDocument` enforce. A released 2.x reader refuses the whole document for one value it does
+not accept, so a style using anything newer is written as version 2. The rules, with the code 2.x
+reports for each:
+
+| 2.x refuses | Code |
+|---|---|
+| an unknown channel, selector kind, scale or layer kind | `E_UNKNOWN_CHANNEL`, `E_BAD_SELECTOR`, `E_UNKNOWN_SCALE`, `E_BAD_LAYER` |
+| a value outside an enumerated channel's list, or a number outside a channel's range (`edge.patternCount` below 2) | `E_OPTION_RANGE` |
+| a value of the wrong type for its channel (a string where a number is taken) | `E_BAD_LAYER` |
+| a layer with neither `set` nor `encode` | `E_BAD_LAYER` |
+| one channel written in both `set` and `encode` of one layer | `E_BAD_LAYER` |
+| a layer with no `target` writing both node and edge channels | `E_BAD_LAYER` |
+| a binding with both an explicit `domain` and `clamp` | `E_BAD_LAYER` |
+| an empty `where` or `has` path | `E_SELECTOR_EMPTY` |
+| a quoted path segment holding a dot | `E_BAD_SELECTOR` |
+| an `everything` selector whose layer encodes from a `results.` path | `E_UNSCOPED_RUN_ENCODING` |
+| `source.by: "element"` | `E_PROTECTED` |
+| a carried palette whose id nobody registered | `E_UNKNOWN_PALETTE`, for the whole document |
+
+So a version 1 style that carries its own palettes is refused by 2.x until the receiver registers
+them; a newer reader registers them for the session (below). The schema expresses what it can of
+these rules (the enumerations, the empty path, `domain` with `clamp`); the rest are checked by the
+published validator. New optional members (`id`, `legend`, `requires`,
 `extensions`, the shared metadata) are additive in version 1, because 2.x checks values and ignores
 member names it does not read -- with two consequences. 2.x also ignores `features`, so an addition
 that changes what is painted cannot be a version 1 member at all. And 2.x, as a writer, drops every
@@ -65,7 +85,7 @@ interface LayerSpec {
   selector: Selector;
   set?: StaticStyle;                 // literal channel values
   encode?: Encoding;                 // data-driven channel values
-  source?: LayerSource;              // who made it; default { by: "template" }
+  source?: LayerSource;              // who made it; 2.x reads a missing one as { by: "user" }
   enabled?: boolean;                 // default true
   userData?: Record<string, unknown>;
   extensions?: Record<string, unknown>;
@@ -104,7 +124,7 @@ binds note targets to it (open decision 29).
 | `has` | `path` | elements where the path resolves to a value |
 | `expression` | `where` | elements where the JMESPath predicate is true |
 | `ids` | `nodes`, `edges` | the listed elements: node ids, and (see below) edge ids |
-| `top` | `path`, `n` | the top `n` elements by the value at `path`, which MUST be `results.<run>.<field>`; `n` is a whole number, 0 allowed. A group of elements sharing a value is taken whole or not at all, and only when the whole group fits inside `n`, so the top never holds more than `n` and can hold fewer; the binding report states the count and the elements left out (graphty-element's `TopRanking` tie policy, `graphty-element/src/session/results/types.ts`). A "ties included" top is a style version 2 selector |
+| `top` | `path`, `n` | the top `n` elements by the value at `path`, which MUST be `results.<run>.<field>`; `n` is a whole number, 0 allowed. "Top" is always the **highest values first**, for every field (`rankEntries`, `graphty-element/src/session/results/statistics.ts`): a `top` over a score is the best-scored, and a `top` over a `rank` field, where 1 is best, is the worst-ranked, so a writer names the score, not the rank. A group of elements sharing a value is taken whole or not at all, and only when the whole group fits inside `n`, so the top never holds more than `n` and can hold fewer; the binding report states the count and the elements left out (graphty-element's `TopRanking` tie policy, `graphty-element/src/session/results/types.ts`). A `top` over a `data.` path, a `ties: "include"` option and an `order: "asc"` are style version 2 additions |
 | `member` | `of` (a scope) | the members of a scope, usually a kept set `{ set: id }` |
 
 `match` is an open enumeration, frozen for version 1 (see "Purpose").
@@ -116,9 +136,11 @@ flat; nothing is walked).
 
 **Edges in an `ids` selector.** In version 1, `ids.edges` holds what 2.x accepts: strings or
 numbers, which are session `EdgeId`s -- a counter that restarts every session
-(`graphty-element/src/data/edgeIdentity.ts`). An edge highlighted by one in a saved file would
-paint a different edge next time with no error, so a version 1 reader MUST disable the edge part
-of such a selector with `E_UNSTABLE_EDGE_ID` (its node ids still apply) and report it. Stable edge
+(`graphty-element/src/data/edgeIdentity.ts`). A layer has one target, and an `ids` selector reads
+only that target's list (`compileSelector`, `graphty-element/src/session/styles/selector.ts`). So on
+a node layer, `ids.edges` is ignored and reported with a warning; on an edge layer, an edge
+highlighted by a session id in a saved file would paint a different edge next time with no error,
+so a version 1 reader MUST add that layer disabled with `E_UNSTABLE_EDGE_ID` and report it. Stable edge
 references -- graphty-element's `EdgeMember` (`source`, `target`, and exactly one of `id` or
 `ordinal` with `among`) -- in `ids.edges` are a **style version 2** value, because 2.x refuses a
 non-string entry and with it the whole document. An `EdgeMember` that does not resolve on the
@@ -191,10 +213,14 @@ The numeric members mean the following; this is normative, and matches
    reads its palette instead. `reverse: true` swaps the ends.
 6. **`missing`** decides an element with no value at `by`: `"skip"` (the default) paints nothing
    and the layers beneath show through; `{ value }` paints that value.
-7. **`legend`** (NEW, optional) `{ title?, units?, missingLabel?, hidden? }` says what a legend
-   built from this binding states: `title` ("log2 fold change, tumour vs normal"), `units`, the
-   label for the `missing` value ("not measured"), and `hidden: true` for a binding that should not
-   appear in a legend. It never changes what is painted.
+7. **`legend`** (NEW, optional) `{ title?, units?, missingLabel?, labels?, hidden? }` says what a
+   legend built from this binding states: `title` ("log2 fold change, tumour vs normal"), `units`,
+   the label for the `missing` value ("not measured"), `labels`, a map from a category value
+   (written as text) to its display text (`{ "2": "ribosome biogenesis" }`, so a cluster legend
+   names functions, not numbers), and `hidden: true` for a binding that should not appear in a
+   legend. It never changes what is painted, which is why it is additive in version 1. A figure
+   export MAY also take a group note's first line as the label of that group's key when the
+   binding has no label for it (export-mapping.md, "Images").
 
 The remaining members (`map`, `other`, `overflow`, `bins`, `exponent`) have the meaning their
 declarations in `graphty-element/src/catalog/types.ts` give them.
@@ -209,12 +235,24 @@ hint matching apply as for a recipe. Every `data.<name>` path naming a bound slo
 session is written with the slot names it was authored with and its `requires` block, never with
 the names the slots bound to on this data, as a recipe keeps its own `as`.
 
+Slots are a version 1 member that graphty-element 2.x ignores: on 2.x, a slotted layer whose
+`data.<name>` path does not exist on the data is added disabled and reported as unbound, and never
+paints anything different. That degradation is why slots are a named exception to README
+"Versioning" rule 2 rather than a style version 2 feature. A writer MUST warn when it saves a
+slotted style as version 1, because a 2.x reader will not bind it by hint and a 2.x re-save drops
+the slots.
+
 ### Layer sources
 
 `source` records who made a layer. `{ by: "run", runId, algorithm, params }` marks a layer that
 paints a run's result; `{ by: "template", templateId }` a layer that came from a document;
 `{ by: "user" }` and `{ by: "plugin", name }` the others. `{ by: "element" }` is the element's own
-locked layers (selection, hover, notes) and MUST NOT appear in a document.
+locked layers (selection, hover, notes) and MUST NOT appear in a document. graphty-element 2.x
+reads a layer with no `source` as `{ by: "user" }` (`sourceOf`, `Layer.ts`) and stamps `{ by:
+"template", templateId }` only when the caller passes `templateId`; a conforming reader instead
+stamps every imported layer (rule 7 below), which is an element change. `templateId` is the
+caller's `templateId` option when given, and otherwise the document's RFC 8785 SHA-256 digest, so
+two builds stamp the same document the same way.
 
 ### Palettes
 
@@ -265,13 +303,13 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
    implemented (README, "Versioning" rule 3).
 3. Validation is per unit. A channel entry of `set` or `encode` naming an unknown channel is
    dropped from that layer and reported (`E_UNKNOWN_CHANNEL`); the layer's other channels apply. A
-   layer that otherwise fails -- an unknown selector kind (`E_BAD_SELECTOR`), an unknown scale
-   (`E_UNKNOWN_SCALE`), a channel value outside its vocabulary or a colour that does not parse
-   (`E_BAD_LAYER`), neither `set` nor `encode` (`E_BAD_LAYER`), `domain` with `clamp`
-   (`E_BAD_LAYER`), an expression over the README limits (`E_BAD_SELECTOR`), `source.by:
-   "element"` (`E_PROTECTED`), or any exception while it is checked -- MUST be added to the stack
-   disabled, with that code and a reason, and
-   reported. It MUST NOT be dropped, and MUST NOT refuse the rest of the document. graphty-element
+   layer that otherwise fails -- any rule of the table under "Purpose", with the code 2.x reports
+   (a value outside an enumerated list or a number out of range is `E_OPTION_RANGE`, a colour that
+   does not parse `E_BAD_LAYER`), an expression over the README limits (`E_BAD_SELECTOR`), a
+   literal text value (`*.label`, `*.tooltip`, `*Text`) over 1,024 characters (`E_OPTION_RANGE`),
+   a size, width, strength or scale above its published maximum (1,000,000 scene units;
+   `E_OPTION_RANGE`), or any exception while it is checked -- MUST be added to the stack disabled,
+   with that code and a reason, and reported. It MUST NOT be dropped, and MUST NOT refuse the rest of the document. graphty-element
    today refuses the whole document for one such layer; this specification changes that.
 4. A layer that is valid but reads nothing the session answers -- a path under `data` no element
    has, a run id no run has, a set id no set has -- MUST be added disabled with the paths it needs
@@ -287,8 +325,9 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
 6. Layers are added above every layer already present, in document order, as `applyTemplate` does
    today (`stack: [...stack, ...final]`). Replacing the whole stack is an explicit applier option.
 7. **Imported layers are stamped.** Every layer added from a document appends `{ templateId,
-   digest }` (the document's RFC 8785 SHA-256) to the layer's import chain, kept by the session and
-   written back in the layer's `extensions` under `graphty.importedFrom` as a list. A chain found
+   digest, observed }` (the document's RFC 8785 SHA-256, and the file name or origin the reader
+   opened it from) to the layer's import chain, kept by the session and written back in the layer's
+   `extensions` under `graphty.imported-from` as a list. A chain found
    in the incoming document is kept as the document's claim and the reader's own entry is appended
    after it; it is never taken as the reader's own record (README, "Extension data" rule 1). A
    document's claim of `source.by: "user"` or `"plugin"` is replaced by `{ by: "template",
@@ -298,9 +337,11 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
 8. **Layers that hide or single out elements are noticed by effect, not by form.** The binding
    report lists as a notice, with the number of elements it affects, every imported layer that
    makes an element's effective alpha (opacity times colour alpha) or size fall below a visibility
-   threshold (RECOMMENDED: alpha 0.05, size 0.05), and every one whose selector matches few elements
-   against the graph (RECOMMENDED: five or fewer), whatever the selector's kind -- an `ids` list,
-   an `expression` naming one id, a `top` of 1.
+   threshold (RECOMMENDED: alpha 0.05, size 0.05), every one that paints an element in a colour
+   whose contrast against the current background is below 1.5:1 (hidden by colour rather than by
+   alpha), and every one whose selector matches few elements against the graph (RECOMMENDED: five
+   or fewer), whatever the selector's kind -- an `ids` list, an `expression` naming one id, a `top`
+   of 1.
 9. The applier returns a binding report (README, "Applying a document to new data").
 10. Applying a style document MUST NOT start a run, change column roles, change the drawing mode,
     move the camera, or fetch anything.
@@ -309,8 +350,12 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
     document by a published budget (RECOMMENDED: 20,000,000 selector evaluations on the current
     graph, counting a sorting layer as ten), computed before evaluating and reported with an
     estimate in the binding report; the layers beyond the budget are added disabled with
-    `W_STYLE_WORK_BOUND`, in document order from the top, and the rest apply. An envelope's style
-    is applied without a click, which is why the bound is not optional.
+    `W_STYLE_WORK_BOUND`, in document order from the top, and the rest apply. Rendering counts
+    too: each element a label, tooltip or arrow-text channel paints is a CPU-rasterised texture, so
+    it counts against the budget by its texture area (RECOMMENDED: one evaluation per 1,000 pixels
+    of `sizePx` squared times its text length), and a document may label at most 10,000 elements
+    (RECOMMENDED) before the rest of its label layers are added disabled with the same code. An
+    envelope's style is applied without a click, which is why the bound is not optional.
 
 ## Upgrading the 1.x style template
 
@@ -359,7 +404,16 @@ A reader conforms when, for each case, it does what the right-hand column says:
 | a document whose `version` is above the highest this reader implements | refused with `E_UNSUPPORTED_VERSION`, naming the version found and the versions read |
 | a layer with neither `set` nor `encode` | added disabled, `E_BAD_LAYER`; the other layers apply |
 | a binding with both `domain` and `clamp` | layer added disabled, `E_BAD_LAYER` |
-| `edge.patternCount: 1` | layer added disabled, `E_BAD_LAYER` |
+| `edge.patternCount: 1` | layer added disabled, `E_OPTION_RANGE` |
+| `node.shape: "star"` in a version 1 style | fails the schema; a reader adds the layer disabled, `E_OPTION_RANGE` |
+| one channel in both `set` and `encode` | layer added disabled, `E_BAD_LAYER` |
+| an `everything` layer encoding `node.size` by `results.hubs.value` | layer added disabled, `E_UNSCOPED_RUN_ENCODING` |
+| a `top` selector with `n: 10` over `results.hubs.rank` | the ten highest rank numbers (the worst); a writer names the score instead |
+| a 65,536-character literal `node.label` on every node | layer added disabled, `E_OPTION_RANGE` |
+| `node.size: 1e308` | layer added disabled, `E_OPTION_RANGE` |
+| a layer `{ match: "has", path: "data.constructor" }` | matches nothing: inherited members are not data |
+| a binding with `legend.labels: { "2": "ribosome biogenesis" }` | painted as without it; the legend's key 2 reads "ribosome biogenesis" |
+| a layer painting 12 nodes the background colour | applied; reported as a notice (contrast below the threshold, 12 elements) |
 | `"node.color": "red\" URL=\"javascript:alert(1)"` | does not parse as a colour; layer added disabled, `E_BAD_LAYER` |
 | a layer setting `node.color` to `#ffffff00` on one node picked by an `expression` naming its id | applied; reported as a notice (alpha below the threshold, one element) |
 | 1,001 layers, or layers whose estimated work exceeds the budget | the excess added disabled with the reason; the rest apply |
@@ -373,9 +427,11 @@ A reader conforms when, for each case, it does what the right-hand column says:
 | a layer naming palette `lab-reds`, carried, unregistered | palette registered for this session and reported; layer binds |
 | a layer naming palette `lab-reds`, neither carried nor registered | disabled with `E_UNKNOWN_PALETTE` |
 | a carried descriptor under the id `viridis` | descriptor ignored and reported; the built-in palette is used |
-| version 1, `ids: { nodes: ["A"], edges: ["17"] }` (a session edge id, as 2.x writes) | node `A` selected; the edge part disabled with `E_UNSTABLE_EDGE_ID` and reported |
+| a node layer with `ids: { nodes: ["A"], edges: ["17"] }` | node `A` selected; `edges` ignored and reported |
+| an edge layer with `ids: { edges: ["17"] }` (a session edge id, as 2.x writes) | layer added disabled, `E_UNSTABLE_EDGE_ID` |
 | version 1, `ids.edges` holding an `EdgeMember` object | layer added disabled: an edge reference is a version 2 value |
 | a layer with `source: { by: "user" }` from a document | stored as `{ by: "template", templateId }` with the import chain |
+| a document applied twice without a `templateId` option | both stamped with the document's digest as `templateId` |
 | a `top` selector with `n: 10` whose ranks run 1 to 8, then three nodes tied at 9 | 8 elements painted; the report says 3 were left out at the tie |
 | a `top` selector with `path: "data.degree"` | layer added disabled, `E_BAD_SELECTOR`: the path is `results.<run>.<field>` |
 | `encode: { "node.color": { "by": "data.x", "domain": [-1.4, 4.8], "midpoint": 0 } }`, value -0.7 | palette position 0.25 |

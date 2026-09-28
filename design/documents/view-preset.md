@@ -73,6 +73,7 @@ interface View {
   filter?: Filter;               // what this page shows (envelope.md, "The active filter"); default: no filter
   layers?: string[];             // ids (else names) of the style layers switched on; default: leave them as they are
   notes?: string[];              // ids of the notes this view (report page) shows, in order
+  export?: FigureSettings;       // how this view is exported as a figure; see "Figures"
   features?: string[];
   extensions?: Record<string, unknown>;
 }
@@ -87,6 +88,15 @@ type StoredCamera =
       center: [x: number, y: number];                // scene units, the point at the viewport centre
       height: number;                                // scene units visible from top to bottom edge
       rotationDeg?: number };                        // counter-clockwise; default 0
+
+interface FigureSettings {
+  width?: number; height?: number;   // pixels of the exported image
+  pixelRatio?: number;               // device pixels per CSS pixel
+  dpi?: number;                      // written into the image's metadata
+  legend?: { include?: boolean;      // default true
+             placement?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "outside-right" | "outside-bottom" };
+  notes?: boolean;                   // append the view's notes as a numbered caption list; default true when it has notes
+}
 
 interface Framing {
   cameraView: string;            // a camera view id from the element's catalogue
@@ -105,13 +115,27 @@ change to make first.
 Units: scene units are the coordinates node positions are stored in, the same space a layout
 writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is up.
 
+### Figures
+
+A stored camera fixes where the camera is, and an orthographic `height` fixes only the vertical
+extent: the horizontal crop, and where the legend falls, depend on the window. A view saved as a
+figure therefore carries `export`: the image's width and height (so its aspect ratio), its pixel
+ratio or DPI, and whether and where the legend goes. A figure export of that view reads it, so the
+figure re-exported on another screen six months later has the same crop and legend as the
+submitted one. `export` is additive in view version 1.
+
 ## Applying
 
 1. Views are added to the session's list in document order. Applying a view document does not by
    itself move the camera, unless `initial` names a view; then that view is applied.
 2. Applying a view sets the drawing mode when `mode` is present, applies its `filter` and `layers`
-   when present, then places the camera. A layer id in `layers` that the stack does not hold is
-   reported and ignored; layers not listed are switched off.
+   when present, then places the camera. A `layers` entry is matched by the layer's authored id,
+   else by its name; an entry that matches no layer is reported and ignored, and one whose name
+   matches two layers is reported as ambiguous and switches neither. Layers not listed are
+   switched off -- except, for a view from a document this installation did not write, layers that
+   did not come from that same document, which stay as they are unless the caller agrees (the
+   effect is reported under rule 9). Suggested layers have deterministic ids (recipe.md, "Steps"
+   rule 4), so a page that lists one survives a `replace`.
 3. When both `camera` and `framing` are present, the applier uses `camera` when the document's
    fingerprint (or, in an envelope, the envelope's, when the view member has none) matches the
    current graph's, and `framing` when it differs. When it is `unknown` (no fingerprint, or a
@@ -127,9 +151,15 @@ writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is u
    and the camera is applied in the current mode. Entering an immersive mode requires a user
    gesture in browsers; an applier MUST NOT try to enter it without one, and reports the view as
    waiting for the reader instead.
-5. A framing whose `cameraView` is not registered is reported with `E_UNKNOWN_CAMERA`, naming the
-   id; the view is kept in the list, unapplied. A camera view that does not support the requested
-   mode (its descriptor's `modes`) is reported with `E_UNSUPPORTED`. A `fit` naming a set the
+5. A framing resolves **only against registered camera views**, never against a user's saved
+   camera snapshot of the same name: today `applyCameraView` falls back to a snapshot when no
+   camera view holds the name (`resolveCameraPreset`, `graphty-element/src/Graph.ts`), and a view
+   applied through it would silently move to a stored position. The framing path checks the id
+   with `isCameraViewName` first (`graphty-element/src/camera/resolve.ts`), which is an element
+   change to that path. A framing whose `cameraView` is not registered is reported with
+   `E_UNKNOWN_CAMERA`, naming the id; the view is kept in the list, unapplied. A camera view that
+   does not support the requested mode (its descriptor's `modes`, which are `2d` and `3d`; `vr`
+   and `ar` are checked as `3d`) is reported with `E_UNSUPPORTED`. A `fit` naming a set the
    session does not hold is reported with `E_UNKNOWN_SET` and the whole graph is framed.
 6. An `orthographic` camera applied in 3D, or a `perspective` camera applied in 2D, is converted
    by the element: the orthographic camera becomes a top-down perspective camera that shows the
@@ -140,6 +170,11 @@ writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is u
    unapplied, reported with `E_BAD_COMMAND`, and written back on save; the other views apply.
 8. `notes` lists the notes shown when this view is applied as a report page, in reading order. A
    note id that is not held is reported and ignored.
+9. **Effects are reported.** Applying a view from a document this installation did not write --
+   including one an envelope applies on open through `initial` -- reports what it changed, as a
+   style's hiding layers are (style.md, "Reading and applying" rule 8): the number of elements its
+   `filter` hides, and each layer it switched off, by name. An application SHOULD show that report
+   before the reader relies on the view.
 
 ## Writing
 
@@ -177,6 +212,10 @@ VR or AR remains behind the browser's own permission and gesture rules.
 | a view with both, on a graph whose fingerprint differs | the framing is used |
 | `initial` naming an id not in `views` | reported; no view applied |
 | `mode: "vr"` on a desktop browser without WebXR | camera applied in the current mode; `E_UNSUPPORTED` reported |
+| a framing naming `orbitFromNorth`, which only a saved camera snapshot of the session holds | `E_UNKNOWN_CAMERA`; the snapshot is not applied |
+| a view with `export: { width: 2400, height: 1600, legend: { placement: "outside-right" } }`, exported on two screens | the same crop and legend placement both times |
+| a view whose `layers` name `"Hubs"`, held by two layers | reported ambiguous; neither switched |
+| an envelope from another installation whose `initial` view filters out one node and lists only `base` | applied; the report names the hidden count and every layer switched off; the reader's own layers left on |
 
 ## Worked examples
 
@@ -206,7 +245,8 @@ VR or AR remains behind the browser's own permission and gesture rules.
       "framing": { "cameraView": "fitToGraph", "fit": { "set": "set_ring_a" } },
       "filter": { "nodes": "data.ring == 'A'" },
       "layers": ["base", "ring-a-highlight"],
-      "notes": ["note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V", "note_01K5KZ8A4B5C6D7E8F9G0H1J2K"]
+      "notes": ["note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V", "note_01K5KZ8A4B5C6D7E8F9G0H1J2K"],
+      "export": { "width": 1920, "height": 1080, "legend": { "placement": "outside-right" } }
     }
   ]
 }
@@ -230,7 +270,8 @@ the same layout.
       "mode": "3d",
       "camera": { "projection": "perspective", "position": [220, 180, 260], "target": [0, 0, 0], "fovDeg": 45 },
       "framing": { "cameraView": "isometric", "fit": "graph" },
-      "prefer": "camera"
+      "prefer": "camera",
+      "export": { "width": 2400, "height": 1800, "dpi": 300, "legend": { "include": true, "placement": "outside-right" } }
     }
   ]
 }

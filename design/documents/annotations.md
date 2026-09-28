@@ -56,6 +56,7 @@ interface AnnotationSet {
   name?: string;
   fingerprint?: string;          // the graph the notes were written on (topology only)
   dataDigest?: string;           // "sha256:<hex>" of the data bytes the notes were written against
+  binding?: "exact-data" | "by-id";   // default "by-id"; "exact-data": bind only to data with dataDigest
   generator?: { name: string; version: string };
   // shared metadata (README): authors, license, citation, doi, derivedFrom, handling
   notes: Note[];                 // order is meaningful: it is the reading order a report uses
@@ -70,7 +71,8 @@ interface Note {
   author?: string;
   createdAt: string;             // RFC 3339 date-time
   updatedAt: string;             // RFC 3339 date-time, >= createdAt
-  status?: "open" | "confirmed" | "cleared" | "retracted";   // default "open"; open enumeration
+  status?: "open" | "confirmed" | "cleared" | "escalated" | "retracted";   // default "open"; open enumeration
+  confidence?: "low" | "medium" | "high";   // open enumeration; a finding's confidence
   quotes?: { path: string; value: unknown; at?: string }[];   // values the note quotes
   cites?: string[];              // run ids the note cites
   runsAt?: Record<string, string>;   // run id -> digest of the run record the note was written against
@@ -78,7 +80,8 @@ interface Note {
   revisions?: { text: string; status?: string; target?: NoteTarget; tags?: string[];
                 quotes?: unknown[]; cites?: string[]; updatedAt: string; author?: string; digest?: string }[];
   orphaned?: { since: string; lastTarget: string };
-  importedFrom?: { document: string; digest: string; at: string }[];   // appended by each applier
+  importedFrom?: { document: string; digest: string; at: string;   // appended by each applier
+                   observed?: string; by?: string; installation?: string }[];
   userData?: Record<string, unknown>;   // round-trips untouched
   features?: string[];
   extensions?: Record<string, unknown>;
@@ -86,14 +89,21 @@ interface Note {
 
 type NoteTarget =
   | { node: string | number }
-  | { edge: EdgeMember; check?: { path: string; value: unknown } }   // EdgeMember reused unchanged
+  | { edge: EdgeMember; check?: Check | Check[] }   // EdgeMember reused unchanged
   | { group: { run: string; field?: string; value: string | number; members: (string | number)[] } }
   | { set: string }              // a kept set (envelope.md, "Kept sets")
   | { point: [x: number, y: number, z: number] }   // scene units
   | { graph: true }
   | { run: string; recipe?: string }   // a run id, or a recipe's `as` when `recipe` names the recipe id
   | { layer: string };           // a style layer's authored id, else its name
+type Check = { path: string; value: unknown };   // an attribute value the edge must have
 ```
+
+**Statuses.** `open` is a note nobody has decided. `confirmed`, `cleared` and `escalated` are
+**determinations** -- the three outcomes of an alert review (`W06.yaml`: confirm, clear, escalate)
+-- and `retracted` withdraws the note's claim. No status is "sticky": which version of a note wins
+a merge is decided by its revision history (below), and a change of status arriving from someone
+else is never applied silently.
 
 `EdgeMember` is graphty-element's published type (`graphty-element/src/catalog/types.ts`), not a
 second declaration: `source` and `target` are required, plus exactly one of `id` (string or number)
@@ -120,12 +130,18 @@ interface EdgeMember { source: NodeId; target: NodeId; id?: string | number; key
   pair in either order. A reference binds only when exactly one edge matches. An ordinal is the last
   resort: if the next file lists the same pair's edges in a different order with the same count, it
   would bind to a different edge -- for evidence, worse than orphaning. So a reference by ordinal
-  binds only when the notes' `dataDigest` matches the loaded data's bytes; otherwise it is orphaned
-  with the reason "ordinal reference on different data". On data that now carries edge ids, an
-  ordinal reference still resolves by its ordinal among the pair and is reported. An edge target MAY
-  carry `check`, an attribute value the edge must have (`{ path: "data.timestamp", value:
-  "2026-09-17T02:14:00Z" }`), verified on bind; a mismatch orphans the note. A writer SHOULD write
-  `check` whenever it writes an ordinal, and SHOULD prefer data with edge ids for evidence. Adding
+  binds by ordinal only when the notes' `dataDigest` matches the loaded data's bytes (or the
+  project's `data.original.digest`, rule 9). On different data it binds **by its check** instead:
+  an edge target MAY carry `check`, one attribute value the edge must have (`{ path:
+  "data.timestamp", value: "2026-09-17T02:14:00Z" }`) or a list of them acting as a composite key
+  (caller, callee and timestamp); when exactly one edge of the pair (in either order on an
+  undirected graph) satisfies every check, the note binds to it and is reported as rebound by
+  check. With none or several, it is orphaned with the reason "ordinal reference on different
+  data". So a call note survives the next day's extract with 200 calls appended. On data that now
+  carries edge ids, an ordinal reference still resolves by its ordinal among the pair and is
+  reported. On matching data a check is verified on bind; a mismatch orphans the note. A writer
+  SHOULD write `check` whenever it writes an ordinal, and SHOULD prefer data with edge ids for
+  evidence. Adding
   the edge's predicate to `EdgeMember` is open decision 13.
 - **Groups** are one value of a partition-shaped run -- one cluster of a clustering run -- or a kept
   set. A group target records the run, the field (default: the run's partition field, `group` for
@@ -150,10 +166,18 @@ A note is never about another note.
 
 ## Writing
 
-1. `session.notes.toDocument()` (designed, not built) writes every note in the session, in list
-   order, with `dataDigest` when the data's bytes are known, and every handling marking the session
-   holds (README, "Extension data and shared metadata"). It MUST NOT write `fingerprint` until a
-   scheme is approved (README).
+1. `session.notes.toDocument(options?)` (designed, not built) writes every note in the session, in
+   list order, with `dataDigest` when the data's bytes are known, and every handling marking that
+   applies to the notes it writes (README, "Extension data and shared metadata"). `dataDigest` is
+   always the digest of the bytes the notes were written against -- the exhibit -- even after a
+   node merge made a project save re-export the data. It MUST NOT write `fingerprint` until a
+   scheme is approved (README). Its options select what is written, for writing notes for someone
+   else: `select` (by tag, status, author or target), `withoutRetracted`, and `withoutRevisions`.
+   Without revisions, each note carries a marker `{ revisionsDropped: <count>, digest: <digest of
+   the dropped history> }` in its `extensions` under `graphty.revisions-dropped`, so the history is
+   visibly truncated rather than silently missing. A project save keeps the full history; a share
+   (envelope.md, "Saving" rule 2) lists every retracted note and every note with revisions before
+   writing.
 2. A writer MUST write edge targets as `EdgeMember`, never as a session edge id.
 3. A writer MUST keep `orphaned` notes and write them with their stamp, and MUST keep
    `importedFrom` and `revisions`.
@@ -164,18 +188,26 @@ A note is never about another note.
    `extensions`, a closed list -- and with defaults filled: `status` written (`"open"` when
    absent), `tags` written as a sorted, de-duplicated list (`[]` when absent), and every other
    absent optional member left out. Every other member counts, including one this reader does not
-   know, so two releases always agree whether two notes are the same. An edit moves the previous
+   know, so two releases always agree whether two notes are the same. The list of non-content
+   members and the defaults filled are frozen for a major version: a later minor member that is not
+   content goes under `extensions`, and no new member gets a default, so the digest function never
+   changes within version 1. An edit moves the previous
    text, status, target, tags, quotes, cites, time, author and digest into `revisions`
    (append-only), so the note's history travels with it and a later signature scheme has something
    to sign.
 6. A writer MUST mint a globally unique `id` for a new note (`note_` plus a ULID or UUID), so two
    analysts' writers never give unrelated notes one id.
 7. A writer SHOULD write `runsAt` for every run a note targets or cites: the RFC 8785 SHA-256 of
-   that run's record as it was when the note was written, so a later reader can tell a note written
-   against earlier parameters.
+   that run's **identity** as it was when the note was written -- its record without `startedAt`,
+   `durationMs`, `importedFrom`, `stale`, `superseded` and `discarded` (so algorithm, parameters,
+   seed, scope, engine, bindings and import) -- so a later reader can tell a note written against
+   earlier parameters, and a `replace` with identical parameters does not flag every note.
 8. Inside an envelope saved from a session that applied a recipe, run targets, `cites` and
    `results.*` quote paths are written with the recipe's own `as` (recipe.md, "Saving an applied
    recipe").
+9. A writer SHOULD write `binding: "exact-data"` whenever the document carries a handling marking or
+   the caller marks the notes as evidence, so a generic application that opens the file cannot
+   attach "confirmed ring member" to whatever node 17 is in another case's data.
 
 ## Reading and applying
 
@@ -184,17 +216,24 @@ A note is never about another note.
    whose `id` is held but whose `target` differs is a different note, whatever `onConflict` says: it
    is added under a new id and reported as renamed. A note whose `id` and target are held with
    different content follows these rules, in order:
-   - **A retraction always wins.** When either side has `status: "retracted"` (or `"cleared"`),
-     the result is that side, and the other version goes into `revisions`, under every
-     `onConflict` policy. A merge can never move a note out of `retracted` or `cleared`; only the
-     caller's explicit per-note instruction can. So a colleague's stale open copy of a note I
-     retracted never brings the allegation back, and a colleague's retraction reaches my open copy.
+   - **History decides first.** When one side's `revisions` contain the other side's digest, that
+     side descends from the other and wins, whatever its status, under every `onConflict` policy;
+     the other version goes into `revisions`. So a note I reopened or confirmed after clearing it
+     reaches a colleague who holds the old cleared copy, and a colleague's stale cleared copy (an
+     ancestor of my confirmed note) cannot overturn it. A note whose history the incoming one
+     descends from, and whose status the merge changes, is reported as a notice naming both
+     statuses.
+   - **A status change from someone else is a proposal.** When neither history contains the other
+     and the two sides differ in status -- one side retracted, cleared, confirmed or escalated --
+     the held note is not changed: the incoming version is kept as a pending proposal on the note
+     and reported with `W_STATUS_PROPOSED`, naming both statuses and the incoming document, until
+     the caller accepts or rejects it per note. A notes file sent back by someone who received a
+     case file can therefore never retract, clear or confirm the investigator's note on its own, and
+     a colleague's genuine retraction still reaches the note as a proposal the investigator sees.
    - Otherwise the applier's `onConflict` option decides: `"keep-both"` (the default) adds the
      incoming note under a new id and reports both ids as renamed, so a person can reconcile them;
-     `"newer"` replaces the held note when the incoming version is newer, moving the held version
-     into `revisions`, and otherwise keeps the held note and reports the incoming one. "Newer" is
-     decided by revision history first -- an incoming note whose `revisions` include the held
-     note's digest is newer -- and by `updatedAt` only when neither history contains the other.
+     `"newer"` replaces the held note when the incoming `updatedAt` is later, moving the held
+     version into `revisions`, and otherwise keeps the held note and reports the incoming one.
    - A timestamp later than the reader's clock plus five minutes is not believed: it is reported,
      and the note is treated as having no `updatedAt` for this comparison, so a note dated 9999
      cannot win every later merge.
@@ -222,20 +261,29 @@ A note is never about another note.
    warning. A quote on a point, the graph or a layer is not checked.
 7. A note that fails the schema is kept verbatim, not bound, reported with `E_BAD_COMMAND`, and
    written back on save; the others apply.
-8. **Import chain.** Every note added from a document gets `{ document, digest, at }` appended to
-   its `importedFrom` list: the document's name (else its file name, else its digest), its RFC 8785
-   SHA-256, and the time. A list already in the file is kept as the file's claim and never taken as
-   the reader's own record, so a note that passed from j.rivera to a supervisor to me shows every
-   hand. No entry is appended when the document is one this installation wrote itself (known by
+8. **Import chain.** Every note added from a document gets an entry appended to its `importedFrom`
+   list: `observed`, the file name or origin the reader opened it from (never the document's own
+   `name`, which is the author's text and shown only as the document's claim); `document`, that
+   same observed name (else the digest); the document's RFC 8785 SHA-256; the time; the reader's
+   `installation`; and, when the application has an authenticated user, the receiving user `by`.
+   The last three are supplied by the reader, never taken from the file. A list already in the file
+   is kept as the file's claim and never taken as the reader's own record. So a note that passed
+   from j.rivera to a supervisor to me shows every file it came through and, where the
+   applications knew their users, who received it; without authenticated users it shows files, not
+   custodians, and is not a chain of custody on its own. No entry is appended when the document is one this installation wrote itself (known by
    graphty-element's own record of the digests it wrote, never by anything in the file), so
    reopening my own project does not make my notes look imported.
 9. **Which data the notes were written against.** When the session knows the loaded data's bytes,
-   the applier compares the document's `dataDigest` with them and reports `match`, `differs` or
-   `absent` in the binding report, beside the fingerprint (`match`, `differs`, `unknown`). With the
-   applier option `requireDigest: true`, a `differs` binds nothing and returns the notes parsed, so
-   an application can show the mismatch before anything binds; without it, notes whose targets
-   exist bind and the rest orphan. Short integer ids (`1`, `17`) are common in case data, so an
-   evidence application SHOULD pass `requireDigest`.
+   the applier compares the document's `dataDigest` with them **and with the envelope's
+   `data.original.digest`** (the exhibit's bytes, when a project save re-exported the data after a
+   node merge), and reports `match` (saying which of the two matched), `differs` or `absent` in the
+   binding report, beside the fingerprint (`match`, `differs`, `unknown`). With the applier option
+   `requireDigest: true`, or when the document says `binding: "exact-data"`, a `differs` binds
+   nothing and returns the notes parsed, so an application can show the mismatch before anything
+   binds; only the caller can override a document's `exact-data`, explicitly. Without either,
+   notes whose targets exist bind and the rest orphan. Short integer ids (`1`, `17`) are common in
+   case data, so an evidence application SHOULD pass `requireDigest`. `binding` is part of version
+   1, so every reader of version 1 honours it.
 10. **Digests are checked.** A note whose `digest` does not match its content (edited in a text
     editor) is kept, shown with a warning (`W_DIGEST_MISMATCH`), and listed in the binding report;
     it is never silently trusted. A note with no `digest` (hand-written) is the one schema failure
@@ -256,8 +304,10 @@ A note is never about another note.
 1. `text`, `tags`, `author` and quoted values are plain text. A renderer MUST display them as text
    and MUST NOT interpret them as HTML or Markdown that can load resources or run script. A
    consumer that renders Markdown does so at its own risk and MUST sanitize.
-2. Notes may carry sensitive judgements ("suspect", "confirmed ring member"). A writer SHOULD let
-   the caller choose which notes to write (by tag, author or target). Notes are not written into a
+2. Notes may carry sensitive judgements ("suspect", "confirmed ring member"). A writer MUST let
+   the caller choose which notes to write, without retracted notes and without revisions
+   ("Writing" rule 1), because a rewritten note's first revision and a retracted allegation
+   otherwise travel verbatim to everyone a file is shared with. Notes are not written into a
    data export, an export sidecar or a document saved with `purpose: "share"` unless the caller
    names them (`members: ["annotations"]` for a share, with the share's element-name report
    produced first; export-mapping.md; envelope.md, "Saving"); a document's `handling` markings are
@@ -279,8 +329,16 @@ A note is never about another note.
 | two notes with the same `id` in one document | the second is reported and added under a new id |
 | an incoming note whose `id` is held with different text, default options | added under a new id; both ids reported; the held note unchanged |
 | the same, `onConflict: "newer"`, incoming `updatedAt` later | the held note replaced; its previous version in `revisions` |
-| an incoming note with `status: "retracted"` for a held open note, any `onConflict` | the held note becomes retracted; it is not deleted |
-| a held retracted note and an incoming open copy of it, default options | the held note stays retracted; the incoming version goes into `revisions`; no second note |
+| an incoming note with `status: "retracted"` for a held open note, neither history containing the other | the held note unchanged; the retraction kept as a proposal, `W_STATUS_PROPOSED` |
+| a held retracted note and an incoming open copy that is its ancestor | the held note stays retracted; no second note |
+| a held cleared note and an incoming `confirmed` note whose `revisions` hold the cleared digest | the held note becomes confirmed; a notice names both statuses |
+| a held `confirmed` note and an incoming stale `cleared` copy whose digest is in the held note's `revisions` | the held note stays confirmed |
+| a forged `retracted` copy of a held note from a file sent back by a recipient | the held note unchanged; a proposal the caller must accept |
+| notes with `binding: "exact-data"` opened on different data, no caller option | nothing bound; `differs` reported |
+| notes on the exhibit (digest A) reopened from a project re-exported after a merge (`data.original.digest` A) | `match` via the original digest; ordinal references bind |
+| an ordinal edge note with `check` on caller, callee and timestamp, on an extract with calls appended | bound to the one matching edge; reported as rebound by check |
+| `toDocument({ withoutRevisions: true, withoutRetracted: true })` | no retracted notes; each note carries the dropped-history marker |
+| a note with `status: "escalated"` | valid; a determination |
 | an incoming note with the held note's `id` but a different target | added under a new id, whatever `onConflict` says |
 | an incoming note dated `9999-12-31T23:59:59Z`, `onConflict: "newer"` | timestamp reported; not treated as newer |
 | a note whose text was edited without updating `digest` | kept, shown with `W_DIGEST_MISMATCH` |
@@ -291,7 +349,7 @@ A note is never about another note.
 | a group note on cluster 3 with `status: "confirmed"`, re-run so the best match gained members | not rebound without the caller's confirmation; added and removed members reported |
 | a note citing a run whose record digest changed after `onRepeat: "replace"` | shown as written against an earlier run, `W_RUN_CHANGED` |
 | my own saved notes file reopened | no import entry appended |
-| a note passed through two colleagues' files | two entries in `importedFrom`, oldest first |
+| a note passed through two colleagues' files | two entries in `importedFrom`, oldest first, each naming the observed file, not the document's `name` |
 | `text` containing `<img src=x onerror=...>` | stored and displayed as those characters |
 | a note on `{ "run": "rings" }` in an envelope whose recipe step has `as: "rings"`, applied with namespace `fraud` | target, `cites` and quote paths rewritten to `fraud__rings`; bound |
 | a standalone notes file with `{ "run": "rings", "recipe": "org.example.fraud" }`, applied after that recipe ran with namespace `fraud2` | bound to `fraud2__rings` |

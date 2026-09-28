@@ -81,7 +81,10 @@ workflows that means:
 - It **cannot** yet express, and reserves a step type for each (a later minor version adds them;
   an old reader refuses rather than skips them, see "Steps" rule 7): fetching interactions from a
   database with species and cutoff (`data.query`, behind the consent rule); keeping the largest
-  component or a filtered subgraph as the working network (`graph.subgraph`); filtering by a
+  component or a filtered subgraph as the working network for later steps (`graph.subgraph`; a
+  person can already keep it as what they see, export and lay out with the session filter
+  `{ component: "largest" }`, envelope.md "The active filter", which keeps the original bytes);
+  filtering by a
   predicate so later steps and the view see less (`graph.filter`); computing an attribute from a
   formula such as a combined score (`attribute.compute`); a randomized null model
   (`graph.randomize`); enrichment against a gene-set file (a later `algo.run` of an enrichment
@@ -95,7 +98,7 @@ interface Recipe {
   kind: "graphty-recipe";
   version: 1;
   id: string;                    // stable identity of this recipe, across its versions
-  recipeVersion?: string;        // REQUIRED with doi, citation or source, and in a share save; absent compares as "0"
+  recipeVersion?: string;        // REQUIRED with doi, citation or source, and in a share save; SemVer RECOMMENDED
   name: string;
   description?: string;
   namespace?: string;            // preferred namespace for its run ids; ^[a-z][a-z0-9-]*$, <= 32
@@ -148,8 +151,10 @@ interface ExtensionRequirement {
 }
 
 // graphty-element's EngineVersions: plugins keyed by catalogue key, the value the plugin's own
-// declared version, or null when it declares none
+// declared version, or null when it declares none (the shipped type omits an undeclared plugin;
+// writing null, graphIo and graphFormat are element changes)
 interface EngineVersions { element: string; algorithms: string; layout: string;
+                           graphIo?: string; graphFormat?: string;   // the packages that read the data
                            plugins?: Record<string, string | null>;
                            accelerator?: { package: string; version: string; backend?: string; adapter?: string } }
 
@@ -195,7 +200,8 @@ type RecipeScope =
   | "graph" | "largest-component"
   | { where: string; target?: "node" | "edge"; args?: Record<string, ArgumentRef | unknown> }
   | { neighborhood: { seeds: ArgumentRef | ResultRef; depth: number | ArgumentRef } }
-  | { range: { attribute: string; min?: ArgumentRef | string | number; max?: ArgumentRef | string | number } }
+  | { range: { attribute: string | AttributeRef; min?: ArgumentRef | string | number; max?: ArgumentRef | string | number } }
+  | { filter: Filter }           // exactly a session filter (envelope.md, "The active filter")
   | { define: SetDefinition };   // a rule set only; see "Scopes"
 ```
 
@@ -208,17 +214,23 @@ type RecipeScope =
    resolve differently on new data (`graphty-element/src/session/runs/runId.ts`). A step without
    `as` is skipped with `E_UNSTABLE_RUN_ID`. `as` MUST NOT contain `__`, the namespace separator.
 3. `params` are validated against the algorithm's own option descriptors (`OptionDescriptor`,
-   published in the element's catalogue): unknown names are refused with `E_UNKNOWN_OPTION`,
-   values out of range with `E_OPTION_RANGE`, and omitted options take the descriptor's default.
-   Because a default can change between releases, a writer MUST write the resolved value of every
-   option the author did not set in `defaults` (see "Producing a recipe"). An unknown name in
-   `defaults` is ignored and reported, not refused, so a recipe written by a release whose
-   algorithm gained an option still runs one release earlier; `reproduce` compares `defaults` with
-   the current defaults and reports every difference. An option in neither is legal in a
-   hand-written recipe and is reported with its default in the run record.
+   published in the element's catalogue): unknown names are refused with `E_UNKNOWN_OPTION` and
+   values out of range with `E_OPTION_RANGE`. `defaults` holds the value every other option had
+   when the recipe was produced (see "Producing a recipe"), and **it is applied**: an option named
+   in `defaults` that the current release still has runs with the recorded value, not with the
+   current release's default, so a cited recipe runs with the tolerance it states. Every
+   recorded value that differs from the current default is reported with `W_PARAMETER_DIFFERS`
+   on every application, not only under `reproduce`. An unknown name in `defaults` is ignored and
+   reported, not refused, so a recipe written by a release whose algorithm gained an option still
+   runs one release earlier. An option in neither `params` nor `defaults` takes the current
+   descriptor default and is reported with it in the run record; that is legal in a hand-written
+   recipe.
 4. `style` has the meaning of `RunStyle` (`graphty-element/src/session/runs/types.ts`): by default
    the element adds the colouring the result shape suggests, scoped to the elements carrying the
-   result. A writer that also writes the style member of the same envelope MUST set `style: false`
+   result. Each suggested layer gets a deterministic authored `id`, `<run id>-<channel>`
+   (`hubs__score-node.size`), rewritten with the run id when a recipe is namespaced and stable
+   across `onRepeat: "replace"`, so a view page that lists it by id still finds it. A writer that
+   also writes the style member of the same envelope MUST set `style: false`
    on every step whose suggested layers it writes there, so reopening does not add them twice; an
    applier also skips a suggested layer when the style member already holds a layer with
    `source: { by: "run" }` for that run id, and reports it.
@@ -236,7 +248,11 @@ type RecipeScope =
 7. A step whose `op` the reader does not know is skipped with `E_UNKNOWN_COMMAND`, **and so is
    every later step**, unless the caller explicitly agrees to continue. An unknown step type may be
    a filter or a subgraph that changes what every later step sees; skipping it alone and running
-   the rest would report success on the wrong input.
+   the rest would report success on the wrong input. **The same cascade follows every refusal that
+   could change what later steps see**: an unknown feature listed on the step
+   (`E_UNSUPPORTED_FEATURE`), an unknown `op` and an unknown command member (rule 9). A reader
+   checks a step in this order -- `features`, then `op`, then command members -- and the first
+   refusal decides the code reported.
 8. A step with a reserved `op` (`graph.filter`, `graph.subgraph`, `attribute.compute`,
    `data.query`, `graph.randomize`) in a version 1 recipe is treated as rule 7 describes. When
    `attribute.compute` arrives, its output columns are exported like result columns, with run
@@ -252,23 +268,31 @@ type RecipeScope =
     `E_DUPLICATE_ID`, and so is every later step that reads it. JSON Schema cannot check this; the
     published validator does (README, "Which text is normative" rule 3).
 11. **An empty scope is not a success.** A step whose scope resolves to no element is skipped with
-    `E_EMPTY_SCOPE`, and the steps that read its result are skipped with `E_DEPENDENCY_SKIPPED`.
+    graphty-element's existing `E_SCOPE_EMPTY`, and the steps that read its result are skipped with
+    `E_DEPENDENCY_SKIPPED`.
 
 ### Scopes
 
 The default scope in a recipe is `"graph"`, so a replay never depends on what the reader happens to
-have filtered. A recipe may also scope a step to the largest component, a predicate, the
-neighborhood of a supplied or computed node, a range of an attribute, or a rule set.
+have filtered. The shipped `AlgorithmRunCommand` defaults to the visible graph
+(`graphty-element/src/session/planning.ts`), so the applier MUST always pass an explicit scope to
+the element, `"graph"` when the step has none; a step dispatched without one would run over the
+envelope's active filter. A recipe may also scope a step to the largest component, a predicate,
+exactly a session filter, the neighborhood of a supplied or computed node, a range of an attribute,
+or a rule set.
 
 - `"largest-component"`: the largest weakly connected component (on a directed graph as well); a
   tie between components of equal size is broken by the component holding the smallest node id,
   compared after id coercion (numbers before strings, strings by code point), so row order never
-  decides it.
+  decides it. graphty-element today gives a tie to the lowest component label, and labels follow
+  node index order (`graphty-element/src/session/sets/resolve.ts`), so row order does decide it:
+  this rule is an element change, and it applies to every largest-component scope -- runs, sets,
+  `member` selectors, view framings and the filter's `component` -- not only to recipes.
 - `{ where, target, args }`: the elements for which the predicate holds. `target: "node"` (the
   default) selects nodes and keeps the edges induced between them; `target: "edge"` selects edges
   and keeps their end nodes. A step that needs both a node and an edge predicate (pathways with FDR
-  below 0.01 joined by edges with similarity at least 0.375) writes the edge predicate over the
-  nodes it keeps, or waits for `graph.filter`. The predicate MAY reference an argument through a
+  below 0.01 joined by edges with similarity at least 0.375), or that must keep every node while
+  dropping edges, uses the `filter` scope. The predicate MAY reference an argument through a
   name in `args` (`data.degree > $k`, with `args: { "k": { "$argument": "k" } }`). The applier
   substitutes the value as a literal node in the parsed expression tree, never into the text; the
   element's lexer refuses `$` today ("is not something a selector can contain", `predicate.ts`),
@@ -277,7 +301,14 @@ neighborhood of a supplied or computed node, a range of an attribute, or a rule 
   an earlier result names, the first step of an investigation around a flagged entity. The member
   names are the element's rule-tree leaf's.
 - `{ range: { attribute, min, max } }`: the elements whose value of `attribute` (a column key, a
-  timestamp for a time window) lies in the range, as the element's range leaf.
+  timestamp for a time window) lies in the range, as the element's range leaf. `attribute` is an
+  attribute slot reference (`{ "$attribute": "since-column" }`) or a bare column key, which is an
+  implicit slot bound by exact name ("Attribute slots", "Undeclared attributes").
+- `{ filter: { nodes?, edges?, component? } }`: exactly what a session filter with the same members
+  keeps (envelope.md, "The active filter"): the nodes the node predicate keeps, the edges between
+  them that the edge predicate keeps, and every kept node, isolated or not; with `component:
+  "largest"`, then only the largest component of that. A run made under a session filter is
+  exported with this scope, so a replay sees the same nodes.
 
 A recipe MUST NOT name particular elements: a scope `{ nodes: [...] }`, a scope `{ set: id }` naming
 a kept set, and a `define` holding a fixed set all name elements of the authoring data and mean
@@ -312,18 +343,24 @@ declared measurement level or weight role (from the data plan or the import) con
 whether or not a level was declared.
 
 **Confirmation.** A slot with a `weightRole` MUST be confirmed by the caller unless the graph
-declares the same role on the bound attribute, because binding a distance where a similarity was
-meant silently inverts the result (the design studio's rule "always confirms a weight slot"). An
-unconfirmed slot leaves its steps waiting with `E_CONFIRMATION_REQUIRED`.
+declares the same role on the bound attribute **from a source the caller trusts**: the import
+format itself, or a data plan the caller supplied or that graphty-element recorded as confirmed
+before. A role declared by a data plan held from, or carried in, the same document as the recipe
+does not count, because a file could otherwise pre-confirm its own weight role (README, "Trust"
+rule 7). Binding a distance where a similarity was meant silently inverts the result (the design
+studio's rule "always confirms a weight slot"). An unconfirmed slot leaves its steps waiting with
+`E_CONFIRMATION_REQUIRED`.
 
 **Unbound.** A slot that binds nothing is unbound (`E_UNBOUND_SLOT`). Every step that reads it is
-skipped, and reported with the slot's `description`. An `optional` slot that binds nothing skips no
-step: the steps run without it and the parameters that named it take their defaults; an optional
-weight slot runs its steps unweighted, and the run record says so.
+**waiting**, not skipped -- the caller can bind the slot on the same application -- and reported
+with the slot's `description` and its `compatible` attributes (below). An `optional` slot that
+binds nothing leaves no step waiting: the steps run without it and the parameters that named it
+take their defaults; an optional weight slot runs its steps unweighted, and the run record says so.
 
-**Undeclared attributes.** A `data.<name>` in a recipe predicate that no slot declares is treated as
-an implicit slot of that exact name: it binds by exact name only, and otherwise is unbound with
-`E_UNBOUND_SLOT` and its steps skipped, rather than evaluating to nothing and matching no element.
+**Undeclared attributes.** A `data.<name>` in a recipe predicate, or a bare column key in a `range`
+scope, that no slot declares is treated as an implicit slot of that exact name: it binds by exact
+name only, and otherwise is unbound with `E_UNBOUND_SLOT` and its steps waiting, rather than
+evaluating to nothing and matching no element.
 
 **Rewriting.** A slot is referred to explicitly: in `params` by the whole value
 `{ "$attribute": "<slot>" }`, which the applier replaces with the bound attribute's name; in
@@ -338,36 +375,50 @@ parameter holding a bare string is a literal and is never rewritten.
 
 ### Weights
 
-graphty-element's algorithms read one weight column: the snapshot carries the weight the element
-resolved at import (`edgeWeightPath`, or the attribute with role `weight`), and PageRank's `weight`
-option only switches a weighted run on (`PageRankAlgorithm.ts`: "ONE weight column, so naming an
-attribute is the same request as asking for a weighted run"). The migration's snapshot accessor
-for plugins keeps this model. So:
+Each algorithm reads the weight with a fixed meaning, declared on its descriptor in the element's
+catalogue: Louvain, Leiden, label propagation, Girvan-Newman, min-cut and PageRank read a strength;
+Dijkstra, Bellman-Ford, Floyd-Warshall, Prim and Kruskal read a distance; closeness, betweenness
+and eigenvector centrality read no weight at all (`weight: null`, "Distance counts edges; edge
+weights are not read", `graphty-element/src/algorithms/ClosenessCentralityAlgorithm.ts`). Today
+every algorithm reads the one weight column the import resolved (`edgeWeightPath`, or the
+attribute with role `weight`). The migration's indexed ports already take a per-arc weight array
+for each call (`design/graph-format/migration-plan.md` on `feat/graph-format-migration`), so one
+weight column is the element's choice, not a limit of the snapshot. This specification uses that:
 
-1. A slot with `role: "weight"` binds to the graph's weight column, not to a parameter value. When
-   the attribute it binds to is not the weight column the graph was imported with, the step waits
-   and the report's `needsReimport` entry names the attribute and gives the `knownFields` the
-   re-import should use (`{ edgeWeightPath: "<attribute>" }`); it never runs weighted by the wrong
-   column or silently unweighted. The waiting application is held, as with `applyTo:
-   "next-import"` (envelope.md), and re-bound when that import completes; it is not a repeat
-   application.
+1. A slot with `role: "weight"` binds to **any numeric edge column** of a compatible role,
+   including one derived by the data plan (`derive`, data-plan.md). The element passes the bound
+   column to that step's run as its weight, and records it in the run record's `weight`. Two steps
+   of one recipe can therefore read a similarity and a derived distance. Passing a column other
+   than the import-time weight column per run is an element change this rule depends on, and it
+   belongs to the migration's plugin seam (the snapshot accessor's weight contract), which is
+   flagged there. `needsReimport` is used only for a column the import did not load at all; that
+   re-import re-reads the same bytes, keeps notes and sets (they rebind by id), and marks earlier
+   runs stale rather than dropping them.
 2. `{ "$attribute": "weight" }` in a weight option resolves to that attribute's name, which
    switches the weighted run on.
-3. The applier compares the bound attribute's weight role with the meaning the algorithm reads
-   (its option descriptor's declared meaning: PageRank, communities and centralities read a
-   similarity, shortest paths and closeness a distance). A mismatch skips the step with
+3. **The role check is keyed on the descriptor.** The applier compares the bound attribute's
+   weight role with the meaning the algorithm's descriptor declares. A step whose algorithm reads
+   no weight gets no weight slot and no check. A mismatch skips the step with
    `E_WEIGHT_ROLE_MISMATCH`; the recipe never converts one into the other, because 1/w, 1-w and
    -log w are different models and the choice is the author's -- made once, in the data plan, with
-   `derive` (data-plan.md). A signed weight (`signed: true`) given to an algorithm whose catalogue
-   entry does not accept negative weights skips the step with `E_NEGATIVE_WEIGHT`. Declaring the
-   expected meaning and negative-weight acceptance on each descriptor is an element change this
-   rule depends on.
+   `derive`. A signed weight (`signed: true`) given to an algorithm whose catalogue entry does not
+   accept negative weights skips the step with `E_NEGATIVE_WEIGHT`. graphty-element's descriptors
+   declare `meaning: "distance" | "strength"` today; declaring negative-weight acceptance, and
+   `similarity` beside `strength`, are element changes this rule depends on.
 4. A flow step reads a `capacity` slot (`role: "capacity"`), bound to the graph's capacity-role
    column, not to the weight.
-5. A writer MUST emit a weight slot for every step whose algorithm reads the weight column,
-   whether or not an option names it (closeness reads it as a distance with no option at all), so
-   the role check has something to compare on new data. The author MAY mark it `optional`.
-6. The run record's `weight` records the attribute, the role and whether the reader confirmed it.
+5. A writer MUST emit a weight slot for every step whose algorithm's descriptor declares a weight
+   meaning, whether or not an option names it, so the role check has something to compare on new
+   data, and MUST NOT emit one for an algorithm that reads no weight. The author MAY mark it
+   `optional`. When a later release gives closeness a weighted port, its descriptor changes and so
+   does this rule's outcome for it; nothing else here changes.
+6. **Layouts too.** A `layout.set` step follows rules 1, 3 and 5 against its layout descriptor's
+   declared weight meaning, and its layout record carries `weight`. The migration plan's rule that
+   graphty-element passes Kamada-Kawai `1 / sum` of parallel edge weights, assuming every weight is
+   a strength, contradicts this specification: a column declared a distance must be passed as a
+   distance, and a conversion must be the data plan's `derive`, recorded and reported. That plan
+   text needs the update.
+7. The run record's `weight` records the attribute, the role and whether the reader confirmed it.
 
 ### Argument slots
 
@@ -404,7 +455,9 @@ those packages, are pinned too).
   last is the one a recipe runs under the cited name. Recording the providing package at
   registration, making a version mandatory for plugin algorithms and layouts, and refusing to
   re-register a key unless asked are element changes (open decision 35); a run of an unversioned
-  plugin records `null` and the methods text says "unversioned".
+  plugin records `null`. Until open decision 35 lands, the methods text names the recipe's
+  claimed `package` and `version` for such a key, labelled as the document's claim ("org.example:mcl,
+  unversioned; the recipe names org-example-mcl 1.4.0"), so a reader can find the software.
 - An extension requirement entry that fails its schema (an unknown `kind`) is itself the unit: it
   is ignored and reported, and a step naming that key is treated as naming an unregistered key.
 
@@ -418,17 +471,21 @@ application so that a newer version can be offered later, and it is never fetche
 caller's consent.
 
 `recipeVersion` is REQUIRED on a recipe that carries `doi`, `citation` or `source`, and on any recipe
-written with `purpose: "share"`; a recipe without one compares as version `"0"`.
+written with `purpose: "share"`. SemVer 2.0.0 is RECOMMENDED. Two versions are ordered only when
+both parse as SemVer, by SemVer precedence (so `1.10.0` is newer than `1.9.0`); otherwise they are
+never ordered, no "newer version" is offered and a report names both without calling either
+newer. Whether to require SemVer is part of open decision 8. A recipe carrying `doi`, `citation` or
+`source` also MUST carry `engine`, so a cited digest pins the computation.
 
 **The recipe digest.** Every run a recipe produces records the recipe's digest (envelope.md, "Run
-records"): the RFC 8785 SHA-256 of an object holding exactly the recipe's `kind`, `version`, `id`,
-`recipeVersion`, `features`, `requires`, `steps` and `overview`, as read from the file, before any
-upgrade of an older major version and before binding, with every `description` and `extensions`
-member removed at any depth inside them, and with unknown members inside `requires` and `steps`
-kept (they may change what runs, and must then carry a feature). Everything else is not digested:
-`name`, `description`, the shared metadata (`authors`, `license`, `citation`, `doi`, `derivedFrom`,
-`handling`), `namespace`, `source`, `engine`, `generator`, `modifiedAt`, `application`,
-`extensions`, `$schema` and unknown top-level members. So adding a DOI after acceptance, fixing a
+records"): the RFC 8785 SHA-256 of the recipe as read from the file, before any upgrade of an older
+major version and before binding, with a **fixed list** of members removed: at the top level
+`$schema`, `name`, `description`, the shared metadata (`authors`, `license`, `citation`, `doi`,
+`derivedFrom`, `handling`), `namespace`, `source`, `engine`, `generator`, `createdAt`,
+`modifiedAt`, `application` and `extensions`; at any depth below, every `description` and
+`extensions` member. Every other member counts, including one this reader does not know. The
+list is frozen for a major version: a later minor member that does not change what runs goes
+under `extensions`, so two releases always compute the same digest for the same bytes. So adding a DOI after acceptance, fixing a
 typo in a description, or saving the recipe from a session (which adds `application`) leaves the
 digest unchanged, and the digest printed in a methods section can be checked with graphty-element's
 published `documentDigest` function (README, "Writer output form"). An applier that meets the same
@@ -438,9 +495,9 @@ published `documentDigest` function (README, "Writer output form"). An applier t
 Applying a recipe namespaces its run ids so that two recipes, or one recipe applied twice, never
 collide (the design studio's door 19 recommendation, undecided):
 
-1. The applier chooses a namespace: one recorded in the recipe's `application` block, when it is
-   free in the session; else the caller's; else the recipe's `namespace`; else a slug of the last
-   segment of `id`. If that namespace is already used by a different application in the session,
+1. The applier chooses a namespace: the caller's explicit `namespace`; else one recorded in the
+   recipe's `application` block, when it is free in the session; else the recipe's `namespace`;
+   else a slug of the last segment of `id`. If that namespace is already used by a different application in the session,
    `2`, `3` and so on is appended with no separator (`hubs2`), so a generated name survives R's and
    pandas' column-name sanitising.
 2. Every `as` becomes `<namespace>__<as>`. The separator is two underscores because a dot cannot
@@ -455,10 +512,14 @@ collide (the design studio's door 19 recommendation, undecided):
    one being applied is not rewritten and not bound: it is reported with `E_NAMESPACE_MISMATCH`, so
    a style saved from one application cannot silently paint from another.
 5. **Applying the same recipe again.** The applier's `onRepeat` option decides what happens when a
-   recipe with the same `id` was already applied in the session and ran at least one step:
-   `"refuse"` (the default, with `E_REPEAT_APPLICATION`), `"replace"` or `"add"`. An earlier
-   application that ran no step (every step waiting on a slot, an argument or a confirmation) is not
-   a repeat: applying again re-binds it, keeping its namespace. `replace` keeps the earlier
+   recipe with the same `id` was already applied **to the same import** in the session and ran at
+   least one step: `"refuse"` (the default, with `E_REPEAT_APPLICATION`), `"replace"` or `"add"`.
+   Repeat tracking is per import (run records name their `import`): applying a recipe to newly
+   imported data is never a repeat of its application to the data the import replaced. An earlier
+   application with steps still waiting or skipped (on a slot, an argument, a confirmation) is
+   **resumed**, not repeated: applying the same `id` and digest again re-binds it, keeps its
+   namespace and its finished runs, and runs only the steps not yet completed. This is how an
+   application is finished after the session was saved and reopened, when the handle is gone. `replace` keeps the earlier
    namespace, recomputes the runs in place, removes the style layers the earlier application added
    and re-binds any the caller kept, and keeps notes. A note that targets or cites a replaced run
    is reported with `W_RUN_CHANGED` and shown as written against an earlier run, because its text
@@ -472,8 +533,13 @@ collide (the design studio's door 19 recommendation, undecided):
 A recipe written from a session that applied it MUST round-trip: opening it and saving it again
 yields the same recipe, run ids and paths.
 
-1. Steps are written with the recipe's own `as`, never the namespaced run id, and the style and
-   annotations members of the same envelope are written with the un-namespaced references.
+1. Steps and `requires` are written **verbatim, as read** -- with the recipe's own `as`, never the
+   namespaced run id, and without filling `defaults` or adding weight slots -- so re-saving a
+   hand-written recipe never changes its digest. Resolved defaults already live in the run records
+   (`params`, every option filled in). `defaults` and weight slots are filled only when a new
+   recipe is produced ("Producing a recipe"). The same verbatim rule holds for a share save: the
+   digested parts of a recipe keep their unknown members (envelope.md, "Saving" rule 2). The style
+   and annotations members of the same envelope are written with the un-namespaced references.
 2. The writer adds an `application` block:
 
 ```ts
@@ -522,6 +588,7 @@ interface RecipeApplication {
   bind(slot: string, attribute: string): Promise<BindingReport>;
   confirm(slot: string): Promise<BindingReport>;
   setArgument(slot: string, value: unknown): Promise<BindingReport>;
+  /** Runs only the steps not yet completed; calling it again after a partial run resumes. */
   run(options?: { budget?: { totalSeconds?: number }; costCap?: number }): Run<BindingReport>;
   cancel(): void;
 }
@@ -533,25 +600,34 @@ page that applies a lab recipe weekly writes `apply(doc, { bindings: { weight: "
 confirm: ["weight"], arguments, run: true })`.
 
 **Recorded bindings.** When a caller binds or confirms, graphty-element records the decision in its
-own storage, keyed by the recipe digest and the shape of the data: the data plan `id` when there is
-one, otherwise the format plus the sorted list of columns the import used (`fieldsUsed` and the
-attribute names). On the next application of the same recipe to data of the same shape, those
+own storage, keyed by the recipe digest and the shape of the data: the data plan's **content
+digest** (never its author-chosen `id`) together with the resolved `fieldsUsed`, or, without a
+plan, the format plus the sorted list of columns the import used (`fieldsUsed` and the attribute
+names). A plan that reuses a known `id` with different content is a new shape and is confirmed
+again, across sessions as well as within one. On the next application of the same recipe to data of the same shape, those
 bindings and confirmations are reused (rule 2 of "Binding") and reported as `recorded`. So an
 analyst who loads `edges.csv` every Monday confirms the similarity role once, not weekly -- without
 saving a project, and without a file being able to claim the confirmation for him. The weekly loop
 is: save the starting point once (`purpose: "share"`), then each week open it with `applyTo:
-"next-import"` and load the new file.
+"next-import"` and load the new file. Each week's import is a fresh application, not a repeat
+("Identity and namespacing" rule 5). Comparing this week with last week inside one saved file needs
+two graphs in one session, which waits for open decision 24.
 
 ### Reproducing
 
 An applier option `reproduce: true` is for reproducing a published result rather than exploring:
 before running, it compares each step's effective parameters (defaults filled in), engine versions
 including the accelerator (package, version and backend), precision and exactness with the run
-records the document carries (or the recipe's `engine`, `params` and `defaults`), and reports every
-difference per step (`W_PARAMETER_DIFFERS`, `W_ENGINE_DIFFERS`). With `reproduce: "strict"`, a
-step with any difference is disabled instead of run. When the document also carries stored
-results, `reproduce` recomputes them and compares; until it has, stored results from a document
-this session did not write are shown as unverified.
+records the document carries (or the recipe's `engine`, `params` and `defaults`), and the scope's
+node and edge counts, and reports every difference per step (`W_PARAMETER_DIFFERS`,
+`W_ENGINE_DIFFERS`). With `reproduce: "strict"`, a step with any difference is disabled instead of
+run. Reopening a project that carries run records compares them this way by default. When the
+document also carries stored results, `reproduce` recomputes them and compares. Until it has,
+every stored result, and every result restored from export columns, that this installation did not
+itself compute is shown as **not recomputed by this installation**. That mark is kept per result
+through its import chain and survives any re-save, so opening and re-saving a received file never
+makes its numbers look computed here. A document's digest is an integrity check, never a reason to
+trust its numbers.
 
 ### The overview recipe
 
@@ -589,12 +665,15 @@ published example recipes.
    `E_OPTION_RANGE` (today ForceAtlas2's `maxIter` has none, which is an element defect this rule
    depends on).
 3. **A total budget always applies.** graphty-element publishes a default total budget for one
-   application (RECOMMENDED: ten times the per-step cost cap), and the caller MAY set another. A
+   open of a document -- summed across every recipe it holds -- and for one application
+   (RECOMMENDED: ten times the per-step cost cap), and the caller MAY set another; `needsRerun`
+   totals are summed across recipes. A
    recipe whose planned total exceeds it does not start: it is reported with
    `E_BUDGET_EXCEEDED` and the estimate, and runs only on a second, explicit `run()` call made with
    that report in hand. `run: true` on open (envelope.md) runs only a recipe planned under the
    budget. A running recipe stops when the budget is spent, keeping the finished steps.
-4. A reader MUST bound the number of steps (1000, the journal's cap).
+4. A reader MUST bound the number of steps (1000, the journal's cap), counted across every recipe
+   of one document, and the number of recipes in an envelope (16, README "Encoding and limits").
 5. Cancelling a running recipe keeps the results of the steps that finished, as `runs.batch` does
    today (`BatchResult`, `graphty-element/src/session/runs/types.ts`).
 
@@ -606,10 +685,14 @@ confirmation prompt and tell "waiting for me" from "failed":
 ```ts
 interface RecipeBinding {
   slots: { slot: string; boundTo: string | null; by?: "explicit" | "recorded" | "name" | "hint"; hintIndex?: number;
-           candidates: string[]; rejected: { attribute: string; reason: string; code: GraphtyErrorCode }[] }[];
+           candidates: string[]; rejected: { attribute: string; reason: string; code: GraphtyErrorCode }[];
+           /** attributes of the slot's element kind whose level, role and value type do not conflict */
+           compatible: string[] }[];
   needsConfirmation: { slot: string; attribute: string; role: "distance" | "similarity" | (string & {}) }[];
   needsArgument: { slot: string; steps: string[] }[];
   namespace: string;
+  // "waiting": the caller can fix it on this application (a slot, an argument, a confirmation);
+  // "skipped": it cannot be fixed on this application
   steps: { step: string; state: "planned" | "waiting" | "skipped"; code?: GraphtyErrorCode;
            exact?: boolean; precision?: "f32" | "f64"; estimateSeconds?: number }[];
   totalEstimateSeconds: number;
@@ -618,20 +701,30 @@ interface RecipeBinding {
 
 ## Producing a recipe
 
-1. `journal.export()` (element API design 4.11.2) SHOULD produce a recipe from the `algo.run` and
-   `layout.set` entries of a session. Every run in it MUST have an author-assigned id; the exporter
-   MAY mint one (the algorithm key, then `-2`, `-3`) and MUST then rewrite every reference to the
-   old id in the exported style member. A run made while a filter narrowed the graph is written
-   with the `where` scope the filter stands for (with slots for the attributes it reads); a filter
-   that no predicate can express makes the export refuse that run, naming it, until `graph.filter`
-   exists. A run on the current selection becomes a `node-set` argument.
-2. Every step MUST carry the options the author set in `params` and the resolved value of every
-   other option in `defaults`, the effective `seed` of every algorithm or layout whose descriptor
-   is marked stochastic or that was sampled, and `sample` when the run was sampled.
-   `RunRecord.params` is already canonicalised.
+1. `journal.export({ runs?, id, name, recipeVersion?, namespace? })` (element API design 4.11.2)
+   produces a recipe from the `algo.run` and `layout.set` entries of a session. `runs` selects
+   which runs and layouts become steps (default: all), so "the three steps I kept" can be saved;
+   `id` and `name` are required from the caller. Re-exporting from a session that applied recipe X
+   and adjusted it keeps X's `id` with a new `recipeVersion` when the caller passes X's id (rule 4).
+   Every run in it MUST have an author-assigned id; the exporter mints one by README "Identifiers"
+   rule 2 and MUST then rewrite every reference to the old id in the exported style member. A run
+   made while a filter narrowed the graph is written with the `filter` scope that states exactly
+   that filter (with slots for the attributes it reads). A run under a filter no predicate can
+   express (a lasso, a hand-picked hide) is written, in a project save only, as a step scoped to
+   a `node-set` argument whose value -- the ids the filter kept -- is recorded in the `application`
+   block; in any other export it is refused, naming it. A run on the current selection becomes a
+   `node-set` argument. A share save refuses, naming it, a recipe whose `id` is a minted
+   `urn:uuid:` or that has no `recipeVersion`.
+2. Every step of a **produced** recipe MUST carry the options the author set in `params` and the
+   resolved value of every other option in `defaults`, the effective `seed` of every algorithm or
+   layout whose descriptor is marked stochastic or that was sampled, and `sample` when the run was
+   sampled. `RunRecord.params` is already canonicalised. A recipe that is re-saved rather than
+   produced is written verbatim ("Saving an applied recipe" rule 1). The published validator flags
+   a step without `defaults` in a recipe that carries `generator`, `doi` or `citation`.
 3. The writer MUST fill `requires.attributes` with a slot for every attribute a step reads -- every
    `data.<name>` in a predicate, every option of type `attribute`, `partition` or `node-set` that
-   names one, and the weight column of every algorithm that reads it (see "Weights" rule 5) -- and
+   names one, the attribute of every `range` scope, and the weight of every algorithm whose
+   descriptor declares one (see "Weights" rule 5) -- and
    MUST write the reference as `$attribute`, recording each attribute's measurement level and
    weight role from the session.
 4. When the session applied a recipe and the author adjusted it, the export keeps the original as
@@ -639,22 +732,31 @@ interface RecipeBinding {
    `id` or a new `recipeVersion`; it never reuses both.
 5. A generated script in JavaScript or Python (asked for by
    `design/designloom/capabilities/analysis-history.yaml`) is a presentation of a recipe, not a
-   recipe format; the recipe is the JSON.
+   recipe format; the recipe is the JSON. When graphty-element offers one, it is derived only from
+   the recipe and the catalogue's reference-implementation mapping (open decision 3), and it lists
+   every parameter, scope and weight convention it could not map, so a networkx or igraph
+   reproduction never silently differs.
 6. **Methods text.** graphty-element renders a methods paragraph from the project's records:
-   - it opens with a data sentence from the data source and the import record (envelope.md): the
-     source, release, query ("STRING v12.0, human, combined score at least 0.7"), retrieval date,
-     the data plan's id and version, and the counts ("287 of 300 genes matched the expression
-     table");
+   - it opens with one data sentence per input that carries provenance, from the data source and
+     the import record (envelope.md): the source, release, query ("STRING v12.0, human, combined
+     score at least 0.7", rendered from the published query vocabulary, envelope.md "The data
+     source"), retrieval date, licence, the data plan's id and version, the importer versions, and
+     the counts ("287 of 300 genes matched the expression table"); a joined table with its own
+     provenance (a GEO accession) gets its own sentence;
    - then one sentence per run and per layout: the algorithm (by its plain name and key, with its
      catalogue citation), every parameter, the weight attribute and its role ("weighted by STRING
      combined_score, read as a similarity"), how edge direction was treated, the scope with its
-     node and edge counts and the filter predicate it ran under, exact or sampled with the sample
+     node and edge counts and the filter predicate it ran under, the filter active when the figure
+     was exported, exact or sampled with the sample
      size and seed, precision, convergence and iterations, the engine, accelerator and plugin
      versions ("unversioned" for a plugin that declares none), and the recipe's id, version, digest,
      authors and DOI or citation; each step's `description` is appended to its sentence as a
      quotation of the document, never in the element's own voice;
    - a stale run is not described as a result: its sentence says why it is stale, and a run record
-     this session did not produce says "recorded by <document>";
+     this session did not produce says "recorded by" the file name or origin it was opened from,
+     giving the document's own `name` only as its claim;
+   - superseded and discarded run records (envelope.md, "Run records") are listed as tried and not
+     kept, with their parameters;
    - it closes by saying which steps behind the conclusions were done outside any recipe (a
      filter the recipe could not express, a hand merge), when there were any.
 
@@ -690,10 +792,24 @@ A recipe spends compute and names extensions, so it is the document an attacker 
 | a step command `{ "op": "algo.run", "algorithm": "betweenness", "as": "b", "sed": 7 }` | that step and every later step skipped, `E_UNKNOWN_OPTION`, suggesting `seed` |
 | two steps with `as: "d"` | the second, and every step reading it, skipped with `E_DUPLICATE_ID` |
 | `defaults: { "personalization": null }` on a reader whose PageRank has no such option | ignored and reported; the step runs |
-| a `where` scope reading `data.padj` with no `padj` slot, on data whose column is `FDR` | implicit slot unbound, `E_UNBOUND_SLOT`; step skipped |
-| a `where` scope that matches no node | step skipped, `E_EMPTY_SCOPE`; dependants skipped |
+| a `where` scope reading `data.padj` with no `padj` slot, on data whose column is `FDR` | implicit slot unbound, `E_UNBOUND_SLOT`; step waiting |
+| a `where` scope that matches no node | step skipped, `E_SCOPE_EMPTY`; dependants skipped |
 | `"largest-component"` on a graph with two 40-node components | the component holding the smallest node id |
-| a closeness step written by a writer | a weight slot is written for it |
+| a closeness or betweenness step produced by a writer | no weight slot written: the shipped descriptors read no weight |
+| a recipe with degree, closeness and PageRank and a similarity `weight` slot | closeness runs unweighted; no `E_WEIGHT_ROLE_MISMATCH` |
+| a PageRank step bound to `combined_score` and a shortest-path step bound to a derived distance column | both run, each with its own weight column; no re-import |
+| a `layout.set` of a layout reading distances, bound to a similarity slot | step skipped, `E_WEIGHT_ROLE_MISMATCH` |
+| a step whose `defaults` say `tolerance: 1e-6` on a release whose default is `1e-8` | runs with `1e-6`; `W_PARAMETER_DIFFERS` reported |
+| a hand-written recipe with no `defaults`, applied and saved as a project | written verbatim; the digest unchanged |
+| a recipe whose envelope also carries a data plan declaring the weight `similarity` | the weight slot still asks for confirmation |
+| a step listing an unknown feature, followed by a PageRank step | both refused (`E_UNSUPPORTED_FEATURE`, then the cascade) unless the caller agrees to continue |
+| a step with no `scope`, while the envelope's active filter keeps half the nodes | the applier passes `"graph"` to the element; runs on every node |
+| a run under an edge filter that isolates 40 nodes, exported and replayed | exported with the `filter` scope; the replay sees the same nodes, isolated ones included |
+| a recipe with a step waiting on an unbound slot, saved, reopened, applied again with `bindings` | resumed: only the waiting step runs; no `E_REPEAT_APPLICATION` |
+| recipe versions `1.9.0` and `1.10.0` | `1.10.0` is newer |
+| recipe versions `2026-09` and `v2` | not ordered; no update offered |
+| a range scope over `first_seen` on data whose column is `firstSeen` | implicit slot unbound, `E_UNBOUND_SLOT`; step waiting, not `E_SCOPE_EMPTY` |
+| a recipe with `doi` and no `engine` | fails the schema |
 | a signed similarity weight used by PageRank, whose descriptor does not accept negative weights | step skipped, `E_NEGATIVE_WEIGHT` |
 | the same recipe with and without `application`, `doi` or a changed `description` | the same digest |
 | a recipe opened with `application.confirmed: ["weight"]`, written by another installation | the weight slot still asks for confirmation; the block is reported as the document's claim |
@@ -727,8 +843,9 @@ A recipe spends compute and names extensions, so it is the document an attacker 
 ### Hub gene ranking
 
 `W23.yaml` (Hub Gene Identification and Ranking): degree, betweenness and PageRank on a weighted
-co-expression network, over the largest component. The parameters are written in full, as a writer
-writes them.
+co-expression network, over the largest component. This recipe is hand-written: PageRank's
+`defaults` pin the options its author did not set, and a recipe produced by `journal.export()`
+carries `defaults` on every step.
 
 ```json
 {
@@ -756,6 +873,7 @@ writes them.
       "command": { "op": "algo.run", "algorithm": "pagerank", "as": "pagerank",
                    "params": { "dampingFactor": 0.85, "maxIterations": 100, "tolerance": 0.000001,
                                "weight": { "$attribute": "weight" } },
+                   "defaults": { "useDelta": true },
                    "scope": "largest-component", "style": { "size": true } } },
     { "id": "betweenness",
       "command": { "op": "algo.run", "algorithm": "betweenness", "as": "between",
@@ -807,6 +925,10 @@ transactions since a date.
   "id": "org.example.fraud.triage",
   "name": "Alert triage",
   "requires": {
+    "attributes": [
+      { "slot": "first-seen", "element": "edge", "name": "first_seen", "nameHints": ["firstSeen", "timestamp"],
+        "level": "temporal", "description": "When the transaction was first seen" }
+    ],
     "arguments": [
       { "slot": "alert", "type": "node-id", "description": "The flagged account" },
       { "slot": "since", "type": "date", "description": "Start of the window" }
@@ -818,7 +940,7 @@ transactions since a date.
                    "scope": { "neighborhood": { "seeds": { "$argument": "alert" }, "depth": 2 } } } },
     { "id": "brokers",
       "command": { "op": "algo.run", "algorithm": "betweenness", "as": "brokers",
-                   "scope": { "range": { "attribute": "first_seen", "min": { "$argument": "since" } } } } }
+                   "scope": { "range": { "attribute": { "$attribute": "first-seen" }, "min": { "$argument": "since" } } } } }
   ]
 }
 ```

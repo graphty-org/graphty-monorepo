@@ -67,12 +67,14 @@ interface DataPlan {
     nodeLabelPath?: string | null;    // default null: readers fall back to the id
     nodeWeightPath?: string | null;   // default null
     nodeTimePath?: string | null;     // default null
-    nodeTypePath?: TypeSource | string | null;   // NEW; default null; a string is { path } (see "Node types")
+    nodeTypePath?: TypeSource | string | null;   // NEW, feature "typed-identity"; default null; a string is { path }
     edgeSrcIdPath?: string | null;    // default null: probe source/target, src/dst, from/to
     edgeDstIdPath?: string | null;    // default null: as above
-    edgeSrcType?: TypeSource | null;  // NEW; default null (see "Node types")
-    edgeDstType?: TypeSource | null;  // NEW; default null
-    edgeTypePath?: string | null;     // NEW; default null: the edge's type or predicate (role `kind`)
+    edgeSrcType?: TypeSource | null;  // NEW, feature "typed-identity"; default null (see "Node types")
+    edgeDstType?: TypeSource | null;  // NEW, feature "typed-identity"; default null
+    idsQualified?: boolean;           // NEW, feature "typed-identity"; default false
+    edgeTypePath?: TypeSource | string | null;   // NEW; default null: the edge's type or predicate (role `kind`),
+                                      // a column, or a constant for a file holding one predicate
     edgeIdPath?: string | null;       // default null: edges carry no identity
     edgeWeightPath?: string | null;   // default "weight"
     edgeTimePath?: string | null;     // default null
@@ -83,7 +85,9 @@ interface DataPlan {
     idCoercion?: "canonical" | "keep";   // default "canonical"
   };
   directed?: boolean | "auto";        // default "auto": the file header decides
-  types?: { name: string; term?: string }[];   // NEW, informational: the node and edge types, with an https IRI
+  missingValues?: string[];           // NEW: cell texts meaning "no value" in every column of every input,
+                                      // unless a declaration gives its own (Frictionless puts it at table level)
+  types?: { name: string; element?: "node" | "edge"; term?: string }[];   // NEW, informational; term an IRI
   attributes?: AttributeDeclaration[];
   joins?: Join[];
   extensions?: Record<string, unknown>;
@@ -107,7 +111,7 @@ interface AttributeDeclaration {
   weightRole?: "distance" | "similarity";   // open
   signed?: boolean;                   // only with weightRole "similarity"; default false
   derive?: { from: string; transform: "one-minus" | "reciprocal" | "neg-log" };   // NEW
-  term?: string;                      // NEW, informational: an https IRI naming what the column means
+  term?: string;                      // NEW, informational: an absolute IRI (http, https or urn), never fetched
   idNamespace?: string;               // NEW, informational, with level "identifier": "Entrez", "UniProt"
   origin?: { run: string; field: string; caveat?: "estimated" | "missing" };   // NEW: a result column
   missingValues?: string[];           // cell texts that mean "no value", e.g. "NA", ""
@@ -124,7 +128,7 @@ interface AttributeDeclaration {
 interface Join {
   input: string;                      // a named input of the import (envelope.md, "Several inputs")
   element?: "node";                   // version 1 joins onto nodes only
-  key: string;                        // the key column of the joined table
+  key: string;                        // the key column of the joined table; "" names an empty header
   on?: string;                        // the node column it matches; default the node id; "originalId" with types
   type?: string;                      // NEW: join onto nodes of this type only
   match?: "exact" | "case-insensitive";   // default "exact"
@@ -148,6 +152,13 @@ fallback produced a weight, so the report never claims an unweighted import that
 
 A declared attribute with `role: "weight"` overrides a defaulted `edgeWeightPath`: only an
 `edgeWeightPath` the plan sets explicitly can conflict with it.
+
+A column whose header is empty has the key `""` (README, "Paths" rule 3): R's `write.csv` of a
+DESeq2 or limma table puts the gene symbols there, and a join names it with `key: ""`. Cells equal
+to one of the plan's top-level `missingValues` (`["NA", ""]` for R output) are missing in every
+column of every input, so an `NA` in a fold-change column does not turn the column into text;
+a declaration's own `missingValues` replace the plan's for that column. Columns no declaration
+types are typed by inference, reported in the import report's `inferredTypes` (README).
 
 `formatOptions` are the import options of `format`, so a standalone plan for a tab-separated export
 can say it is tab-separated rather than rely on sniffing. When a plan is applied to an envelope's
@@ -192,9 +203,13 @@ new data:
   of the recipe converting silently. Values the transform cannot take (a zero for `reciprocal` or
   `neg-log`) are missing and counted in the import report's `derived` list.
 - `role` is graph-format's `ColumnRole`: `weight`, `capacity`, `label`, `position`, `timestamp`,
-  `community` and the rest, or any other string. At most one attribute per role per element kind.
-  A role here and a `knownFields` path the plan sets explicitly MUST agree; if they disagree the
-  plan is refused.
+  `community` and the rest, or any other string. At most one attribute per role per element kind
+  **per type**: a declaration with `types` claims the role for those types only, and one without
+  claims it for every type that has no typed declaration of its own, so `Person` rows can take
+  their label from `fullName` and `Org` rows from `legalName`. graph-format holds one column per
+  role, so the element fills that one role column from each type's own column (a coalesced
+  column), and the import report names which column filled it for which type. A role here and a
+  `knownFields` path the plan sets explicitly MUST agree; if they disagree the plan is refused.
 - `type` coerces the field on import. A value that does not coerce is reported per row, never
   silently replaced. `date` reads ISO 8601 unless `format` says `epoch-ms` or `epoch-s`; a locale
   form such as `03/04/2026` is never guessed. `list` splits a text cell on `delimiter` (default
@@ -208,13 +223,21 @@ new data:
 - `types` restricts a declaration to nodes or edges of those types (with `nodeTypePath` or
   `edgeTypePath`), so "every Person has an email" does not flag every Org.
 - `term` and `idNamespace` are informational in version 1: they say what a column means in an
-  outside vocabulary, which identifier-namespace mapping (open decision 27) will read.
+  outside vocabulary, which identifier-namespace mapping (open decision 27) will read. `term` is an
+  absolute IRI of any of the schemes `http`, `https` and `urn`, because most vocabularies a
+  knowledge engineer maps to (FOAF, Dublin Core, RDF, OWL, SKOS, PROV, OBO) use `http:` IRIs, and
+  rewriting one to `https:` makes a different identifier. It is an identifier: never fetched and
+  never rendered as a link. **Version 1 has no RDF export:** no graph-io writer puts a `term` where
+  a triple store reads it, and a type-qualified id (`account:123`) is graphty's form, not an IRI;
+  RDF readers and writers are a named gap (README, open decision 19).
 - `origin` marks a column that holds a run's result, written by an export's sidecar plan
   (export-mapping.md), so the column's run, field and caveat never have to be parsed from its name.
 - `constraints` are checked at import (the Frictionless Table Schema constraints). `onViolation`
   decides what a violation does: `report` (the default) makes it an import issue with its row;
   `reject-row` drops the record and reports it; `fail` refuses the import. Nothing is silently
-  fixed. They make the quality report of `W18.yaml` (Data Import and Validation) a machine-readable
+  fixed. The members of `constraints` are closed (README, "Unknown members" rule 1): a misspelt
+  `onviolation` disables the declaration rather than silently turning a gate into a report.
+  They make the quality report of `W18.yaml` (Data Import and Validation) a machine-readable
   result a pipeline can gate on, and the report is kept in a project (envelope.md, "Import
   records"). A `pattern` is an I-Regexp (RFC 9485), matched with a linear-time engine, so every
   reader accepts the same patterns and none can stall the import.
@@ -293,10 +316,25 @@ are the nodes `account:123` and `device:123`.
    untyped id, and reported as rebound; with several, it stays unbound and the candidates are
    listed (open decision 13).
 
+6. **Ids already qualified.** `idsQualified: true` says the node ids and the edge ends already hold
+   the qualified form: the type is read from the `nodeTypePath` column for nodes and parsed from an
+   edge end at its first unescaped `:`, and nothing is qualified again. It is what the data plan
+   regenerated for an export of a typed graph writes (`nodeIdPath: "id"`, `nodeTypePath:
+   "idSpace"`, `idsQualified: true`; export-mapping.md, "Typed node identity"), so the re-import
+   keeps the graph typed, its per-type constraints in scope and its typed joins working.
+7. **Type versus class.** A type here is a namespace: it changes identity. A knowledge graph whose
+   ids are already global (IRIs, UUIDs) and whose types are classes, possibly several per node,
+   needs a classification that never changes identity; `types` scoping would read it. That split
+   (`nodeClassPath`) and a `typeRenames` map are part of open decision 13, not version 1.
+
 This is the design studio's door 4 recommendation, restated through graph-format's roles, and it is
-open decision 13. Until it is decided, a reader that does not implement type-qualified identity
-MUST refuse a plan that sets `nodeTypePath` with `E_UNSUPPORTED`, rather than silently merge nodes
-of different types; inside an envelope the data is then not imported (envelope.md, "Opening").
+open decision 13. Until it is decided, **every typed-identity member (`nodeTypePath`,
+`edgeSrcType`, `edgeDstType`, `idsQualified`) is reserved behind the feature name
+`typed-identity`**: a plan that uses one MUST list the feature, and a reader that does not
+implement it refuses the plan with `E_UNSUPPORTED_FEATURE`, rather than silently merge nodes of
+different types; inside an envelope the data is then not imported (envelope.md, "Opening"). The
+meaning of these members is fixed only when the decision is made, so no file written before then
+carries a meaning a later reader must honour.
 
 ## Applying
 
@@ -304,12 +342,20 @@ of different types; inside an envelope the data is then not imported (envelope.m
    the graph is built. Applying a data plan to a graph that is already loaded MUST NOT rewrite the
    loaded graph; the applier reports `needsReimport` and applies it at the next import.
 2. **A declared field that no record carries refuses the import** with `E_BAD_COMMAND`, naming the
-   member and the count of records examined. Only a member the plan leaves out takes the element's
+   member and the count of records examined. When the missing field begins with `#` and the
+   importer skipped a leading comment line, the refusal says so -- "the importer read the line
+   beginning `#node1` as a comment; see the graph-io header option" -- rather than only naming the
+   member. Only a member the plan leaves out takes the element's
    default. Otherwise a renamed source column (`emp_id` becoming `employee_id`) would silently key
    the graph on whatever column happens to be called `id`. For `edgeSrcIdPath` and `edgeDstIdPath`
    the rule of `DataConfig` also stands per record: a declared path that one record does not answer
    rejects that record, and the element does not fall back to probing.
-3. An attribute declaration that names a field no record carries is reported and ignored.
+3. An attribute declaration that names a field no record carries is reported and ignored, and
+   counted in the import report's `ignoredDeclarations`, **except a declaration with
+   `constraints.required: true`**: it is evaluated even when no record has the field, every record
+   in its scope violates it, and its `onViolation` applies -- so `fail` refuses the import. A
+   quality gate the author made fatal therefore fails when the column disappears, which is the
+   commonest way a source-system change breaks it.
 4. A declaration or join that fails its schema (a `signed` without `weightRole: "similarity"`, a
    `derive` naming no column) is reported with `E_BAD_COMMAND` and ignored; one with an unknown
    `level` or `weightRole` (open enumerations) is ignored and reported likewise; the other
@@ -327,7 +373,14 @@ of different types; inside an envelope the data is then not imported (envelope.m
    misspelling fails.
 6. The import returns an `ImportReport` (README): which fields were used (including what probing
    chose), how many repeated edges and nodes were merged, ids coerced, coercion failures, missing
-   endpoints, constraint violations, join results and the declared weight roles applied.
+   endpoints, constraint violations per declaration, join results, the declared weight roles
+   applied, the inferred types, and the versions of the packages that read the bytes.
+7. **Trying a plan first.** `data.checkImport(src, { plan, sampleRows })` applies a plan to a file
+   and returns the import report and the first `sampleRows` parsed node and edge records, without
+   building a graph or replacing the session's one. It is side-effect free and works in Node, so a
+   person can see which columns probing picked, the join counts and the constraint violations on
+   the first thousand rows of a two-million-row export before loading it (`W18.yaml`, the Preview
+   phase).
 
 ## Writing
 
@@ -380,14 +433,27 @@ A data plan applied while no data is loaded is held for the next import only whe
 | typed identity; types `ex:Person` with id `1` and `ex` with id `Person:1` | two nodes, `ex%3APerson:1` and `ex:Person:1` |
 | typed identity; a node record with an empty type | record rejected and reported |
 | typed identity; an edge end typed `person` where the node file says `Person` | reported under `unmatchedTypes`; no silent node unless `missingEndpoints: "create"` was set |
-| a typed graph exported to each format and re-imported through its regenerated plan | equal node counts; `account:123` and `device:123` stay two nodes |
+| a typed graph exported to each format and re-imported through its regenerated plan (`idsQualified: true`) | equal node counts; `account:123` and `device:123` stay two nodes; the graph is still typed |
 | `repeatedEdges: "first"`, `edgeTypePath: "predicate"`, a pair with `worksFor` and `advises` | both edges kept |
 | a STRING TSV whose header line is `#node1<TAB>node2<TAB>...` | the header read as the header, `#node1` a column key (depends on the graph-io change below) |
 | `knownFields.nodeIdPath: "(((id)))"` | refused: no column has that key |
 | a join on `gene` where 37 genes have no node | 37 unmatched, listed in the import report; no node created |
 | `runOnLoad` present (an element API design draft field) | refused as an unknown top-level member, with the reason "load-time runs belong in a recipe" |
 | applied after a graph is loaded | `needsReimport`; the loaded graph is unchanged |
-| `nodeTypePath` set on a reader without typed identity | refused with `E_UNSUPPORTED` |
+| `nodeTypePath` set, listing the feature `typed-identity`, on a reader without it | refused with `E_UNSUPPORTED_FEATURE` |
+| `nodeTypePath` set without listing `typed-identity` | refused with `E_BAD_COMMAND`: the member needs its feature |
+| `knownFields.nodeTypePath: null` | valid; the documented default |
+| `edgeTypePath: { "value": "worksFor" }` on a file holding one predicate | every edge has type `worksFor` |
+| `{ element: "node", name: "email", types: ["Person"], constraints: { required: true, onViolation: "fail" } }` and no record has `email` | import refused, every in-scope record violating |
+| a declaration naming a missing column, no constraints | ignored; `counts.ignoredDeclarations` 1 |
+| `constraints: { onviolation: "fail" }` | declaration disabled, the member unknown in a closed place |
+| `term: "http://purl.org/dc/terms/title"` | valid; the declaration applies |
+| label declarations `fullName` for `Person` and `legalName` for `Org`, both `role: "label"` | accepted; one label column filled per type |
+| a join with `key: ""` on an R `write.csv` table | the empty-header column is the key |
+| plan `missingValues: ["NA"]` and a joined `log2FoldChange` column holding `NA` | the column is numeric; `NA` cells missing |
+| a plan carrying `createdAt` | valid; shared metadata |
+| `data.checkImport` on a 2-million-row file with `sampleRows: 1000` | report and 1,000 records returned; the session's graph unchanged |
+| a typed export's regenerated plan (`nodeTypePath: "idSpace"`, `idsQualified: true`) re-imported | the same typed nodes and edges; per-type constraints still in scope |
 | typed identity; an edge row with `account_id: "123"`, `device_id: "123"`, `edgeSrcType: { value: "account" }`, `edgeDstType: { value: "device" }` | two distinct ends, `account:123` and `device:123` |
 
 ## Worked examples
@@ -400,11 +466,11 @@ so larger means closer. The column key is `#node1`, written as it is (README, "P
 
 graph-io's CSV importer today treats a leading line beginning with `#` or `%` as a comment (the
 SNAP and KONECT header convention, `COMMENT_CHARS` in `graph-io/src/formats/csv/importer.ts`), so
-it swallows STRING's header and reads the first interaction as the header. This example therefore
-depends on a graph-io change: an import option that turns comment lines off, or recognising a
-`#`-prefixed line whose fields match the data rows' count as the header. Until then the import is
-refused under "Applying" rule 2, because no record carries `#node1` -- which is the point of that
-rule.
+it swallows STRING's header and reads the first interaction as the header. **That graph-io change
+is a prerequisite of publishing any data plan**: an import option that turns comment lines off, or
+recognising a `#`-prefixed line whose fields match the data rows' count as the header. Until then
+the import is refused under "Applying" rule 2, with the message that names the skipped comment
+line, because no record carries `#node1`.
 
 ```json
 {
@@ -456,7 +522,7 @@ anti-correlation and must not be folded into correlation.
 
 `W06.yaml` (Fraud Ring Investigation): accounts and devices in one edge list, where account "123"
 and device "123" are different entities. Every reader that exists today refuses this plan with
-`E_UNSUPPORTED`; it shows the proposed typed identity. (With a node table per type and no type
+`E_UNSUPPORTED_FEATURE`, because it lists `typed-identity`; it shows the proposed typed identity. (With a node table per type and no type
 column, `nodeTypePath` would be a constant per input, which needs the per-input mapping of open
 decision 27.)
 
@@ -465,6 +531,7 @@ decision 27.)
   "kind": "graphty-data-plan",
   "version": 1,
   "name": "Account-device links",
+  "features": ["typed-identity"],
   "knownFields": {
     "nodeIdPath": "id",
     "nodeTypePath": "entity_type",

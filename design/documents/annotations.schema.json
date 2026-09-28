@@ -39,6 +39,13 @@
     },
     "dataDigest": {
       "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+    },
+    "binding": {
+      "enum": [
+        "exact-data",
+        "by-id"
+      ],
+      "description": "exact-data: bind only to data whose bytes match dataDigest (annotations.md, Reading and applying rule 9)."
     }
   },
   "$defs": {
@@ -72,18 +79,40 @@
               "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/edgeMember"
             },
             "check": {
-              "type": "object",
-              "required": [
-                "path",
-                "value"
-              ],
-              "properties": {
-                "path": {
-                  "type": "string",
-                  "minLength": 1
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "value"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "value": {}
+                  }
                 },
-                "value": {}
-              }
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "value"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "value": {}
+                    }
+                  }
+                }
+              ]
             }
           },
           "additionalProperties": false
@@ -291,7 +320,7 @@
         "status": {
           "type": "string",
           "minLength": 1,
-          "description": "open, confirmed, cleared, retracted; an open enumeration"
+          "description": "open, confirmed, cleared, escalated, retracted; an open enumeration"
         },
         "digest": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
@@ -352,6 +381,11 @@
         },
         "features": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+        },
+        "confidence": {
+          "type": "string",
+          "minLength": 1,
+          "description": "low, medium, high; an open enumeration"
         }
       }
     }

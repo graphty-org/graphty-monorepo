@@ -131,6 +131,53 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "export": {
+          "type": "object",
+          "description": "How this view is exported as a figure (view-preset.md, Figures).",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32768
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32768
+            },
+            "pixelRatio": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 16
+            },
+            "dpi": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "legend": {
+              "type": "object",
+              "properties": {
+                "include": {
+                  "type": "boolean"
+                },
+                "placement": {
+                  "enum": [
+                    "top-left",
+                    "top-right",
+                    "bottom-left",
+                    "bottom-right",
+                    "outside-right",
+                    "outside-bottom"
+                  ]
+                }
+              }
+            },
+            "notes": {
+              "type": "boolean",
+              "description": "Append the view's notes as a numbered caption list; default true for a view with notes."
+            }
+          }
         }
       }
     },

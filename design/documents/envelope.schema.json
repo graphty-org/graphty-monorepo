@@ -111,7 +111,8 @@
         "then": {
           "$ref": "https://graphty.app/schema/documents/graphty-recipe/v1.json"
         }
-      }
+      },
+      "maxItems": 16
     },
     "view": {
       "type": "object",
@@ -180,6 +181,37 @@
           },
           "counts": {
             "type": "object"
+          },
+          "engine": {
+            "type": "object",
+            "properties": {
+              "graphIo": {
+                "type": "string"
+              },
+              "graphFormat": {
+                "type": "string"
+              },
+              "importer": {
+                "type": "object",
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "dataSource": {
+            "$ref": "#/$defs/dataSource"
           }
         }
       }
@@ -269,8 +301,7 @@
       "items": {
         "type": "object",
         "required": [
-          "run",
-          "part"
+          "run"
         ],
         "properties": {
           "run": {
@@ -294,12 +325,106 @@
           },
           "importedFrom": {
             "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/importChain"
+          },
+          "inline": {
+            "type": "string",
+            "description": "JSON container: the result table as CSV text."
           }
-        }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "part"
+            ]
+          },
+          {
+            "required": [
+              "inline"
+            ]
+          }
+        ]
       }
     },
     "extensions": {
       "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "run",
+          "key",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "run": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "inline": {
+                "type": "string"
+              },
+              "url": {
+                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/dataUrl"
+              },
+              "part": {
+                "type": "string",
+                "minLength": 1
+              },
+              "format": {
+                "type": "string"
+              },
+              "digest": {
+                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+              },
+              "provenance": {
+                "$ref": "#/$defs/dataSource"
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "inline"
+                ]
+              },
+              {
+                "required": [
+                  "url"
+                ]
+              },
+              {
+                "required": [
+                  "part"
+                ]
+              }
+            ]
+          },
+          "importedFrom": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/importChain"
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -398,6 +523,33 @@
               "bytes": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "options": {
+                "type": "object",
+                "description": "Import options the format declares. Element-owned inputs and size-multiplying options are refused.",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "url",
+                      "data",
+                      "file",
+                      "filename",
+                      "size",
+                      "chunkSize",
+                      "errorLimit",
+                      "hyperedges",
+                      "edgeSource",
+                      "edgeTarget",
+                      "nodeIdPath",
+                      "idColumn",
+                      "sourceColumn",
+                      "targetColumn"
+                    ]
+                  }
+                }
+              },
+              "provenance": {
+                "$ref": "#/$defs/dataSource"
               }
             },
             "oneOf": [
@@ -558,6 +710,12 @@
                   "type": "string"
                 }
               }
+            },
+            "graphIo": {
+              "type": "string"
+            },
+            "graphFormat": {
+              "type": "string"
             }
           }
         },
@@ -716,6 +874,54 @@
         },
         "importedFrom": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/importChain"
+        },
+        "superseded": {
+          "type": "object",
+          "required": [
+            "at"
+          ],
+          "properties": {
+            "by": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+            },
+            "at": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+            },
+            "differences": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "discarded": {
+          "type": "object",
+          "required": [
+            "at"
+          ],
+          "properties": {
+            "at": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "digest": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+            },
+            "planId": {
+              "type": "string"
+            },
+            "planVersion": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -878,6 +1084,26 @@
         },
         "importedFrom": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/importChain"
+        },
+        "weight": {
+          "type": "object",
+          "required": [
+            "attribute",
+            "role",
+            "confirmed"
+          ],
+          "properties": {
+            "attribute": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          }
         }
       }
     }

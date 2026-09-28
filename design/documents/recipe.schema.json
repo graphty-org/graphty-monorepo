@@ -28,7 +28,8 @@
     },
     "recipeVersion": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Compared by SemVer 2.0.0 precedence when both versions parse as SemVer; otherwise never ordered (open decision 8)."
     },
     "name": {
       "type": "string",
@@ -324,7 +325,14 @@
               "additionalProperties": false,
               "properties": {
                 "attribute": {
-                  "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                  "anyOf": [
+                    {
+                      "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                    },
+                    {
+                      "$ref": "#/$defs/attributeRef"
+                    }
+                  ]
                 },
                 "min": {
                   "oneOf": [
@@ -365,6 +373,18 @@
           "properties": {
             "define": {
               "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "filter"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "filter": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/filter"
             }
           }
         }
@@ -631,6 +651,12 @@
               "type": "string"
             }
           }
+        },
+        "graphIo": {
+          "type": "string"
+        },
+        "graphFormat": {
+          "type": "string"
         }
       }
     },
@@ -702,13 +728,16 @@
   ],
   "dependentRequired": {
     "doi": [
-      "recipeVersion"
+      "recipeVersion",
+      "engine"
     ],
     "citation": [
-      "recipeVersion"
+      "recipeVersion",
+      "engine"
     ],
     "source": [
-      "recipeVersion"
+      "recipeVersion",
+      "engine"
     ]
   }
 }

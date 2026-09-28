@@ -38,7 +38,7 @@ Every date in this directory is the UTC date of the statement's timestamp in the
 | View | `graphty-view` | [view-preset.md](view-preset.md) | [view-preset.schema.json](view-preset.schema.json) | Named camera views: drawing mode plus a stored camera or a computed framing |
 | Recipe | `graphty-recipe` | [recipe.md](recipe.md) | [recipe.schema.json](recipe.schema.json) | An ordered list of analysis and layout steps, the attributes, arguments and extensions it needs, and (once applied) how it was bound |
 | Annotations | `graphty-annotations` | [annotations.md](annotations.md) | [annotations.schema.json](annotations.schema.json) | Notes on nodes, edges, groups, points, the graph, runs and style layers |
-| Envelope | `graphty-document` | [envelope.md](envelope.md) | [envelope.schema.json](envelope.schema.json) | Any subset of the five above (any number of recipes), plus the data itself or a reference to it, where the data came from, the record of every import, run and layout, kept sets, positions, the active filter and stored results |
+| Envelope | `graphty-document` | [envelope.md](envelope.md) | [envelope.schema.json](envelope.schema.json) | Any subset of the five above (up to 16 recipes), plus the data itself or a reference to it, where the data came from, the record of every import, run and layout, kept sets, positions, the active filter, stored results and per-group tables |
 
 How each maps onto the third-party formats graph-io writes, and how Cytoscape styles map in, is
 [export-mapping.md](export-mapping.md).
@@ -136,19 +136,27 @@ slot, an extension requirement, a view, a note, a data-plan attribute declaratio
      deeper can be parsed but never written back (the platform's serializers overflow their stack
      on it), so keeping it would make every later save of the session fail;
    - member names `__proto__`, `constructor` and `prototype` at any depth: the document is refused.
-     Readers MUST hold document objects in null-prototype objects or maps, so that no merge,
-     preservation or copy step can write into a shared prototype;
+     The same three strings are refused wherever a string value becomes a property key -- a column
+     key, a `rename` target, a derived attribute's name, a join's `columns`, a slot name, a segment
+     of a selector path -- and that unit is disabled with `E_BAD_COMMAND`. Readers MUST hold
+     document objects and attribute bags in null-prototype objects or maps, or read them with
+     `Object.hasOwn`, so that no merge, preservation or copy step writes into a shared prototype and
+     no inherited member (`data.constructor`) answers as data;
    - an expression (a selector `where`, a `has`, `top` or `by` path, a recipe `where`): at most
      1024 characters and 32 levels of nesting, checked before the parser recurses; a longer one
      disables its unit with `E_BAD_SELECTOR`;
    - per document: 1,000 layers, 100 palettes of at most 256 colours, 100,000 ids in one `ids`
-     selector, 1,000 recipe steps, 1,000 views, 100,000 notes, and 64 KB per free-text string.
+     selector, 16 recipes in an envelope and 1,000 recipe steps across them, 1,000 views, 100,000
+     notes, 100 handling markings of at most 1 KB each, and 64 KB per free-text string.
      Beyond a count, the extra units are refused and reported, not silently dropped; the rest of
      the document applies;
    - data: the node and edge counts graphty-element publishes as its ceilings
      (`DEFAULT_LIMITS.renderCeiling` and `edgesDrawn`, `graphty-element/src/session/limits.ts`:
      50,000 nodes and 100,000 edges today), raisable by the caller, counted while parsing
-     (envelope.md, "Options").
+     (envelope.md, "Options"); and attribute cells, because a data plan can multiply a small input:
+     1,000 columns per element kind, 50,000,000 attribute cells in all, and 10,000 items in one
+     list cell (RECOMMENDED values), checked before a join is materialised (matched nodes times
+     columns). A join whose `on` column is not unique is refused unless the caller allows it.
 6. Any exception raised while applying one unit -- typed or not, including a stack overflow in a
    parser -- MUST be caught and converted into that unit's disabled entry with `E_BAD_COMMAND`. It
    MUST NOT abort the rest of the document.
@@ -176,7 +184,9 @@ version 1):
    (`graphty-element/src/session/styles/sources.ts`).
 3. **Data-plan `knownFields` values, attribute declaration `name`s, join keys and slot names are
    column keys**, written as the column is named, never as an expression: `"combined.score"`,
-   `"#node1"`. graphty-element today reads `nodeIdPath` and the edge ends through a JMESPath
+   `"#node1"`; a column whose header is empty has the key `""`, which a join `key` may name (R's
+   `write.csv` writes its row names that way). graphty-element today reads `nodeIdPath` and the edge
+   ends through a JMESPath
    search (a nested walk) and `edgeWeightPath` as a raw key (`resolveEdgeWeight`,
    `graphty-element/src/data/ingest.ts`). Conformance requires the raw-key reading for every
    member; that is an element change. A nested JSON record is flattened by its graph-io importer,
@@ -193,9 +203,14 @@ version 1):
    value means, requires a new major version.
 2. **The style document's version 1 is frozen to the values graphty-element 2.x accepts.** 2.x is
    released and its reader refuses the whole document for one unknown channel, selector kind,
-   scale or layer kind (`applyTemplate` throws on the first layer `checkLayerSpec` refuses). It
+   scale or layer kind, **and for one value outside an enumerated channel's list** -- a node shape,
+   a line pattern or an arrow it does not draw (`applyTemplate` throws on the first layer
+   `checkLayerSpec` refuses; `checkEnum` answers `E_OPTION_RANGE`). The value lists of `node.shape`,
+   `edge.style`, `edge.arrowHead` and `edge.arrowTail` are therefore frozen with version 1 too, and
+   style.schema.json holds them as enumerations. It
    checks values, not member names, so a new optional member is still additive for it. A style
-   that uses a channel, selector kind, scale or layer kind 2.x does not know MUST therefore be
+   that uses a channel, selector kind, scale, layer kind or enumerated value 2.x does not know MUST
+   therefore be
    written as style version 2, which 2.x refuses with a version message rather than a confusing
    layer error. 2.x also ignores `features` (rule 7), so for the style kind **any addition whose
    omission would change what is painted -- a selector that negates, a new selector member that
@@ -205,21 +220,34 @@ version 1):
    members `buildLayer` copies (`name`, `kind`, `source`, `enabled`, `target`, `selector`, `set`,
    `encode`, `userData`), so a version 1 style re-saved by 2.x loses `kind`, layer `id`s,
    `extensions`, `requires` and the shared metadata (`license`, `derivedFrom`, `handling`)
-   without a report (style.md, "Purpose"). For the other kinds, which no released reader reads,
-   rule 1 applies as written, except the data plan (rule 8).
+   without a report (style.md, "Purpose"). **One named exception:** a style's attribute slots
+   (`requires`) are a version 1 member although 2.x ignores them, because a slot that does not bind
+   on 2.x degrades to a layer added disabled and reported as unbound, never to different paint;
+   a writer MUST warn when it saves a slotted style as version 1 (style.md, "Attribute slots").
+   For the other kinds, which no released reader reads, rule 1 applies as written, except the data
+   plan (rule 8).
 3. A reader MUST accept every major version it implements. graphty-element SHOULD read the current
    major and the one before it, upgrading the older one on read with a function per kind, so a
    file never has to be converted by hand (the pattern of kepler.gl's schema manager; Vega-Lite 5
    likewise kept compiling syntax its schema had dropped). **Style version 1 is read forever**,
    because 2.x wrote it without a `kind`: every later reader MUST read it (upgrading on read), and
-   graphty-element SHOULD also ship an offline converter.
+   graphty-element SHOULD also ship an offline converter. **Catalogue names across element
+   majors.** Because keys, option names and result field names are promised stable only within a
+   major version of graphty-element (rules 4 and 5 of "Identifiers"), a conforming writer MUST
+   write `generator` on every document, and the upgrade on read is keyed on the writer's element
+   major as well as on the document version: a retired name stays an alias for at least the
+   following element major, and a later release upgrades a document written by an older major
+   (the 2.0 rename of `community` to `group` is the precedent).
 4. A reader given a major version it does not implement MUST refuse that document (or that
    envelope member) with `E_UNSUPPORTED_VERSION` and details `{ kind, found, reads }` (open
    decision 4). It MUST NOT guess, and MUST NOT return an empty result as if the document were
    empty.
-5. A writer MUST write the lowest major version that can express the content, and MUST keep the
-   version it read when nothing needing a newer one was added, so opening and re-saving a file
-   never locks out a colleague on the previous release.
+5. A writer MUST keep the version it read when the document was not edited, or was edited only
+   in ways that version can express, so opening and re-saving a file never locks out a colleague
+   on the previous release. "Can express" is tested by the kind's downgrade function: a release
+   ships one per kind, for the one previous major it reads, and writes that major exactly when the
+   downgrade loses nothing. Otherwise it writes its current major. A new document is written in
+   the lowest major that can express it, among the ones the release writes.
 6. The version of each kind is independent. A style at version 2 inside an envelope at version 1 is
    valid.
 7. **Must-understand features.** A document and every unit (a style layer, a recipe step, a view,
@@ -232,16 +260,22 @@ version 1):
    have a feature name**, because an old reader keeps it verbatim but cannot rewrite it when it
    binds slots or namespaces runs, and would save a document that names one thing two ways. A
    reader that does not know a listed feature MUST refuse the unit that lists it (or the document,
-   when listed at the top level) with `E_UNSUPPORTED_FEATURE`, naming it. This is the answer to an
+   when listed at the top level) with `E_UNSUPPORTED_FEATURE`, naming it; a refused recipe step
+   also skips every later step (recipe.md, "Steps" rule 7). This is the answer to an
    old reader that would otherwise ignore a new member and paint, run or bind the opposite of what
    the author meant; compare the JWS `crit` header. It does not protect the style reader 2.x
    (rule 2).
-8. **The data plan cannot grow silently.** Every addition to a data plan's top level or to its
-   `knownFields` -- including a new shared metadata member -- MUST come with a feature name that
-   writers list. An unknown member there with no unknown feature listed is therefore a misspelling
-   and refuses the plan with `E_BAD_COMMAND` and the nearest known name; an unknown member
-   accompanied by an unknown feature refuses it with `E_UNSUPPORTED_FEATURE`, which tells the
-   reader's user to upgrade (data-plan.md, "Applying" rule 5).
+8. **The data plan cannot grow silently where it decides the graph.** Every addition to
+   `knownFields`, and every top-level addition that changes how records are read (which rows,
+   which ids, which columns), MUST come with a feature name that writers list. An unknown member
+   there with no unknown feature listed is therefore a misspelling and refuses the plan with
+   `E_BAD_COMMAND` and the nearest known name; an unknown member accompanied by an unknown feature
+   refuses it with `E_UNSUPPORTED_FEATURE`, which tells the reader's user to upgrade (data-plan.md,
+   "Applying" rule 5). A purely descriptive addition must not lock a colleague out, so the data
+   plan's set of descriptive top-level members (the shared metadata, `name`, `description`,
+   `sourceVersion`) is frozen for its version 1: a later minor adds descriptive content only under
+   `extensions` (a `graphty.*` name for graphty's own), which every reader ignores and keeps, and
+   adds top-level members only when they change how records are read, with a feature name.
 
 Enumerations are open or closed. An **open** enumeration may grow within a major version, and a
 reader that meets an unknown value disables the smallest unit holding it and reports it. A
@@ -249,11 +283,16 @@ reader that meets an unknown value disables the smallest unit holding it and rep
 
 | Kind | Open (may grow) | Closed |
 |---|---|---|
-| Style | selector `match`, `scale` (both frozen for version 1, see rule 2), channel names (frozen likewise), layer `kind`, layer `source.by` | `target` |
-| Data plan | attribute `role`, `type`, `level`, `weightRole` | `repeatedEdges`, `repeatedNodes`, `idCoercion`, `directed`, `missingEndpoints`, join `match`, constraint `onViolation` |
-| View | camera `projection`, view `mode` | `prefer` |
-| Recipe | step `op`, scope kinds, argument `type`, extension requirement `kind`, slot `level` and `weightRole` | -- |
-| Annotations | note target kinds, note `status` | -- |
+| Style | selector `match`, `scale`, channel names, layer `kind` and the value lists of `node.shape`, `edge.style`, `edge.arrowHead`, `edge.arrowTail` (all frozen for version 1, see rule 2); layer `source.by`, palette `kind`, `colorblindSafe` | `target`, binding `overflow`, style `scope` |
+| Data plan | attribute `role`, `type`, `level`, `weightRole`, `derive.transform`, `origin.caveat`, date `format` | `repeatedEdges`, `repeatedNodes`, `idCoercion`, `directed`, `missingEndpoints`, join `match`, join `onDuplicate`, constraint `onViolation`, attribute `element`, `types[].element` |
+| View | camera `projection`, view `mode`, framing `fit` scope kinds, export `legend.placement` | `prefer` |
+| Recipe | step `op`, scope kinds, argument `type`, extension requirement `kind`, slot `level` and `weightRole`, `layout.set` `start` | `layout.set` `dimension`, `application.bindings.by` |
+| Annotations | note target kinds, note `status`, note `confidence` | `binding` |
+| Envelope records | run `outcome.precision`, `scope.componentScope`, stored result `format` | `positions.dimension` |
+
+The units the rules above disable or skip are those of "Conventions" plus a palette and, in an
+envelope, each record of `runs`, `imports`, `results`, `tables` and `positions`, and each kept
+set: validated one at a time, kept verbatim when invalid, and always written back.
 
 `level` and `weightRole` are open so that a new measurement level or weight meaning does not force
 new major versions of the data plan, the recipe and the style at once: an unknown value makes the
@@ -271,16 +310,24 @@ safety valve for members that must not be ignored.
 
 1. A reader MUST ignore an object member it does not know, at any depth, and MUST NOT fail
    because of one. It MUST list each one in the binding report as a warning,
-   `W_UNKNOWN_MEMBER`, with its JSON pointer (`/layers/0/colour`), so a misspelling is seen.
-   Exceptions: the data plan refuses an unknown member of its top level or of `knownFields`
-   ("Versioning" rule 8), because those members decide the graph's topology and identity; and the
-   members of a recipe step's `command` outside `params` and `defaults` are closed per `op`
-   (recipe.md, "Steps" rule 9), because `seed`, `exact`, `precision`, `sample` and `scope` decide
-   the number a step produces and a misspelling of one would silently change it.
+   `W_UNKNOWN_MEMBER`, with its JSON pointer (`/layers/0/colour`), so a misspelling is seen. When
+   the document's `generator` is newer than the reader, the warning names it, so a member from a
+   newer release is told apart from a typo. Exceptions, which are **closed** and grow only with a
+   feature name or a new major version: the data plan's top level and `knownFields` ("Versioning"
+   rule 8); the members of a recipe step's `command` outside `params` and `defaults`, closed per
+   `op` (recipe.md, "Steps" rule 9), because `seed`, `exact`, `precision`, `sample` and `scope`
+   decide the number a step produces; the alternatives of a note target, a recipe scope and a
+   `$argument`, `$attribute` or `$result` reference, because a member added there changes what the
+   unit binds to; and a data-plan declaration's `constraints`, because `onViolation` decides
+   whether an import passes. A unit with an unknown member in one of these places is disabled with
+   its reason.
 2. An applier MUST keep, for each unit, the unknown members and `extensions` it arrived with, on
    the live unit, and every writer -- including one writing from live session state
    (`toDocument()`, `saveDocument()`, the autosave) -- MUST write them back unchanged. A document
-   re-saved without being applied keeps every unknown member at every depth.
+   re-saved without being applied keeps every unknown member at every depth. When the reader
+   edits a unit that holds unknown members, it cannot know whether they describe the members it
+   changed (a newer `legend.title` naming the column the binding used to read), so it writes them
+   back and reports each with `W_UNKNOWN_MEMBER_STALE` on the save that follows the edit.
 3. An unknown value of an open enumeration, or a unit of a kind the reader does not know, MUST
    disable or skip the smallest unit holding it with a reported reason. It MUST NOT fail the
    document or the envelope.
@@ -303,11 +350,21 @@ safety valve for members that must not be ignored.
    the scope, so it resolves differently against a different session
    (`graphty-element/src/session/runs/runId.ts`). A recipe's `as` additionally MUST NOT contain
    `__`, which is reserved for the namespace separator (recipe.md). A run started without `as`
-   (from a panel, by hand) has a derived id; when anything that names it is saved -- a style
-   layer, a note, a set framing -- the writer MUST give that run an author-assigned alias first
-   (its algorithm key, then `-2`, `-3`, the rule `journal.export()` uses), record the alias on the
-   session's run, and rewrite every reference to the derived id. Nothing is refused or left out
-   of a save because a run was unnamed.
+   (from a panel, by hand) has a derived id; when anything that names it is saved or exported -- a
+   style layer, a note, a set framing, a result column of a data export -- the writer MUST give
+   that run an author-assigned alias first, record the alias on the session's run, and rewrite
+   every reference to the derived id. The alias is graphty-element's `algorithmSlug(key)`
+   (`graphty-element/src/session/runs/runId.ts`, which derived ids already use, so a plugin key
+   such as `org.example:motif-census` is sanitised the same way everywhere) with every `-`
+   replaced by `_` and runs of `_` collapsed to one, then `_2`, `_3` for later runs:
+   `pagerank`, `pagerank_2`, `label_propagation`, `org_example_motif_census`. Every such name
+   survives R's `make.names` and pandas unchanged. `journal.export()`, the 1.x template upgrade
+   and a recipe writer mint `as` values by the same rule. Nothing is refused or left out of a save
+   because a run was unnamed. graphty-element documents `E_UNSTABLE_RUN_ID` today as "a document
+   being serialised refers to a run whose id was derived ... the caller re-runs with an explicit
+   `as:` id" (`graphty-element/src/errors/codes.ts`); this specification changes that published
+   meaning -- a save no longer refuses, and the code is reported only for a recipe step without
+   `as` -- which is part of open decision 4.
 3. Keys naming an extension (palette id, algorithm key, layout id, camera id, format id) are the
    keys the element's catalogue publishes. A document naming a key this installation has not
    registered keeps it and reports it unresolved, naming the key.
@@ -339,8 +396,12 @@ safety valve for members that must not be ignored.
    and are never interpreted by graphty-element.
 3. Every document and the envelope MAY carry the same descriptive metadata, so a starting point, a
    style or a project can be cited and licensed on its own:
-   - `authors`: `[{ name, url?, orcid? }]`; `url` MUST be an `https:` URL and a renderer MUST NOT
-     make a link of any other scheme;
+   - `authors`: `[{ name, url?, orcid? }]`; `url` MUST be an `https:` URL. **For every URL-valued
+     member of every kind** -- `authors[].url`, `source`, `derivedFrom.source`, `dataSource.url`,
+     `provenance.url`, and a `doi` rendered as `https://doi.org/<doi>` -- a renderer MUST NOT make a
+     link of any scheme other than `https:`, whether or not the member passed its schema (a reader
+     keeps a failing unit verbatim and may still show it). A `term` IRI is an identifier and is
+     never rendered as a link;
    - `license`: an SPDX licence expression (checked by the strict profile's validator);
    - `citation`: free text, and `doi` when there is one;
    - `derivedFrom`: `{ kind, id?, version?, digest?, authors?, license?, source?, doi? }`, the
@@ -350,11 +411,15 @@ safety valve for members that must not be ignored.
      source and the licence, and a reader without the original must still see them;
    - `handling`: a list of `{ marking: string, note? }`, handling or sensitivity markings such as
      "do not forward" (a single object is read as a list of one). The marking vocabulary is open,
-     so markings have no order and none is "most restrictive": graphty-element keeps, per session,
-     every marking of every document it applied, and every writer -- a save, a notes file, an
-     export sidecar -- writes all markings held. An export writes them to the format's graph-level
-     attributes as `graphty.handling` where it has them, and reports `W_GRAPHTY_HANDLING` where it
-     does not (export-mapping.md). An applier shows them before any re-save or export.
+     so markings have no order and none is "most restrictive". graphty-element keeps each marking
+     **with the units that arrived with it** -- the layers, notes, records and data of that
+     document -- and every writer -- a save, a notes file, an export sidecar, a data export, an
+     image -- writes every marking of every unit its output contains (a data export contains the
+     data and whatever appearance and results it bakes). An export writes them to the format's
+     graph-level attributes as `graphty.handling` where it has them, and reports
+     `W_GRAPHTY_HANDLING` where it does not (export-mapping.md, including images). An applier shows
+     them before any re-save or export. A caller MAY remove a marking; the removal is reported and
+     recorded in the next save's report. At most 100 markings, each note at most 1 KB, are kept.
    **Precedence.** A member's own metadata describes that member; the envelope's describes the
    file; a member without its own `license` or `authors` is under the envelope's. A writer that
    puts a member with its own licence into an envelope under a different licence keeps the
@@ -368,7 +433,8 @@ diffs only where something changed:
 1. members in this order: `$schema`, `kind`, `version`, the identity members of the kind (`id`,
    `recipeVersion`, `planVersion`), `name`, `description`, then the shared metadata in the order
    listed above (`authors`, `license`, `citation`, `doi`, `derivedFrom`, `handling`), then
-   `createdAt`, `modifiedAt`, `generator`, `features`, then the kind's content members in the order
+   `createdAt`, `modifiedAt`, `generator` (which a conforming writer MUST write), `features`, then
+   the kind's content members in the order
    its specification's data model lists them, then `extensions`, then unknown members in the order
    read; inside a unit, the order of its data model, `extensions` last;
 2. arrays in document order; two-space indentation; a trailing newline; numbers in the shortest
@@ -442,9 +508,9 @@ interface BindingReport {
   /** Units that would bind after work the caller has not agreed to (a recipe run). */
   readonly needsRerun?: readonly { what: string; estimateSeconds: number; exact?: boolean; precision?: "f32" | "f64" }[];
   /** Work that takes effect only at the next import: a data plan applied after load, or a
-      recipe weight slot bound to a column that is not the graph's weight column. Each entry names
-      the attribute and gives the data plan (knownFields only) the re-import should use; the
-      applier holds the waiting units and re-binds them when that import completes. */
+      recipe slot bound to a column the import did not load. Each entry names the attribute and
+      gives the data plan (knownFields only) the re-import should use; the applier holds the
+      waiting units and re-binds them when that import completes. */
   readonly needsReimport?: readonly { reason: string; attribute?: string;
                                       knownFields?: Readonly<Record<string, unknown>> }[];
   readonly fingerprint?: "match" | "differs" | "unknown";
@@ -481,28 +547,44 @@ interface ImportReport {
                     /** set when the plan was held from another document (envelope.md) */
                     heldFrom?: { document: string; digest: string } };
   readonly data?: { format: string; digest?: string; bytes?: number };
+  /** the packages that read the bytes, and a registered third-party importer's identity */
+  readonly engine: { graphIo: string; graphFormat: string;
+                     importer?: { key: string; version: string | null } };
+  readonly dataSource?: DataSource;       // as passed to the import call (envelope.md)
   readonly fieldsUsed: Readonly<Record<string, string | null>>;   // each knownFields member as resolved, including probed ones
   readonly counts: {
     readonly records: number; readonly nodes: number; readonly edges: number;
     readonly repeatedEdgesMerged: number; readonly repeatedNodesMerged: number;
     readonly idsCoerced: number; readonly coercionFailures: number;
     readonly missingEndpoints: number; readonly constraintViolations: number;
+    readonly ignoredDeclarations: number;   // declarations that bound nothing, so a pipeline can gate on it
   };
+  /** one entry per declaration with a constraint, uncapped */
+  readonly violations: readonly { declaration: string; types?: readonly string[]; count: number }[];
+  /** the type each undeclared column was read as, and how many cells did not fit it */
+  readonly inferredTypes: Readonly<Record<string, { type: string; failures: number }>>;
   readonly joins: readonly { input: string; matched: number; unmatched: number; duplicates: number;
                              multiMatched: number;   // table rows that matched more than one node
-                             unmatchedIds: readonly (string | number)[] }[];   // unmatchedIds capped at 1000
+                             unmatchedIds: readonly (string | number)[];   // capped at 1000
+                             unmatchedTotal: number; unmatchedTruncated: boolean }[];
   readonly weightRoles: Readonly<Record<string, "distance" | "similarity" | (string & {})>>;
   readonly derived: readonly { name: string; from: string; transform: string }[];
   /** per merged node id, the attributes whose values differed between records (capped at 1000) */
   readonly nodeConflicts: readonly { id: string | number; attributes: readonly string[] }[];
+  readonly nodeConflictsTotal: number; readonly nodeConflictsTruncated: boolean;
   /** qualified types an edge end named that no node record had (typed identity only) */
   readonly unmatchedTypes: readonly string[];
-  readonly issues: readonly { row: number; field: string; code: string; value: unknown }[];  // capped at 1000
+  readonly issues: readonly { row: number; field: string; code: string; value: unknown }[];  // capped
   readonly issuesTruncated: boolean;
 }
 ```
 
-Issue codes are graph-io's existing codes where one exists. The shape is part of the published
+Issue codes are graph-io's existing codes where one exists. The caps default to 1,000; the caller
+MAY raise them for one import (`issueLimit`) or ask for the full issue table as CSV, and a project
+stores at most the defaults. Columns no declaration types are inferred by graph-io's rule for the
+format (in CSV, a column whose every non-missing cell parses as a number is numeric), and the
+result is reported in `inferredTypes`, so an `NA` that turned a fold-change column into text is
+visible. The shape is part of the published
 contract (open decision 4). A project keeps the import report of the import that built its graph
 (envelope.md, "Import records"), so the join counts and unmatched ids that held when a figure was
 made can be read six months later without re-importing.
@@ -519,8 +601,10 @@ Documents may be applied one at a time, in any order, or together in one envelop
 | Recipe | appends its steps' runs as a second application. Run ids are namespaced; applying the same recipe id again follows the applier's `onRepeat` option, and re-applying one whose earlier application ran no step re-binds it (recipe.md, "Applying") |
 | Annotations | merges by note id (annotations.md, "Reading and applying"); nothing is overwritten unless the caller asks for newer versions to replace older ones |
 
-Inside one envelope the order is fixed: data plan, data, positions, sets, results, recipes (in
-list order), style, view, annotations (envelope.md, "Opening"). The recipes precede the style so
+Inside one envelope the order is fixed, and is envelope.md's ("Opening" rule 4): data plan, data,
+positions, filter, sets, results, tables, recipes (in list order), style, view, annotations. The
+filter precedes the recipes, which is why the applier passes every recipe step an explicit scope
+(recipe.md, "Scopes"). The recipes precede the style so
 that layers bound to their runs find them; the view follows both so a framing fits the laid-out
 graph; annotations come last so their targets exist.
 
@@ -568,8 +652,9 @@ they bite.
    computing percentiles for `clamp` is work too, and a style is applied automatically when an
    envelope opens.
 6. **Imported units say they were imported.** A style layer, a note, a run record, a stored
-   result, a kept set and a view that arrive from a document are stamped with the document they
-   came from and that document's digest (style.md, annotations.md, envelope.md). A stamp is
+   result, a kept set and a view that arrive from a document are stamped with what the reader
+   observed -- the file name or origin it was opened from -- and that document's digest (style.md,
+   annotations.md, envelope.md); the document's own `name` is shown only as its claim. A stamp is
    appended by the reader; one found in the file is kept as the file's claim, never trusted. A
    document cannot make its content look like the reader's own work, and the methods text says
    "recorded by <document>" for a run record this session did not produce (recipe.md).
@@ -614,7 +699,12 @@ recipe, and running its non-rendering steps against a graph loaded in Node are a
 Babylon-free entry points (`./format` for documents and the digest, `./session` for binding and
 running), so a pipeline can batch-apply one recipe to fifty networks and gate on the import and
 binding reports. graphty-element SHOULD ship a `validate(doc, { strict })` function and a small
-command-line validator with the schemas. The element's algorithm catalogue (keys, legacy aliases,
+command-line validator with the schemas, and a small command-line runner beside it (a recipe, a
+data file and a data plan in; CSV result tables and the run manifest out), so a Python or R
+pipeline can run a lab recipe over fifty networks without writing a Node program. A data plan can
+be tried without committing it: `data.checkImport(src, { plan, sampleRows })`, side-effect free and
+Node-safe, returns the import report and the first parsed node and edge records without building or
+replacing the session's graph (data-plan.md, "Applying"). The element's algorithm catalogue (keys, legacy aliases,
 option descriptors with defaults and maxima, result fields with their roles, each algorithm's
 conventions and a citation) SHOULD be published beside them as a versioned JSON file, so a person
 can hand-write a recipe or a result-bound style without running graphty-element to discover option
@@ -642,15 +732,21 @@ Consequences for these documents:
   a published API and are on the owner's list (open decision 33).
 - Recipes name algorithms by catalogue key and never depend on how a plugin reads the graph, so
   replacing `algorithmGraph()` with the snapshot accessor changes nothing in these formats. The
-  snapshot accessor has one weight column, which is why a recipe's weight slot binds to the
-  graph's weight role rather than to a parameter value (recipe.md, "Weights"). A flow algorithm's
+  migration's indexed ports take a per-arc weight array per call, so a recipe's weight slot binds
+  to any compatible numeric edge column and the element passes it as that run's weight (recipe.md,
+  "Weights"); that is part of the snapshot accessor's weight contract, which the migration's
+  plugin-seam decision should settle. The migration plan's rule that Kamada-Kawai receives `1 /
+  sum` of parallel edge weights, reading every weight as a strength, contradicts this
+  specification's weight roles and needs updating (recipe.md, "Weights" rule 6). A flow algorithm's
   capacity is graph-format's separate `capacity` role; max-flow today reads a fixed record key
   (`capacity`, else `value`, `MaxFlowAlgorithm.ts`) and should read the capacity-role column of the
   snapshot instead, an element change.
-- The export places a plugin's result field in a role (partition, rank) only when the plugin
-  declares it. The algorithm plugin contract therefore needs result-field descriptors (name, type,
-  role), read by the export and by the published catalogue; that is a dependency on the
-  migration's plugin API.
+- The export places a plugin's result field in a graph-format role (`community`, `rank`) only when
+  the plugin declares it. Plugins already declare their result fields
+  (`AlgorithmDescriptor.fields`, each with a name, kind and type, and the result `shape` from
+  `RESULT_SHAPES`, `graphty-element/src/catalog/types.ts`); what is missing is a role on
+  `FieldDescriptor`, or a shape-to-role table in the catalogue. That is a catalogue change, not a
+  dependency on the migration's plugin seam, which covers only the snapshot accessor.
 
 ## Reviewing personas and workflows
 
@@ -674,26 +770,32 @@ Stated plainly so no one discovers it from a failed file:
 - **Covered:** reusing a style on new data (`W20.yaml`); one encoding across two networks applied
   separately (`W24.yaml`); reading a source with declared roles and a joined attribute table,
   including a join after load (`W18.yaml`, `W20.yaml`); evidence notes on the exhibit's original
-  bytes (`W06.yaml`, `W09.yaml`); a project file with the original data, positions, the active
-  filter, import, run and layout records, sets and (in the zip container) stored results
-  (`W25.yaml`). A W25 project that reopens "sealed", with its results and without re-running
-  anything, needs the zip container; a JSON project restores results only by re-running with
-  consent (open decision 1).
+  bytes (`W06.yaml`, `W09.yaml`); a project file holding **one network** with the original data,
+  positions, the active filter, import, run and layout records, superseded and discarded run
+  records, sets and stored results, reopening "sealed" with the submitted numbers in either
+  container (`W25.yaml`) -- but a session holding several networks (the full network, its
+  largest-component subnetwork kept as a separate graph, a sub-map) cannot be saved as one project
+  until open decision 24 is made; keeping the largest component as the working network through
+  the session filter (`{ component: "largest" }`) is covered; trying a data plan on a sample before
+  loading (`W18.yaml`, `data.checkImport`).
 - **Partly covered:** ranking hubs with recorded parameters (`W23.yaml`): the combine phase -- a
   custom combined score and "top ten in at least two methods" as exported columns -- needs
   `attribute.compute`, so the ranked table leaves it out; clustering and annotating (`W21.yaml`):
-  cluster labels travel as group notes, but per-cluster enrichment tables have no home (the name
-  `tables` is reserved for them, envelope.md), filtering clusters by size needs `graph.filter`, a
+  cluster labels travel as group notes and as a legend's category labels, and per-cluster
+  enrichment tables computed outside graphty travel as `tables` attached to the clustering run
+  (envelope.md), but filtering clusters by size needs `graph.filter`, a
   cluster label reaches the canvas only through a label layer on the members until callouts exist,
   MCL is not in graphty-element's catalogue and `clustering-coefficient` is deprecated and does not
   run (`graphty-element/src/catalog/types.ts`); report pages (`W15.yaml`): each page has its own
-  camera, filter, enabled layers and notes, but canvas callouts and image export of a page are not
-  specified; enrichment maps (`W22.yaml`): the q-value and similarity cutoffs travel as the view's
+  camera, filter, enabled layers, notes and figure settings, and an image export of a page carries
+  its legend and its notes as a numbered caption list (export-mapping.md, "Images"), but canvas
+  callouts are not specified; enrichment maps (`W22.yaml`): the q-value and similarity cutoffs travel as the view's
   or project's filter and in each run record's scope, but the gene-set overlap computation does
   not.
 - **Not in version 1**, each named as a reserved step type or an open decision: fetching
-  interactions from a database inside a recipe, keeping the largest component as the working
-  network, enrichment against a gene-set file, computed attributes, a randomized null model
+  interactions from a database inside a recipe, making the largest component the working network
+  of later recipe steps (`graph.subgraph`), enrichment against a gene-set file, computed
+  attributes, a randomized null model
   (`W03.yaml`, `W20.yaml`, `W21.yaml`, `W22.yaml`; `graph.randomize` and `graph.filter` are the
   first additions to make, and until then the methods text says which steps behind a conclusion
   were done outside the recipe); several networks in one file (`W24.yaml`, open decision 24: a
@@ -716,11 +818,11 @@ the text that cites it.
    for everything, or both. *Recommendation:* JSON (`.graphty.json`,
    `application/vnd.graphty+json`) for every document and for envelopes whose data is text or a
    reference; the zip `.graphty` (`application/vnd.graphty.project+zip`) with an envelope as its
-   manifest for projects that embed binary graph parts or stored results. Also the design studio's
-   door 1. Consequence to weigh: only the zip container stores results, so a project that must
-   reopen "sealed" -- the submitted figure's numbers, not a re-run under whatever engine is
-   installed (`W25.yaml`) -- and any project above the default data limits (`W13.yaml`) needs the
-   zip; a JSON project restores its results only by re-running with consent.
+   manifest for projects that embed binary graph parts. Also the design studio's door 1. Both
+   containers store results (the JSON one as CSV text), so a project that must reopen "sealed" --
+   the submitted figure's numbers, not a re-run under whatever engine is installed (`W25.yaml`) --
+   does not depend on this decision; a project above the default data limits (`W13.yaml`) is
+   practical only in the zip.
 2. **The `kind` strings and a discriminator on every document.** Today only the envelope has
    `kind`; a 2.x style document is `{ version, layers, palettes? }`. *Recommendation:*
    `graphty-style`, `graphty-data-plan`, `graphty-view`, `graphty-recipe`, `graphty-annotations`,
@@ -738,24 +840,39 @@ the text that cites it.
    or igraph function and the mapping of its parameter names) is part of this decision;
    *recommendation:* yes, informational, because validating against a reference implementation is
    the expert persona's workflow (`W03.yaml`). A `validate(doc, { strict })` function and a
-   command-line validator ship with the schemas.
+   command-line validator ship with the schemas. Beside the moving `.../v<major>.json`, publish an
+   immutable schema per release (`.../v1.3.json`), and have the strict profile check a file
+   against the schema of its `generator`'s release, so a member a newer release added is not
+   flagged as a misspelling. **Before any recipe or data plan is released**, the catalogue fields
+   the rules depend on MUST be published -- which algorithms and layouts read a weight and as what,
+   negative-weight acceptance, the stochastic flag, option maxima -- together with the strict
+   profile, because without them a person cannot hand-write a conforming recipe.
 4. **New error, warning and loss-note codes, and the report shapes.** Codes and the
    `BindingReport`, `RecipeBinding` and `ImportReport` shapes are a published contract. Today the
    style applier refuses an unknown version with `E_BAD_COMMAND`. *Recommendation:*
-   `E_UNSUPPORTED_VERSION` (graph-format's code for its wire form) with details
-   `{ kind, found, reads }`; `E_UNKNOWN_KIND`, `E_UNSUPPORTED_FEATURE`, `E_TOO_LARGE`,
-   `E_UNKNOWN_ELEMENT`, `E_UNKNOWN_SET`, `E_UNSUPPORTED` (typed identity refused, an immersive mode
-   unavailable), `E_UNBOUND_SLOT`, `E_ROLE_CONFLICT`, `E_WEIGHT_ROLE_MISMATCH`,
-   `E_CONFIRMATION_REQUIRED`, `E_ARGUMENT_REQUIRED`, `E_DEPENDENCY_SKIPPED`, `E_UNKNOWN_COMMAND`,
-   `E_NAMESPACE_MISMATCH`, `E_RECIPE_DIGEST_MISMATCH`, `E_REPEAT_APPLICATION`,
-   `E_PRECISION_UNAVAILABLE`, `E_DIGEST_MISMATCH`, `E_CONSENT_REQUIRED`, `E_DUPLICATE_ID`,
-   `E_EMPTY_SCOPE`, `E_NEGATIVE_WEIGHT`, `E_UNSTABLE_EDGE_ID`, `E_BUDGET_EXCEEDED`,
-   `E_UNKNOWN_RUN`, `E_UNKNOWN_LAYER`; warnings in a new published `GraphtyWarningCode` union:
-   `W_UNKNOWN_MEMBER`, `W_STALE_QUOTE`, `W_PARAMETER_DIFFERS`, `W_ENGINE_DIFFERS`, `W_RUN_CHANGED`,
-   `W_DIGEST_MISMATCH`, `W_STYLE_WORK_BOUND`; and the `W_GRAPHTY_*` loss-note codes of
-   export-mapping.md. graph-format already raises `E_UNSUPPORTED_VERSION` with `details.kind` of
-   `wire` or `format`; for an unreadable zip part the documents use `details.kind: "part"`, so one
-   code keeps one meaning of `details.kind` per value.
+   `E_UNSUPPORTED_VERSION` (graph-format's code for its wire form; new to graphty-element's
+   `GraphtyErrorCode`) with details `{ kind, documentKind?, found, reads }`, where `kind` keeps
+   graph-format's meaning -- the category, `wire` or `format`, and for these documents `document`
+   or `part` -- and `documentKind` names the document kind (`graphty-style`); new codes
+   `E_UNKNOWN_KIND`, `E_UNSUPPORTED_FEATURE`, `E_UNKNOWN_ELEMENT`, `E_UNKNOWN_SET`,
+   `E_UNBOUND_SLOT`, `E_ROLE_CONFLICT`, `E_WEIGHT_ROLE_MISMATCH`, `E_CONFIRMATION_REQUIRED`,
+   `E_ARGUMENT_REQUIRED`, `E_DEPENDENCY_SKIPPED`, `E_UNKNOWN_COMMAND`, `E_NAMESPACE_MISMATCH`,
+   `E_RECIPE_DIGEST_MISMATCH`, `E_REPEAT_APPLICATION`, `E_PRECISION_UNAVAILABLE`,
+   `E_DIGEST_MISMATCH`, `E_CONSENT_REQUIRED`, `E_NEGATIVE_WEIGHT`, `E_UNSTABLE_EDGE_ID`,
+   `E_BUDGET_EXCEEDED`; and **existing** graphty-element codes whose documented meaning this
+   specification uses or extends, each of which must be restated in
+   `graphty-element/src/errors/codes.ts` if adopted: `E_SCOPE_EMPTY` (used as documented for an
+   empty recipe scope), `E_UNKNOWN_RUN`, `E_UNKNOWN_LAYER`, `E_DUPLICATE_ID` (reused as
+   documented), `E_UNSUPPORTED` (an immersive mode unavailable, a session of several graphs
+   refused on save),
+   `E_TOO_LARGE` (today "a hard structural limit of an index or of the accelerator", and an
+   acceleration capability code; *recommendation:* give document size limits their own code,
+   `E_DOCUMENT_TOO_LARGE`, rather than widen it), and `E_UNSTABLE_RUN_ID` (today a refused save;
+   here only a recipe step without `as`, README "Identifiers" rule 2); warnings in a new published
+   `GraphtyWarningCode` union: `W_UNKNOWN_MEMBER`, `W_UNKNOWN_MEMBER_STALE`, `W_STALE_QUOTE`,
+   `W_PARAMETER_DIFFERS`, `W_ENGINE_DIFFERS`, `W_RUN_CHANGED`, `W_DIGEST_MISMATCH`,
+   `W_STYLE_WORK_BOUND`, `W_STATUS_PROPOSED`; and the `W_GRAPHTY_*` loss-note codes of
+   export-mapping.md.
 5. **The fingerprint scheme.** *Recommendation:* define `g2`, an order-independent hash over the
    sorted node ids and the sorted edge list, and approve it before any writer writes a
    fingerprint; never write `g1` into a file.
@@ -775,8 +892,10 @@ the text that cites it.
    the design studio's rules (doors 19 and 33): a stable recipe id, version and optional canonical
    source, where one id and version name one immutable content; run ids namespaced `<ns>__<id>`
    when applied, with the namespace recorded in the saved envelope so it round-trips; `onRepeat`
-   defaulting to refuse; graphty-element ships a "General" overview recipe that a consumer and a
-   project can replace.
+   defaulting to refuse, tracked per import; graphty-element ships a "General" overview recipe
+   that a consumer and a project can replace. `recipeVersion` is published identity:
+   *recommendation:* require SemVer 2.0.0 (a schema pattern, SemVer precedence) before the first
+   recipe with a DOI exists; until then, versions that are not SemVer are never ordered.
 9. **Load-time runs.** The element API design keeps `runOnLoad` in the data plan, which puts
    compute in the column-roles document. *Recommendation:* move it to the recipe (data-plan.md),
    as the migration register's template-split codemod already assumes.
@@ -802,8 +921,17 @@ the text that cites it.
     typed node identity (data-plan.md, "Node types"), which must be expressed through
     graph-format's existing `kind` and `idSpace` roles and its single id space (graph-format
     design decision Q27, "no core namespaces"); and adding the edge's type or predicate (`kind`) to
-    `EdgeMember`, so a pair with two predicates keeps its references when rows are reordered.
-    *Recommendation:* qualified ids `"<type>:<id>"` (the type percent-encoded, data-plan.md "Node
+    `EdgeMember`, so a pair with two predicates keeps its references when rows are reordered. And
+    **node type versus node class**: a knowledge graph whose ids are already global (IRIs, UUIDs)
+    has types that are classes, not namespaces, and a node can have several. *Recommendation:*
+    split them -- a `nodeClassPath` (one or more fields holding classes, stored under
+    graph-format's `kind` role) that `types` scoping, styles and joins read and that never changes
+    identity, and `nodeTypePath` only for namespace-qualified identity -- plus `idsQualified: true`
+    for ids already qualified (the regenerated plan of a typed export, data-plan.md), and a
+    `typeRenames` map so a renamed type rewrites stored references deterministically before the
+    `originalId` fallback. Every typed-identity member is reserved behind the feature name
+    `typed-identity` until this decision is made (data-plan.md, "Node types"). *Recommendation*
+    on the identity form: qualified ids `"<type>:<id>"` (the type percent-encoded, data-plan.md "Node
     types") whenever a type path is declared, with the type in the `idSpace` role and the untyped
     id in a plain column named `originalId` that has no role, exactly as graph-io's Neo4j importer
     stores `:ID(Space)` ids (`graph-io/src/formats/neo4j/importer.ts`). The graph-format
@@ -868,21 +996,28 @@ the text that cites it.
     "How-to guides".
 23. **Result column names in exports.** Scripts in R and Python read them, and a column name that
     changes with what else a session applied breaks them. *Recommendation:* `<name>.<field>`, where
-    `<name>` is the recipe's own `as` for a run a recipe produced and the run id otherwise; when two
-    runs would give one name, the later ones fall back to their namespaced run id and are reported
-    (`W_GRAPHTY_RESULT_NAME`); read back as the flat column key `data.pagerank.value`. Generated
-    namespace suffixes are digits with no separator (`hubs2`), and namespaces and `as` values
-    SHOULD avoid hyphens, which R's `read.csv` rewrites to dots. The design studio's
+    `<name>` is the recipe's own `as` for a run a recipe produced and the run's author-assigned id
+    or alias otherwise (README "Identifiers" rule 2: `pagerank_2`, `label_propagation`); read
+    back as the flat column key `data.pagerank.value`. When two runs would give one name, the export
+    is **refused** unless the caller supplies a column-name map (`columnNames`) or asks for
+    namespaced names for all of them, so the column a script reads never depends on what was
+    applied first. Generated namespace suffixes are digits with no separator (`hubs2`), and
+    namespaces and `as` values SHOULD avoid hyphens, which R's `read.csv` rewrites to dots. Beside a
+    CSV export, a plain CSV column dictionary (`<name>.columns.csv`: column, run, recipe id, step,
+    field, caveat, precision) so R and Python need not parse the JSON sidecar. The design studio's
     `<column>__estimated` and `<column>__missing` caveat columns (door 61) are written for every run
     that was not requested `exact: true`, so the column set depends on the recipe, not on which
-    algorithms a release can estimate. A collision with an imported attribute appends `.2` to the
+    algorithms a release can estimate; the caller may turn them off per run, and they are omitted
+    for an algorithm whose catalogue descriptor says it never estimates. A collision with an imported attribute appends `.2` to the
     field. The sidecar data plan declares each result column's origin (run, field, caveat), so a
     name never has to be parsed.
 24. **Several graphs in one document.** The condition-comparison workflow
     (`design/designloom/workflows/W24.yaml`) needs two networks and a merged one in one file, and
     moving from one graph to a list later gives every stored reference a graph id it was written
     without. This must be decided before any document other than the style is released.
-    *Recommendation:* a `graphs` member in envelope version 1, holding one entry per graph with
+    It blocks the core of the reproducible-session workflow: until it is made, a session holding a
+    full network and its subnetworks cannot be saved as one project (`W25.yaml` is covered only for
+    one network). *Recommendation:* a `graphs` member in envelope version 1, holding one entry per graph with
     its own data, data plan, sets and results, while style, views and annotations stay at the top
     level (the design studio's doors 2 and 5), with an optional `graphId` member on note targets,
     view fits and recipe step scopes that defaults to the only graph. (Not `graph`: that name
@@ -897,21 +1032,29 @@ the text that cites it.
     lists `StyleDocument`, `DataPlan`, `ViewPreset` and `Recipe` as public contracts, but not the
     annotation set or the envelope. *Recommendation:* add both, and cite this directory.
 26. **Shared metadata member names.** `authors`, `license`, `citation`, `doi`, `derivedFrom`,
-    `handling`, `modifiedAt`, `features`, on every kind. *Recommendation:* as specified above.
+    `handling`, `createdAt`, `modifiedAt`, `generator`, `features`, on every kind, and the data
+    source's query vocabulary (envelope.md, "The data source"). *Recommendation:* as specified.
 27. **Several data inputs and joins.** A data member of named inputs (an edge table plus a node
     table, as graph-io's CSV importer takes them) and data-plan joins of attribute tables onto
     nodes. Open with it: merging several sources, each with its own data plan, into one graph
     (`W09.yaml`, `W13.yaml`), and an identity mapping (aliases from merged ids to the surviving
     id, `W09.yaml` node merging) that note targets resolve through. *Recommendation:* named
-    inputs and exact-key joins in version 1 (envelope.md, data-plan.md); multi-source merge and
-    aliases reserved (`sources`, `aliases`) and designed with the graphs decision, since both
-    change what a stored reference means; identifier-namespace mapping (gene symbol, Entrez,
+    inputs and exact-key joins in version 1 (envelope.md, data-plan.md); the shapes of `sources`
+    (each with its own data plan and a per-attribute precedence by source, "HR wins for title")
+    and `aliases` decided before envelope version 1 ships, with the graphs decision, since both
+    change what a stored reference means, even if their implementation comes later; until then
+    `repeatedNodes: "merge"` reports, when the caller asks (`reportAllConflicts`), every overwritten
+    value with its source row, uncapped; identifier-namespace mapping (gene symbol, Entrez,
     UniProt) left to the caller in version 1. Per-input field mapping (one entity file per type,
     each with its own id column, `W13.yaml`) is part of the same decision. The investigation
-    workflow (`W09.yaml`) needs `aliases` before any case file is exchanged: until then a note whose
-    target was merged away in the session is reported with the id it was merged into, not only as
-    an unknown element.
-28. **Notes and judgement layers in a data export.** The owner's export decision says an export
+    workflow (`W09.yaml`) needs `aliases` before any case file is exchanged, so `aliases` is
+    **blocking for any evidence use**: until then a note whose target was merged away in the
+    session is reported with the id it was merged into, not only as an unknown element, and a
+    session with merges keeps `requireDigest` and ordinal edge references working only through the
+    original digest (annotations.md, "Reading and applying" rule 9).
+28. **Notes and judgement layers in a data export.** *First on the owner's list, and blocking any
+    evidence use:* if it is rejected, notes and suspect highlights flow into every export by
+    default. The owner's export decision says an export
     carries everything the format can represent; notes (as a text column) and highlight layers
     (baked as colours) both fit. A "suspects" highlight baked into `viz:color` reveals the same
     judgement leaving the notes out protects, and so do `ids` selectors in the sidecar's style and
@@ -946,9 +1089,15 @@ the text that cites it.
     an endpoint or id column is refused in a document (data-plan.md, "Fields"), and the element
     translates `knownFields` into the importer's options itself.
 33. **The export API and figure export.** The method name and signature (`ExportResult` with a
-    blob, a stream, the manifest and graph-io's `LossNote`), and figure and legend export
-    (export-mapping.md, "Images"). *Recommendation:* the element API design's `ExportResult`; a
-    figure export whose legend is included by default and derived as export-mapping.md states.
+    blob, a stream, the manifest and graph-io's `LossNote`), figure and legend export
+    (export-mapping.md, "Images"), and **the default element scope of an export**: the element API
+    design says `scope` defaults to `"visible"`, and `data-export.yaml` exports a selected subset.
+    *Recommendation:* the element API design's `ExportResult`; an export writes every element by
+    default, whatever the active filter hides, with the filter written in the sidecar and the
+    manifest, and a caller who passes `scope: "visible"` gets only the kept elements and a loss note
+    (`W_GRAPHTY_FILTERED`) naming the predicate and the count dropped; a figure export whose legend
+    is included by default, derived as export-mapping.md states, and which for a report page
+    appends the page's notes as a numbered caption list naming their targets.
 34. **The recipe applier.** A published API: `session.recipes.apply(doc, options)` returning an
     application handle (recipe.md, "Applying"). *Recommendation:* as specified there.
 35. **Extension identity at registration.** Whether registering an algorithm, layout, palette,
@@ -959,7 +1108,11 @@ the text that cites it.
     (recipe.md, "Extension requirements"). *Recommendation:* registration takes a required
     `{ package, version }` supplied by the plugin's own module, never by a document; strict
     registration (refusing an already-registered key) is the default; a run of an unversioned
-    plugin records `version: null` and the methods text says "unversioned".
+    plugin records `version: null` and the methods text says "unversioned"; a run record's
+    `engine.plugins` records `{ package, version }` rather than a bare version. Registration also
+    takes declared aliases for a retired key, option name or result field, which the binding
+    report resolves and names as it does for built-in names, and plugins are expected to keep the
+    stability promise of "Identifiers" rules 4 and 5 within their own major versions.
 
 ## Review record
 
@@ -1034,6 +1187,37 @@ Objections that were taken are reflected in the text above and are not listed.
   ties and empty layers -- are fixed in style.md.
 - *Let a group note drive a canvas label on the cluster.* Deferred with canvas callouts (open
   decision 14): a label on the canvas is presentation, and the view is where it will live.
+- *Save several networks (a comparison's two sides, a network and its subnetworks) in envelope
+  version 1 now.* Not decided here: it is a published file shape, and the owner has not made open
+  decision 24. The text now states plainly that `W25.yaml` is covered for one network only.
+- *Prioritise `attribute.compute`, or add a `top`-intersection selector, so "top ten in at least two
+  of degree, betweenness and PageRank" is a recorded step.* Not adopted for version 1: combining
+  rankings needs a formula language, which is a design of its own; `attribute.compute` stays the
+  reserved step type for it, and the exported result columns carry every metric for R or Python to
+  combine in the meantime.
+- *Record a null model's parameters as a free-form member of the run so the methods text can quote
+  them.* Not adopted as a new member: a note on the run (`{ run }` target) already carries free
+  text, and `graph.randomize` remains the first step type to specify.
+- *Let a data plan declare a composite edge id (`edgeIdPath` as a list of columns).* Not in version
+  1: graph-format stores one edge id column. The composite check an evidence note needs is covered
+  instead by letting an edge target's `check` hold several path and value pairs (annotations.md).
+- *Accept CURIEs with a `prefixes` map in data-plan `term`s.* Not in version 1: `term` now accepts
+  any absolute `http`, `https` or `urn` IRI, which covers FOAF, Dublin Core and OBO; a prefix map is
+  a later additive member.
+- *Add `closed: true` to the data plan's `types` so an unlisted node type refuses the import.* Not
+  in version 1: `types` gained `element`, and a closed type list is a later additive member with a
+  feature name; an `enum` constraint on the type column does the job today.
+- *Write a script that checks the enumeration table against the schemas.* Not done in the draft's
+  scripts; the table now classifies every enumeration in the schemas, and keeping the two in step is
+  part of publishing the schemas (open decision 3).
+- *Add a compatibility test that runs every version 1 style example through graphty-element 2.x's
+  `applyTemplate`, and turn each specification's table of expected outcomes into reader tests.*
+  Already required of the implementation (style.md, "Conformance"; the tables are its test cases).
+  The draft's scripts check JSON only and cannot load the element without a build; the enumerated
+  shape, line and arrow values such a test would have caught are now in the style schema.
+- *Specify a Python or R binding of the recipe applier.* Not adopted: graphty-element is a
+  JavaScript package. A command-line runner and a non-normative script export derived from the
+  catalogue's reference-implementation mapping are recommended instead.
 
 ## Sources
 

@@ -3,6 +3,8 @@
  * role-"mass" column in any numeric dtype, the outDegree + 1 default, the explicit F32, the named column, the
  * Record rejection with the hint; weights from the arc array, from a named edge column through expandEdges (f32,
  * f64, u32) and the errors, including the E_GPU_INELIGIBLE pass-through of a string column.
+ *
+ * run-twice exempt: nodeMass and weight resolution runs on the host; no kernel is dispatched.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";

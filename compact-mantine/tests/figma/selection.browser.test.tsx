@@ -21,8 +21,8 @@ import {
     Tabs,
     Tooltip,
 } from "@mantine/core";
-import { commands, page, userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { AlignmentMatrix } from "../../src/components/selection/AlignmentMatrix";
 import {

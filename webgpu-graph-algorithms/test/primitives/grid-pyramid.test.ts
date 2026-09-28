@@ -16,29 +16,16 @@ import { isWebGpuGraphError } from "../../src/errors.js";
 import { preparePyramid } from "../../src/primitives/grid-pyramid.js";
 import { levelOf, PYRAMID_FIXTURES, pyramidCompare, pyramidOracleOf, pyramidScene, runPyramid } from "../helpers/grid-pyramid.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { adapterClass, sampleStrided, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { testReduceScope } from "../helpers/segmented-reduce.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const CASE_TIMEOUT = 300_000;
-/** Every 64th cell of level 1: the committed fixture of the unscaled random20k downsample. */
-const CELL_STRIDE = 64;
+/** Every 65th cell of level 1: the committed fixture of the unscaled random20k downsample (odd, issue #267). */
+const CELL_STRIDE = 65;
 const POISON_F32 = new Float32Array(new Uint32Array([0xdeadbeef]).buffer)[0];
 
-/**
- * Every `stride`-th cell's four lanes.
- * @param level - a level's floats
- * @param stride - the cell stride
- * @returns the sample
- */
-function sampleCells(level: Float32Array | Float64Array, stride: number): number[] {
-    const out: number[] = [];
-    for (let c = 0; 4 * c < level.length; c += stride) {
-        out.push(level[4 * c], level[4 * c + 1], level[4 * c + 2], level[4 * c + 3]);
-    }
-    return out;
-}
 
 describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic bound, twice bitwise", () => {
     for (const name of PYRAMID_FIXTURES) {
@@ -228,8 +215,8 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
             const randomRun = await runPyramid(ctx, random);
             const randomWant = pyramidOracleOf(random, ctx.workgroupSize);
             assertCheckPasses(pyramidCompare(randomRun, random, randomWant));
-            writeNoiseFixture("grid-downsample", "random20k-L1", cls, sampleCells(levelOf(randomRun, random, 1), CELL_STRIDE), "f32");
-            writeNoiseFixture("grid-downsample", "random20k-L1", "oracle-f64", sampleCells(randomWant.levels[1], CELL_STRIDE), "f32");
+            writeNoiseFixture("grid-downsample", "random20k-L1", cls, sampleStrided(levelOf(randomRun, random, 1), CELL_STRIDE, 4), "f32");
+            writeNoiseFixture("grid-downsample", "random20k-L1", "oracle-f64", sampleStrided(randomWant.levels[1], CELL_STRIDE, 4), "f32");
             const hub = pyramidScene("hubcell", 2, 1);
             const hubRun = await runPyramid(ctx, hub);
             const hubWant = pyramidOracleOf(hub, ctx.workgroupSize);

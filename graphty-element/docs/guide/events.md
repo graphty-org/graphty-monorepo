@@ -8,25 +8,26 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 
 ## Available Events
 
-| Event                  | Trigger                  | Event Data                 |
-| ---------------------- | ------------------------ | -------------------------- |
-| `graph-settled`        | Layout finished          | `{ settled: boolean }`     |
-| `graph-frame-stable`   | The picture is final: layout converged, camera framed, frame drawn | `{ frames }` |
-| `zoom-to-fit-complete` | Auto-framing moved the camera around the whole graph | `{ boundingBoxMin, boundingBoxMax }` |
-| `data-loaded`          | Initial data loaded      | `{ nodeCount, edgeCount }` |
-| `data-added`           | Incremental data added   | `{ nodes, edges }`         |
-| `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
-| `camera-state-changed` | Camera moved             | `{ state }`                |
-| `style-changed`        | Styles updated           | `{ layers }`               |
-| `node-click`           | User clicked node        | `{ node, data, event }`    |
-| `node-hover`           | Mouse entered node       | `{ node, data }`           |
-| `node-drag-start`      | Started dragging node    | `{ node, position, pinned }` |
-| `node-drag-end`        | Finished dragging node   | `{ node, position, pinned }` |
-| `elements-removed`     | Nodes and their edges removed | `{ nodes, edges }`    |
-| `data-loading-progress` | A chunk of a load arrived | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
-| `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, loadId, ... }` |
-| `data-loading-error`   | A load failed            | `{ error, format, loadId, ... }` |
-| `error`                | Error occurred           | `{ error, context }`       |
+| Event                   | Trigger                                                            | Event Data                                                       |
+| ----------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `graph-settled`         | Layout finished                                                    | `{ settled: boolean }`                                           |
+| `graph-frame-stable`    | The picture is final: layout converged, camera framed, frame drawn | `{ frames }`                                                     |
+| `zoom-to-fit-complete`  | Auto-framing moved the camera around the whole graph               | `{ boundingBoxMin, boundingBoxMax }`                             |
+| `data-loaded`           | Initial data loaded                                                | `{ nodeCount, edgeCount }`                                       |
+| `data-added`            | Incremental data added                                             | `{ nodes, edges }`                                               |
+| `selection-changed`     | Node selected/deselected                                           | `{ node, previousNode }`                                         |
+| `camera-state-changed`  | Camera moved                                                       | `{ state }`                                                      |
+| `style-changed`         | Styles updated                                                     | `{ reason, layers, painted, unresolvedPaths }`                   |
+| `node-click`            | User clicked node                                                  | `{ node, data, event }`                                          |
+| `node-hover`            | Mouse entered node                                                 | `{ node, data }`                                                 |
+| `node-drag-start`       | Started dragging node                                              | `{ node, position, pinned }`                                     |
+| `node-drag-end`         | Finished dragging node                                             | `{ node, position, pinned }`                                     |
+| `elements-removed`      | Nodes and their edges removed                                      | `{ nodes, edges }`                                               |
+| `data-cleared`          | All data cleared (`clearData()` or a replacing load)               | none                                                             |
+| `data-loading-progress` | A chunk of a load arrived                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
+| `data-loading-complete` | A load finished                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
+| `data-loading-error`    | A load failed                                                      | `{ error, format, loadId, ... }`                                 |
+| `error`                 | Error occurred                                                     | `{ error, context }`                                             |
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serialisable detail, when edge picking lands.
@@ -116,6 +117,25 @@ graph.on("error", ({ error, context }) => {
     console.error("Graph error:", error, "in", context);
 });
 ```
+
+### Session events
+
+The session has its own events, for changes to what it holds rather than to the picture. Subscribe
+with `session.on()`, which returns the function that unsubscribes:
+
+```typescript
+const stop = element.session.on("set:changed", ({ id, change, fields, set }) => {
+    // change: "created" | "updated" | "removed"
+    // fields: for an update, which of "name", "definition" and "order" changed
+    console.log(id, change, fields, set?.name);
+});
+
+stop();
+```
+
+`set:changed` fires once per kept [set](./sets) a write touched, after the layers and the filter
+that name it have repainted. A rule set's members move with the data and emit nothing: re-read
+them on the events you already watch.
 
 ## DOM Events
 
@@ -310,6 +330,15 @@ graph.on("elements-removed", ({ nodes, edges }) => {
 
 The detail is ids only, and it names every edge that went -- including edges you never mentioned,
 because they were attached to a node you did.
+
+Clearing the whole graph -- `clearData()`, or a load that replaces the dataset -- sends one
+`data-cleared` event instead, with no detail. The layout starts over for the next load.
+
+```typescript
+graph.on("data-cleared", () => {
+    console.log("the graph is empty");
+});
+```
 
 ### Loading Indicator
 

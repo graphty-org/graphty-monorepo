@@ -22,8 +22,8 @@ import {
 } from "../ComingTag";
 import { SWATCH_RADIUS } from "../inspector/inspectorConstants";
 import { PanelOutlineButton, PanelQuietButton } from "./panelButtons";
-import { usePanelHeaderSlot } from "./panelHeaderSlot";
 import { ComingTag, PanelRows, PanelSection, SectionAddButton } from "./PanelSection";
+import { usePanelHeaderSlot } from "./usePanelHeaderSlot";
 
 /**
  * Which of the panel's two modes is showing. Remembered per 6.5 ("Analyze Run

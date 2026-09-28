@@ -269,10 +269,10 @@ describe("runCommunityDetection", () => {
         const stub = makeStub({
             louvain: {
                 groups: [
-                    { group: 0, size: 4 },
-                    { group: 1, size: 3 },
-                    { group: 2, size: 2 },
-                    { group: 3, size: 1 },
+                    { group: 0, name: "Group 1", size: 4 },
+                    { group: 1, name: "Group 2", size: 3 },
+                    { group: 2, name: "Group 3", size: 2 },
+                    { group: 3, name: "Group 4", size: 1 },
                 ],
                 graph: { modularity: 0.4471 },
             },
@@ -286,20 +286,23 @@ describe("runCommunityDetection", () => {
         expect(result.nodeCount).toBe(10);
         expect(result.modularity).toBe(0.4471);
         expect(result.groups).toEqual([
-            { communityId: 0, size: 4 },
-            { communityId: 1, size: 3 },
-            { communityId: 2, size: 2 },
-            { communityId: 3, size: 1 },
+            { communityId: 0, name: "Group 1", size: 4 },
+            { communityId: 1, name: "Group 2", size: 3 },
+            { communityId: 2, name: "Group 3", size: 2 },
+            { communityId: 3, name: "Group 4", size: 1 },
         ]);
     });
 
-    it("orders equal-sized groups by community id, so the encoding is deterministic", async () => {
+    it("keeps the element's order and names, which are what the legend shows", async () => {
+        /* Out of id order on purpose: the element settled the ties, and the legend beside the
+           result panel lists the groups in the element's order under the element's names. A
+           panel that re-sorted or renumbered them would name a different group "Group 1". */
         const stub = makeStub({
             louvain: {
                 groups: [
-                    { group: 5, size: 2 },
-                    { group: 1, size: 2 },
-                    { group: 3, size: 2 },
+                    { group: 5, name: "Group 1", size: 2 },
+                    { group: 1, name: "Group 2", size: 2 },
+                    { group: 3, name: "Group 3", size: 2 },
                 ],
                 graph: { modularity: 0.2 },
             },
@@ -307,7 +310,11 @@ describe("runCommunityDetection", () => {
 
         const result = await runCommunityDetection(stub.graph);
 
-        expect(result.groups.map((group) => group.communityId)).toEqual([1, 3, 5]);
+        expect(result.groups.map((group) => [group.communityId, group.name])).toEqual([
+            [5, "Group 1"],
+            [1, "Group 2"],
+            [3, "Group 3"],
+        ]);
     });
 
     it("reports no modularity at all when the run published none", async () => {
@@ -335,7 +342,7 @@ describe("runCommunityDetection", () => {
         const result = await runCommunityDetection(stub.graph);
 
         expect(result.nodeCount).toBe(2);
-        expect(result.groups).toEqual([{ communityId: 0, size: 2 }]);
+        expect(result.groups).toEqual([{ communityId: 0, name: "0", size: 2 }]);
     });
 
     it("reports an empty result for a graph with no assignments", async () => {

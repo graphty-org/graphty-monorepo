@@ -132,8 +132,9 @@ import {
     runCommunityDetection,
     runDegreePass,
 } from "./analysis/runs";
+import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
-import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
@@ -214,7 +215,7 @@ import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } f
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
 import { formatCount } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
-import { ShellProvider, useShell } from "./ShellContext";
+import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
@@ -223,6 +224,7 @@ import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/Canva
 import { TopBar } from "./topbar/TopBar";
 import { historyRows, useUndoStore } from "./topbar/undoStore";
 import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
+import { useShell } from "./useShell";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
 /**
@@ -322,6 +324,12 @@ const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
 
 /** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
 const OPEN_SETTINGS_ACTION = "Open Settings";
+
+/** The link on a toast that reports a refused edit: there is nowhere further to go. */
+const DISMISS_ACTION = "Dismiss";
+
+/** The colour a new style layer paints until the reader changes it; any valid colour would do. */
+const NEW_LAYER_COLOR = "#F59E0B";
 
 /** The Style panel's own overflow row (spec 03 section 2.4). */
 const RESET_STYLES_ROW = "Reset styles to defaults";
@@ -996,6 +1004,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
+    /* Why graphty-element refused the last new style layer, in its own words, or null. */
+    const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
     const firstLoadDone = useRef(false);
     /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
        per-dataset one-shot: re-applying them would fight a layout or a label budget the
@@ -1427,7 +1437,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        call returns, because `loadData` queues the load and returns before a single
        node exists. This ref carries the current reader into the mount-only effect
        below, which registers once and must not re-run when the reader changes. */
-    const refreshGraphDataRef = useRef<() => void>(() => undefined);
+    const refreshGraphDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
     /* The graph the data listeners are already attached to.
        `Graph` publishes `addListener` and no matching remove, and `addListener`
@@ -1456,7 +1466,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 if (dataListenerGraphRef.current !== graph) {
                     dataListenerGraphRef.current = graph;
                     graphOnDataChanged(graph, () => {
-                        refreshGraphDataRef.current();
+                        void refreshGraphDataRef.current();
                     });
                 }
 
@@ -1561,9 +1571,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* Data loading                                                            */
     /* ---------------------------------------------------------------------- */
 
-    const refreshGraphData = useCallback(() => {
-        const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
+    const refreshGraphData = useCallback(async () => {
         const session = elementSession(graphtyRef.current?.graph);
+        const data = (await graphtyRef.current?.getData()) ?? NO_GRAPH_DATA;
         const statistics = readGraphStatistics(session);
 
         /* The counts travel with the rest of the shape, in {@link graphStatistics}, so the
@@ -1585,16 +1595,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * Counts the loads graphty-element has reported COMPLETE, on the frame the event
      * bubbles to ({@link DATA_LOADED_EVENT}), and settles the wait that load is holding.
      *
-     * The counts are refreshed in the same callback, so the completion and the records
-     * it completed reach React in one batch: no reader can see the flag move ahead of
-     * the data it stands for, whatever order the element's own listeners run in.
+     * The completion is counted only once the records it completed have been read, and in
+     * the same batch, so no reader can see the flag move ahead of the data it stands for,
+     * whatever order the element's own listeners run in. Listing the records is
+     * asynchronous, so the count waits for it.
      */
     useEffect(() => {
         const frame = frameRef.current;
 
         const onDataLoaded = (): void => {
-            refreshGraphDataRef.current();
-            setLoadCompletions((count) => count + 1);
+            void refreshGraphDataRef.current().then(() => {
+                setLoadCompletions((count) => count + 1);
+            });
         };
 
         frame?.addEventListener(DATA_LOADED_EVENT, onDataLoaded);
@@ -1677,8 +1689,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             if (pending?.survivesFailure === true) {
                 setDatasetName(pending.previousName);
                 setLoadedSummary(pending.previousSummary);
-                setLoadCompletions((count) => count + 1);
-                refreshGraphData();
+                void refreshGraphData().then(() => {
+                    setLoadCompletions((count) => count + 1);
+                });
 
                 return;
             }
@@ -1688,7 +1701,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setDataLoaded(false);
             setDatasetName(null);
             setLoadedSummary(undefined);
-            refreshGraphData();
+            void refreshGraphData();
 
             /* The reader was moved onto Explore by the optimistic `finishLoad` and the rail
                disables Explore in the Empty state, so leaving them there leaves an open
@@ -1860,7 +1873,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setDatasetName(name);
             setDataLoaded(true);
             setLoadedSummary(summary);
-            refreshGraphData();
+            void refreshGraphData();
         },
         [refreshGraphData],
     );
@@ -2281,12 +2294,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         layerCounter.current += 1;
 
-        void session.styles.add({ name, target: "node", selector: { match: "everything" } }).then(
-            () => undefined,
-            (error: unknown) => {
-                console.error("[shell] the element refused the new layer:", error);
-            },
-        );
+        /* One channel set, because the element refuses a layer that paints nothing. The
+           reader edits the colour, the selector and the rest in the inspector afterwards. */
+        void session.styles
+            .add({ name, target: "node", selector: { match: "everything" }, set: { "node.color": NEW_LAYER_COLOR } })
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    console.error("[shell] the element refused the new layer:", error);
+                    setStyleRefusal(error instanceof Error ? error.message : String(error));
+                },
+            );
     }, []);
 
     const handleApplyLayout = useCallback((type: string, config: Record<string, unknown>) => {
@@ -2836,7 +2854,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, layers, openPanelAt, undoStore],
+        [layers, openPanelAt, undoStore],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2970,14 +2988,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         apply().catch((error: unknown) => {
             console.error("[shell] could not apply the load defaults:", error);
         });
-    }, [
-        dataLoaded,
-        graphData.nodes.length,
-        graphStatistics.edgeCount,
-        graphStatistics.nodeCount,
-        loadCompletions,
-        runFindGroups,
-    ]);
+    }, [dataLoaded, graphData.nodes.length, graphStatistics, loadCompletions, runFindGroups]);
 
     /* ---------------------------------------------------------------------- */
     /* The canvas's docks and overlays                                        */
@@ -3016,7 +3027,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const openDrawerOn = useCallback(
         (tab: DataDrawerTab) => {
             setDrawerTab(tab);
-            refreshGraphData();
+            void refreshGraphData();
             setDrawerOpen(true);
         },
         [refreshGraphData, setDrawerOpen],
@@ -3663,7 +3674,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 rows.push({
                     id: other,
                     label: other,
-                    edgeType: typeof edge.label === "string" ? edge.label : "edge",
+                    edgeType: typeof edge.label === "string" ? edge.label : undefined,
                     direction: source === nodeId ? "out" : "in",
                     value: "",
                 });
@@ -3972,9 +3983,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onShowAllAttributes: () => {
                     openDrawerOn("nodes");
                 },
-                onAddNote: () => {
-                    openPanelAt("explore");
-                },
                 onToggleNoteDone: () => undefined,
                 onDeleteNote: () => undefined,
                 onSelectNeighbor: (nodeId: string) => {
@@ -4009,12 +4017,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeResults,
         edgeCount,
         graphReading,
-        graphStatistics.components.count,
-        graphStatistics.density,
-        graphStatistics.directedness,
-        graphStatistics.repeatedEdgeCount,
-        graphStatistics.selfLoopCount,
-        handleLayersChange,
+        graphStatistics,
         layers,
         mostConnected,
         neighborsOf,
@@ -4023,9 +4026,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openPanelAt,
         pinnedNodes,
         removeResultLayers,
+        resolveLayerChannel,
         selectedLayerId,
         selectedNode,
         togglePin,
+        updateLayer,
         zoomToSelection,
     ]);
 
@@ -4107,12 +4112,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             acceleration: {
                 ...text,
                 onClick: () => {
-                    setSettingsSection("performance");
-                    setSettingsOpen(true);
+                    openFullPanelOverlay("settings", "performance");
                 },
             },
         };
-    }, [acceleration]);
+    }, [acceleration, openFullPanelOverlay]);
 
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
@@ -4197,6 +4201,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
+        if (styleRefusal !== null) {
+            const dismiss = (): void => {
+                setStyleRefusal(null);
+            };
+
+            return {
+                message: styleRefusal,
+                severity: "error",
+                actionLabel: DISMISS_ACTION,
+                onDetails: dismiss,
+                onDismiss: dismiss,
+            };
+        }
+
         if (acceleration === null || acceleration.state !== "error") {
             return undefined;
         }
@@ -4206,11 +4224,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             severity: "error",
             actionLabel: OPEN_SETTINGS_ACTION,
             onDetails: () => {
-                setSettingsSection("performance");
-                setSettingsOpen(true);
+                openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openPanelAt]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */

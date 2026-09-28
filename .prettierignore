@@ -24,10 +24,25 @@ tmp/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 
+# Visual-review baselines: PNGs and the JSON records written with them, byte-exact
+visual-baselines/
+
 # Other
 gh-pages/
+
+# The root CLAUDE.md is hand-formatted: prettier re-indents its nested lists and folds the
+# paragraph after a list into the last item, which changes what the rules say.
+/CLAUDE.md
 
 # Conformance fixtures are byte-exact test data; the report is generated
 graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
 graph-io/test/conformance/schemas/
+
+# Generated benchmark reports
+algorithms/benchmark-results/
+
+# Deliberately malformed input for the importer tests; formatting would repair or reject it
+**/corpus/malformed/
+# Third-party source vendored unchanged
+visual-review/trusted/vendor/

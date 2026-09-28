@@ -3,8 +3,7 @@
 // Package-specific configs should import and extend this
 
 import { resolve } from "path";
-import { defineConfig } from "vite";
-import type { UserConfig } from "vite";
+import { defineConfig, type UserConfig } from "vite";
 
 export interface ViteConfigOptions {
     packageName: string;

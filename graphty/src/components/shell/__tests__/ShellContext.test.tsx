@@ -3,7 +3,9 @@ import React from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { NARROW_BREAKPOINT } from "../constants";
-import { readPersistedShellLayout, SHELL_LAYOUT_STORAGE_KEY, ShellProvider, useShell } from "../ShellContext";
+import { ShellProvider } from "../ShellContext";
+import { readPersistedShellLayout, SHELL_LAYOUT_STORAGE_KEY } from "../shellLayoutStorage";
+import { useShell } from "../useShell";
 
 function makeWrapper(shellWidth: number, persist = false) {
     return function Wrapper({ children }: { children: React.ReactNode }): React.JSX.Element {

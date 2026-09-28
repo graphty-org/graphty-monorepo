@@ -1,3 +1,96 @@
+## 0.8.17 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.11
+- Updated compact-mantine to 0.8.10
+- Updated graphty-element to 2.6.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.16 (2026-09-28)
+
+### 🚀 Features
+
+- **graphty-element:** apply the decided sets names, result ids and kept records ([91e0043d](https://github.com/graphty-org/graphty-monorepo/commit/91e0043d))
+- **graphty-element:** member hashes, the r1 revision and a benchmark runner ([694dc3bb](https://github.com/graphty-org/graphty-monorepo/commit/694dc3bb))
+
+### 🩹 Fixes
+
+- **graphty:** restore the "Filter to a part" advice the type rename rewrote ([f6f4acaa](https://github.com/graphty-org/graphty-monorepo/commit/f6f4acaa))
+- **graphty-element:** close the sets review's door gaps and repaint only moved rows ([8a2010f9](https://github.com/graphty-org/graphty-monorepo/commit/8a2010f9))
+- **graphty-element:** canonical undirected edges at every door, status matching resolution ([1e56b36d](https://github.com/graphty-org/graphty-monorepo/commit/1e56b36d))
+- **graphty-element:** cheaper load completion, and every scope door admits the same way ([70463668](https://github.com/graphty-org/graphty-monorepo/commit/70463668))
+- **graphty:** describe a style layer that paints a set ([9519abb0](https://github.com/graphty-org/graphty-monorepo/commit/9519abb0))
+- **graphty-element:** set the acceleration routing floors from a measurement taken through the element ([#424](https://github.com/graphty-org/graphty-monorepo/issues/424))
+- **graphty:** keep tsc -b output out of the package and test the element source ([#262](https://github.com/graphty-org/graphty-monorepo/issues/262), [#263](https://github.com/graphty-org/graphty-monorepo/issues/263))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.10
+- Updated compact-mantine to 0.8.9
+- Updated graphty-element to 2.6.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.15 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.9
+- Updated compact-mantine to 0.8.8
+- Updated graphty-element to 2.5.2
+
+## 0.8.14 (2026-09-27)
+
+### 🩹 Fixes
+
+- **graphty:** list records through the element's session, not its private maps ([#53](https://github.com/graphty-org/graphty-monorepo/issues/53))
+- **graph-format:** count every change the next freeze would show in mutationCount ([#100](https://github.com/graphty-org/graphty-monorepo/issues/100))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.8
+- Updated graphty-element to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.13 (2026-09-27)
+
+### 🚀 Features
+
+- **graphty-element:** report an unknown style layer id as E_UNKNOWN_LAYER ([#111](https://github.com/graphty-org/graphty-monorepo/issues/111))
+
+### 🩹 Fixes
+
+- **graphty:** clear the app's lint warnings and fail the lint on any warning ([#261](https://github.com/graphty-org/graphty-monorepo/issues/261))
+- **graphty:** stop the node note input from discarding what is typed ([#145](https://github.com/graphty-org/graphty-monorepo/issues/145), [#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **graphty:** stop inventing an edge type in the node panel's neighbour rows ([#382](https://github.com/graphty-org/graphty-monorepo/issues/382))
+- **graphty:** add a style layer the element accepts, and say when it refuses ([#380](https://github.com/graphty-org/graphty-monorepo/issues/380))
+- **graphty:** open settings from the gpu chip through the one overlay opener ([#184](https://github.com/graphty-org/graphty-monorepo/issues/184))
+- **graphty:** show graphty-element's group names in the result panel ([7712f1c5](https://github.com/graphty-org/graphty-monorepo/commit/7712f1c5))
+- **graphty:** load dialog reads formats from graphty-element and opens the chosen tab ([#47](https://github.com/graphty-org/graphty-monorepo/issues/47), [#200](https://github.com/graphty-org/graphty-monorepo/issues/200))
+- **graphty:** read the export format list from the element's catalogue ([50bc8209](https://github.com/graphty-org/graphty-monorepo/commit/50bc8209))
+- **graphty:** hide menu tooltips while open and drop the stale Coming tag ([f7bfe4c3](https://github.com/graphty-org/graphty-monorepo/commit/f7bfe4c3))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.12 (2026-09-26)
 
 ### 🩹 Fixes

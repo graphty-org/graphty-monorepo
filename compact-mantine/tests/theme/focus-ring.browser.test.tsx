@@ -30,9 +30,9 @@ import {
     Textarea,
     TextInput,
 } from "@mantine/core";
-import { userEvent } from "@vitest/browser/context";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { hex, renderThemed, resetHarness } from "../harness/measure";
 

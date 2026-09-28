@@ -58,7 +58,7 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
 
     await holds(
         afterPreset !== before,
-        `Camera Controls ${story}: pressing "${String(buttons[0].textContent).trim()}" left the camera at ` +
+        `Camera Controls ${story}: pressing "${buttons[0].textContent.trim()}" left the camera at ` +
             `(${before}), where it already was`,
     );
 
@@ -68,7 +68,7 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
 
     await holds(
         where() !== afterPreset,
-        `Camera Controls ${story}: pressing "${String(buttons[buttons.length - 1].textContent).trim()}" left ` +
+        `Camera Controls ${story}: pressing "${buttons[buttons.length - 1].textContent.trim()}" left ` +
             `the camera where the preset put it (${afterPreset})`,
     );
 };

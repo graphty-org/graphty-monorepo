@@ -11,7 +11,7 @@ import { unknownFormat } from "../catalog/detect";
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { DataSource, type DeclaredDirection } from "../data/DataSource";
-import { edgeIdOf } from "../data/edgeIdentity";
+import { createEdgeCounter, decideRepeat, edgeIdOf } from "../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
 import {
@@ -30,6 +30,7 @@ import type { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import { inputCountersOf, replaceAttributes } from "../session/attributes";
 import { DEFAULT_LIMITS } from "../session/limits";
 import type { DirectionProvenance } from "../session/types";
 import type { Styles } from "../Styles";
@@ -108,24 +109,13 @@ function isStorableRecordId(value: unknown): value is string | number {
 }
 
 /**
- * Fold a repeat's weight into the weight of the edge that survives it.
- * @param policy - the merging repeat policy; "keep", "first" and "error" never reach here
- * @param survivor - the weight the edge already carries
- * @param repeat - the repeating record's weight
- * @returns the weight the surviving edge should carry
+ * Add a record's top-level keys to the fields a batch wrote.
+ * @param into - the batch's written fields
+ * @param record - one ingested record
  */
-function mergeWeights(policy: DuplicatePolicy, survivor: number, repeat: number): number {
-    switch (policy) {
-        case "sum":
-            return survivor + repeat;
-        case "min":
-            return Math.min(survivor, repeat);
-        case "max":
-            return Math.max(survivor, repeat);
-        default:
-            // "last": the repeat's weight replaces the survivor's, which is the same statement its
-            // attributes make one line up in `mergeRepeat`.
-            return repeat;
+function collectKeys(into: Set<string>, record: object): void {
+    for (const key of Object.keys(record)) {
+        into.add(key);
     }
 }
 
@@ -183,6 +173,19 @@ export class DataManager implements Manager {
 
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
+
+    /**
+     * The edge counter every store this manager builds draws from, so a Clear or a replacing
+     * import never rewinds it and an edge id is never issued twice (design/sets 4.2).
+     */
+    private readonly edgeCounter = createEdgeCounter();
+
+    /**
+     * The attribute revisions and the input tick (design/sets 6.2), the same object the session
+     * over this manager reads, handed to every store this manager builds so a freeze advances it
+     * and a Clear never rewinds it.
+     */
+    private readonly inputs = inputCountersOf(this);
 
     // Graph-level algorithm results storage
     graphResults?: AdHocData;
@@ -333,6 +336,8 @@ export class DataManager implements Manager {
         return new GraphStore({
             directed: data.directed,
             positionScale: () => this.styles.config.data.knownFields.positionScale,
+            edgeCounter: this.edgeCounter,
+            inputs: this.inputs,
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
             },
@@ -631,6 +636,9 @@ export class DataManager implements Manager {
         const fresh = new Set(ids.filter((id) => !this.nodeCache.get(id)));
         this.refuseAboveCeiling("nodes", this.nodes.size, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
+        // Every field an ingested record writes, bumped once for the batch after the loop.
+        const written = new Set<string>();
+
         // create nodes
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
@@ -651,6 +659,7 @@ export class DataManager implements Manager {
             // The store is what gives the node its dense row; INVALID_INDEX comes back for an id
             // graph-format will not take, and the node renders anyway. See the class comment.
             n.index = ingestNode(this.store, nodeId, node).index;
+            collectKeys(written, node);
             this.nodeCache.set(nodeId, n);
             this.nodes.set(nodeId, n);
 
@@ -664,6 +673,10 @@ export class DataManager implements Manager {
                 nodeId,
                 metadata: node,
             });
+        }
+
+        if (written.size > 0) {
+            this.inputs.nodes.bump(written);
         }
 
         // Notify that nodes were added
@@ -962,6 +975,10 @@ export class DataManager implements Manager {
         const weightPath = knownFields.edgeWeightPath;
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
+        // Every field an ingested record writes, bumped once for the batch after the loop. A
+        // deferred edge's record is counted here, where the store takes it, not when its render
+        // object is built.
+        const written = new Set<string>();
 
         // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
         // so a caller never finds the first part of it held and the rest missing.
@@ -999,7 +1016,13 @@ export class DataManager implements Manager {
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
             // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = ingestEdge(this.store, srcNodeId, dstNodeId, weight.weight);
+            const { index: edgeIndex, edgeId } = ingestEdge(
+                this.store,
+                srcNodeId,
+                dstNodeId,
+                weight.weight,
+                isStorableRecordId(recordId) ? recordId : undefined,
+            );
             if (edgeIndex === INVALID_INDEX) {
                 // graph-format will not hold an edge between these ids -- most often because the
                 // record does not answer the endpoint expressions at all, so both came back null.
@@ -1011,7 +1034,12 @@ export class DataManager implements Manager {
 
             if (isStorableRecordId(recordId)) {
                 this.edgesByRecordId.set(recordId, edgeIndex);
+                tally.edgesById++;
+            } else {
+                tally.edgesByPosition++;
             }
+
+            collectKeys(written, edge);
 
             // Check if both nodes exist before creating the RENDER object, which reads them
             const srcNode = this.nodeCache.get(srcNodeId);
@@ -1060,6 +1088,10 @@ export class DataManager implements Manager {
             });
         }
 
+        if (written.size > 0) {
+            this.inputs.edges.bump(written);
+        }
+
         if (legacyWeights > 0) {
             // One line per burst, not per edge: this is a deprecation signal, not a per-record
             // warning, and a 50k-edge load would otherwise write 50k of them.
@@ -1077,6 +1109,7 @@ export class DataManager implements Manager {
                 format: "records",
                 endpoints,
                 policy,
+                idPath: recordIdPath,
                 ...this.heldCounts(),
             });
         }
@@ -1183,12 +1216,13 @@ export class DataManager implements Manager {
         targetId: NodeIdType,
         tally: ImportTally,
     ): boolean {
-        if (policy === "keep") {
+        const decision = decideRepeat(policy, this.store.builder.edgeWeight(known.edgeIndex), weight);
+        if (decision.kind === "add") {
             tally.repeatedKept++;
             return false;
         }
 
-        if (policy === "error") {
+        if (decision.kind === "refuse") {
             throw new GraphtyError({
                 code: "E_DUPLICATE_EDGE",
                 source: "data",
@@ -1200,24 +1234,23 @@ export class DataManager implements Manager {
             });
         }
 
-        if (policy === "first") {
+        if (decision.kind === "drop") {
             tally.repeatedDropped++;
             return true;
         }
 
-        const survivorWeight = this.store.builder.edgeWeight(known.edgeIndex);
-        const merged = mergeWeights(policy, survivorWeight, weight);
-        this.store.builder.setEdgeWeight(known.edgeIndex, merged);
+        this.store.builder.setEdgeWeight(known.edgeIndex, decision.weight);
         this.store.touch();
 
-        if (policy === "last") {
-            // "the repeat's weight and attributes replace the existing edge's". The other three
-            // reducers keep the survivor's attributes, because there is no reading of `sum` under
-            // which the last record's colour is the group's colour.
+        if (decision.replaceRecord) {
             if (known.edge) {
-                known.edge.data = record as AdHocData;
+                replaceAttributes(this.inputs.edges, known.edge, record as AdHocData);
             } else if (known.pending) {
+                // No render object yet, so no `.data` to write; the record is what it will be built
+                // from. The fields still move, for a reader of the store's edge attributes.
+                const fields = new Set([...Object.keys(known.pending.record), ...Object.keys(record)]);
                 known.pending.record = record;
+                this.inputs.edges.bump(fields);
             }
         }
 
@@ -1504,6 +1537,14 @@ export class DataManager implements Manager {
         const tally = newImportTally();
         this.loadTally = tally;
         this.loadEndpoints = null;
+        // The store this load's edges went into, bracketed as ONE load however many chunks it
+        // takes, so its edge ordinals are counted over the whole import (design/sets 12.3). A
+        // replacing load opens it on the store its Clear builds.
+        let loadStore: GraphStore | null = null;
+        const openLoad = (): void => {
+            loadStore = this.store;
+            loadStore.openLoad();
+        };
 
         const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
         const endpointOverrides: AddEdgesOptions = {
@@ -1530,6 +1571,9 @@ export class DataManager implements Manager {
                 // What a replacing load has read and not yet added: see the method comment.
                 const heldNodes: Record<string | number, unknown>[] = [];
                 const heldEdges: Record<string | number, unknown>[] = [];
+                if (!replace) {
+                    openLoad();
+                }
 
                 for await (const chunk of source.getData()) {
                     if (replace) {
@@ -1653,6 +1697,7 @@ export class DataManager implements Manager {
                     // `clear` leaves the load's tally and its endpoint answer alone, so the
                     // records below are counted and read exactly as a streamed load's would be.
                     this.clear();
+                    openLoad();
                     this.applyDeclaredDirection(type, source.declaredDirection);
                     this.addNodes(heldNodes);
                     this.addEdges(heldEdges, endpointOverrides);
@@ -1764,6 +1809,7 @@ export class DataManager implements Manager {
                 `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
             );
         } finally {
+            (loadStore as GraphStore | null)?.closeLoad();
             // Whatever happened, this load is over: the next one probes for itself and counts into
             // its own tally. Unless another load has taken the fields over since.
             if (this.loadTally === tally) {
@@ -1792,6 +1838,7 @@ export class DataManager implements Manager {
             format,
             endpoints,
             policy: this.styles.config.data.knownFields.repeatedEdges,
+            idPath: this.styles.config.data.knownFields.edgeIdPath,
             ...this.heldCounts(),
         });
         this.importReport = report;
@@ -1887,7 +1934,9 @@ export class DataManager implements Manager {
         // Clear mesh cache
         this.meshCache.clear();
 
-        // TODO: Notify layout engine to clear
+        // Announced last, once the graph is empty. The LayoutManager hears it too, and rebuilds
+        // its engine so the next load does not start from the old graph's bodies and settled state.
+        this.eventManager.emitDataCleared();
     }
 
     /**

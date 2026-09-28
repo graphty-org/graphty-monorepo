@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { bfsLayout, completeGraph, cycleGraph, starGraph, wheelGraph, gridGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { bfsLayout, completeGraph, cycleGraph, gridGraph, randomGraph,starGraph, wheelGraph } from "../src";
 
 describe("BFS Layout", () => {
     describe("Basic functionality", () => {
@@ -28,8 +29,8 @@ describe("BFS Layout", () => {
             const positions = bfsLayout(singleNode, "A");
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.isDefined(positions["A"]);
-            assert.equal(positions["A"].length, 2);
+            assert.isDefined(positions.A);
+            assert.equal(positions.A.length, 2);
         });
 
         it("should throw error for disconnected components", () => {
@@ -218,12 +219,12 @@ describe("BFS Layout", () => {
             const positions = bfsLayout(graph, "root");
 
             assert.equal(Object.keys(positions).length, 5);
-            assert.isDefined(positions["root"]);
-            assert.equal(positions["root"].length, 2);
+            assert.isDefined(positions.root);
+            assert.equal(positions.root.length, 2);
 
             // Children should be positioned
-            assert.isDefined(positions["child1"]);
-            assert.isDefined(positions["child2"]);
+            assert.isDefined(positions.child1);
+            assert.isDefined(positions.child2);
         });
 
         it("should handle star graph with leaf as root", () => {
@@ -275,11 +276,6 @@ describe("BFS Layout", () => {
             // Root should be positioned
             assert.isDefined(positions[0]);
             assert.equal(positions[0].length, 2);
-
-            // Children should be positioned differently
-            const x1 = positions[1][0];
-            const x2 = positions[2][0];
-            // Note: In some layouts, x1 might equal x2
 
             // Check that all nodes are positioned
             for (let i = 0; i <= 6; i++) {

@@ -28,6 +28,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
+import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
@@ -54,7 +55,7 @@ import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, Scope } from "./catalog/types";
+import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     DEFAULT_SELECTION_STYLE,
@@ -75,7 +76,7 @@ import type { AlgorithmOnLoad } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
-import { EventCallbackType, EventType } from "./events";
+import { EventCallbackType, EventOfType, EventType } from "./events";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -105,15 +106,17 @@ import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { inputCountersOf, writeUpdates } from "./session/attributes";
+import { addSetsUsers, scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
-import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
-import type { QueueableOptions, RunAlgorithmOptions } from "./utils/queue-migration";
+import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
 
@@ -404,6 +407,15 @@ export class Graph implements GraphContext {
         // `bootstrapNodePaint` in StylePainter.
         this.stylePainter.bind(this.session.paint);
 
+        // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
+        // (design/sets 6.2): a held frame holds that work too.
+        setsNotifierOfSession(this.session).useFrames((callback) => {
+            const observer = this.scene.onBeforeRenderObservable.addOnce(callback);
+            return () => {
+                this.scene.onBeforeRenderObservable.remove(observer);
+            };
+        });
+
         // WHAT USED TO TAKE THE DIRTY SET HERE. A style edit repaints before it commits, so this
         // fired after the pass had worked out what moved -- but "after" is turns of the event
         // loop later, and the dirty set is one scratch array per element kind that the next pass
@@ -440,6 +452,9 @@ export class Graph implements GraphContext {
         this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
+                // The derived inputs of scoped runs are over the snapshot that has gone: released
+                // now unless a run still holds one, and then when it lets go.
+                peekDerivedInputs(this)?.freeze();
                 this.releaseSnapshot(event.previous);
                 return;
             }
@@ -450,6 +465,7 @@ export class Graph implements GraphContext {
             // device buffers for the accelerator's life -- the leak the release list exists to
             // close -- and the field would go on pointing into a store that no longer exists.
             if (event.type === "snapshot-dropped") {
+                peekDerivedInputs(this)?.freeze();
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
                 // A repaint in flight is painting rows that no longer exist; stop it.
@@ -619,6 +635,32 @@ export class Graph implements GraphContext {
         this.dataManager.setGraphContext(this);
         this.layoutManager.setGraphContext(this);
 
+        // A layout scope is canonicalised and resolved through the session, and a layout holding
+        // nodes for one is a user of the sets it names.
+        const resolver = scopeResolverOfSession(this.session);
+        this.layoutManager.setScopeSource({
+            canonical: (input) => resolver.canonical(input),
+            members: (scope) => resolver.nodeIdsOf(scope),
+            detached: (scope) => {
+                try {
+                    const { freshness } = this.session.sets.status(scope);
+                    return freshness === "detached" || freshness === "unresolvable";
+                } catch {
+                    // A reference to a set never issued cannot mean anything either.
+                    return true;
+                }
+            },
+        });
+        addSetsUsers(this.session, () => {
+            const user = this.layoutManager.scopeUser();
+            return user === undefined ? [] : [user];
+        });
+        this.session.on("set:changed", (change) => {
+            if (change.change === "removed") {
+                this.layoutManager.releaseDetachedScope();
+            }
+        });
+
         // Setup lifecycle manager
         const managers = new Map<string, Manager>([
             ["event", this.eventManager],
@@ -770,6 +812,8 @@ export class Graph implements GraphContext {
         // reading the snapshot whose device memory this frees.
         this.releaseSnapshot(resident, residentUndirected);
         this.#resident = null;
+        // Scoped runs' derived inputs go with it; one a run still holds goes when that run lets go.
+        peekDerivedInputs(this)?.dispose();
 
         // The controller goes LAST. Disposing the managers is what stops the running layout
         // engine, and a simulation stepped after its accelerator's device had been destroyed
@@ -1610,8 +1654,10 @@ export class Graph implements GraphContext {
      * animate nodes from their current positions to new positions.
      * @param type - Layout algorithm name
      * @param opts - Layout-specific configuration options
-     * @param options - Options for operation queue behavior
+     * @param options - Options for operation queue behavior, and `scope`: what the layout runs
+     *   over (see {@link SetLayoutOptions.scope})
      * @returns Promise that resolves when layout is initialized
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` for a scope on a layout that is not scoped.
      * @since 1.0.0
      * @see {@link waitForSettled} to wait for layout completion
      * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular | 3D Layout Examples}
@@ -1634,9 +1680,12 @@ export class Graph implements GraphContext {
      * await graph.setLayout('circular', { radius: 5 });
      * ```
      */
-    async setLayout(type: string, opts: object = {}, options?: QueueableOptions): Promise<void> {
-        if (options?.skipQueue) {
-            await this.layoutManager.setLayout(type, opts);
+    async setLayout(type: string, opts: object = {}, options: SetLayoutOptions = {}): Promise<void> {
+        // The scope is the manager's, not the queue's: spread into the queue options it would be
+        // taken for a queue setting and never reach the layout.
+        const { scope, ...queueOptions } = options;
+        if (queueOptions.skipQueue) {
+            await this.layoutManager.setLayout(type, opts, scope);
             return;
         }
 
@@ -1647,12 +1696,51 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                await this.layoutManager.setLayout(type, opts);
+                await this.layoutManager.setLayout(type, opts, scope);
             },
             {
                 description: `Setting layout to ${type}`,
-                ...options,
+                ...queueOptions,
             },
+        );
+    }
+
+    /**
+     * What layouts run over: the scope the running layout was given, carried to the next one.
+     * @returns The canonical scope, or undefined when layouts run over the whole graph.
+     * @since 2.5.0
+     */
+    getLayoutScope(): Scope | undefined {
+        return this.layoutManager.scope;
+    }
+
+    /**
+     * Change what layouts run over, and restart the running layout over it.
+     *
+     * The scope is carried at once, so a layout set after this call runs over it too. It never
+     * refuses a scope that cannot be laid out -- one naming a removed set, or a running layout
+     * that is not scoped -- because it is not an explicit `setLayout`: such a scope is inactive,
+     * and the layout runs over the whole graph.
+     * @param scope - The scope; undefined or `"graph"` for the whole graph.
+     * @returns A promise that resolves once the running layout has restarted.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the value is not a scope.
+     * @since 2.5.0
+     */
+    async setLayoutScope(scope: ScopeInput | undefined): Promise<void> {
+        this.layoutManager.carryScope(scope);
+
+        // `layout-update`, not `layout-set`: a pending `layout-set` must not be cancelled by this
+        // -- it carries the new scope anyway -- and a later one cancelling this loses nothing.
+        await this.operationQueue.queueOperationAsync(
+            "layout-update",
+            async (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+
+                await this.layoutManager.rescope();
+            },
+            { description: "Changing what the layout runs over" },
         );
     }
 
@@ -2117,6 +2205,16 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Write each update into its node's attributes through the one attribute writer, so the
+     * revision of every field written moves. `id` is the address, not an attribute, and is not
+     * written.
+     * @param updates - the updates, each naming its node by `id`
+     */
+    private writeNodeUpdates(updates: readonly { id: string | number; [key: string]: unknown }[]): void {
+        writeUpdates(inputCountersOf(this.dataManager), "node", updates, (id) => this.dataManager.getNode(id)?.data);
+    }
+
+    /**
      * Update node data for existing nodes in the graph.
      * @param updates - Array of update objects containing node ID and properties to update
      * @param options - Queue options for operation ordering
@@ -2126,12 +2224,7 @@ export class Graph implements GraphContext {
         options?: QueueableOptions,
     ): Promise<void> {
         if (options?.skipQueue) {
-            updates.forEach((update) => {
-                const node = this.dataManager.getNode(update.id);
-                if (node) {
-                    Object.assign(node.data, update);
-                }
-            });
+            this.writeNodeUpdates(updates);
 
             // A layer can select on any of the values that just changed, so the whole stack is
             // asked again rather than each node being re-resolved by hand.
@@ -2147,12 +2240,7 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                updates.forEach((update) => {
-                    const node = this.dataManager.getNode(update.id);
-                    if (node) {
-                        Object.assign(node.data, update);
-                    }
-                });
+                this.writeNodeUpdates(updates);
 
                 // See the skipQueue branch above: the values a layer selects on have moved, so
                 // the stack is asked again rather than each node being re-resolved by hand.
@@ -2318,7 +2406,7 @@ export class Graph implements GraphContext {
      * stop();
      * ```
      */
-    on(type: EventType, cb: EventCallbackType): () => void {
+    on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void {
         const id = this.addListener(type, cb);
 
         return () => {
@@ -2333,9 +2421,10 @@ export class Graph implements GraphContext {
      * @returns The listener's id, which `removeListener` takes. It used to be dropped here, so
      *     nothing a consumer could reach was able to undo an `addListener`.
      */
-    addListener(type: EventType, cb: EventCallbackType): symbol {
-        // Delegate to EventManager
-        return this.eventManager.addListener(type, cb);
+    addListener<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): symbol {
+        // The manager only ever calls a callback with an event whose `type` is `type`, which is
+        // exactly the narrowing the signature promises.
+        return this.eventManager.addListener(type, cb as EventCallbackType);
     }
 
     /**
@@ -2656,7 +2745,7 @@ export class Graph implements GraphContext {
      *     does.
      * @returns What changed: what joined, what left, and what the selection holds now.
      */
-    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.session.selection.apply(target, op);
     }
 
@@ -4808,12 +4897,15 @@ export class Graph implements GraphContext {
     async applyCameraView(
         id: string,
         options?: {
-            scope?: Scope;
+            scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const scope = options?.scope;
-        const nodes = scope === undefined ? undefined : (await this.getSession().scope.resolve(scope)).nodes;
+        const resolver = scopeResolverOfSession(this.getSession());
+        // Read from the scope's node bitmap, so framing a subset never builds an id Set. An inline
+        // definition may name edges by session id, as at every door that takes a scope.
+        const nodes = scope === undefined ? undefined : resolver.nodeIdsOf(resolver.canonical(resolver.admit(scope)));
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),

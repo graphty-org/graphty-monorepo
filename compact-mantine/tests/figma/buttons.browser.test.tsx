@@ -18,8 +18,8 @@
  * - split: bc/split-chevron16-prototype-view--*, header-and-modes/present-dropdown-open
  */
 import { ActionIcon, Box, Button, CloseButton, Menu } from "@mantine/core";
-import { commands, userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { SplitButton } from "../../src/components/buttons/SplitButton";
 import { ToggleIconButton } from "../../src/components/buttons/ToggleIconButton";

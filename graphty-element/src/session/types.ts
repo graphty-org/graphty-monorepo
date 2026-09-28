@@ -46,6 +46,7 @@ import type { ResultsApi } from "./results";
 import type { Caveats, EngineVersions, Run, RunChange, RunExecutor, RunOptions, RunQueue, RunsApi } from "./runs";
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
+import type { SetChange, SetsApi } from "./sets/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -307,7 +308,18 @@ export interface SessionRecordSource {
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
  * whose answer is cached against the snapshot it was computed from. The verbs that must walk the
  * graph on every call -- id listings over a scope, neighbour pages, search -- are asynchronous by
- * construction and are not part of this surface yet.
+ * construction and are not part of this surface.
+ *
+ * To list every record, resolve a scope for the ids and read each one here:
+ *
+ * ```ts
+ * const { nodes, edges } = await session.scope.resolve("graph");
+ * const nodeRecords = [...nodes].map((id) => session.data.node(id));
+ * const edgeRecords = [...edges].map((id) => session.data.edge(id));
+ * ```
+ *
+ * Every record carries the id the element stores it under, written after the record's own keys,
+ * so a file row with its own `id` column cannot replace it.
  */
 export interface SessionDataApi {
     /** The store this session reads, whether it built it or was handed one. */
@@ -445,6 +457,14 @@ export interface SessionEventMap {
     "style:problem": StyleProblem;
     /** Every acceleration transition; the document is the one `capabilities` returns. */
     "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
+    /**
+     * A kept set was created, renamed, redefined or removed: one event per set a write touched,
+     * after the write committed. A write that was refused publishes nothing.
+     *
+     * Membership has no event: a set's members follow the data lazily, so a panel showing counts
+     * re-reads them on the events it already watches and on this one.
+     */
+    "set:changed": SetChange;
 }
 
 /**
@@ -483,6 +503,15 @@ export interface GraphSession {
      * it without resolving it, and keeping one under a name.
      */
     readonly scope: ScopeApi;
+    /**
+     * The kept sets: named collections of nodes and edges -- groups, kept selections, communities
+     * and paths -- that anything taking a scope can name as `{ set: id }`.
+     *
+     * A set is fixed (a member list), a rule (a query or rule tree that follows the data) or a
+     * path (an ordered walk). Reading and counting one goes through `scope.resolve({ set: id })`
+     * and `scope.count({ set: id })`; every change is published as `set:changed`.
+     */
+    readonly sets: SetsApi;
     /**
      * What is selected: two sets, five set operations, one selection for the whole session.
      *

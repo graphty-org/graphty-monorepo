@@ -1,10 +1,11 @@
 #!/usr/bin/env tsx
 
 // Script to generate HTML performance report from benchmark JSON data
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { existsSync,mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
-import { loadBenchmarkSessions } from "../benchmarks/utils/benchmark-result";
+
 import { BenchmarkSession } from "../benchmarks/benchmark-result";
+import { loadBenchmarkSessions } from "../benchmarks/utils/benchmark-result";
 
 // HTML template for the performance report
 function generateHTML(sessions: BenchmarkSession[]): string {
@@ -15,10 +16,9 @@ function generateHTML(sessions: BenchmarkSession[]): string {
     // Group results by algorithm
     const algorithmGroups = new Map<string, typeof allResults>();
     allResults.forEach((result) => {
-        if (!algorithmGroups.has(result.algorithm)) {
-            algorithmGroups.set(result.algorithm, []);
-        }
-        algorithmGroups.get(result.algorithm)!.push(result);
+        const group = algorithmGroups.get(result.algorithm) ?? [];
+        group.push(result);
+        algorithmGroups.set(result.algorithm, group);
     });
 
     return `<!DOCTYPE html>

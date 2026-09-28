@@ -12,7 +12,7 @@
  * by the `readFigmaCapture` browser command in vitest.config.ts. The study is not in every
  * checkout: gate a suite with `describe.skipIf(!(await figmaAvailable()))`.
  */
-import { commands } from "@vitest/browser/context";
+import { commands } from "vitest/browser";
 
 import type { MeasureSpec } from "./measure";
 

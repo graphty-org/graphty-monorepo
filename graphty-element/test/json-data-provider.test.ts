@@ -1,18 +1,35 @@
-import { assert, describe, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { z } from "zod/v4";
 
 import { AdHocData } from "../src/config";
 import { DataSourceChunk } from "../src/data/DataSource";
 import { JsonDataSource, JsonDataSourceConfig } from "../src/data/JsonDataSource";
 
+// The URL is kept so the URL code path runs, but fetch is stubbed to serve the local copy.
+const DATA3_URL =
+    "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
+const DATA3 = readFileSync(new URL("./helpers/data3.json", import.meta.url), "utf8");
+
 describe("JsonDataSource", () => {
+    beforeEach(() => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(() => Promise.resolve(new Response(DATA3))),
+        );
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("exists", () => {
         assert.isFunction(JsonDataSource);
     });
 
     it("has 'json' type", () => {
-        const data =
-            "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
+        const data = DATA3_URL;
         const jdp = new JsonDataSource({ data });
         assert.strictEqual(jdp.type, "json");
     });
@@ -25,8 +42,7 @@ describe("JsonDataSource", () => {
 
     describe("sourceFetchData", () => {
         it("fetches data", async () => {
-            const data =
-                "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
+            const data = DATA3_URL;
             const jdp = new JsonDataSource({ data });
             let ret: object[] = [];
 
@@ -55,8 +71,7 @@ describe("JsonDataSource", () => {
 
     describe("schema validation", () => {
         it("passes", async () => {
-            const data =
-                "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
+            const data = DATA3_URL;
             const schema = z.object({
                 id: z.string(),
                 group: z.number(),
@@ -67,8 +82,7 @@ describe("JsonDataSource", () => {
         });
 
         it("fails", async () => {
-            const data =
-                "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
+            const data = DATA3_URL;
             const schema = z.object({
                 id: z.boolean(), // wrong type
                 group: z.number(),

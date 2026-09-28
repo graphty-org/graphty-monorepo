@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { LogStorage, type LogEntry } from "../../../src/server/log-storage.js";
 import { logsGetRecentHandler } from "../../../src/mcp/tools/logs-get-recent.js";
+import { type LogEntry,LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_get_recent tool", () => {
     let storage: LogStorage;

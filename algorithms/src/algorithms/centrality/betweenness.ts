@@ -102,7 +102,7 @@ function accumulateBetweenness(
     // Process nodes in reverse BFS order
     for (let i = stack.length - 1; i >= 0; i--) {
         const w = stack[i];
-        if (!w) {
+        if (w === undefined) {
             continue;
         }
 
@@ -162,7 +162,7 @@ function accumulateEdgeBetweenness(
     // Process nodes in reverse BFS order
     for (let i = stack.length - 1; i >= 0; i--) {
         const w = stack[i];
-        if (!w) {
+        if (w === undefined) {
             continue;
         }
 

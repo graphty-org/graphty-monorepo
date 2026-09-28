@@ -1,3 +1,4 @@
+import type { NodeMask } from "@graphty/graph-format";
 import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
@@ -86,6 +87,8 @@ export class NGraphEngine extends LayoutEngine {
     static type = "ngraph";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
+    /** Accepts a scope: a held node is a pinned body in ngraph's own simulation. */
+    static override scoped = true;
     ngraph: NGraph;
     ngraphLayout: NGraphLayout<NGraph>;
 
@@ -244,6 +247,11 @@ export class NGraphEngine extends LayoutEngine {
             this.ngraphLayout.setNodePosition(n.id, x, y, dim === 3 ? coord() : 0);
         }
 
+        // A node that arrived after a scoped layout started is not one of its members.
+        if (this.isHeld(n.index)) {
+            this.ngraphLayout.pinNode(ngraphNode, true);
+        }
+
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
@@ -358,7 +366,21 @@ export class NGraphEngine extends LayoutEngine {
      */
     unpin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
-        this.ngraphLayout.pinNode(ngraphNode, false);
+        // A node a scoped layout is holding stays pinned: the hold is not the reader's pin to lift.
+        this.ngraphLayout.pinNode(ngraphNode, this.isHeld(n.index));
+    }
+
+    /**
+     * Holds the nodes a scoped layout may not move, as pinned bodies. A node that is no longer
+     * held is released unless the reader pinned it.
+     * @param mask - One bit per row to hold, or null to hold nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        for (const [node, ngraphNode] of this.nodeMapping) {
+            this.ngraphLayout.pinNode(ngraphNode, this.isHeld(node.index) || node.isPinned());
+        }
     }
 
     /**

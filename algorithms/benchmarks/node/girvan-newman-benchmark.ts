@@ -2,15 +2,15 @@
 
 // Girvan-Newman Community Detection Benchmark
 import Benchmark from "benchmark";
-import { Graph } from "../../src/core/graph.js";
+
 import { girvanNewman } from "../../src/algorithms/community/girvan-newman.js";
-import { generateGraph } from "../utils/graph-generator.js";
-import { saveBenchmarkResult, initBenchmarkSession } from "../utils/benchmark-result.js";
+import { Graph } from "../../src/core/graph.js";
+import { getGraphSizes } from "../algorithm-complexity.js";
 import { BenchmarkResult } from "../benchmark-result.js";
-import { getGraphSizes, getEdgeDensity, getAlgorithmConfig } from "../algorithm-complexity.js";
+import { initBenchmarkSession,saveBenchmarkResult } from "../utils/benchmark-result.js";
 
 // Make girvanNewman available globally for Benchmark.js
-(globalThis as any).girvanNewman = girvanNewman;
+Object.assign(globalThis, { girvanNewman });
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -32,7 +32,6 @@ function createTestGraphs(isQuick: boolean) {
     };
 
     const config = isQuick ? configs.quick : configs.comprehensive;
-    const results: BenchmarkResult[] = [];
 
     config.sizes.forEach((size) => {
         // Create community-structured graph (better for community detection testing)
@@ -88,7 +87,6 @@ function createTestGraphs(isQuick: boolean) {
         console.log(`📊 Created community-structured graph: ${size} nodes, ${edgeCount} edges`);
     });
 
-    const algConfig = getAlgorithmConfig("Girvan-Newman", isQuick);
     console.log(`\n⚠️  Note: Girvan-Newman has O(V³) complexity`);
     console.log(`   Using adaptive sizing: ${config.sizes.join(", ")} vertices`);
 
@@ -101,7 +99,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
 
     config.sizes.forEach((size) => {
         const testData = globalTestData.get(`community-${size}`);
-        if (!testData) return;
+        if (!testData) {return;}
 
         const testName = `Girvan-Newman Community Detection - ${testData.graphType} (${size} nodes, ${testData.edges} edges)`;
 
@@ -116,7 +114,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -153,8 +151,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };

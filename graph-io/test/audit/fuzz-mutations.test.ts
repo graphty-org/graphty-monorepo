@@ -422,25 +422,21 @@ describe("fuzz audit: mutated corpus files import to a valid snapshot or throw I
             if (bytes.byteLength > MAX_FUZZED_BYTES) {
                 continue;
             }
-            it(
-                `${format}/${entry.path}: 60 fast-check mutation sets`,
-                async () => {
-                    await fc.assert(
-                        fc.asyncProperty(mutationArb(format, bytes.byteLength), async (mutations) => {
-                            let mutated = bytes;
-                            for (const m of mutations) {
-                                mutated = applyMutation(mutated, m);
-                            }
-                            if (mutated.byteLength > 4 * MAX_FUZZED_BYTES) {
-                                return;
-                            }
-                            await classify(format, mutated);
-                        }),
-                        { numRuns: 60, seed: 20260914, endOnFailure: true },
-                    );
-                },
-                { timeout: 120_000 },
-            );
+            it(`${format}/${entry.path}: 60 fast-check mutation sets`, async () => {
+                await fc.assert(
+                    fc.asyncProperty(mutationArb(format, bytes.byteLength), async (mutations) => {
+                        let mutated = bytes;
+                        for (const m of mutations) {
+                            mutated = applyMutation(mutated, m);
+                        }
+                        if (mutated.byteLength > 4 * MAX_FUZZED_BYTES) {
+                            return;
+                        }
+                        await classify(format, mutated);
+                    }),
+                    { numRuns: 60, seed: 20260914, endOnFailure: true },
+                );
+            }, 120_000);
         }
     }
 });
@@ -457,32 +453,28 @@ describe("fuzz audit: mutated corpus files, looking past the pinned E_DUPLICATE_
     ];
     for (const { format, path } of affected) {
         const bytes = readCorpusBytes(format, path);
-        it(
-            `${format}/${path}: 60 fast-check mutation sets`,
-            async () => {
-                await fc.assert(
-                    fc.asyncProperty(mutationArb(format, bytes.byteLength), async (mutations) => {
-                        let mutated = bytes;
-                        for (const m of mutations) {
-                            mutated = applyMutation(mutated, m);
-                        }
-                        if (mutated.byteLength > 4 * MAX_FUZZED_BYTES) {
+        it(`${format}/${path}: 60 fast-check mutation sets`, async () => {
+            await fc.assert(
+                fc.asyncProperty(mutationArb(format, bytes.byteLength), async (mutations) => {
+                    let mutated = bytes;
+                    for (const m of mutations) {
+                        mutated = applyMutation(mutated, m);
+                    }
+                    if (mutated.byteLength > 4 * MAX_FUZZED_BYTES) {
+                        return;
+                    }
+                    try {
+                        await classify(format, mutated);
+                    } catch (err) {
+                        if (err instanceof Error && err.message.includes("E_DUPLICATE_EDGE_ID")) {
                             return;
                         }
-                        try {
-                            await classify(format, mutated);
-                        } catch (err) {
-                            if (err instanceof Error && err.message.includes("E_DUPLICATE_EDGE_ID")) {
-                                return;
-                            }
-                            throw err;
-                        }
-                    }),
-                    { numRuns: 60, seed: 20260914, endOnFailure: true },
-                );
-            },
-            { timeout: 120_000 },
-        );
+                        throw err;
+                    }
+                }),
+                { numRuns: 60, seed: 20260914, endOnFailure: true },
+            );
+        }, 120_000);
     }
 });
 
@@ -651,14 +643,10 @@ describe("fuzz audit: structural attacks", () => {
             pajek: `*Vertices 1\n1 "${big}"\n*Edges\n1 1\n`,
         };
         for (const format of CORPUS_FORMATS) {
-            it(
-                `${format}: completes with a snapshot or an ImportError`,
-                async () => {
-                    const outcome = await expectSnapshotOrImportError(format, documents[format]);
-                    expect(outcome.kind).toBe("snapshot");
-                },
-                { timeout: 60_000 },
-            );
+            it(`${format}: completes with a snapshot or an ImportError`, async () => {
+                const outcome = await expectSnapshotOrImportError(format, documents[format]);
+                expect(outcome.kind).toBe("snapshot");
+            }, 60_000);
         }
     });
 
@@ -922,14 +910,10 @@ describe("fuzz audit: structural attacks", () => {
     });
 
     describe("wide and repetitive input", () => {
-        it(
-            "GraphML: 100k attributes on one element and 20k declared keys",
-            async () => {
-                const attrs = Array.from({ length: 100_000 }, (_, i) => `a${i}="v"`).join(" ");
-                await expectSnapshotOrImportError("graphml", xmlGraphml(`<node id="a" ${attrs}/>`));
-            },
-            { timeout: 60_000 },
-        );
+        it("GraphML: 100k attributes on one element and 20k declared keys", async () => {
+            const attrs = Array.from({ length: 100_000 }, (_, i) => `a${i}="v"`).join(" ");
+            await expectSnapshotOrImportError("graphml", xmlGraphml(`<node id="a" ${attrs}/>`));
+        }, 60_000);
 
         it("GEXF: 100k attributes on one element", async () => {
             const attrs = Array.from({ length: 100_000 }, (_, i) => `x${i}="v"`).join(" ");

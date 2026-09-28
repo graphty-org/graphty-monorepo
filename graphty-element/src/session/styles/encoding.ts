@@ -61,6 +61,7 @@
 import type { Binding, Channel, ChannelValue, PaletteDescriptor, Path, Rgba } from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
+import { compareGroupKeys } from "../results/types";
 import {
     type ChannelDescriptor,
     channelDescriptor,
@@ -671,7 +672,7 @@ interface SettledCategories {
  */
 function settleCategories(facts: ColumnFacts, other: RuleBinding["other"], keep: number): SettledCategories {
     const bySize = [...facts.categoryCounts.entries()].sort(
-        (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+        (left, right) => right[1] - left[1] || compareGroupKeys(left[0], right[0]),
     );
 
     if (other === undefined && bySize.length <= keep) {

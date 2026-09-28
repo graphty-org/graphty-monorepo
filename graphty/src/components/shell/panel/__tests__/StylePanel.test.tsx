@@ -2,7 +2,7 @@ import { PANEL_GRID } from "@graphty/compact-mantine";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import type { LayerItem } from "../StyleLayerList";
 import { StylePanel, type StylePanelProps } from "../StylePanel";
@@ -138,6 +138,28 @@ describe("StylePanel", () => {
             renderPanel();
 
             expect(screen.getAllByText("Dimmed rows are not built yet.").length).toBeGreaterThan(0);
+        });
+
+        it("tags Arrangement Coming while some pick is unbuilt", () => {
+            renderPanel({
+                layoutPicks: [
+                    { value: "ngraph", label: "Force directed" },
+                    { value: "sugiyama", label: "Hierarchical", disabledReason: "Coming" },
+                ],
+            });
+
+            expect(within(sectionNamed("Arrangement (Layout)")).getByTestId("coming-tag")).toBeInTheDocument();
+        });
+
+        it("drops the Coming tag from Arrangement when every pick works", () => {
+            renderPanel({
+                layoutPicks: [
+                    { value: "ngraph", label: "Force directed" },
+                    { value: "grid", label: "Grid" },
+                ],
+            });
+
+            expect(within(sectionNamed("Arrangement (Layout)")).queryByTestId("coming-tag")).not.toBeInTheDocument();
         });
 
         it("offers the layout parameters gear", () => {

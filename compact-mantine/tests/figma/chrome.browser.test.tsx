@@ -11,9 +11,9 @@
  * measured from the panel's top-left corner, the way the captures are.
  */
 import { ActionIcon, Divider } from "@mantine/core";
-import { commands, userEvent } from "@vitest/browser/context";
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { ResizeHandle } from "../../src/components/chrome/ResizeHandle";
 import { ControlGroup } from "../../src/components/ControlGroup";

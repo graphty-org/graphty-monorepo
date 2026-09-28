@@ -1,3 +1,43 @@
+## 0.6.11 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.1.1
+- Updated algorithms to 2.1.1
+- Updated layout to 1.10.4
+
+## 0.6.10 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.1.0
+- Updated algorithms to 2.1.0
+- Updated layout to 1.10.3
+
+## 0.6.9 (2026-09-27)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** bound each kernel's bind-group cache ([#162](https://github.com/graphty-org/graphty-monorepo/issues/162))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.7
+- Updated algorithms to 2.0.6
+- Updated layout to 1.10.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.8 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.6
+- Updated algorithms to 2.0.5
+- Updated layout to 1.10.1
+
 ## 0.6.7 (2026-09-26)
 
 ### 🩹 Fixes

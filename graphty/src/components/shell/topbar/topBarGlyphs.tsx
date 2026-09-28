@@ -38,7 +38,7 @@ export type TopBarGlyphName =
  * redrawing a shape.
  * @public
  */
-export const TOP_BAR_GLYPHS: Readonly<Record<TopBarGlyphName, ReactNode>> = {
+const TOP_BAR_GLYPHS: Readonly<Record<TopBarGlyphName, ReactNode>> = {
     undo: (
         <>
             <path d="M4 6h6.5a3 3 0 0 1 0 6H7" />

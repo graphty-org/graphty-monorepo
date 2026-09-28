@@ -4,10 +4,23 @@ import {
     type FreezeReport,
     GraphBuilder,
     type GraphSnapshot,
+    INVALID_INDEX,
     type U32,
 } from "@graphty/graph-format";
 
+import { hashNodeId } from "../catalog/sets/hash";
+import { type InputCounters, inputCountersOf } from "../session/attributes";
 import type { DirectionProvenance } from "../session/types";
+import {
+    completeLoad,
+    createEdgeCounter,
+    EDGE_ID_COLUMN,
+    type EdgeCounter,
+    IDENTITY_COLUMNS,
+    type IdentityGraph,
+    PAIRS_ORDERED_ATTRIBUTE,
+    sessionEdgeHash,
+} from "./edgeIdentity";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
 /** The payload of `snapshot-replaced` (graph-format design 14.4 rule 11). */
@@ -38,12 +51,23 @@ export interface GraphStoreOptions {
     readonly onNodeRemap: (remap: U32) => void;
     /** Called before onReplaced when the freeze renumbered edges, so edgesByIndex can be re-keyed. */
     readonly onEdgeRemap: (remap: U32) => void;
+    /**
+     * The edge counter `nextEdgeId()` draws from. Its owner (`DataManager`, a headless
+     * `GraphSession`) hands the same object to every store it builds, so a Clear or a replacing
+     * import never rewinds it and no edge id is issued twice in a session. A store built without
+     * one counts from 0 on its own.
+     */
+    readonly edgeCounter?: EdgeCounter;
+    /**
+     * The input counters every freeze advances the tick of (design/sets 6.2). Handed in by the
+     * same owner, for the same reason, as the edge counter; a store built without them keys its
+     * own under itself, which is what a headless session reads.
+     */
+    readonly inputs?: InputCounters;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
 const SEED_COLUMN = "graphty.importPosition";
-/** The element-assigned edge counter column. Its value, printed, is Edge.id. */
-const EDGE_ID_COLUMN = "graphty.edgeId";
 
 /**
  * The node column every frozen snapshot carries the reader's pins in.
@@ -117,11 +141,30 @@ export class GraphStore {
     readonly edgeIdColumn: ColumnHandle;
 
     private readonly options: GraphStoreOptions;
+    private readonly counter: EdgeCounter;
+    private readonly nodeHashColumn: ColumnHandle;
+    private readonly edgeHashColumn: ColumnHandle;
+    private readonly edgeOrdinalColumn: ColumnHandle;
+    private readonly edgeAmongColumn: ColumnHandle;
+    /** Node rows below this have their hash; rows from here to `nodeBound` are new. */
+    private nodeMark = 0;
+    /** Edges ingested outside a load and not yet completed: row, counter, file id. */
+    private sessionEdges: { row: number; counter: number; fileId: string | number | undefined }[] = [];
+    /** Rows of the open load, in ingest order, remapped by every compacting freeze. */
+    private loadRows = new Uint32Array(64);
+    private loadLength = 0;
+    /** File ids of the open load's edges, aligned with `loadRows`; sparse. */
+    private loadFileIds: (string | number | undefined)[] = [];
+    /** Open `openLoad()` calls; loads that overlap are completed as one. */
+    private loadDepth = 0;
+    /** Whether edge pairs are ordered, latched when the first edge is completed. */
+    private pairsOrdered: boolean | null = null;
+    /** The counters whose tick every freeze advances. */
+    private readonly inputs: InputCounters;
     private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>();
     private cache: GraphSnapshot | null = null;
     private cachedRevision = -1;
     private revision = 0;
-    private edgeIdCounter = 0;
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
     private publishing = false;
@@ -159,6 +202,32 @@ export class GraphStore {
             role: "id",
             unique: true,
         });
+        // The stable-identity columns (design/sets/sets-design.md 12.2, 12.3), beside the counter
+        // they are derived from, filled by the completion pass at freeze. 8 bytes per node, 16 per
+        // edge. Ordinal and among default to -1, the reading of a session edge and of a row the
+        // pass has not reached yet.
+        this.nodeHashColumn = this.builder.declareNodeColumn({
+            name: IDENTITY_COLUMNS.nodeHash,
+            dtype: "u32",
+            components: 2,
+        });
+        this.edgeHashColumn = this.builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeHash,
+            dtype: "u32",
+            components: 2,
+        });
+        this.edgeOrdinalColumn = this.builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeOrdinal,
+            dtype: "i32",
+            default: -1,
+        });
+        this.edgeAmongColumn = this.builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeAmong,
+            dtype: "i32",
+            default: -1,
+        });
+        this.counter = options.edgeCounter ?? createEdgeCounter();
+        this.inputs = options.inputs ?? inputCountersOf(this);
     }
 
     /**
@@ -212,7 +281,63 @@ export class GraphStore {
      */
     nextEdgeId(): number {
         this.requireAlive("nextEdgeId");
-        return this.edgeIdCounter++;
+        return this.counter.next++;
+    }
+
+    /**
+     * Record an ingested edge for the completion pass. `ingestEdge` calls this for every edge it
+     * stamps; an edge added to the builder directly (a test fixture) gets no identity values.
+     * @param row - the edge row
+     * @param counter - the counter stamped into its `graphty.edgeId` cell
+     * @param fileId - the file id read at the configured `edgeIdPath`, if any
+     */
+    recordIngestedEdge(row: number, counter: number, fileId?: string | number): void {
+        if (this.loadDepth === 0) {
+            this.sessionEdges.push({ row, counter, fileId });
+            return;
+        }
+
+        if (this.loadLength === this.loadRows.length) {
+            const grown = new Uint32Array(this.loadRows.length * 2);
+            grown.set(this.loadRows);
+            this.loadRows = grown;
+        }
+
+        if (fileId !== undefined) {
+            this.loadFileIds[this.loadLength] = fileId;
+        }
+
+        this.loadRows[this.loadLength++] = row;
+    }
+
+    /**
+     * Open a load: every edge ingested until the matching `closeLoad()` belongs to it, and its
+     * ordinals are counted over it as a whole however many chunks and freezes it spans
+     * (design 12.3: a load is one import). Edges ingested with no load open are session edges.
+     */
+    openLoad(): void {
+        this.loadDepth++;
+    }
+
+    /**
+     * Close a load. When the last open load closes, it is completed there and then. A disposed
+     * store ignores this, so a load's cleanup may run after a Clear replaced its store.
+     */
+    closeLoad(): void {
+        if (this.disposed || this.loadDepth === 0) {
+            return;
+        }
+
+        this.loadDepth--;
+        if (this.loadDepth === 0) {
+            // Completed now rather than at the next freeze: the load is over, so an edit made
+            // before that freeze (a removal, or a second load opened straight after) belongs to
+            // no load and must not move this one's ordinals or merge into it.
+            this.completeIdentity();
+            // Column writes do not move the builder, so without this a snapshot frozen during the
+            // load would keep being served without the load's identity values.
+            this.touch();
+        }
     }
 
     /**
@@ -255,6 +380,9 @@ export class GraphStore {
         }
 
         const previous = this.cache;
+        // Before the freeze, so the columns ride in the snapshot. Idempotent: a throw here leaves
+        // the marks unmoved and the next call writes the same values again.
+        this.completeIdentity();
         const { snapshot, report } = this.builder.freezeWithReport({ label: "graphty-element" });
 
         // COMMIT FIRST, with nothing between the freeze and these four assignments that can throw.
@@ -269,6 +397,10 @@ export class GraphStore {
         this.cachedRevision = this.revision;
         this.pending = { replacement: { previous, next: snapshot, report }, stage: "node-remap" };
         this.pendingPositions = { snapshot, nodeRemap: report.nodeRemap, stage: "remap" };
+        // Allocation-free, so it cannot throw between the commit and the resumable stages.
+        this.inputs.tick.advance();
+        // Allocation-free, so it cannot throw between the commit and the resumable stages.
+        this.followIdentityRemap(report.edgeRemap);
 
         this.applyPositions();
         this.publish();
@@ -448,9 +580,163 @@ export class GraphStore {
             }
 
             this.pending = null;
+            // Last, once every stage has landed: a session re-resolves its live sets from here.
+            this.inputs.tick.announce({ kind: "snapshot", serial: replacement.next.serial });
         } finally {
             this.publishing = false;
         }
+    }
+
+    /**
+     * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
+     * no load is open, complete the load's edges -- ordinal and among per pair over the load's
+     * surviving edges, and the edge hash, in one sorted pass.
+     */
+    private completeIdentity(): void {
+        const { builder } = this;
+        // Every node row at once (the first freeze of a store): one typed array and one bulk
+        // column write instead of a checked cell write per node.
+        const bulkNodes = this.nodeMark === 0 && builder.nodeBound > 0 ? new Uint32Array(2 * builder.nodeBound) : null;
+        for (let i = this.nodeMark; i < builder.nodeBound; i++) {
+            let id;
+            try {
+                id = builder.idOf(i);
+            } catch {
+                // A row added and removed again before any freeze. graph-format offers no
+                // liveness test by index, and such rows are rare.
+                continue;
+            }
+
+            const { a, b } = hashNodeId(id);
+            if (bulkNodes === null) {
+                builder.setNodeValue(this.nodeHashColumn, i, [a, b]);
+            } else {
+                bulkNodes[2 * i] = a;
+                bulkNodes[2 * i + 1] = b;
+            }
+        }
+
+        if (bulkNodes !== null) {
+            builder.setNodeColumn(IDENTITY_COLUMNS.nodeHash, bulkNodes, { dtype: "u32", components: 2 });
+        }
+
+        const completingLoad = this.loadDepth === 0 && this.loadLength > 0;
+        if (this.sessionEdges.length === 0 && !completingLoad) {
+            return;
+        }
+
+        const graph: IdentityGraph = {
+            endpoints: (edge) => builder.edgeEndpoints(edge),
+            idOf: (node) => builder.idOf(node),
+            ...(bulkNodes === null
+                ? {}
+                : { hashOf: (node: number) => ({ a: bulkNodes[2 * node], b: bulkNodes[2 * node + 1] }) }),
+        };
+        const ordered = this.latchPairsOrdered();
+        const noSessionEdges = this.sessionEdges.length === 0;
+        for (const { row, counter, fileId } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                builder.setEdgeValue(this.edgeOrdinalColumn, row, -1);
+                builder.setEdgeValue(this.edgeAmongColumn, row, -1);
+                const { a, b } = sessionEdgeHash(graph, row, counter, fileId, ordered);
+                builder.setEdgeValue(this.edgeHashColumn, row, [a, b]);
+            }
+        }
+
+        this.sessionEdges = [];
+        if (!completingLoad) {
+            return;
+        }
+
+        // Only surviving edges count: a row removed during the load takes no ordinal.
+        let kept = 0;
+        for (let i = 0; i < this.loadLength; i++) {
+            if (builder.hasEdge(this.loadRows[i])) {
+                this.loadFileIds[kept] = this.loadFileIds[i];
+                this.loadRows[kept++] = this.loadRows[i];
+            }
+        }
+
+        const fileIds = this.loadFileIds;
+        const rows = this.loadRows.subarray(0, kept);
+        if (noSessionEdges && kept === builder.edgeCount) {
+            // The load covers every edge in the store (a first load, or one that replaced it): the
+            // three columns are written whole, as typed arrays, instead of three checked cell
+            // writes per edge. Rows no live edge holds keep ordinal and among -1.
+            const bound = builder.edgeBound;
+            const hashes = new Uint32Array(2 * bound);
+            const ordinals = new Int32Array(bound).fill(-1);
+            const amongs = new Int32Array(bound).fill(-1);
+            completeLoad(
+                rows,
+                graph,
+                ordered,
+                (position) => fileIds[position],
+                (row, ordinal, among, hash) => {
+                    ordinals[row] = ordinal;
+                    amongs[row] = among;
+                    hashes[2 * row] = hash.a;
+                    hashes[2 * row + 1] = hash.b;
+                },
+            );
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, ordinals, { dtype: "i32", default: -1 });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, amongs, { dtype: "i32", default: -1 });
+        } else {
+            completeLoad(
+                rows,
+                graph,
+                ordered,
+                (position) => fileIds[position],
+                (row, ordinal, among, hash) => {
+                    builder.setEdgeValue(this.edgeOrdinalColumn, row, ordinal);
+                    builder.setEdgeValue(this.edgeAmongColumn, row, among);
+                    builder.setEdgeValue(this.edgeHashColumn, row, [hash.a, hash.b]);
+                },
+            );
+        }
+        this.loadLength = 0;
+        this.loadFileIds = [];
+        this.loadRows = new Uint32Array(64);
+    }
+
+    /**
+     * Whether pairs are ordered, latched the first time an edge is completed: ordered only when the
+     * graph was declared directed by then. Recorded as a graph attribute so every snapshot says
+     * which rule its edge hashes follow.
+     * @returns the latched value
+     */
+    private latchPairsOrdered(): boolean {
+        if (this.pairsOrdered === null) {
+            this.pairsOrdered = this.direction.by !== "unsettled" && this.builder.directed;
+            this.builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
+        }
+
+        return this.pairsOrdered;
+    }
+
+    /**
+     * Move the pass's marks and the open load's rows into the index space of a freeze just
+     * committed. Allocation-free.
+     * @param edgeRemap - the freeze's edge remap, or null when nothing was renumbered
+     */
+    private followIdentityRemap(edgeRemap: U32 | null): void {
+        this.nodeMark = this.builder.nodeBound;
+        if (edgeRemap === null) {
+            return;
+        }
+
+        let kept = 0;
+        for (let i = 0; i < this.loadLength; i++) {
+            const moved = edgeRemap[this.loadRows[i]] ?? INVALID_INDEX;
+            if (moved !== INVALID_INDEX) {
+                this.loadFileIds[kept] = this.loadFileIds[i];
+                this.loadRows[kept++] = moved;
+            }
+        }
+
+        this.loadFileIds.length = Math.min(this.loadFileIds.length, kept);
+        this.loadLength = kept;
     }
 
     /**

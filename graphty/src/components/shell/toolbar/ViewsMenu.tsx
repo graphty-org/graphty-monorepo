@@ -351,6 +351,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         >
             <Menu.Target>
                 <Tooltip
+                    disabled={opened}
                     label={VIEWS_LABEL}
                     position="top"
                     events={{ hover: true, focus: true, touch: true }}

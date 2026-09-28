@@ -21,9 +21,9 @@ import {
     TextInput,
 } from "@mantine/core";
 import { render } from "@testing-library/react";
-import { commands, page, userEvent } from "@vitest/browser/context";
 import React, { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { ComboInput } from "../../src/components/inputs/ComboInput";
 import { SearchInput } from "../../src/components/inputs/SearchInput";

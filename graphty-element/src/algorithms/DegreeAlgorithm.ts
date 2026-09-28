@@ -1,6 +1,7 @@
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { metricField, nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -38,6 +39,8 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
 export class DegreeAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "degree";
+    /** Counts over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a degree result publishes.
@@ -75,7 +78,9 @@ export class DegreeAlgorithm extends MetricAlgorithm {
                 weight: null,
                 precision: "f64",
                 method: "degree",
-                notes: ["Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones."],
+                notes: [
+                    "Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones.",
+                ],
             },
         };
     }

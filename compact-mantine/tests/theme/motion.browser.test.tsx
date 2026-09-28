@@ -3,8 +3,8 @@
  * frame, and a reader who asks the system for reduced motion gets no movement at all.
  */
 import { Button, Checkbox, Menu, Switch } from "@mantine/core";
-import { commands, userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { part, renderThemed, resetHarness } from "../harness/measure";
 

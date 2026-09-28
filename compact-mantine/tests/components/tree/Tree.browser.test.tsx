@@ -4,9 +4,9 @@
  * drag and drop, and virtualization. Every key here is a real key press through Playwright.
  */
 import { screen, within } from "@testing-library/react";
-import { userEvent } from "@vitest/browser/context";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { InlineRename, PageList, ResultRow, Tree, type TreeMove, type TreeNodeData } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";

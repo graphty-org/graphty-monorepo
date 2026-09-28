@@ -97,8 +97,14 @@ describe("what each repeat policy does to the second record", () => {
 
     test("last takes the repeat's weight and its attributes", async () => {
         const graph = await makeGraph();
-        await graph.addEdges([{ source: "a", target: "b", weight: 2, label: "old" }], { repeated: "last", skipQueue: true });
-        await graph.addEdges([{ source: "a", target: "b", weight: 9, label: "new" }], { repeated: "last", skipQueue: true });
+        await graph.addEdges([{ source: "a", target: "b", weight: 2, label: "old" }], {
+            repeated: "last",
+            skipQueue: true,
+        });
+        await graph.addEdges([{ source: "a", target: "b", weight: 9, label: "new" }], {
+            repeated: "last",
+            skipQueue: true,
+        });
 
         const session = graph.getSession();
         assert.strictEqual(session.data.snapshot().edgeCount, 1);
@@ -265,6 +271,25 @@ describe("an algorithm run over a multigraph", () => {
         const notes = run.caveats.notes.join(" ");
         assert.include(notes, "parallel", "the merge is named on the result rather than only in a design document");
         assert.include(notes, "1 parallel edge was merged", "and the count is the graph's repeat count");
+        graph.dispose();
+    });
+
+    test("a shortest path takes the cheapest of a parallel group, and its caveat says so", async () => {
+        const graph = await makeGraph();
+        await graph.addEdges(
+            [
+                { source: "a", target: "b", weight: 4 },
+                { source: "a", target: "b", weight: 1 },
+                { source: "b", target: "c", weight: 2 },
+            ],
+            { skipQueue: true },
+        );
+
+        const run = graph.getSession().runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" });
+        const result = await run;
+
+        assert.deepInclude(result.node("c"), { distance: 3 }, "1 then 2, not the group's sum of 5 then 2");
+        assert.include(run.caveats.notes.join(" "), "1 parallel edge was merged, keeping the lowest weight");
         graph.dispose();
     });
 

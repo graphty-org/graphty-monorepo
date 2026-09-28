@@ -1,10 +1,10 @@
-/// <reference types="@vitest/browser/providers/playwright" />
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
-import type { BrowserCommand } from "vitest/node";
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
+import type { BrowserCommand } from "vitest/node";
 
 /**
  * The Figma study (design/ui/figma), found by walking up from this package so it resolves from
@@ -119,10 +119,12 @@ export default defineConfig({
                         "**/node_modules/**",
                         "**/dist/**",
                     ],
+                    // Disable file parallelism to prevent race conditions
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent race conditions
                         fileParallelism: false,

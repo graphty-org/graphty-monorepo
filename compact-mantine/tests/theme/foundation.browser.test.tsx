@@ -4,8 +4,8 @@
  * on (design/figma-spec.md 2, 13).
  */
 import { Box } from "@mantine/core";
-import { userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { drive, expectMeasured, normalize, part, renderThemed, resetHarness } from "../harness/measure";
 

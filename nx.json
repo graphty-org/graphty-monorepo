@@ -2,7 +2,7 @@
     "$schema": "./node_modules/nx/schemas/nx-schema.json",
     "defaultBase": "master",
     "release": {
-        "projects": ["*"],
+        "projects": ["*", "!visual-review"],
         "projectsRelationship": "independent",
         "releaseTagPattern": "{projectName}@{version}",
         "version": {
@@ -82,7 +82,7 @@
             "dependsOn": ["^build"]
         },
         "lint": {
-            "inputs": ["default", "{workspaceRoot}/eslint.config.js"],
+            "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"],
             "cache": true
         },
         "@nx/vitest:test": {

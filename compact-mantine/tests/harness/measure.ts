@@ -18,14 +18,14 @@
  */
 import { MantineProvider } from "@mantine/core";
 import { cleanup, render, type RenderResult } from "@testing-library/react";
-import { commands, userEvent } from "@vitest/browser/context";
 import { createElement, type ReactElement } from "react";
 import { expect } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { createCompactTheme } from "../../src/theme";
 import { ensureCompactStyles } from "../../src/theme/global-styles";
 
-declare module "@vitest/browser/context" {
+declare module "vitest/browser" {
     interface BrowserCommands {
         figmaAvailable: () => Promise<boolean>;
         readFigmaCapture: (path: string) => Promise<unknown>;

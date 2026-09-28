@@ -575,6 +575,105 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect(halves.out).toContain("too small");
     });
 
+    it("targets: prints met / missed / recorded and fails a gating class only on a new, confirmed miss (issue #277)", () => {
+        const targets = JSON.stringify({
+            "roundtrip/fast": { id: "T-A", what: "fast", target: 5, gatingRunnerClasses: [CLASS] },
+            "roundtrip/slow": { id: "T-B", what: "slow", target: 5, gatingRunnerClasses: [CLASS] },
+            "roundtrip/known": {
+                id: "T-C",
+                what: "known",
+                target: 5,
+                gatingRunnerClasses: [CLASS],
+                knownMiss: { [CLASS]: "a recorded reason" },
+            },
+            "roundtrip/free": { id: "T-D", what: "free", target: "recorded" },
+        });
+        const files = {
+            "gpu-report.json": quiet,
+            "benchmarks/results/targets.json": targets,
+            [`benchmarks/results/${CLASS}.json`]: out([result("fast", 4), result("slow", 20), result("known", 20)]),
+        };
+        // every row at its baseline: no regression, and only the known miss misses
+        const green = run({
+            ...files,
+            [`benchmarks/out/${CLASS}.json`]: out([
+                result("fast", 4),
+                result("known", 20),
+                result("free", 7),
+                result("slow", 4),
+            ]),
+        });
+        expect(green.status).toBe(0);
+        expect(green.out).toMatch(/^ok\s+roundtrip\/fast\s.*\sT-A met$/m);
+        expect(green.out).toMatch(/^ok\s+roundtrip\/known\s.*\sT-C missed \(known\)$/m);
+        expect(green.out).toMatch(/^new \(no baseline\)\s+roundtrip\/free\s.*\sT-D recorded$/m);
+
+        // a new miss on a gating class fails the lane even though its baseline already missed (no regression)
+        const red = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("slow", 20)]) });
+        expect(red.status).toBe(1);
+        expect(red.out).not.toContain("REGRESSION");
+        expect(red.out).toMatch(/^ok\s+roundtrip\/slow\s.*\sT-B missed$/m);
+        expect(red.out).toContain("1 target(s) missed on gating runner class");
+
+        // the minimum under the target means a noisy run, not a slower kernel
+        const noisy = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("slow", 20, "roundtrip", 4)]) });
+        expect(noisy.status).toBe(0);
+        expect(noisy.out).toContain("T-B missed (noisy)");
+
+        // another runner class reports the miss and does not gate
+        const other = run(
+            {
+                ...files,
+                "benchmarks/out/other.json": out([result("slow", 20)]),
+                "benchmarks/results/other.json": out([result("slow", 20)]),
+            },
+            ["--class", "other"],
+        );
+        expect(other.status).toBe(0);
+        expect(other.out).toContain("T-B missed");
+
+        // no baseline at all still judges the targets
+        const fresh = run({
+            "gpu-report.json": quiet,
+            "benchmarks/results/targets.json": targets,
+            [`benchmarks/out/${CLASS}.json`]: out([result("slow", 20)]),
+        });
+        expect(fresh.status).toBe(1);
+    });
+
+    it("targets.json names only rows the benchmarks record, and every gating target is judged on gpu-linux-t4", () => {
+        const targets = JSON.parse(readFileSync(resolve("benchmarks/results/targets.json"), "utf8")) as Record<
+            string,
+            {
+                id: string;
+                target: number | "recorded";
+                gatingRunnerClasses?: string[];
+                knownMiss?: Record<string, string>;
+            }
+        >;
+        const recorded = new Set<string>();
+        for (const file of ["gpu-linux-t4", "nvidia-lovelace-driver580", "nvidia-lovelace-driver0"]) {
+            const sessions = JSON.parse(
+                readFileSync(resolve("benchmarks/results", `${file}.json`), "utf8"),
+            ) as BenchSession[];
+            for (const s of sessions) {
+                for (const r of s.results) {
+                    recorded.add(`${r.group}/${r.name}`);
+                }
+            }
+        }
+        for (const [key, t] of Object.entries(targets)) {
+            expect(recorded.has(key), `${key} is not a row of any results file`).toBe(true);
+            expect(t.id).toMatch(/^T-\d+$/);
+            expect(t.target === "recorded" || (typeof t.target === "number" && t.target > 0)).toBe(true);
+        }
+        // the owner's decision on issue #277: the targets bind the Tesla T4 and the known misses are named
+        const known = Object.values(targets)
+            .filter((t) => t.knownMiss?.["gpu-linux-t4"] !== undefined)
+            .map((t) => t.id);
+        expect([...new Set(known)]).toEqual(["T-1", "T-2", "T-3", "T-7", "T-9"]);
+    });
+
     it("--class overrides the report's runner class", () => {
         const r = run(
             {
@@ -586,6 +685,16 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         );
         expect(r.status).toBe(1);
         expect(existsSync(SCRIPT)).toBe(true);
+    });
+});
+
+describe("scripts/bench-readme-tables.js (issue #277)", () => {
+    it("the README's target tables are the generated ones: run `pnpm run bench:readme` after changing a results file or targets.json", () => {
+        const proc = spawnSync(process.execPath, [resolve("scripts/bench-readme-tables.js"), "--check"], {
+            encoding: "utf8",
+        });
+        expect(`${proc.stdout}${proc.stderr}`).toBe("");
+        expect(proc.status).toBe(0);
     });
 });
 

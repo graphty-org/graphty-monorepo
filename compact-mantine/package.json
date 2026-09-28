@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.8.7",
+    "version": "0.8.10",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",
@@ -48,9 +48,10 @@
         "@testing-library/react": "^16.1.0",
         "@testing-library/user-event": "^14.6.1",
         "@vitejs/plugin-react": "^4.5.2",
-        "@vitest/browser": "3.2.4",
+        "@vitest/browser-playwright": "catalog:",
         "@zag-js/floating-panel": ">=0.82.2",
         "@zag-js/react": ">=0.82.2",
+        "eslint": "^9.29.0",
         "jsdom": "^26.1.0",
         "lucide-react": "^0.525.0",
         "playwright": "^1.49.1",
@@ -61,7 +62,7 @@
         "typescript": "~5.8.3",
         "vite": "^6.3.5",
         "vite-plugin-dts": "^4.5.4",
-        "vitest": "^3.2.4"
+        "vitest": "catalog:"
     },
     "scripts": {
         "build": "vite build",
@@ -72,7 +73,7 @@
         "build-storybook": "storybook build",
         "lint": "eslint && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace compact-mantine"
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace compact-mantine"
     },
     "keywords": [
         "mantine",

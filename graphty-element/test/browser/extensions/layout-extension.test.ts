@@ -69,11 +69,14 @@ import {
     LayoutEngine,
     type Node,
     type NodeIdType,
+    type NodeMask,
     type OptionDescriptor,
     type Position,
     SimpleLayoutEngine,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+// Not plugin code: the element's own deterministic stand-in for a device.
+import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
 
 /** Five nodes, so a ring has five distinct angles and no two nodes sit opposite each other. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
@@ -691,7 +694,37 @@ function refusalOf(act: () => void): GraphtyError {
     throw new Error("the registration was accepted when it should have been refused");
 }
 
+/**
+ * The ring, declared able to lay out a scope. It keeps the contract `static scoped` states: a held
+ * node is fixed in the engine's own state -- here, the ring's own pin list -- and not only kept
+ * from being written, so the ring never walks it anywhere.
+ */
+class ScopedRingLayout extends RingLayout {
+    static type = "test-scoped-ring";
+    static scoped = true;
+    static descriptor: AuthoredLayoutDescriptor = {
+        ...RingLayout.descriptor,
+        id: "test-scoped-ring",
+        engine: "test-scoped-ring",
+    };
+
+    /** The ids the element asked this engine to hold, at the last `setHoldMask`. */
+    heldIds: NodeIdType[] = [];
+
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.heldIds = [];
+        for (const node of this.nodes) {
+            if (this.isHeld(node.index)) {
+                this.heldIds.push(node.id);
+                this.pin(node);
+            }
+        }
+    }
+}
+
 LayoutEngine.register(RingLayout);
+LayoutEngine.register(ScopedRingLayout);
 LayoutEngine.register(GridLayout);
 LayoutEngine.register(RefusingLayout);
 LayoutEngine.register(LateFailureLayout);
@@ -714,7 +747,9 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
     const lengthSquared = dx * dx + dy * dy + dz * dz;
 
     const projection =
-        lengthSquared === 0 ? 0 : ((point.x - from.x) * dx + (point.y - from.y) * dy + (point.z - from.z) * dz) / lengthSquared;
+        lengthSquared === 0
+            ? 0
+            : ((point.x - from.x) * dx + (point.y - from.y) * dy + (point.z - from.z) * dz) / lengthSquared;
     const clamped = Math.min(1, Math.max(0, projection));
 
     return Math.hypot(
@@ -1334,11 +1369,32 @@ describe("a third party's layout engine", () => {
             await waitForRedraw("the ring to take in the new node");
 
             assert.isAbove(engine.incrementalUpdates.length, 0, "the element used the engine's own method");
-            assert.include(
-                engine.incrementalUpdates.flat(),
-                "f",
-                "and named the node that had just arrived",
-            );
+            assert.include(engine.incrementalUpdates.flat(), "f", "and named the node that had just arrived");
+        });
+    });
+
+    describe("a scope", () => {
+        it("is handed to an engine that declares `static scoped`, as the hold mask over every other node", async () => {
+            assert.isTrue(offeredLayout("test-scoped-ring").scoped, "the catalogue says it takes a scope");
+            assert.isFalse(offeredLayout("test-ring").scoped, "and an engine that says nothing does not");
+            const before = { c: { ...nodeById("c").getPosition() }, e: { ...nodeById("e").getPosition() } };
+
+            await graph.setLayout("test-scoped-ring", {}, { scope: { nodes: ["a", "b"] } });
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(engine, ScopedRingLayout);
+            await waitForRedraw("the scoped ring to settle");
+
+            assert.isNotNull(engine.holdMask, "the element handed the engine a hold mask");
+            assert.sameMembers(engine.heldIds, ["c", "d", "e"], "holding every node outside the scope");
+            assert.deepStrictEqual(nodeById("c").getPosition(), before.c, "a held node did not move");
+            assert.deepStrictEqual(nodeById("e").getPosition(), before.e);
+            assert.isFalse(nodeById("c").isPinned(), "and the hold is not a pin");
+        });
+
+        it("is refused by an engine that does not declare `static scoped`", async () => {
+            const error = await failureOf(() => graph.setLayout("test-ring", {}, { scope: { nodes: ["a"] } }));
+
+            assert.strictEqual(error.code, "E_UNSUPPORTED");
         });
     });
 
@@ -1382,6 +1438,38 @@ describe("a third party's layout engine", () => {
                 "and the layout that was working is the one still working",
             );
             assert.isAbove(reported().length, 0, "the consumer heard about it through the graph's error event");
+        });
+    });
+
+    describe("with an accelerator attached", () => {
+        it("runs on the CPU: only the element's own simulation layouts are accelerated", async () => {
+            const fake = createFakeAccelerator();
+            graph.acceleration.setMinNodes(0);
+            graph.acceleration.setAccelerator(fake);
+
+            const engine = await useLayout<RingLayout>("test-ring");
+
+            assert.instanceOf(engine, RingLayout, "the element built the plugin's own class, not a GPU stand-in");
+            for (const node of graph.getNodes()) {
+                const onScreen = node.getPosition();
+                assert.closeTo(
+                    Math.hypot(onScreen.x, onScreen.y),
+                    DEFAULT_RADIUS,
+                    0.5,
+                    `node ${node.id} is on the ring`,
+                );
+            }
+
+            assert.strictEqual(
+                fake.calls.forceAtlas2 + fake.calls.fruchtermanReingold + fake.calls.springElectrical,
+                0,
+            );
+            assert.strictEqual(fake.calls.step, 0, "and the accelerator was never stepped");
+
+            // The same accelerator is live: a built-in simulation layout on this graph takes it.
+            await graph.setLayout("forceatlas2");
+            await graph.operationQueue.waitForCompletion();
+            assert.strictEqual(fake.calls.forceAtlas2, 1);
         });
     });
 });

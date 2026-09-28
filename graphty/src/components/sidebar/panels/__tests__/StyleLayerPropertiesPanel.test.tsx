@@ -128,6 +128,17 @@ describe("StyleLayerPropertiesPanel", () => {
         expect(screen.getByText("the elements carrying results.run-1.value")).toBeInTheDocument();
     });
 
+    it("describes a layer that paints a set rather than counting it as named elements", () => {
+        renderPanel(
+            <StyleLayerPropertiesPanel
+                layer={makeLayer("layer-6", "Suspects", { selector: { match: "member", of: { set: "set_suspects" } } })}
+            />,
+        );
+
+        expect(screen.queryByLabelText("Node Selector")).not.toBeInTheDocument();
+        expect(screen.getByText("the members of a set")).toBeInTheDocument();
+    });
+
     it("draws the node groups for a node layer and the edge groups for an edge layer", () => {
         const { unmount } = renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} />);
 

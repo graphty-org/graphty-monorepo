@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -56,6 +57,8 @@ interface BFSOptions extends Record<string, unknown> {
 export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
     static namespace = "graphty";
     static type = "bfs";
+    /** Walks the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
 
@@ -109,25 +112,22 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
      * @returns The layered result, or null when there is nothing to walk.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input, in row order: its scope's, or every node of the graph.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
         }
 
         const targetNode = this._schemaOptions.targetNode ?? undefined;
-        const declared = this.graph.getDataManager().getSnapshot();
 
-        if (declared.nodeCount === 0) {
-            return null;
-        }
-
-        /* Get source from legacy options, schema options, or use the graph's first node. The
-           DEFAULT comes from the snapshot rather than from the render objects, because the
-           snapshot is what the walk is over: a record the scene has not built a mesh for is in it
-           already, and a record with an id the graph could not store is not. The undirected view
-           renumbers edges, never nodes, so the first node is the same one on either route. */
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? declared.ids.idOf(0);
+        /* Get source from legacy options, schema options, or use the input's first node. The
+           DEFAULT comes from the input rather than from the render objects, because the input is
+           what the walk is over: a record the scene has not built a mesh for is in it already,
+           a record with an id the graph could not store is not, and a scoped run starts from its
+           scope's first node. The undirected view renumbers edges, never nodes, so the first node
+           is the same one on either route. */
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
 
         /* A run that stops early at a target visits a different set of nodes, and no index-based
            port has an early stop, so this one keeps the reference implementation and says so in

@@ -8,9 +8,9 @@
  * which the harness does not read; those numbers are quoted with the file they came from.
  */
 import { screen, within } from "@testing-library/react";
-import { userEvent } from "@vitest/browser/context";
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { DataTable, type DataTableColumn } from "../../src/components/DataTable";
 import { DataRow, DataRowHeader, RankChip } from "../../src/components/rows/DataRow";

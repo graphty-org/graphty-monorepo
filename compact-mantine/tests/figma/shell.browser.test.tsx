@@ -8,8 +8,8 @@
  * Hover, press and focus are driven with real input through the harness.
  */
 import { ActionIcon, Avatar, Badge, Indicator, Kbd, Pill, Tabs, Tooltip } from "@mantine/core";
-import { userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import {
     HelpButton,

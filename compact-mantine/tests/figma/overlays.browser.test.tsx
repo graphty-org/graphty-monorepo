@@ -12,9 +12,9 @@
  * picture.
  */
 import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, Tooltip } from "@mantine/core";
-import { commands, page, userEvent } from "@vitest/browser/context";
 import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { ContextMenu } from "../../src/components/overlays/ContextMenu";
@@ -208,8 +208,13 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 );
                 await drive(part(container, "button"), "open");
                 await waitFor(() => document.querySelector(".mantine-Menu-dropdown"));
-                await userEvent.keyboard("{ArrowDown}");
+                // The theme drops Mantine's focus placeholder, so opening focuses the first row
+                // (the WAI-ARIA menu pattern); down and back up puts the keyboard highlight on it.
                 const first = row(document, "First");
+                await waitFor(() => document.activeElement === first);
+                await userEvent.keyboard("{ArrowDown}");
+                await waitFor(() => document.activeElement === row(document, "Second"));
+                await userEvent.keyboard("{ArrowUp}");
                 await waitFor(() => document.activeElement === first);
                 const pill = await figmaElement(MENU, { index: 352 });
                 expectMeasured(first, figmaSpec(pill, ["backgroundColor"]), { pseudo: "::before" });
@@ -329,7 +334,7 @@ describe("8.1 dark menu keyboard and scroll", () => {
         );
         await userEvent.click(getByRole("button", { name: "Main menu" }));
         await waitFor(() => document.querySelector(".cm-menu"));
-        await userEvent.keyboard("{ArrowDown}");
+        // Opening focuses the first row: the theme drops Mantine's focus placeholder.
         await waitFor(() => (document.activeElement?.textContent?.startsWith("Actions") ? true : null));
         const focused = (): string => document.activeElement?.textContent ?? "";
         await userEvent.keyboard("l");

@@ -1,8 +1,18 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { accelerated, type AlgorithmAccelerator, type PageRankResultLike, toSnapshot } from "../../../src/index.js";
 import { Graph } from "../../../src/core/graph.js";
+import {
+    accelerated,
+    type AcceleratedAlgorithms,
+    type AlgorithmAccelerator,
+    type BfsResultLike,
+    type LabelResultLike,
+    type MstResultLike,
+    type PageRankResultLike,
+    type SsspResultLike,
+    toSnapshot,
+} from "../../../src/index.js";
 
 // No vi.fn anywhere: algorithms has no mock-injection convention (plan decision PD-13) and a plain
 // literal with a closed-over call log proves everything the design asks for.
@@ -36,6 +46,100 @@ describe("accelerated(acc)", () => {
         expect(calls).toEqual(["pageRank"]);
         expect(result).toBe(fixture);
         expect(result.iterations).toBe(7);
+    });
+
+    // One row per dispatcher method. Each fake implements ONLY that method, logs the arguments it
+    // was handed and answers with a sentinel, so a branch wired to the wrong accelerator method,
+    // dropping an argument or running the CPU port instead fails its row.
+    describe("passes the arguments through and returns the accelerator's result", () => {
+        const s = cycle();
+        const source = 2;
+        const options = {};
+        const scores: PageRankResultLike = { scores: Float64Array.of(1, 0, 0), iterations: 1, converged: true };
+        const labels: LabelResultLike = { labels: Uint32Array.of(0, 0, 0), count: 1, groups: () => [] };
+        const bfs: BfsResultLike = {
+            depth: Uint32Array.of(1, 1, 0),
+            parent: Uint32Array.of(2, 2, 2),
+            order: Uint32Array.of(2, 0, 1),
+            visitedCount: 3,
+        };
+        const sssp: SsspResultLike = { dist: Float32Array.of(9, 9, 0), predArc: Uint32Array.of(1, 1, 1) };
+        const mst: MstResultLike = { edges: Uint32Array.of(0), totalWeight: 42 };
+
+        interface Row {
+            readonly method: keyof AlgorithmAccelerator & keyof AcceleratedAlgorithms;
+            readonly fake: (log: unknown[][]) => AlgorithmAccelerator;
+            readonly run: (d: AcceleratedAlgorithms) => Promise<unknown>;
+            readonly args: unknown[];
+            readonly sentinel: object;
+        }
+        const rows: Row[] = [
+            {
+                method: "pageRank",
+                fake: (log) => ({ kind: "fake", pageRank: (...a) => (log.push(a), Promise.resolve(scores)) }),
+                run: (d) => d.pageRank(s, options),
+                args: [s, options],
+                sentinel: scores,
+            },
+            {
+                method: "sssp",
+                fake: (log) => ({ kind: "fake", sssp: (...a) => (log.push(a), Promise.resolve(sssp)) }),
+                run: (d) => d.sssp(s, source, options),
+                args: [s, source, options],
+                sentinel: sssp,
+            },
+            {
+                method: "breadthFirstSearch",
+                fake: (log) => ({ kind: "fake", breadthFirstSearch: (...a) => (log.push(a), Promise.resolve(bfs)) }),
+                run: (d) => d.breadthFirstSearch(s, source, options),
+                args: [s, source, options],
+                sentinel: bfs,
+            },
+            {
+                method: "connectedComponents",
+                fake: (log) => ({
+                    kind: "fake",
+                    connectedComponents: (...a) => (log.push(a), Promise.resolve(labels)),
+                }),
+                run: (d) => d.connectedComponents(s),
+                args: [s],
+                sentinel: labels,
+            },
+            {
+                method: "weaklyConnectedComponents",
+                fake: (log) => ({
+                    kind: "fake",
+                    weaklyConnectedComponents: (...a) => (log.push(a), Promise.resolve(labels)),
+                }),
+                run: (d) => d.weaklyConnectedComponents(s),
+                args: [s],
+                sentinel: labels,
+            },
+            {
+                method: "minimumSpanningTree",
+                fake: (log) => ({ kind: "fake", minimumSpanningTree: (...a) => (log.push(a), Promise.resolve(mst)) }),
+                run: (d) => d.minimumSpanningTree(s, options),
+                args: [s, options],
+                sentinel: mst,
+            },
+        ];
+
+        it.each(rows)("$method", async ({ method, fake, run, args, sentinel }) => {
+            const log: unknown[][] = [];
+            const result = await run(accelerated(fake(log)));
+            expect(log).toHaveLength(1);
+            expect(log[0]).toHaveLength(args.length);
+            args.forEach((arg, i) => expect(log[0][i]).toBe(arg));
+            if (method === "sssp") {
+                // The dispatcher wraps an SSSP result to add pathTo / pathEdges, so it is a new
+                // object; the accelerator's own vectors must still come back untouched.
+                const decorated = result as SsspResultLike;
+                expect(decorated.dist).toBe(sssp.dist);
+                expect(decorated.predArc).toBe(sssp.predArc);
+            } else {
+                expect(result).toBe(sentinel);
+            }
+        });
     });
 
     it("runs the CPU port for a method the accelerator does NOT have", async () => {
@@ -109,12 +213,73 @@ describe("accelerated(acc)", () => {
         expect(mst.edges.length).toBe(2);
     });
 
-    it("carries exactly the six methods whose ports exist", () => {
+    it("runs the CPU port for the four ports that arrived with the structure and community family", async () => {
+        const s = cycle();
+        const undirected = s.toUndirected().snapshot;
+        const cpu = accelerated(null);
+        const coreness = await cpu.kCoreDecomposition(undirected);
+        expect([...coreness.coreness]).toEqual([2, 2, 2]);
+        const katz = await cpu.katzCentrality(s, { normalized: false });
+        expect(katz.scores.length).toBe(3);
+        const scores = await cpu.hits(s);
+        expect(scores.hubs.length).toBe(3);
+        expect(scores.authorities.length).toBe(3);
+        const communities = await cpu.louvain(undirected);
+        expect(communities.count).toBe(1);
+        expect(communities.modularity).toBeCloseTo(0, 12);
+    });
+
+    it("delegates the new four to an accelerator that has them", async () => {
+        const s = cycle();
+        const undirected = s.toUndirected().snapshot;
+        const calls: string[] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            kCoreDecomposition: () => {
+                calls.push("kCoreDecomposition");
+                return Promise.resolve({ coreness: Uint32Array.of(9, 9, 9) });
+            },
+            katzCentrality: () => {
+                calls.push("katzCentrality");
+                return Promise.resolve({ scores: Float32Array.of(1, 1, 1), iterations: 1, converged: true });
+            },
+            hits: () => {
+                calls.push("hits");
+                return Promise.resolve({
+                    hubs: Float32Array.of(1, 0, 0),
+                    authorities: Float32Array.of(0, 1, 0),
+                    iterations: 1,
+                    converged: true,
+                });
+            },
+            louvain: () => {
+                calls.push("louvain");
+                return Promise.resolve({
+                    labels: Uint32Array.of(0, 0, 0),
+                    count: 1,
+                    groups: () => [Uint32Array.of(0, 1, 2)],
+                    modularity: 0,
+                });
+            },
+        };
+        const dispatcher = accelerated(fake);
+        expect((await dispatcher.kCoreDecomposition(undirected)).coreness[0]).toBe(9);
+        expect((await dispatcher.katzCentrality(s)).scores).toBeInstanceOf(Float32Array);
+        expect((await dispatcher.hits(s)).hubs).toBeInstanceOf(Float32Array);
+        expect((await dispatcher.louvain(undirected)).count).toBe(1);
+        expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
+    });
+
+    it("carries exactly the ten methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
             "breadthFirstSearch",
             "connectedComponents",
+            "hits",
+            "kCoreDecomposition",
+            "katzCentrality",
+            "louvain",
             "minimumSpanningTree",
             "pageRank",
             "sssp",

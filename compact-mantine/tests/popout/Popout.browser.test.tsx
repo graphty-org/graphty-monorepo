@@ -1,8 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { page } from "@vitest/browser/context";
 import { beforeAll, describe, expect, it } from "vitest";
+import { page } from "vitest/browser";
 
 import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";

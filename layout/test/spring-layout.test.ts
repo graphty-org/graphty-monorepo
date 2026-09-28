@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { springLayout, completeGraph, cycleGraph, starGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, randomGraph,springLayout, starGraph } from "../src";
 
 describe("Spring Layout", () => {
     describe("Basic functionality", () => {

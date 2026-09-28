@@ -1970,16 +1970,18 @@ export class DataManager implements Manager {
 
     /**
      * Get statistics about the data
-     * @returns Object containing node count, edge count, and cached mesh count
+     * @returns the node and edge counts the graph holds -- the same numbers `statistics()` and the
+     *     stats panel give -- and the cached mesh count
      */
     getStats(): {
         nodeCount: number;
         edgeCount: number;
         cachedMeshes: number;
     } {
+        const { nodes, edges } = this.heldCounts();
         return {
-            nodeCount: this.nodes.size,
-            edgeCount: this.edges.size,
+            nodeCount: nodes,
+            edgeCount: edges,
             cachedMeshes: this.meshCache.size(),
         };
     }

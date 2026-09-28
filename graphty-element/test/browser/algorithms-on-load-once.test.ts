@@ -8,6 +8,7 @@
 
 import "../../src/algorithms";
 
+import { ActionManager } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graph } from "../../src/Graph.js";
@@ -93,6 +94,28 @@ describe("the load-time algorithm list", () => {
         await made.addEdges([{ source: "n0", target: "n9" }]);
         await settle(made);
 
+        assert.deepStrictEqual(Object.fromEntries(starts), { degree: 2, pagerank: 2 });
+    });
+
+    test("starts each algorithm again when double-clicking a node expands its neighbourhood", async () => {
+        const { graph: made, starts } = await makeGraph();
+        made.setLayoutBehavior({
+            fetchEdges: () => new Set([{ source: "n0", target: "x1" }]),
+            fetchNodes: () => [{ id: "x1" }],
+        });
+
+        await made.addNodes([{ id: "n0" }]);
+        await settle(made);
+        assert.deepStrictEqual(Object.fromEntries(starts), { degree: 1, pagerank: 1 });
+
+        const node = made.getDataManager().getNode("n0");
+        assert.isDefined(node);
+        const action = node.mesh.actionManager?.actions.find((a) => a.trigger === ActionManager.OnDoublePickTrigger);
+        assert.isDefined(action, "double-clicking a node does something");
+        (action as unknown as { execute: () => void }).execute();
+        await settle(made);
+
+        assert.isDefined(made.getDataManager().getNode("x1"), "the expansion added the fetched node");
         assert.deepStrictEqual(Object.fromEntries(starts), { degree: 2, pagerank: 2 });
     });
 });

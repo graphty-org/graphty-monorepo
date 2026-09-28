@@ -455,5 +455,11 @@ describe("DataManager answers edge lookups from the store", () => {
         const snapshot = dm.getSnapshot();
         assert.deepStrictEqual(dm.heldCounts(), { nodes: snapshot.nodeCount, edges: snapshot.edgeCount });
         assert.strictEqual(dm.heldCounts().edges, 3, "pending edges are in the graph too");
+        assert.strictEqual(dm.heldCounts().nodes, 3, "so are endpoints no record declared as a node");
+        assert.deepStrictEqual(
+            [dm.getStats().nodeCount, dm.getStats().edgeCount],
+            [3, 3],
+            "getStats gives the same numbers",
+        );
     });
 });

@@ -146,7 +146,7 @@ describe("Node Behavior Tests", () => {
         assert.equal(mockSetNodePosition.mock.calls.length, 0);
     });
 
-    test("double-click expansion triggers fetch when fetchNodes/fetchEdges exist", () => {
+    test("double-click expansion triggers fetch when fetchNodes/fetchEdges exist", async () => {
         const fetchNodes = vi.fn().mockReturnValue([
             { id: "node2", data: {} },
             { id: "node3", data: {} },
@@ -203,12 +203,13 @@ describe("Node Behavior Tests", () => {
         assert.isTrue(nodeIds.has("node3"));
         assert.isFalse(nodeIds.has("test-node-5")); // Should exclude current node
 
-        // Verify data manager methods were called
+        // Verify data manager methods were called, once the queued adds have run
+        await graph.operationQueue.waitForCompletion();
         assert.equal(addNodesSpy.mock.calls.length, 1);
         assert.equal(addEdgesSpy.mock.calls.length, 1);
     });
 
-    test("double-click expansion reads the endpoints a canonical fetchEdges returns", () => {
+    test("double-click expansion reads the endpoints a canonical fetchEdges returns", async () => {
         // The handler used to read `e.src` and `e.dst` off whatever `fetchEdges` returned, so a
         // consumer following the guides -- which teach `source`/`target` everywhere -- collected a
         // set of `undefined` neighbours, fetched nothing, and left the edges pending for ever.
@@ -249,6 +250,7 @@ describe("Node Behavior Tests", () => {
 
         const nodeIds = fetchNodes.mock.calls[0][0];
         assert.deepStrictEqual([...nodeIds].sort(), ["node2", "node3"], "the handler found the neighbours to fetch");
+        await graph.operationQueue.waitForCompletion();
         assert.equal(addNodesSpy.mock.calls.length, 1);
         assert.equal(addEdgesSpy.mock.calls.length, 1);
 

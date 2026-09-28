@@ -70,10 +70,16 @@ export function caughtFailure(errors: readonly unknown[]): Error | undefined {
     });
 }
 
-/** Let queued microtasks and a few macrotasks run, so a late throw lands before the check. */
+/**
+ * Let queued microtasks run, so an error rethrown from a microtask -- the derivation lane's
+ * default report -- lands before the check. No macrotask: with a render loop running each one
+ * waits behind a frame, and a hundred-sequence property paid seconds for them. An unhandled
+ * rejection, which the browser reports in a task of its own, is caught by the test's afterEach
+ * instead (test/setup.ts).
+ */
 async function flush(): Promise<void> {
-    for (let i = 0; i < 3; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let i = 0; i < 10; i++) {
+        await Promise.resolve();
     }
 }
 

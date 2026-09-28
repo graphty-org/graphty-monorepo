@@ -1,7 +1,6 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { floydWarshall } from "../../../src/algorithms/shortest-path/floyd-warshall.js";
 import { Graph } from "../../../src/core/graph.js";
 import { PathWalkError } from "../../../src/errors.js";
 import { allPairsShortestPath, type ApspResult } from "../../../src/indexed/all-pairs.js";
@@ -552,24 +551,20 @@ describe("indexed.allPairsShortestPath -- paths", () => {
     });
 });
 
-describe("indexed.allPairsShortestPath -- against the shipped floydWarshall", () => {
-    // The shipped function is the reference here and nowhere else; fixtures are at most 90 nodes.
+describe("indexed.allPairsShortestPath -- against the textbook sweep on every port fixture", () => {
+    // The textbook k-i-j sweep in node order over the exact f64 weights is what the shipped
+    // floydWarshall computed before it delegated here; fixtures are at most 90 nodes.
     it("matches bit for bit with the f64 override, and exactly by default", () => {
         for (const { name, graph } of allFixtures()) {
             const s = checksummedSnapshot(graph);
-            const legacy = floydWarshall(graph);
+            const reference = floydWarshallOracle(s, f64Weights(s));
             const exact = allPairsShortestPath(s, { method: "floyd-warshall", weights: f64Weights(s) });
             const auto = allPairsShortestPath(s);
-            expect(legacy.hasNegativeCycle, name).toBe(false);
             expect(exact.hasNegativeCycle, name).toBe(false);
             const { n } = exact;
-            for (let i = 0; i < n; i++) {
-                const row = legacy.distances.get(s.ids.idOf(i));
-                for (let j = 0; j < n; j++) {
-                    const expected = row?.get(s.ids.idOf(j));
-                    expect(Object.is(exact.dist[i * n + j], expected), `${name} ${String(i)}->${String(j)}`).toBe(true);
-                    expect(auto.dist[i * n + j], `${name} ${String(i)}->${String(j)}`).toBe(expected);
-                }
+            for (let i = 0; i < n * n; i++) {
+                expect(Object.is(exact.dist[i], reference[i]), `${name} ${String(i)}`).toBe(true);
+                expect(auto.dist[i], `${name} ${String(i)}`).toBe(reference[i]);
             }
             s.validate({ checksum: true });
         }

@@ -43,7 +43,7 @@ import { resolveNodeVector, resolveWeights } from "./inputs";
 import type { ForceAtlas2Options, LayoutSimulation } from "./types";
 
 /** The constructor's options: the FA2 options of design 9.3 plus the force-law mode of D5. */
-type ForceAtlas2SimulationOptions = ForceAtlas2Options & { readonly compat?: "paper" | "networkx" | undefined };
+export type ForceAtlas2SimulationOptions = ForceAtlas2Options & { readonly compat?: "paper" | "networkx" | undefined };
 
 /** The options after FA2_DEFAULTS and validation (design 7.14). */
 interface ResolvedOptions {

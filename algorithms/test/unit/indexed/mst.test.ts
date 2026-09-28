@@ -1,10 +1,14 @@
-import { expandEdges } from "@graphty/graph-format";
+import { expandEdges, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { kruskalMST as legacyKruskalMST } from "../../../src/algorithms/mst/kruskal.js";
+import { primMST as legacyPrimMST } from "../../../src/algorithms/mst/prim.js";
 import { Graph } from "../../../src/core/graph.js";
-import { kruskalMST } from "../../../src/indexed/mst.js";
+import { exactArcWeights } from "../../../src/indexed/facade.js";
+import { kruskalMST, primMST, type PrimResult } from "../../../src/indexed/mst.js";
+import type { Edge } from "../../../src/types/index.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
 // a = 0, b = 1, c = 2, d = 3; edges e0 a-b, e1 a-c, e2 b-d, e3 c-d (insertion order, invariant I14).
 function diamond(weights: readonly [number, number, number, number] = [1, 4, 1, 1]): Graph {
@@ -86,5 +90,161 @@ describe("indexed.kruskalMST", () => {
         expect([...ported.edges].sort()).toEqual([...viaF32.edges].sort());
         expect(Math.abs(ported.totalWeight - legacy.totalWeight)).toBeLessThan(1e-12);
         s.validate({ checksum: true });
+    });
+});
+
+/** An edge as an orientation-free key with its weight. */
+const pairKey = (a: unknown, b: unknown, w: number): string =>
+    `${[String(a), String(b)].sort().join("|")}:${String(w)}`;
+
+function portKeys(s: GraphSnapshot, r: PrimResult, weights: ArrayLike<number> | null): string[] {
+    const { src, dst, arc } = s.edgeList();
+    return Array.from(r.edges, (e) =>
+        pairKey(s.ids.idOf(src[e]), s.ids.idOf(dst[e]), weights === null ? 1 : weights[arc[e]]),
+    );
+}
+
+const legacyKeys = (edges: Edge[]): string[] => edges.map((e) => pairKey(e.source, e.target, e.weight ?? 1));
+
+/** The node sets of the components, each in index order, ordered by their lowest index. */
+function componentsByIndex(s: GraphSnapshot): number[][] {
+    const seen = new Uint8Array(s.nodeCount);
+    const out: number[][] = [];
+    for (let root = 0; root < s.nodeCount; root++) {
+        if (seen[root] === 1) {
+            continue;
+        }
+        const members: number[] = [];
+        const stack = [root];
+        seen[root] = 1;
+        while (stack.length > 0) {
+            const u = stack.pop() ?? 0;
+            members.push(u);
+            for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+                if (seen[s.colIdx[a]] === 0) {
+                    seen[s.colIdx[a]] = 1;
+                    stack.push(s.colIdx[a]);
+                }
+            }
+        }
+        out.push(members.sort((x, y) => x - y));
+    }
+    return out;
+}
+
+describe("indexed.primMST", () => {
+    const fixtures = undirectedFixtures().flatMap(({ name, graph }) => [
+        { name, graph, offGrid: false },
+        { name: `${name}, off-grid weights`, graph: offGridWeights(graph), offGrid: true },
+    ]);
+
+    it("equals legacy primMST exactly on every connected fixture, and refuses the rest as legacy does", () => {
+        for (const { name, graph, offGrid } of fixtures) {
+            const s = checksummedSnapshot(graph);
+            const weights = exactArcWeights(s);
+            expect(weights !== undefined, name).toBe(offGrid);
+            let legacy: ReturnType<typeof legacyPrimMST> | null = null;
+            try {
+                legacy = legacyPrimMST(graph);
+            } catch (e) {
+                expect((e as Error).message, name).toBe("Graph is not connected");
+            }
+            if (legacy === null) {
+                expect(() => primMST(s, { weights }), name).toThrow("Graph is not connected");
+                continue;
+            }
+            const r = primMST(s, { weights });
+            expect(r.edges.length, name).toBe(legacy.edges.length);
+            expect(r.totalWeight, name).toBe(legacy.totalWeight);
+            if (offGrid) {
+                // distinct weights leave one tree, taken in one order
+                expect(portKeys(s, r, weights ?? null), name).toEqual(legacyKeys(legacy.edges));
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("spans every component with the forest option, as legacy Prim run per component", () => {
+        for (const { name, graph, offGrid } of fixtures) {
+            const s = checksummedSnapshot(graph);
+            const weights = exactArcWeights(s);
+            const r = primMST(s, { weights, forest: true });
+            const components = componentsByIndex(s);
+            const expected: Edge[] = [];
+            let total = 0;
+            for (const members of components) {
+                const inside = new Set(members.map((i) => s.ids.idOf(i)));
+                const sub = new Graph({ directed: false });
+                for (const id of inside) {
+                    sub.addNode(id);
+                }
+                for (const e of graph.edges()) {
+                    if (inside.has(e.source)) {
+                        sub.addEdge(e.source, e.target, e.weight);
+                    }
+                }
+                const part = legacyPrimMST(sub);
+                expected.push(...part.edges);
+                total += part.totalWeight;
+            }
+            expect(r.edges.length, name).toBe(s.nodeCount - components.length);
+            expect(r.edges.length, name).toBe(expected.length);
+            expect(r.totalWeight, name).toBe(total);
+            if (offGrid) {
+                expect(portKeys(s, r, weights ?? null), name).toEqual(legacyKeys(expected));
+            }
+            // one root per component, the component's lowest index
+            const roots = Array.from(r.predArc.keys()).filter((v) => r.predArc[v] === INVALID_INDEX);
+            expect(roots, name).toEqual(components.map((c) => c[0]));
+        }
+    });
+
+    it("records each tree node's discovery arc as predArc", () => {
+        const { graph } = undirectedFixtures()[7];
+        const s = checksummedSnapshot(graph);
+        const r = primMST(s, { start: 5 });
+        expect(r.predArc[5]).toBe(INVALID_INDEX);
+        const onTree = new Set(r.edges);
+        for (let v = 0; v < s.nodeCount; v++) {
+            if (v === 5) {
+                continue;
+            }
+            const arc = r.predArc[v];
+            expect(s.colIdx[arc]).toBe(v);
+            expect(onTree.has(s.arcToEdge[arc])).toBe(true);
+        }
+        expect(r.totalWeight).toBe(s.nodeCount - 1);
+    });
+
+    it("starts where legacy is told to start", () => {
+        const g = offGridWeights(undirectedFixtures()[6].graph);
+        const s = checksummedSnapshot(g);
+        const weights = exactArcWeights(s);
+        const r = primMST(s, { weights, start: 9 });
+        const legacy = legacyPrimMST(g, s.ids.idOf(9));
+        expect(portKeys(s, r, weights ?? null)).toEqual(legacyKeys(legacy.edges));
+        expect(r.totalWeight).toBe(legacy.totalWeight);
+    });
+
+    it("takes the exact cheapest parallel edge, and follows the override", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", 4);
+        b.addEdge("a", "b", 1);
+        b.addEdge("b", "c", 2);
+        const s = b.freeze({ checksum: true });
+        expect(Array.from(primMST(s).edges)).toEqual([1, 2]);
+        const r = primMST(s, { weights: expandEdges(s, Float64Array.of(0.5, 3, 2)) });
+        expect(Array.from(r.edges)).toEqual([0, 2]);
+        expect(r.totalWeight).toBe(2.5);
+        s.validate({ checksum: true });
+    });
+
+    it("refuses a directed snapshot and returns nothing for an empty one", () => {
+        const directed = new GraphBuilder({ directed: true });
+        directed.addEdge("a", "b", 1);
+        expect(() => primMST(directed.freeze())).toThrow("Prim's algorithm requires an undirected graph");
+        const empty = primMST(new GraphBuilder({ directed: false }).freeze());
+        expect(empty.edges.length).toBe(0);
+        expect(empty.totalWeight).toBe(0);
     });
 });

@@ -24,7 +24,7 @@ export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
-export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
+export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions, type PrimResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";

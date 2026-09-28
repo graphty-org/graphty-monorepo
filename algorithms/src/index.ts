@@ -105,7 +105,7 @@ export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,
 } from "./indexed/louvain.js";
-export type { MstOptions, MstResult } from "./indexed/mst.js";
+export type { MstOptions, MstResult, PrimOptions, PrimResult } from "./indexed/mst.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {
     PageRankOptions as IndexedPageRankOptions,

@@ -854,6 +854,8 @@ describe("dot importer: sniff and metadata", () => {
         expect(dotImporter.sniff?.(encode("graphml"))).toBe(0);
         expect(dotImporter.sniff?.(encode("graph,id,name\ng1,1,x\n"))).toBe(0);
         expect(dotImporter.sniff?.(encode("graph\n{ a }"))).toBe(0.95);
+        expect(dotImporter.sniff?.(encode('digraph"G"{a->b}'))).toBe(0.95);
+        expect(dotImporter.sniff?.(encode("digraph/* c */G{a->b}"))).toBe(0.95);
         expect(dotImporter.sniff?.(encode("/* unterminated"))).toBe(0);
         expect(dotImporter.sniff?.(encode("// only"))).toBe(0);
     });

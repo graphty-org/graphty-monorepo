@@ -186,7 +186,8 @@ const CLUSTER_ATTRIBUTE = "cluster";
 const STATEMENTS_PER_ABORT_CHECK = 64;
 const MAX_ANCESTOR_WALK = 4096;
 
-const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=\s|\{|$)/i;
+/** The header keyword, ended by what may follow it in DOT: space, `{`, a quoted ID or a comment. */
+const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
 const POINT_TEXT =
     /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;

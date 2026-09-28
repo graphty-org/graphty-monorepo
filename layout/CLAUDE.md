@@ -45,6 +45,10 @@ npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
 
+In a git worktree under `.worktrees/`, build `webgpu-graph-algorithms` and `graphty-element` in that worktree
+before the root `pnpm run docs:build`. Without their `dist/`, module lookup climbs out of the worktree into the main
+checkout's `node_modules`, and TypeDoc fails on two copies of the graph-format types. CI builds everything first.
+
 ## Graph generators
 
 Layout has no graph generators since 2.0.0: `@graphty/graph-samples/generators` has them, returning a `SampleGraph`
@@ -72,8 +76,10 @@ absence of every name 2.0.0 removed; a changed parameter list, options type or r
   (or node-index groups) and the public function that resolves options and calls it. A layout that reads edges takes
   a directed snapshot as its undirected derived graph.
 - `force.ts`: `forceAtlas2` and `fruchtermanReingold` run the steppable CPU simulations (`src/simulation/`) to the
-  end of their budget, then rescale. `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and
-  runs the existing solver; `arf` is its own loop, unrescaled, as networkx has it.
+  end of their budget, then rescale.
+- `kamada-kawai.ts`: `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and runs the existing
+  solver.
+- `arf.ts`: `arf` is its own loop, unrescaled, as networkx has it.
 
 ### Golden fixtures
 

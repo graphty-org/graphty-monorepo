@@ -72,11 +72,13 @@ Every layout has the same shape, `(snapshot, options?) => LayoutResult`. A `Layo
 - **Common options**: `dim` (2 or 3, default 2), `scale` (default 1), `center` (default the origin) and `seed` (for
   the layouts that draw random numbers; the same seed gives the same layout).
 - **Nodes are indices.** Options that name nodes (`root`, `start`, `top`, `subsets`, `nlist`) take node indices,
-  a node mask or the name of a node column of the snapshot, never node ids. Use `s.ids.indexOf(id)` to find one.
+  a node mask or the name of a node column of the snapshot, never node ids. Use `s.ids.indexOf(id)` to find one;
+  for an id that is not in the graph it returns `INVALID_INDEX` (0xffffffff), not -1.
 - **Weights** come from the snapshot: `weight: true` reads its edge weights and a string names a numeric edge column.
   `kamadaKawai` reads weights as distances.
 - **Start positions** (`pos`) are a `Float32Array` of `dim` values per node in index order. For the force layouts
-  and `arf` a row holding `NaN` is drawn from `seed`; `kamadaKawai` reads `NaN` as 0.
+  and `arf` each `NaN` component is drawn from `seed` and the finite components of the same row are kept;
+  `kamadaKawai` reads `NaN` as 0.
 - **Unplaced nodes**: `shell` and `multipartite` leave the row of a node in no shell or layer as `NaN`.
 - **Directed snapshots** are laid out as their undirected copy by every layout that reads edges.
 
@@ -193,7 +195,7 @@ Where the results differ from 1.x:
   `kamadaKawaiLayout` also accepted other dimensions.
 - `fruchtermanReingold` rejects a negative or infinite `k`, which `fruchtermanReingoldLayout` ran through its older
   loop, and leaves a pinned single node where `pos` put it (1.x moved it to `center`).
-- `bipartite` and `multipartite` centre a horizontal layout on `center`; 1.x's functions centred it on
+- `bfs`, `bipartite` and `multipartite` centre a horizontal layout on `center`; 1.x's functions centred it on
   `[center[1], center[0]]`.
 - Positions are `Float32Array` values; 1.x returned f64 numbers.
 

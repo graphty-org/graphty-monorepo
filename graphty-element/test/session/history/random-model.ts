@@ -928,8 +928,15 @@ class Layout implements Command {
                 layout.play();
             }
 
-            model.moved ||= layout.running;
+            const running = layout.running;
+            model.moved ||= running;
             layout.step();
+            if (running && !layout.running) {
+                // The layout came to rest in that frame (a large min delta settles it at once):
+                // a rest point, which seals like any other.
+                sealModel(model, real);
+                followEviction(model, real, "the rest point");
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-import { INVALID_INDEX } from "@graphty/graph-format";
+import { INVALID_INDEX, maskTest, type NodeMask } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
@@ -146,6 +146,25 @@ export interface LayoutEngineStatics {
      */
     honoursWeights?: boolean;
     /**
+     * Whether this engine can lay out a set of nodes while holding every other node still, which is
+     * what `setLayout(type, opts, { scope })` asks of it.
+     *
+     * Optional, and false unless declared: an engine that says nothing refuses a scope with
+     * `E_UNSUPPORTED`, so no existing engine is handed a hold it never agreed to.
+     *
+     * THE CONTRACT A SCOPED ENGINE ACCEPTS. The element hands it a hold mask through
+     * {@link LayoutEngine.setHoldMask} after `init()` and again whenever the graph is renumbered,
+     * and the protected `writeNodePosition` already refuses a layout write onto a held row that
+     * has a coordinate -- so a held node never MOVES under any engine. That alone is not enough:
+     * an engine that keeps integrating a held body computes every force on its members against a
+     * position the element will never draw. A scoped engine must therefore treat held nodes as
+     * fixed in its own state -- a fixed-node mask, `fx`/`fy`, a pinned body -- read through
+     * the protected `isHeld(index)`, including for a node added after the hold was set and a node a
+     * reader unpins while it is held. The hold is never a pin: it is not written to the element's
+     * pin lane, so it never leaks into saved pins or exports.
+     */
+    scoped?: boolean;
+    /**
      * What the catalogue publishes about this layout, so a picker can offer it.
      *
      * REQUIRED OF A THIRD PARTY'S ENGINE and absent from the element's own nineteen, whose
@@ -277,6 +296,15 @@ export abstract class LayoutEngine {
     static honoursWeights = false;
 
     /**
+     * Whether this engine accepts a scope. See {@link LayoutEngineStatics.scoped}, which states the
+     * contract a scoped engine accepts.
+     *
+     * False here because a one-shot arrangement recomputes every coordinate from scratch, and
+     * where it would place a subset among nodes it may not move is a question nothing answers yet.
+     */
+    static scoped = false;
+
+    /**
      * What a picker reads about this layout. See {@link LayoutEngineStatics.descriptor}.
      *
      * A third party's engine declares one and {@link LayoutEngine.register} publishes it to the
@@ -318,6 +346,12 @@ export abstract class LayoutEngine {
      * would silently swap that array for the one its own graph owns.
      */
     private positionArrayAttached = false;
+
+    /** The rows the element is holding still, or null when nothing is held. See {@link setHoldMask}. */
+    private hold: NodeMask | null = null;
+
+    /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
+    private holdRows = 0;
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -461,6 +495,45 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Hold the nodes a scoped layout may not move, or release them all with null.
+     *
+     * The element calls this on an engine whose class declares `static scoped = true`, after
+     * `init()` and after every renumbering of the graph. A set bit is a held row. A row at or past
+     * `rows` belongs to a node that arrived after the scope was captured, and is held too: the
+     * members of a scoped layout are the ones it started with. An engine that overrides this calls
+     * `super.setHoldMask` first and then fixes held nodes in its own state (see
+     * {@link LayoutEngineStatics.scoped}).
+     * @param mask - One bit per row, set for a row to hold; null holds nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    setHoldMask(mask: NodeMask | null, rows: number): void {
+        this.hold = mask;
+        this.holdRows = mask === null ? 0 : rows;
+    }
+
+    /**
+     * The hold mask the element last handed this engine, or null when nothing is held.
+     * @returns The mask, which the caller must not change.
+     */
+    get holdMask(): NodeMask | null {
+        return this.hold;
+    }
+
+    /**
+     * Whether the element is holding this row still for a scoped layout.
+     * @param index - The node's row, or `INVALID_INDEX`.
+     * @returns True while a hold is set and the row is held or newer than the hold.
+     */
+    protected isHeld(index: number): boolean {
+        const { hold } = this;
+        if (hold === null) {
+            return false;
+        }
+
+        return index >= this.holdRows || !Number.isInteger(index) || index < 0 || maskTest(hold, index);
+    }
+
+    /**
      * Copy every node's current coordinates out of the engine and into the position array.
      *
      * Engines call this at the end of a step, so that by the time anything draws, the array is the
@@ -573,7 +646,10 @@ export abstract class LayoutEngine {
         }
 
         const positions = this.positionsFor(n);
-        if (intent === "layout" && positions.isPinned(index)) {
+        // A HELD ROW IS REFUSED LIKE A PINNED ONE, once it has a coordinate. A node that arrived
+        // after a scoped layout started has none, and its first coordinate lands so that it is
+        // drawn somewhere; from then on it stays where that put it.
+        if (intent === "layout" && (positions.isPinned(index) || (this.isHeld(index) && positions.isPlaced(index)))) {
             return false;
         }
 
@@ -792,12 +868,16 @@ export abstract class LayoutEngine {
         // an engine reachable by name whose descriptor nothing carries is exactly the half-built
         // state this check exists to prevent.
         //
-        // `honoursWeights` is taken from the class rather than from the descriptor the author
+        // `honoursWeights` and `scoped` are taken from the class rather than from the descriptor the author
         // wrote, because the engine is where the fact is true: a descriptor that claimed weights
         // for an engine whose arrangement ignores them would put a live control in front of a
         // reader that changes nothing.
         publishLayoutDescriptor({
-            descriptor: { ...descriptor, honoursWeights: declared.honoursWeights ?? false },
+            descriptor: {
+                ...descriptor,
+                honoursWeights: declared.honoursWeights ?? false,
+                scoped: declared.scoped ?? false,
+            },
             type,
         });
         layoutEngineRegistry.set(type, cls);

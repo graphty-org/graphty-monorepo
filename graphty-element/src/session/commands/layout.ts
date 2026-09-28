@@ -2,8 +2,11 @@
  * @file The layout ops: which layout draws the graph and in how many dimensions, and the two
  * exempt controls beside them.
  *
- * - `layout.set`: choose the layout (a catalogue id, the engine that draws it, its options). One
- *   undoable step.
+ * - `layout.set`: choose the layout (a catalogue id, the engine that draws it, its options, and
+ *   optionally what it runs over). One undoable step.
+ * - `layout.scope`: change what layouts run over, keeping the layout. One undoable step, written
+ *   at once so a layout still waiting for its turn carries it; the `layout` hook restarts the
+ *   running layout over it. Never refused for a scope that resolves to nothing.
  * - `view.dimension`: draw in 2D or 3D. One undoable step. The dimension lives in the `layout`
  *   slice and nowhere else: the merged `Styles.config` computes `graph.viewMode` and `graph.twoD`
  *   from it, and the renderer's `layout` hook writes `scene.metadata.twoD` from it.
@@ -19,7 +22,7 @@
  */
 
 import { layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
-import type { LayoutId } from "../../catalog/types";
+import type { LayoutId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { LayoutChoice } from "../project/state";
@@ -33,10 +36,22 @@ export interface LayoutSetCommand {
     readonly engine?: string;
     /** The engine's options. */
     readonly options?: Readonly<Record<string, unknown>>;
+    /**
+     * What it runs over, canonical: absent keeps the scope the slice holds, `"graph"` clears it.
+     * A scope named here is refused when the engine cannot hold nodes still or nothing is in it.
+     */
+    readonly scope?: Scope;
     /** Choices with the same key coalesce while the first waits its turn (the element's property pair). */
     readonly coalesce?: string;
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+}
+
+/** `layout.scope`: change what layouts run over; `"graph"` for the whole graph. */
+interface LayoutScopeCommand {
+    readonly op: "layout.scope";
+    /** The scope, canonical. */
+    readonly scope: Scope;
 }
 
 /** `view.dimension`: draw the graph in two or three dimensions. */
@@ -60,7 +75,12 @@ interface ViewImmersiveCommand {
 }
 
 /** Every layout op. */
-export type LayoutCommand = LayoutSetCommand | ViewDimensionCommand | LayoutTransportCommand | ViewImmersiveCommand;
+export type LayoutCommand =
+    | LayoutSetCommand
+    | LayoutScopeCommand
+    | ViewDimensionCommand
+    | LayoutTransportCommand
+    | ViewImmersiveCommand;
 
 /** The renderer's layout, as the layout ops reach it. A session that draws nothing has none. */
 export interface LayoutService {
@@ -70,9 +90,11 @@ export interface LayoutService {
      * @param choice - The choice, as the slice now holds it.
      * @param signal - Fires when the command is cancelled or made obsolete; the pre-steps then
      *     stop without publishing anything.
+     * @param explicitScope - Whether the command named the scope, the only case in which a scope
+     *     the engine cannot hold, or that holds nothing, is refused.
      * @returns Settles once the pre-steps have landed.
      */
-    apply(choice: LayoutChoice, signal: AbortSignal): Promise<void>;
+    apply(choice: LayoutChoice, signal: AbortSignal, explicitScope: boolean): Promise<void>;
     /**
      * Play or pause the layout.
      * @param action - Which.
@@ -108,23 +130,38 @@ function choiceOf(command: LayoutSetCommand, current: LayoutChoice | null): Layo
     const known = layoutDescriptor(command.id);
     const id = known === undefined ? (layoutIdForEngine(command.id) ?? command.id) : command.id;
     const engine = command.engine ?? known?.engine ?? command.id;
+    const scope = command.scope === undefined ? current?.scope : command.scope;
 
-    return Object.freeze({
-        id,
-        engine,
-        options: Object.freeze({ ...command.options }),
-        dimension: (current ?? DEFAULT_LAYOUT).dimension,
-    });
+    return withScope(
+        { id, engine, options: Object.freeze({ ...command.options }), dimension: (current ?? DEFAULT_LAYOUT).dimension },
+        scope,
+    );
+}
+
+/**
+ * A choice over a scope, frozen: the whole graph is no scope at all, so it leaves no key.
+ * @param choice - The choice without its scope.
+ * @param scope - The scope, or undefined.
+ * @returns The choice.
+ */
+function withScope(choice: Omit<LayoutChoice, "scope">, scope: Scope | undefined): LayoutChoice {
+    const { id, engine, options, dimension } = choice;
+    return Object.freeze(
+        scope === undefined || scope === "graph"
+            ? { id, engine, options, dimension }
+            : { id, engine, options, dimension, scope },
+    );
 }
 
 /**
  * Build the engine for a choice just written, when the session draws.
  * @param choice - The choice.
  * @param ctx - The command's context.
+ * @param explicitScope - Whether the command named the scope, so one that cannot be laid out is refused.
  * @returns Settles once the renderer has taken it.
  */
-async function applyChoice(choice: LayoutChoice, ctx: UndoableContext): Promise<void> {
-    await ctx.services.layout?.apply(choice, ctx.signal);
+async function applyChoice(choice: LayoutChoice, ctx: UndoableContext, explicitScope = false): Promise<void> {
+    await ctx.services.layout?.apply(choice, ctx.signal, explicitScope);
 }
 
 const layoutSet: UndoableDefinition<LayoutSetCommand> = {
@@ -141,7 +178,28 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     execute: async (command, ctx) => {
         const choice = choiceOf(command, ctx.state.layout);
         ctx.draft.layout = choice;
-        await applyChoice(choice, ctx);
+        await applyChoice(choice, ctx, choice.scope !== undefined && command.scope !== undefined);
+    },
+};
+
+const layoutScope: UndoableDefinition<LayoutScopeCommand> = {
+    op: "layout.scope",
+    // The layout it restarts moves the nodes in scope; where they come to rest is this step's.
+    moves: true,
+    keys: () => ["layout"],
+    lane: { kind: "immediate" },
+    undo: {
+        kind: "undoable",
+        label: (command) => (command.scope === "graph" ? "Laid out the whole graph" : "Changed what the layout runs over"),
+    },
+    execute: (command, ctx) => {
+        const current = ctx.state.layout ?? DEFAULT_LAYOUT;
+        const scope = command.scope === "graph" ? undefined : command.scope;
+        if (JSON.stringify(current.scope) === JSON.stringify(scope)) {
+            return;
+        }
+
+        ctx.draft.layout = withScope(current, scope);
     },
 };
 
@@ -212,4 +270,4 @@ const viewImmersive: ExemptDefinition<ViewImmersiveCommand> = {
 };
 
 /** The layout ops' definitions. */
-export const LAYOUT_DEFINITIONS = [layoutSet, viewDimension, layoutTransport, viewImmersive] as const;
+export const LAYOUT_DEFINITIONS = [layoutSet, layoutScope, viewDimension, layoutTransport, viewImmersive] as const;

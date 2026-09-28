@@ -329,6 +329,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     runs: READ,
     results: READ,
     scope: READ,
+    sets: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -387,7 +388,19 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     apply: SELECTION,
     clear: SELECTION,
     // The doors test selects node "d1" before calling it.
-    promote: calls(["door set"], [{ op: "scope.save", name: "door set", spec: { nodes: ["d1"] }, id: "set_door-set" }]),
+    promote: calls(
+        ["door set"],
+        [
+            {
+                op: "set.create",
+                id: "set_door-set",
+                name: "door set",
+                order: 1,
+                definition: { kind: "fixed", nodes: ["d1"], edges: [], reading: "induced" },
+                createdFrom: { kind: "selection" },
+            } as unknown as SessionCommand,
+        ],
+    ),
     statistics: READ,
 };
 
@@ -455,12 +468,12 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 
 /**
  * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
- * run's suggested colour, in the call's one step. The run id is derived from the algorithm, its
- * parameters and the graph, so it is the same on every such graph.
+ * run's suggested colour, in the call's one step. The run id is derived from the result it answers
+ * -- the algorithm and its scope -- so it is the same on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
     op: "style.encode",
-    spec: { run: "degree_0bkzd1n0p2dnik", field: "value", channel: "node.color" },
+    spec: { run: "degree_1yqoid512q50di", field: "value", channel: "node.color" },
 };
 
 /** Every root, and the door of every public member. */
@@ -522,6 +535,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layout: assigns("circular", [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
             ]),
+            layoutScope: assigns({ nodes: ["n1", "n2"] }, [{ op: "layout.scope", scope: { nodes: ["n1", "n2"] } }]),
             // Called after the row above: the options are the layout's, now circular.
             layoutConfig: assigns({}, [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
@@ -736,6 +750,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     addEdges({ src: "n1", dst: "n2" }),
                 ),
             ),
+            getLayoutScope: READ,
+            setLayoutScope: calls([{ nodes: ["n1", "n2"] }], [{ op: "layout.scope", scope: { nodes: ["n1", "n2"] } }]),
             setLayout: calls(["circular"], [SET_CIRCULAR]),
             runAlgorithm: calls(["graphty", "degree"], [RUN_DEGREE]),
             // Its own id, so the run the row above left finished is not simply handed back.
@@ -1087,6 +1103,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updatePositions: TRANSPORT,
             onRest: RENDER,
             restoring: RENDER,
+            // The layout scope lives in the `layout` slice; these hand it to the engine and read
+            // it back, and a set removed under it releases the hold without a step.
+            setScopeSource: LIFECYCLE,
+            scope: READ,
+            scopeUser: READ,
+            releaseDetachedScope: DERIVED,
         },
     },
     {
@@ -1308,13 +1330,139 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             resolve: READ,
             count: READ,
+            // Deprecated forwards to session.sets: they dispatch the set ops (decision 1 of
+            // design/sets/undo-integration.md section 8).
             save: calls(
                 ["door scope", "graph"],
-                [{ op: "scope.save", name: "door scope", spec: "graph", id: "set_door-scope" }],
+                [
+                    {
+                        op: "set.create",
+                        id: "set_door-scope",
+                        name: "door scope",
+                        order: 2,
+                        definition: { kind: "rule", where: { kind: "member", of: "graph" }, reading: "induced" },
+                        createdFrom: { kind: "user" },
+                    } as unknown as SessionCommand,
+                ],
             ),
             list: READ,
             // The doors test saves "door seed" before calling it.
-            remove: calls(["set_door-seed"], [{ op: "scope.remove", id: "set_door-seed" }]),
+            remove: calls(["set_door-seed"], [{ op: "set.remove", id: "set_door-seed" }]),
+        },
+    },
+    {
+        // Every write dispatches one set op. The doors test creates "door seed", a fixed set of
+        // node d1 (id set_door-seed, order 1), before calling each row.
+        name: "SetsApi",
+        file: "src/session/sets/types.ts",
+        half: "session",
+        doors: {
+            list: READ,
+            get: READ,
+            status: READ,
+            pathKind: READ,
+            usedBy: READ,
+            offers: READ,
+            containing: READ,
+            create: calls(
+                [{ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door set" }],
+                [
+                    {
+                        op: "set.create",
+                        id: "set_door-set",
+                        name: "door set",
+                        order: 2,
+                        definition: { kind: "fixed", nodes: ["d1"], reading: "induced" },
+                        createdFrom: { kind: "user" },
+                    } as unknown as SessionCommand,
+                ],
+            ),
+            createFrom: calls(
+                ["graph", { name: "door from" }],
+                [
+                    {
+                        op: "set.create",
+                        id: "set_door-from",
+                        name: "door from",
+                        order: 2,
+                        definition: { kind: "fixed", nodes: ["d1"], reading: "induced" },
+                        createdFrom: { kind: "scope", from: "graph" },
+                    } as unknown as SessionCommand,
+                ],
+            ),
+            createPath: calls(
+                ["selection"],
+                [
+                    {
+                        op: "set.create",
+                        id: "set_set-1",
+                        name: "Set 1",
+                        order: 2,
+                        definition: { kind: "path", nodes: ["d1"] },
+                        createdFrom: { kind: "selection" },
+                    } as unknown as SessionCommand,
+                ],
+            ),
+            combine: calls(
+                ["union", [{ set: "set_door-seed" }, "graph"], { name: "door union" }],
+                [
+                    {
+                        op: "set.create",
+                        id: "set_door-union",
+                        name: "door union",
+                        order: 2,
+                        definition: { kind: "fixed", nodes: ["d1"], reading: "induced" },
+                        createdFrom: {
+                            kind: "combine",
+                            op: "union",
+                            of: [{ set: "set_door-seed" }, "graph"],
+                        },
+                    } as unknown as SessionCommand,
+                ],
+            ),
+            rename: calls(["set_door-seed", "door renamed"], [{ op: "set.rename", id: "set_door-seed", name: "door renamed" }]),
+            redefine: calls(
+                ["set_door-seed", { kind: "fixed", nodes: [], reading: "induced" }],
+                [
+                    {
+                        op: "set.redefine",
+                        id: "set_door-seed",
+                        definition: { kind: "fixed", nodes: [], reading: "induced" },
+                    },
+                ],
+            ),
+            addMembers: calls(
+                ["set_door-seed", { nodes: ["d2"] }],
+                [{ op: "set.members", id: "set_door-seed", add: { nodes: ["d2"] } }],
+            ),
+            removeMembers: calls(
+                ["set_door-seed", { nodes: ["d1"] }],
+                [{ op: "set.members", id: "set_door-seed", remove: { nodes: ["d1"] } }],
+            ),
+            remove: calls(["set_door-seed"], [{ op: "set.remove", id: "set_door-seed" }]),
+            restore: {
+                kind: "dispatches",
+                op: "set.restore",
+                call: {
+                    kind: "call",
+                    args: ["set_door-kept"],
+                    // A set a rule names keeps its record once removed, so it can be restored.
+                    around: async (target) => {
+                        const sets = target as {
+                            create(definition: unknown, options: { name: string }): string;
+                            remove(id: string): void;
+                        };
+                        sets.create({ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door kept" });
+                        sets.create(
+                            { kind: "rule", where: { kind: "member", of: { set: "set_door-kept" } }, reading: "induced" },
+                            { name: "door naming" },
+                        );
+                        sets.remove("set_door-kept");
+                        return Promise.resolve(() => Promise.resolve());
+                    },
+                },
+                expect: [{ op: "set.restore", id: "set_door-kept" }],
+            },
         },
     },
     {
@@ -1507,6 +1655,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             readNodePosition: READ,
             loadArrangement: RENDER,
             type: READ,
+            // The nodes a scoped layout holds still: taken from the scope in the `layout` slice at
+            // each start.
+            setHoldMask: TRANSPORT,
+            holdMask: READ,
         },
     },
     {

@@ -74,8 +74,19 @@ interface Retained {
     readonly sum: number;
 }
 
-/** Every array retained. */
-const retained = { all: new Set<Retained>(), seen: new WeakSet<ArrayBufferView>() };
+/**
+ * Every array retained, and each holder's own: a dispatch checks the arrays its own state keeps,
+ * so its cost does not grow with every other session alive in the process; the sweep after each
+ * test checks them all.
+ */
+const retained = {
+    all: new Set<Retained>(),
+    seen: new WeakSet<ArrayBufferView>(),
+    byHolder: new WeakMap<object, Set<Retained>>(),
+};
+
+/** The holder of arrays no one object's state keeps (a merged row patch): every dispatch checks it. */
+const SHARED = {};
 
 /**
  * A checksum of an array's bytes (FNV-1a), or -1 for one whose buffer was detached.
@@ -102,8 +113,10 @@ function checksum(array: ArrayBufferView): number {
  * happens when strict state is off, or for an array already noted.
  * @param array - The array.
  * @param what - What holds it, as a noun phrase naming the slice.
+ * @param holder - The object whose state keeps it (a store, an arrangement), whose dispatcher
+ *     checks it at each dispatch; absent, every dispatch checks it.
  */
-export function retainArray(array: ArrayBufferView, what: string): void {
+export function retainArray(array: ArrayBufferView, what: string, holder: object = SHARED): void {
     if (!strictStateEnabled() || retained.seen.has(array)) {
         return;
     }
@@ -111,6 +124,13 @@ export function retainArray(array: ArrayBufferView, what: string): void {
     retained.seen.add(array);
     const entry = { array: new WeakRef(array), what, sum: checksum(array) };
     retained.all.add(entry);
+    let own = retained.byHolder.get(holder);
+    if (own === undefined) {
+        own = new Set();
+        retained.byHolder.set(holder, own);
+    }
+
+    own.add(entry);
 }
 
 /**
@@ -135,13 +155,25 @@ function verify(entry: Retained): boolean {
 }
 
 /**
- * Strict: check every retained array still alive, as each dispatch does and the test setup does
- * after each test.
+ * Strict: check the retained arrays still alive: the ones the given holders' state keeps, as each
+ * dispatch does, or every one, as the test setup does after each test.
+ * @param holders - The holders whose arrays to check, beside the shared ones; every array when
+ *     absent.
  */
-export function verifyRetainedArrays(): void {
-    for (const entry of retained.all) {
-        if (!verify(entry)) {
-            retained.all.delete(entry);
+export function verifyRetainedArrays(holders?: readonly (object | null)[]): void {
+    const sets =
+        holders === undefined
+            ? [retained.all]
+            : [...holders, SHARED].flatMap((holder) => {
+                  const own = holder === null ? undefined : retained.byHolder.get(holder);
+                  return own === undefined ? [] : [own];
+              });
+    for (const set of sets) {
+        for (const entry of set) {
+            if (!verify(entry)) {
+                set.delete(entry);
+                retained.all.delete(entry);
+            }
         }
     }
 }
@@ -161,5 +193,7 @@ export function builderDrift(count: number): GraphtyError {
 // The test setup sweeps every retained array after each test, and reaches this through a global
 // so that the setup file imports nothing from the element. Only where strict state is on.
 if (strictStateEnabled()) {
-    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__ = verifyRetainedArrays;
+    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__ = () => {
+        verifyRetainedArrays();
+    };
 }

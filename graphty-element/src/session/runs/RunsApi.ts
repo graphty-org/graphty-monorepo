@@ -28,8 +28,10 @@ import {
     type OptionDescriptor,
     type RunId,
     type Scope,
+    type ScopeInput,
+    type SetId,
 } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import { ALGO_DEFINITIONS, type AlgoRemoveCommand, type RunService } from "../commands/algo";
 import type { AlgorithmRunCommand } from "../planning";
 import {
@@ -42,6 +44,7 @@ import {
 import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
 import type { RunResult } from "../results/types";
+import type { HeldCaptures } from "../sets/captures";
 import { type AutoApplyPolicy, type PaintHold, suggestionCommand } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import {
@@ -56,10 +59,14 @@ import {
 } from "./Run";
 import {
     assertRunId,
-    canonicalIdentity,
     canonicalize,
     canonicalizeParams,
+    canonicalResultIdentity,
+    deriveResultId,
     deriveRunId,
+    freezeScope,
+    type LiveKeyword,
+    type ResultIdentity,
     type RunIdentity,
 } from "./runId";
 import {
@@ -76,6 +83,7 @@ import {
     type RunPhase,
     type RunRemoval,
     type RunsApi,
+    type RunScopeFacts,
     type RunSpec,
     type StaleNote,
     type StartOptions,
@@ -173,12 +181,40 @@ export interface RunsApiOptions {
      * @returns What it resolves to now.
      */
     readonly resolveScope: (spec: Scope) => ResolvedScope;
+    /**
+     * What a run records about the set a scope names: its revision and its edge reading. Absent
+     * records neither.
+     * @param spec - The scope.
+     * @returns The facts.
+     */
+    readonly scopeFacts?: (spec: Scope) => RunScopeFacts;
+    /**
+     * The name of a kept set, for a run label.
+     * @param id - The set.
+     * @returns The name, or undefined when no set has the id.
+     */
+    readonly setName?: (id: SetId) => string | undefined;
     /** The thing that actually runs an algorithm. */
     readonly execute: RunExecutor;
     /** Which versions are producing the numbers. */
     readonly engine: EngineVersions;
     /** What a call that names no scope gets. Defaults to the visible graph. */
     readonly defaultScope?: Scope;
+    /**
+     * A write door's check of the scope a call names: session edge ids to stable members, set ids
+     * checked as issued. Absent, the scope is taken as given.
+     * @param spec - The scope as given.
+     * @returns The scope to record.
+     */
+    readonly admitScope?: (spec: ScopeInput) => Scope;
+    /**
+     * The definition a live scope keyword stands for now, which a derived run id hashes in its
+     * place: the visibility filter and window for `"visible"`, the selected nodes for
+     * `"selection"`. Absent, the keyword itself is hashed.
+     * @param keyword - The keyword.
+     * @returns Plain data that changes exactly when the keyword's definition does.
+     */
+    readonly liveScope?: (keyword: LiveKeyword) => unknown;
     /** The caveats a run starts from, before the work refines them. */
     readonly defaultCaveats?: Caveats;
     /** The style layers that read runs, once there are any. */
@@ -207,6 +243,18 @@ export interface RunsApiOptions {
      * A session hands in its own; absent, the runs API keeps a private one over its queue.
      */
     readonly dispatcher?: Dispatcher;
+    /** Called once per execution token minted, which is what advances the session input tick. */
+    readonly onExecution?: () => void;
+    /** Called when a run is removed, and with it its result (design/sets 11). */
+    readonly onRemoved?: (id: RunId) => void;
+    /**
+     * Capture what live references hold of a run's result before a re-run replaces it
+     * (design/sets 5.2). Absent: nothing is captured.
+     * @param run - The run about to re-execute in place, its result still in place.
+     * @param prior - The captures it keeps now.
+     * @returns The captures it keeps from now on.
+     */
+    readonly captureHeld?: (run: RunId, prior: HeldCaptures) => HeldCaptures;
 }
 
 /** The runs API, plus the things a session needs and a consumer never calls. */
@@ -237,6 +285,12 @@ export interface SessionRunsApi extends RunsApi {
         params?: Readonly<Record<string, unknown>>,
         options?: StartOptions,
     ): Run;
+    /**
+     * What a run keeps of earlier executions' items that live references hold (design/sets 5.2).
+     * @param id - The run id.
+     * @returns The captures; empty for a run this session does not hold.
+     */
+    heldOf(id: RunId): HeldCaptures;
     /** Cancel everything still running and forget every run this session held. */
     dispose(): void;
 }
@@ -246,6 +300,9 @@ export interface SessionRunsApi extends RunsApi {
 // ---------------------------------------------------------------------------------------------
 
 /** What a run's numbers are qualified by before the work has said anything about them. */
+/** What a run with no captures keeps. */
+const NO_HELD: HeldCaptures = new Map();
+
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
     exact: true,
     seed: null,
@@ -281,9 +338,10 @@ function isAbortLike(error: unknown): boolean {
 /**
  * What to call a scope in a run label.
  * @param spec - The scope specification.
+ * @param setName - A kept set's name, when there is one to ask.
  * @returns A short phrase a person reads.
  */
-function describeScope(spec: Scope): string {
+function describeScope(spec: Scope, setName?: (id: SetId) => string | undefined): string {
     if (spec === "visible") {
         return "visible";
     }
@@ -301,11 +359,15 @@ function describeScope(spec: Scope): string {
     }
 
     if ("set" in spec) {
-        return `set ${spec.set}`;
+        return setName?.(spec.set) ?? `set ${spec.set}`;
     }
 
     if ("where" in spec) {
         return spec.where;
+    }
+
+    if ("define" in spec) {
+        return `${spec.define.kind} set`;
     }
 
     return `${spec.nodes.length} nodes`;
@@ -398,6 +460,48 @@ function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, val
 }
 
 // ---------------------------------------------------------------------------------------------
+// Execution tokens (design/sets/sets-design.md 5.2)
+// ---------------------------------------------------------------------------------------------
+
+/** Minters built in this process, so two sessions' nonces differ even if the random part does not. */
+let mintersBuilt = 0;
+
+/**
+ * A random 64-bit value in hex, from Web Crypto where the platform has it.
+ * @returns 16 hex digits
+ */
+function randomHex(): string {
+    const words = new Uint32Array(2);
+    if (typeof globalThis.crypto?.getRandomValues === "function") {
+        globalThis.crypto.getRandomValues(words);
+    } else {
+        words[0] = Math.floor(Math.random() * 0x1_0000_0000);
+        words[1] = Math.floor(Math.random() * 0x1_0000_0000);
+    }
+
+    return [...words].map((word) => word.toString(16).padStart(8, "0")).join("");
+}
+
+/**
+ * Build one session's execution-token minter: a nonce drawn once, then a counter shared by every
+ * run the session holds, never a per-run count. `startedAt` was rejected as an identity because
+ * two executions in one millisecond compare equal.
+ * @param onMint - called after every mint
+ * @returns the minter; each call returns `<nonce>.<counter>`, opaque to every reader
+ */
+export function createExecutionMinter(onMint?: () => void): () => string {
+    const nonce = `${randomHex()}${(mintersBuilt++).toString(36)}`;
+    let counter = 0;
+
+    return () => {
+        counter += 1;
+        onMint?.();
+
+        return `${nonce}.${counter}`;
+    };
+}
+
+// ---------------------------------------------------------------------------------------------
 // The runs API
 // ---------------------------------------------------------------------------------------------
 
@@ -418,18 +522,20 @@ interface Launch {
  * @param params - Its parameters, when there are any.
  * @param options - The scope, the seed, the sample, the exactness, the id and whether to apply
  *     the suggested layers.
+ * @param scope - The scope as admitted, when the caller named one.
  * @returns The command.
  */
 function runCommand(
     algorithm: AlgorithmKey,
     params: Readonly<Record<string, unknown>> | undefined,
     options: StartOptions,
+    scope: Scope | undefined,
 ): AlgorithmRunCommand {
     return {
         op: "algo.run",
         algorithm,
         ...(params === undefined || Object.keys(params).length === 0 ? {} : { params }),
-        ...(options.scope === undefined ? {} : { scope: options.scope }),
+        ...(scope === undefined ? {} : { scope }),
         ...(options.seed === undefined ? {} : { seed: options.seed }),
         ...(options.sample === undefined ? {} : { sample: options.sample }),
         ...(options.exact === undefined ? {} : { exact: options.exact }),
@@ -454,6 +560,8 @@ function withoutSuggested(command: AlgorithmRunCommand): AlgorithmRunCommand {
 interface ResolvedRun {
     readonly descriptor: AlgorithmDescriptor;
     readonly identity: RunIdentity;
+    /** The canonical identity of the result it answers: what an id may be reused for. */
+    readonly result: string;
     readonly spec: Scope;
     readonly id: RunId;
     readonly derived: boolean;
@@ -473,7 +581,10 @@ class Runs implements SessionRunsApi {
      */
     private readonly runs = new Map<RunId, ManagedRun>();
 
-    /** What each run IS, so that reusing an id for different work is caught rather than silent. */
+    /**
+     * The result each run answers, so that reusing an id for different work is caught rather than
+     * silent. Parameters and the seed are not in it: a change of either re-runs the result.
+     */
     private readonly identities = new Map<RunId, string>();
 
     /** The ids the element minted, which are the ones a saved document may not reference. */
@@ -509,6 +620,9 @@ class Runs implements SessionRunsApi {
 
     private disposed = false;
 
+    /** Mints the token of every execution this session starts. */
+    private readonly mintExecution: () => string;
+
     /**
      * Build the runs API.
      * @param options - The queue, the catalogue, the scope resolver and the thing that does the
@@ -538,6 +652,10 @@ class Runs implements SessionRunsApi {
 
                 if (now !== undefined) {
                     this.dropped.delete(id);
+                } else if (was !== undefined && cause !== "command") {
+                    // Its result went with it on undo, redo or a rollback: what read it reads
+                    // again. A forward removal told them as it was written.
+                    this.options.onRemoved?.(id);
                 }
 
                 if (cause !== "command") {
@@ -545,6 +663,7 @@ class Runs implements SessionRunsApi {
                 }
             }
         });
+        this.mintExecution = createExecutionMinter(options.onExecution);
     }
 
     // -- starting -----------------------------------------------------------------------------
@@ -626,6 +745,7 @@ class Runs implements SessionRunsApi {
             stale: () => null,
             resolveScope: () => this.options.resolveScope(this.defaultScope),
             enqueue: (body) => enqueueBesideQueue(body, id),
+            mintExecution: this.mintExecution,
             notify: (phase) => {
                 if (run !== null) {
                     this.announce(run, phase);
@@ -700,6 +820,10 @@ class Runs implements SessionRunsApi {
         return this.derivedIds.has(id);
     }
 
+    heldOf(id: RunId): HeldCaptures {
+        return this.runs.get(id)?.held ?? NO_HELD;
+    }
+
     /**
      * The runs waiting to start, in queue order.
      * @returns One entry per waiting run, each carrying its position and the total.
@@ -772,8 +896,21 @@ class Runs implements SessionRunsApi {
             });
         }
 
-        const { descriptor, identity, spec, id, derived } = this.resolve(algorithm, params, options);
-        const command = runCommand(algorithm, params, options);
+        if ("scopeAs" in options) {
+            // Reserved (design/sets 10.1): "population" -- compute on the whole graph, keep and
+            // re-rank the scope's values -- is built later; refusing it now keeps accepting it additive.
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message:
+                    'The run option "scopeAs" is reserved and not accepted yet. A run computes over its scope as its algorithm declares.',
+                source: "run",
+                details: { algorithm, field: "scopeAs", reason: "reserved" },
+            });
+        }
+
+        const { descriptor, identity, result, spec, id, derived } = this.resolve(algorithm, params, options);
+        // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
+        const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
 
@@ -783,14 +920,11 @@ class Runs implements SessionRunsApi {
             this.holds.set(id, hold);
         }
 
-        if (
-            existing !== undefined &&
-            (this.listed(existing) || this.identities.get(id) === canonicalIdentity(identity))
-        ) {
-            return this.reuse(existing, identity, launch);
+        if (existing !== undefined && (this.listed(existing) || this.identities.get(id) === result)) {
+            return this.reuse(existing, identity, result, descriptor, launch);
         }
 
-        return this.create(id, identity, descriptor, spec, options, derived, launch);
+        return this.create(id, identity, result, descriptor, spec, options, derived, launch);
     }
 
     /**
@@ -808,7 +942,10 @@ class Runs implements SessionRunsApi {
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
 
-        const spec = options.scope ?? this.defaultScope;
+        const spec =
+            options.scope === undefined
+                ? this.defaultScope
+                : (this.options.admitScope?.(options.scope) ?? (options.scope as Scope));
         const identity: RunIdentity = {
             algorithm: descriptor.key,
             params: canonicalizeParams(params, descriptor.options),
@@ -817,13 +954,20 @@ class Runs implements SessionRunsApi {
             sample: options.sample ?? null,
             exact: options.exact ?? null,
         };
+        const result: ResultIdentity = {
+            algorithm: identity.algorithm,
+            scope: freezeScope(spec, (keyword) => this.options.liveScope?.(keyword) ?? null),
+            sample: identity.sample,
+            exact: identity.exact,
+        };
         const assignedId = options.as;
 
         return {
             descriptor,
             identity,
+            result: canonicalResultIdentity(result),
             spec,
-            id: assignedId === undefined ? deriveRunId(identity) : assertRunId(assignedId),
+            id: assignedId === undefined ? deriveResultId(result) : assertRunId(assignedId),
             derived: assignedId === undefined,
         };
     }
@@ -832,6 +976,7 @@ class Runs implements SessionRunsApi {
      * Build, register and start a run that does not exist yet.
      * @param id - The id it will answer to.
      * @param identity - What the run is.
+     * @param result - The canonical identity of the result it answers.
      * @param descriptor - The algorithm's catalogue entry.
      * @param spec - The scope specification it was asked for.
      * @param options - What the caller passed.
@@ -842,6 +987,7 @@ class Runs implements SessionRunsApi {
     private create(
         id: RunId,
         identity: RunIdentity,
+        result: string,
         descriptor: AlgorithmDescriptor,
         spec: Scope,
         options: StartOptions,
@@ -864,11 +1010,7 @@ class Runs implements SessionRunsApi {
             shape: descriptor.shape,
             fields: descriptor.fields,
             engine: engineVersionsFor(descriptor.key, this.options.engine),
-            caveats: Object.freeze({
-                ...this.defaultCaveats,
-                seed: identity.seed,
-                method: descriptor.technicalName,
-            }),
+            caveats: this.caveatsFor(identity, descriptor),
             execute: this.options.execute,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -877,8 +1019,15 @@ class Runs implements SessionRunsApi {
             label: () => this.labelOf(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
-            resolveScope: () => this.options.resolveScope(spec),
+            resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
+            ...(this.options.scopeFacts === undefined
+                ? {}
+                : { scopeFacts: () => this.options.scopeFacts?.(spec) ?? {} }),
             enqueue: (body) => this.launch(run, body),
+            mintExecution: this.mintExecution,
+            ...(this.options.captureHeld === undefined
+                ? {}
+                : { captureHeld: (prior: HeldCaptures) => this.options.captureHeld?.(id, prior) ?? prior }),
             notify: (phase) => {
                 this.announce(run, phase);
             },
@@ -887,7 +1036,7 @@ class Runs implements SessionRunsApi {
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
         this.runs.set(id, run);
-        this.identities.set(id, canonicalIdentity(identity));
+        this.identities.set(id, result);
         this.commands.set(id, withoutSuggested(launch.command));
         this.launches.set(id, launch);
 
@@ -903,18 +1052,34 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * Hand back a run that already answers this question, re-executing it if the data moved or it
-     * has no result to give.
+     * The caveats a run starts from.
+     * @param identity - What the run is.
+     * @param descriptor - The algorithm's catalogue entry.
+     * @returns The caveats.
+     */
+    private caveatsFor(identity: RunIdentity, descriptor: AlgorithmDescriptor): Caveats {
+        return Object.freeze({ ...this.defaultCaveats, seed: identity.seed, method: descriptor.technicalName });
+    }
+
+    /**
+     * Hand back the run that already answers this result: re-run with the new parameters or seed
+     * when they changed, else re-executed only if the data moved.
      * @param existing - The run this session already holds under that id.
      * @param identity - What the caller asked for.
+     * @param result - The canonical identity of the result the caller asked for.
+     * @param descriptor - The algorithm's catalogue entry.
      * @param launch - How a re-execution is dispatched.
      * @returns The existing run.
-     * @throws A `GraphtyError` with code `E_DUPLICATE_ID` when the id names different work.
+     * @throws A `GraphtyError` with code `E_DUPLICATE_ID` when the id names a different result.
      */
-    private reuse(existing: ManagedRun, identity: RunIdentity, launch: Launch): Run {
-        const wanted = canonicalIdentity(identity);
-
-        if (this.identities.get(existing.id) !== wanted) {
+    private reuse(
+        existing: ManagedRun,
+        identity: RunIdentity,
+        result: string,
+        descriptor: AlgorithmDescriptor,
+        launch: Launch,
+    ): Run {
+        if (this.identities.get(existing.id) !== result) {
             throw new GraphtyError({
                 code: "E_DUPLICATE_ID",
                 message:
@@ -924,6 +1089,13 @@ class Runs implements SessionRunsApi {
                 target: { kind: "run", id: existing.id },
                 details: { id: existing.id, held: existing.algorithm, wanted: identity.algorithm },
             });
+        }
+
+        if (canonicalize(existing.params) !== canonicalize(identity.params) || existing.seed !== identity.seed) {
+            // The same result under other parameters: its re-execution is the new command.
+            this.commands.set(existing.id, withoutSuggested(launch.command));
+            this.launches.set(existing.id, launch);
+            return existing.retune(identity.params, identity.seed, this.caveatsFor(identity, descriptor));
         }
 
         if (this.shouldReexecute(existing)) {
@@ -1130,6 +1302,8 @@ class Runs implements SessionRunsApi {
             command: this.commands.get(run.id) ?? command,
             record: run.record,
             result: run.computed as RunResult,
+            ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
+            ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),
             painted: decision.painted,
             derived: this.derivedIds.has(run.id),
             stale: ctx.state.graph.token !== token,
@@ -1221,6 +1395,8 @@ class Runs implements SessionRunsApi {
 
         if (this.dispatcher.state.runs.has(id)) {
             draft.runs.delete(id);
+            // Its result went with it: what read it reads again, now, as a forward write is told.
+            this.options.onRemoved?.(id);
         }
 
         if (layerIds.length > 0) {
@@ -1295,15 +1471,27 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
-        const current = this.options.resolveScope(run.scope.spec);
+        let nowVisible: number;
+        try {
+            const current = this.options.resolveScope(run.scope.spec);
+            if (current.digest === run.scope.digest) {
+                return null;
+            }
 
-        if (current.digest === run.scope.digest) {
-            return null;
+            nowVisible = current.nodeCount;
+        } catch (error) {
+            // A scope that no longer resolves (its set was removed) holds nothing now; reading a
+            // run's record must never throw.
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            nowVisible = 0;
         }
 
         return Object.freeze({
             ranOn: run.scope.nodeCount,
-            nowVisible: current.nodeCount,
+            nowVisible,
             scopeSpec: run.scope.spec,
         });
     }
@@ -1356,7 +1544,7 @@ class Runs implements SessionRunsApi {
         }
 
         if (differing.size === 0) {
-            return describeScope(run.scope.spec);
+            return describeScope(run.scope.spec, this.options.setName);
         }
 
         return [...differing]
@@ -1675,4 +1863,28 @@ function enqueueBesideQueue(body: RunBody, id: RunId): RunTicket {
  */
 export function createRunsApi(options: RunsApiOptions): SessionRunsApi {
     return new Runs(options);
+}
+
+/**
+ * Refuse a run over a set that holds no nodes: there is nothing to compute, and a result over
+ * nothing reads as a finding. The whole graph and the visible graph are not sets a caller chose,
+ * so an empty graph, or a filter that hides everything, is not refused here.
+ * @param spec - The scope the run names.
+ * @param scope - What it resolves to now.
+ * @returns The resolution, when it holds a node.
+ * @throws `E_SCOPE_EMPTY`, targeting the set when the scope names a kept one.
+ */
+function refuseEmptySet(spec: Scope, scope: ResolvedScope): ResolvedScope {
+    if (scope.nodeCount > 0 || spec === "graph" || spec === "visible") {
+        return scope;
+    }
+
+    const id = typeof spec === "object" && "set" in spec ? spec.set : undefined;
+    throw new GraphtyError({
+        code: "E_SCOPE_EMPTY",
+        message: "The run's scope holds no nodes, so there is nothing to compute over. Choose a scope with members.",
+        source: "run",
+        ...(id === undefined ? {} : { target: { kind: "scope" as const, id } }),
+        details: { scope: spec },
+    });
 }

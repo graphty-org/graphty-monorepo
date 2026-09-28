@@ -48,7 +48,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U8 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, type U8 } from "@graphty/graph-format";
 
 import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -71,24 +71,28 @@ import {
     type RunTicket,
 } from "../runs";
 import {
+    createScopeApi,
     edgeSpaceOf,
     ElementMask,
     type MaskIdSpace,
-    membershipDigest,
     nodeSpaceOf,
+    type ScopeResolver,
     type ScopeVisibilitySource,
 } from "../scope/index";
 // The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
 // wins a bare `../scope`. It goes when the resolver behind it is retired.
 import { sealedSet } from "../sealed";
+import { type DependencySources, visibilityCycle } from "../sets/dependencies";
+import type { SetWatch } from "../sets/notify";
 import type { HistoryCause } from "../types";
 import {
     assertEvaluable,
     assertVisibility,
     compileVisibility,
-    type Filter,
     type FilterSources,
+    type RuleTree,
     runPass,
+    type ScopeLeaf,
     type TimeWindow,
 } from "./filter";
 
@@ -203,7 +207,7 @@ export interface VisibilityApi {
     /** How much of the graph is showing. */
     readonly summary: VisibilitySummary;
     /** The filter in force, or null when no filter is hiding anything. */
-    readonly filter: Filter | null;
+    readonly filter: RuleTree | null;
     /** The time window in force, or null when no window is hiding anything. */
     readonly window: TimeWindow | null;
     /**
@@ -228,7 +232,7 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` when the filter is malformed or needs something this session lacks.
      */
-    set(filter: Filter | null, options?: RunOptions): Run<FilterResult>;
+    set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
     /**
      * Apply a time window, or clear it with null: one undoable step, on the same terms as
      * {@link VisibilityApi.set}.
@@ -311,6 +315,72 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
+    /** Called on every version bump of either mask, which is what advances the session input tick. */
+    readonly onMaskVersion?: () => void;
+    /**
+     * Where the sets a `member` leaf names are looked up, so a filter that reads `"visible"` or
+     * `"search"` through them is refused, and a pass never reads the masks it is writing.
+     */
+    readonly dependencies?: DependencySources;
+    /**
+     * A write door's check of a filter: session edge ids inside a `member` leaf's inline
+     * definition to stable members, and every set id it names checked as issued. Absent, the
+     * filter is taken as given.
+     * @param filter - The filter as given.
+     * @returns The filter to hold.
+     */
+    readonly admit?: (filter: RuleTree) => RuleTree;
+    /**
+     * How the filter follows the sets its `scope` leaves name (design/sets 11). Absent, a filter
+     * is re-evaluated only when it is set again or the snapshot moves.
+     */
+    readonly watch?: FilterWatchSources;
+}
+
+/** What the filter follows its sets through: the session's change notifier and cache. */
+interface FilterWatchSources {
+    /**
+     * Watch through the session's notifier.
+     * @param watch - The watch; it resolves to whether the masks were re-evaluated.
+     * @returns Stops watching.
+     */
+    subscribe(watch: SetWatch<boolean>): () => void;
+    /**
+     * A scope's input signature now.
+     * @param scope - The scope.
+     * @returns The signature, or null when its inputs cannot be enumerated.
+     */
+    signature(scope: Scope): string | null;
+    /**
+     * Pin a scope's cache entry, so budget pressure never evicts what the filter shows.
+     * @param scope - The scope.
+     * @returns Releases the pin.
+     */
+    pin(scope: Scope): () => void;
+}
+
+/**
+ * The scopes a filter tree's `member` leaves name, outermost first. Not followed into a scope: its
+ * own signature covers what it reads.
+ * @param filter - The filter, or null.
+ * @returns The scopes.
+ */
+function filterScopes(filter: RuleTree | null): Scope[] {
+    const found: Scope[] = [];
+    const walk = (node: RuleTree): void => {
+        if (node.kind === "member") {
+            found.push(node.of);
+        } else if (node.kind === "all" || node.kind === "any") {
+            node.of.forEach(walk);
+        } else if (node.kind === "not") {
+            walk(node.of);
+        }
+    };
+    if (filter !== null) {
+        walk(filter);
+    }
+
+    return found;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -368,7 +438,7 @@ interface MaskTag {
      * taken before a data step is used again once that step is undone.
      */
     readonly token: number;
-    readonly filter: Filter | null;
+    readonly filter: RuleTree | null;
     readonly window: TimeWindow | null;
     /**
      * The entries of the `runs` slice, whose results a filter can read; empty when nothing is
@@ -419,7 +489,7 @@ const VISIBLE_HINT =
  * @param window - The window it leaves in force, or null.
  * @returns The label.
  */
-function labelFor(filter: Filter | null, window: TimeWindow | null): string {
+function labelFor(filter: RuleTree | null, window: TimeWindow | null): string {
     if (filter !== null && window !== null) {
         return `Filter (${filter.kind}) and time window`;
     }
@@ -437,7 +507,7 @@ function labelFor(filter: Filter | null, window: TimeWindow | null): string {
  * @param window - The window it leaves in force, or null.
  * @returns The caveats.
  */
-function caveatsFor(filter: Filter | null, window: TimeWindow | null): Caveats {
+function caveatsFor(filter: RuleTree | null, window: TimeWindow | null): Caveats {
     const caveats: Caveats = {
         direction: "as-loaded",
         exact: true,
@@ -518,8 +588,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The spaces are read through the live frame rather than captured, so one mask object spans
     // every snapshot this session ever holds and its id cache still notices when the ids move.
-    const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
-    const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
+    const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1, sources.onMaskVersion);
+    const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1, sources.onMaskVersion);
 
     let cachedNodeIds: readonly NodeId[] | null = null;
     let cachedNodeSet: ReadonlySet<NodeId> | null = null;
@@ -527,8 +597,87 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let cachedEdgeSet: ReadonlySet<EdgeId> | null = null;
     let cachedSummary: VisibilitySummary | null = null;
     let cachedSummaryKey = "";
-    let cachedScope: ResolvedScope | null = null;
-    let cachedScopeGraph: GraphSnapshot | null = null;
+    let fallbackScope: ScopeResolver | null = null;
+    let unpins: (() => void)[] = [];
+    let stopWatching: (() => void) | null = null;
+
+    /**
+     * The input signature of the sets a filter names. A scope that reaches `"visible"` or
+     * `"search"` speaks nothing whatever moves, and is left out: its signature moves with the
+     * masks the filter writes, so following it would re-evaluate for ever.
+     * @param filter - The filter, or null.
+     * @returns The signature: "" for none, null when one cannot be enumerated.
+     */
+    const signatureOf = (filter: RuleTree | null): string | null => {
+        const { watch, dependencies } = sources;
+        if (watch === undefined) {
+            return "";
+        }
+
+        const parts: string[] = [];
+        for (const scope of filterScopes(filter)) {
+            if (dependencies !== undefined && visibilityCycle({ kind: "member", of: scope }, dependencies) !== null) {
+                continue;
+            }
+
+            const part = watch.signature(scope);
+            if (part === null) {
+                return null;
+            }
+
+            parts.push(part);
+        }
+
+        return parts.join("\n");
+    };
+
+    /**
+     * Follow the sets the filter in force names: watch them and pin their cache entries, or stop
+     * watching when it names none, so a session filtering without sets pays nothing.
+     * @param filter - The filter the masks now show.
+     */
+    const follow = (filter: RuleTree | null): void => {
+        const { watch } = sources;
+        if (watch === undefined) {
+            return;
+        }
+
+        const scopes = filterScopes(filter);
+        const previous = unpins;
+        unpins = scopes.map((scope) => watch.pin(scope));
+        for (const unpin of previous) {
+            unpin();
+        }
+
+        if (scopes.length === 0) {
+            stopWatching?.();
+            stopWatching = null;
+        } else {
+            stopWatching ??= watch.subscribe(filterWatch);
+        }
+    };
+
+    /**
+     * The sources a pass compiles against: a `member` leaf that reaches `"visible"` or `"search"`
+     * (a cycle a later redefine or a load made) speaks nothing, so a pass never reads the masks
+     * it is writing and never recurses.
+     * @param graph - The snapshot the pass walks.
+     * @returns The sources.
+     */
+    const passSources = (graph: GraphSnapshot): FilterSources => {
+        const { scope, dependencies } = sources;
+        if (scope === undefined) {
+            return sources;
+        }
+
+        return {
+            ...sources,
+            scope: (spec): ScopeLeaf =>
+                dependencies !== undefined && visibilityCycle({ kind: "member", of: spec }, dependencies) !== null
+                    ? { nodes: makeMask(graph.nodeCount), edges: null }
+                    : scope(spec),
+        };
+    };
 
     /**
      * Write the whole membership into the masks from a filter and a window.
@@ -536,7 +685,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param filter - The filter, or null.
      * @param window - The window, or null.
      */
-    const evaluate = (graph: GraphSnapshot, filter: Filter | null, window: TimeWindow | null): void => {
+    const evaluate = (graph: GraphSnapshot, filter: RuleTree | null, window: TimeWindow | null): void => {
         nodeMaskValue.grow(graph.nodeCount);
         edgeMaskValue.grow(graph.edgeCount);
         nodeMaskValue.clear();
@@ -550,7 +699,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return;
         }
 
-        const compiled = compileVisibility(graph, filter, window, sources);
+        const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
     };
@@ -562,10 +711,18 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param window - The window, or null.
      * @returns The entries; none when nothing is filtering, which reads nothing.
      */
-    const inputsFor = (filter: Filter | null, window: TimeWindow | null): readonly unknown[] =>
+    const inputsFor = (filter: RuleTree | null, window: TimeWindow | null): readonly unknown[] => {
+        if (filter === null && window === null) {
+            return NO_INPUTS;
+        }
+
+        // The signature of every set the filter names, so masks copied before a redefine are never
+        // pasted back after one; one that cannot be enumerated matches nothing, not even itself.
+        const signature = signatureOf(filter);
         // ponytail: every entry rather than the ones the filter's paths name, so any run change
         // re-evaluates a filter; name the read runs if that ever costs a pass that matters.
-        filter === null && window === null ? NO_INPUTS : [...dispatcher.state.runs.values()];
+        return [...dispatcher.state.runs.values(), signature ?? {}];
+    };
 
     /**
      * The tag of the masks the slice and the graph call for now.
@@ -644,6 +801,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         shown = { ...tag, step, snapshot: active.graph };
+        follow(tag.filter);
 
         return active;
     };
@@ -708,35 +866,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return resolve("graph");
         }
 
-        const active = currentFrame();
+        fallbackScope ??= createScopeApi({ snapshot: () => sources.snapshot() });
 
-        if (cachedScope !== null && cachedScopeGraph === active.graph) {
-            return cachedScope;
-        }
-
-        const nodeIds: NodeId[] = [];
-        const edgeIds: EdgeId[] = [];
-
-        for (let index = 0; index < active.graph.nodeCount; index++) {
-            nodeIds.push(active.nodeSpace.idOf(index));
-        }
-
-        for (let index = 0; index < active.graph.edgeCount; index++) {
-            edgeIds.push(active.edgeSpace.idOf(index));
-        }
-
-        cachedScopeGraph = active.graph;
-        cachedScope = Object.freeze({
-            digest: membershipDigest(nodeIds, edgeIds),
-            edgeCount: edgeIds.length,
-            edges: new Set(edgeIds),
-            nodeCount: nodeIds.length,
-            nodes: new Set(nodeIds),
-            resolvedAt: new Date().toISOString(),
-            spec: WHOLE_GRAPH,
-        });
-
-        return cachedScope;
+        return fallbackScope.resolveNow(WHOLE_GRAPH);
     };
 
     /**
@@ -767,6 +899,34 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         lastKind = kindOf(rendered.visibility, target.visibility, lastKind);
         sync();
     });
+
+    // The filter follows the sets it names: when one moves -- a set edit, its undo or redo, or an
+    // input a rule set reads -- the masks are brought up to date and the change announced. On the
+    // same snapshot that is synchronous, before any public event; after a freeze it waits for the
+    // notifier's frame, unless a read brought the masks up to date first.
+    const filterWatch: SetWatch<boolean> = {
+        signature: () => signatureOf(dispatcher.state.visibility.filter),
+        resolve: (): boolean => {
+            const before = shown;
+            upToDate();
+
+            return shown !== before;
+        },
+        ready: (changed) => {
+            if (changed) {
+                sources.onChange?.({
+                    ...resultOf(),
+                    filterKind: dispatcher.state.visibility.filter?.kind ?? "none",
+                    cause: dispatcher.lane.passCause,
+                });
+            }
+        },
+        cost: () => {
+            const graph = sources.snapshot();
+
+            return graph.nodeCount + graph.edgeCount;
+        },
+    };
 
     // Told once the pass deriving a change has run: one call per edit, one per step passed.
     const previousDerived = dispatcher.events.derived;
@@ -810,7 +970,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const edit = (
         command: VisibilityCommand,
-        filter: Filter | null,
+        filter: RuleTree | null,
         window: TimeWindow | null,
         options: RunOptions,
     ): Run<FilterResult> => {
@@ -946,7 +1106,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return summaryOf();
         },
 
-        get filter(): Filter | null {
+        get filter(): RuleTree | null {
             return dispatcher.state.visibility.filter;
         },
 
@@ -954,10 +1114,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return dispatcher.state.visibility.window;
         },
 
-        set(filter: Filter | null, options: RunOptions = {}): Run<FilterResult> {
-            assertVisibility(filter, null);
+        set(filter: RuleTree | null, options: RunOptions = {}): Run<FilterResult> {
+            const admitted = filter === null || sources.admit === undefined ? filter : sources.admit(filter);
+            assertVisibility(admitted, null, sources.dependencies);
 
-            return edit({ op: "visibility.set", filter }, filter, dispatcher.state.visibility.window, options);
+            return edit(
+                { op: "visibility.set", filter: admitted },
+                admitted,
+                dispatcher.state.visibility.window,
+                options,
+            );
         },
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {

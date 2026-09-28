@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { ABSENT, createProjectStore, deepFreezeArgs } from "../../../src/session/project/draft";
 import { createCounter, createProjectState } from "../../../src/session/project/state";
-import type { SavedScopeRecord } from "../../../src/session/scope/ScopeApi";
+import type { ElementSet } from "../../../src/session/sets/types";
 import type { CompiledLayer } from "../../../src/session/styles/Layer";
 
 /** A stand-in layer stack; the draft never looks inside one. */
@@ -10,9 +10,9 @@ function stack(name: string): readonly CompiledLayer[] {
     return Object.freeze([{ name } as unknown as CompiledLayer]);
 }
 
-/** A stand-in saved scope. */
-function scope(id: string): SavedScopeRecord {
-    return Object.freeze({ id, name: id, spec: "graph", order: 0 });
+/** A stand-in kept set; the draft never looks inside one. */
+function scope(id: string): ElementSet {
+    return Object.freeze({ id, name: id, order: 0 } as unknown as ElementSet);
 }
 
 describe("a draft", () => {
@@ -45,41 +45,41 @@ describe("a draft", () => {
 
     it("puts back the identical object going backward, and the written one going forward", () => {
         const first = scope("s1");
-        const store = createProjectStore(createProjectState({ scopes: new Map([["s1", first]]) }));
+        const store = createProjectStore(createProjectState({ sets: new Map([["s1", first]]) }));
         const second = scope("s1");
         const before = store.state.styles;
         const after = stack("a");
 
         const draft = store.open();
         draft.styles = after;
-        draft.scopes.set("s1", second);
-        draft.scopes.set("s2", scope("s2"));
+        draft.sets.set("s1", second);
+        draft.sets.set("s2", scope("s2"));
         draft.visibility.set("showContext", true);
         const patch = draft.seal();
 
         store.applyBackward(patch);
         assert.strictEqual(store.state.styles, before);
-        assert.strictEqual(store.state.scopes.get("s1"), first);
-        assert.isFalse(store.state.scopes.has("s2"));
+        assert.strictEqual(store.state.sets.get("s1"), first);
+        assert.isFalse(store.state.sets.has("s2"));
         assert.isFalse(store.state.visibility.showContext);
 
         store.applyForward(patch);
         assert.strictEqual(store.state.styles, after);
-        assert.strictEqual(store.state.scopes.get("s1"), second);
-        assert.isTrue(store.state.scopes.has("s2"));
+        assert.strictEqual(store.state.sets.get("s1"), second);
+        assert.isTrue(store.state.sets.has("s2"));
         assert.isTrue(store.state.visibility.showContext);
     });
 
     it("records a delete as a key going absent, and undoes it", () => {
         const kept = scope("s1");
-        const store = createProjectStore(createProjectState({ scopes: new Map([["s1", kept]]) }));
+        const store = createProjectStore(createProjectState({ sets: new Map([["s1", kept]]) }));
         const draft = store.open();
-        draft.scopes.delete("s1");
+        draft.sets.delete("s1");
         const patch = draft.seal();
 
-        assert.isFalse(store.state.scopes.has("s1"));
+        assert.isFalse(store.state.sets.has("s1"));
         store.applyBackward(patch);
-        assert.strictEqual(store.state.scopes.get("s1"), kept);
+        assert.strictEqual(store.state.sets.get("s1"), kept);
     });
 
     it("puts every key back on rollback", () => {

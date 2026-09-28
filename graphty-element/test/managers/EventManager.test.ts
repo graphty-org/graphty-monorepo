@@ -163,6 +163,7 @@ describe("EventManager", () => {
                 repeated: { seen: 0, kept: 0, dropped: 0, merged: 0 },
                 policy: "keep",
                 weights: { resolvedFrom: "none", attribute: null },
+                edgeIdentity: { idPath: null, byId: 0, byPosition: 1 },
             });
 
             assert.equal(callback.mock.calls.length, 1);

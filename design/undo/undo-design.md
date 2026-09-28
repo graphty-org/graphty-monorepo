@@ -127,7 +127,7 @@ changes no slice.
 | `runs`        | `RunId -> RunEntry`: finished runs                                                                                                                                                                                                                                                                                                                                                                                                                                         | keyed value | `RunsApi` maps (`session/runs/RunsApi.ts:377-386`, `:677-682`), the auto-apply `painted` set (`styles/autoApply.ts:208`)                                                                                               |
 | `styles`      | The frozen, compiled layer stack                                                                                                                                                                                                                                                                                                                                                                                                                                           | value       | `stack` closure (`StylesApi.ts:976`)                                                                                                                                                                                   |
 | `visibility`  | `{ filter, window, showContext }`. The masks are derived from these, not state (section 3.4)                                                                                                                                                                                                                                                                                                                                                                               | keyed value | closures at `session/visibility/VisibilityApi.ts:422-424`                                                                                                                                                              |
-| `scopes`      | `ScopeId -> SavedScope`                                                                                                                                                                                                                                                                                                                                                                                                                                                    | keyed value | `saved` map (`session/scope/ScopeApi.ts:511`)                                                                                                                                                                          |
+| `sets`        | `SetId -> ElementSet`: the kept sets, deep-frozen records written only by the `set.*` ops. Beside the slice, never rewound: the issued-id register, the order high-water mark, the tombstones, the edge seeds and the resolution cache (design/sets/undo-integration.md section 1)                                                                                                                                                                                         | keyed value | `SetsStore` over the dispatcher (`session/sets/store.ts`)                                                                                                                                                              |
 | `views`       | Saved camera views, `name -> CameraState`                                                                                                                                                                                                                                                                                                                                                                                                                                  | keyed value | `Graph.userCameraPresets` (`Graph.ts:185`)                                                                                                                                                                             |
 
 A `RunEntry` is `{ command, record, result, painted, derived, stale }`: the command that
@@ -230,7 +230,7 @@ The baseline arrangement is also updated in place when eviction folds the oldest
 
 ### 3.4 How each kind of slice is kept
 
-**Keyed value slices** (`config`, `layout`, `runs`, `visibility`, `scopes`, `views`) are records or
+**Keyed value slices** (`config`, `layout`, `runs`, `visibility`, `sets`, `views`) are records or
 maps of frozen values. A patch records, for each key it wrote, the key's value just before the
 write, read at the moment of the write, and the value it wrote. Undo puts the prior values back,
 key by key, as the identical objects. Two writers of different keys of one slice therefore never
@@ -262,7 +262,8 @@ known to be correct and about to be useful, never per coalesced frame:
 A slider drag at 60 frames a second therefore copies once, not 60 times a second. Each copy is
 tagged with the **graph token** (below) and with the identity of every input the filter read other
 than the graph: the `RunEntry` objects of each run whose `results.*` fields the filter names, and
-the scopes slice's revision when it names a saved scope. On undo or redo the `visibility` hook
+the input signature of every set the filter names (`scopeSignature`, `session/sets/signature.ts`), so
+masks copied before a redefine are never pasted back after one. On undo or redo the `visibility` hook
 looks for the after-mask copy of the nearest filter step at or below the target position; it copies
 the kept bytes into the live pair and bumps its revision only when every tag equals the current
 value, and otherwise evaluates the filter, as `sync()` does today. A deferred run that merges into a
@@ -509,7 +510,7 @@ computation, not yet a step, and is reported as cancelled.
 
 An undoable command's `ctx` carries a `Draft`. The draft has the primitives of section 3.4 and a
 typed setter per value slice (`draft.styles = next`, `draft.runs.set(id, entry)`,
-`draft.scopes.delete(id)`, `draft.pins.add(ids)`), and nothing else. The inverse of every
+`draft.sets.delete(id)`, `draft.pins.add(ids)`), and nothing else. The inverse of every
 primitive is written once, in `draft.ts` and `graphOps.ts`. Adding a command adds no inverse code;
 only adding a primitive does, and the round-trip test covers each primitive.
 
@@ -1276,7 +1277,11 @@ is a regression from today. The strict test asserts the state digest is unchange
   into it or a deferred member merges into it; each re-estimate runs eviction and publishes
   `history:changed`.
 - Estimates use the real storage. Typed arrays count their `byteLength`; records use the records
-  map's running estimate (section 3.4); a `RunResult` reports `byteSize` (below). Every step also
+  map's running estimate (section 3.4); a `RunResult` reports `byteSize` (below); a kept set's
+  record reports `recordBytes` (`session/sets/prepare.ts`), counted once across the history like a
+  run result. A set member edit keeps both whole records: about 8 bytes per node member and 24 per
+  edge member (a 1M-edge set about 24 MB per step), refused above 1M edge members until a members
+  op-log exists. A redefine that changes only the reading shares the member arrays. Every step also
   counts a fixed 512 bytes for its `HistoryStep`, patch and frozen arguments, so a history of tiny
   steps is bounded too.
 - `history.limitBytes` defaults to 256 MiB and `history.limitSteps` to 1000; both are settable.
@@ -1428,13 +1433,24 @@ and the `arrangement` hook writes the writer's before-arrangement back (section 
 | `runs`        | Forget prepared bindings (`painter.invalidate`), repaint the layers bound to changed run ids                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `styles`      | The existing plan-and-paint path in `styles/repaint.ts`. The dirty set is the difference in layer identities between the two stacks. The slice holds the compiled layers themselves, so a restored stack comes back compiled and nothing is compiled on undo or redo                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `visibility`  | Runs after `graph`. On undo or redo, when the nearest filter step at or below the target kept a mask copy whose tags all match (section 3.4), copy its bytes into the one live `ElementMask` pair and bump its revision; otherwise evaluate the filter into that pair, as `sync()` does today. Mark the pair evaluated against the current snapshot either way. A forward filter edit evaluates and copies nothing                                                                                                                                                                                                                                                       |
-| `scopes`      | Bump `savedRevision` so resolution caches drop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `sets`        | Nothing to draw. The kept sets tell their change -- one `SetChange` per changed key, from the committed diff of the slice -- from `project:changed`, synchronously when a step seals and on undo, redo and restore alike (never for a rollback): the change notifier re-resolves the layers and the filter naming a changed set and repaints only the rows whose membership moved, then `set:changed` is published. The hook order puts `sets` after `runs`, which a set may read, and before `styles` and `visibility`, which read sets                                                                                                                                 |
 | `config`      | Apply background, selection style and layout behaviour, and rebuild the merged `Styles.config` view. Import settings take effect at the next import, as today. The hook owns at most one skybox dome: it disposes the current dome when the background becomes a colour or a different skybox, and creates one only when the target is a skybox the scene does not already show. Today `setBackground` creates a new `PhotoDome` on every skybox value and never disposes the last (`Graph.ts:1004-1018`), so undoing a skybox would leave the dome visible and every redo would add another. An act-then-undo story and a picture test cover colour to skybox to colour |
 | `views`       | Nothing to draw                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 The session is Node-safe, so the renderer-side hooks (`layout`, `pins`, `arrangement`, `config`,
 and the render half of `graph`) are registered by `Graph.ts` on the element's session. A headless
 session holds the same slices without them.
+
+A headless session's own `graph` hook repaints every layer when the rows change (an add, a
+removal, a replace, a weight or the direction, which the graph primitives mark with the
+`rows:moved` key). When only records' attributes changed, it repaints only the layers that read a
+field the edit changed -- a compiled layer lists every path its selector and its bindings read,
+and the attribute writes announce the fields they changed -- and then the edited rows whole, so an
+element an edit took out of a reader's match is repainted too. A record edit no layer reads paints
+nothing. Measured on the development machine (i9-14900, one core, 49,000 nodes and 98,000 edges,
+the element's two base layers): undoing one attribute edit took 76 to 95 ms before this, on the
+undo branch and on the merged one alike, nearly all of it the repaint of every layer over every row;
+it takes 0.2 ms now.
 
 ### 9.3 Event order
 
@@ -1461,8 +1477,8 @@ event carries that pass's merged `RepaintReport`; the TSDoc of `painted` says so
 keeps its promise of one event per edit: an undo publishes one event per step undone.
 
 **Which event a mirror listens to.** The session has per-domain events only for runs, selection,
-visibility and styles (and capabilities). The `graph`, `layout`, `pins`, `arrangement`, `config`,
-`views` and `scopes` slices have none. For those, **`project:changed { slices, cause }` is the one
+visibility, styles and sets (and capabilities). The `graph`, `layout`, `pins`, `arrangement`,
+`config` and `views` slices have none. For those, **`project:changed { slices, cause }` is the one
 event**: a consumer that mirrors the layout choice, the dimension, the pinned set or a setting
 re-reads the slices it names. A mirror of runs, styles, visibility or selection keeps listening to
 its per-domain event, which now carries `cause`. Adding seven new per-domain events was rejected:
@@ -1691,7 +1707,7 @@ interface CommandOutcomeMap {
     "data.import": Promise<void>;
     "data.apply": Promise<void>;
     "data.expand": Promise<void>;
-    "scope.save": Promise<ScopeId>;
+    "set.create": Promise<SetId>;
     // every other op in section 10.5: Promise<void>
 }
 type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];
@@ -1711,7 +1727,7 @@ type ProjectSlice =
     | "runs"
     | "styles"
     | "visibility"
-    | "scopes"
+    | "sets"
     | "views";
 
 type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
@@ -1908,8 +1924,13 @@ Op names follow `element-api-design.md` section 4.11.1. New ops are marked.
 | `visibility.set`           | `{ filter }`                                                                                                                                                                                                                                                                                                                      |
 | `visibility.window`        | `{ window }`                                                                                                                                                                                                                                                                                                                      |
 | `visibility.context` (new) | `{ show: boolean }`                                                                                                                                                                                                                                                                                                               |
-| `scope.save` (new)         | `{ name, spec, id? }`; redo reuses the minted id                                                                                                                                                                                                                                                                                  |
-| `scope.remove` (new)       | `{ id }`                                                                                                                                                                                                                                                                                                                          |
+| `set.create` (new)         | `{ definition, name? }` from a caller; the element's doors record the minted `{ id, order, createdFrom }` too, and a caller may not send them. Redo replays the patch, never mints                                                                                                                                                |
+| `set.rename` (new)         | `{ id, name }`                                                                                                                                                                                                                                                                                                                    |
+| `set.redefine` (new)       | `{ id, definition }`                                                                                                                                                                                                                                                                                                              |
+| `set.members` (new)        | `{ id, add?, remove? }`                                                                                                                                                                                                                                                                                                           |
+| `set.remove` (new)         | `{ id }`                                                                                                                                                                                                                                                                                                                          |
+| `set.restore` (new)        | `{ id }`: puts back the record a removal tombstoned                                                                                                                                                                                                                                                                               |
+| `layout.scope` (new)       | `{ scope }`: what layouts run over, `"graph"` for the whole graph; written at once, so a layout still waiting carries it; never refused for a scope that resolves to nothing                                                                                                                                                      |
 | `layout.set`               | as section 4.11.1, with `id: LayoutId` and `engine?: string` (the catalogue default when absent; the slice stores the engine chosen)                                                                                                                                                                                              |
 | `positions.set`            | `{ entries }`                                                                                                                                                                                                                                                                                                                     |
 | `positions.pin` (new)      | `{ ids, pinned: boolean }`                                                                                                                                                                                                                                                                                                        |
@@ -1969,16 +1990,16 @@ Rule: each door keeps its signature; its body dispatches the op shown.
 | `Run.cancel`                                                                                                                                                                                                        | Exempt door                                                                                                                                                                    |
 | `applySuggestedStyles` (`Graph.ts:1764`, element `:2453`)                                                                                                                                                           | One group of `style.*`                                                                                                                                                         |
 
-### 11.3 Styles, visibility, scopes
+### 11.3 Styles, visibility, sets
 
-| Door                                                                                                                                                                                                                                            | Becomes                                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `styles.add`, `update`, `remove`, `move`, `removeBySource`, `highlight`, `resolveToStatic` (`StylesApi.ts:1432-1680`)                                                                                                                           | `style.patch`. `startEdit`'s plan becomes the command's draft write; `commit` is deleted                                                                                                                                                      |
-| `styles.encode`, `applyTemplate` (`:1535`, `:1690`)                                                                                                                                                                                             | `style.encode`, `style.template`                                                                                                                                                                                                              |
-| `seed` (`StylesApi.ts:1396`)                                                                                                                                                                                                                    | Writes the baseline (section 3.3); no step                                                                                                                                                                                                    |
-| AI style commands (`ai/commands/StyleCommands.ts:283`, `:441`, `:467`), AI layout and dimension commands (`LayoutCommands.ts:53`, `:111`), AI algorithm commands (`AlgorithmCommands.ts:103`, `:113`), commands added through `registerCommand` | Reach `ctx.tx`, which dispatches into the message's transaction (section 5.3)                                                                                                                                                                 |
-| `visibility.set`, `setWindow`, `showContext =` (`VisibilityApi.ts:816-828`)                                                                                                                                                                     | `visibility.set`, `visibility.window`, `visibility.context`, all immediate: the edit writes the filter value at once and the mask evaluation runs on the derivation lane against the latest filter, so a superseded filter is never evaluated |
-| `scope.save`, `scope.remove` (`ScopeApi.ts:947`, `:1012`), `selection.promote` (`SelectionApi.ts:696`)                                                                                                                                          | `scope.save`, `scope.remove`                                                                                                                                                                                                                  |
+| Door                                                                                                                                                                                                                                                                                       | Becomes                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `styles.add`, `update`, `remove`, `move`, `removeBySource`, `highlight`, `resolveToStatic` (`StylesApi.ts:1432-1680`)                                                                                                                                                                      | `style.patch`. `startEdit`'s plan becomes the command's draft write; `commit` is deleted                                                                                                                                                      |
+| `styles.encode`, `applyTemplate` (`:1535`, `:1690`)                                                                                                                                                                                                                                        | `style.encode`, `style.template`                                                                                                                                                                                                              |
+| `seed` (`StylesApi.ts:1396`)                                                                                                                                                                                                                                                               | Writes the baseline (section 3.3); no step                                                                                                                                                                                                    |
+| AI style commands (`ai/commands/StyleCommands.ts:283`, `:441`, `:467`), AI layout and dimension commands (`LayoutCommands.ts:53`, `:111`), AI algorithm commands (`AlgorithmCommands.ts:103`, `:113`), commands added through `registerCommand`                                            | Reach `ctx.tx`, which dispatches into the message's transaction (section 5.3)                                                                                                                                                                 |
+| `visibility.set`, `setWindow`, `showContext =` (`VisibilityApi.ts:816-828`)                                                                                                                                                                                                                | `visibility.set`, `visibility.window`, `visibility.context`, all immediate: the edit writes the filter value at once and the mask evaluation runs on the derivation lane against the latest filter, so a superseded filter is never evaluated |
+| `sets.create`, `createFrom`, `createPath`, `combine`, `rename`, `redefine`, `addMembers`, `removeMembers`, `remove`, `restore` (`session/sets/SetsApi.ts`); the deprecated `scope.save` and `scope.remove` (`ScopeApi.ts`), which forward to them; `selection.promote` (`SelectionApi.ts`) | `set.create`, `set.rename`, `set.redefine`, `set.members`, `set.remove`, `set.restore`. The materialising doors resolve their source on their own time, then mint and dispatch one `set.create` with a concrete definition in one tick        |
 
 ### 11.4 Layout, positions, dimension, views, settings
 
@@ -2007,8 +2028,9 @@ session. On top of the freezing that production already does, strict state:
 
 - checksums each typed array state retains (snapshot columns, captures, run result columns and
   their ranking caches, mask copies) once, when it is first retained, and at each dispatch
-  verifies only the arrays retained since the last dispatch; a full sweep of every retained array
-  runs in `afterEach`. The lane-backed `position` and `graphty.pinned` columns are excluded,
+  verifies the arrays its own session's state retains (its store's snapshots and its arrangement's
+  captures), so a dispatch costs the same however many other sessions a test file has left alive;
+  a full sweep of every retained array runs in `afterEach`. The lane-backed `position` and `graphty.pinned` columns are excluded,
   because a running layout writes them every frame; the captures cover coordinates. The live
   `ElementMask` pair is excluded, because it is derived and rewritten in place;
 - compares `builder.mutationCount` at each commit with the count the last primitive left;
@@ -2471,6 +2493,32 @@ Each with the migration a consumer makes:
 | Adding nodes or edges with `algorithmsOnLoad` set starts the on-load runs once per command, not once per `data-added` event, and undo and redo fire `data-added` / `elements-removed` with a `cause` without starting any work                                                                                     | None for most consumers; a listener that started work on `data-added` should check `cause`                                                                                                              |
 | `LayoutEngine.nodePositions` and `DataManager.positions` hand out `ReadonlyElementPositions`; `LayoutEngine`'s `addNode`, `addEdge`, `addNodes`, `addEdges`, `removeNode`, `removeEdge` and `attachPositions` are protected                                                                                        | Place and pin through `session.positions`; change the graph through `session.data`. A custom engine still implements the membership methods, and the element calls them                                 |
 | A settings getter (`nodeIdPath`, `repeatedEdges`, `edgeWeightPath`, `directed`, `runAlgorithmsOnLoad`, `background`, `selectionStyle`, `algorithmsOnLoad`, ...) returns the value in effect when none was set, instead of `undefined`; `layoutBehavior` always carries `preSteps`, `stepMultiplier` and `minDelta` | Compare with the default instead of `undefined`; assigning a default reads back and records no step                                                                                                     |
+
+### 15.2a Sets under undo: decided
+
+Sets (pull request #540) merged first, so undo carries the integration of
+design/sets/undo-integration.md. Its five questions are decided, as recommended, because none of
+the names had been released (the owner confirmed that unpublished names are not one-way doors):
+
+1. `scope.save` and `scope.remove` do not survive as op names. The deprecated `scope.save` and
+   `scope.remove` doors forward to `session.sets`, which dispatch `set.create` and `set.remove`, so
+   history shows one vocabulary.
+2. A caller may not supply `id`, `order` or `createdFrom` in `set.create`; `session.execute`
+   refuses them with `E_BAD_COMMAND`. The element's own doors mint them and the recorded command
+   carries them.
+3. `ProjectSlice` spells the slice `"sets"`.
+4. `SetChange.cause` gains `"undo"` and `"redo"`; a restore across several steps is told as the
+   direction it moved, and a rollback tells nothing.
+5. The op names are `set.create`, `set.rename`, `set.redefine`, `set.members` and `set.remove`,
+   plus `set.restore` for the published `sets.restore`, with the same undo semantics.
+
+Two more names follow from the port and are decided the same way: `layout.scope`, the op
+`Graph.setLayoutScope` and the element's `layoutScope` property dispatch (a layout chosen with a
+scope in `setLayout` records it in `layout.set`), and `scope` on the `layout` slice's
+`LayoutChoice`. And one behaviour is settled in undo's favour: a re-run keeps the result it
+replaces until it publishes a new one, because the result is project state in the `runs` slice.
+The sets branch had cleared the result while a re-run was queued; its execution token and the
+input tick now move only when the new result is published.
 
 ### 15.3 Release
 

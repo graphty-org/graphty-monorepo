@@ -26,16 +26,16 @@ The same API exists on a session with no renderer, in Node or a worker, from
 
 A change is undoable when it changes something a project saves, and only then:
 
-| Undoable                            | Examples                                                                                                             |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| The graph                           | Loading or importing data, adding, editing and removing nodes and edges, expanding a neighbourhood, clearing         |
-| Algorithm runs and their results    | A finished run, and removing one; the style layers a run applies come and go with it                                 |
-| Style layers                        | Adding, editing, moving and removing a layer; applying a template                                                    |
-| What is showing                     | A filter, the time window, whether context is shown                                                                  |
-| Saved scopes and saved camera views | Saving and removing one                                                                                              |
-| The layout                          | Choosing a layout, switching between 2D and 3D, placing nodes, pinning and unpinning them                            |
-| Where nodes came to rest            | The coordinates a layout settles on, recorded with the step that set it moving                                       |
-| Project settings                    | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behaviour settings |
+| Undoable                         | Examples                                                                                                              |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| The graph                        | Loading or importing data, adding, editing and removing nodes and edges, expanding a neighbourhood, clearing          |
+| Algorithm runs and their results | A finished run, and removing one; the style layers a run applies come and go with it                                  |
+| Style layers                     | Adding, editing, moving and removing a layer; applying a template                                                     |
+| What is showing                  | A filter, the time window, whether context is shown                                                                   |
+| Sets and saved camera views      | Creating, renaming, redefining, adding and removing members, removing and restoring a set; saving and removing a view |
+| The layout                       | Choosing a layout and what it runs over, switching between 2D and 3D, placing nodes, pinning and unpinning them       |
+| Where nodes came to rest         | The coordinates a layout settles on, recorded with the step that set it moving                                        |
+| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behaviour settings  |
 
 Not undoable, because a project does not save them:
 

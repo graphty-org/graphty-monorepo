@@ -2,6 +2,7 @@ import { floydWarshall } from "@graphty/algorithms";
 
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -17,6 +18,8 @@ import {
 export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "floyd-warshall";
+    /** Measures every pair of the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Measure the distance between every pair of nodes, and give each node the distance to the
@@ -36,7 +39,8 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
      * @returns The all-pairs measurement, or null when there are no nodes to measure.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, or the whole graph's.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;

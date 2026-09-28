@@ -37,7 +37,7 @@ import type {
     LayoutId,
     RunId,
     Scope,
-    ScopeId,
+    SetId,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
@@ -59,6 +59,7 @@ import type {
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
+import type { SetChange, SetsApi } from "./sets/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -673,6 +674,14 @@ export interface SessionEventMap {
      * (`style:changed` and the rest) follow once it has.
      */
     "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
+    /**
+     * A kept set was created, renamed, redefined or removed: one event per set a write touched,
+     * after the write committed. A write that was refused publishes nothing.
+     *
+     * Membership has no event: a set's members follow the data lazily, so a panel showing counts
+     * re-reads them on the events it already watches and on this one.
+     */
+    "set:changed": SetChange;
 }
 
 /**
@@ -689,7 +698,7 @@ export type ProjectSlice =
     | "runs"
     | "styles"
     | "visibility"
-    | "scopes"
+    | "sets"
     | "views";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
@@ -830,10 +839,18 @@ export interface CommandOutcomeMap {
     "visibility.window": Promise<void>;
     /** Settles once the flag is recorded and the pass that follows it has run. */
     "visibility.context": Promise<void>;
-    /** The saved scope's id, once it is recorded. */
-    "scope.save": Promise<ScopeId>;
+    /** The new set's id, once it is recorded. */
+    "set.create": Promise<SetId>;
+    /** Settles once the rename is recorded. */
+    "set.rename": Promise<void>;
+    /** Settles once the redefinition is recorded. */
+    "set.redefine": Promise<void>;
+    /** Settles once the member edit is recorded. */
+    "set.members": Promise<void>;
     /** Settles once the removal is recorded. */
-    "scope.remove": Promise<void>;
+    "set.remove": Promise<void>;
+    /** Settles once the restore is recorded. */
+    "set.restore": Promise<void>;
     /** Settles once the views are recorded. */
     "view.save": Promise<void>;
     /** Settles once the removal is recorded. */
@@ -848,6 +865,8 @@ export interface CommandOutcomeMap {
     "positions.pin": Promise<void>;
     /** Settles once the choice is recorded and the layout has spent its pre-steps. */
     "layout.set": Promise<void>;
+    /** Settles once the scope is recorded. */
+    "layout.scope": Promise<void>;
     /** Settles once the switch is recorded and the layout has been rebuilt for it. */
     "view.dimension": Promise<void>;
     /** Settles once the layout has started or stopped moving. */
@@ -1040,6 +1059,15 @@ export interface GraphSession {
      * it without resolving it, and keeping one under a name.
      */
     readonly scope: ScopeApi;
+    /**
+     * The kept sets: named collections of nodes and edges -- groups, kept selections, communities
+     * and paths -- that anything taking a scope can name as `{ set: id }`.
+     *
+     * A set is fixed (a member list), a rule (a query or rule tree that follows the data) or a
+     * path (an ordered walk). Reading and counting one goes through `scope.resolve({ set: id })`
+     * and `scope.count({ set: id })`; every change is published as `set:changed`.
+     */
+    readonly sets: SetsApi;
     /**
      * What is selected: two sets, five set operations, one selection for the whole session.
      *

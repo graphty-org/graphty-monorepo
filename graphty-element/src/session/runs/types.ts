@@ -19,12 +19,15 @@
 import type {
     AlgorithmKey,
     EdgeId,
+    EdgeReading,
     FieldDescriptor,
     LayerId,
     NodeId,
     ResultShape,
     RunId,
     Scope,
+    ScopeInput,
+    SetId,
 } from "../../catalog/types";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
@@ -256,15 +259,19 @@ export interface Caveats {
  * meantime.
  */
 export interface ResolvedScope {
-    /** The nodes in scope. */
+    /** The nodes in scope. Lazy: built on the first read, then the same set on every read. */
     readonly nodes: ReadonlySet<NodeId>;
-    /** The edges in scope. */
+    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
     readonly edges: ReadonlySet<EdgeId>;
     /** How many nodes are in scope. */
     readonly nodeCount: number;
     /** How many edges are in scope. */
     readonly edgeCount: number;
-    /** Equal digests mean equal scopes, which is how staleness is derived rather than tracked. */
+    /**
+     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
+     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
+     * on first read.
+     */
     readonly digest: string;
     /** What was asked for, before it was resolved. */
     readonly spec: Scope;
@@ -282,7 +289,22 @@ export interface RunScopeRecord {
     readonly edges: number;
     /** The digest the staleness comparison reads. */
     readonly digest: string;
+    /**
+     * The kept set a `{ set }` scope named, and its revision when the run resolved it, so a reader
+     * can tell whether the set has been redefined since. Absent for every other scope.
+     */
+    readonly set?: {
+        /** The kept set's id. */
+        readonly id: SetId;
+        /** The set's revision when the run resolved it. */
+        readonly revision: string;
+    };
+    /** Which edges came with the scope's nodes. OPEN UNION, as {@link EdgeReading}. */
+    readonly reading?: EdgeReading;
 }
+
+/** What a run records about the set its scope named, beside the resolution. */
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {
@@ -347,8 +369,11 @@ export interface RunOptions {
  * saved document that referenced one would resolve differently against a different session.
  */
 export interface StartOptions extends RunOptions {
-    /** What the run may look at. Defaults to the visible graph. */
-    readonly scope?: Scope;
+    /**
+     * What the run may look at. Defaults to the visible graph. An inline `{ define }` may name
+     * edges by session edge id; the run records their stable form.
+     */
+    readonly scope?: ScopeInput;
     /** The seed for a randomised or sampled method, so a run can be reproduced. */
     readonly seed?: number;
     /**
@@ -400,8 +425,8 @@ export interface RunSpec {
     readonly algorithm: AlgorithmKey;
     /** Its parameters. */
     readonly params?: Readonly<Record<string, unknown>>;
-    /** What it may look at. */
-    readonly scope?: Scope;
+    /** What it may look at, as {@link StartOptions.scope}. */
+    readonly scope?: ScopeInput;
     /** The seed for a randomised or sampled method. */
     readonly seed?: number;
     /** The id to give the run. */
@@ -645,10 +670,17 @@ export interface RunRemoval {
 export interface RunsApi {
     /**
      * Start one algorithm.
+     *
+     * The scope is resolved when the call is made, and again when the work starts: a set it names
+     * that is redefined while the run waits in the queue is run over as redefined, and the run
+     * records the revision it used (`record.scope.set.revision`).
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
      * @returns The run, which is awaitable and watchable straight away.
+     * @throws `E_SCOPE_EMPTY` when a scope other than `"graph"` or `"visible"` holds no nodes (a
+     * run that finds it empty only when its work starts fails with the same code);
+     * `E_BAD_COMMAND` for a malformed scope or a set id never issued.
      */
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     /**

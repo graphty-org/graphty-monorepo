@@ -57,6 +57,11 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
         session.scope.save("door seed", "graph");
         return session.scope;
     },
+    SetsApi: async (session) => {
+        await selectOne(session);
+        session.sets.create({ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door seed" });
+        return session.sets;
+    },
     SelectionApi: selectOne,
     SelectionOwner: selectOne,
     SessionViews: (session) => session.views,

@@ -23,12 +23,12 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
-import type { GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
+import type { EdgeIdentityCells, GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
 import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
 import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
-import { builderDrift, strictViolation } from "./strict";
+import { builderDrift, strictViolation, verifyRetainedArrays } from "./strict";
 
 /** Which kind of element a record belongs to. */
 type RecordTarget = "node" | "edge";
@@ -80,6 +80,21 @@ export const NODES_ADDED = "rows:nodes";
 
 /** The lane key marking that edge rows were added: a forward pass starts the layout. */
 export const EDGES_ADDED = "rows:edges";
+
+/**
+ * The key touched with any write that changes the graph's rows, weights or direction rather than
+ * only its records' attributes: what tells a hook that a record edit is all a pass has to follow.
+ */
+export const ROWS_MOVED = "rows:moved";
+
+/**
+ * Whether an op changes more than records' attributes and graph-level values.
+ * @param op - The op.
+ * @returns True for every op but a record or a value write.
+ */
+function movesRows(op: GraphOp): boolean {
+    return op.kind !== "record" && op.kind !== "value";
+}
 
 /**
  * What a snapshot holds, estimated from its storage: the adjacency arrays, every column's arrays,
@@ -148,6 +163,10 @@ type GraphOp =
           readonly record: GraphRecord;
           /** Endpoints the builder created for this edge; undo removes them with it. */
           readonly created: readonly NodeId[];
+          /** The file's own id for the edge, read at `edgeIdPath`, its stable identity. */
+          readonly fileId: string | number | undefined;
+          /** The identity cells it was completed with, kept by its first undo for its redo. */
+          identity?: EdgeIdentityCells;
       }
     | { readonly kind: "weight"; readonly edgeId: number; readonly prior: number; readonly next: number }
     | {
@@ -228,9 +247,16 @@ export interface GraphWriter {
      * @param target - The resolved target id.
      * @param weight - The resolved weight.
      * @param record - The record.
+     * @param fileId - The file's own id for the edge, read at `edgeIdPath`, when it has one.
      * @returns The row and the id; INVALID_INDEX for both when either endpoint cannot be stored.
      */
-    addEdge(source: unknown, target: unknown, weight: number, record: GraphRecord): { index: number; edgeId: number };
+    addEdge(
+        source: unknown,
+        target: unknown,
+        weight: number,
+        record: GraphRecord,
+        fileId?: string | number,
+    ): { index: number; edgeId: number };
     /**
      * Fold a repeated edge record into the edge it repeats: a new weight, and for the `last`
      * policy its record too.
@@ -355,6 +381,8 @@ export class GraphOps {
         if (drift > 0) {
             throw builderDrift(drift);
         }
+
+        verifyRetainedArrays([this.store]);
     }
 
     /**
@@ -683,6 +711,7 @@ class GraphEntry implements OpLogEntry {
 
     undo(rollback: boolean): void {
         const { store } = this;
+        const seen = bumped();
         store.audit();
         // Re-read after a replace, which swaps the maps.
         let { nodes, edges, values } = this.maps();
@@ -690,6 +719,7 @@ class GraphEntry implements OpLogEntry {
             const op = this.ops[index];
             switch (op.kind) {
                 case "node":
+                    bumpFields(store, "node", op.record, op.prior, seen);
                     restore(nodes, op.id, op.prior);
                     if (!op.existed && isStorableId(op.id)) {
                         // Behind a structural change still waiting, the row goes with it, at
@@ -704,6 +734,8 @@ class GraphEntry implements OpLogEntry {
                     this.graph.touch(nodeKey(op.id));
                     break;
                 case "edge": {
+                    op.identity ??= store.frozenEdgeIdentity(op.edgeId);
+                    bumpFields(store, "edge", op.record, undefined, seen);
                     edges.delete(edgeIdOf(op.edgeId));
                     const created = op.created.filter((id) => !nodes.has(id));
                     if (store.deferring) {
@@ -736,6 +768,7 @@ class GraphEntry implements OpLogEntry {
                 }
 
                 case "record":
+                    bumpFields(store, op.target, op.next, op.prior, seen, true);
                     restore(
                         op.target === "node" ? nodes : edges,
                         op.target === "node" ? op.id : String(op.id),
@@ -777,6 +810,10 @@ class GraphEntry implements OpLogEntry {
             }
         }
 
+        if (this.ops.some(movesRows)) {
+            this.graph.touch(ROWS_MOVED);
+        }
+
         store.touch();
         if (rollback) {
             this.graph.retoken();
@@ -787,6 +824,7 @@ class GraphEntry implements OpLogEntry {
 
     redo(): void {
         const { store } = this;
+        const seen = bumped();
         store.audit();
         // Re-read after a replace, which swaps the maps.
         let { nodes, edges, values } = this.maps();
@@ -802,13 +840,21 @@ class GraphEntry implements OpLogEntry {
                     }
 
                     nodes.set(op.id, op.record);
+                    bumpFields(store, "node", op.prior, op.record, seen);
                     this.graph.touch(nodeKey(op.id));
                     added.add(NODES_ADDED);
                     break;
                 case "edge": {
                     const row = store.builder.addEdge(op.source, op.target, op.weight);
                     store.stampEdgeId(row, op.edgeId);
+                    if (op.identity === undefined) {
+                        store.recordIngestedEdge(row, op.edgeId, op.fileId);
+                    } else {
+                        store.restoreEdgeIdentity(row, op.identity);
+                    }
+
                     edges.set(edgeIdOf(op.edgeId), op.record);
+                    bumpFields(store, "edge", undefined, op.record, seen);
                     this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
                     added.add(EDGES_ADDED);
                     break;
@@ -825,6 +871,7 @@ class GraphEntry implements OpLogEntry {
                 }
 
                 case "record":
+                    bumpFields(store, op.target, op.prior, op.next, seen, true);
                     restore(
                         op.target === "node" ? nodes : edges,
                         op.target === "node" ? op.id : String(op.id),
@@ -872,9 +919,69 @@ class GraphEntry implements OpLogEntry {
             this.graph.touch(key);
         }
 
+        if (this.ops.some(movesRows)) {
+            this.graph.touch(ROWS_MOVED);
+        }
+
         store.touch();
         this.graph.restoreToken(this.tokenAfter);
     }
+}
+
+/**
+ * Move the attribute revision of every top-level field a record write changed (design/sets 6.2):
+ * each field whose value is not the same in the old and the new record, a field that appeared or
+ * disappeared included; every field of a record added or taken away.
+ * @param store - The store whose owner's counters move.
+ * @param target - Node or edge.
+ * @param prior - The record before, or undefined.
+ * @param next - The record after, or undefined.
+ * @param seen - The fields this batch (one command, one undo or redo of a step) bumped already.
+ * @param announce - Whether to tell the sets that watch attributes, as an edit after load does.
+ * A row added or removed announces nothing: the freeze that follows re-queues every watch.
+ */
+function bumpFields(
+    store: GraphStore,
+    target: RecordTarget,
+    prior: GraphRecord | undefined,
+    next: GraphRecord | undefined,
+    seen: Bumped,
+    announce = false,
+): void {
+    const fields = new Set<string>();
+    for (const key of [...Object.keys(prior ?? {}), ...Object.keys(next ?? {})]) {
+        if ((prior?.[key] !== next?.[key] || prior === undefined || next === undefined) && !seen[target].has(key)) {
+            fields.add(key);
+        }
+    }
+
+    if (fields.size === 0) {
+        return;
+    }
+
+    for (const field of fields) {
+        seen[target].add(field);
+    }
+
+    const { inputs } = store;
+    (target === "node" ? inputs.nodes : inputs.edges).bump(fields);
+    if (announce) {
+        inputs.tick.announce({ kind: "attributes", element: target, fields: [...fields] });
+    }
+}
+
+/** The fields one batch of writes has bumped already, by element: each moves once per batch. */
+interface Bumped {
+    readonly node: Set<string>;
+    readonly edge: Set<string>;
+}
+
+/**
+ * An empty batch.
+ * @returns It.
+ */
+function bumped(): Bumped {
+    return { node: new Set(), edge: new Set() };
 }
 
 /**
@@ -923,6 +1030,8 @@ function touchAll(graph: GraphOps, maps: GraphMaps): void {
 /** The writer: writes live state, and records into its entry when it has a draft. */
 class Writer implements GraphWriter {
     private entry: GraphEntry | null = null;
+    /** The fields this command's writes bumped already: each moves once per command. */
+    private readonly bumped = bumped();
     private begun = false;
 
     constructor(
@@ -955,11 +1064,18 @@ class Writer implements GraphWriter {
         }
 
         nodes.set(id, record);
+        bumpFields(this.store, "node", prior, record, this.bumped);
         this.record({ kind: "node", id, record, seed, existed: merged, prior }, nodeKey(id), NODES_ADDED);
         return { index, merged };
     }
 
-    addEdge(source: unknown, target: unknown, weight: number, given: GraphRecord): { index: number; edgeId: number } {
+    addEdge(
+        source: unknown,
+        target: unknown,
+        weight: number,
+        given: GraphRecord,
+        fileId?: string | number,
+    ): { index: number; edgeId: number } {
         if (!isStorableId(source) || !isStorableId(target)) {
             return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
         }
@@ -971,10 +1087,12 @@ class Writer implements GraphWriter {
         const index = builder.addEdge(source, target, weight);
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
+        this.store.recordIngestedEdge(index, edgeId, fileId);
         this.store.touch();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
+        bumpFields(this.store, "edge", undefined, record, this.bumped);
         this.record(
-            { kind: "edge", edgeId, source, target, weight, record, created },
+            { kind: "edge", edgeId, source, target, weight, record, created, fileId },
             edgeKey(edgeIdOf(edgeId)),
             EDGES_ADDED,
         );
@@ -994,6 +1112,7 @@ class Writer implements GraphWriter {
             const id = edgeIdOf(edgeId);
             const priorRecord = edges.get(id);
             edges.set(id, record);
+            bumpFields(this.store, "edge", priorRecord, record, this.bumped);
             this.record({ kind: "record", target: "edge", id, prior: priorRecord, next: record }, edgeKey(id), null);
         }
     }
@@ -1007,18 +1126,23 @@ class Writer implements GraphWriter {
         }
 
         // Writing what the record already holds changes nothing, so it records nothing: a second
-        // identical edit is not a step of its own.
+        // identical edit is not a step of its own. The fields it wrote still move their
+        // revisions, as every attribute write does (design/sets 6.2): comparing values to spare a
+        // bump would cost a deep equality per field for no correctness gain.
         if (
             Object.entries(values).every(
                 ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),
             )
         ) {
+            const { inputs } = this.store;
+            (target === "node" ? inputs.nodes : inputs.edges).bump(Object.keys(values));
             return true;
         }
 
         this.begin();
         const next = frozenRecord({ ...prior, ...values });
         map.set(key, next);
+        bumpFields(this.store, target, prior, next, this.bumped, true);
         // A layer or a filter may read any value just written, so every reader keyed on the
         // snapshot asks again.
         this.store.touch();
@@ -1204,6 +1328,10 @@ class Writer implements GraphWriter {
         this.graph.touch(key);
         if (rows !== null) {
             this.graph.touch(rows);
+        }
+
+        if (movesRows(op)) {
+            this.graph.touch(ROWS_MOVED);
         }
     }
 }

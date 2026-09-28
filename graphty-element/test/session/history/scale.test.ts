@@ -97,7 +97,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
         assert.isBelow(topBytes(session), 1024);
     });
 
-    it("a style, scope or settings edit: the replaced values, a few KB", async () => {
+    it("a style, set or settings edit: the replaced values, a few KB", async () => {
         await session.styles.add({
             name: "Red",
             target: "node",
@@ -105,10 +105,29 @@ describe("what each kind of step retains, at the largest graph a session holds",
             set: { "node.color": "#ff0000" },
         });
         assert.isAtMost(topBytes(session), 4096);
-        session.scope.save("Some", { nodes: ["v1", "v2", "v3"] });
+        session.sets.create({ kind: "fixed", nodes: ["v1", "v2", "v3"], reading: "induced" }, { name: "Some" });
         assert.isAtMost(topBytes(session), 4096);
         await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
         assert.isAtMost(topBytes(session), 4096);
+    });
+
+    it("a member edit on a 500,000-member set: both whole records, 8 bytes a node member each", () => {
+        const members = Array.from({ length: 500_000 }, (_, at) => `m${String(at)}`);
+        const id = session.sets.create({ kind: "fixed", nodes: members, reading: "induced" }, { name: "Big" });
+        const created = topBytes(session);
+        assert.isAtLeast(created, 8 * 500_000, "the created record");
+        assert.isAtMost(created, 8 * 500_000 + 4096);
+
+        session.sets.addMembers(id, { nodes: ["v1"] });
+        const edited = topBytes(session);
+        // The record before is the create's too, so it is charged to the older step.
+        assert.isAtLeast(edited, 8 * 500_001, "the record after");
+        assert.isAtMost(edited, 8 * 500_001 + 4096);
+        assert.isAtLeast(
+            session.history.bytes,
+            2 * 8 * 500_000,
+            "both whole records are held, once each, across the two steps",
+        );
     });
 
     it("a filter edit: the replaced filter, and once undone at most one byte per element for the masks", async () => {

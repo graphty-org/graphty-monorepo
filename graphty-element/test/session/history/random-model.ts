@@ -1873,14 +1873,112 @@ export const COMMANDS = [
     ),
     fc.tuple(fc.constantFrom("Hubs", "Leaves", "Route"), fc.subarray(["n1", "n2", "n3"], { minLength: 1 })).map(
         ([name, nodes]) =>
-            new Edit(`save scope ${name}`, (real) => ({
+            new Edit(`create set ${name}`, (real) => ({
                 key: null,
                 // Synchronous, and refused at once when the name is taken.
                 run: () => {
-                    real.session.scope.save(name, { nodes });
+                    real.session.sets.create({ kind: "fixed", nodes, reading: "induced" }, { name });
                     return Promise.resolve();
                 },
             })),
+    ),
+    fc.constantFrom("Busy", "Quiet").map(
+        (name) =>
+            new Edit(`create rule set ${name}`, (real) => ({
+                key: null,
+                run: () => {
+                    real.session.sets.create(
+                        { kind: "rule", where: { kind: "degree", min: name === "Busy" ? 2 : 0 }, reading: "induced" },
+                        { name },
+                    );
+                    return Promise.resolve();
+                },
+            })),
+    ),
+    fc.constantFrom("Hubs", "Leaves", "Route").map(
+        (name) =>
+            new Edit(`save scope ${name}`, (real) => ({
+                key: null,
+                // The deprecated door, which forwards to set.create.
+                run: () => {
+                    real.session.scope.save(name, "graph");
+                    return Promise.resolve();
+                },
+            })),
+    ),
+    fc.tuple(pick, fc.constantFrom("Renamed", "Other")).map(
+        ([at, name]) =>
+            new Edit(`rename set ${String(at)} to ${name}`, (real) => {
+                const set = choose(real.session.sets.list(), at);
+                return set === undefined
+                    ? null
+                    : {
+                          key: null,
+                          run: () => {
+                              real.session.sets.rename(set.id, name);
+                              return Promise.resolve();
+                          },
+                      };
+            }),
+    ),
+    fc.tuple(pick, fc.subarray(["n1", "n2", "n4", "n5"], { minLength: 1 })).map(
+        ([at, nodes]) =>
+            new Edit(`redefine set ${String(at)} as ${nodes.join(",")}`, (real) => {
+                const set = choose(real.session.sets.list(), at);
+                return set === undefined
+                    ? null
+                    : {
+                          key: null,
+                          run: () => {
+                              real.session.sets.redefine(set.id, { kind: "fixed", nodes, reading: "listed" });
+                              return Promise.resolve();
+                          },
+                      };
+            }),
+    ),
+    fc.tuple(pick, fc.boolean(), fc.constantFrom("n1", "n3", "n5")).map(
+        ([at, add, node]) =>
+            new Edit(`${add ? "add" : "take"} ${node} ${add ? "to" : "from"} set ${String(at)}`, (real) => {
+                const set = choose(real.session.sets.list(), at);
+                return set === undefined || set.definition.kind !== "fixed"
+                    ? null
+                    : {
+                          key: null,
+                          run: () => {
+                              if (add) {
+                                  real.session.sets.addMembers(set.id, { nodes: [node] });
+                              } else {
+                                  real.session.sets.removeMembers(set.id, { nodes: [node] });
+                              }
+
+                              return Promise.resolve();
+                          },
+                      };
+            }),
+    ),
+    fc.constantFrom("Everything", "Shown").map(
+        (name) =>
+            new Edit(`create set ${name} from a scope`, (real) => ({
+                key: null,
+                run: async () => {
+                    await real.session.sets.createFrom(name === "Everything" ? "graph" : "visible", { name });
+                },
+            })),
+    ),
+    pick.map(
+        (at) =>
+            new Edit(`remove set ${String(at)}`, (real) => {
+                const set = choose(real.session.sets.list(), at);
+                return set === undefined
+                    ? null
+                    : {
+                          key: null,
+                          run: () => {
+                              real.session.sets.remove(set.id);
+                              return Promise.resolve();
+                          },
+                      };
+            }),
     ),
     pick.map(
         (at) =>

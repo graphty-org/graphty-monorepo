@@ -16,7 +16,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
+import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope, SetId } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import type { AlgoLegacyCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
@@ -24,7 +24,7 @@ import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand } from "./commands/layout";
 import type { PositionsCommand } from "./commands/positions";
-import type { ScopeCommand } from "./commands/scope";
+import type { SetCommand } from "./commands/sets";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
@@ -36,6 +36,7 @@ import {
     estimateCost,
     gateRun,
     type MachineCalibration,
+    type ScopeCandidate,
 } from "./cost";
 import type { Caveats, ResolvedScope } from "./runs";
 import type { GraphStatistics } from "./types";
@@ -88,7 +89,7 @@ export type SessionCommand =
     | DataCommand
     | StyleCommand
     | VisibilityCommand
-    | ScopeCommand
+    | SetCommand
     | ViewCommand
     | ConfigSetCommand
     | PositionsCommand
@@ -240,7 +241,45 @@ export interface PlanningContext {
     readonly calibration?: () => MachineCalibration | undefined;
     /** Reads the most recent timing of each algorithm on this machine. */
     readonly measurements?: () => ReadonlyMap<AlgorithmKey, CostMeasurement> | undefined;
+    /**
+     * The kept sets, in listing order, for the scopes a refused run is pointed at.
+     * @returns Each set's id and name.
+     */
+    readonly keptSets?: () => readonly { readonly id: SetId; readonly name: string }[];
 }
+
+// ---------------------------------------------------------------------------------------------
+// Deriving a scope's input
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The cost of deriving a scope's compact input, in seconds: a + b(N + E) + c(kept edges).
+ *
+ * Not proportional to the scope: `inducedSubgraph` allocates full-length remaps and scans every
+ * edge of the whole graph, then builds the kept edges. Fitted to the design's measured rows
+ * (design/sets 6.5, Barabasi-Albert m = 5): 64 ms at 1M / 5M keeping 10% of the nodes and 273 ms
+ * keeping 50%, which gives about 9 ns per element of the whole graph and 170 ns per kept edge.
+ * ponytail: fixed coefficients from one machine; the timing runners re-fit them, and a calibrated
+ * rate replaces them when a derivation is ever timed on the device.
+ * @param nodes - Nodes in the whole graph.
+ * @param edges - Edges in the whole graph.
+ * @param keptEdges - Edges in the scope.
+ * @returns The seconds.
+ */
+export function derivationSeconds(nodes: number, edges: number, keptEdges: number): number {
+    return (
+        DERIVATION_FIXED_SECONDS +
+        DERIVATION_PER_ELEMENT_SECONDS * (nodes + edges) +
+        DERIVATION_PER_KEPT_EDGE_SECONDS * keptEdges
+    );
+}
+
+/** a: the fixed part of a derivation. */
+const DERIVATION_FIXED_SECONDS = 0.0005;
+/** b: per node and edge of the whole graph. */
+const DERIVATION_PER_ELEMENT_SECONDS = 9e-9;
+/** c: per edge kept in the scope. */
+const DERIVATION_PER_KEPT_EDGE_SECONDS = 1.7e-7;
 
 // ---------------------------------------------------------------------------------------------
 // Estimating
@@ -270,6 +309,12 @@ function costInput(
 
     const calibration = context.calibration?.();
     const measurements = context.measurements?.();
+    /* A run computes over a scope smaller than the graph only when its class declares a scoped
+       input; every other one computes on the whole graph and is masked back, so it is estimated
+       -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
+       scoped one pays for deriving its input on top. */
+    const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
+    const scoped = !whole && descriptor?.scopeInput === "subgraph";
 
     return {
         input: {
@@ -277,7 +322,13 @@ function costInput(
             ...(descriptor === undefined ? {} : { descriptor }),
             ...(command.params === undefined ? {} : { params: command.params }),
             statistics,
-            scope: { nodes: scope.nodeCount, edges: scope.edgeCount, spec, exact: true },
+            scope:
+                scoped || whole
+                    ? { nodes: scope.nodeCount, edges: scope.edgeCount, spec, exact: true }
+                    : { nodes: statistics.nodeCount, edges: statistics.edgeCount, spec, exact: true },
+            ...(scoped
+                ? { derivationSeconds: derivationSeconds(statistics.nodeCount, statistics.edgeCount, scope.edgeCount) }
+                : {}),
             ...(calibration === undefined ? {} : { calibration }),
             ...(measurements === undefined ? {} : { measurements }),
             acceleratorAvailable: context.acceleratorAvailable(),
@@ -294,6 +345,38 @@ function costInput(
  */
 function notEstimated(command: { readonly op: string }): string {
     return `"${command.op}" is not costed: only an algorithm run has an estimate.`;
+}
+
+/**
+ * The kept sets a refused run could be pointed at, sized over the graph as it stands. A set that
+ * cannot be resolved now (a detached one) or holds no node is left out.
+ * @param context - What planning reads.
+ * @returns The candidates, in listing order.
+ */
+export function keptSetScopes(context: PlanningContext): ScopeCandidate[] {
+    const { nodeCount, edgeCount } = context.statistics();
+    const candidates: ScopeCandidate[] = [];
+    for (const set of context.keptSets?.() ?? []) {
+        const spec: Scope = { set: set.id };
+        let resolved: ResolvedScope;
+        try {
+            resolved = context.resolveScope(spec);
+        } catch {
+            continue;
+        }
+
+        if (resolved.nodeCount > 0) {
+            candidates.push({
+                scope: spec,
+                label: set.name,
+                nodes: resolved.nodeCount,
+                edges: resolved.edgeCount,
+                derivationSeconds: derivationSeconds(nodeCount, edgeCount, resolved.edgeCount),
+            });
+        }
+    }
+
+    return candidates;
 }
 
 /**
@@ -378,6 +461,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
 
     const decision = gateRun(built.input, {
         limits: context.limits,
+        keptSets: () => keptSetScopes(context),
         ...(command.exact === undefined ? {} : { exact: command.exact }),
         ...(command.sample === undefined ? {} : { sample: command.sample }),
     });

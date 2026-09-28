@@ -32,7 +32,7 @@ import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService } from "../commands/data";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
-import type { ScopeService } from "../commands/scope";
+import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
@@ -88,7 +88,7 @@ interface CommandServices {
     legacy?: LegacyService;
     styles?: StyleService;
     visibility?: VisibilityService;
-    scopes?: ScopeService;
+    sets?: SetService;
     camera?: CameraService;
     /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */
     layout?: LayoutService;
@@ -902,6 +902,15 @@ export class Dispatcher {
     }
 
     /**
+     * Whether no group is open: nothing is executing, and no transaction or queued command is
+     * waiting to seal. What a minted id not yet sealed is told apart from one a rollback dropped by.
+     * @returns True when none is.
+     */
+    get idle(): boolean {
+        return this.open.size === 0;
+    }
+
+    /**
      * Whether a call through a group-tagged facade is on the stack, so a door that would take a
      * turn on the operation queue dispatches at once instead: the queue's slot is the running
      * command's own, and waiting for it would never end.
@@ -1117,17 +1126,17 @@ export class Dispatcher {
 
     /**
      * Do one command now, and throw what it throws, for a synchronous door. A queued command
-     * starts beside the queue rather than waiting for a turn, as `skipQueue` always did.
+     * starts beside the queue rather than waiting for a turn, as `skipQueue` always did. Routed
+     * into a transaction, an immediate command that is refused throws here too, having reverted
+     * only its own writes; the transaction goes on.
      * @param command - The command.
      * @returns What `execute` returned.
      */
     dispatchNow<C extends CommandLike>(command: Dispatchable<C>): unknown {
-        if (this.route !== null) {
-            return this.route(command);
-        }
-
         this.syncFailure = null;
-        const promise = this.submit(command, null, { beside: true }) as Promise<unknown>;
+        const promise = (
+            this.route === null ? this.submit(command, null, { beside: true }) : this.route(command)
+        ) as Promise<unknown>;
         const failure = this.syncFailure as { error: unknown } | null;
         this.syncFailure = null;
         if (failure !== null) {
@@ -1364,7 +1373,7 @@ export class Dispatcher {
      * @param derived - The per-domain changes, one per step.
      */
     private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
-        if (change.slices.includes("graph") || change.slices.includes("runs")) {
+        if (change.slices.includes("graph") || change.slices.includes("runs") || change.slices.includes("sets")) {
             // What run results and their id indexes cost depends on which snapshot is resident.
             const { token } = this.store.state.graph;
             const seen = new WeakSet();
@@ -1954,7 +1963,7 @@ export class Dispatcher {
     private checkStrict(): void {
         if (this.strict) {
             this.graph.checkStore();
-            verifyRetainedArrays();
+            verifyRetainedArrays([this.arrangement]);
         }
     }
 

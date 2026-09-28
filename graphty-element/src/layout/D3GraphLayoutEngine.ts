@@ -1,3 +1,4 @@
+import type { NodeMask } from "@graphty/graph-format";
 import {
     Edge as D3Edge,
     forceCenter,
@@ -112,12 +113,24 @@ function isD3Edge(e: unknown): e is D3Edge {
 }
 
 /**
+ * Fix a d3 node where it is now, which is how d3 holds a body still.
+ * @param d3node - The node to fix.
+ */
+function fixAt(d3node: D3Node): void {
+    d3node.fx = d3node.x;
+    d3node.fy = d3node.y;
+    d3node.fz = d3node.z;
+}
+
+/**
  * D3 force-directed layout engine using d3-force-3d simulation
  */
 export class D3GraphEngine extends LayoutEngine {
     static type = "d3";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = d3LayoutOptionsSchema;
+    /** Accepts a scope: a held node is fixed through d3's own `fx`/`fy`/`fz`. */
+    static override scoped = true;
     d3ForceLayout: ReturnType<typeof forceSimulation>;
     d3AlphaMin: number;
     d3AlphaTarget: number;
@@ -201,6 +214,10 @@ export class D3GraphEngine extends LayoutEngine {
                 }
 
                 this.nodeMapping.set(n, d3node);
+                // A node that arrived after a scoped layout started is not one of its members.
+                if (this.isHeld(n.index)) {
+                    fixAt(d3node);
+                }
             }
             this.newNodeMap.clear();
 
@@ -390,11 +407,36 @@ export class D3GraphEngine extends LayoutEngine {
      */
     protected unpin(n: Node): void {
         const d3node = this._getMappedNode(n);
+        // A node a scoped layout is holding stays fixed: the hold is not the reader's pin to lift.
+        if (this.isHeld(n.index)) {
+            return;
+        }
 
         d3node.fx = undefined;
         d3node.fy = undefined;
         d3node.fz = undefined;
         this.reheat = true; // TODO: is this necessary?
+    }
+
+    /**
+     * Holds the nodes a scoped layout may not move, as d3 fixes a node: at its current position.
+     *
+     * A node that is no longer held is released unless the reader pinned it.
+     * @param mask - One bit per row to hold, or null to hold nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.refresh();
+        for (const [node, d3node] of this.nodeMapping) {
+            if (this.isHeld(node.index)) {
+                fixAt(d3node);
+            } else if (!node.isPinned()) {
+                d3node.fx = undefined;
+                d3node.fy = undefined;
+                d3node.fz = undefined;
+            }
+        }
     }
 
     /**

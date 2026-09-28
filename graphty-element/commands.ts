@@ -48,8 +48,12 @@ export const COMMANDS = Object.freeze({
     "visibility.set": { undo: "undoable" },
     "visibility.window": { undo: "undoable" },
     "visibility.context": { undo: "undoable" },
-    "scope.save": { undo: "undoable" },
-    "scope.remove": { undo: "undoable" },
+    "set.create": { undo: "undoable" },
+    "set.rename": { undo: "undoable" },
+    "set.redefine": { undo: "undoable" },
+    "set.members": { undo: "undoable" },
+    "set.remove": { undo: "undoable" },
+    "set.restore": { undo: "undoable" },
     "view.save": { undo: "undoable" },
     "view.remove": { undo: "undoable" },
     "view.camera": {
@@ -60,6 +64,7 @@ export const COMMANDS = Object.freeze({
     "positions.set": { undo: "undoable" },
     "positions.pin": { undo: "undoable" },
     "layout.set": { undo: "undoable" },
+    "layout.scope": { undo: "undoable" },
     "view.dimension": { undo: "undoable" },
     "layout.transport": {
         undo: "exempt",

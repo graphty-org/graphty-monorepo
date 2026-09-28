@@ -30,9 +30,10 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "arrangement",
     "config",
     "runs",
+    // After runs, which a set may read; before styles and visibility, which read sets.
+    "sets",
     "styles",
     "visibility",
-    "scopes",
     "views",
 ];
 
@@ -61,14 +62,14 @@ interface Pass {
  * @returns The copy.
  */
 function snapshot(state: ProjectState): ProjectState {
-    // ponytail: copies the keyed maps once per pass; fine while they hold settings, runs, scopes
+    // ponytail: copies the keyed maps once per pass; fine while they hold settings, runs, sets
     // and views. The graph op-lists will be folded, not copied, when the graph slice lands.
     return Object.freeze({
         ...state,
         pins: new Set(state.pins),
         config: new Map(state.config),
         runs: new Map(state.runs),
-        scopes: new Map(state.scopes),
+        sets: new Map(state.sets),
         views: new Map(state.views),
     });
 }

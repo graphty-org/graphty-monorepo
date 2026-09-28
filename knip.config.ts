@@ -173,7 +173,14 @@ const config: KnipConfig = {
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
             ],
-            project: ["*.ts!", "src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: [
+                "*.ts!",
+                "src/**/*.ts!",
+                "test/**/*.ts",
+                "stories/**/*.ts",
+                "scripts/**/*.{ts,js}",
+                "benchmarks/**/*.ts",
+            ],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)

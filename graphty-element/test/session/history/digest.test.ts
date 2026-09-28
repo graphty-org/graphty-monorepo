@@ -13,7 +13,7 @@ describe("the state digest", () => {
                 ["a", 1],
                 ["b", { y: 2, x: 1 }],
             ]),
-            scopes: new Map(),
+            sets: new Map(),
             pins: new Set(["n1", "n2"]),
             views: new Map([
                 ["home", { zoom: 1 }],

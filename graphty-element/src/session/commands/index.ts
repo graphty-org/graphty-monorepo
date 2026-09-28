@@ -13,7 +13,7 @@ import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
 import { LAYOUT_DEFINITIONS } from "./layout";
 import { POSITIONS_DEFINITIONS } from "./positions";
-import { SCOPE_DEFINITIONS } from "./scope";
+import { SET_DEFINITIONS } from "./sets";
 import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
 import { VISIBILITY_DEFINITIONS } from "./visibility";
@@ -67,7 +67,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...DATA_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
-    ...SCOPE_DEFINITIONS,
+    ...SET_DEFINITIONS,
     ...VIEW_DEFINITIONS,
     ...CONFIG_DEFINITIONS,
     ...POSITIONS_DEFINITIONS,

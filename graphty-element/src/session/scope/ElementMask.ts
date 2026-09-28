@@ -126,6 +126,9 @@ export class ElementMask<TId> {
     /** Bumped whenever a mutation actually changed the membership. */
     private revision = 0;
 
+    /** Told of every version bump. */
+    private readonly onVersion: (() => void) | undefined;
+
     /** The last id array handed out, or null before the first materialisation. */
     private cachedIds: readonly TId[] | null = null;
 
@@ -142,12 +145,21 @@ export class ElementMask<TId> {
      *     builds a fresh object per call costs a re-materialisation per read. It never costs
      *     correctness -- the contents are compared before a new array is handed out.
      * @param capacity - Rows to reserve before the first growth; a non-negative integer.
+     * @param onVersion - Called on every version bump; a session mask passes its input tick's
+     *     advance here, so the tick moves whenever the mask does (design/sets 6.2).
      * @throws A `RangeError` when `capacity` is not a non-negative integer.
      */
-    constructor(readSpace: () => MaskIdSpace<TId>, capacity: number = DEFAULT_MASK_CAPACITY) {
+    constructor(readSpace: () => MaskIdSpace<TId>, capacity: number = DEFAULT_MASK_CAPACITY, onVersion?: () => void) {
         requireRowCount(capacity, "capacity");
         this.readSpace = readSpace;
         this.array = new Uint8Array(Math.max(1, capacity));
+        this.onVersion = onVersion;
+    }
+
+    /** Move the version on, and tell whoever asked to be told. */
+    private bump(): void {
+        this.revision += 1;
+        this.onVersion?.();
     }
 
     /**
@@ -213,7 +225,7 @@ export class ElementMask<TId> {
             for (let index = count; index < this.rows; index++) {
                 if (this.array[index] === MEMBER) {
                     this.members -= 1;
-                    this.revision += 1;
+                    this.bump();
                 }
             }
 
@@ -242,7 +254,7 @@ export class ElementMask<TId> {
         this.members = this.countMembers();
         // Unconditional: the indices moved, so anything materialised from the previous index
         // space has to be built again even when the same elements are still in the set.
-        this.revision += 1;
+        this.bump();
     }
 
     /**
@@ -293,7 +305,7 @@ export class ElementMask<TId> {
 
         this.array[index] = MEMBER;
         this.members += 1;
-        this.revision += 1;
+        this.bump();
 
         return true;
     }
@@ -312,7 +324,7 @@ export class ElementMask<TId> {
 
         this.array[index] = ABSENT;
         this.members -= 1;
-        this.revision += 1;
+        this.bump();
 
         return true;
     }
@@ -328,7 +340,7 @@ export class ElementMask<TId> {
 
         this.array.fill(MEMBER, 0, this.rows);
         this.members = this.rows;
-        this.revision += 1;
+        this.bump();
 
         return true;
     }
@@ -345,7 +357,7 @@ export class ElementMask<TId> {
 
         this.array.fill(ABSENT, 0, this.rows);
         this.members = 0;
-        this.revision += 1;
+        this.bump();
 
         return true;
     }
@@ -364,7 +376,7 @@ export class ElementMask<TId> {
         }
 
         this.members = this.rows - this.members;
-        this.revision += 1;
+        this.bump();
 
         return true;
     }
@@ -462,6 +474,25 @@ export class ElementMask<TId> {
     }
 
     /**
+     * The membership as a packed bitmap in graph-format's mask layout (ceil(length / 32) words,
+     * LSB-first): one pass of byte reads. A row at or past the live count is not a member.
+     * @param length - How many indices the bitmap covers, normally the snapshot's element count.
+     * @returns A fresh bitmap.
+     */
+    pack(length: number): U32 {
+        const bits = new Uint32Array((length + 31) >>> 5);
+        const end = Math.min(length, this.rows);
+
+        for (let index = 0; index < end; index++) {
+            if (this.array[index] === MEMBER) {
+                bits[index >>> 5] |= 1 << (index & 31);
+            }
+        }
+
+        return bits;
+    }
+
+    /**
      * The ids in the set, materialised lazily and handed back frozen.
      *
      * IDENTITY-STABLE: the same array object comes back until the contents actually change, so a
@@ -524,7 +555,7 @@ export class ElementMask<TId> {
         }
 
         if (changed) {
-            this.revision += 1;
+            this.bump();
         }
 
         return changed;

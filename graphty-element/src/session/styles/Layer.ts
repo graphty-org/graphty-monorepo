@@ -219,6 +219,13 @@ export interface LayerCheckOptions {
     readonly scales: ScaleRegistry;
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
+    /**
+     * A write door's check of a `{ match: "member" }` selector's scope: session edge ids to stable
+     * members, set ids checked as issued. Absent, the scope is taken as given.
+     * @param scope - The scope as given.
+     * @returns The scope the layer holds.
+     */
+    readonly admitScope?: (scope: unknown) => unknown;
 }
 
 /**
@@ -252,6 +259,11 @@ export interface CompiledLayer {
     readonly layer: Layer;
     /** Its selector, reduced to a predicate and the columns that predicate reads. */
     readonly selector: CompiledSelector;
+    /**
+     * Every path the layer reads, its selector's and its bindings', without repeats: what a
+     * change to a record's attributes has to name for the layer to paint anything differently.
+     */
+    readonly reads: readonly Path[];
 }
 
 /** Which edit asked for a repaint. */
@@ -871,6 +883,35 @@ function checkSelector(
 }
 
 /**
+ * The specification with a `{ match: "member" }` selector's scope admitted, so the layer holds,
+ * lists and persists the stable form. A refusal is reported like any selector problem.
+ * @param spec - The specification as given.
+ * @param options - Where the admission is.
+ * @param log - Where a refusal is collected.
+ * @returns The specification to check and build from.
+ */
+function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
+    const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
+    if (
+        options.admitScope === undefined ||
+        typeof selector !== "object" ||
+        selector === null ||
+        selector.match !== "member"
+    ) {
+        return spec;
+    }
+
+    try {
+        const of = options.admitScope(selector.of);
+        return of === selector.of ? spec : ({ ...spec, selector: { ...selector, of } } as LayerSpec);
+    } catch (error) {
+        report(log, problemFrom(error, "selector"));
+
+        return spec;
+    }
+}
+
+/**
  * Check every channel the specification writes.
  * @param spec - The specification.
  * @param target - The layer's target, or null when it could not be settled.
@@ -915,13 +956,14 @@ function checkChannels(
  * it parses, resolves and refuses, and the session it was asked about is exactly as it was
  * afterwards. Every problem is reported, not the first, because correcting one mistake per round
  * trip is how a form gets abandoned.
- * @param spec - The layer as it was authored, imported or exported.
+ * @param given - The layer as it was authored, imported or exported.
  * @param options - The id to give it, what its selector compiles against, the scales it may name,
  *     and which paths this session answers.
  * @returns The verdict, and the compiled layer when the verdict is that it is sound.
  */
-export function checkLayerSpec(spec: LayerSpec, options: LayerCheckOptions): LayerCheck {
+export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): LayerCheck {
     const log: ProblemLog = { problems: [], paths: [] };
+    const spec = admitSelectorScope(given, options, log);
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
 
@@ -952,7 +994,7 @@ export function checkLayerSpec(spec: LayerSpec, options: LayerCheckOptions): Lay
 
     return {
         result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths }),
-        layer: buildLayer(spec, options.id, target, compiled),
+        layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }
 
@@ -962,9 +1004,16 @@ export function checkLayerSpec(spec: LayerSpec, options: LayerCheckOptions): Lay
  * @param id - The id the layer carries for the rest of its life.
  * @param target - What it paints.
  * @param selector - Its compiled selector.
+ * @param reads - Every path it reads.
  * @returns The compiled layer.
  */
-function buildLayer(spec: LayerSpec, id: LayerId, target: SelectorTarget, selector: CompiledSelector): CompiledLayer {
+function buildLayer(
+    spec: LayerSpec,
+    id: LayerId,
+    target: SelectorTarget,
+    selector: CompiledSelector,
+    reads: readonly Path[],
+): CompiledLayer {
     const source = sourceOf(spec);
     // A copy, deep-frozen, of everything but `userData`: the caller's objects stay theirs to
     // change, and nothing reachable from a layer in the stack can change under it.
@@ -985,7 +1034,7 @@ function buildLayer(spec: LayerSpec, id: LayerId, target: SelectorTarget, select
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
     });
 
-    return Object.freeze({ layer, selector });
+    return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
 }
 
 /**

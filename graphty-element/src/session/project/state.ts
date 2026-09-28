@@ -12,13 +12,14 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { EdgeId, LayoutId, NodeId, RunId, ScopeId } from "../../catalog/types";
+import type { EdgeId, LayoutId, NodeId, RunId, Scope, SetId } from "../../catalog/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
 import type { RunRecord } from "../runs/types";
-import type { SavedScopeRecord } from "../scope/ScopeApi";
+import type { HeldCaptures } from "../sets/captures";
+import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
-import type { Filter, TimeWindow } from "../visibility/filter";
+import type { RuleTree, TimeWindow } from "../visibility/filter";
 
 /** One node or edge record as the graph holds it: the attributes it arrived with. */
 export type GraphRecord = Readonly<Record<string | number, unknown>>;
@@ -61,6 +62,11 @@ export interface LayoutChoice {
     readonly options: Readonly<Record<string, unknown>>;
     /** The one home of the dimension. */
     readonly dimension: "2d" | "3d";
+    /**
+     * What the layout runs over, canonical, carried from one choice to the next; absent for the
+     * whole graph. A scope that resolves to nothing leaves the layout over the whole graph.
+     */
+    readonly scope?: Scope;
 }
 
 /**
@@ -86,6 +92,16 @@ export interface RunEntry {
     readonly record: RunRecord;
     /** Its result, held by reference: a published result is already frozen. */
     readonly result: RunResult;
+    /**
+     * The token of the execution that produced `result` (design/sets 5.2), minted by a counter no
+     * undo rewinds. Absent for a result published by an executor outside the runs API.
+     */
+    readonly execution?: string;
+    /**
+     * What live references held of earlier executions' items when a re-run replaced them
+     * (design/sets 5.2), so a layer restored by undo paints from them. Absent when none.
+     */
+    readonly held?: HeldCaptures;
     /** Whether auto-apply has painted it. */
     readonly painted: boolean;
     /** Whether its id was derived rather than author-assigned. */
@@ -96,7 +112,7 @@ export interface RunEntry {
 
 /** The `visibility` slice. The masks are derived from it, not state. */
 export interface VisibilityState {
-    readonly filter: Filter | null;
+    readonly filter: RuleTree | null;
     readonly window: TimeWindow | null;
     readonly showContext: boolean;
 }
@@ -116,7 +132,8 @@ export interface ProjectState {
     /** The frozen, compiled layer stack, index 0 the bottom. */
     readonly styles: readonly CompiledLayer[];
     readonly visibility: VisibilityState;
-    readonly scopes: ReadonlyMap<ScopeId, SavedScopeRecord>;
+    /** The kept sets, by id: deep-frozen records. */
+    readonly sets: ReadonlyMap<SetId, ElementSet>;
     /** Saved camera views, by name. */
     readonly views: ReadonlyMap<string, CameraState>;
 }
@@ -154,7 +171,7 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         runs: new Map(init.runs),
         styles: init.styles ?? Object.freeze([]),
         visibility: init.visibility ?? Object.freeze({ filter: null, window: null, showContext: false }),
-        scopes: new Map(init.scopes),
+        sets: new Map(init.sets),
         views: new Map(init.views),
     };
 }

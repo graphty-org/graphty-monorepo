@@ -10,12 +10,12 @@
  */
 
 import type { UndoableDefinition } from "../project/Dispatcher";
-import { assertVisibility, type Filter, type TimeWindow } from "../visibility/filter";
+import { assertVisibility, type RuleTree, type TimeWindow } from "../visibility/filter";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
     readonly op: "visibility.set";
-    readonly filter: Filter | null;
+    readonly filter: RuleTree | null;
 }
 
 /** `visibility.window`: apply a time window, or clear it with null. */
@@ -40,7 +40,7 @@ export interface VisibilityService {
      * @param filter - The filter, or null.
      * @param window - The window, or null.
      */
-    check(filter: Filter | null, window: TimeWindow | null): void;
+    check(filter: RuleTree | null, window: TimeWindow | null): void;
 }
 
 /**

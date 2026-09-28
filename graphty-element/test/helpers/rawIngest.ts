@@ -8,6 +8,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { GraphStore } from "../../src/data/GraphStore";
+import type { DirectionOutcome } from "../../src/session/project/graphOps";
 import { readSeedPosition } from "../../src/session/project/ingest";
 
 /**
@@ -52,6 +53,7 @@ export function ingestNode(
  * @param srcId - The source id.
  * @param dstId - The target id.
  * @param weight - The weight.
+ * @param fileId - The file's own id for the edge, its stable identity, when it has one.
  * @returns The row and the id, INVALID_INDEX for both when an id cannot be stored.
  */
 export function ingestEdge(
@@ -59,6 +61,7 @@ export function ingestEdge(
     srcId: unknown,
     dstId: unknown,
     weight: number,
+    fileId?: string | number,
 ): { index: number; edgeId: number } {
     if (!isStorableId(srcId) || !isStorableId(dstId)) {
         return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
@@ -67,6 +70,8 @@ export function ingestEdge(
     const index = store.builder.addEdge(srcId, dstId, weight);
     const edgeId = store.nextEdgeId();
     store.stampEdgeId(index, edgeId);
+    // Completed at the next freeze, or with the load open around it, as the graph primitives'.
+    store.recordIngestedEdge(index, edgeId, fileId);
     store.touch();
     return { index, edgeId };
 }
@@ -77,22 +82,28 @@ export function ingestEdge(
  * @param store - The store.
  * @param directed - The declared direction.
  * @param statedBy - The text that declared it.
+ * @returns What happened.
  */
-export function ingestDeclaredDirection(store: GraphStore, directed: boolean, statedBy: string): void {
+export function ingestDeclaredDirection(store: GraphStore, directed: boolean, statedBy: string): DirectionOutcome {
     const { builder } = store;
     if (builder.directed === directed) {
         if (!builder.directedLocked) {
             store.recordDirectionFromFile(statedBy);
         }
 
-        return;
+        return "unchanged";
     }
 
-    if (builder.directedLocked || builder.edgeCount > 0) {
-        return;
+    if (builder.directedLocked) {
+        return "config-wins";
+    }
+
+    if (builder.edgeCount > 0) {
+        return "edges-present";
     }
 
     builder.setDirected(directed);
     store.recordDirectionFromFile(statedBy);
     store.touch();
+    return "applied";
 }

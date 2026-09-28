@@ -116,7 +116,17 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `runs=${canonical(state.runs, path)}`,
         `styles=${canonical(state.styles, path)}`,
         `visibility=${canonical(state.visibility, path)}`,
-        `scopes=${canonical(state.scopes, path)}`,
+        // Each set by its revision, the canonical hash of its definition: a fixed set's edge
+        // members are typed columns that a walk would materialise at 72 bytes a member.
+        `sets=${canonical(
+            new Map(
+                [...state.sets].map(([id, set]) => [
+                    id,
+                    { id: set.id, name: set.name, order: set.order, createdFrom: set.createdFrom, revision: set.revision },
+                ]),
+            ),
+            path,
+        )}`,
         `views=${canonical(state.views, path)}`,
     ];
     if (options.snapshot !== undefined) {

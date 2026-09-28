@@ -59,6 +59,9 @@
 // The session itself
 // ---------------------------------------------------------------------------------------------
 
+import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+import type { SelectionOp } from "./src/session/selection";
+
 export type {
     CommandOutcome,
     CommandOutcomeMap,
@@ -216,6 +219,21 @@ export type { SavedScope, ScopeApi, ScopeCount, ScopeCountOptions } from "./src/
 export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
 
 // ---------------------------------------------------------------------------------------------
+// Kept sets: named groups, kept selections, communities and paths, as `session.sets`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    ElementSet,
+    Memberships,
+    SetChange,
+    SetOffer,
+    SetsApi,
+    SetStatus,
+    SetStatusReason,
+    SetUser,
+} from "./src/session/sets/types";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 
@@ -225,10 +243,10 @@ export type {
     SelectionCause,
     SelectionDelta,
     SelectionDirection,
+    SelectionOp,
     SelectionStatistics,
     SelectionTarget,
     SelectionTextMode,
-    SetOp,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
@@ -237,9 +255,8 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // ---------------------------------------------------------------------------------------------
 
 export type {
-    Filter,
-    FilterDirection,
     FilterResult,
+    RuleTree,
     TimeStep,
     TimeWindow,
     VisibilityApi,
@@ -267,26 +284,41 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // Identities, scopes and results
 // ---------------------------------------------------------------------------------------------
 
+export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     Binding,
     BindingOverflow,
     Channel,
     EdgeId,
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
     Encoding,
     FieldDescriptor,
+    ItemKey,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
     NodeId,
     Path,
+    PathKind,
     Query,
     QueryValidation,
+    ResultId,
+    ResultItem,
     ResultShape,
     RunId,
     Scope,
     ScopeId,
+    ScopeInput,
     Selector,
+    SetCombine,
+    SetCreatedFrom,
+    SetDefinition,
+    SetDefinitionInput,
+    SetId,
+    SetOperand,
     StaticStyle,
     StyleDocument,
 } from "./src/catalog/types";
@@ -364,3 +396,25 @@ export {
     isGraphtyError,
     isGraphtyErrorCode,
 } from "./src/errors";
+
+/**
+ * A rule tree: what the visibility filter keeps.
+ * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule
+ * tree is also what a rule set holds, not only what the visibility filter keeps. Removed in the
+ * major version that ships the project file.
+ */
+export type Filter = RuleTree;
+
+/**
+ * Which arcs a degree filter counts.
+ * @deprecated Use {@link SelectionDirection}, the same type under the name the rule grammar uses.
+ * Removed in the major version that ships the project file.
+ */
+export type FilterDirection = SelectionDirection;
+
+/**
+ * What a mutation does with the elements a target named.
+ * @deprecated Use {@link SelectionOp}, the same type under a name that does not read as a set
+ * operation. Removed in the major version that ships the project file.
+ */
+export type SetOp = SelectionOp;

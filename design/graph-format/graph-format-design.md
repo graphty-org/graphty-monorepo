@@ -1801,7 +1801,9 @@ always materialised, and over arcs for directed snapshots, where it may be
 identity-lazy; `maskCount` is the loop guard. The package exports the
 packed-bitmap helpers (`makeMask`, `maskTest`, `maskSet`, `maskCount`,
 `maskToIndices`) because `inducedSubgraph`, `filterEdges`, `bool` columns
-and validity bitmaps share the layout.
+and validity bitmaps share the layout, and the word-wise set algebra over
+them (`maskAnd`, `maskOr`, `maskAndNot`, `maskXor`, `maskNot`) so a consumer
+combining selections (graphty-element's sets) never loops bit by bit.
 
 ### 7.5 Boundary helpers
 
@@ -3100,6 +3102,13 @@ export function maskTest(mask: U32, i: number): boolean;
 export function maskSet(mask: U32, i: number, value: boolean): void;
 export function maskCount(mask: U32, length: number): number;
 export function maskToIndices(mask: U32, length: number): U32;
+// word-wise set algebra: one pass over ceil(length / 32) words, bits at or above length cleared in
+// the result, a fresh mask unless `out` is passed (it may alias an input); E_MASK_LENGTH for a short mask
+export function maskAnd(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskOr(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskAndNot(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskXor(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskNot(a: U32, length: number, out?: U32): U32;
 
 // ============================================================ id map
 export type NodeIdMapKind = "identity" | "dense" | "numeric" | "string" | "mixed";
@@ -5268,89 +5277,89 @@ These items needed a product decision. The owner reviewed the list on
 item; the original question text is kept for context, and each item ends
 with the decision as it now binds the implementation.
 
-1. Release mechanics for the 0.x window: this document cuts `1.0.0` before
-   the first consumer merges (F2, enforced by a CI dependency check) and
-   validates the algorithms widening on a branch beforehand. The
-   alternative is to let consumers merge against 0.x and accept that
-   external npm users of `@graphty/algorithms` transitively pin a 0.x
-   format for the duration. Confirm the branch-first mechanism. Also
-   confirm the npm trusted-publisher entries for `@graphty/graph-format`
-   and `@graphty/graph-io` are created on npmjs.com before their first
-   release.
+1.  Release mechanics for the 0.x window: this document cuts `1.0.0` before
+    the first consumer merges (F2, enforced by a CI dependency check) and
+    validates the algorithms widening on a branch beforehand. The
+    alternative is to let consumers merge against 0.x and accept that
+    external npm users of `@graphty/algorithms` transitively pin a 0.x
+    format for the duration. Confirm the branch-first mechanism. Also
+    confirm the npm trusted-publisher entries for `@graphty/graph-format`
+    and `@graphty/graph-io` are created on npmjs.com before their first
+    release.
 
     DECIDED: cut `1.0.0` on a branch before the first consumer merges (F2), with the CI dependency check enforcing it. Placeholder packages `@graphty/graph-format@0.0.0` and `@graphty/graph-io@0.0.0` were published on 2026-09-13 so the trusted-publisher entries can be configured on npmjs.com against `.github/workflows/release.yml`; the first real CI release replaces them.
 
-2. `@graphty/graph-io` as a separate package with that name, initially
-   depending on `fast-xml-parser` and `papaparse` moved from
-   graphty-element, and adopting per-format subpath exports (which needs a
-   multi-entry vite build for that package). Confirm.
+2.  `@graphty/graph-io` as a separate package with that name, initially
+    depending on `fast-xml-parser` and `papaparse` moved from
+    graphty-element, and adopting per-format subpath exports (which needs a
+    multi-entry vite build for that package). Confirm.
 
     DECIDED: `@graphty/graph-io` is a separate package under that name, initially depending on `fast-xml-parser` and `papaparse` moved from graphty-element, with per-format subpath exports and the multi-entry vite build that requires.
 
-3. `SharedArrayBuffer` support is deferred out of v1 (D-SAB, section
-   9.4): worker hand-off uses transfer (O(1) per exclusively owned
-   buffer) and every public array is typed over a plain `ArrayBuffer`.
-   Confirm the deferral, and decide whether graphty.app will adopt
-   cross-origin isolation (`Cross-Origin-Opener-Policy: same-origin`,
-   `Cross-Origin-Embedder-Policy: require-corp`; COEP constrains
-   third-party assets) at all; if not, the shared-snapshot minor need
-   never be scheduled.
+3.  `SharedArrayBuffer` support is deferred out of v1 (D-SAB, section
+    9.4): worker hand-off uses transfer (O(1) per exclusively owned
+    buffer) and every public array is typed over a plain `ArrayBuffer`.
+    Confirm the deferral, and decide whether graphty.app will adopt
+    cross-origin isolation (`Cross-Origin-Opener-Policy: same-origin`,
+    `Cross-Origin-Embedder-Policy: require-corp`; COEP constrains
+    third-party assets) at all; if not, the shared-snapshot minor need
+    never be scheduled.
 
     DECIDED: `SharedArrayBuffer` is out of v1; worker hand-off uses transfer and every public array is typed over a plain `ArrayBuffer`. graphty.app does not adopt cross-origin isolation for this work; the shared-snapshot minor is not scheduled unless a concrete shared-memory use case appears.
 
-4. Root `CLAUDE.md` prescribes
-   `algorithmName<TNodeId = unknown>(graph: ReadonlyGraph<TNodeId>)`; this design uses
-   `algorithmName(snapshot: GraphSnapshot, options?)` with a concrete `NodeId`. Confirm the
-   convention is rewritten when A2 lands.
+4.  Root `CLAUDE.md` prescribes
+    `algorithmName<TNodeId = unknown>(graph: ReadonlyGraph<TNodeId>)`; this design uses
+    `algorithmName(snapshot: GraphSnapshot, options?)` with a concrete `NodeId`. Confirm the
+    convention is rewritten when A2 lands.
 
     DECIDED: the root `CLAUDE.md` algorithm-signature convention is rewritten to `algorithmName(snapshot: GraphSnapshot, options?)` with a concrete `NodeId` when A2 lands.
 
-5. Behaviour changes graphty-element users will see after E1 / IO1:
-   parallel edges are kept (today silently dropped); incident edges are
-   removed with their node (today left dangling); edge weights reach
-   Kamada-Kawai and ForceAtlas2 (today ignored); `runAlgorithmsOnLoad`
-   runs once per load; `Edge.id` in events becomes the string form of an
-   element-assigned stable counter rather than `${src}:${dst}`; raw
-   centrality values change for the adapters that today feed a mirrored
-   directed graph (betweenness is halved and normalised with the
-   undirected factor, closeness / eigenvector / Katz use the undirected
-   convention; the `*Pct` fields do not change); the default edge weight
-   field becomes `weight` (the io importers' default; the converter's
-   `value` default was never read); an all-undirected GEXF / GML /
-   GraphML now loads as an undirected graph with one edge per file edge
-   under `data.directed: "auto"` (today: directed with mirrored edges);
-   ids from text sources are coerced by the `"canonical"` rule (a CSV
-   `"1"` becomes the number `1`, matching a JSON `1`; `"01"` stays a
-   string); and `topPageRankNodes` keeps returning `String(id)` for
-   numeric ids until 2.0, when it returns the original id. Are all of
-   these acceptable as unflagged improvements in a minor release, or
-   should any be gated by an option?
+5.  Behaviour changes graphty-element users will see after E1 / IO1:
+    parallel edges are kept (today silently dropped); incident edges are
+    removed with their node (today left dangling); edge weights reach
+    Kamada-Kawai and ForceAtlas2 (today ignored); `runAlgorithmsOnLoad`
+    runs once per load; `Edge.id` in events becomes the string form of an
+    element-assigned stable counter rather than `${src}:${dst}`; raw
+    centrality values change for the adapters that today feed a mirrored
+    directed graph (betweenness is halved and normalised with the
+    undirected factor, closeness / eigenvector / Katz use the undirected
+    convention; the `*Pct` fields do not change); the default edge weight
+    field becomes `weight` (the io importers' default; the converter's
+    `value` default was never read); an all-undirected GEXF / GML /
+    GraphML now loads as an undirected graph with one edge per file edge
+    under `data.directed: "auto"` (today: directed with mirrored edges);
+    ids from text sources are coerced by the `"canonical"` rule (a CSV
+    `"1"` becomes the number `1`, matching a JSON `1`; `"01"` stays a
+    string); and `topPageRankNodes` keeps returning `String(id)` for
+    numeric ids until 2.0, when it returns the original id. Are all of
+    these acceptable as unflagged improvements in a minor release, or
+    should any be gated by an option?
 
     DECIDED: every behaviour change listed above ships as an unflagged improvement in a minor release; none is gated by an option.
 
-6. Chromatic and Storybook re-baselining for layout (`bfsLayout` /
-   `planarLayout` neighbour order, weights reaching KK / FA2, f32 output,
-   FR single-RNG fix) and for graphty-element is accepted as a one-time
-   cost.
+6.  Chromatic and Storybook re-baselining for layout (`bfsLayout` /
+    `planarLayout` neighbour order, weights reaching KK / FA2, f32 output,
+    FR single-RNG fix) and for graphty-element is accepted as a one-time
+    cost.
 
     DECIDED: the one-time Chromatic and Storybook re-baselining for layout and graphty-element is accepted.
 
-7. MST totals on unweighted graphs change from `0` (Kruskal / Prim `?? 0`)
-   to `edgeCount - 1` under the all-ones convention. Confirm the change or
-   ask the algorithms package to special-case `weights === null`.
+7.  MST totals on unweighted graphs change from `0` (Kruskal / Prim `?? 0`)
+    to `edgeCount - 1` under the all-ones convention. Confirm the change or
+    ask the algorithms package to special-case `weights === null`.
 
     DECIDED: MST totals on unweighted graphs follow the all-ones convention (`edgeCount - 1`); the algorithms package does not special-case `weights === null`.
 
-8. The append-only incremental freeze fast path is deferred until the
-   benchmark suite shows interactive expand (M3) dropping frames at the
-   target sizes. Confirm the deferral.
+8.  The append-only incremental freeze fast path is deferred until the
+    benchmark suite shows interactive expand (M3) dropping frames at the
+    target sizes. Confirm the deferral.
 
     DECIDED: the append-only incremental freeze fast path is deferred until the benchmark suite shows interactive expand (M3) dropping frames at the target sizes.
 
-9. Generators stay in `@graphty/layout` behind a `LayoutGraph` wrapper
-   rather than moving to a new `@graphty/graph-generators` package.
-   Confirm (a separate package is one more release unit and npm name to
-   bootstrap).
+9.  Generators stay in `@graphty/layout` behind a `LayoutGraph` wrapper
+    rather than moving to a new `@graphty/graph-generators` package.
+    Confirm (a separate package is one more release unit and npm name to
+    bootstrap).
 
     DECIDED: generators stay in `@graphty/layout` behind the `LayoutGraph` wrapper; no `@graphty/graph-generators` package.
 

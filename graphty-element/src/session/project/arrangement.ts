@@ -261,7 +261,7 @@ export class Arrangement {
             epoch: this.state.graph.epoch,
             coords: snapshot === null ? new Float32Array(0) : source.positions.view(snapshot.nodeCount).slice(),
         });
-        retainArray(capture.coords, "the arrangement slice's capture");
+        retainArray(capture.coords, "the arrangement slice's capture", this);
         this.current(capture);
         return capture;
     }

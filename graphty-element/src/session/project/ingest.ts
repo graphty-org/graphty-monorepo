@@ -17,6 +17,7 @@ import jmespath from "jmespath";
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId } from "../../catalog/types";
 import { DataSource, type DeclaredDirection } from "../../data/DataSource";
+import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import type { ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
@@ -229,28 +230,6 @@ interface LoadProgress {
  */
 function isStorableRecordId(value: unknown): value is string | number {
     return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
-}
-
-/**
- * Fold a repeat's weight into the weight of the edge that survives it.
- * @param policy - the merging repeat policy; "keep", "first" and "error" never reach here
- * @param survivor - the weight the edge already carries
- * @param repeat - the repeating record's weight
- * @returns the weight the surviving edge should carry
- */
-function mergeWeights(policy: DuplicatePolicy, survivor: number, repeat: number): number {
-    switch (policy) {
-        case "sum":
-            return survivor + repeat;
-        case "min":
-            return Math.min(survivor, repeat);
-        case "max":
-            return Math.max(survivor, repeat);
-        default:
-            // "last": the repeat's weight replaces the survivor's, which is the same statement its
-            // attributes make one line up in `mergeRepeat`.
-            return repeat;
-    }
 }
 
 /**
@@ -502,7 +481,13 @@ export class Ingest<K extends KnownEdge> {
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
             // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = writer.addEdge(srcNodeId, dstNodeId, weight.weight, record);
+            const { index: edgeIndex, edgeId } = writer.addEdge(
+                srcNodeId,
+                dstNodeId,
+                weight.weight,
+                record,
+                isStorableRecordId(recordId) ? recordId : undefined,
+            );
             if (edgeIndex === INVALID_INDEX) {
                 // graph-format will not hold an edge between these ids -- most often because the
                 // record does not answer the endpoint expressions at all, so both came back null.
@@ -514,6 +499,9 @@ export class Ingest<K extends KnownEdge> {
 
             if (isStorableRecordId(recordId)) {
                 this.edgesByRecordId.set(recordId, edgeIndex);
+                tally.edgesById++;
+            } else {
+                tally.edgesByPosition++;
             }
 
             this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
@@ -537,6 +525,7 @@ export class Ingest<K extends KnownEdge> {
                     format: "records",
                     endpoints,
                     policy,
+                    idPath: recordIdPath,
                     ...this.heldCounts(),
                 }),
             });
@@ -660,12 +649,13 @@ export class Ingest<K extends KnownEdge> {
         tally: ImportTally,
         writer: GraphWriter,
     ): boolean {
-        if (policy === "keep") {
+        const decision = decideRepeat(policy, writer.store.builder.edgeWeight(known.edgeIndex), weight);
+        if (decision.kind === "add") {
             tally.repeatedKept++;
             return false;
         }
 
-        if (policy === "error") {
+        if (decision.kind === "refuse") {
             throw new GraphtyError({
                 code: "E_DUPLICATE_EDGE",
                 source: "data",
@@ -677,18 +667,16 @@ export class Ingest<K extends KnownEdge> {
             });
         }
 
-        if (policy === "first") {
+        if (decision.kind === "drop") {
             tally.repeatedDropped++;
             return true;
         }
 
-        const survivorWeight = writer.store.builder.edgeWeight(known.edgeIndex);
-        const merged = mergeWeights(policy, survivorWeight, weight);
         // "the repeat's weight and attributes replace the existing edge's" under `last`. The other
         // three reducers keep the survivor's attributes, because there is no reading of `sum`
         // under which the last record's colour is the group's colour.
-        writer.mergeEdge(known.edgeIndex, merged, policy === "last" ? record : null);
-        if (policy === "last") {
+        writer.mergeEdge(known.edgeIndex, decision.weight, decision.replaceRecord ? record : null);
+        if (decision.replaceRecord) {
             this.host.replaceEdgeRecord(known, record);
         }
 
@@ -850,6 +838,10 @@ export class Ingest<K extends KnownEdge> {
             ...(typeof named.edgeTarget === "string" ? { target: named.edgeTarget } : {}),
         };
 
+        // Bracketed as ONE load however many chunks it takes, so its edge ordinals are counted
+        // over the whole import (design/sets 12.3).
+        const { store } = writer;
+        store.openLoad();
         try {
             const source = DataSource.get(type, opts);
             if (!source) {
@@ -989,6 +981,7 @@ export class Ingest<K extends KnownEdge> {
                 `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
             );
         } finally {
+            store.closeLoad();
             // Whatever happened, this load is over: the next one probes for itself and counts into
             // its own tally.
             this.loadTally = null;
@@ -1017,6 +1010,7 @@ export class Ingest<K extends KnownEdge> {
             format,
             endpoints,
             policy: knownFields.repeatedEdges,
+            idPath: knownFields.edgeIdPath,
             ...this.heldCounts(),
         });
         writer.setGraphValues({ importReport: report });

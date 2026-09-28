@@ -204,3 +204,23 @@ describe("the three codes the extension points added", () => {
         },
     );
 });
+
+describe("what a run hands an algorithm to compute over", () => {
+    it("is typed from ./extend alone, graph-format's snapshot and masks included", () => {
+        // A compile-time check: a plugin names every type of `context.input` from one entry point.
+        // `tsc --noEmit` over the tests fails here if one of them stops being published.
+        type Input = extend.ScopedInput;
+        const options: extend.ScopedInputOptions = { simplify: "min" };
+        const shape = (input: Input): [extend.GraphSnapshot, extend.NodeMask, extend.EdgeMask, boolean] => [
+            input.graph,
+            input.nodes,
+            input.edges,
+            input.whole,
+        ];
+        const read = (context: extend.AlgorithmRunContext): Input => context.input("undirected", options);
+
+        assert.typeOf(shape, "function");
+        assert.typeOf(read, "function");
+        assert.strictEqual(options.simplify, "min");
+    });
+});

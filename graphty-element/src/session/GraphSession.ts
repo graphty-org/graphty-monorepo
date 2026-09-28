@@ -21,15 +21,33 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import type { CameraState } from "../camera/types";
-import type { EdgeId, LayoutId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../catalog/types";
+import { readingOfScope } from "../catalog/sets/parse";
+import type {
+    EdgeId,
+    EdgeMember,
+    EdgeReading,
+    LayoutId,
+    NodeId,
+    Path,
+    Query,
+    ResultItem,
+    RuleTree,
+    RunId,
+    Scope,
+    ScopeInput,
+    SetId,
+    StaticStyle,
+} from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
+import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
@@ -52,15 +70,18 @@ import {
     type Scheduler,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
+import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
+import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
 import {
     type Caveats,
     createLocalRunQueue,
     createRunsApi,
     ENGINE_VERSIONS,
+    ManagedRun,
     type ResolvedScope,
     type Run,
     type RunExecutionContext,
@@ -70,6 +91,7 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
+import { canonicalize, frozenSelection, type LiveKeyword } from "./runs/runId";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -80,6 +102,17 @@ import {
 } from "./scope";
 import { sealedSet } from "./sealed";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
+import { createMaterialiser } from "./sets/algebra";
+import { outcomeOf, SetsCache } from "./sets/cache";
+import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
+import { dependencyOf, type DependencySources, referentReading } from "./sets/dependencies";
+import { LayerScopes } from "./sets/layers";
+import { SetsNotifier } from "./sets/notify";
+import { createOffering } from "./sets/offers";
+import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
+import { identityOf, scopeSignature } from "./sets/signature";
+import type { StatusRun } from "./sets/status";
+import type { SetsApi, SetUser } from "./sets/types";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -91,6 +124,7 @@ import {
     type SessionStylesApi,
 } from "./styles";
 import { channelsFor } from "./styles/channels";
+import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
@@ -122,6 +156,7 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
+import type { FilterRunResult } from "./visibility/filter";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -135,6 +170,11 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly deferring?: boolean;
     /** Whether the next read of the graph would freeze a snapshot; see `GraphStore.stale`. */
     readonly stale?: boolean;
+    /**
+     * The attribute revisions and input tick of whoever builds the stores (design/sets 6.2): the
+     * data manager's, the same across a Clear. Absent, the store's own.
+     */
+    readonly inputs?: InputCounters;
 }
 
 /**
@@ -206,6 +246,7 @@ const TX_PARTS = [
     "runs",
     "results",
     "scope",
+    "sets",
     "selection",
     "visibility",
     "styles",
@@ -241,6 +282,8 @@ interface SessionParts {
     readonly results: ResultsApi;
     /** Turning a scope specification into the elements it names. */
     readonly scope: ScopeApi;
+    /** The kept sets. */
+    readonly sets: SetsApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -334,6 +377,7 @@ class Session implements ElementSession {
     readonly runs: RunsApi;
     readonly results: ResultsApi;
     readonly scope: ScopeApi;
+    readonly sets: SetsApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -380,6 +424,7 @@ class Session implements ElementSession {
         this.runs = parts.runs;
         this.results = parts.results;
         this.scope = parts.scope;
+        this.sets = parts.sets;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -395,11 +440,14 @@ class Session implements ElementSession {
         });
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // Chained: the kept sets hear each change after it, to tell `set:changed`.
+        const beside = this.dispatcher.events.project;
         this.dispatcher.events.project = (change) => {
             publish(this.watchers, "project:changed", {
                 slices: change.slices as readonly ProjectSlice[],
                 cause: change.cause,
             });
+            beside?.(change);
         };
         this.dispatcher.events.history = (reason) => {
             version++;
@@ -497,6 +545,22 @@ class Session implements ElementSession {
      * @returns Its outcome.
      */
     private executeThrough<C extends SessionCommand>(command: C, dispatch: DispatchFunction): CommandOutcome<C> {
+        if (command.op === "set.create") {
+            // The element mints these; one a caller supplied could collide with the register or
+            // re-point a stored reference (design/sets/undo-integration.md section 8, decision 2).
+            const minted = ["id", "order", "createdFrom"].filter((field) => Object.hasOwn(command, field));
+            if (minted.length > 0) {
+                return Promise.reject(
+                    new GraphtyError({
+                        code: "E_BAD_COMMAND",
+                        message: `A set's ${minted.join(", ")} ${minted.length === 1 ? "is" : "are"} minted by the element; leave ${minted.length === 1 ? "it" : "them"} out of set.create.`,
+                        source: "data",
+                        details: { fields: minted },
+                    }),
+                ) as CommandOutcome<C>;
+            }
+        }
+
         if (command.op === "algo.run") {
             return this.startCommand(dispatch, command) as CommandOutcome<C>;
         }
@@ -1148,6 +1212,10 @@ function resolveStore(
         // A thunk, not a value: the element mutates `data.knownFields` in place at run time, and a
         // scale captured here would be the one known field that ignored the change.
         positionScale: () => readData().knownFields.positionScale,
+        // The session's own edge counter. A headless session builds one store for its life, so
+        // this only matters as the seam `DataManager` uses too: whoever builds stores owns the
+        // counter, and no store rewinds it.
+        edgeCounter: createEdgeCounter(),
         // The new count is read from the store rather than from the remap, because a remap says
         // where each old row went and not how many rows there now are. Reading it here is safe
         // and cheap: a freeze in delivery answers `getSnapshot()` from the snapshot it is
@@ -1211,6 +1279,35 @@ function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSn
         edgeValue: (index: number, path: Path): unknown =>
             records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path)),
     };
+}
+
+/**
+ * Which halves carry a value path: a run field's declared kinds, or the kinds of the data
+ * attribute at that path.
+ * @param path - `results.<run>.<field>` or `data.<field>`.
+ * @param data - The session's data surface.
+ * @param fieldsOf - A run's published fields, or undefined when it has no result.
+ * @returns The kinds, `"node"`, `"edge"` or both.
+ */
+function fieldKindsOf(
+    path: Path,
+    data: SessionDataApi,
+    fieldsOf: (run: RunId) => readonly { readonly name: string; readonly kind: string }[] | undefined,
+): readonly string[] {
+    if (path.startsWith("results.")) {
+        const rest = path.slice("results.".length);
+        const dot = rest.indexOf(".");
+        const field = rest.slice(dot + 1);
+
+        return (fieldsOf(rest.slice(0, dot)) ?? [])
+            .filter((descriptor) => descriptor.name === field)
+            .map((descriptor) => descriptor.kind);
+    }
+
+    return data
+        .attributes()
+        .filter((attribute) => attribute.path === path)
+        .map((attribute) => attribute.kind);
 }
 
 /**
@@ -1518,6 +1615,7 @@ function repaintAgainstCurrentData(
 ): {
     paint: ElementPaint;
     repaint: RepaintEngine["repaint"];
+    repaintElements: RepaintEngine["repaintElements"];
     encoding: RepaintEngine["encoding"];
     invalidate: () => void;
 } {
@@ -1570,6 +1668,11 @@ function repaintAgainstCurrentData(
             againstCurrentData();
 
             return engine.repaint(request, context);
+        },
+        repaintElements: async (stack, dirty, context) => {
+            againstCurrentData();
+
+            return engine.repaintElements(stack, dirty, context);
         },
         // A READ, so it does NOT re-prepare against current data first. Two reasons, and the
         // second is the load-bearing one. `againstCurrentData` would forget what the pass
@@ -1695,6 +1798,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodes: (remap: U32, count: number) => selection?.remapNodes(remap, count),
         edges: (remap: U32, count: number) => selection?.remapEdges(remap, count),
     });
+    // The attribute revisions and the input tick (design/sets 6.2), shared with whoever writes the
+    // store's records: the store owner's, so its writes, its freezes and this session's masks and
+    // runs all advance one tick.
+    const inputs = (store.store as { readonly inputs?: InputCounters }).inputs ?? inputCountersOf(store.store);
+    const advanceTick = (): void => {
+        inputs.tick.advance();
+    };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
     dispatcher.arrangement.bind({
@@ -1728,10 +1838,157 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     }
 
     const components = componentLabelsOf(data);
+    // Kept sets, published as `session.sets`.
+    const edgeMember = (id: EdgeId): EdgeMember | undefined =>
+        sessionEdgeMember(
+            snapshot(),
+            id,
+            (row) => records.edgeAttributes(row),
+            readData().knownFields.edgeIdPath,
+        );
+    // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
+    // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
+    // API are built below.
+    const dependencies: DependencySources = {
+        referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,
+        visibility: () => visibility.filter,
+        pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
+        shapeOf: (run: RunId) => runs.get(run)?.result?.shape,
+        fieldKinds: (path: Path) => fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields),
+    };
+    // One resolution cache for the scope resolver and the status reads of its last passes.
+    const setsCache = new SetsCache();
+    // What status and "Used by" read of a run. Late-bound: the runs are built below.
+    const statusRun = (run: Run): StatusRun => ({
+        id: run.id,
+        label: run.label,
+        algorithm: run.algorithm,
+        registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
+        execution: executionOf(run.id),
+        scope: run.record.scope,
+        scopeMoved: () => run.stale !== null,
+        captures: runs.heldOf(run.id),
+    });
+    // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
+    const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
+        id: run.id,
+        label: run.label,
+        result: run.result,
+    });
+    const offering = createOffering({
+        run: (id: RunId) => {
+            const run = runs.get(id);
+            return run === undefined ? undefined : offerRun(run);
+        },
+        runs: () => runs.list().map(offerRun),
+        values: (id: RunId) => resultSource(id),
+        context: () => scope.contextNow(),
+        sets: () => keptSets.list(),
+    });
+    // Users of sets the element adds from outside the session: its running layout.
+    const hostUsers: SetsUsersProvider[] = [];
+    const sets = createSetsApi({
+        dispatcher,
+        edgeMember,
+        pairsOrdered: () => pairsOrdered(snapshot()),
+        dependencies,
+        offering,
+        executionOf: (run: RunId) => executionOf(run),
+        runs: {
+            get: (id: RunId) => {
+                const run = runs.get(id);
+                return run === undefined ? undefined : statusRun(run);
+            },
+            list: () => runs.list().map(statusRun),
+        },
+        outcome: (record) => outcomeOf(setsCache, record),
+        // Read through calls: the scope resolver and the selection are built below.
+        // Style layers naming a set are its users too; the stack is built below.
+        // So is the visibility filter, once however many of its leaves name the set.
+        users: () => [
+            ...(stack?.list() ?? []).flatMap((layer) =>
+                layer.selector.match === "member"
+                    ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }]
+                    : [],
+            ),
+            ...(visibility.filter === null
+                ? []
+                : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
+            ...hostUsers.flatMap((provider) => [...provider()]),
+        ],
+        materialise: createMaterialiser({
+            snapshot,
+            resolve: (spec: Scope) => scope.resolutionOf(spec),
+            readingOf: (spec: Scope) => scope.readingOf(spec),
+            edgeMember,
+            selection: () => ({
+                nodes: requireSelection(selection).nodeMembers(),
+                edges: requireSelection(selection).edgeMembers(),
+            }),
+            offering,
+        }),
+    });
+    const keptSets = setsStoreOf(sets);
+    // Change notification (design/sets 11): live users of a set re-resolve from here, before any
+    // public event. The store owner's side -- freezes and attribute writes -- arrives on the tick.
+    const notifier = new SetsNotifier();
+    keptSets.onCommit((changes) => {
+        notifier.notify({ kind: "sets", ids: changes.map((change) => change.id) });
+    });
+    // The attribute fields record edits changed since the graph hook last ran, by element: what
+    // lets it repaint only the layers that read them.
+    const edited = { node: new Set<string>(), edge: new Set<string>() };
+    const stopHearing = inputs.tick.listen((input) => {
+        if (input.kind === "attributes") {
+            for (const field of input.fields) {
+                edited[input.element].add(field);
+            }
+        }
+
+        notifier.notify(input);
+    });
+    keptSets.onChange((change) => {
+        publish(watchers, "set:changed", change);
+    });
+
+    // The token of the result a predicate reads; a result published with none (an executor
+    // outside the runs API) stands for itself, so a new result is never read as the old one.
+    const executionOf = (run: RunId): string | undefined => {
+        const result = runs.get(run)?.result;
+
+        return result === undefined ? undefined : (resultExecutionOf(results, run) ?? `#${identityOf(result)}`);
+    };
+    // A run's current result as an `item` or `threshold` leaf reads it, by dense index.
+    const resultSource = (run: RunId): FilterRunResult | undefined => {
+        const result = runs.get(run)?.result;
+        if (result === undefined) {
+            return undefined;
+        }
+
+        const graph = snapshot();
+        const space = edgeSpaceOf(graph);
+
+        return {
+            execution: executionOf(run),
+            fields: result.fields,
+            nodeValue: (index: number, field: string): unknown => result.node(graph.ids.idOf(index))?.[field],
+            edgeValue: (index: number, field: string): unknown => result.edge(space.idOf(index))?.[field],
+        };
+    };
+
+    /**
+     * Pin a scope's cache entry: the kept set's definition, else the canonical scope.
+     * @param spec - The scope.
+     * @returns Releases the pin.
+     */
+    const pinScope = (spec: Scope): (() => void) => {
+        const key = typeof spec === "object" && "set" in spec ? keptSets.get(spec.set)?.definition : canonicalize(spec);
+        return key === undefined ? () => undefined : setsCache.pin(key);
+    };
 
     const scope: ScopeResolver = createScopeApi({
         snapshot,
-        dispatcher,
+        store: store.store,
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
@@ -1741,33 +1998,123 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edges: () => visibility.masks.edges(),
         },
         match: (where: Query) => requireQuery(query).nodes(where),
+        pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
+        revisions: inputs.nodes,
+        edgeRevisions: inputs.edges,
+        executionOf,
+        result: resultSource,
+        captured: (item: ResultItem) => captureOf(runs.heldOf(item.result), item),
+        cache: setsCache,
+        tick: inputs.tick,
+        sets,
+        edgeMember,
+        fieldKinds: dependencies.fieldKinds,
+        matchEdges: (where: Query) => requireQuery(query).edges(where),
+        values: valueSourceOf(records, snapshot),
     });
 
     const visibility = createVisibilityApi({
         snapshot,
         components,
         dispatcher,
+        dependencies,
+        admit: (filter: RuleTree) => scope.admit(filter),
+        scope: (spec: Scope) => scope.leafOf(spec),
+        // The resolver's context turns a capture into bitmaps over the current snapshot.
+        captured: (item: ResultItem) => scope.contextNow().captured?.(item),
+        watch: {
+            subscribe: (watch) => notifier.subscribe(watch),
+            signature: (spec: Scope) => scopeSignature(spec, scope.contextNow()),
+            pin: (spec: Scope) => pinScope(spec),
+        },
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         match: (where: Query) => requireQuery(query).nodes(where),
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
+        result: resultSource,
         values: valueSourceOf(records, snapshot),
         onChange: (change) => {
+            notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);
         },
+        onMaskVersion: advanceTick,
     });
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
+    /** The result each run last announced, so the tick advances when one is published or cleared. */
+    const resultsSeen = new Map<RunId, unknown>();
+    /**
+     * A run's scope, refused when it reads a removed set. A layer or filter naming a removed set
+     * keeps reading its kept record, but new work over one is refused (design/sets 15.3, item 33).
+     * @param spec - The scope.
+     * @returns The same scope.
+     */
+    const attached = (spec: Scope): Scope => {
+        if (typeof spec === "object" && ("set" in spec || "define" in spec)) {
+            const gone = sets.status(spec).reasons.find((reason) => reason.kind === "missing-set");
+            if (gone !== undefined) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `The set "${gone.name}" was removed, so a run cannot read it. Restore it or choose another set.`,
+                    source: "run",
+                    target: { kind: "scope", id: gone.id },
+                    details: { scope: spec, reason: "missing-set", id: gone.id, name: gone.name },
+                });
+            }
+        }
+
+        return spec;
+    };
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
         dispatcher,
         catalog: SESSION_CATALOG_TABLES,
-        resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        resolveScope: (spec: Scope) => scope.resolveNow(attached(spec)),
+        admitScope: (spec: ScopeInput) => scope.admit(spec) as Scope,
+        // A derived run id hashes what a live keyword stands for now, so the same unscoped call
+        // under another filter or selection is another result (design/sets 15.3, item 34).
+        liveScope: (keyword: LiveKeyword) =>
+            keyword === "visible"
+                ? { filter: visibility.filter, window: visibility.window }
+                : frozenSelection(requireSelection(selection).nodeMembers().ids()),
+        scopeFacts: (spec: Scope) => {
+            const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
+            const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
+
+            return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
+        },
+        setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
+        onExecution: advanceTick,
+        onRemoved: (id: RunId) => {
+            resultsSeen.delete(id);
+            advanceTick();
+            notifier.notify({ kind: "run", run: id });
+        },
+        // Before a re-run replaces a result, what kept rules, style layers and the visibility filter
+        // hold of it is captured onto the run (design/sets 5.2).
+        captureHeld: (runId: RunId, prior: HeldCaptures) => {
+            const result = resultSource(runId);
+            const graph = snapshot();
+            const space = edgeSpaceOf(graph);
+            const held = heldItems(
+                [...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack), visibility.filter],
+                runId,
+            );
+
+            return nextCaptures(
+                prior,
+                held,
+                executionOf(runId),
+                result === undefined
+                    ? undefined
+                    : (key) => captureItem(result, key, graph, (row) => edgeMember(space.idOf(row))),
+            );
+        },
         ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),
         // ONE POLICY, EVERY ROUTE. A run paints itself on its first completion, from the encoding
         // its own shape derives -- see `./styles/autoApply` for the six rules and `./styles/derive`
@@ -1811,6 +2158,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     .map((layer) => layer.id),
         },
         onChange: (change) => {
+            // The token is minted when the work starts, but the result it stamps is published
+            // later (and a re-run clears it when queued). A signature memoised under the tick in
+            // between would go on reading the result as it was, so the tick advances again
+            // whenever the result a run holds is not the one it last held.
+            // Read through the session's run, which a re-run replaces, not the announced object.
+            const result = runs.get(change.run.id)?.result;
+            if (result !== resultsSeen.get(change.run.id)) {
+                resultsSeen.set(change.run.id, result);
+                advanceTick();
+            }
+
+            if (change.phase !== "start" && change.phase !== "progress") {
+                notifier.notify({ kind: "run", run: change.run.id });
+            }
+
             publish(watchers, "run:changed", change);
         },
     });
@@ -1851,8 +2213,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         records,
         onChange: (delta) => {
+            notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
         },
+        onMaskVersion: advanceTick,
     });
 
     // ONE registry for the stack and for the pass that paints from it. Two would let a layer be
@@ -1876,9 +2240,37 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     );
 
     const teardown = new AbortController();
+    // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
+    // repaints exactly the elements that moved, or both halves whole after a freeze.
+    const layerScopes = new LayerScopes({
+        snapshot,
+        resolve: (spec: Scope) => scope.resolutionOf(spec),
+        signature: (spec: Scope) => scopeSignature(spec, scope.contextNow()),
+        subscribe: (watch) => notifier.subscribe(watch),
+        pin: (spec: Scope) => pinScope(spec),
+        repaint: (dirty) => {
+            if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0)) {
+                return undefined;
+            }
+
+            return painter
+                .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+                .catch((error: unknown) => {
+                    if (!teardown.signal.aborted) {
+                        console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
+                    }
+                });
+        },
+    });
+    teardown.signal.addEventListener("abort", () => {
+        stopHearing();
+        layerScopes.dispose();
+        notifier.dispose();
+    });
     const styles = createStylesApi({
         dispatcher,
-        elements,
+        elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
+        admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
         scales,
@@ -1897,6 +2289,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         onChange: (change) => {
+            // Only the scopes the stack names stay live.
+            layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
         },
         disposed: teardown.signal,
@@ -1928,12 +2322,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     // The `graph` hook of a session with no renderer: a layer may select on any value a data
-    // command wrote, and a node a command added has no paint until a pass reaches it, so every
-    // layer is repainted, forward and on undo and redo alike. A renderer that reconciles its own
-    // objects and repaints from there takes this over; see `handGraphPaintToRenderer`.
+    // command wrote, and a node a command added has no paint until a pass reaches it. So a change
+    // to the rows -- an add, a removal, a replace, a weight or the direction, forward or on undo
+    // and redo -- repaints every layer. A change to records' attributes alone repaints only the
+    // layers that read a field it changed, from the lowest of them up: a record edit the stack does
+    // not read paints nothing. A renderer that reconciles its own objects and repaints from there
+    // takes this over; see `handGraphPaintToRenderer`.
     HEADLESS_GRAPH_PAINT.set(
         dispatcher,
-        dispatcher.lane.register("graph", async (_rendered, target) => {
+        dispatcher.lane.register("graph", async (_rendered, target, dirty) => {
+            const changed = { node: [...edited.node], edge: [...edited.edge] };
+            edited.node.clear();
+            edited.edge.clear();
             // Undone rows wait to be rebuilt until something reads the graph, so a run of undos
             // rebuilds it once; painting now would read it. The picture catches up at the next
             // pass over a settled graph.
@@ -1943,10 +2343,25 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return;
             }
 
+            const recordsOnly = ![...dirty].some(
+                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || key.startsWith("e:") || key.startsWith("v:")),
+            );
+            const readers = recordsOnly
+                ? target.styles.filter((entry) => readsAnyField(entry, changed))
+                : target.styles;
+            if (readers.length === 0) {
+                return;
+            }
+
             painter.invalidate();
-            // ponytail: repaints every layer on every data change; name the readers if it shows.
-            const edits = target.styles.map((entry) => ({ previous: entry, next: entry }));
-            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
+            const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+            const fromIndex = target.styles.indexOf(readers[0]);
+            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
+            if (recordsOnly) {
+                // The layers above paint what the edited field's readers match now; an element the
+                // edit took out of a reader's match is found by its own row, repainted whole.
+                await painter.repaintElements(target.styles, editedRows(snapshot(), dirty), RUNS_PASS);
+            }
         }),
     );
 
@@ -1956,9 +2371,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         (spec: Scope) => scope.resolveNow(spec),
         defaultScope,
         acceleration.controller,
+        () => keptSets.list(),
     );
 
-    return new Session({
+    const session = new Session({
         store: store.store,
         ownedStore: store.owned,
         data,
@@ -1976,6 +2392,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         runs,
         results,
         scope,
+        sets,
         selection,
         visibility,
         styles,
@@ -1987,6 +2404,155 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         watchers,
         dispatcher,
     });
+    sessionInputs.set(session, inputs);
+    sessionScopes.set(session, scope);
+    sessionNotifiers.set(session, notifier);
+    sessionHostUsers.set(session, hostUsers);
+
+    return session;
+}
+
+/**
+ * The rows of the records a pass's dirty keys name, that the snapshot holds.
+ * @param graph - The snapshot.
+ * @param dirty - The `graph` slice's dirty keys.
+ * @returns Their dense indices, by element.
+ */
+function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: number[]; edge: number[] } {
+    const rows = { node: [] as number[], edge: [] as number[] };
+    const space = edgeSpaceOf(graph);
+    for (const key of dirty) {
+        if (key.startsWith("n:")) {
+            const row = graph.ids.indexOf(nodeOfKey(key) as string | number);
+            if (row !== INVALID_INDEX) {
+                rows.node.push(row);
+            }
+        } else if (key.startsWith("e:")) {
+            const row = space.indexOf(key.slice(2));
+            if (row !== INVALID_INDEX) {
+                rows.edge.push(row);
+            }
+        }
+    }
+
+    return rows;
+}
+
+/**
+ * Whether a layer reads an attribute field a record edit changed: one of its paths names the field,
+ * on the kind of element it paints.
+ * @param entry - The layer.
+ * @param changed - The fields changed, by element.
+ * @param changed.node - The node fields changed.
+ * @param changed.edge - The edge fields changed.
+ * @returns True when it does.
+ */
+function readsAnyField(entry: CompiledLayer, changed: { readonly node: string[]; readonly edge: string[] }): boolean {
+    const fields = changed[entry.layer.target];
+    if (fields.length === 0) {
+        return false;
+    }
+
+    return entry.reads.some((path) => {
+        const read = dependencyOf(path);
+        return "field" in read && fields.includes(read.field);
+    });
+}
+
+/**
+ * The scopes a stack's `{match:"member"}` layers name.
+ * @param stack - The stack, or null before it exists.
+ * @returns The scopes.
+ */
+function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
+    return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "member" ? [layer.selector.of] : []));
+}
+
+/** What names a set from outside the session, for `usedBy`. */
+type SetsUsersProvider = () => Iterable<{ readonly user: SetUser; readonly scope: Scope | RuleTree }>;
+
+/** Each session's outside users of sets. */
+const sessionHostUsers = new WeakMap<GraphSession, SetsUsersProvider[]>();
+
+/**
+ * Add users of sets that live outside the session -- the element's running layout -- to what
+ * `sets.usedBy` reports. Internal.
+ * @param session - a session this module built
+ * @param provider - reads the users now
+ * @throws An Error for a session this module did not build.
+ */
+export function addSetsUsers(session: GraphSession, provider: SetsUsersProvider): void {
+    const providers = sessionHostUsers.get(session);
+    if (providers === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    providers.push(provider);
+}
+
+/** Each session's change notifier, for the live users of sets and the element's frame source. */
+const sessionNotifiers = new WeakMap<GraphSession, SetsNotifier>();
+
+/**
+ * A session's change notifier and re-resolution scheduler (design/sets 11). Internal.
+ * @param session - a session this module built
+ * @returns its notifier
+ * @throws An Error for a session this module did not build.
+ */
+export function setsNotifierOfSession(session: GraphSession): SetsNotifier {
+    const notifier = sessionNotifiers.get(session);
+    if (notifier === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return notifier;
+}
+
+/** Each session's input counters, beside it rather than on it so the published type gains nothing. */
+const sessionInputs = new WeakMap<GraphSession, InputCounters>();
+
+/** Each session's scope resolver, for the internal readers that want its bitmaps. */
+const sessionScopes = new WeakMap<GraphSession, ScopeResolver>();
+
+/**
+ * A session's scope resolver, with the synchronous doors the published `session.scope` lacks.
+ * Internal.
+ * @param session - a session this module built
+ * @returns its resolver
+ * @throws An Error for a session this module did not build.
+ */
+export function scopeResolverOfSession(session: GraphSession): ScopeResolver {
+    const scope = sessionScopes.get(session);
+    if (scope === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return scope;
+}
+
+/**
+ * A session's kept sets. Internal: the tests' spelling of `session.sets`.
+ * @param session - a session
+ * @returns its sets
+ */
+export function setsOfSession(session: GraphSession): SetsApi {
+    return session.sets;
+}
+
+/**
+ * A session's input counters: its input tick and its attribute revisions (design/sets 6.2).
+ * Internal.
+ * @param session - a session this module built
+ * @returns its counters
+ * @throws An Error for a session this module did not build.
+ */
+export function inputCountersOfSession(session: GraphSession): InputCounters {
+    const inputs = sessionInputs.get(session);
+    if (inputs === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return inputs;
 }
 
 /** The context of the `runs` hook's repaint: nothing cancels it, and it reports nowhere. */
@@ -2070,6 +2636,7 @@ function toResultsEntry(run: Run): ResultsRunEntry {
         label: run.label,
         shape: run.shape,
         ...(run.result === undefined ? {} : { result: run.result }),
+        ...(run instanceof ManagedRun && run.resultExecution !== undefined ? { execution: run.resultExecution } : {}),
     };
 }
 
@@ -2092,6 +2659,7 @@ function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
  * @param resolveScope - Resolves a scope specification against the graph as it stands.
  * @param defaultScope - What a command that names no scope gets.
  * @param acceleration - The controller whose capabilities decide whether an accelerator is here.
+ * @param keptSets - The kept sets, for the scopes a refused run is pointed at.
  * @returns The context.
  */
 function planningContext(
@@ -2100,6 +2668,7 @@ function planningContext(
     resolveScope: (spec: Scope) => ResolvedScope,
     defaultScope: Scope,
     acceleration: AccelerationControllerLike,
+    keptSets: NonNullable<PlanningContext["keptSets"]>,
 ): PlanningContext {
     const defaultCaveats: Caveats = runsOptions.defaultCaveats ?? PLANNED_CAVEATS;
 
@@ -2113,6 +2682,7 @@ function planningContext(
         // "idle" counts: an accelerator IS attached and the node count is merely below the
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
+        keptSets,
         ...(runsOptions.calibration === undefined ? {} : { calibration: runsOptions.calibration }),
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };

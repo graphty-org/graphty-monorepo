@@ -20,9 +20,10 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { RunId, ScopeId } from "../../catalog/types";
+import type { RunId, SetId } from "../../catalog/types";
 import { retentionOf } from "../results/RunResult";
-import type { SavedScopeRecord } from "../scope/ScopeApi";
+import { recordBytes } from "../sets/prepare";
+import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
@@ -33,7 +34,7 @@ import { strictStateEnabled, strictViolation } from "./strict";
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "scopes" | "views";
+type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -167,7 +168,7 @@ export function patchBytes(patch: Patch): number {
 
 /**
  * Report the node and edge ids a patch touched: its op-log writes, the rows `positions.set` wrote,
- * and the explicit members of a scope it saved or removed. Value slices name no element.
+ * and the node members of a fixed set it wrote or removed. Value slices name no element.
  * @param patch - The patch.
  * @param into - Where to report them.
  */
@@ -181,16 +182,16 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
     }
 
     for (const entry of patch.entries) {
-        if (entry.slice !== "scopes") {
+        if (entry.slice !== "sets") {
             continue;
         }
 
         for (const record of [entry.prior, entry.next]) {
-            // ponytail: only a scope saved as a list of nodes names its members; one saved as an
-            // expression would need resolving here, and none of the history paths does that yet.
-            const spec = record === ABSENT ? null : (record as SavedScopeRecord).spec;
-            if (typeof spec === "object" && spec !== null && "nodes" in spec) {
-                for (const id of spec.nodes) {
+            // ponytail: only a fixed set names its node members; a rule or a path set would need
+            // resolving here against a snapshot, and none of the history paths does that yet.
+            const definition = record === ABSENT || record === undefined ? null : (record as ElementSet).definition;
+            if (definition?.kind === "fixed") {
+                for (const id of definition.nodes ?? []) {
                     into.node(id);
                 }
             }
@@ -199,9 +200,9 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
 }
 
 /**
- * What the run results a patch holds retain, counted once across the history: each result's
- * columns and caches, and each id index that is not the resident snapshot's
- * (design/undo/undo-design.md section 7).
+ * What the run results and the kept sets a patch holds retain, counted once across the history:
+ * each result's columns and caches, each id index that is not the resident snapshot's, and each
+ * set record (design/undo/undo-design.md section 7).
  * @param patch - The patch.
  * @param token - The resident snapshot's graph token.
  * @param seen - Results and indexes already counted against an older step.
@@ -210,6 +211,19 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
 export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>): number {
     let bytes = 0;
     for (const entry of patch.entries) {
+        if (entry.slice === "sets") {
+            // A kept set's record, held by reference and shared by every step that has it: a
+            // member edit keeps both whole records, 8 bytes a node member and the edge columns.
+            for (const value of [entry.prior, entry.next]) {
+                if (value !== ABSENT && value !== undefined && !seen.has(value as object)) {
+                    seen.add(value as object);
+                    bytes += recordBytes(value as ElementSet);
+                }
+            }
+
+            continue;
+        }
+
         if (entry.slice !== "runs") {
             continue;
         }
@@ -247,7 +261,7 @@ export interface Draft {
     layout: LayoutChoice | null;
     readonly config: KeyedWriter<string, unknown>;
     readonly runs: KeyedWriter<RunId, RunEntry>;
-    readonly scopes: KeyedWriter<ScopeId, SavedScopeRecord>;
+    readonly sets: KeyedWriter<SetId, ElementSet>;
     readonly views: KeyedWriter<string, CameraState>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
@@ -320,7 +334,7 @@ export function createProjectStore(
     const maps = {
         config: state.config as Map<string, unknown>,
         runs: state.runs as Map<string, unknown>,
-        scopes: state.scopes as Map<string, unknown>,
+        sets: state.sets as Map<string, unknown>,
         views: state.views as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
@@ -446,7 +460,7 @@ export function createProjectStore(
                 },
                 config: keyed(draft, "config"),
                 runs: keyed(draft, "runs"),
-                scopes: keyed(draft, "scopes"),
+                sets: keyed(draft, "sets"),
                 views: keyed(draft, "views"),
                 visibility: {
                     set: (key, value) => {

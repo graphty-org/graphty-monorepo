@@ -82,7 +82,7 @@ const SLICE_ACTIVITY: readonly (readonly [ProjectSlice, PrimaryActivityId])[] = 
     ["runs", "analyze"],
     ["graph", "data"],
     ["visibility", "explore"],
-    ["scopes", "explore"],
+    ["sets", "explore"],
     ["views", "present"],
     ["styles", "style"],
     ["layout", "style"],

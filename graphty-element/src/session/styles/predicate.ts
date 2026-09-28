@@ -38,7 +38,9 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
+import { maskTest, type U32 } from "@graphty/graph-format";
+
+import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 
 // ---------------------------------------------------------------------------------------------
@@ -136,6 +138,32 @@ export interface SelectorSource {
      * @returns The cut, or undefined.
      */
     readonly topCut?: (path: Path, target: SelectorTarget, n: number) => number | undefined;
+    /**
+     * The live membership of one scope, which a `{match:"member"}` selector tests by index.
+     * Absent, a `{match:"member"}` selector is refused.
+     *
+     * Asked once, when the layer is compiled; what comes back is read per element and follows the
+     * scope as it changes, so the compiled layer never has to be compiled again.
+     * @param scope - The scope, already checked.
+     * @returns Its live membership.
+     */
+    readonly scope?: (scope: Scope) => LiveScope;
+}
+
+/** The live membership of one scope, as a `{match:"member"}` selector reads it. */
+export interface LiveScope {
+    /**
+     * The members of one half, as a bitmap over the snapshot the session holds now.
+     * @param target - Nodes or edges.
+     * @returns The bitmap, or null when the scope paints nothing (detached, or it cannot be
+     *     evaluated).
+     */
+    bits(target: SelectorTarget): U32 | null;
+    /**
+     * Why the scope paints nothing, when it cannot be resolved.
+     * @returns The reason in a sentence, or undefined when it resolves.
+     */
+    problem(): string | undefined;
 }
 
 /**
@@ -200,7 +228,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -221,6 +249,11 @@ export interface CompiledSelector {
      * for and leaves the reference check to whoever holds one.
      */
     readonly paths: readonly Path[];
+    /**
+     * Why a `{match:"member"}` selector paints nothing, when its scope cannot be resolved (a
+     * removed set, a cycle). Absent for every other kind.
+     */
+    readonly problem?: () => string | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1199,6 +1232,21 @@ export function topPredicate(columns: ElementColumns, path: Path, cutOf: () => n
         const read = value(index, path);
 
         return typeof read === "number" && Number.isFinite(read) && read >= cut;
+    };
+}
+
+/**
+ * The predicate for `{match:"member"}`: one bit test by index against the scope's live bitmap,
+ * read per element so the layer follows the scope without being compiled again.
+ * @param live - The scope's live membership.
+ * @param target - Which half the layer paints.
+ * @returns The test.
+ */
+export function scopePredicate(live: LiveScope, target: SelectorTarget): ElementPredicate {
+    return (index): boolean => {
+        const bits = live.bits(target);
+
+        return bits !== null && maskTest(bits, index);
     };
 }
 

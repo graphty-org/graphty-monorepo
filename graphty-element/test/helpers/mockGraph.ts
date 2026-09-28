@@ -235,6 +235,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
                 nodes,
                 edges,
                 ...snapshots,
+                getEdge: (id: string) => edges.get(id),
                 get graphResults() {
                     return graphResults;
                 },

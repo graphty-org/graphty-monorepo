@@ -9,13 +9,14 @@
  * from a starting node, which can be optionally configured.
  */
 
-import { primMST } from "@graphty/algorithms";
+import { connectedComponents, Graph as AlgorithmGraph, primMST } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import type { EdgeId } from "../catalog/types";
+import type { EdgeId, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -49,6 +50,51 @@ interface PrimOptions extends Record<string, unknown> {
 }
 
 /**
+ * Prim's tree over every piece of a graph that may be in several, as Kruskal's is: a scope often
+ * cuts a component, and `primMST` refuses a graph that is not connected.
+ * @param graph - The undirected graph.
+ * @param startNode - Where to grow the start node's own piece from; the piece's first node when
+ *   absent, and for every other piece.
+ * @returns The forest's edges and their total weight.
+ * @throws An Error when the start node is not in the graph, as `primMST` does.
+ */
+function spanningForest(
+    graph: AlgorithmGraph,
+    startNode: NodeId | undefined,
+): { edges: { source: NodeId; target: NodeId }[]; totalWeight: number } {
+    if (startNode !== undefined && !graph.hasNode(startNode)) {
+        throw new Error(`Start node ${String(startNode)} not found in graph`);
+    }
+
+    const pieces = connectedComponents(graph);
+    if (pieces.length <= 1) {
+        return primMST(graph, startNode);
+    }
+
+    const edges: { source: NodeId; target: NodeId }[] = [];
+    let totalWeight = 0;
+    for (const piece of pieces) {
+        const members = new Set(piece);
+        const part = new AlgorithmGraph({ directed: false });
+        for (const id of piece) {
+            part.addNode(id);
+        }
+
+        for (const edge of graph.edges()) {
+            if (members.has(edge.source)) {
+                part.addEdge(edge.source, edge.target, edge.weight);
+            }
+        }
+
+        const tree = primMST(part, startNode !== undefined && members.has(startNode) ? startNode : undefined);
+        edges.push(...tree.edges);
+        totalWeight += tree.totalWeight;
+    }
+
+    return { edges, totalWeight };
+}
+
+/**
  * Prim's algorithm for finding minimum spanning trees
  *
  * Computes the minimum spanning tree of an undirected graph by growing
@@ -57,6 +103,8 @@ interface PrimOptions extends Record<string, unknown> {
 export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
     static namespace = "graphty";
     static type = "prim";
+    /** Spans the run's scope: the edge list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
 
@@ -97,7 +145,8 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
      * @returns The edge set, or null when there are no edges to choose from.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const graphEdges = Array.from(this.graph.getDataManager().edges.values());
+        // The declared edges of the run's input: its scope's, or every edge of the graph.
+        const graphEdges = scopeEdges(this.input("undirected"));
 
         if (graphEdges.length === 0) {
             return null;
@@ -111,7 +160,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         const graphData = this.algorithmGraph("undirected");
 
         context.report({ phase: "Choosing edges", total: null });
-        const tree = primMST(graphData, startNode);
+        const tree = spanningForest(graphData, startNode);
 
         // Both directions, because the element's edge carries the direction it was declared in
         // and the tree's does not.
@@ -124,7 +173,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
             // The pair key looks the tree's answer up; the element's own id is what is published.
-            edges.push({ id: edge.id, values: { in: chosen.has(edgePairKey(edge.srcId, edge.dstId)) } });
+            edges.push({ id: edge.id, values: { in: chosen.has(edgePairKey(edge.source, edge.target)) } });
         });
 
         return {

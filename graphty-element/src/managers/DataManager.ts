@@ -2,7 +2,7 @@ import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { edgeCounterOf } from "../data/edgeIdentity";
+import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
@@ -12,6 +12,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
+import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
     type DataImportCommand,
@@ -85,6 +86,9 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         },
         get stale() {
             return manager.snapshotStale;
+        },
+        get inputs() {
+            return inputCountersOf(manager);
         },
     };
 }
@@ -241,6 +245,19 @@ export class DataManager implements Manager {
 
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
+
+    /**
+     * The edge counter every store this manager builds draws from, so a Clear or a replacing
+     * import never rewinds it and an edge id is never issued twice (design/sets 4.2).
+     */
+    private readonly edgeCounter = createEdgeCounter();
+
+    /**
+     * The attribute revisions and the input tick (design/sets 6.2), the same object the session
+     * over this manager reads, handed to every store this manager builds so a freeze advances it
+     * and a Clear never rewinds it.
+     */
+    private readonly inputs = inputCountersOf(this);
 
     /**
      * Graph-level results a plugin algorithm without a descriptor wrote, kept as the `graphResults`
@@ -867,6 +884,8 @@ export class DataManager implements Manager {
             // Read again when the graph is emptied, so a clear takes the setting in force then.
             directed: () => this.styles.config.data.directed,
             positionScale: () => this.styles.config.data.knownFields.positionScale,
+            edgeCounter: this.edgeCounter,
+            inputs: this.inputs,
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
             },

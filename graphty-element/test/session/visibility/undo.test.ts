@@ -14,7 +14,7 @@ import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import type { ElementSession } from "../../../src/session/types";
 import * as filterModule from "../../../src/session/visibility/filter";
-import type { Filter, VisibilityChange } from "../../../src/session/visibility/index";
+import type { RuleTree as Filter, VisibilityChange } from "../../../src/session/visibility/index";
 import { type Harness, makeSession } from "../helpers";
 
 vi.mock("../../../src/session/visibility/filter", async (original) => {

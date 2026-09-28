@@ -7,7 +7,8 @@ saved scopes into first-class sets under `session.sets`, written through its own
 
 The detailed, line-by-line checklist lives on the sets branch, in `design/sets/undo-integration.md`:
 the slice rename, the five `set.*` commands, derivation, events and the five decisions for the
-owner. Whichever branch merges second follows it. This file lists what the undo side guarantees
+owner. Sets merged first; undo merged second and carried the checklist out. Its section 10 records
+where the port departs from it. This file lists what the undo side guarantees
 and what its tests will refuse, so a merge that follows the sets checklist is known to be complete
 when these are green.
 
@@ -38,3 +39,17 @@ when these are green.
 The issued-id register, the order high-water mark, tombstones, edge seeds and the resolution
 cache are session state beside the slice and are never rewound by undo, redo, rollback or
 eviction. The sets checklist, section 1, gives the reason for each.
+
+## The decisions (decided)
+
+The five questions of the sets checklist, section 8, are decided as recommended; the owner
+confirmed that unpublished names are not one-way doors:
+
+1. `scope.save` and `scope.remove` do not survive as op names: the deprecated doors forward to
+   `session.sets`, which dispatch `set.create` and `set.remove`.
+2. A caller may not supply `id`, `order` or `createdFrom` in `set.create`; `session.execute`
+   refuses them.
+3. `ProjectSlice` spells the slice `"sets"`.
+4. `SetChange.cause` gains `"undo"` and `"redo"`.
+5. The op names are `set.create`, `set.rename`, `set.redefine`, `set.members`, `set.remove`, and
+   `set.restore` for the published `sets.restore`, with the same undo semantics.

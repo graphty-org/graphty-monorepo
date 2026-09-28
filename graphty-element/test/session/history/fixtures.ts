@@ -75,6 +75,17 @@ async function runQuietly(
     await session.styles.settled();
 }
 
+/** The id the fixture set below is minted: the slug of its name. */
+const FIXTURE_SET = "set_fixture-set";
+
+/**
+ * Keep the fixture set, nodes `n1` and `n2`, as a step of its own.
+ * @param session - The session.
+ */
+async function withFixtureSet(session: GraphSession): Promise<void> {
+    await session.execute({ op: "set.create", name: "Fixture set", definition: { kind: "fixed", nodes: ["n1", "n2"], reading: "induced" } });
+}
+
 /** A 5 by 5 PNG a skybox can be built from without a network. */
 export const SKYBOX_PNG =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
@@ -330,17 +341,57 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.context", show: true },
     },
     {
-        name: "scope.save",
+        name: "set.create: a fixed set",
         tags: ["session"],
-        command: { op: "scope.save", name: "Fixture scope", spec: { nodes: ["n1", "n2"] } },
+        command: { op: "set.create", name: "Fixture set", definition: { kind: "fixed", nodes: ["n1", "n2"], reading: "induced" } },
     },
     {
-        name: "scope.remove",
+        name: "set.create: a rule set",
+        tags: ["session"],
+        command: {
+            op: "set.create",
+            name: "Fixture rule",
+            definition: { kind: "rule", where: { kind: "degree", min: 2 }, reading: "induced" },
+        },
+    },
+    {
+        name: "set.rename",
+        tags: ["session"],
+        before: withFixtureSet,
+        command: { op: "set.rename", id: FIXTURE_SET, name: "Renamed set" },
+    },
+    {
+        name: "set.redefine",
+        tags: ["session"],
+        before: withFixtureSet,
+        command: { op: "set.redefine", id: FIXTURE_SET, definition: { kind: "fixed", nodes: ["n3"], reading: "induced" } },
+    },
+    {
+        name: "set.members: add",
+        tags: ["session"],
+        before: withFixtureSet,
+        command: { op: "set.members", id: FIXTURE_SET, add: { nodes: ["n3"] } },
+    },
+    {
+        name: "set.members: remove",
+        tags: ["session"],
+        before: withFixtureSet,
+        command: { op: "set.members", id: FIXTURE_SET, remove: { nodes: ["n1"] } },
+    },
+    {
+        name: "set.remove",
+        tags: ["session"],
+        before: withFixtureSet,
+        command: { op: "set.remove", id: FIXTURE_SET },
+    },
+    {
+        name: "set.restore",
         tags: ["session"],
         before: async (session) => {
-            await session.execute({ op: "scope.save", name: "Fixture scope", spec: "graph" });
+            await withFixtureSet(session);
+            await session.execute({ op: "set.remove", id: FIXTURE_SET });
         },
-        command: { op: "scope.remove", id: "set_fixture-scope" },
+        command: { op: "set.restore", id: FIXTURE_SET },
     },
     {
         name: "view.save",
@@ -454,6 +505,24 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "layout.set: an alternate engine with its options",
         tags: ["session"],
         command: { op: "layout.set", id: "force", engine: "d3", options: { alphaMin: 0.2 } },
+    },
+    {
+        name: "layout.set: a layout over part of the graph",
+        tags: ["session"],
+        command: { op: "layout.set", id: "force", scope: { nodes: ["n1", "n2"] } },
+    },
+    {
+        name: "layout.scope: part of the graph",
+        tags: ["session"],
+        command: { op: "layout.scope", scope: { nodes: ["n1", "n2"] } },
+    },
+    {
+        name: "layout.scope: back to the whole graph",
+        tags: ["session"],
+        before: async (session) => {
+            await session.execute({ op: "layout.scope", scope: { nodes: ["n1"] } });
+        },
+        command: { op: "layout.scope", scope: "graph" },
     },
     {
         name: "view.dimension: 3D to 2D",

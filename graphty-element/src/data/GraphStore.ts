@@ -10,9 +10,28 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { hashNodeId } from "../catalog/sets/hash";
+import { type InputCounters, inputCountersOf } from "../session/attributes";
 import { retainArray } from "../session/project/strict";
 import type { DirectionProvenance } from "../session/types";
+import {
+    completeLoad,
+    createEdgeCounter,
+    EDGE_ID_COLUMN,
+    type EdgeCounter,
+    IDENTITY_COLUMNS,
+    type IdentityGraph,
+    PAIRS_ORDERED_ATTRIBUTE,
+    sessionEdgeHash,
+} from "./edgeIdentity";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
+
+/** An edge's stable-identity cells: its hash lanes, its ordinal and its pair's count. */
+export interface EdgeIdentityCells {
+    readonly hash: readonly [number, number];
+    readonly ordinal: number;
+    readonly among: number;
+}
 
 /** The payload of `snapshot-replaced` (graph-format design 14.4 rule 11). */
 export interface SnapshotReplacement {
@@ -46,12 +65,23 @@ export interface GraphStoreOptions {
     readonly onNodeRemap: (remap: U32) => void;
     /** Called before onReplaced when the freeze renumbered edges, so edgesByIndex can be re-keyed. */
     readonly onEdgeRemap: (remap: U32) => void;
+    /**
+     * The edge counter `nextEdgeId()` draws from. Its owner (`DataManager`, a headless
+     * `GraphSession`) hands the same object to every store it builds, so a Clear or a replacing
+     * import never rewinds it and no edge id is issued twice in a session. A store built without
+     * one counts from 0 on its own.
+     */
+    readonly edgeCounter?: EdgeCounter;
+    /**
+     * The input counters every freeze advances the tick of (design/sets 6.2). Handed in by the
+     * same owner, for the same reason, as the edge counter; a store built without them keys its
+     * own under itself, which is what a headless session reads.
+     */
+    readonly inputs?: InputCounters;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
 const SEED_COLUMN = "graphty.importPosition";
-/** The element-assigned edge counter column. Its value, printed, is Edge.id. */
-const EDGE_ID_COLUMN = "graphty.edgeId";
 
 /**
  * The node column every frozen snapshot carries the reader's pins in.
@@ -230,11 +260,30 @@ export class GraphStore {
         edge: [],
     };
     private rebuilds = 0;
+    private readonly counter: EdgeCounter;
+    private nodeHashColumn: ColumnHandle;
+    private edgeHashColumn: ColumnHandle;
+    private edgeOrdinalColumn: ColumnHandle;
+    private edgeAmongColumn: ColumnHandle;
+    /** Node rows below this have their hash; rows from here to `nodeBound` are new. */
+    private nodeMark = 0;
+    /** Edges ingested outside a load and not yet completed: row, counter, file id. */
+    private sessionEdges: { row: number; counter: number; fileId: string | number | undefined }[] = [];
+    /** Rows of the open load, in ingest order, remapped by every compacting freeze. */
+    private loadRows = new Uint32Array(64);
+    private loadLength = 0;
+    /** File ids of the open load's edges, aligned with `loadRows`; sparse. */
+    private loadFileIds: (string | number | undefined)[] = [];
+    /** Open `openLoad()` calls; loads that overlap are completed as one. */
+    private loadDepth = 0;
+    /** Whether edge pairs are ordered, latched when the first edge is completed. */
+    private pairsOrdered: boolean | null = null;
+    /** The counters whose tick every freeze advances; the graph primitives bump its fields. */
+    readonly inputs: InputCounters;
     private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>();
     private cache: GraphSnapshot | null = null;
     private cachedRevision = -1;
     private revision = 0;
-    private edgeIdCounter = 0;
     /** The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. */
     private edgeIdByIndex: number[] = [];
     /** Builder row by edge id: what {@link GraphStore.edgeIndexOf} reads. */
@@ -266,6 +315,12 @@ export class GraphStore {
         this.current = this.createBuilder(this.emptyDirected());
         this.seedHandle = this.current.nodeColumn(SEED_COLUMN);
         this.edgeIdHandle = this.current.edgeColumn(EDGE_ID_COLUMN);
+        this.nodeHashColumn = this.current.nodeColumn(IDENTITY_COLUMNS.nodeHash);
+        this.edgeHashColumn = this.current.edgeColumn(IDENTITY_COLUMNS.edgeHash);
+        this.edgeOrdinalColumn = this.current.edgeColumn(IDENTITY_COLUMNS.edgeOrdinal);
+        this.edgeAmongColumn = this.current.edgeColumn(IDENTITY_COLUMNS.edgeAmong);
+        this.counter = options.edgeCounter ?? createEdgeCounter();
+        this.inputs = options.inputs ?? inputCountersOf(this);
         this.accounted = { builder: this.current, count: this.current.mutationCount };
     }
 
@@ -363,6 +418,30 @@ export class GraphStore {
             role: "id",
             unique: true,
         });
+        // The stable-identity columns (design/sets/sets-design.md 12.2, 12.3), beside the counter
+        // they are derived from, filled by the completion pass at freeze. 8 bytes per node, 16 per
+        // edge. Ordinal and among default to -1, the reading of a session edge and of a row the
+        // pass has not reached yet.
+        this.nodeHashColumn = builder.declareNodeColumn({
+            name: IDENTITY_COLUMNS.nodeHash,
+            dtype: "u32",
+            components: 2,
+        });
+        this.edgeHashColumn = builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeHash,
+            dtype: "u32",
+            components: 2,
+        });
+        this.edgeOrdinalColumn = builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeOrdinal,
+            dtype: "i32",
+            default: -1,
+        });
+        this.edgeAmongColumn = builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeAmong,
+            dtype: "i32",
+            default: -1,
+        });
         return builder;
     }
 
@@ -445,7 +524,65 @@ export class GraphStore {
      */
     nextEdgeId(): number {
         this.requireAlive("nextEdgeId");
-        return this.edgeIdCounter++;
+        return this.counter.next++;
+    }
+
+    /**
+     * Record an ingested edge for the completion pass. `ingestEdge` calls this for every edge it
+     * stamps; an edge added to the builder directly (a test fixture) gets no identity values.
+     * @param row - the edge row
+     * @param counter - the counter stamped into its `graphty.edgeId` cell
+     * @param fileId - the file id read at the configured `edgeIdPath`, if any
+     */
+    recordIngestedEdge(row: number, counter: number, fileId?: string | number): void {
+        if (this.loadDepth === 0) {
+            this.sessionEdges.push({ row, counter, fileId });
+            return;
+        }
+
+        if (this.loadLength === this.loadRows.length) {
+            const grown = new Uint32Array(this.loadRows.length * 2);
+            grown.set(this.loadRows);
+            this.loadRows = grown;
+        }
+
+        if (fileId !== undefined) {
+            this.loadFileIds[this.loadLength] = fileId;
+        }
+
+        this.loadRows[this.loadLength++] = row;
+    }
+
+    /**
+     * Open a load: every edge ingested until the matching `closeLoad()` belongs to it, and its
+     * ordinals are counted over it as a whole however many chunks and freezes it spans
+     * (design 12.3: a load is one import). Edges ingested with no load open are session edges.
+     */
+    openLoad(): void {
+        this.loadDepth++;
+    }
+
+    /**
+     * Close a load. When the last open load closes, it is completed there and then. A disposed
+     * store ignores this, so a load's cleanup may run after a Clear replaced its store.
+     */
+    closeLoad(): void {
+        if (this.disposed || this.loadDepth === 0) {
+            return;
+        }
+
+        // Structural changes still waiting would renumber the load's rows under the pass.
+        this.settle();
+        this.loadDepth--;
+        if (this.loadDepth === 0) {
+            // Completed now rather than at the next freeze: the load is over, so an edit made
+            // before that freeze (a removal, or a second load opened straight after) belongs to
+            // no load and must not move this one's ordinals or merge into it.
+            this.completeIdentity();
+            // Column writes do not move the builder, so without this a snapshot frozen during the
+            // load would keep being served without the load's identity values.
+            this.touch();
+        }
     }
 
     /**
@@ -460,6 +597,46 @@ export class GraphStore {
         this.builder.setEdgeValue(this.edgeIdHandle, edgeIndex, edgeId);
         this.edgeIdByIndex[edgeIndex] = edgeId;
         this.indexByEdgeId[edgeId] = edgeIndex;
+    }
+
+    /**
+     * The stable-identity cells an edge was given, read from the last freeze without settling:
+     * what an undone add keeps so its redo gives the edge back the identity it had.
+     * @param edgeId - the element-assigned counter
+     * @returns the hash, ordinal and among, or undefined when the last freeze holds no such edge
+     */
+    frozenEdgeIdentity(edgeId: number): EdgeIdentityCells | undefined {
+        const snapshot = this.cache;
+        const row = snapshot === null ? INVALID_INDEX : snapshot.edgeIndexOf(edgeId);
+        if (snapshot === null || row === INVALID_INDEX) {
+            return undefined;
+        }
+
+        const hash = snapshot.edges.value(IDENTITY_COLUMNS.edgeHash, row) as readonly number[] | undefined;
+        if (hash === undefined) {
+            return undefined;
+        }
+
+        return {
+            hash: [hash[0], hash[1]],
+            ordinal: snapshot.edges.value(IDENTITY_COLUMNS.edgeOrdinal, row) as number,
+            among: snapshot.edges.value(IDENTITY_COLUMNS.edgeAmong, row) as number,
+        };
+    }
+
+    /**
+     * Give a re-added edge the identity cells it had, instead of completing it as a new edge.
+     * @param row - the builder row
+     * @param cells - what {@link GraphStore.frozenEdgeIdentity} returned for it
+     */
+    restoreEdgeIdentity(row: number, cells: EdgeIdentityCells): void {
+        // The hashes were made under the latch; a graph emptied and refilled by a redo takes it
+        // again, from the direction the redo has already put back.
+        this.latchPairsOrdered();
+        const builder = this.current;
+        builder.setEdgeValue(this.edgeHashColumn, row, [...cells.hash]);
+        builder.setEdgeValue(this.edgeOrdinalColumn, row, cells.ordinal);
+        builder.setEdgeValue(this.edgeAmongColumn, row, cells.among);
     }
 
     /**
@@ -531,13 +708,40 @@ export class GraphStore {
         this.applyPositions();
         this.publish();
         this.audit();
-        const carried = this.materialize();
+        let carried = this.materialize();
+        if (this.pairsOrdered !== null && this.current.edgeCount === 0) {
+            // A graph holding no edges has not latched: the latch describes how its edges were
+            // hashed. So removing the last edge, forward or by undo, takes it off again, and the
+            // next edge completed latches afresh. graph-format has no removal of a graph value,
+            // so the builder is rebuilt without it.
+            this.pairsOrdered = null;
+            this.revision++;
+            const again = this.rebuild(null, []);
+            carried =
+                carried === null
+                    ? again
+                    : { node: compose(carried.node, again.node), edge: compose(carried.edge, again.edge) };
+        } else if (this.pairsOrdered === null && this.current.edgeCount > 0 && this.loadDepth === 0) {
+            // Edges put back by an undo carry the hashes they were made with, and no pass latches
+            // for them: latch now, from the direction the undo put back with them.
+            this.latchPairsOrdered();
+        }
+
         this.account();
         if (carried === null && this.cache !== null && this.cachedRevision === this.revision) {
             return this.cache;
         }
 
         const previous = this.cache;
+        // Before the freeze, so the columns ride in the snapshot. Idempotent: a throw here leaves
+        // the marks unmoved and the next call writes the same values again.
+        if (carried !== null) {
+            this.followRebuild(carried.edge);
+        }
+
+        this.completeIdentity();
+        // The pass's column writes are the store's own.
+        this.account();
         const frozen = this.current.freezeWithReport({ label: "graphty-element" });
         const { snapshot } = frozen;
         this.remapEdgeIds(frozen.report.edgeRemap);
@@ -567,6 +771,10 @@ export class GraphStore {
         this.cachedRevision = this.revision;
         this.pending = { replacement: { previous, next: snapshot, report }, stage: "node-remap" };
         this.pendingPositions = { snapshot, nodeRemap: report.nodeRemap, stage: "remap" };
+        // Allocation-free, so it cannot throw between the commit and the resumable stages.
+        this.inputs.tick.advance();
+        // Allocation-free, so it cannot throw between the commit and the resumable stages.
+        this.followIdentityRemap(frozen.report.edgeRemap);
 
         this.applyPositions();
         this.publish();
@@ -750,7 +958,7 @@ export class GraphStore {
         // and unlike the cached snapshot this one still carries the seed column.
         const kept = { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction };
         // History holds it until the step is evicted: nothing may write it meanwhile.
-        seal(kept.snapshot, "a kept graph's snapshot");
+        seal(kept.snapshot, "a kept graph's snapshot", this);
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
         return kept;
     }
@@ -992,6 +1200,17 @@ export class GraphStore {
 
         const builder = this.createBuilder(base?.directed ?? this.emptyDirected());
         this.current = builder;
+        if (replace !== null) {
+            // A graph put back keeps the latch its edge hashes were made under; an emptied one
+            // latches afresh, as a new dataset does.
+            const latch = base?.graph.typed(PAIRS_ORDERED_ATTRIBUTE, "u8") ?? null;
+            this.pairsOrdered = latch === null ? null : latch.data[0] === 1;
+        }
+
+        if (this.pairsOrdered !== null) {
+            builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
+        }
+
         this.edgeIdByIndex = [];
         this.indexByEdgeId.length = 0;
         const baseNode = new Uint32Array(base?.nodeCount ?? 0).fill(INVALID_INDEX);
@@ -1207,7 +1426,7 @@ export class GraphStore {
         });
         // The resident snapshot is complete: from here its column set is fixed, and a consumer
         // that tries to attach, remove or rename a column gets E_FROZEN.
-        seal(snapshot, "the resident snapshot");
+        seal(snapshot, "the resident snapshot", this);
         this.pendingPositions = null;
     }
 
@@ -1267,6 +1486,8 @@ export class GraphStore {
             }
 
             this.pending = null;
+            // Last, once every stage has landed: a session re-resolves its live sets from here.
+            this.inputs.tick.announce({ kind: "snapshot", serial: replacement.next.serial });
         } finally {
             this.publishing = false;
         }
@@ -1294,6 +1515,173 @@ export class GraphStore {
         }
 
         this.edgeIdByIndex = moved;
+    }
+
+    /**
+     * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
+     * no load is open, complete the load's edges -- ordinal and among per pair over the load's
+     * surviving edges, and the edge hash, in one sorted pass.
+     */
+    private completeIdentity(): void {
+        const builder = this.current;
+        // Every node row at once (the first freeze of a store): one typed array and one bulk
+        // column write instead of a checked cell write per node.
+        const bulkNodes = this.nodeMark === 0 && builder.nodeBound > 0 ? new Uint32Array(2 * builder.nodeBound) : null;
+        for (let i = this.nodeMark; i < builder.nodeBound; i++) {
+            let id;
+            try {
+                id = builder.idOf(i);
+            } catch {
+                // A row added and removed again before any freeze. graph-format offers no
+                // liveness test by index, and such rows are rare.
+                continue;
+            }
+
+            const { a, b } = hashNodeId(id);
+            if (bulkNodes === null) {
+                builder.setNodeValue(this.nodeHashColumn, i, [a, b]);
+            } else {
+                bulkNodes[2 * i] = a;
+                bulkNodes[2 * i + 1] = b;
+            }
+        }
+
+        if (bulkNodes !== null) {
+            builder.setNodeColumn(IDENTITY_COLUMNS.nodeHash, bulkNodes, { dtype: "u32", components: 2 });
+        }
+
+        const completingLoad = this.loadDepth === 0 && this.loadLength > 0;
+        if (this.sessionEdges.length === 0 && !completingLoad) {
+            return;
+        }
+
+        const graph: IdentityGraph = {
+            endpoints: (edge) => builder.edgeEndpoints(edge),
+            idOf: (node) => builder.idOf(node),
+            ...(bulkNodes === null
+                ? {}
+                : { hashOf: (node: number) => ({ a: bulkNodes[2 * node], b: bulkNodes[2 * node + 1] }) }),
+        };
+        const ordered = this.latchPairsOrdered();
+        const noSessionEdges = this.sessionEdges.length === 0;
+        for (const { row, counter, fileId } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                builder.setEdgeValue(this.edgeOrdinalColumn, row, -1);
+                builder.setEdgeValue(this.edgeAmongColumn, row, -1);
+                const { a, b } = sessionEdgeHash(graph, row, counter, fileId, ordered);
+                builder.setEdgeValue(this.edgeHashColumn, row, [a, b]);
+            }
+        }
+
+        this.sessionEdges = [];
+        if (!completingLoad) {
+            return;
+        }
+
+        // Only surviving edges count: a row removed during the load takes no ordinal.
+        let kept = 0;
+        for (let i = 0; i < this.loadLength; i++) {
+            if (builder.hasEdge(this.loadRows[i])) {
+                this.loadFileIds[kept] = this.loadFileIds[i];
+                this.loadRows[kept++] = this.loadRows[i];
+            }
+        }
+
+        const fileIds = this.loadFileIds;
+        const rows = this.loadRows.subarray(0, kept);
+        if (noSessionEdges && kept === builder.edgeCount) {
+            // The load covers every edge in the store (a first load, or one that replaced it): the
+            // three columns are written whole, as typed arrays, instead of three checked cell
+            // writes per edge. Rows no live edge holds keep ordinal and among -1.
+            const bound = builder.edgeBound;
+            const hashes = new Uint32Array(2 * bound);
+            const ordinals = new Int32Array(bound).fill(-1);
+            const amongs = new Int32Array(bound).fill(-1);
+            completeLoad(
+                rows,
+                graph,
+                ordered,
+                (position) => fileIds[position],
+                (row, ordinal, among, hash) => {
+                    ordinals[row] = ordinal;
+                    amongs[row] = among;
+                    hashes[2 * row] = hash.a;
+                    hashes[2 * row + 1] = hash.b;
+                },
+            );
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, ordinals, { dtype: "i32", default: -1 });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, amongs, { dtype: "i32", default: -1 });
+        } else {
+            completeLoad(
+                rows,
+                graph,
+                ordered,
+                (position) => fileIds[position],
+                (row, ordinal, among, hash) => {
+                    builder.setEdgeValue(this.edgeOrdinalColumn, row, ordinal);
+                    builder.setEdgeValue(this.edgeAmongColumn, row, among);
+                    builder.setEdgeValue(this.edgeHashColumn, row, [hash.a, hash.b]);
+                },
+            );
+        }
+        this.loadLength = 0;
+        this.loadFileIds = [];
+        this.loadRows = new Uint32Array(64);
+    }
+
+    /**
+     * Whether pairs are ordered, latched the first time an edge is completed: ordered only when the
+     * graph was declared directed by then. Recorded as a graph attribute so every snapshot says
+     * which rule its edge hashes follow.
+     * @returns the latched value
+     */
+    private latchPairsOrdered(): boolean {
+        if (this.pairsOrdered === null) {
+            this.pairsOrdered = this.direction.by !== "unsettled" && this.current.directed;
+            this.current.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
+        }
+
+        return this.pairsOrdered;
+    }
+
+    /**
+     * Move the edges waiting for the completion pass into a rebuilt builder's rows, before the
+     * pass reads them: a rebuild renumbers rows the way a compacting freeze does.
+     * @param edgeRemap - old builder row to new builder row, INVALID_INDEX for a row dropped
+     */
+    private followRebuild(edgeRemap: U32): void {
+        this.sessionEdges = this.sessionEdges.flatMap((edge) => {
+            const row = edgeRemap[edge.row] ?? INVALID_INDEX;
+            return row === INVALID_INDEX ? [] : [{ ...edge, row }];
+        });
+        this.followIdentityRemap(edgeRemap);
+        // Rows added since the last freeze were carried over without their hash: hash every row.
+        this.nodeMark = 0;
+    }
+
+    /**
+     * Move the pass's marks and the open load's rows into the index space of a freeze just
+     * committed. Allocation-free.
+     * @param edgeRemap - the freeze's edge remap, or null when nothing was renumbered
+     */
+    private followIdentityRemap(edgeRemap: U32 | null): void {
+        this.nodeMark = this.current.nodeBound;
+        if (edgeRemap === null) {
+            return;
+        }
+
+        let kept = 0;
+        for (let i = 0; i < this.loadLength; i++) {
+            const moved = edgeRemap[this.loadRows[i]] ?? INVALID_INDEX;
+            if (moved !== INVALID_INDEX) {
+                this.loadFileIds[kept] = this.loadFileIds[i];
+                this.loadRows[kept++] = moved;
+            }
+        }
+
+        this.loadFileIds.length = Math.min(this.loadFileIds.length, kept);
+        this.loadLength = kept;
     }
 
     /**
@@ -1430,8 +1818,9 @@ const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", PINNED_COLUMN]);
  * its columns hold, the lane columns excepted, so a write to one in place is found (design/undo/undo-design.md 12.1).
  * @param snapshot - The snapshot.
  * @param what - What holds it, for the message.
+ * @param holder - The store, whose dispatcher checks the arrays at each dispatch.
  */
-function seal(snapshot: GraphSnapshot, what: string): void {
+function seal(snapshot: GraphSnapshot, what: string, holder: object): void {
     snapshot.seal();
     for (const [name, data] of [
         ["rowPtr", snapshot.rowPtr],
@@ -1439,7 +1828,7 @@ function seal(snapshot: GraphSnapshot, what: string): void {
         ["weights", snapshot.weights],
     ] as const) {
         if (data !== null) {
-            retainArray(data, `the graph slice's ${what} ${name}`);
+            retainArray(data, `the graph slice's ${what} ${name}`, holder);
         }
     }
     for (const [domain, table] of [
@@ -1449,7 +1838,7 @@ function seal(snapshot: GraphSnapshot, what: string): void {
         for (const column of table) {
             const data = "data" in column ? column.data : null;
             if (!LANE_COLUMNS.has(column.meta.name) && ArrayBuffer.isView(data)) {
-                retainArray(data, `the graph slice's ${what} ${domain} column "${column.meta.name}"`);
+                retainArray(data, `the graph slice's ${what} ${domain} column "${column.meta.name}"`, holder);
             }
         }
     }

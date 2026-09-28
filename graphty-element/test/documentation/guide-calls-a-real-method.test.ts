@@ -10,7 +10,8 @@
  * nothing in the repository disagreed with the page.
  *
  * This reads the guides the way a reader does -- the code blocks -- and checks the names against
- * the two classes. It cannot check what a call DOES, only that the door exists, which is exactly
+ * the two classes, and every `session.sets.<name>` and `session.scope.<name>` against the
+ * interfaces the session publishes those two under. It cannot check what a call DOES, only that the door exists, which is exactly
  * the class of error that shipped.
  */
 
@@ -89,6 +90,27 @@ function declaredMembers(file: string): Set<string> {
 }
 
 /**
+ * The members one exported interface declares, read from its body alone, so a sibling interface
+ * in the same file (the resolver's internal doors beside `ScopeApi`) does not count.
+ * @param file - the source file to read
+ * @param name - the interface
+ * @returns the declared names
+ */
+function interfaceMembers(file: string, name: string): Set<string> {
+    const source = readFileSync(file, "utf8");
+    const start = source.indexOf(`export interface ${name} {`);
+    assert.isAtLeast(start, 0, `${file} declares no interface ${name}`);
+    const body = source.slice(start, source.indexOf("\n}", start));
+    const names = new Set<string>();
+
+    for (const match of body.matchAll(/^\s{4}(?:readonly\s+)?([A-Za-z_$][\w$]*)\??\s*[(:<]/gm)) {
+        names.add(match[1]);
+    }
+
+    return names;
+}
+
+/**
  * Every `<receiver>.<name>(` a guide's code blocks call.
  * @param file - the guide
  * @param receiver - the variable the guide calls on
@@ -114,7 +136,9 @@ function callsOn(file: string, receiver: string): { name: string; line: number }
         // read as a call to `graph.json`.
         const code = text.replace(/"[^"]*"|'[^']*'|`[^`]*`/g, '""');
 
-        for (const match of code.matchAll(new RegExp(`\\b${receiver}\\.([A-Za-z_$][\\w$]*)`, "g"))) {
+        for (const match of code.matchAll(
+            new RegExp(`\\b${receiver.replace(".", "\\.")}\\.([A-Za-z_$][\\w$]*)`, "g"),
+        )) {
             calls.push({ name: match[1], line: index + 1 });
         }
     });
@@ -160,4 +184,36 @@ describe("the names the guides teach", () => {
             assert.deepStrictEqual(wrong, [], `a guide teaches a name ${file} does not declare`);
         });
     }
+});
+
+describe("the session doors the guides teach", () => {
+    for (const [receiver, file, name] of [
+        ["session.sets", "src/session/sets/types.ts", "SetsApi"],
+        ["session.scope", "src/session/scope/ScopeApi.ts", "ScopeApi"],
+    ] as const) {
+        it(`every \`${receiver}.<name>\` in a guide is declared by ${name}`, () => {
+            const declared = interfaceMembers(file, name);
+            const wrong: string[] = [];
+            let seen = 0;
+
+            for (const guide of GUIDES) {
+                for (const call of callsOn(guide, receiver)) {
+                    seen++;
+
+                    if (!declared.has(call.name)) {
+                        wrong.push(`${guide}:${String(call.line)} teaches ${receiver}.${call.name}`);
+                    }
+                }
+            }
+
+            assert.isAbove(seen, 0, `no guide teaches ${receiver}, so this check reads nothing`);
+            assert.deepStrictEqual(wrong, [], `a guide teaches a name ${name} does not declare`);
+        });
+    }
+
+    it("reads the interfaces' own members and nothing beside them", () => {
+        const scope = interfaceMembers("src/session/scope/ScopeApi.ts", "ScopeApi");
+        assert.deepStrictEqual([...scope].sort(), ["count", "list", "remove", "resolve", "save"]);
+        assert.isTrue(interfaceMembers("src/session/sets/types.ts", "SetsApi").has("createFrom"));
+    });
 });

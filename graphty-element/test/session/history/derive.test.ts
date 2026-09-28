@@ -64,14 +64,14 @@ describe("derivation lane", () => {
         );
     });
 
-    it("runs hooks in the fixed order: graph, layout, pins, arrangement, then the rest", async () => {
+    it("runs hooks in the fixed order: graph, layout, pins, arrangement, then the rest, sets before what reads them", async () => {
         const lane = new DerivationLane(createProjectState());
         const order: string[] = [];
         const slices = [
             "views",
-            "scopes",
             "visibility",
             "styles",
+            "sets",
             "runs",
             "config",
             "arrangement",
@@ -94,9 +94,9 @@ describe("derivation lane", () => {
             "arrangement",
             "config",
             "runs",
+            "sets",
             "styles",
             "visibility",
-            "scopes",
             "views",
         ]);
     });

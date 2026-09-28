@@ -1,7 +1,7 @@
 import type { Graph } from "../../core/graph.js";
 import { scoresToRecord } from "../../indexed/facade.js";
 import { katzCentrality as indexedKatz } from "../../indexed/katz.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -36,6 +36,9 @@ export function katzCentrality(graph: Graph, options: KatzCentralityOptions = {}
     // A negative alpha or beta can leave every score negative, and the legacy rescale measures the
     // maximum from 0 rather than from the largest score.
     if (alpha < 0 || beta < 0) {
+        return legacyKatzCentrality(graph, options);
+    }
+    if (needsLegacyCode(graph)) {
         return legacyKatzCentrality(graph, options);
     }
     const s = toSnapshot(graph);

@@ -3,7 +3,7 @@ import { type F64, INVALID_INDEX } from "@graphty/graph-format";
 import type { Graph } from "../../core/graph.js";
 import { deltaPageRank } from "../../indexed/delta-pagerank.js";
 import { exactArcWeights, scoresToRecord } from "../../indexed/facade.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { SimpleDeltaPageRank } from "./delta-pagerank-simple.js";
 
@@ -43,9 +43,8 @@ export interface PageRankOptions {
      */
     weight?: string;
     /**
-     * Use delta-based optimization for faster convergence.
-     * Defaults to true for graphs with >100 nodes, false for smaller graphs.
-     * Set explicitly to override automatic heuristic.
+     * Accepted and ignored. It once chose between two engines that compute the same iteration, so
+     * it never changed the result, and now there is one engine.
      */
     useDelta?: boolean;
 }
@@ -72,13 +71,15 @@ export interface PageRankResult {
  * Calculate PageRank for all nodes in the graph
  *
  * Power iteration with the dangling mass spread over every node and an L-infinity stopping rule.
- * `useDelta` picks between two legacy engines that compute the same iteration, so it no longer
- * changes the answer or the cost.
+ * `useDelta` is ignored: it chose between two engines that computed the same iteration.
  * @param graph - The directed input graph to analyze
  * @param options - Algorithm configuration options
  * @returns PageRank result containing ranks, iteration count, and convergence status
  */
 export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankResult {
+    if (needsLegacyCode(graph)) {
+        return legacyPageRank(graph, options);
+    }
     const s = toSnapshot(graph);
     const { personalization, initialRanks, weight } = options;
     // The legacy code normalises the personalization over every entry of the Map, so an id the

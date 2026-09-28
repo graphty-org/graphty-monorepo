@@ -4,7 +4,7 @@ import {
     edgeBetweennessCentrality as indexedEdgeBetweenness,
 } from "../../indexed/betweenness.js";
 import { edgeScoresToPairMap, scoresToRecord } from "../../indexed/facade.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { bfsWithPathCounting } from "../traversal/bfs-variants.js";
 
@@ -235,6 +235,9 @@ export function betweennessCentrality(
     options: BetweennessCentralityOptions = {},
 ): Record<string, number> {
     rejectIndexOptions(options, "betweennessCentrality");
+    if (needsLegacyCode(graph)) {
+        return legacyBetweennessCentrality(graph, options);
+    }
     const s = toSnapshot(graph);
     // `endpoints` is not passed on: the legacy accumulation accepts it and ignores it.
     return scoresToRecord(s.ids, indexedBetweenness(s, { normalized: options.normalized }).scores);
@@ -320,7 +323,7 @@ export function edgeBetweennessCentrality(
     rejectIndexOptions(options, "edgeBetweennessCentrality");
     // On an undirected graph the legacy Map adds each reversed "v-u" key in the order its searches
     // first cross the edge that way, an order the port's per-edge scores do not carry.
-    if (!graph.isDirected) {
+    if (!graph.isDirected || needsLegacyCode(graph)) {
         return legacyEdgeBetweennessCentrality(graph, options);
     }
     const s = toSnapshot(graph);

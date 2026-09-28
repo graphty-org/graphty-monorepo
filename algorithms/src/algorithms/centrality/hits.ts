@@ -1,7 +1,7 @@
 import type { Graph } from "../../core/graph.js";
 import { scoresToRecord } from "../../indexed/facade.js";
 import { hits as indexedHits } from "../../indexed/hits.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions } from "../../types/index.js";
 
 /**
@@ -35,6 +35,9 @@ export interface HITSOptions extends CentralityOptions {
  * @returns Object containing hub and authority scores for all nodes
  */
 export function hits(graph: Graph, options: HITSOptions = {}): HITSResult {
+    if (needsLegacyCode(graph)) {
+        return legacyHits(graph, options);
+    }
     const s = toSnapshot(graph);
     const r = indexedHits(s, {
         maxIterations: options.maxIterations,

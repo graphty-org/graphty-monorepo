@@ -7,7 +7,7 @@ import {
     nodeClosenessCentrality as indexedNodeCloseness,
 } from "../../indexed/closeness.js";
 import { exactArcWeights, scoresToRecord } from "../../indexed/facade.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { bfsDistancesOnly, bfsWeightedDistances } from "../traversal/bfs-variants.js";
 
@@ -121,6 +121,9 @@ function calculateClosenessFromDistances(
  * Space Complexity: O(V)
  */
 export function closenessCentrality(graph: Graph, options: ClosenessCentralityOptions = {}): Record<string, number> {
+    if (needsLegacyCode(graph)) {
+        return perNodeRecord(graph, (id) => legacyNodeClosenessCentrality(graph, id, options));
+    }
     const s = toSnapshot(graph);
     return scoresToRecord(s.ids, indexedCloseness(s, portOptions(options)).scores);
 }
@@ -140,6 +143,20 @@ function portOptions(options: ClosenessCentralityOptions, s?: GraphSnapshot): Cl
         weighted: s !== undefined,
         weights: s === undefined ? undefined : exactArcWeights(s),
     };
+}
+
+/**
+ * The legacy whole-graph loop: one per-node score per node, keyed by `String(id)` in node order.
+ * @param graph - The input graph
+ * @param score - The per-node score
+ * @returns The keyed scores
+ */
+function perNodeRecord(graph: Graph, score: (id: NodeId) => number): Record<string, number> {
+    const centrality: Record<string, number> = {};
+    for (const node of graph.nodes()) {
+        centrality[String(node.id)] = score(node.id);
+    }
+    return centrality;
 }
 
 /**
@@ -164,6 +181,9 @@ function hasNegativeWeight(s: GraphSnapshot): boolean {
 export function nodeClosenessCentrality(graph: Graph, node: NodeId, options: ClosenessCentralityOptions = {}): number {
     if (!graph.hasNode(node)) {
         throw new Error(`Node ${String(node)} not found in graph`);
+    }
+    if (needsLegacyCode(graph)) {
+        return legacyNodeClosenessCentrality(graph, node, options);
     }
     const s = toSnapshot(graph);
     return indexedNodeCloseness(s, s.ids.indexOf(node), portOptions(options));
@@ -209,13 +229,12 @@ export function weightedClosenessCentrality(
     graph: Graph,
     options: ClosenessCentralityOptions = {},
 ): Record<string, number> {
+    if (needsLegacyCode(graph)) {
+        return perNodeRecord(graph, (id) => legacyNodeWeightedClosenessCentrality(graph, id, options));
+    }
     const s = toSnapshot(graph);
     if (hasNegativeWeight(s)) {
-        const centrality: Record<string, number> = {};
-        for (const node of graph.nodes()) {
-            centrality[String(node.id)] = legacyNodeWeightedClosenessCentrality(graph, node.id, options);
-        }
-        return centrality;
+        return perNodeRecord(graph, (id) => legacyNodeWeightedClosenessCentrality(graph, id, options));
     }
     return scoresToRecord(s.ids, indexedCloseness(s, portOptions(options, s)).scores);
 }
@@ -234,6 +253,9 @@ export function nodeWeightedClosenessCentrality(
 ): number {
     if (!graph.hasNode(node)) {
         throw new Error(`Node ${String(node)} not found in graph`);
+    }
+    if (needsLegacyCode(graph)) {
+        return legacyNodeWeightedClosenessCentrality(graph, node, options);
     }
     const s = toSnapshot(graph);
     if (hasNegativeWeight(s)) {

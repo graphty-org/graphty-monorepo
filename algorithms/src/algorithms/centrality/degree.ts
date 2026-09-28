@@ -1,7 +1,7 @@
 import type { Graph } from "../../core/graph.js";
 import { degreeCentrality as indexedDegree } from "../../indexed/degree.js";
 import { scoresToRecord } from "../../indexed/facade.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -18,6 +18,9 @@ import type { CentralityOptions, CentralityResult } from "../../types/index.js";
  * @returns Centrality scores for each node keyed by node ID
  */
 export function degreeCentrality(graph: Graph, options: CentralityOptions = {}): CentralityResult {
+    if (needsLegacyCode(graph)) {
+        return legacyDegreeCentrality(graph, options);
+    }
     const s = toSnapshot(graph);
     return scoresToRecord(s.ids, indexedDegree(s, { mode: options.mode, normalized: options.normalized }));
 }

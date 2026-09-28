@@ -209,6 +209,20 @@ describe("pageRank facade", () => {
         );
     });
 
+    it("weighted, reads the exact weights: f32 holds these as 0, which would leave a dangling", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b", 1e-50);
+        g.addEdge("a", "c", 3e-50);
+        g.addEdge("b", "c", 1);
+        g.addEdge("c", "a", 1);
+        expectFacadeMatchesLegacy(
+            [{ name: "sub-f32 weights", graph: g }],
+            (graph) => legacyPageRank(graph, { weight: "weight" }),
+            (graph) => pageRank(graph, { weight: "weight" }),
+            F64,
+        );
+    });
+
     it("pageRankCentrality returns legacy's ranks", () => {
         expectFacadeMatchesLegacy(directed, (g) => legacyPageRank(g).ranks, pageRankCentrality, F64);
     });
@@ -301,6 +315,16 @@ describe("eigenvectorCentrality facade", () => {
             options: (g) => ({
                 startVector: new Map(ids(g).map((id, i) => [String(id), (i % 3) + 1])),
                 maxIterations: 1000,
+            }),
+        },
+        {
+            name: "a start vector naming only the first node, the rest filled with 1",
+            options: (g) => ({
+                startVector: new Map(
+                    ids(g)
+                        .slice(0, 1)
+                        .map((id) => [String(id), 7]),
+                ),
             }),
         },
     ];
@@ -432,5 +456,81 @@ describe("betweenness facades", () => {
         ]) {
             expect(run).toThrow(/meaningful only against a GraphSnapshot/);
         }
+    });
+});
+
+/**
+ * Graphs a snapshot cannot stand for, which every facade hands to its legacy code: a NaN weight
+ * (the snapshot builder rejects it) and two ids with one spelling (1 and "1" share a result key).
+ */
+describe("graphs the facades leave to legacy code", () => {
+    function nanWeight(directed: boolean): Graph {
+        const g = new Graph({ directed });
+        g.addEdge("a", "b", Number.NaN);
+        g.addEdge("b", "c", 2);
+        g.addEdge("c", "a", 1);
+        g.addEdge("c", "d", 0.5);
+        return g;
+    }
+    function sharedSpelling(directed: boolean): Graph {
+        const g = new Graph({ directed });
+        g.addEdge(1, "1");
+        g.addEdge("1", 2);
+        g.addEdge(2, 1);
+        g.addEdge(2, "x");
+        return g;
+    }
+    const fixtures: FacadeFixture[] = [
+        { name: "directed NaN weight", graph: nanWeight(true) },
+        { name: "undirected NaN weight", graph: nanWeight(false) },
+        { name: 'directed 1 and "1"', graph: sharedSpelling(true) },
+        { name: 'undirected 1 and "1"', graph: sharedSpelling(false) },
+    ];
+    // Not expectFacadeMatchesLegacy: it freezes each fixture first, which a NaN weight refuses. Both
+    // sides run the same legacy code, so the results must be equal exactly, NaN included.
+    const expectSameOnAll = (legacy: (g: Graph) => unknown, facade: (g: Graph) => unknown): void => {
+        for (const { name, graph } of fixtures) {
+            expect(facade(graph), name).toStrictEqual(legacy(graph));
+        }
+    };
+    const byNode = (g: Graph, node: (id: NodeId) => unknown): unknown[] => ids(g).map((id) => outcome(() => node(id)));
+
+    it("every facade returns what its legacy implementation returns", () => {
+        expectSameOnAll(
+            (g) => [
+                legacyDegreeCentrality(g),
+                legacyBetweennessCentrality(g),
+                [...legacyEdgeBetweennessCentrality(g)],
+                byNode(g, (id) => legacyNodeClosenessCentrality(g, id)),
+                byNode(g, (id) => legacyNodeWeightedClosenessCentrality(g, id)),
+                outcome(() => legacyHits(g)),
+                outcome(() => legacyKatzCentrality(g)),
+                outcome(() => legacyEigenvectorCentrality(g)),
+                outcome(() => legacyPageRank(g)),
+                outcome(() => legacyPageRank(g, { weight: "weight" })),
+            ],
+            (g) => [
+                degreeCentrality(g),
+                betweennessCentrality(g),
+                [...edgeBetweennessCentrality(g)],
+                byNode(g, (id) => nodeClosenessCentrality(g, id)),
+                byNode(g, (id) => nodeWeightedClosenessCentrality(g, id)),
+                outcome(() => hits(g)),
+                outcome(() => katzCentrality(g)),
+                outcome(() => eigenvectorCentrality(g)),
+                outcome(() => pageRank(g)),
+                outcome(() => pageRank(g, { weight: "weight" })),
+            ],
+        );
+    });
+
+    it("the whole-graph closeness functions equal legacy's per-node loop", () => {
+        expectSameOnAll(
+            (g) => [
+                Object.fromEntries(ids(g).map((id) => [String(id), legacyNodeClosenessCentrality(g, id)])),
+                Object.fromEntries(ids(g).map((id) => [String(id), legacyNodeWeightedClosenessCentrality(g, id)])),
+            ],
+            (g) => [closenessCentrality(g), weightedClosenessCentrality(g)],
+        );
     });
 });

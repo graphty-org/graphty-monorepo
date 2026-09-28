@@ -2,7 +2,7 @@ import type { Graph } from "../../core/graph.js";
 import { ConvergenceError } from "../../errors.js";
 import { eigenvectorCentrality as indexedEigenvector } from "../../indexed/eigenvector.js";
 import { scoresToRecord } from "../../indexed/facade.js";
-import { toSnapshot } from "../../indexed/to-snapshot.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -44,6 +44,9 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
  *   raises `PowerIterationFailedConvergence`. Raise `maxIterations` or `tolerance` and call again.
  */
 export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
+    if (needsLegacyCode(graph)) {
+        return legacyEigenvectorCentrality(graph, options);
+    }
     const s = toSnapshot(graph);
     const { startVector } = options;
     const r = indexedEigenvector(s, {

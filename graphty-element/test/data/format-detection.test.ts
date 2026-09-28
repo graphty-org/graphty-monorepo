@@ -1,5 +1,6 @@
 import { assert, describe, test } from "vitest";
 
+import { detectFormats } from "../../src/catalog/detect.js";
 import { formatDescriptor } from "../../src/catalog/formats.js";
 import { detectFormat } from "../../src/data/format-detection.js";
 
@@ -83,5 +84,34 @@ describe("detectFormat", () => {
         assert.strictEqual(detectFormat("", "source\ttarget\na\tb\n"), "csv");
         assert.strictEqual(detectFormat("", "source;target\na;b\n"), "csv");
         assert.strictEqual(detectFormat("", "source|target\na|b\n"), "csv");
+    });
+
+    // The built-in sniffers are graph-io's, so the element recognises what graph-io's importers
+    // recognise -- including the files the element's old regular expressions turned away.
+    describe("through graph-io's sniffers", () => {
+        test("detects DOT behind a leading comment", () => {
+            assert.strictEqual(detectFormat("", "// exported by a tool\ndigraph G {\n  A -> B;\n}"), "dot");
+        });
+
+        test("detects GEXF and GraphML by their root element when the namespace is missing", () => {
+            assert.strictEqual(detectFormat("", '<?xml version="1.0"?>\n<gexf version="1.2"><graph/></gexf>'), "gexf");
+            assert.strictEqual(detectFormat("", '<?xml version="1.0"?>\n<graphml><graph/></graphml>'), "graphml");
+        });
+
+        test("detects a neo4j-admin header as CSV, the element format that reads it", () => {
+            assert.strictEqual(detectFormat("", ":START_ID,:END_ID,:TYPE\n1,2,KNOWS\n"), "csv");
+        });
+
+        test("recognises a headerless table by its extension, not by content graph-io only tolerates", () => {
+            assert.strictEqual(detectFormat("edges.csv", "a,b\nb,c\n"), "csv");
+            assert.strictEqual(detectFormat("", "a,b\nb,c\n"), null);
+        });
+
+        test("ranks every built-in that claims the content, best first", () => {
+            const ranked = detectFormats({ sample: "source,target\na,b\n" });
+
+            assert.strictEqual(ranked[0], "csv");
+            assert.strictEqual(new Set(ranked).size, ranked.length, "no format appears twice");
+        });
     });
 });

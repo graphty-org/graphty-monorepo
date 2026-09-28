@@ -21,6 +21,22 @@ export interface LabelPropagationResult extends LabelResult {
 }
 
 /**
+ * mulberry32: 32-bit state, output in [0, 1). The exact sequence is part of the result contract
+ * (design section 2.4): changing it changes every partition.
+ * @param seed - Generator seed; only its low 32 bits are used
+ * @returns The generator
+ */
+function mulberry32(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/**
  * Whether any arc other than a self-loop carries a positive vote under the chosen weighting, which
  * is exactly when the identity labelling is NOT dominant everywhere.
  * @param s - The snapshot
@@ -96,7 +112,91 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
         return { ...withGroups(labels, count), iterations: 0, converged: !hasVotingArc(s, weights) };
     }
 
-    // The kernel lands in the next step; until then every node keeps its own label.
+    if (s.directed) {
+        throw new Error("indexed.labelPropagation: directed snapshots are not supported yet");
+    }
+    const { rowPtr, colIdx } = s;
+    const rand = mulberry32(randomSeed);
+    const acc = new Float64Array(n);
+    // Visit number that last wrote acc[c]. Float64 and started at -1, so label 0 is an ordinary
+    // label and the stamp never wraps below the 2^53 - 1 visit cap (design section 4).
+    const stamp = new Float64Array(n).fill(-1);
+    const touched = new Uint32Array(n);
+    // A ring of n + 1 slots: `queued` keeps a node in it at most once.
+    const capacity = n + 1;
+    const queue = new Uint32Array(capacity);
+    const queued = new Uint8Array(n).fill(1);
+    for (let i = 0; i < n; i++) {
+        queue[i] = i;
+    }
+    for (let i = n - 1; i >= 1; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const t = queue[i];
+        queue[i] = queue[j];
+        queue[j] = t;
+    }
+    let head = 0;
+    let tail = n;
+    let size = n;
+    const maxVisits = maxIterations * n;
+    let visits = 0;
+    while (size > 0 && visits < maxVisits) {
+        const u = queue[head];
+        head = head + 1 === capacity ? 0 : head + 1;
+        size--;
+        queued[u] = 0;
+        const visit = visits++;
+        let count = 0;
+        const end = rowPtr[u + 1];
+        for (let a = rowPtr[u]; a < end; a++) {
+            const c = label[colIdx[a]];
+            const w = weights === null ? 1 : weights[a];
+            if (stamp[c] !== visit) {
+                stamp[c] = visit;
+                acc[c] = w;
+                touched[count++] = c;
+            } else {
+                acc[c] += w;
+            }
+        }
+        let max = 0;
+        for (let i = 0; i < count; i++) {
+            if (acc[touched[i]] > max) {
+                max = acc[touched[i]];
+            }
+        }
+        if (max === 0) {
+            continue; // no positive-weight neighbour: keep the label
+        }
+        // Reservoir draw over the labels at the maximum: the k-th replaces the pick with
+        // probability 1/k, so a single dominant label consumes no random number.
+        let pick = 0;
+        let tied = 0;
+        for (let i = 0; i < count; i++) {
+            const c = touched[i];
+            if (acc[c] === max) {
+                tied++;
+                if (tied === 1 || rand() * tied < 1) {
+                    pick = c;
+                }
+            }
+        }
+        if (pick === label[u]) {
+            continue;
+        }
+        label[u] = pick;
+        // A neighbour already holding the new label can only have been strengthened by the move.
+        for (let a = rowPtr[u]; a < end; a++) {
+            const v = colIdx[a];
+            if (queued[v] === 0 && label[v] !== pick) {
+                queued[v] = 1;
+                queue[tail] = v;
+                tail = tail + 1 === capacity ? 0 : tail + 1;
+                size++;
+            }
+        }
+    }
+
     const { labels, count } = renumberPartition(label);
-    return { ...withGroups(labels, count), iterations: 0, converged: false };
+    return { ...withGroups(labels, count), iterations: Math.ceil(visits / n), converged: size === 0 };
 }

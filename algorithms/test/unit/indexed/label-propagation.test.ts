@@ -1,9 +1,160 @@
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
 import { labelPropagation } from "../../../src/indexed/label-propagation.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { gnm, undirectedFixtures } from "./port-fixtures.js";
+
+// ------------------------------------------------------------------ independent helpers
+// Both read the graph from s.edgeList() -- a different view than the CSR rows the port walks -- and
+// use plain arrays and Maps, so they share no code with the port.
+
+interface Neighbour {
+    readonly v: number;
+    readonly w: number;
+}
+
+/**
+ * Per-node neighbour lists under the port's conventions: self-loops dropped, a directed edge joining
+ * both ends. Out-neighbours first, sorted by index, then in-neighbours sorted by index: the order
+ * the snapshot's rows hold them in (invariant I4), which the tie draw depends on.
+ */
+function neighbourLists(s: GraphSnapshot): Neighbour[][] {
+    const n = s.nodeCount;
+    const out: Neighbour[][] = Array.from({ length: n }, () => []);
+    const inn: Neighbour[][] = Array.from({ length: n }, () => []);
+    const el = s.edgeList();
+    for (let e = 0; e < s.edgeCount; e++) {
+        const u = el.src[e];
+        const v = el.dst[e];
+        const w = el.weights === null ? 1 : el.weights[e];
+        if (u === v) {
+            continue;
+        }
+        out[u].push({ v, w });
+        (s.directed ? inn : out)[v].push({ v: u, w });
+    }
+    const byIndex = (a: Neighbour, b: Neighbour): number => a.v - b.v;
+    return out.map((list, u) => [...list.sort(byIndex), ...inn[u].sort(byIndex)]);
+}
+
+/** Each neighbour label's summed vote at node u, in first-seen order. */
+function votes(nbrs: readonly Neighbour[], label: ArrayLike<number>, weighted: boolean): Map<number, number> {
+    const tally = new Map<number, number>();
+    const counted = new Set<number>();
+    for (const { v, w } of nbrs) {
+        if (!weighted) {
+            if (counted.has(v)) {
+                continue;
+            }
+            counted.add(v);
+        }
+        const c = label[v];
+        tally.set(c, (tally.get(c) ?? 0) + (weighted ? w : 1));
+    }
+    return tally;
+}
+
+/** The paper's stop criterion: every node with a positive vote holds a label at the maximum vote. */
+function dominanceHolds(s: GraphSnapshot, labels: ArrayLike<number>, weighted = true): boolean {
+    const lists = neighbourLists(s);
+    for (let u = 0; u < s.nodeCount; u++) {
+        const tally = votes(lists[u], labels, weighted);
+        const max = Math.max(0, ...tally.values());
+        if (max > 0 && (tally.get(labels[u]) ?? 0) < max) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function mulberry32(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+type TieRule = "uniform" | "retain" | "double";
+
+/**
+ * FLPA as design sections 2.1 and 2.4 state it, random stream included. `tieRule` swaps in the two
+ * rules the port must NOT follow: "retain" keeps the current label whenever it is dominant, and
+ * "double" lists the current label twice among the tied candidates (the legacy function's bias).
+ */
+function referenceFlpa(s: GraphSnapshot, seed: number, weighted: boolean, tieRule: TieRule): number[] {
+    const n = s.nodeCount;
+    const lists = neighbourLists(s);
+    const rand = mulberry32(seed);
+    const label = Array.from({ length: n }, (_, i) => i);
+    const queue = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i >= 1; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [queue[i], queue[j]] = [queue[j], queue[i]];
+    }
+    const queued = new Array<boolean>(n).fill(true);
+    let visits = 0;
+    for (let head = 0; head < queue.length && visits < 100 * n; head++) {
+        const u = queue[head];
+        queued[u] = false;
+        visits++;
+        const tally = votes(lists[u], label, weighted);
+        const max = Math.max(0, ...tally.values());
+        if (max <= 0) {
+            continue;
+        }
+        const tied = [...tally.keys()].filter((c) => tally.get(c) === max);
+        let pick: number;
+        if (tieRule === "retain" && tied.includes(label[u])) {
+            pick = label[u];
+        } else if (tieRule === "double") {
+            if (tied.includes(label[u])) {
+                tied.push(label[u]);
+            }
+            pick = tied.length === 1 ? tied[0] : tied[Math.floor(rand() * tied.length)];
+        } else {
+            pick = tied[0];
+            for (let k = 2; k <= tied.length; k++) {
+                if (rand() * k < 1) {
+                    pick = tied[k - 1];
+                }
+            }
+        }
+        if (pick !== label[u]) {
+            label[u] = pick;
+            for (const { v } of lists[u]) {
+                if (label[v] !== pick && !queued[v]) {
+                    queued[v] = true;
+                    queue.push(v);
+                }
+            }
+        }
+    }
+    return [...renumberPartition(Uint32Array.from(label)).labels];
+}
+
+function fixture(name: string): GraphSnapshot {
+    const found = undirectedFixtures().find((f) => f.name === name);
+    if (found === undefined) {
+        throw new Error(`no fixture named ${name}`);
+    }
+    return checksummedSnapshot(found.graph);
+}
+
+function clique(g: Graph, prefix: string, size: number): void {
+    for (let i = 0; i < size; i++) {
+        for (let j = i + 1; j < size; j++) {
+            g.addEdge(`${prefix}${i}`, `${prefix}${j}`);
+        }
+    }
+}
+
+const SEEDS_10 = Array.from({ length: 10 }, (_, i) => i + 1);
+const SEEDS_20 = Array.from({ length: 20 }, (_, i) => i + 1);
 
 function twoTrianglesAndAnIsolatedNode(): GraphSnapshot {
     const g = new Graph({ directed: false });
@@ -24,6 +175,11 @@ function edgeless(n: number): GraphSnapshot {
     }
     return b.freeze({ checksum: true });
 }
+
+/** The karate club at randomSeed 42, recorded from the first run that matched the reference FLPA. */
+const KARATE_SEED_42 = [
+    0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
 
 describe("indexed.labelPropagation: options and trivial results", () => {
     it("returns an empty partition on an empty snapshot", () => {
@@ -106,5 +262,136 @@ describe("indexed.labelPropagation: options and trivial results", () => {
         const fake = Object.create(real, { weights: { value: new Float32Array([NaN, NaN]) } }) as GraphSnapshot;
         expect(() => labelPropagation(fake)).toThrow(RangeError);
         real.validate({ checksum: true });
+    });
+});
+
+describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", () => {
+    const REFERENCE_FIXTURES = ["Zachary's karate club", "random 40 nodes, 120 edges", "random 80 nodes, 320 weighted edges"];
+
+    it("matches the reference FLPA label for label, and the wrong tie rules do not", () => {
+        let retainDiffers = false;
+        let doubleDiffers = false;
+        for (const name of REFERENCE_FIXTURES) {
+            const s = fixture(name);
+            for (const seed of SEEDS_20) {
+                const port = [...labelPropagation(s, { randomSeed: seed }).labels];
+                expect(port, `${name}, seed ${seed}`).toEqual(referenceFlpa(s, seed, true, "uniform"));
+                retainDiffers ||= port.join() !== referenceFlpa(s, seed, true, "retain").join();
+                doubleDiffers ||= port.join() !== referenceFlpa(s, seed, true, "double").join();
+            }
+            s.validate({ checksum: true });
+        }
+        expect(retainDiffers).toBe(true);
+        expect(doubleDiffers).toBe(true);
+    });
+
+    it("gives the stored partition of the karate club at randomSeed 42", () => {
+        const s = fixture("Zachary's karate club");
+        const r = labelPropagation(s, { randomSeed: 42 });
+        expect([...r.labels]).toEqual(KARATE_SEED_42);
+        expect(KARATE_SEED_42).toEqual(referenceFlpa(s, 42, true, "uniform"));
+        s.validate({ checksum: true });
+    });
+
+    it("leaves a single node and an edgeless graph as singletons after one sweep", () => {
+        for (const n of [1, 5]) {
+            const s = edgeless(n);
+            const r = labelPropagation(s);
+            expect([...r.labels]).toEqual(Array.from({ length: n }, (_, i) => i));
+            expect(r.iterations).toBe(1);
+            expect(r.converged).toBe(true);
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("finds two triangles and leaves an isolated node alone", () => {
+        const s = twoTrianglesAndAnIsolatedNode();
+        const r = labelPropagation(s);
+        expect([...r.labels]).toEqual([0, 0, 0, 1, 1, 1, 2]);
+        expect(r.count).toBe(3);
+        expect(r.converged).toBe(true);
+        s.validate({ checksum: true });
+    });
+
+    it("puts each clique in one community: K6, and two disjoint five-cliques", () => {
+        const k6 = new Graph({ directed: false });
+        clique(k6, "k", 6);
+        const two = new Graph({ directed: false });
+        clique(two, "a", 5);
+        clique(two, "b", 5);
+        const s6 = checksummedSnapshot(k6);
+        const s55 = checksummedSnapshot(two);
+        for (const seed of SEEDS_10) {
+            expect([...labelPropagation(s6, { randomSeed: seed }).labels]).toEqual([0, 0, 0, 0, 0, 0]);
+            expect([...labelPropagation(s55, { randomSeed: seed }).labels]).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1]);
+        }
+        s6.validate({ checksum: true });
+        s55.validate({ checksum: true });
+    });
+
+    it("converges on tie-heavy graphs -- an even path of 1,000, a star of 50 and K(3,4) -- under the default cap", () => {
+        const path = new Graph({ directed: false });
+        for (let i = 1; i < 1000; i++) {
+            path.addEdge(`p${i - 1}`, `p${i}`);
+        }
+        const star = new Graph({ directed: false });
+        for (let i = 0; i < 49; i++) {
+            star.addEdge("hub", `leaf${i}`);
+        }
+        const bipartite = new Graph({ directed: false });
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 4; j++) {
+                bipartite.addEdge(`l${i}`, `r${j}`);
+            }
+        }
+        for (const g of [path, star, bipartite]) {
+            const s = checksummedSnapshot(g);
+            for (const seed of SEEDS_10) {
+                const r = labelPropagation(s, { randomSeed: seed });
+                expect(r.converged).toBe(true);
+                expect(dominanceHolds(s, r.labels)).toBe(true);
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("is deterministic per seed and varies across seeds on the karate club", () => {
+        const s = fixture("Zachary's karate club");
+        expect([...labelPropagation(s, { randomSeed: 7 }).labels]).toEqual([
+            ...labelPropagation(s, { randomSeed: 7 }).labels,
+        ]);
+        const partitions = new Set<string>();
+        for (const seed of SEEDS_10) {
+            const r = labelPropagation(s, { randomSeed: seed });
+            expect(r.converged).toBe(true);
+            expect(dominanceHolds(s, r.labels)).toBe(true);
+            partitions.add(r.labels.join());
+        }
+        expect(partitions.size).toBeGreaterThanOrEqual(2);
+        s.validate({ checksum: true });
+    });
+
+    it("ends with every label dominant on every converged run over the shared undirected fixtures", () => {
+        let convergedRuns = 0;
+        for (const { name, graph } of undirectedFixtures()) {
+            const s = checksummedSnapshot(graph);
+            for (const seed of SEEDS_10) {
+                const r = labelPropagation(s, { randomSeed: seed });
+                if (r.converged) {
+                    convergedRuns++;
+                    expect(dominanceHolds(s, r.labels), `${name}, seed ${seed}`).toBe(true);
+                }
+            }
+            s.validate({ checksum: true });
+        }
+        expect(convergedRuns).toBe(undirectedFixtures().length * SEEDS_10.length);
+    });
+
+    it("stops after one sweep at maxIterations 1 on a random 1,000-node graph", () => {
+        const s = checksummedSnapshot(gnm(1000, 10000, false, 1));
+        const r = labelPropagation(s, { maxIterations: 1 });
+        expect(r.iterations).toBe(1);
+        expect(r.converged).toBe(false);
+        s.validate({ checksum: true });
     });
 });

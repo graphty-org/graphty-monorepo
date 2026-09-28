@@ -25,7 +25,8 @@ function seeded(seed: number): () => number {
     };
 }
 
-function gnm(nodeCount: number, edgeCount: number, directed: boolean, seed: number, weighted = false): Graph {
+/** A seeded G(n, m) random graph with no self-loops or parallel edges. */
+export function gnm(nodeCount: number, edgeCount: number, directed: boolean, seed: number, weighted = false): Graph {
     const g = new Graph({ directed });
     for (let i = 0; i < nodeCount; i++) {
         g.addNode(`n${i}`);

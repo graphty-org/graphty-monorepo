@@ -1013,6 +1013,45 @@ describe("graphmlImporter: yFiles graphics mapped to columns", () => {
         expect(records(second.snapshot, "nodes")).toEqual(ELEMENT_NODES);
         expect(records(second.snapshot, "edges")).toEqual(ELEMENT_EDGES);
     });
+
+    it("reports an edited position as a loss, since only the tree is written", async () => {
+        const { snapshot } = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        const position = snapshot.nodes.require("yfiles.position");
+        if (position.dtype !== "f64") {
+            throw new Error("position is not f64");
+        }
+        position.mutableData().fill(777);
+        const notes = graphmlExporter.check(snapshot).filter((n) => n.code === GRAPHML_LOSS.YFILES_GRAPHICS_STALE);
+        // three nodes have a position; n2's row stays unset
+        expect(notes).toEqual([expect.objectContaining({ column: "yfiles.position", count: 3 })]);
+    });
+
+    it("reports every mapped value as a loss when the tree column is removed", async () => {
+        const { snapshot } = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        snapshot.edges.remove("d1");
+        const stale = graphmlExporter
+            .check(snapshot)
+            .filter((n) => n.code === GRAPHML_LOSS.YFILES_GRAPHICS_STALE)
+            .map((n) => [n.column, n.count]);
+        expect(stale).toEqual([
+            ["yfiles.color", 4],
+            ["yfiles.width", 3],
+            ["yfiles.directed", 3],
+            ["yfiles.targetArrow", 1],
+            ["yfiles.sourceArrow", 1],
+        ]);
+    });
+
+    it("trims the label text as the element's parser does, and reads the first of several NodeLabels", async () => {
+        const keys = '<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body =
+            `<node id="a"><data key="g"><y:ShapeNode ${y}><y:NodeLabel alignment="center">Start<y:LabelModel>\n   <y:SmartNodeLabelModel/>\n </y:LabelModel>\n</y:NodeLabel></y:ShapeNode></data></node>` +
+            `<node id="b"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>  padded  </y:NodeLabel></y:ShapeNode></data></node>` +
+            `<node id="c"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>first</y:NodeLabel><y:NodeLabel>second</y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        expect(column(snapshot, "nodes", "yfiles.label")).toEqual(["Start", "padded", "first"]);
+    });
 });
 
 describe("graphmlImporter: key name and type attributes", () => {

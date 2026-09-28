@@ -180,7 +180,8 @@ losses and format rules, in addition to the table:
   `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` with the label role, `yfiles.shape`;
   edge `yfiles.color`, `yfiles.width`, `yfiles.directed` (the target arrow, not topology),
   `yfiles.targetArrow`, `yfiles.sourceArrow`), which the exporter never writes because the tree
-  holds them; any other `json` column is written as JSON text and reads back as
+  holds them (an edited value, such as a layout's new position, is reported by `check()` as
+  `W_GRAPHML_YFILES_GRAPHICS_STALE` and lost); any other `json` column is written as JSON text and reads back as
   string (`W_JSON_UNSUPPORTED`). Ids outside NMTOKEN need `sanitizeIds: "mangle"` (restored on
   re-import). A label role column is written as the key titled `label` (the importer's label slot;
   `W_COLUMN_NAME_CHANGED` when it was named otherwise); edge ids and ports are the XML attributes

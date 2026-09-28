@@ -9,10 +9,12 @@
  * as written.
  *
  * The columns are views of the tree: the exporter writes the tree and never these columns, and
- * re-importing the tree gives them back.
+ * re-importing the tree gives them back. A value edited after import (a layout writing the
+ * position) or a tree column removed is therefore not written, and the exporter reports it as a
+ * loss (staleGraphicsRows()).
  */
 
-import { type ColumnDecl } from "@graphty/graph-format";
+import { type Column, type ColumnDecl, type JsonColumn } from "@graphty/graph-format";
 
 import { localName } from "../../common/xml.js";
 
@@ -82,6 +84,38 @@ export function isGraphicsColumn(meta: {
 }
 
 /**
+ * The rows of a mapped graphics column whose value is not the one its yFiles tree column (same
+ * origin.id, in the same table) gives: every set row when the tree column is gone. These are the
+ * values an export loses, since only the tree is written.
+ * @param column - the mapped column (isGraphicsColumn())
+ * @param table - the table it is in
+ * @param domain - node or edge
+ * @returns the number of rows that differ from the tree
+ */
+export function staleGraphicsRows(column: Column, table: Iterable<Column>, domain: "node" | "edge"): number {
+    const { name, origin } = column.meta;
+    const field = name.slice(YFILES_COLUMN_PREFIX.length);
+    let tree: JsonColumn | undefined;
+    for (const c of table) {
+        if (c.dtype === "json" && c.meta.origin?.namespace === "yfiles" && c.meta.origin.id === origin?.id) {
+            tree = c;
+            break;
+        }
+    }
+    let stale = 0;
+    for (let r = 0; r < column.length; r++) {
+        const want =
+            tree === undefined ? undefined : graphicsValues(domain, tree.values[r]).find(([f]) => f === field)?.[1];
+        const value = column.value(r);
+        const have = column.meta.components > 1 && value !== undefined ? Array.from(value as ArrayLike<number>) : value;
+        if (JSON.stringify(have) !== JSON.stringify(want)) {
+            stale++;
+        }
+    }
+    return stale;
+}
+
+/**
  * The mapped values of one `<data>` tree of a yFiles key: a ShapeNode's for a node, a
  * PolyLineEdge's for an edge; nothing for any other graphics (GenericNode, BezierEdge, ...).
  * @param domain - node or edge
@@ -126,7 +160,8 @@ function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
     const label = child(shape, "NodeLabel");
     // an element with no text and no attributes is "" (no label); one with attributes but no text is a blank label
     if (typeof label === "string" ? label.length > 0 : label !== undefined) {
-        out.push(["label", typeof label === "string" ? label : (text(label) ?? "")]);
+        // trimmed, as the element's parser (trimValues) reads it: pretty-printed yEd puts whitespace before the label's children
+        out.push(["label", (typeof label === "string" ? label : (text(label) ?? "")).trim()]);
     }
     push(out, "shape", nonEmpty(attr(child(shape, "Shape"), "type")));
 }

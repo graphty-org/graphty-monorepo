@@ -56,7 +56,7 @@ import {
     YFILES_NAMESPACE,
 } from "./constants.js";
 import { treeProblem, writeXmlTree } from "./tree.js";
-import { isGraphicsColumn } from "./yfiles.js";
+import { isGraphicsColumn, staleGraphicsRows } from "./yfiles.js";
 
 /** The format-specific options of the GraphML exporter. */
 export interface GraphmlExportOptions {
@@ -296,7 +296,8 @@ function graphmlMetaOf(snapshot: GraphSnapshot): GraphmlMeta | null {
  */
 function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, format: FormatOptions): Plan {
     // the generic json note is replaced by planTable()'s (yfiles trees are kept, other json is
-    // text); columns mapped from a yfiles tree lose nothing, the tree they came from is written
+    // text); columns mapped from a yfiles tree are never written: planTable() notes the ones
+    // that no longer match their tree, the rest lose nothing
     const graphics = new Set(
         [...snapshot.nodes, ...snapshot.edges].filter((c) => isGraphicsColumn(c.meta)).map((c) => c.meta.name),
     );
@@ -655,6 +656,15 @@ function planTable(table: Iterable<Column>, domain: Domain, notes: LossNote[], n
         const { meta } = column;
         const { role, name } = meta;
         if (isGraphicsColumn(meta)) {
+            const stale = domain === "graph" ? 0 : staleGraphicsRows(column, columns, domain);
+            if (stale > 0) {
+                note(
+                    GRAPHML_LOSS.YFILES_GRAPHICS_STALE,
+                    `${stale} value(s) of ${domain} column "${name}" differ from the yFiles tree it was read from; only the tree is written, so they are lost`,
+                    name,
+                    stale,
+                );
+            }
             continue;
         }
         if (role === "parents") {

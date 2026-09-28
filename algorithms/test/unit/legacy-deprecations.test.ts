@@ -14,15 +14,6 @@ import * as algorithms from "../../src/index.js";
 // Barrel values that are not legacy entry points.
 const CURRENT = new Set(["indexed", "accelerated", "ConvergenceError", "PathWalkError", "PriorityQueue", "UnionFind"]);
 
-// Replacements that land with the matching and isomorphism port. Delete a name here once
-// `indexed` exports it; the test fails until then so the list cannot go stale.
-const PENDING_PORTS = new Set([
-    "maximumBipartiteMatching",
-    "greedyBipartiteMatching",
-    "isGraphIsomorphic",
-    "findAllIsomorphisms",
-]);
-
 /**
  * Reads the @deprecated text of every export of the package barrel.
  * @returns Export name to its @deprecated text, or null when the declaration has none
@@ -77,17 +68,16 @@ describe("legacy entry points are deprecated", () => {
                 broken.push(`${name}: neither a replacement nor a recipe`);
             }
             for (const target of named) {
-                if (!indexedNames.has(target) && !PENDING_PORTS.has(target)) {
+                if (!indexedNames.has(target)) {
                     broken.push(`${name}: indexed.${target} does not exist`);
                 }
             }
         }
         expect(broken).toEqual([]);
-        expect([...PENDING_PORTS].filter((name) => indexedNames.has(name))).toEqual([]);
     });
 
     it("says the result type changes at 3.0.0 for every name the removal release reuses", () => {
-        const reused = legacy.filter((name) => indexedNames.has(name) || PENDING_PORTS.has(name));
+        const reused = legacy.filter((name) => indexedNames.has(name));
         expect(reused.length).toBeGreaterThanOrEqual(13);
         const silent = reused.filter((name) => {
             const text = tags.get(name) ?? "";

@@ -29,4 +29,11 @@ describe("no-deprecated exemption", () => {
         expect(await ruleFor("algorithms/src/utils/priorityQueue.ts")).toBe(2);
         expect(await ruleFor("algorithms/src/indexed/pagerank.ts")).toBe(2);
     });
+
+    it("stays an error in the packages that consume algorithms", async () => {
+        expect(await ruleFor("layout/src/index.ts")).toBe(2);
+        expect(await ruleFor("graphty-element/src/algorithms/Algorithm.ts")).toBe(2);
+        expect(await ruleFor("webgpu-graph-algorithms/src/index.ts")).toBe(2);
+        expect(await ruleFor("graphty/src/App.tsx")).toBe(2);
+    });
 });

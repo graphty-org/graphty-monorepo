@@ -49,7 +49,7 @@ export interface DeltaPageRankOptions {
  * Delta-based PageRank class that tracks changes between iterations
  * and only processes nodes with significant changes for improved performance.
  * @deprecated Use `indexed.DeltaPageRank` over a `GraphSnapshot`. At algorithms 3.0.0 the name `DeltaPageRank`
- *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
+ *   becomes that class: it takes a `GraphSnapshot` and its result type changes.
  */
 export class DeltaPageRank {
     private graph: Graph;
@@ -292,7 +292,7 @@ export class DeltaPageRank {
  * Priority queue based implementation for even better performance
  * Processes nodes in order of their delta magnitude
  * @deprecated Use `indexed.PriorityDeltaPageRank` over a `GraphSnapshot`. At algorithms 3.0.0 the name
- *   `PriorityDeltaPageRank` becomes that function: it takes a `GraphSnapshot` and its result type changes.
+ *   `PriorityDeltaPageRank` becomes that class: it takes a `GraphSnapshot` and its result type changes.
  */
 export class PriorityDeltaPageRank {
     private graph: Graph;

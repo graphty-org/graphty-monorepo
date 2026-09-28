@@ -497,10 +497,13 @@ under Fruchterman-Reingold.
 **layout-close-l1.** Layout docs (README, VitePress, `layout/CLAUDE.md`) describe `indexed.*`, and
 a type-level test asserts every indexed layout takes `(GraphSnapshot, options?)` and returns
 `LayoutResult`. Done when: the suite, the bundle build and the docs build are green and every
-layout story change since the start of phase 5 is explained and waiting for the owner in
-visual-review. Changes that appear only under non-default story arguments, which visual-review
-never captures (BFS on a random graph, or on a cycle from a start node other than 0), are shown
-for the owner in `visual-changes/layout-stories/README.md` instead.
+layout story change since the start of phase 5 has before and after captures and an explanation
+in `visual-changes/layout-stories/README.md`, waiting for the owner's approval. That page is the
+only place the owner sees these changes as differences: master has no layout baselines, so
+visual-review shows every layout story as new, and accepting it there approves the after picture
+without a before to compare. The page also covers the changes that appear only under non-default
+story arguments, which visual-review never captures (BFS on a random graph, or on a cycle from a
+start node other than 0).
 
 **element-static-layout-engines.** `SimpleLayoutEngine` loads the undirected snapshot and the
 position array, calls `indexed.*`, writes with `toPositionColumn`, reseeds with

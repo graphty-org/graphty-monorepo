@@ -23,10 +23,13 @@ non-default arguments (see "Stories that did not change" in part 1).
 
 layout is a visual-review project on the integration branch (`visual-review/projects.json`, and
 the `layout` entry of the visual-review job in `.github/workflows/ci.yml`), but master has no
-layout baselines yet, so no pull request can show these as diffs against master. Every layout
-story arrives there as `new` or `no baseline yet`. These captures stand in until the owner seeds
-layout's baselines; each change below must still be accepted on the visual-review page of the
-pull request that first captures layout.
+layout baselines and no layout capture, so visual-review can never show these four changes as
+differences. The pull request that first captures layout shows every layout story as `new`, with
+no before picture, and accepting a story there approves its after picture without showing what
+changed. **This page is the only before-and-after the owner will see.** Read it first, then
+accept (or reject) the four stories on that pull request's visual-review page; those accepts are
+layout's first baselines. `seedFromMaster` is false for layout until its capture stability is
+measured with the pinned fonts, so its baselines cannot be seeded from a master run before then.
 
 ## Part 2: layout 2.0 (commit `45ded070`)
 
@@ -93,10 +96,21 @@ counts one over its threshold). Nothing moves visibly.
 
 ### Reproducing part 2
 
-The position figures come from three scripts run with `tsx` against `layout/src` and the layout
-build of `77c84820`: the before-vs-after node moves of each story call, the same with the old
-code started from the float32-rounded start, and a sweep over each story's graph types. The
-captures come from `visual-review/trusted/cli.mjs capture --project layout` and
+The position figures come from the scripts in [`scripts/`](scripts/), which compare `layout/src`
+with a layout build of `77c84820`. Build that commit's layout in a separate worktree
+(`pnpm exec nx run layout:build`), then from the repository root:
+
+```bash
+export LAYOUT_BEFORE=<that worktree>/layout/dist/layout.js
+S=design/graph-format/visual-changes/layout-stories/scripts
+npx tsx $S/positions.ts   # before -> after node moves of each changed story call
+npx tsx $S/f32-start.ts   # the old code from the float32-rounded start against the new output
+npx tsx $S/arf-order.ts   # the iteration at which ARF's before and after split
+npx tsx $S/sweep.ts       # the same calls over every graph type in the story controls
+npx tsx $S/connected.ts   # the default random graph is connected
+```
+
+The captures come from `visual-review/trusted/cli.mjs capture --project layout` and
 `tools/diff-stories.mjs` on the two Storybook builds, as in part 1's "Reproducing".
 
 ## Part 1: phase 5 (the legacy functions on the indexed layouts)

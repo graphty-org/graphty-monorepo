@@ -24,6 +24,11 @@ interface Variant {
     expandedMixed?: number;
     /** What the importer's sniff answers; absent means the importer has no sniff. */
     sniff?: number;
+    /**
+     * Store the graph directed, with the first edge expanded into two halves joined by a pair
+     * column, the way graph-io holds an undirected edge of a mixed-direction file.
+     */
+    expanded?: boolean;
 }
 
 type RecordingImporter = GraphImporter & { calls: { text: string; options: CommonImportOptions | undefined }[] };
@@ -36,7 +41,7 @@ type RecordingImporter = GraphImporter & { calls: { text: string; options: Commo
  * @returns the importer, with the arguments of each call in `calls`
  */
 function recordingImporter(variant: Variant = {}): RecordingImporter {
-    const { ending = "finish", weights = [0.1, 16777217], expandedMixed = 0, sniff } = variant;
+    const { ending = "finish", weights = [0.1, 16777217], expandedMixed = 0, sniff, expanded = false } = variant;
     const calls: RecordingImporter["calls"] = [];
     return {
         calls,
@@ -47,11 +52,17 @@ function recordingImporter(variant: Variant = {}): RecordingImporter {
         import(input, sink: GraphSink, options) {
             calls.push({ text: input as string, options });
             const report = new ImportReportBuilder("test", Infinity);
-            sink.setDirected(false);
+            sink.setDirected(expanded);
             sink.addNode("a");
-            sink.addEdge("a", "b", weights[0]);
+            const first = sink.addEdge("a", "b", weights[0]);
             sink.addEdge("b", "z", weights[1]);
             sink.addNode("b");
+            if (expanded) {
+                const pair = sink.declareEdgeColumn({ name: "graphty.pair", dtype: "u32", role: "pair", refersTo: "edge" });
+                const mirror = sink.addEdge("b", "a", weights[0]);
+                sink.setEdgeValue(pair, first, mirror);
+                sink.setEdgeValue(pair, mirror, first);
+            }
             report.counts.nodes += 2;
             report.counts.edges += 2;
             report.counts.expandedMixed += expandedMixed;
@@ -118,14 +129,16 @@ describe("the graph-io import helper", () => {
         ] as unknown as AdHocData[]);
     });
 
-    it("keeps the weights when f32 holds every one of them exactly", async () => {
-        const imported = await importDocument(recordingImporter({ weights: [2, 0.5] }), "doc", {});
+    it("hands over one record for an edge the importer expanded into two halves", async () => {
+        const imported = await importDocument(recordingImporter({ expanded: true }), "doc", {});
         const { edges } = toRecords(imported, plain);
 
-        assert.deepEqual(
-            edges.map((edge) => edge.weight),
-            [2, 0.5],
-        );
+        // three arcs in the snapshot; the mirror half of the expanded a-b edge is not a record
+        assert.strictEqual(imported.snapshot.edgeCount, 3);
+        assert.deepEqual(edges, [
+            { source: "a", target: "b", weight: 0.1 },
+            { source: "b", target: "z", weight: 16777217 },
+        ] as unknown as AdHocData[]);
     });
 
     it("applies the format's mapping to every record", async () => {

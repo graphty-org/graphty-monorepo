@@ -22,3 +22,13 @@ export * from "./generators";
 
 // Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
 export * from "./simulation";
+
+// Index-based layouts over a graph-format snapshot. A namespace, because indexed.forceAtlas2 and the rest sit beside
+// the legacy functions of the same layouts.
+export type {
+    ArfOptions,
+    IndexedForceAtlas2Options,
+    IndexedFruchtermanReingoldOptions,
+    KamadaKawaiOptions,
+} from "./indexed";
+export * as indexed from "./indexed";

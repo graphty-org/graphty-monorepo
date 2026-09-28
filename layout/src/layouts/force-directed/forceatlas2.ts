@@ -1,14 +1,14 @@
-import { fromPositionColumn, fromPositionMap, rescaleInPlace, toPositionColumn, toPositionMap } from "../../positions";
-import { ForceAtlas2Simulation, seedPositions, toLayoutSnapshot } from "../../simulation";
+import { forceAtlas2 } from "../../indexed/force";
+import { fromPositionMap, toPositionMap } from "../../positions";
+import { toLayoutSnapshot } from "../../simulation/snapshot";
 import type { Graph, Node, PositionMap } from "../../types";
 
 /**
  * Position nodes using the ForceAtlas2 force-directed algorithm.
  *
- * A one-shot wrapper over the steppable ForceAtlas2Simulation of the layout seam (design 9.3, D-17): the legacy
- * graph is converted to an undirected snapshot once, the caller's positions seed the stride-3 array (missing rows
- * and a missing x or y are drawn from the seed, a missing 3D z is 0), the simulation runs every one of maxIter iterations, and the result is
- * rescaled as the legacy body did (f64 scratch, f32 output). The positional signature and the return type are
+ * Runs indexed.forceAtlas2: the legacy graph is converted to an undirected snapshot once, the caller's positions
+ * seed the start (missing rows and a missing x or y are drawn from the seed, a missing 3D z is 0), every one of
+ * maxIter iterations runs, and the result is rescaled as the legacy body did (f64 scratch, f32 output). The positional signature and the return type are
  * unchanged. Documented behaviour changes (design 9.3, 7.2; graph-format design 14.3): the published FA2 laws
  * replace the port's 1/d^2 repulsion; force-based swing / traction; the attraction sums over parallel arcs (the
  * dense matrix collapsed them); mass defaults to outDegree() + 1 (a self-loop counted once); nodeSize is inert until the adjustSizes slice
@@ -65,14 +65,9 @@ export function forceatlas2Layout(
             }
         }
     }
-    const positions = toPositionColumn({ positions: given, dim: dimension, n }, 1, null);
-    seedPositions(s, positions, seed, dimension, 1, null, "fa2");
-    // legacy tolerance: the old `for (iter = 0; iter < maxIter; iter++)` ran ceil(maxIter) iterations and none for
-    // maxIter <= 0 or NaN; the simulation's option and step() count must be integers >= 1, so the count is
-    // normalised here and step() is skipped when nothing runs
-    const iterations = Number.isFinite(maxIter) ? Math.max(0, Math.ceil(maxIter)) : 0;
-    const sim = new ForceAtlas2Simulation({
-        maxIter: Math.max(1, iterations),
+    const result = forceAtlas2(s, {
+        pos: given,
+        maxIter,
         jitterTolerance,
         scalingRatio,
         gravity,
@@ -81,19 +76,12 @@ export function forceatlas2Layout(
         nodeMass,
         nodeSize,
         // the legacy attribute NAME was consumed by toLayoutSnapshot (getEdgeData -> the snapshot's arc weights);
-        // the simulation's `weight` is therefore a boolean here, never the attribute name
+        // the indexed `weight` is therefore a boolean here, never the attribute name
         weight: weight !== null,
         dissuadeHubs: _dissuadeHubs,
         linlog,
+        seed,
         dim: dimension,
-        settleThreshold: 0, // the one-shot function runs every iteration (design 9.3)
     });
-    sim.load(s, positions);
-    if (iterations > 0) {
-        // load() does not write the owner's array, so skipping step() returns the rescaled seed as the legacy body did
-        sim.step(iterations);
-    }
-    sim.dispose();
-    const result = rescaleInPlace(fromPositionColumn(positions, dimension, 1, null), dimension);
-    return toPositionMap({ positions: result, dim: dimension, n }, s.ids);
+    return toPositionMap(result, s.ids);
 }

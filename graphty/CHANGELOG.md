@@ -1,3 +1,46 @@
+## 0.8.17 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.11
+- Updated compact-mantine to 0.8.10
+- Updated graphty-element to 2.6.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.16 (2026-09-28)
+
+### 🚀 Features
+
+- **graphty-element:** apply the decided sets names, result ids and kept records ([91e0043d](https://github.com/graphty-org/graphty-monorepo/commit/91e0043d))
+- **graphty-element:** member hashes, the r1 revision and a benchmark runner ([694dc3bb](https://github.com/graphty-org/graphty-monorepo/commit/694dc3bb))
+
+### 🩹 Fixes
+
+- **graphty:** restore the "Filter to a part" advice the type rename rewrote ([f6f4acaa](https://github.com/graphty-org/graphty-monorepo/commit/f6f4acaa))
+- **graphty-element:** close the sets review's door gaps and repaint only moved rows ([8a2010f9](https://github.com/graphty-org/graphty-monorepo/commit/8a2010f9))
+- **graphty-element:** canonical undirected edges at every door, status matching resolution ([1e56b36d](https://github.com/graphty-org/graphty-monorepo/commit/1e56b36d))
+- **graphty-element:** cheaper load completion, and every scope door admits the same way ([70463668](https://github.com/graphty-org/graphty-monorepo/commit/70463668))
+- **graphty:** describe a style layer that paints a set ([9519abb0](https://github.com/graphty-org/graphty-monorepo/commit/9519abb0))
+- **graphty-element:** set the acceleration routing floors from a measurement taken through the element ([#424](https://github.com/graphty-org/graphty-monorepo/issues/424))
+- **graphty:** keep tsc -b output out of the package and test the element source ([#262](https://github.com/graphty-org/graphty-monorepo/issues/262), [#263](https://github.com/graphty-org/graphty-monorepo/issues/263))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.10
+- Updated compact-mantine to 0.8.9
+- Updated graphty-element to 2.6.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.15 (2026-09-27)
 
 ### 🧱 Updated Dependencies

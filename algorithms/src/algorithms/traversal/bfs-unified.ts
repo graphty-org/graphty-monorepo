@@ -89,7 +89,7 @@ function breadthFirstSearchStandard(graph: Graph, startNode: NodeId, options: Tr
         }
 
         // Early termination if target found
-        if (options.targetNode && current.node === options.targetNode) {
+        if (options.targetNode !== undefined && current.node === options.targetNode) {
             break;
         }
 
@@ -409,7 +409,7 @@ export function isBipartite(graph: Graph): boolean {
 
             while (queue.length > 0) {
                 const current = queue.shift();
-                if (!current) {
+                if (current === undefined) {
                     break;
                 }
 

@@ -1,3 +1,17 @@
+## 1.3.10 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.9 (2026-09-28)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 1.3.8 (2026-09-27)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

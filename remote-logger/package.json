@@ -1,6 +1,6 @@
 {
     "name": "@graphty/remote-logger",
-    "version": "1.3.8",
+    "version": "1.3.10",
     "description": "Remote logging client and server for browser debugging",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/index.js",
@@ -49,7 +49,7 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && tsc --noEmit -p tsconfig.eslint.json",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace remote-logger",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace remote-logger",
         "typecheck": "tsc --noEmit",
         "build": "node -e \"for (const p of ['dist','tsconfig.tsbuildinfo']) require('fs').rmSync(p,{recursive:true,force:true})\" && tsc && vite build --config vite.bundle.config.ts",
         "build:watch": "tsc --watch",

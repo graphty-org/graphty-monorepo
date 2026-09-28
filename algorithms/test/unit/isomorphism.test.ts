@@ -350,6 +350,38 @@ describe("Graph Isomorphism (VF2)", () => {
     });
 
     describe("edge cases", () => {
+        it("should match graphs whose numeric node ids include 0", () => {
+            const graph1 = new Graph();
+            graph1.addEdge(0, 1);
+            graph1.addEdge(1, 2);
+            graph1.addEdge(2, 0);
+
+            const graph2 = new Graph();
+            graph2.addEdge(10, 11);
+            graph2.addEdge(11, 12);
+            graph2.addEdge(12, 10);
+
+            expect(isGraphIsomorphic(graph1, graph1).isIsomorphic).toBe(true);
+            const result = isGraphIsomorphic(graph1, graph2);
+            expect(result.isIsomorphic).toBe(true);
+            expect(result.mapping!.has(0)).toBe(true);
+            expect(findAllIsomorphisms(graph1, graph2)).toHaveLength(6);
+        });
+
+        it("should reject a non-isomorphic graph whose node ids include 0", () => {
+            const path = new Graph();
+            path.addEdge(0, 1);
+            path.addEdge(1, 2);
+            path.addEdge(2, 3);
+
+            const star = new Graph();
+            star.addEdge(0, 1);
+            star.addEdge(0, 2);
+            star.addEdge(0, 3);
+
+            expect(isGraphIsomorphic(path, star).isIsomorphic).toBe(false);
+        });
+
         it("should handle graphs with isolated nodes", () => {
             const graph1 = new Graph();
             graph1.addNode("a");

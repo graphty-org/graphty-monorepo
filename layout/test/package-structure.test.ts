@@ -62,6 +62,13 @@ describe("Package Structure", () => {
         }
     });
 
+    it("exports the index-based layouts as the indexed namespace", async () => {
+        const layout = await import("../dist/layout.js");
+        for (const name of ["kamadaKawai", "forceAtlas2", "fruchtermanReingold", "arf"]) {
+            assert.equal(typeof layout.indexed[name], "function", `indexed.${name} is exported`);
+        }
+    });
+
     it("leaves @graphty/graph-format external in the bundle", () => {
         // happy-dom's global URL resolves against http://localhost:3000/ and ignores a file:// base, so the
         // bundle is located from the package root the way the other cases in this file do.

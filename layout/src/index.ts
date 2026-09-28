@@ -14,8 +14,15 @@ export { rescaleLayout, rescaleLayoutDict } from "./utils/rescale";
 // Conversions between index-based layout results, PositionMap and the scene position column
 export * from "./positions";
 
-// Index-based layouts over graph-format snapshots. A namespace: indexed.circular and the rest would otherwise sit
-// beside the legacy circularLayout family under names that differ only by suffix.
+// Index-based layouts over graph-format snapshots. A namespace: indexed.circular, indexed.forceAtlas2 and the rest
+// would otherwise sit beside the legacy layout functions under names that differ only by suffix. Some option types
+// are also exported flat, with an Indexed prefix where the plain name is taken.
+export type {
+    ArfOptions,
+    IndexedForceAtlas2Options,
+    IndexedFruchtermanReingoldOptions,
+    KamadaKawaiOptions,
+} from "./indexed";
 export * as indexed from "./indexed";
 export type { CommonLayoutOptions } from "./indexed/common";
 

@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { fromEdgeArrays, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 
-import { fruchtermanReingoldLayout } from "../../src/layouts/force-directed/fruchterman-reingold";
+import { fruchtermanReingoldLayoutLegacy as fruchtermanReingoldLayout } from "../../src/layouts/force-directed/fruchterman-reingold-legacy";
 import { FruchtermanReingoldSimulation } from "../../src/simulation/fruchterman-reingold";
 import { seedPositions } from "../../src/simulation/seed";
 import type { Edge, Graph, Node, PositionMap } from "../../src/types";

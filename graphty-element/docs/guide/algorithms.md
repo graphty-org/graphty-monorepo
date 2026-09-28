@@ -89,11 +89,12 @@ await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
 
 Find optimal paths between nodes:
 
-| Algorithm      | Description                 |
-| -------------- | --------------------------- |
-| `dijkstra`     | Shortest path (weighted)    |
-| `bellman-ford` | Handles negative weights    |
-| `a-star`       | Heuristic-based pathfinding |
+| Algorithm        | Description                 |
+| ---------------- | --------------------------- |
+| `dijkstra`       | Shortest path (weighted)    |
+| `bellman-ford`   | Handles negative weights    |
+| `a-star`         | Heuristic-based pathfinding |
+| `floyd-warshall` | Distance between every pair |
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
@@ -101,6 +102,10 @@ await graph.runAlgorithm("graphty", "dijkstra", {
     target: "node5",
 });
 ```
+
+`floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses
+a run over more than 5,792 nodes with a `GraphtyError` whose code is `E_TOO_LARGE` (the details
+carry `nodeCount` and `limit`) before any of the matrix is allocated; run it over a smaller scope.
 
 ### Spanning Tree
 

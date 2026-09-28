@@ -440,7 +440,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            edges and leave its twin unpainted, which reads as a rendering glitch. */
         const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
         const controller = this.graph.acceleration;
-        const work = { capability, nodeCount: snapshot.nodeCount };
+        const work = { capability, nodeCount: snapshot.nodeCount, forwarded: forwardsAlgorithm(capability) };
 
         return {
             snapshot,

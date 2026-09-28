@@ -23,34 +23,19 @@ A comprehensive TypeScript graph algorithms library with 98 algorithms optimized
 
 ## Performance Optimizations
 
-The library automatically optimizes performance for large graphs (≥10,000 nodes) using:
+The graph functions (`breadthFirstSearch`, `shortestPathBFS`, `connectedComponents`, `kruskalMST`
+and others) run over a compact indexed snapshot of the graph, with typed arrays in Compressed Sparse
+Row form, and return the same results they always have.
 
-- **Direction-Optimized BFS**: Dynamically switches between top-down and bottom-up search strategies, providing up to 42x speedup on large graphs
-- **CSR Graph Format**: Compressed Sparse Row format for cache-efficient memory access
-- **Bit-Packed Data Structures**: 8x memory reduction using bit arrays for boolean data
-
-These optimizations are applied automatically - no configuration needed! Just use the standard API:
+For very large graphs, the direction-optimising BFS is available explicitly over a snapshot. It
+switches between top-down and bottom-up steps, which is fastest on large low-diameter graphs:
 
 ```typescript
-// Automatically uses optimized implementation for large graphs
-const result = breadthFirstSearch(largeGraph, startNode);
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(largeGraph);
+const { order, parent, depth } = indexed.directionOptimizedBfs(s, s.ids.requireIndex(startNode));
 ```
-
-All BFS-based algorithms benefit from these optimizations:
-
-- `breadthFirstSearch`, `shortestPathBFS`, `singleSourceShortestPathBFS`
-- `betweennessCentrality`, `closenessCentrality`
-- Connected component algorithms
-
-### Performance Benchmarks
-
-| Graph Size | Standard BFS | Optimized BFS | Speedup |
-| ---------- | ------------ | ------------- | ------- |
-| 10K nodes  | 4.40ms       | 6.34ms        | 0.69x   |
-| 50K nodes  | 158.64ms     | 44.27ms       | 3.58x   |
-| 100K nodes | 5,370ms      | 126ms         | 42.58x  |
-
-_Note: Optimizations activate automatically for graphs ≥10K nodes to avoid conversion overhead on smaller graphs._
 
 ### Learn More
 
@@ -227,10 +212,7 @@ const result = breadthFirstSearch(graph, startNode, {
 });
 // Returns: TraversalResult { visited: Set<NodeId>, order: NodeId[], tree?: Map<NodeId, NodeId | null> }
 
-// Note: For graphs with ≥10K nodes, BFS automatically uses:
-// - Direction-Optimized BFS (switches between top-down/bottom-up)
-// - CSR graph format for cache efficiency
-// - Bit-packed data structures for memory efficiency
+// For a direction-optimising BFS over a large graph, see indexed.directionOptimizedBfs.
 
 // Find shortest path between two nodes (unweighted)
 const path = shortestPathBFS(graph, source, target);

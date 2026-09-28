@@ -1,4 +1,13 @@
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import { Graph } from "../../core/graph.js";
+import {
+    depthFirstSearch as indexedDepthFirstSearch,
+    hasCycle,
+    topologicalSort as indexedTopologicalSort,
+} from "../../indexed/dfs.js";
+import { orderToTree } from "../../indexed/facade.js";
+import { legacyArcOrder, toTopologySnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId, TraversalOptions, TraversalResult } from "../../types/index.js";
 
 /**
@@ -28,78 +37,34 @@ export function depthFirstSearch(graph: Graph, startNode: NodeId, options: DFSOp
         throw new Error(`Start node ${String(startNode)} not found in graph`);
     }
 
-    const visited = new Set<NodeId>();
-    const order: NodeId[] = [];
-    const tree = new Map<NodeId, NodeId | null>();
-
-    if (options.recursive) {
+    const postOrder = options.preOrder === false;
+    if (options.recursive && !postOrder && options.targetNode !== undefined) {
+        // The recursive walk skips only the target's subtree and goes on; the port stops at the target.
+        const visited = new Set<NodeId>();
+        const order: NodeId[] = [];
+        const tree = new Map<NodeId, NodeId | null>();
         dfsRecursive(graph, startNode, visited, order, tree, options, 0);
-    } else {
-        dfsIterative(graph, startNode, visited, order, tree, options);
+        return { visited, order, tree };
     }
 
-    return { visited, order, tree };
-}
-
-/**
- * Iterative DFS implementation (safer for browsers)
- * @param graph - The input graph to traverse
- * @param startNode - The node to start the DFS from
- * @param visited - Set to track visited nodes
- * @param order - Array to store traversal order
- * @param tree - Map to store parent relationships
- * @param options - DFS options (recursive mode, pre/post order, etc.)
- */
-function dfsIterative(
-    graph: Graph,
-    startNode: NodeId,
-    visited: Set<NodeId>,
-    order: NodeId[],
-    tree: Map<NodeId, NodeId | null>,
-    options: DFSOptions,
-): void {
-    if (options.preOrder === false) {
-        // For post-order, use a simpler recursive approach to ensure correctness
-        dfsRecursive(graph, startNode, visited, order, tree, options, 0, null);
-        return;
+    const s = toTopologySnapshot(graph);
+    const start = s.ids.indexOf(startNode);
+    const arcOrder = legacyArcOrder(graph, s);
+    const target = options.targetNode === undefined ? INVALID_INDEX : s.ids.indexOf(options.targetNode);
+    // Legacy honours the target in pre-order only, and sets the tree in discovery (pre-)order.
+    const pre = indexedDepthFirstSearch(s, start, {
+        arcOrder,
+        target: postOrder || target === INVALID_INDEX ? undefined : target,
+    });
+    const tree = orderToTree(s.ids, pre.order, pre.parent);
+    const visitOrder = postOrder ? indexedDepthFirstSearch(s, start, { arcOrder, order: "post" }).order : pre.order;
+    const order: NodeId[] = [];
+    for (const i of visitOrder) {
+        const id = s.ids.idOf(i);
+        order.push(id);
+        options.visitCallback?.(id, pre.depth[i]);
     }
-
-    const stack: { node: NodeId; parent: NodeId | null; depth: number }[] = [];
-    stack.push({ node: startNode, parent: null, depth: 0 });
-
-    while (stack.length > 0) {
-        const current = stack.pop();
-        if (!current) {
-            break;
-        }
-
-        if (!visited.has(current.node)) {
-            visited.add(current.node);
-            tree.set(current.node, current.parent);
-
-            // Pre-order processing
-            order.push(current.node);
-
-            // Call visitor callback if provided
-            if (options.visitCallback) {
-                options.visitCallback(current.node, current.depth);
-            }
-
-            // Early termination if target found
-            if (options.targetNode !== undefined && current.node === options.targetNode) {
-                break;
-            }
-
-            // Add neighbors to stack in reverse order to maintain left-to-right traversal
-            const neighbors = Array.from(graph.neighbors(current.node));
-            for (let i = neighbors.length - 1; i >= 0; i--) {
-                const neighbor = neighbors[i];
-                if (neighbor !== undefined && !visited.has(neighbor)) {
-                    stack.push({ node: neighbor, parent: current.node, depth: current.depth + 1 });
-                }
-            }
-        }
-    }
+    return { visited: new Set(tree.keys()), order, tree };
 }
 
 /**
@@ -163,79 +128,7 @@ function dfsRecursive(
  * @returns True if the graph contains a cycle, false otherwise
  */
 export function hasCycleDFS(graph: Graph): boolean {
-    const visited = new Set<NodeId>();
-
-    // Check each unvisited node for cycles
-    for (const node of Array.from(graph.nodes())) {
-        if (!visited.has(node.id)) {
-            if (graph.isDirected) {
-                const recursionStack = new Set<NodeId>();
-                if (hasCycleUtilDirected(graph, node.id, visited, recursionStack)) {
-                    return true;
-                }
-            } else {
-                if (hasCycleUtilUndirected(graph, node.id, visited, null)) {
-                    return true;
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-/**
- * Utility function for cycle detection in directed graphs
- * @param graph - The directed graph to check
- * @param node - Current node being visited
- * @param visited - Set of all visited nodes
- * @param recursionStack - Set of nodes in the current recursion path
- * @returns True if a cycle is found, false otherwise
- */
-function hasCycleUtilDirected(graph: Graph, node: NodeId, visited: Set<NodeId>, recursionStack: Set<NodeId>): boolean {
-    visited.add(node);
-    recursionStack.add(node);
-
-    // Check all neighbors
-    for (const neighbor of Array.from(graph.neighbors(node))) {
-        if (!visited.has(neighbor)) {
-            if (hasCycleUtilDirected(graph, neighbor, visited, recursionStack)) {
-                return true;
-            }
-        } else if (recursionStack.has(neighbor)) {
-            // Back edge found - cycle detected
-            return true;
-        }
-    }
-
-    recursionStack.delete(node);
-    return false;
-}
-
-/**
- * Utility function for cycle detection in undirected graphs
- * @param graph - The undirected graph to check
- * @param node - Current node being visited
- * @param visited - Set of all visited nodes
- * @param parent - Parent node of the current node
- * @returns True if a cycle is found, false otherwise
- */
-function hasCycleUtilUndirected(graph: Graph, node: NodeId, visited: Set<NodeId>, parent: NodeId | null): boolean {
-    visited.add(node);
-
-    // Check all neighbors
-    for (const neighbor of Array.from(graph.neighbors(node))) {
-        if (!visited.has(neighbor)) {
-            if (hasCycleUtilUndirected(graph, neighbor, visited, node)) {
-                return true;
-            }
-        } else if (neighbor !== parent) {
-            // Found a visited node that's not the parent - cycle detected
-            return true;
-        }
-    }
-
-    return false;
+    return hasCycle(toTopologySnapshot(graph));
 }
 
 /**
@@ -247,45 +140,9 @@ export function topologicalSort(graph: Graph): NodeId[] | null {
     if (!graph.isDirected) {
         throw new Error("Topological sort requires a directed graph");
     }
-
-    // First check if graph has cycles
-    if (hasCycleDFS(graph)) {
-        return null; // Cannot topologically sort a graph with cycles
-    }
-
-    const visited = new Set<NodeId>();
-    const stack: NodeId[] = [];
-
-    // Perform DFS from each unvisited node
-    for (const node of Array.from(graph.nodes())) {
-        if (!visited.has(node.id)) {
-            topologicalSortUtil(graph, node.id, visited, stack);
-        }
-    }
-
-    // Return nodes in reverse order of finishing times
-    return stack.reverse();
-}
-
-/**
- * Utility function for topological sorting
- * @param graph - The directed graph being sorted
- * @param node - Current node being visited
- * @param visited - Set of visited nodes
- * @param stack - Stack to store nodes in reverse topological order
- */
-function topologicalSortUtil(graph: Graph, node: NodeId, visited: Set<NodeId>, stack: NodeId[]): void {
-    visited.add(node);
-
-    // Visit all neighbors first
-    for (const neighbor of Array.from(graph.neighbors(node))) {
-        if (!visited.has(neighbor)) {
-            topologicalSortUtil(graph, neighbor, visited, stack);
-        }
-    }
-
-    // Add current node to stack after visiting all neighbors
-    stack.push(node);
+    const s = toTopologySnapshot(graph);
+    const order = indexedTopologicalSort(s, { arcOrder: legacyArcOrder(graph, s) });
+    return order === null ? null : Array.from(order, (i) => s.ids.idOf(i));
 }
 
 /**

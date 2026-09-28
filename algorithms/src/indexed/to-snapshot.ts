@@ -64,7 +64,12 @@ export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): Graph
  * @param weighted - Whether to keep the edge weights
  * @returns The snapshot
  */
-function cachedFreeze(cache: WeakMap<Graph, CacheEntry>, graph: Graph, checksum: boolean, weighted: boolean): GraphSnapshot {
+function cachedFreeze(
+    cache: WeakMap<Graph, CacheEntry>,
+    graph: Graph,
+    checksum: boolean,
+    weighted: boolean,
+): GraphSnapshot {
     const cached = cache.get(graph);
     // A checksummed snapshot answers a plain request; a plain one cannot answer a checksummed
     // request -- validate({ checksum: true }) throws E_INVALID_SNAPSHOT ("no-checksum") when none

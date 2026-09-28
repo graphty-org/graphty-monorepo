@@ -67,6 +67,22 @@ export function exactArcWeights(s: GraphSnapshot): NumericVector | undefined {
 }
 
 /**
+ * A traversal's visited nodes to the legacy tree (or predecessor) Map: node id to parent id, null for
+ * the start, in visit order -- the order a legacy walk set its entries in.
+ * @param ids - The snapshot's id map
+ * @param order - The visited node indices, in visit order
+ * @param parent - The parent of every node index, INVALID_INDEX for the start
+ * @returns The tree
+ */
+export function orderToTree(ids: NodeIdMap, order: U32, parent: U32): Map<NodeId, NodeId | null> {
+    const tree = new Map<NodeId, NodeId | null>();
+    for (const i of order) {
+        tree.set(ids.idOf(i), parent[i] === INVALID_INDEX ? null : ids.idOf(parent[i]));
+    }
+    return tree;
+}
+
+/**
  * Labels to the legacy `NodeId[][]` (components, communities): one group per label in label order,
  * members in index order. A node labelled `INVALID_INDEX` belongs to no group.
  * @param ids - The snapshot's id map

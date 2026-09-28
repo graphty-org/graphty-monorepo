@@ -50,9 +50,19 @@ and the research clusterings teraHAC, SynC and GRSBM. Each lands beside its lega
 live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS,
 Louvain, label propagation) against their legacy functions. Some legacy functions now delegate to
 their port and keep only their signature and result shape: `floydWarshall`, `floydWarshallPath`,
-`transitiveClosure` and `labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it
-accepts negative weights, which the port refuses. The conversions they use live in
-`src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade*.test.ts`.
+`transitiveClosure`, `labelPropagation`, the BFS functions, `depthFirstSearch`, `hasCycleDFS`,
+`topologicalSort`, the connected, weakly and strongly connected component functions (and
+`condensationGraph` through them), `singleSourceShortestPath` (and `allPairsShortestPath` through it),
+`hasNegativeCycle` and `kruskalMST`. Traversal facades pass `legacyArcOrder` so neighbours are tried
+in the graph's insertion order. A graph with a NaN weight has no weighted snapshot:
+`toTopologySnapshot` freezes it without weights for the traversals, and the weighted facades keep
+their legacy code for it (and `singleSourceShortestPath` for negative weights). Functions whose port
+breaks ties differently (`dijkstra`, `dijkstraPath`, `bellmanFord`, `bellmanFordPath`, `astar`,
+`astarWithDetails`, `primMST`) or returns less order (`bipartitePartition`,
+`findStronglyConnectedComponents`, `connectedComponentsDFS`) stay on legacy code. The code the
+traversal, path, component and tree facades replaced is kept verbatim in
+`test/helpers/legacy-traversal-paths-trees.ts` as their test oracle. The conversions they use live
+in `src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade\*.test.ts`.
 
 ## Essential Commands
 
@@ -124,13 +134,14 @@ The `src/optimized/` directory contains high-performance implementations:
 
 - **CSRGraph**: Compressed Sparse Row format for memory efficiency
 - **Bit-packed structures**: TypedFastBitSet for large graphs
-- **Direction-optimized BFS**: Automatic switching between top-down and bottom-up
+- **Direction-optimized BFS**: switches between top-down and bottom-up steps
 
-The library automatically selects optimal implementations based on graph size - users don't need to configure this.
+No legacy function switches to these by graph size: the BFS family runs the indexed BFS on every
+graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, called explicitly.
 
 ## Design Philosophy
 
-- **Zero configuration**: Algorithms auto-optimize based on graph characteristics
+- **Zero configuration**: every function takes a Graph and needs no setup
 - **Browser-first**: All implementations work in browser environments
 - **Type safety**: Full TypeScript with strict mode
 - **Performance**: Optimized for graphs up to millions of nodes

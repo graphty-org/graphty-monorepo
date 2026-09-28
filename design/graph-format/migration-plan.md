@@ -692,6 +692,38 @@ Each changes a published contract that the design never specified.
       `maximumBipartiteMatching` and `isGraphIsomorphic` / `findAllIsomorphisms` without `edgeMatch`,
       and leave the rest on legacy code until the removal release.
 
+6. **Whether graphty-element's traversal and path adapters may differ from their old results**
+   (blocks the done-when of `element-adapters-traversal-and-paths`). BFS, DFS, Bellman-Ford, Prim,
+   strongly connected components and PageRank now run on the index ports. Their results equal the
+   old route on every graph except these cases, where they differ on purpose:
+    - PageRank and strongly connected components on an undirected graph: the old route read each
+      undirected edge as one arc in the direction it happened to be declared, so the answer
+      depended on declaration order (an undirected A-B gave A=0.351, B=0.649 and two components).
+      Rank now flows both ways along every edge (A=0.5, B=0.5), and the strong components are the
+      connected pieces. Every undirected PageRank and SCC story changes.
+    - Prim and Bellman-Ford when two choices cost the same: the port breaks ties by edge index
+      and relaxes arcs in row order; the old route broke them by its heap's insertion order and
+      relaxed in edge order. Total tree weight and every distance are unchanged, but on an
+      unweighted graph another tree or another route of equal cost may be flagged (8 of the 29
+      edge flags of the algorithm stories' cat social network change). Matching the old tie
+      order would need the old heap reproduced inside the port.
+    - Bellman-Ford with a negative cycle: no route is marked. The old route walked the predecessor
+      chain round the cycle.
+    - A node option naming no node in the run's graph (a BFS or DFS target, a DFS source, a
+      Bellman-Ford target) is refused with `E_OPTION_RANGE`, as Dijkstra and the BFS source
+      already are. The old route walked everything and reported the target not found (BFS, DFS),
+      returned no result (DFS source) or marked no route (Bellman-Ford).
+    - PageRank personalization entries naming no node of the run's graph are left out instead of
+      taking a share of the jump, and a one-node graph whose personalization gives it 0 ranks 1,
+      not 0.
+    - Under `acceleration: "required"` with an accelerator attached, a BFS with a target and a
+      PageRank with a personalization, initial ranks or an undirected graph throw
+      `E_NO_ACCELERATOR`. The old route answered them on the CPU.
+      Options: (a) approve all of them and list them in section 4.3 (recommended: the undirected
+      results were an artifact of declaration order, the ties are implementation-defined, and the
+      refusals match the adapters already migrated); (b) restore the old behaviour for the
+      missing-node options only, and approve the rest.
+
 ## 7. How completion is verified
 
 1. **A workspace check under `tools/`, run in CI**, fails when any package's src imports a removed

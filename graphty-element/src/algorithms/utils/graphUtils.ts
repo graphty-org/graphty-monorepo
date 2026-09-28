@@ -3,7 +3,7 @@
  * refusing a node option that names no node, and the neighbour order a walk tries.
  */
 
-import type { GraphSnapshot, U32 } from "@graphty/graph-format";
+import type { AdjacencyView, U32 } from "@graphty/graph-format";
 
 import { GraphtyError } from "../../errors";
 
@@ -14,10 +14,10 @@ import { GraphtyError } from "../../errors";
  * element's walks have always tried them in the order the edges were declared, and a depth-first
  * order, a strongly connected component's number and the nodes a breadth-first walk expands
  * before it reaches its target all depend on it. Passed to a port as `arcOrder`, this keeps them.
- * @param snapshot - The snapshot the walk runs over.
+ * @param snapshot - The adjacency the walk runs over.
  * @returns A permutation of the arc indices, each row's slice sorted by the edge each arc is of.
  */
-export function declarationArcOrder(snapshot: GraphSnapshot): U32 {
+export function declarationArcOrder(snapshot: AdjacencyView): U32 {
     const { rowPtr, arcToEdge } = snapshot;
     const order = new Uint32Array(snapshot.arcCount);
     for (let arc = 0; arc < order.length; arc++) {
@@ -29,6 +29,36 @@ export function declarationArcOrder(snapshot: GraphSnapshot): U32 {
     }
 
     return order;
+}
+
+/**
+ * The same adjacency with one node's own arcs taken out: a walk still reaches that node, but
+ * goes no further from it.
+ * @param g - The adjacency to cut.
+ * @param node - The node whose arcs go.
+ * @returns A new view; `g` is not changed.
+ */
+export function withoutArcsOf(g: AdjacencyView, node: number): AdjacencyView {
+    const from = g.rowPtr[node];
+    const to = g.rowPtr[node + 1];
+    const cut = to - from;
+    const keep = (arcs: U32): U32 => {
+        const kept = new Uint32Array(arcs.length - cut);
+        kept.set(arcs.subarray(0, from));
+        kept.set(arcs.subarray(to), from);
+        return kept;
+    };
+
+    return {
+        directed: g.directed,
+        nodeCount: g.nodeCount,
+        arcCount: g.arcCount - cut,
+        rowPtr: g.rowPtr.map((offset, row) => (row > node ? offset - cut : offset)),
+        colIdx: keep(g.colIdx),
+        arcToEdge: keep(g.arcToEdge),
+        // A walk reads no weights.
+        weights: null,
+    };
 }
 
 /**

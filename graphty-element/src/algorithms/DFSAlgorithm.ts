@@ -15,7 +15,7 @@ import {
     metricFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { declarationArcOrder } from "./utils/graphUtils";
+import { declarationArcOrder, withoutArcsOf } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for DFS algorithm
@@ -41,7 +41,7 @@ const dfsOptionsSchema = defineOptions({
         meta: {
             label: "Recursive",
             description:
-                "Accepted and ignored: the walk is always iterative, and a pre-order walk with a target stops the whole walk at the target",
+                "Walk recursively: with a pre-order target, the walk skips only the target's subtree and goes on instead of stopping",
             advanced: true,
         },
     },
@@ -63,7 +63,7 @@ interface DFSOptions extends Record<string, unknown> {
     source: number | string | null;
     /** Target node for early termination (optional) */
     targetNode: number | string | null;
-    /** Accepted and ignored; see the option's description. */
+    /** With a pre-order target, skip only the target's subtree instead of stopping the walk. */
     recursive: boolean;
     /** Use pre-order traversal (visit before children) vs post-order */
     preOrder: boolean;
@@ -107,7 +107,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
             default: false,
             label: "Recursive",
             description:
-                "Accepted and ignored: the walk is always iterative, and a pre-order walk with a target stops the whole walk at the target",
+                "Walk recursively: with a pre-order target, the walk skips only the target's subtree and goes on instead of stopping",
             advanced: true,
         },
         preOrder: {
@@ -157,7 +157,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         // Get source from legacy options, schema options, or use first node as default
         // Legacy configure() takes precedence for backward compatibility
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
-        const { targetNode, preOrder } = this._schemaOptions;
+        const { targetNode, recursive, preOrder } = this._schemaOptions;
 
         // Undirected: the traversal follows an edge in either direction. No accelerator walks
         // depth first, so this is the CPU port's decision, made the same way as every other.
@@ -170,17 +170,20 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         /* Each node's neighbours are tried in the order their edges were declared, as the element's
            walks always have: the order IS the result here. A post-order walk runs to the end, since
            a node's place is known only once everything below it is done, so a target stops only a
-           pre-order walk and a post-order one reaches everything it can. */
+           pre-order walk and a post-order one reaches everything it can. A recursive walk records
+           the target and goes no further from it, but goes on elsewhere: the same walk over a view
+           in which the target has no arcs of its own. */
         context.report({ phase: "Walking deep", total: null });
-        const { value, precision } = await run((_dispatch, s) =>
-            Promise.resolve(
-                indexed.depthFirstSearch(s, sourceIndex, {
-                    arcOrder: declarationArcOrder(s),
+        const { value, precision } = await run((_dispatch, s) => {
+            const view = recursive && targetIndex !== undefined ? withoutArcsOf(s, targetIndex) : s;
+            return Promise.resolve(
+                indexed.depthFirstSearch(view, sourceIndex, {
+                    arcOrder: declarationArcOrder(view),
                     order: preOrder ? "pre" : "post",
-                    target: targetIndex,
+                    target: view === s ? targetIndex : undefined,
                 }),
-            ),
-        );
+            );
+        });
 
         const positionOf = new Map<number, number>();
         value.order.subarray(0, value.visitedCount).forEach((index, position) => positionOf.set(index, position));

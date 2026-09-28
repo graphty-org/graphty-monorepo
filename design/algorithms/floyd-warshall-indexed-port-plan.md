@@ -205,7 +205,8 @@ Files:
 Write the two test changes first and watch them fail (the method is missing).
 
 Done when: `npm run lint` (which runs the type tests), `npm run build`, and the default project
-pass in `algorithms/`; `pnpm run lint:knip -- --workspace algorithms` from the root reports nothing
+pass in `algorithms/`; `pnpm run lint:knip --workspace algorithms` from the root (no `--`: pnpm would pass it through
+and knip rejects it) reports nothing
 new.
 Commit: `feat(algorithms): expose all-pairs shortest paths in the indexed namespace and dispatcher`
 

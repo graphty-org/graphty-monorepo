@@ -5,7 +5,7 @@ import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
 /** The default `maxNodes`: the GPU kernel's ceiling at WebGPU's 128 MiB storage binding, floor(sqrt(2^27 / 4)). */
-const DEFAULT_MAX_NODES = 5792;
+export const APSP_DEFAULT_MAX_NODES = 5792;
 
 /** Options of the index-based all-pairs shortest paths. @public */
 export interface ApspOptions {
@@ -281,7 +281,7 @@ function pickStrategy(
  */
 export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}): ApspResult {
     const n = s.nodeCount;
-    const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
+    const maxNodes = options.maxNodes ?? APSP_DEFAULT_MAX_NODES;
     if (n > maxNodes) {
         const bytes = (options.paths === true ? 12 : 8) * n * n;
         throw new RangeError(

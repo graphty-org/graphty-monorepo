@@ -65,6 +65,7 @@ export { toSnapshot } from "./indexed/to-snapshot.js";
 export type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    ApspCycleResultLike,
     ApspResultLike,
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
@@ -81,6 +82,8 @@ export type {
     SsspResultLike,
 } from "./indexed/accelerator.js";
 export { accelerated } from "./indexed/accelerator.js";
+// `Indexed` prefix: @graphty/webgpu-graph-algorithms publishes a different ApspOptions.
+export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
 export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";

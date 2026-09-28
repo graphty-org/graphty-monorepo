@@ -6,7 +6,9 @@ import {
     accelerated,
     type AcceleratedAlgorithms,
     type AlgorithmAccelerator,
+    type ApspResultLike,
     type BfsResultLike,
+    indexed,
     type LabelResultLike,
     type MstResultLike,
     type PageRankResultLike,
@@ -270,10 +272,79 @@ describe("accelerated(acc)", () => {
         expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
     });
 
-    it("carries exactly the ten methods whose ports exist", () => {
+    describe("allPairsShortestPath", () => {
+        function weightedPath(): GraphSnapshot {
+            const g = new Graph({ directed: false });
+            g.addEdge("a", "b", 2);
+            g.addEdge("b", "c", 3);
+            return toSnapshot(g);
+        }
+
+        function stub(calls: unknown[][]): AlgorithmAccelerator {
+            const answer: ApspResultLike = { dist: Float32Array.of(0, 7, 7, 7, 0, 7, 7, 7, 0), n: 3 };
+            return {
+                kind: "fake",
+                allPairsShortestPath: (...a) => (calls.push(a), Promise.resolve(answer)),
+            };
+        }
+
+        it("runs the CPU port with no accelerator", async () => {
+            const s = weightedPath();
+            const viaDispatcher = await accelerated(null).allPairsShortestPath(s);
+            const direct = indexed.allPairsShortestPath(s);
+            expect(viaDispatcher.dist).toEqual(direct.dist);
+            expect(viaDispatcher.n).toBe(3);
+            expect(viaDispatcher.hasNegativeCycle).toBe(false);
+        });
+
+        it("delegates a plain call, with the snapshot alone, and adds the flag", async () => {
+            const s = weightedPath();
+            const calls: unknown[][] = [];
+            const r = await accelerated(stub(calls)).allPairsShortestPath(s);
+            expect(calls).toEqual([[s]]);
+            expect(calls[0][0]).toBe(s);
+            expect(r).toEqual({ dist: Float32Array.of(0, 7, 7, 7, 0, 7, 7, 7, 0), n: 3, hasNegativeCycle: false });
+        });
+
+        it("runs the CPU port for every option the accelerator would not honour", async () => {
+            const s = weightedPath();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            for (const options of [
+                { weighted: false },
+                { paths: true },
+                { method: "floyd-warshall" as const },
+                { maxNodes: 10 },
+                { weights: new Float64Array(s.arcCount).fill(1) },
+            ]) {
+                const r = await dispatcher.allPairsShortestPath(s, options);
+                expect(r.dist, JSON.stringify(options)).toEqual(indexed.allPairsShortestPath(s, options).dist);
+            }
+            expect(calls).toEqual([]);
+        });
+
+        it("gives the same flagged NaN result for a negative cycle, with or without an accelerator", async () => {
+            const g = new Graph({ directed: true });
+            g.addEdge("a", "b", 1);
+            g.addEdge("b", "c", 1);
+            g.addEdge("c", "a", -10);
+            const s = toSnapshot(g);
+            const calls: unknown[][] = [];
+            for (const acc of [null, stub(calls)]) {
+                const r = await accelerated(acc).allPairsShortestPath(s);
+                expect(r.hasNegativeCycle).toBe(true);
+                expect(r.n).toBe(3);
+                expect(Array.from(r.dist).every((x) => Number.isNaN(x))).toBe(true);
+            }
+            expect(calls).toEqual([]);
+        });
+    });
+
+    it("carries exactly the eleven methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
+            "allPairsShortestPath",
             "breadthFirstSearch",
             "connectedComponents",
             "hits",

@@ -13,6 +13,7 @@
  * @module
  */
 
+export { allPairsShortestPath, type ApspOptions, type ApspResult } from "./all-pairs.js";
 export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";

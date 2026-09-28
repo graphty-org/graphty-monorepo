@@ -17,7 +17,13 @@ import { type CommonLayoutOptions, resolve, result } from "./common";
  * @param seed - the start vectors' seed, or null for a random one
  * @returns `n * dim` values
  */
-export function spectralRows(g: GraphSnapshot, dim: number, scale: number, center: readonly number[], seed: number | null): F64 {
+function spectralRows(
+    g: GraphSnapshot,
+    dim: number,
+    scale: number,
+    center: readonly number[],
+    seed: number | null,
+): F64 {
     const n = g.nodeCount;
     const rows = new Float64Array(n * dim);
     if (n <= 2) {

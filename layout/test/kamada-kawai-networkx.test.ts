@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { GraphBuilder } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import { indexed, kamadaKawaiLayout } from "../src";
+import { kamadaKawai } from "../src";
 
 interface Fixture {
     networkx: string;
@@ -64,33 +64,8 @@ function disparity(a: number[][], b: number[][]): number {
     return 1 - nuclear * nuclear;
 }
 
-type EntryPoint = "kamadaKawaiLayout" | "indexed.kamadaKawai";
-
-/** The legacy function over a duck-typed graph whose getEdgeData reads the fixture's distances. */
-function legacyLayoutOf(fixture: Fixture, start?: number[][]): number[][] {
-    const distance = new Map(fixture.edges.map(([u, v, d]) => [JSON.stringify([u, v]), d]));
-    const graph = {
-        nodes: () => fixture.nodes,
-        edges: () => fixture.edges.map(([u, v]) => [u, v]),
-        getEdgeData: (u: string | number, v: string | number) =>
-            distance.get(JSON.stringify([u, v])) ?? distance.get(JSON.stringify([v, u])),
-    };
-    const pos = start
-        ? kamadaKawaiLayout(
-              graph as never,
-              null,
-              Object.fromEntries(fixture.nodes.map((n, i) => [n, start[i]])),
-              "distance",
-              1,
-              null,
-              3,
-          )
-        : kamadaKawaiLayout(graph as never, null, null, "distance");
-    return fixture.nodes.map((n) => pos[n]);
-}
-
-/** indexed.kamadaKawai over a snapshot whose f64 edge weights are the fixture's distances. */
-function indexedLayoutOf(fixture: Fixture, start?: number[][]): number[][] {
+/** kamadaKawai over a snapshot whose f64 edge weights are the fixture's distances. */
+function layoutOf(fixture: Fixture, start?: number[][]): number[][] {
     const builder = new GraphBuilder({ directed: false, weighted: true, weightDtype: "f64" });
     builder.addNodes(fixture.nodes);
     for (const [u, v, d] of fixture.edges) {
@@ -98,15 +73,11 @@ function indexedLayoutOf(fixture: Fixture, start?: number[][]): number[][] {
     }
     const s = builder.freeze();
     const dim = start ? 3 : 2;
-    const { positions } = indexed.kamadaKawai(s, { dim, pos: start ? Float32Array.from(start.flat()) : null });
+    const { positions } = kamadaKawai(s, { dim, pos: start ? Float32Array.from(start.flat()) : null });
     return fixture.nodes.map((n) => {
         const i = s.ids.indexOf(n);
         return Array.from(positions.subarray(dim * i, dim * i + dim));
     });
-}
-
-function layoutOf(entry: EntryPoint, fixture: Fixture, start?: number[][]): number[][] {
-    return entry === "kamadaKawaiLayout" ? legacyLayoutOf(fixture, start) : indexedLayoutOf(fixture, start);
 }
 
 describe("Kamada-Kawai against networkx", () => {
@@ -117,15 +88,13 @@ describe("Kamada-Kawai against networkx", () => {
     // Miserables. The port before its L-BFGS fix read 0.45 on karate and 0.998 on Les Miserables.
     const TOLERANCE = 0.05;
 
-    for (const entry of ["kamadaKawaiLayout", "indexed.kamadaKawai"] as const) {
-        for (const name of ["karate-unweighted", "lesmis-weighted"]) {
-            it(`draws networkx's layout of ${name} through ${entry}`, () => {
-                const fixture = load(name);
-                const d = disparity(fixture.positions, layoutOf(entry, fixture));
+    for (const name of ["karate-unweighted", "lesmis-weighted"]) {
+        it(`draws networkx's layout of ${name}`, () => {
+            const fixture = load(name);
+            const d = disparity(fixture.positions, layoutOf(fixture));
 
-                assert.isBelow(d, TOLERANCE, `disparity ${d.toFixed(4)} from networkx ${fixture.networkx}`);
-            });
-        }
+            assert.isBelow(d, TOLERANCE, `disparity ${d.toFixed(4)} from networkx ${fixture.networkx}`);
+        });
     }
 
     // In 3D the minima crowd closer still: networkx moves by up to 0.15 from its own layout when its
@@ -133,18 +102,16 @@ describe("Kamada-Kawai against networkx", () => {
     // over ten recorded starts instead. It lands on networkx's own layout (disparity below 0.001)
     // from five of them and reads 0.010, 0.026, 0.030, 0.070 and 0.167 from the rest: neighbouring
     // minima whose cost is within 3% of networkx's, in either direction.
-    for (const entry of ["kamadaKawaiLayout", "indexed.kamadaKawai"] as const) {
-        it(`draws networkx's 3D layouts of karate from networkx's own random starts through ${entry}`, () => {
-            const fixture = load("karate-3d");
-            const ds = fixture.runs
-                .map((run) => disparity(run.positions, layoutOf(entry, fixture, run.start)))
-                .sort((a, b) => a - b);
-            const detail = ds.map((d) => d.toFixed(3)).join(", ");
+    it("draws networkx's 3D layouts of karate from networkx's own random starts", () => {
+        const fixture = load("karate-3d");
+        const ds = fixture.runs
+            .map((run) => disparity(run.positions, layoutOf(fixture, run.start)))
+            .sort((a, b) => a - b);
+        const detail = ds.map((d) => d.toFixed(3)).join(", ");
 
-            assert.isAtLeast(ds.filter((d) => d < 1e-3).length, 4, `disparities ${detail}`);
-            assert.isBelow(ds[Math.floor(ds.length / 2)], TOLERANCE, `median of ${detail}`);
-        });
-    }
+        assert.isAtLeast(ds.filter((d) => d < 1e-3).length, 4, `disparities ${detail}`);
+        assert.isBelow(ds[Math.floor(ds.length / 2)], TOLERANCE, `median of ${detail}`);
+    });
 
     it("measures a rotated, reflected, scaled copy as identical and a shuffled one as not", () => {
         const { positions } = load("karate-unweighted");

@@ -40,20 +40,14 @@
             "options": {
                 "command": "eslint && tsc --noEmit",
                 "cwd": "layout"
-            }
+            },
+            "dependsOn": ["^build"]
         },
         "semantic-release": {
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
             "options": {
                 "command": "semantic-release",
-                "cwd": "layout"
-            }
-        },
-        "examples": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run examples",
                 "cwd": "layout"
             }
         },

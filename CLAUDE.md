@@ -194,7 +194,6 @@ pnpm run dev:webgpu-graph-algorithms      # the WebGPU demo page
 pnpm run storybook:graphty-element
 pnpm run storybook:graphty                # HTTPS only
 pnpm run examples:algorithms              # Algorithm demos
-pnpm run examples:layout                  # Layout demos
 pnpm run docs:dev                         # VitePress docs
 ```
 

@@ -199,7 +199,7 @@ function embeddingRows(adj: readonly number[][], seed: number | null): F64 {
  * @throws "G is not planar." for K5, K3,3 and a connected graph of more than `3n - 6` distinct edges, not counting
  * self-loops and parallel edges
  */
-export function planarRows(g: GraphSnapshot, scale: number, center: readonly number[], seed: number | null): F64 {
+function planarRows(g: GraphSnapshot, scale: number, center: readonly number[], seed: number | null): F64 {
     const n = g.nodeCount;
     const adj = neighbourLists(g);
     // self-loops and parallel edges do not affect planarity, so count only the distinct edges between two nodes

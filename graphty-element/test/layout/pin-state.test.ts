@@ -86,7 +86,8 @@ function createHarness(): Harness {
         {},
     );
 
-    let nextIndex = 0;
+    // Through the data manager, so every node has a row in the graph a static layout reads.
+    dataManager.setGraphContext(context);
 
     return {
         context,
@@ -94,11 +95,9 @@ function createHarness(): Harness {
         layoutManager,
         scene,
         add(id: string): Node {
-            const node = new Node(context, id, NODE_PAINT, { id } as unknown as AdHocData, { pinOnDrag: true });
-            node.index = nextIndex++;
-            dataManager.positions.grow(nextIndex);
-            dataManager.nodes.set(id, node);
-            dataManager.nodeCache.set(id, node);
+            dataManager.addNodes([{ id }]);
+            const node = dataManager.nodes.get(id);
+            assert.isDefined(node, `${id} is a node of the graph`);
             return node;
         },
         coordsOf(node: Node): { x: number; y: number; z: number } {
@@ -253,11 +252,8 @@ describe("a pin outlives the engine that was told about it", () => {
         const freeBefore = harness.coordsOf(free);
         pinned.pin();
 
-        // A fourth node re-seats the whole ring, so every node free to move has somewhere new to
-        // be and standing still means something.
-        const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
-        await harness.layoutManager.updatePositions([arrival]);
+        // A larger ring moves every node free to move, so standing still means something.
+        await harness.layoutManager.setLayout("circular", { scale: 2 });
 
         assert.deepStrictEqual(harness.coordsOf(pinned), heldBefore, "the pinned node did not move");
         assert.notDeepEqual(harness.coordsOf(free), freeBefore, "while an unpinned one did");
@@ -283,7 +279,6 @@ describe("a pin outlives the engine that was told about it", () => {
 
         // And it stays there: the next recompute must not undo the drag either.
         const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.deepStrictEqual(harness.coordsOf(pinned), after, "the layout did not take the placement back");
@@ -303,6 +298,52 @@ describe("a pin outlives the engine that was told about it", () => {
 
         orphan.pin();
         assert.isFalse(orphan.isPinned(), "a node with no row in the graph cannot be pinned");
+    });
+});
+
+describe("a static layout after the graph grows", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("keeps every existing node where it was and places only the one added", async () => {
+        // graph-format design 14.4: after a reader adds to a finished graph, a static layout
+        // re-runs with the existing nodes held, so the picture they have been reading does not
+        // re-seat itself under them. Without the hold, a fourth node on a circle moves all three.
+        harness = createHarness();
+        const existing = [harness.add("a"), harness.add("b"), harness.add("c")];
+        await harness.layoutManager.setLayout("circular", {});
+        const before = existing.map((node) => harness?.coordsOf(node));
+
+        const arrival = harness.add("d");
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            before,
+            "no existing node moved",
+        );
+        assert.isTrue(harness.dataManager.positions.isPlaced(arrival.index), "and the new node was placed");
+    });
+
+    it("re-arranges the whole graph when the same freeze also joins two existing nodes", async () => {
+        // An edge between nodes that were already drawn changes what the picture should be, so
+        // this is not an add to a finished graph and nothing is held.
+        harness = createHarness();
+        harness.add("a");
+        const free = harness.add("b");
+        harness.add("c");
+        await harness.layoutManager.setLayout("circular", {});
+        const before = harness.coordsOf(free);
+
+        const arrival = harness.add("d");
+        harness.dataManager.addEdges([{ source: "b", target: "c" }]);
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.notDeepEqual(harness.coordsOf(free), before, "the ring was re-seated for four nodes");
     });
 });
 

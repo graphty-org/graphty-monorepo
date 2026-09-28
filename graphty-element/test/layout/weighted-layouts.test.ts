@@ -8,11 +8,10 @@
  * engines still accepted and forwarded a weight OPTION, so a reader who set it saw nothing happen
  * and had nothing to tell them why.
  *
- * The two now reach their weights by different routes, because ForceAtlas2 is a steppable
- * simulation over the frozen snapshot and Kamada-Kawai is still a single pass over a node and edge
- * list. The simulation reads the snapshot's own weight column -- `weighted: true` is what names it
- * -- so the element passes a boolean and nothing gathers a per-pair map. What the two say about a
- * weight has not changed, and that is what every case below asserts.
+ * Both read the frozen snapshot. The ForceAtlas2 simulation reads the snapshot's own weight column
+ * -- `weighted: true` is what names it -- and Kamada-Kawai reads a distance column the element
+ * derives from it: the weights of every edge between the same two nodes summed, then inverted.
+ * What the two say about a weight has not changed, and that is what every case below asserts.
  *
  * The convention this file exists to pin, because nothing on screen states it and getting it
  * backwards produces a plausible-looking wrong picture: A LARGER WEIGHT IS A STRONGER CONNECTION,
@@ -36,7 +35,8 @@
  * constructor, and none of this has anything to do with a mesh.
  */
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
-import { createSimulation, kamadaKawaiLayout, seedPositions } from "@graphty/layout";
+import * as layouts from "@graphty/layout";
+import { createSimulation, seedPositions } from "@graphty/layout";
 import { assert, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
@@ -86,6 +86,7 @@ function graphOf(edges: readonly WeightedEdge[]): TestGraph {
     const parentGraph = {
         getDataManager: () => ({
             getSnapshot: () => snapshot,
+            undirected: (s: GraphSnapshot) => s.toUndirected(),
             positions,
         }),
     };
@@ -256,10 +257,7 @@ describe("edge weights and the two layouts that read them", () => {
             const zeroed = forceAtlas2(mirrorPath(0, 1));
             const ones = forceAtlas2(mirrorPath(1, 1));
 
-            assert.isFalse(
-                samePlaces(zeroed, ones),
-                "a weight of zero is not the same instruction as a weight of one",
-            );
+            assert.isFalse(samePlaces(zeroed, ones), "a weight of zero is not the same instruction as a weight of one");
             assert.isAbove(
                 distance(zeroed, "a", "b"),
                 distance(zeroed, "c", "e"),
@@ -289,7 +287,7 @@ describe("edge weights and the two layouts that read them", () => {
     describe("Kamada-Kawai", () => {
         it("asks the solver for the RECIPROCAL of a weight, because that solver reads its number as a distance", () => {
             // THE ASSERTION IS MADE AT THE REQUEST, not at the picture, and that is a deliberate
-            // choice rather than a convenience. `@graphty/layout`'s Kamada-Kawai solver does not
+            // choice rather than a convenience. The Kamada-Kawai solver does not
             // converge from its own default starting layout once the ideal distances stop being
             // uniform -- started at the exact optimum it stays there, started from its circular
             // seed it settles somewhere with a stress many times higher -- so the drawn lengths it
@@ -303,10 +301,7 @@ describe("edge weights and the two layouts that read them", () => {
             const asDistances = directKamadaKawai({ "a|b": 1 / 4, "b|c": 1, "c|e": 1 });
             const asWeights = directKamadaKawai({ "a|b": 4, "b|c": 1, "c|e": 1 });
 
-            assert.isTrue(
-                samePlaces(arranged, asDistances),
-                "the engine asked for 1/weight, which is a distance",
-            );
+            assert.isTrue(samePlaces(arranged, asDistances), "the engine asked for 1/weight, which is a distance");
             assert.isFalse(
                 samePlaces(arranged, asWeights),
                 "and not for the weight itself, which would draw a strong connection long",
@@ -328,14 +323,33 @@ describe("edge weights and the two layouts that read them", () => {
         });
 
         it("sums two parallel edges into one pair weight instead of letting the last one win", () => {
-            // Both layout functions ask by ordered endpoint pair and write the answer into one
-            // matrix cell, so there is nowhere to put a second edge between the same two nodes.
-            // Left to last-writer-wins, the order the file happened to list its edges in would
-            // decide the arrangement, and the same graph re-exported in another order would draw
-            // differently.
-            const parallel = arrange(kamadaKawai(), graphOf([["a", "b", 2], ["a", "b", 3], ["b", "c", 1]]));
-            const reversed = arrange(kamadaKawai(), graphOf([["a", "b", 3], ["a", "b", 2], ["b", "c", 1]]));
-            const summed = arrange(kamadaKawai(), graphOf([["a", "b", 5], ["b", "c", 1]]));
+            // Kamada-Kawai keeps one distance per pair of nodes, so there is nowhere to put a
+            // second edge between the same two nodes. Left to the solver, the shorter of the two
+            // would win and the order or the split of the weights would decide the arrangement;
+            // summed first, two edges draw exactly as the one connection they make together.
+            const parallel = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 2],
+                    ["a", "b", 3],
+                    ["b", "c", 1],
+                ]),
+            );
+            const reversed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 3],
+                    ["a", "b", 2],
+                    ["b", "c", 1],
+                ]),
+            );
+            const summed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 5],
+                    ["b", "c", 1],
+                ]),
+            );
 
             assert.isTrue(samePlaces(parallel, reversed), "the order the parallel edges arrived in changes nothing");
             assert.isTrue(samePlaces(parallel, summed), "and edges of 2 and 3 arrange exactly as one edge of 5");
@@ -405,44 +419,38 @@ describe("edge weights and the two layouts that read them", () => {
 });
 
 /**
- * Run `@graphty/layout`'s Kamada-Kawai over the mirror path with a weight channel written by hand,
- * and scale the answer the way the engine scales it.
+ * Run the layout package's `kamadaKawai` over the mirror path with a distance column written by hand, and
+ * scale the answer the way the engine scales it.
  *
  * This is the "what should the element have asked for?" side of the reciprocal test above.
- * @param table - what `getEdgeData` should answer, keyed `source|target`
+ * @param table - the distance of each edge, keyed `source|target`
  * @returns the arrangement in scene units
  */
 function directKamadaKawai(table: Readonly<Record<string, number>>): Arrangement {
-    const ids = ["a", "b", "c", "e"];
-    const pairs: [string, string][] = [
-        ["a", "b"],
-        ["b", "c"],
-        ["c", "e"],
-    ];
-    const placed = kamadaKawaiLayout(
-        {
-            nodes: () => ids,
-            edges: () => pairs,
-            getEdgeData: (source, target) => table[`${String(source)}|${String(target)}`],
-        },
-        null,
-        null,
-        "weight",
-        1,
-        null,
-        2,
-    );
+    const graph = mirrorPath(1, 1);
+    const undirected = graph.snapshot.toUndirected().snapshot;
+    const { src, dst } = undirected.edgeList();
+    const distance = Float64Array.from({ length: undirected.edgeCount }, (_, e) => {
+        const key = `${String(undirected.ids.idOf(src[e]))}|${String(undirected.ids.idOf(dst[e]))}`;
+        const d = table[key];
+        assert.isDefined(d, `the table gives ${key}`);
+        return d;
+    });
+    const placed = layouts.kamadaKawai(undirected.withColumns(undefined, { distance }), {
+        weight: "distance",
+        scale: 1,
+        dim: 2,
+    });
 
     // The engine multiplies every coordinate by its scaling factor and stores it as an f32, so the
-    // comparison has to be made against the same numbers rather than against the raw doubles.
+    // comparison has to be made against the same numbers rather than against the raw values.
     const scale = new KamadaKawaiLayout({ dim: 2, scale: 1 }).scalingFactor;
     const out: Record<string, readonly [number, number, number]> = {};
-    for (const id of ids) {
-        const position = placed[id];
-        out[id] = [
-            Math.fround(position[0] * scale),
-            Math.fround(position[1] * scale),
-            Math.fround((position[2] ?? 0) * scale),
+    for (let i = 0; i < placed.n; i++) {
+        out[String(undirected.ids.idOf(i))] = [
+            Math.fround(placed.positions[2 * i] * scale),
+            Math.fround(placed.positions[2 * i + 1] * scale),
+            0,
         ];
     }
 

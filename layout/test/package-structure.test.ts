@@ -26,14 +26,22 @@ describe("Package Structure", () => {
 
         // Check key exports exist
         const expectedExports = [
-            "forceatlas2Layout",
-            "springLayout",
-            "kamadaKawaiLayout",
-            "circularLayout",
-            "randomLayout",
+            "arf",
+            "bfs",
+            "bipartite",
+            "circular",
+            "forceAtlas2",
+            "fruchtermanReingold",
+            "grid",
+            "kamadaKawai",
+            "multipartite",
+            "planar",
+            "radial",
+            "random",
+            "shell",
+            "spectral",
+            "spiral",
             "rescaleLayout",
-            "completeGraph",
-            "cycleGraph",
         ];
 
         for (const exportName of expectedExports) {
@@ -62,10 +70,17 @@ describe("Package Structure", () => {
         }
     });
 
-    it("exports the index-based layouts as the indexed namespace", async () => {
+    it("keeps the indexed namespace as an alias of the top-level layouts", async () => {
         const layout = await import("../dist/layout.js");
         for (const name of ["kamadaKawai", "forceAtlas2", "fruchtermanReingold", "arf"]) {
-            assert.equal(typeof layout.indexed[name], "function", `indexed.${name} is exported`);
+            assert.equal(layout.indexed[name], layout[name], `indexed.${name} is ${name}`);
+        }
+    });
+
+    it("no longer exports the positional layouts or the graph generators", async () => {
+        const layout = await import("../dist/layout.js");
+        for (const name of ["circularLayout", "springLayout", "forceatlas2Layout", "completeGraph", "gridGraph"]) {
+            assert.equal(name in layout, false, `${name} is gone`);
         }
     });
 

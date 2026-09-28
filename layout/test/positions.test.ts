@@ -86,6 +86,12 @@ describe("position helpers", () => {
         assert.deepEqual(Array.from(back), [1, 2, 3, 4, 5, 6]);
     });
 
+    it("leaves an unplaced node out of the id-keyed map", () => {
+        // shell and multipartite leave a node in no shell or layer as a NaN row; a partly NaN row is kept
+        const r: LayoutResult = { positions: Float32Array.of(1, 2, NaN, NaN, NaN, 3), dim: 2, n: 3 };
+        assert.deepEqual(toPositionMap(r, ids), { a: [1, 2], 7: [NaN, 3] });
+    });
+
     it("works on an empty graph", () => {
         const empty = fromEdgeArrays({
             directed: false,

@@ -38,19 +38,21 @@ algorithms/
 ```
 
 `src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
-`indexed` namespace. Ported so far: BFS, direction-optimized BFS, DFS, cycle detection,
-topological sort, bipartite check, strongly connected components, condensation, Dijkstra,
-Bellman-Ford, bidirectional Dijkstra, A*, connected components, Kruskal MST, Prim MST, PageRank,
-personalized PageRank, the delta PageRank engines (`deltaPageRank`, `DeltaPageRank`,
-`PriorityDeltaPageRank`), HITS, Katz, eigenvector centrality, degree centrality, closeness
-centrality, betweenness centrality, edge betweenness centrality, common neighbours, k-core,
-Louvain, label propagation, all-pairs shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum cuts, the bipartite flow network, Adamic-Adar link prediction. Each lands
-beside its legacy function; tests live in `test/unit/indexed/` and before/after timings in
-`benchmarks/port-bench.ts`. Some legacy functions now delegate to their port and keep only their
+`indexed` namespace. Ported so far: BFS, direction-optimized BFS, DFS, cycle detection, topological
+sort, bipartite check, strongly connected components, condensation, Dijkstra, Bellman-Ford,
+bidirectional Dijkstra, A*, connected components, Kruskal MST, Prim MST, PageRank, personalized
+PageRank, the delta PageRank engines (`deltaPageRank`, `DeltaPageRank`, `PriorityDeltaPageRank`),
+HITS, Katz, eigenvector centrality, degree centrality, closeness centrality, betweenness centrality,
+edge betweenness centrality, common neighbours, k-core, Louvain, label propagation, all-pairs
+shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum cuts, the bipartite
+flow network, Adamic-Adar link prediction, hierarchical, Markov and spectral clustering, modularity.
+Each lands beside its legacy function; tests live in `test/unit/indexed/`.
+`benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS, Louvain, label propagation)
+against their legacy functions. Some legacy functions now delegate to their port and keep only their
 signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and
 `labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it accepts negative weights,
-which the port refuses. The conversions they use live in
-`src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade*.test.ts`.
+which the port refuses. The conversions they use live in `src/indexed/facade.ts`; each has a facade
+test in `test/unit/indexed/*-facade*.test.ts`.
 
 ## Essential Commands
 

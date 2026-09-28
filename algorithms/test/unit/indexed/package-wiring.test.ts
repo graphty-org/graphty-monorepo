@@ -21,6 +21,7 @@ import type {
     DirectionOptimizedBfsOptions,
     EdgeBetweennessOptions,
     EdgeScoresResult,
+    HierarchicalResult,
     IndexedApspOptions,
     IndexedApspResult,
     IndexedBellmanFordResult,
@@ -35,11 +36,13 @@ import type {
     IndexedMinCutResult,
     IndexedStoerWagnerOptions,
     LabelResult,
+    MarkovResult,
     PathOptions,
     PathResult,
     PrimOptions,
     PrimResult,
     ScoresResult,
+    SpectralOptions,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -213,5 +216,23 @@ describe("indexed flow and cut exports", () => {
         expect(pkg.indexed.stoerWagner(network.snapshot, sw).cutValue).toBe(1);
         const karger: IndexedKargerOptions = { iterations: 3, randomSeed: 1 };
         expect(pkg.indexed.kargerMinCut(network.snapshot, karger).cutValue).toBe(1);
+    });
+});
+
+describe("indexed clustering exports", () => {
+    it("reaches the hierarchical, Markov, spectral and modularity ports through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        const tree: HierarchicalResult = pkg.indexed.hierarchicalClustering(s, { linkage: "average" });
+        expect(tree.left.length).toBe(2);
+        const flow: MarkovResult = pkg.indexed.markovClustering(s);
+        expect(flow.labels.length).toBe(3);
+        const options: SpectralOptions = { k: 2, laplacianType: "normalized" };
+        expect(pkg.indexed.spectralClustering(s, options).count).toBe(2);
+        expect(pkg.indexed.modularity(s, new Uint32Array(3))).toBeCloseTo(0, 15);
     });
 });

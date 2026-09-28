@@ -54,6 +54,12 @@ export {
     type MinCutResult,
     minSTCut,
 } from "./flow.js";
+export {
+    hierarchicalClustering,
+    type HierarchicalOptions,
+    type HierarchicalResult,
+    type Linkage,
+} from "./hierarchical.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
@@ -76,9 +82,12 @@ export {
     type NodePairs,
 } from "./link-prediction.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
+export { markovClustering, type MarkovOptions, type MarkovResult } from "./markov.js";
 export { kargerMinCut, type KargerOptions, stoerWagner, type StoerWagnerOptions } from "./min-cut.js";
+export { modularity, type ModularityOptions } from "./modularity.js";
 export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions, type PrimResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult, personalizedPageRank } from "./pagerank.js";
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";
 export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
+export { type LaplacianType, spectralClustering, type SpectralOptions, type SpectralResult } from "./spectral.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";

@@ -117,6 +117,8 @@ export type {
     EigenvectorOptions as IndexedEigenvectorOptions,
     EigenvectorResult as IndexedEigenvectorResult,
 } from "./indexed/eigenvector.js";
+// Unprefixed: the legacy clustering types are named LinkageMethod, MCL* and SpectralClustering*.
+export type { HierarchicalOptions, HierarchicalResult, Linkage } from "./indexed/hierarchical.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
@@ -143,12 +145,15 @@ export type {
     LinkPredictionResult,
     NodePairs,
 } from "./indexed/link-prediction.js";
+export type { MarkovOptions, MarkovResult } from "./indexed/markov.js";
+export type { ModularityOptions } from "./indexed/modularity.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {
     PageRankOptions as IndexedPageRankOptions,
     PageRankResult as IndexedPageRankResult,
 } from "./indexed/pagerank.js";
 export type { AstarResult, PathOptions, PathResult } from "./indexed/point-to-point.js";
+export type { LaplacianType, SpectralOptions, SpectralResult } from "./indexed/spectral.js";
 
 // Note: Configuration exports have been removed.
 // The library now automatically optimizes based on graph size.

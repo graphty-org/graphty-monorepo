@@ -145,6 +145,11 @@ fi
 # not only by the root, where hoisting hides the gap until the package builds somewhere else.
 run_step "Declared build tools" "pnpm run check:declared-tools"
 
+# graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
+# fast-xml-parser and no hand-written parser in graphty-element/src/data beyond the pending list in
+# tools/check-data-source-migration.mjs. Reads source only.
+run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"
+
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
 # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,

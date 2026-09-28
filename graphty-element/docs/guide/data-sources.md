@@ -80,6 +80,14 @@ the format's schema, `data-loading-error-summary` still reports why. A replacing
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 
+GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
+cannot be read at all -- a GML list or DOT brace still open when the text ends, a DOT file that
+does not open with `graph` or `digraph`, a Pajek file with no `*Vertices` section -- fails with
+`E_PARSE_FAILED` instead of loading whatever came before the break. The `data-loading-error` event
+carries `context: "parsing"` and, when the reader can name one, the `line` where the problem
+starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
+malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
+
 When loads overlap, the one that STARTED last wins. Once a replacing load has started, every
 load started before it adds nothing more and rejects with `E_SUPERSEDED`, even if its source
 finishes later; it emits no `data-loading-error`, because nothing was wrong with its source.
@@ -111,15 +119,15 @@ Most graph formats state whether their edges point, and the importer reports wha
 A GML file with no `directed` key, a GEXF file with no `defaultedgetype`, is not silent: both
 formats define that omission as undirected, and so does graphty-element.
 
-| Format  | Where it states direction                                     | When it states nothing                                                          |
-| ------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge           | An absent attribute means undirected, unless the edges themselves say otherwise |
-| GraphML | `edgedefault` on `<graph>`, and `directed` per edge           | An absent attribute states nothing; GraphML requires it                         |
-| GML     | the `directed` key, 1 or 0                                    | An absent key means undirected                                                  |
-| DOT     | the opening `graph` or `digraph` keyword                      | --                                                                              |
-| Pajek   | `*Arcs` are directed, `*Edges` are not                        | --                                                                              |
-| CSV     | Gephi's `Type` column: `Directed` or `Undirected`             | Every other dialect states nothing                                              |
-| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it | Any document without that key states nothing                                    |
+| Format  | Where it states direction                                             | When it states nothing                                                          |
+| ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge                   | An absent attribute means undirected, unless the edges themselves say otherwise |
+| GraphML | `edgedefault` on `<graph>`, and `directed` per edge                   | An absent attribute states nothing; GraphML requires it                         |
+| GML     | the `directed` key, 1 or 0 (a quoted `"1"` is read too)               | An absent key means undirected                                                  |
+| DOT     | the opening `graph` or `digraph` keyword                              | -- (a file without one does not load)                                           |
+| Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                      |
+| CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                              |
+| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                    |
 
 Read it back from the session:
 

@@ -1794,13 +1794,18 @@ export class DataManager implements Manager {
                     },
                 );
 
-                // Emit error event
+                // Emit error event, with the line a reader blamed when it named one
                 if (this.graphContext) {
+                    const line: unknown = isGraphtyError(error) ? error.details.line : undefined;
                     this.eventManager.emitDataLoadingError(
                         error instanceof Error ? error : new Error(String(error)),
                         "parsing",
                         type,
-                        { canContinue: false, ...(loadId === undefined ? {} : { loadId }) },
+                        {
+                            canContinue: false,
+                            ...(typeof line === "number" ? { line } : {}),
+                            ...(loadId === undefined ? {} : { loadId }),
+                        },
                     );
 
                     // Keep existing error event for backward compatibility

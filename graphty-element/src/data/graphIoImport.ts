@@ -218,8 +218,14 @@ export async function importRecords(
     // graph-format keeps a weight column only when a weight needs f64 or some edge had none; the
     // rest of the time the weights live in the CSR arrays alone.
     const arcWeights = [...snapshot.edges].some((column) => column.meta.role === "weight") ? null : weights;
+    const pair = snapshot.edges.byRole("pair");
     const edges: ImportRecord[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
+        // An undirected edge in a mixed file is stored as two linked halves; the file wrote it once.
+        if (pair?.isSet(e) && (pair.value(e) as number) < e) {
+            continue;
+        }
+
         const record: ImportRecord = {};
         copyRow(snapshot.edges, e, record, weightKey);
         if (arcWeights !== null) {

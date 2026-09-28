@@ -1,56 +1,45 @@
-import type { AdHocData } from "../config/common.js";
+import type { ImportIssue } from "@graphty/graph-io";
+import { GML_ISSUE, gmlImporter } from "@graphty/graph-io/gml";
+
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
+import { importRecords } from "./graphIoImport.js";
 
 // GML has no additional config currently, so just use the base config
 type GMLDataSourceConfig = BaseDataSourceConfig;
 
-interface GMLValue {
-    [key: string]: string | number | GMLValue | GMLValue[] | (string | number)[];
-}
-
 /**
- * The direction the `graph` block declares.
+ * The words that set a GML graph's direction, for the log and for `directednessSource`.
  *
- * GML states it with one key, `directed`, whose value is 1 for a digraph and 0 otherwise, and the
- * specification gives an omitted `directed` the value 0. So a GML file that does not write the key
- * is NOT silent: it has said undirected, and that is how every other GML reader takes it. This is
- * the whole reason karate.gml -- which carries no `directed` key at all -- is an undirected graph
- * everywhere except, until now, here.
- *
- * GML has no per-edge direction: an `edge` block holds `source`, `target` and attributes, and
- * nothing in it can contradict the graph's own key. So there is no conflict to count.
- * @param graph - the parsed `graph` block
- * @returns the direction and the text that stated it
+ * GML states direction with the graph's `directed` key, and the specification gives an omitted key
+ * the value 0, so every GML file has declared a direction -- but a file that omits the key must not
+ * be quoted as though it wrote `directed 0`: a reader would go looking for a key that is not there.
+ * @param header - what the importer recorded under `meta.extra.gml`
+ * @param issues - the importer's issues, which say whether the key was unreadable
+ * @returns the statement
  */
-function readDirectedKey(graph: GMLValue): { directed: boolean; statedBy: string } {
-    const value = graph.directed;
-    if (typeof value === "number") {
-        return { directed: value !== 0, statedBy: `directed ${String(value)}` };
+function statedBy(header: unknown, issues: readonly ImportIssue[]): string {
+    const written = (header as { directed?: unknown } | undefined)?.directed;
+    if (typeof written !== "string") {
+        return "the GML default for an absent directed key (undirected)";
     }
 
-    // The tokenizer returns a string for anything that is not a bare integer or decimal, which
-    // includes a quoted `directed "1"`. Files in the wild do write it that way.
-    if (typeof value === "string" && value.trim() !== "") {
-        const parsed = Number(value.trim());
-        if (Number.isFinite(parsed)) {
-            return { directed: parsed !== 0, statedBy: `directed ${value}` };
-        }
-
-        // A `directed` key carrying something GML does not define leaves the spec's default
-        // standing, but the file did not omit the key and the element must not report that it did:
-        // a consumer reading the log line would go looking for a key that is right there.
-        return {
-            directed: false,
-            statedBy: `an unreadable directed ${value}, leaving the GML default (undirected)`,
-        };
-    }
-
-    return { directed: false, statedBy: "the GML default for an absent directed key (undirected)" };
+    const unreadable = issues.some((issue) => issue.code === GML_ISSUE.FLAG_TYPE && issue.element === "directed");
+    return unreadable
+        ? `an unreadable directed ${written}, leaving the GML default (undirected)`
+        : `directed ${written}`;
 }
 
 /**
- * Data source for loading graph data from GML (Graph Modeling Language) files.
- * Supports hierarchical graph structures with typed attributes.
+ * Data source for loading graph data from GML (Graph Modeling Language) files, read by
+ * `@graphty/graph-io`'s GML importer.
+ *
+ * Each record carries the keys the file wrote: a node's `id` and its attributes (a nested
+ * `graphics [ ... ]` block stays one nested object), an edge's `source`, `target` and attributes.
+ * Only nodes the file declares become node records; an edge endpoint with no `node` block is left
+ * to the element, as it always was.
+ *
+ * A file that cannot be read -- no `graph` block, or a list still open when the text ends -- fails
+ * with `E_PARSE_FAILED` naming the line, instead of loading whatever parsed before the break.
  */
 export class GMLDataSource extends DataSource {
     static readonly type = "gml";
@@ -75,294 +64,20 @@ export class GMLDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        // Get GML content
-        const gmlContent = await this.getContent();
+        const { nodes, edges, direction } = await importRecords(
+            gmlImporter,
+            await this.getContent(),
+            this.errorAggregator,
+            // The graphics block stays whole in the record, and `value` stays an attribute: the
+            // element reads its weight from the record, not from the importer.
+            { positions: false, weightFrom: null },
+            { statedBy: (snapshot, report) => statedBy(snapshot.meta.extra.gml, report.issues) },
+        );
 
-        // Parse GML
-        const graph = this.parseGML(gmlContent);
-
-        if (!graph) {
-            return;
+        if (direction !== null) {
+            this.declareDirection(direction.directed, direction.statedBy, direction.conflictingEdges);
         }
 
-        // Extract nodes and edges
-        const nodes = this.extractNodes(graph);
-        const edges = this.extractEdges(graph);
-
-        // Declared BEFORE the first chunk is yielded, so the direction reaches the builder while it
-        // still holds no edges.
-        const declared = readDirectedKey(graph);
-        this.declareDirection(declared.directed, declared.statedBy);
-
-        // Use shared chunking helper
         yield* this.chunkData(nodes, edges);
-    }
-
-    private parseGML(content: string): GMLValue | null {
-        // Simple GML parser
-        // GML format: key [ ... ] or key value
-        const tokens = this.tokenize(content);
-        const result = this.parseValue(tokens);
-
-        if (result && typeof result === "object" && "graph" in result) {
-            return result.graph as GMLValue;
-        }
-
-        throw new Error("Invalid GML: missing graph element");
-    }
-
-    private tokenize(content: string): string[] {
-        const tokens: string[] = [];
-        let current = "";
-        let inString = false;
-        let inComment = false;
-
-         
-        for (let i = 0; i < content.length; i++) {
-            const char = content[i];
-            // const nextChar = content[i + 1]; // Unused
-
-            // Handle comments
-            if (!inString && char === "#") {
-                inComment = true;
-                continue;
-            }
-
-            if (inComment) {
-                if (char === "\n") {
-                    inComment = false;
-                }
-
-                continue;
-            }
-
-            // Handle strings
-            if (char === '"') {
-                if (inString) {
-                    tokens.push(current);
-                    current = "";
-                    inString = false;
-                } else {
-                    inString = true;
-                }
-
-                continue;
-            }
-
-            if (inString) {
-                current += char;
-                continue;
-            }
-
-            // Handle structural characters
-            if (char === "[" || char === "]") {
-                if (current.trim()) {
-                    tokens.push(current.trim());
-                    current = "";
-                }
-
-                tokens.push(char);
-                continue;
-            }
-
-            // Handle whitespace
-            if (/\s/.test(char)) {
-                if (current.trim()) {
-                    tokens.push(current.trim());
-                    current = "";
-                }
-
-                continue;
-            }
-
-            current += char;
-        }
-
-        if (current.trim()) {
-            tokens.push(current.trim());
-        }
-
-        return tokens;
-    }
-
-    private parseValue(tokens: string[]): GMLValue | string | number | null {
-        if (tokens.length === 0) {
-            return null;
-        }
-
-        const result: GMLValue = {};
-        let i = 0;
-
-        while (i < tokens.length) {
-            const key = tokens[i];
-
-            if (key === "]") {
-                break;
-            }
-
-            if (key === "[") {
-                i++;
-                continue;
-            }
-
-            // Look ahead for value
-            if (i + 1 < tokens.length) {
-                const next = tokens[i + 1];
-
-                if (next === "[") {
-                    // Complex value
-                    i += 2; // Skip key and '['
-                    // const nested: GMLValue[] = []; // Unused
-                    let depth = 1;
-                    const start = i;
-
-                    // Find matching ']'
-                    while (i < tokens.length && depth > 0) {
-                        if (tokens[i] === "[") {
-                            depth++;
-                        }
-
-                        if (tokens[i] === "]") {
-                            depth--;
-                        }
-
-                        if (depth > 0) {
-                            i++;
-                        }
-                    }
-
-                    // Parse nested content
-                    const nestedTokens = tokens.slice(start, i);
-                    const nestedValue = this.parseValue(nestedTokens);
-
-                    // Handle multiple values with same key (like multiple nodes)
-                    if (key in result) {
-                        if (Array.isArray(result[key])) {
-                            (result[key] as GMLValue[]).push(nestedValue as GMLValue);
-                        } else {
-                            result[key] = [result[key] as GMLValue, nestedValue as GMLValue];
-                        }
-                    } else {
-                        result[key] = nestedValue as GMLValue;
-                    }
-
-                    i++; // Skip ']'
-                } else if (next !== "]") {
-                    // Simple value
-                    const value = this.parseSimpleValue(next);
-
-                    // Handle multiple values with same key
-                    if (key in result) {
-                        if (Array.isArray(result[key])) {
-                            (result[key] as (string | number)[]).push(value);
-                        } else {
-                            result[key] = [result[key] as string | number, value];
-                        }
-                    } else {
-                        result[key] = value;
-                    }
-
-                    i += 2; // Skip key and value
-                } else {
-                    i++;
-                }
-            } else {
-                i++;
-            }
-        }
-
-        return result;
-    }
-
-    private parseSimpleValue(value: string): string | number {
-        // Try to parse as number
-        if (/^-?\d+$/.test(value)) {
-            return parseInt(value, 10);
-        }
-
-        if (/^-?\d+\.\d+$/.test(value)) {
-            return parseFloat(value);
-        }
-
-        return value;
-    }
-
-    private extractNodes(graph: GMLValue): AdHocData[] {
-        const nodes: Record<string, unknown>[] = [];
-
-        if (!graph.node) {
-            return [] as AdHocData[];
-        }
-
-        const nodeArray = Array.isArray(graph.node) ? graph.node : [graph.node];
-
-        for (const node of nodeArray) {
-            try {
-                if (typeof node !== "object" || !("id" in node)) {
-                    this.errorAggregator.addError({
-                        message: "Node missing id attribute",
-                        category: "missing-value",
-                        field: "id",
-                    });
-                    continue;
-                }
-
-                const nodeData: Record<string, unknown> = { ...node };
-                nodes.push(nodeData);
-            } catch (error) {
-                const canContinue = this.errorAggregator.addError({
-                    message: `Failed to parse node: ${error instanceof Error ? error.message : String(error)}`,
-                    category: "parse-error",
-                });
-
-                if (!canContinue) {
-                    throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-                }
-            }
-        }
-
-        return nodes as AdHocData[];
-    }
-
-    private extractEdges(graph: GMLValue): AdHocData[] {
-        const edges: Record<string, unknown>[] = [];
-
-        if (!graph.edge) {
-            return [] as AdHocData[];
-        }
-
-        const edgeArray = Array.isArray(graph.edge) ? graph.edge : [graph.edge];
-
-        for (const edge of edgeArray) {
-            try {
-                if (typeof edge !== "object" || !("source" in edge) || !("target" in edge)) {
-                    this.errorAggregator.addError({
-                        message: "Edge missing source or target attribute",
-                        category: "missing-value",
-                        field: typeof edge === "object" && !("source" in edge) ? "source" : "target",
-                    });
-                    continue;
-                }
-
-                // `source` and `target`, the names the file already uses and the names the
-                // element reads. This used to rename them to `src`/`dst` and then delete the
-                // originals, which was one importer translating into a spelling nothing else in
-                // the ecosystem writes.
-                const edgeData: Record<string, unknown> = { ...edge };
-
-                edges.push(edgeData);
-            } catch (error) {
-                const canContinue = this.errorAggregator.addError({
-                    message: `Failed to parse edge: ${error instanceof Error ? error.message : String(error)}`,
-                    category: "parse-error",
-                });
-
-                if (!canContinue) {
-                    throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-                }
-            }
-        }
-
-        return edges as AdHocData[];
     }
 }

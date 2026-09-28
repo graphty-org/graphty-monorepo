@@ -200,9 +200,10 @@ plugin author who expected otherwise would be misled.
   declaration as `descriptor.scopeInput`, and refuses a descriptor that states a different one.
   `seed`, `exact`, `sample` and `timeBox` are resolved by a run and not forwarded, to a plugin or a
   built-in; the run option `scopeAs` is reserved and refused with `E_BAD_COMMAND`.
-- **The element's own importers still throw plain `Error`s.** A registered format reports
-  `E_PARSE_FAILED` and `E_FETCH_FAILED`; the seven built-in readers do not yet. A plugin is ahead
-  of the built-ins here rather than behind them.
+- **Four of the element's own importers still throw plain `Error`s.** A registered format reports
+  `E_PARSE_FAILED` and `E_FETCH_FAILED`; of the seven built-in readers only GML, DOT and Pajek
+  do so far. A plugin is ahead of the other four here
+  rather than behind them.
 - **An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
   renderer-backed `Graph`. `./extend` resolving in Node buys type-checking, not a headless test.
 

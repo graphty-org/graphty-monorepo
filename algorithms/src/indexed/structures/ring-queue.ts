@@ -3,7 +3,6 @@
  * breadth-first sweep that may re-enqueue a node (label propagation, SPFA-style relaxation) and so
  * cannot use the one-pass `order` array plain BFS does. Overflow and underflow throw rather than
  * silently overwrite: a wrong capacity is a bug in the caller.
- * @public
  */
 export class RingQueue {
     private readonly buffer: Uint32Array;

@@ -4,7 +4,6 @@ import { makeMask, maskCount, maskSet, maskTest, maskToIndices, type NodeMask } 
  * A fixed-length set of indices over graph-format's packed mask words, so `words` can be handed
  * to anything that takes a `NodeMask` or `EdgeMask` (`maskToIndices`, `filterEdges`,
  * `inducedSubgraph({ mask })`) without a copy.
- * @public
  */
 export class BitSet {
     /** The packed words, `ceil(length / 32)` of them; shared, not copied. */

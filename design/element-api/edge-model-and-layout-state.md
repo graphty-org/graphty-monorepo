@@ -676,6 +676,14 @@ It does not need a new accessor. `DataManager.getSnapshot()` is already public, 
 which is exactly `Edge.index`, and which `walkEdgeRemap` keeps correct across a compacting freeze.
 `weights === null` means "every weight is 1", which is how graph-format stores an unweighted graph.
 
+> **Superseded.** `pairWeights` and the `getEdgeData` callbacks below are gone. The static engines
+> now run the index-based `@graphty/layout` functions over the element's undirected snapshot, and
+> Kamada-Kawai reads a derived edge column holding `1 / max(sum, EPSILON)`, where the sum is taken
+> over every stored edge between the same two nodes, in either direction
+> (`graphty-element/src/layout/KamadaKawaiLayoutEngine.ts`). ForceAtlas2 reads the snapshot's weight
+> column directly. The convention in 4.4 is unchanged. The rest of this section records the
+> original design.
+
 So a new protected helper on `LayoutEngine` reads it, reaching through `Edge.parentGraph` the same
 way `positionsFor` already reaches through `Node.parentGraph`
 (`src/layout/LayoutEngine.ts:402-423`):
@@ -1088,7 +1096,7 @@ Lane A **reports**, rather than editing:
 
 ### 7.2 Lane B -- layout
 
-- `graphty-element/src/layout/LayoutEngine.ts` -- `pairWeights`, the `writeNodePosition` pin guard,
+- `graphty-element/src/layout/LayoutEngine.ts` -- `pairWeights` (since removed; see 4.2), the `writeNodePosition` pin guard,
   `static honoursWeights`, and **`SimpleLayoutEngine.removeNode` / `removeEdge`, which lane A depends
   on and must not write.**
 - `graphty-element/src/layout/KamadaKawaiLayoutEngine.ts`,

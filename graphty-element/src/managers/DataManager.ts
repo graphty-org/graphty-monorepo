@@ -298,6 +298,7 @@ export class DataManager implements Manager {
      * A static layout reads it to tell a chunk of a load, after which the whole graph is arranged
      * again, from a reader's add to a finished graph, after which existing nodes stay put.
      * @returns true between a load's first chunk and its end
+     * @internal
      */
     get isLoading(): boolean {
         return this.loadTally !== null;

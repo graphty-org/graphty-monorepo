@@ -345,6 +345,100 @@ describe("a static layout after the graph grows", () => {
 
         assert.notDeepEqual(harness.coordsOf(free), before, "the ring was re-seated for four nodes");
     });
+
+    it("re-arranges the whole graph when the same freeze swaps one edge between existing nodes for another", async () => {
+        // As many edges between the existing nodes as before, but not the same ones: a-b is gone
+        // and a-c is new, so the picture of a, b and c has changed and nothing is held.
+        harness = createHarness();
+        const nodes = ["a", "b", "c", "d"].map((id) => harness?.add(id) as Node);
+        harness.dataManager.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+            { source: "c", target: "d" },
+        ]);
+        await harness.layoutManager.setLayout("spectral", {});
+        const before = nodes.map((node) => harness?.coordsOf(node));
+
+        const ab = [...harness.dataManager.edges.values()].find((e) => e.srcId === "a" && e.dstId === "b");
+        assert.isDefined(ab, "the a-b edge exists");
+        harness.dataManager.removeEdge(ab.id);
+        const arrival = harness.add("e");
+        harness.dataManager.addEdges([{ source: "a", target: "d" }]);
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.notDeepEqual(
+            nodes.map((node) => harness?.coordsOf(node)),
+            before,
+            "the rewired nodes were arranged again",
+        );
+    });
+
+    it("draws the new node clear of the nodes it was added among", async () => {
+        // The re-run arranges ten nodes on a circle and the nine held ones sit on a circle of
+        // nine, so the tenth slot of the new circle is only a few degrees from a held node. Taken
+        // as it stands, the new node lands almost on top of it; carried into the held circle's
+        // frame, it lands in the gap between two of them.
+        harness = createHarness();
+        const existing: Node[] = [];
+        for (let i = 0; i < 9; i++) {
+            existing.push(harness.add(`n${String(i)}`));
+        }
+
+        await harness.layoutManager.setLayout("circular", { dim: 2 });
+        const held = existing.map((node) => harness?.coordsOf(node) ?? { x: 0, y: 0, z: 0 });
+        const gap = (p: { x: number; y: number; z: number }, q: { x: number; y: number; z: number }): number =>
+            Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+        const spacing = Math.min(...held.slice(1).map((p, i) => gap(p, held[i])));
+
+        const arrival = harness.add("n9");
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+        const nearest = Math.min(...held.map((p) => gap(p, placed)));
+
+        assert.isAbove(nearest, spacing / 4, "the new node is not drawn on top of a held one");
+    });
+});
+
+describe("the fixed layout reads the position array", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("draws a node at its data position scaled by positionScale, from the moment it is added", async () => {
+        harness = createHarness();
+        harness.context.getStyles().config.data.knownFields.positionScale = 10;
+        await harness.layoutManager.setLayout("fixed", {});
+
+        harness.dataManager.addNodes([{ id: "a", position: { x: 1, y: 2, z: 3 } }]);
+        const node = harness.dataManager.nodes.get("a");
+        assert.isDefined(node);
+        const { x, y, z } = node.mesh.position;
+        assert.deepStrictEqual([x, y, z], [10, 20, 30], "the new mesh is where its row will be, not at the raw data");
+
+        await harness.layoutManager.updatePositions([node]);
+        assert.deepStrictEqual(harness.coordsOf(node), { x: 10, y: 20, z: 30 }, "and the row agrees");
+    });
+
+    it("keeps a dragged node where the reader put it, not at its data position, when the layout runs again", async () => {
+        // The array holds the drag; `data.position` still holds the load-time place. A fixed
+        // layout that read the data would put the node back on the next run.
+        harness = createHarness();
+        await harness.layoutManager.setLayout("fixed", {});
+        harness.dataManager.addNodes([{ id: "a", position: { x: 1, y: 2, z: 3 } }]);
+        const node = harness.dataManager.nodes.get("a");
+        assert.isDefined(node);
+        await harness.layoutManager.updatePositions([node]);
+
+        harness.layoutManager.layoutEngine?.setNodePosition(node, { x: 40, y: -5, z: 7 });
+        const arrival = harness.add("b");
+        await harness.layoutManager.updatePositions([arrival]);
+        await harness.layoutManager.setLayout("fixed", {});
+
+        assert.deepStrictEqual(harness.coordsOf(node), { x: 40, y: -5, z: 7 }, "the drag survived both re-runs");
+    });
 });
 
 describe("a pin survives the freeze that renumbers every node", () => {

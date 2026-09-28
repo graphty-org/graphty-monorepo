@@ -22,8 +22,8 @@ export function isStorableId(id: unknown): id is string | number {
  * The file-unit coordinate a record carries, in the two shapes the element's own data has always
  * used, or null when it carries none.
  *
- * `{ x, y, z? }` is what `FixedLayoutEngine` reads off `node.data` today
- * (`src/layout/FixedLayoutEngine.ts`), and `[x, y]` / `[x, y, z]` is the array form the importers
+ * `{ x, y, z? }` is the object form a node record carries (and `FixedLayoutEngine` places a newly
+ * added mesh by this same reading), and `[x, y]` / `[x, y, z]` is the array form the importers
  * produce. A missing z is 0, not NaN: a 2D record IS placed, on the z = 0 plane, and NaN is
  * reserved for "no layout has run".
  *
@@ -33,7 +33,7 @@ export function isStorableId(id: unknown): id is string | number {
  * @param record - the raw node record
  * @returns the file-unit triple, or null when there is nothing usable to seed
  */
-function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
+export function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
     const { position } = record;
     if (position === null || typeof position !== "object") {
         return null;

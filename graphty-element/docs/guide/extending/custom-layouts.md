@@ -98,7 +98,11 @@ is exactly what the `indexed` layouts of `@graphty/layout` return, so one of tho
 straight through. The element's own static layouts are written this way. A layout that reads
 `this.graph` also gets the element's behaviour after an add: when a reader adds nodes to a
 finished graph, the existing nodes stay where they are and only the new ones are placed, and
-`this.startPositions(dim)` offers the current coordinates as a starting point.
+`this.startPositions(dim)` offers the current coordinates as a starting point. The new nodes'
+coordinates are moved into the frame the existing nodes are drawn in, so a result that rotates or
+rescales the whole picture still puts a newcomer beside its neighbours. `this.sourceGraph` is the
+graph as the element stores it, directed or not: read it for what becomes one edge in `this.graph`,
+such as the two weights of a reciprocal pair.
 
 ## A live simulation
 

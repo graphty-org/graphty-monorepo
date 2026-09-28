@@ -2,6 +2,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { readSeedPosition } from "../data/ingest";
 import type { Node } from "../Node";
 import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
@@ -49,20 +50,27 @@ export class FixedLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Add a node, and put its mesh at its `data.position` straight away.
+     * Add a node, and put its mesh where the position array will have it straight away.
      *
-     * The array is not touched here: the node's row is seeded from the same `data.position` when
-     * the graph is next frozen, which is before this engine next reads it. This only spares the
-     * node the frames between its arrival and that read, which it would otherwise spend wherever a
-     * new mesh starts -- and a caller that reads a node's mesh position as soon as the add has
-     * finished, as the element's own tests do, gets the node's place rather than that.
+     * The node's row is seeded from its `data.position`, scaled by
+     * `data.knownFields.positionScale`, when the graph is next frozen, which is before this engine
+     * next reads it. This spares the node the frames between its arrival and that read, which it
+     * would otherwise spend wherever a new mesh starts, and puts it where the read will put it: at
+     * its row when the row is already placed, else at the scaled seed.
      * @param n - The node to add
      */
     override addNode(n: Node): void {
         super.addNode(n);
-        const position = (n.data as Record<string, unknown>).position as { x?: number; y?: number; z?: number } | undefined;
-        if (position) {
-            n.mesh.position.set(position.x ?? 0, position.y ?? 0, position.z ?? 0);
+        const at = { x: 0, y: 0, z: 0 };
+        if (this.readNodePosition(n, at)) {
+            n.mesh.position.set(at.x, at.y, at.z);
+            return;
+        }
+
+        const seed = readSeedPosition(n.data);
+        if (seed !== null) {
+            const scale = n.parentGraph.getStyles().config.data.knownFields.positionScale;
+            n.mesh.position.set(seed[0] * scale, seed[1] * scale, seed[2] * scale);
         }
     }
 

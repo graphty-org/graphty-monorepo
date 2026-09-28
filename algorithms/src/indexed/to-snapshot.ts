@@ -6,7 +6,7 @@
  * @module
  */
 
-import { GraphBuilder, type GraphSnapshot, type U32 } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSnapshot, type U32 } from "@graphty/graph-format";
 
 import type { Graph } from "../core/graph.js";
 
@@ -53,7 +53,19 @@ const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
  */
 export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): GraphSnapshot {
     const checksum = options.checksum === true;
-    const cached = SNAPSHOT_CACHE.get(graph);
+    return cachedFreeze(SNAPSHOT_CACHE, graph, checksum, true);
+}
+
+/**
+ * Freeze `graph` through `cache`, reusing the entry while the graph is unchanged.
+ * @param cache - The cache to read and replace the entry in
+ * @param graph - The legacy graph
+ * @param checksum - Whether to record checksums
+ * @param weighted - Whether to keep the edge weights
+ * @returns The snapshot
+ */
+function cachedFreeze(cache: WeakMap<Graph, CacheEntry>, graph: Graph, checksum: boolean, weighted: boolean): GraphSnapshot {
+    const cached = cache.get(graph);
     // A checksummed snapshot answers a plain request; a plain one cannot answer a checksummed
     // request -- validate({ checksum: true }) throws E_INVALID_SNAPSHOT ("no-checksum") when none
     // were recorded (graph-format/src/types/snapshot.ts:401-405).
@@ -70,11 +82,44 @@ export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): Graph
         builder.addNode(node.id);
     }
     for (const edge of graph.edges()) {
-        builder.addEdge(edge.source, edge.target, edge.weight);
+        builder.addEdge(edge.source, edge.target, weighted ? edge.weight : undefined);
     }
     const snapshot = builder.freeze({ label: "algorithms.toSnapshot", checksum });
-    SNAPSHOT_CACHE.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot });
+    cache.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot });
     return snapshot;
+}
+
+/** Snapshots frozen without weights, for graphs holding a NaN weight; see {@link toTopologySnapshot}. */
+const TOPOLOGY_CACHE = new WeakMap<Graph, CacheEntry>();
+
+/**
+ * {@link toSnapshot}, or null when an edge weight is NaN: a legacy `Graph` accepts one, a snapshot
+ * does not. A facade whose legacy answer depends on how NaN compares keeps its legacy code for such
+ * a graph.
+ * @param graph - The legacy graph
+ * @param options - Conversion options
+ * @returns The snapshot, or null
+ */
+export function toSnapshotOrNull(graph: Graph, options: ToSnapshotOptions = {}): GraphSnapshot | null {
+    try {
+        return toSnapshot(graph, options);
+    } catch (error) {
+        if (error instanceof GraphFormatError && error.code === "E_INVALID_WEIGHT") {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * A snapshot for a port that reads no weights (a traversal, the components): {@link toSnapshot}, or,
+ * when a NaN weight stops that, the same nodes and edges frozen without weights, so a graph with a
+ * NaN weight traverses as it always did.
+ * @param graph - The legacy graph
+ * @returns The snapshot; its weights are not to be read
+ */
+export function toTopologySnapshot(graph: Graph): GraphSnapshot {
+    return toSnapshotOrNull(graph) ?? cachedFreeze(TOPOLOGY_CACHE, graph, false, false);
 }
 
 /**

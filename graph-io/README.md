@@ -216,6 +216,14 @@ losses and format rules, in addition to the table:
   (`W_CSV_DIRECTION_DROPPED`). Untyped cells follow the 5.1 text grammar per column (`2.0` stays
   f64, `1e5` and `-0` keep their spelling in a string column). An edge table cannot carry an
   isolated node or the node order (`W_CSV_ISOLATED_NODES`, `W_CSV_NODE_ORDER`; write the node table).
+  `table: "adjacency"` reads (and writes) an adjacency table: each row is a node followed by its
+  neighbours, `neighbour:weight` giving the edge's weight when the text after the last colon is a
+  number, and a row holding only its node adding an isolated node. It is never sniffed: nothing in
+  its rows tells it from an edge list. The exported table keeps ids, the node order, isolated nodes,
+  the edge order and explicit weights (a neighbour id holding a colon is written `id:` when it has no
+  weight); it holds no direction and no columns (`W_CSV_DIRECTION_DROPPED`, `W_CSV_EDGE_COLUMNS`). A
+  node table without an id column is refused (`E_CSV_NO_ID_COLUMN`) unless `rowNumberIds: true`, which
+  makes each data row's 0-based number its id, coerced by `ids` like any other id cell.
 - **JSON**: the dialect is sniffed from the document (`dialect` forces it); the importer records the
   shape under `meta.extra.json` so a re-export keeps it (a d3 document is written back bare, a
   graphology one with only the options it declared). JSON declares no types: the capability table

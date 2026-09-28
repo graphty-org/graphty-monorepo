@@ -1,4 +1,4 @@
-import { Edge as LayoutEdge, gridLayout, Node as LayoutNode } from "@graphty/layout";
+import { indexed } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -78,9 +78,10 @@ export class GridLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = gridLayout({ nodes, edges }, this.config.columns, this.config.scale, this.config.center);
+        this.result = indexed.grid(this.graph, {
+            columns: this.config.columns,
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+        });
     }
 }

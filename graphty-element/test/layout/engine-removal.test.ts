@@ -16,6 +16,7 @@
  */
 import { assert, describe, it } from "vitest";
 
+import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
@@ -48,6 +49,8 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const b = node("b", 1);
         const c = node("c", 2);
         const layout = new CircularLayout({});
+        const positions = new ElementPositions(0);
+        layout.attachPositions(positions);
         layout.addNodes([a, b, c]);
         const link = edge(b, c);
         layout.addEdges([edge(a, b), link]);
@@ -57,7 +60,9 @@ describe("a layout engine gives back a node the graph has removed", () => {
 
         assert.deepStrictEqual([...layout.nodes], [a, b], "the engine no longer holds the removed node");
         assert.strictEqual([...layout.edges].length, 1, "nor the edge that named it");
-        assert.doesNotHaveAnyKeys(layout.positions, ["c"], "and it recomputes a layout without it");
+        layout.publishPositions();
+        assert.isTrue(positions.isPlaced(b.index), "it recomputes a layout of the nodes it still holds");
+        assert.isFalse(positions.isPlaced(c.index), "and places nothing for the removed one");
     });
 
     it("takes the node, and every link that named it, out of a live d3 simulation", () => {

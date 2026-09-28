@@ -1,8 +1,8 @@
-import { Edge as LayoutEdge, Node as LayoutNode, spiralLayout } from "@graphty/layout";
+import { indexed } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Spiral Layout
@@ -98,16 +98,12 @@ export class SpiralLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = spiralLayout(
-            { nodes, edges },
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-            this.config.resolution,
-            this.config.equidistant,
-        );
+        this.result = indexed.spiral(this.graph, {
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+            dim: layoutDim(this.config.dim),
+            resolution: this.config.resolution,
+            equidistant: this.config.equidistant,
+        });
     }
 }

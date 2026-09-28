@@ -16,7 +16,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, SimpleLayoutEngine } from "../layout/LayoutEngine";
 import {
     type SimulationEngineInit,
     type SimulationEngineOptions,
@@ -538,6 +538,11 @@ export class LayoutManager implements Manager {
         // members -- before a simulation reloads, so that its reload packs the new mask.
         if (engine !== undefined && this.members !== null) {
             engine.setHoldMask(...this.holdMaskOf(this.members));
+        }
+
+        if (engine instanceof SimpleLayoutEngine) {
+            engine.reload(event, this.dataManager.isLoading);
+            return;
         }
 
         if (!(engine instanceof SimulationLayoutEngine)) {

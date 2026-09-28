@@ -1,4 +1,4 @@
-import { Edge as LayoutEdge, Node as LayoutNode, radialLayout } from "@graphty/layout";
+import { indexed } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -78,9 +78,11 @@ export class RadialLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = radialLayout({ nodes, edges }, this.config.root, this.config.scale, this.config.center);
+        const { root } = this.config;
+        this.result = indexed.radial(this.graph, {
+            root: root === null ? null : this.requireRow(root, "root"),
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+        });
     }
 }

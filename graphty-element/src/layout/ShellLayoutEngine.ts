@@ -1,8 +1,9 @@
-import { Edge as LayoutEdge, Node as LayoutNode, shellLayout } from "@graphty/layout";
+import { INVALID_INDEX } from "@graphty/graph-format";
+import { indexed } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Shell Layout
@@ -80,15 +81,13 @@ export class ShellLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = shellLayout(
-            { nodes, edges },
-            this.config.nlist,
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-        );
+        const { nlist } = this.config;
+        this.result = indexed.shell(this.graph, {
+            // A node a shell names that the graph does not hold has nowhere to be drawn.
+            nlist: nlist?.map((shell) => shell.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX)),
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+            dim: layoutDim(this.config.dim),
+        });
     }
 }

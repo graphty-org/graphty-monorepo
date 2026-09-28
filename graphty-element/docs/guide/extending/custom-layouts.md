@@ -90,6 +90,16 @@ LayoutEngine.register(GridLayout);
 graph changes, answering where an edge's two ends are, and publishing into the element's shared
 position array are all inherited.
 
+A layout that works over the whole graph, rather than over a list of nodes, reads `this.graph`
+instead: the element's graph as an undirected `GraphSnapshot` from `@graphty/graph-format`, whose
+row `i` is the node whose `index` is `i`. It assigns `this.result = { positions, dim, n }` -- `n`
+rows of `dim` layout-unit values in a `Float32Array`, NaN for a node it leaves unplaced -- which
+is exactly what the `indexed` layouts of `@graphty/layout` return, so one of those can be handed
+straight through. The element's own static layouts are written this way. A layout that reads
+`this.graph` also gets the element's behaviour after an add: when a reader adds nodes to a
+finished graph, the existing nodes stay where they are and only the new ones are placed, and
+`this.startPositions(dim)` offers the current coordinates as a starting point.
+
 ## A live simulation
 
 ```ts

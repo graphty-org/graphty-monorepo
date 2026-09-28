@@ -1108,7 +1108,7 @@ fields and their meaning:
 | `default`        | declared default (GEXF/GraphML), returned by `value()` for unset rows                                                                                                                        |
 | `fill`           | value physically stored in unset rows (default: the declared `default` when representable in the dtype, else `0` / `""` / `false`; section 5.3)                                              |
 | `options`        | declared enum (GEXF `<options>`); for `dict` the dictionary itself                                                                                                                           |
-| `origin`         | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
+| `origin`         | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`, `"ShapeNode"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
 | `dynamic`        | GEXF dynamic attribute: values live in the temporal extension table (section 5.10)                                                                                                           |
 | `extra`          | anything an importer wants to survive (JSON-serialisable)                                                                                                                                    |
 
@@ -1964,7 +1964,10 @@ for text-cell formats, `"keep"` for JSON; `"string"`, `"number"`; section
 table and the edge table it is paired with through its format option
 `nodes` (`got-nodes.csv` + `got-edges.csv`), so endpoints and node ids
 agree across the two files); `nodeIdFrom` (`"id"` default, `"label"`, `"index"` for the GML /
-Pajek / d3 ambiguity); `addMissingNodes` (default true; the GEXF importer
+Pajek / d3 ambiguity; under `"id"` a GML string `id`, `source` or
+`target`, which the GML spec does not allow but NetworkX and Gephi write,
+is kept under the `ids` rule with one `W_GML_STRING_ID` warning per file,
+while a real or record id stays an `E_GML_ID_TYPE` error); `addMissingNodes` (default true; the GEXF importer
 defaults false for EDGES and reports, while `pid` / `<parent for>`
 references are resolved by deferral, below); `duplicateEdges` (default
 `"keep"`); `selfLoops` (default `"keep"`); `onMixedDirection` (default
@@ -2081,7 +2084,22 @@ section 16.5 are exact:
 - GraphML: `key for="all"` is declared in the node, edge and graph tables
   with the same `origin.id`; yFiles nested XML mapped through the XML
   parser to `json` is marked `lossy` in the matrix (structure preserved,
-  not byte-exact).
+  not byte-exact). A classic `y:ShapeNode` or `y:PolyLineEdge` in that
+  tree is also read into nullable typed columns beside it, named
+  `yfiles.<field>` with `origin.namespace` `"yfiles"`, `origin.id` the
+  key id and `origin.type` `"ShapeNode"` or `"PolyLineEdge"`. Node
+  fields: `position` (`f64` x3, `position` role, `[x, y, 0]`),
+  `width`, `height`, `borderWidth` (`f64`), `color`, `borderColor`
+  (`string`, `#RRGGBB` upper case), `label` (`string`, `label` role,
+  trimmed) and `shape` (`string`, the yFiles shape type as written).
+  Edge fields: `color`, `targetArrow`, `sourceArrow` (`string`),
+  `width` (`f64`) and `directed` (`bool`, whether a target arrow is
+  drawn; topology still follows `edgedefault`). These are the values
+  graphty-element's own GraphML parser produced, under its field names.
+  The exporter writes only the tree, so `check()` reports
+  `W_GRAPHML_YFILES_GRAPHICS_STALE` for every row of such a column that
+  no longer matches its tree (an edited position, a removed tree
+  column).
 - node-link / JGF / Cytoscape / graphology JSON: shape information the
   exporter needs is recorded under reserved `meta.extra.json` keys `{
 dialect: "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis",
@@ -2870,7 +2888,7 @@ export interface ColumnOrigin {
     readonly format: string | null; // "gexf" | "graphml" | "gml" | "csv" | ...
     readonly id: string | null; // GEXF attribute id, GraphML key id
     readonly title: string | null; // GEXF title / GraphML attr.name when different from name
-    readonly type: string | null; // declared type text: "liststring", "anyURI", "long", "date", "int", "real", "yfiles"
+    readonly type: string | null; // declared type text: "liststring", "anyURI", "long", "date", "int", "real", "yfiles", "ShapeNode", "PolyLineEdge"
     readonly namespace: string | null; // "viz", "yfiles", "neo4j"
 }
 export type ColumnOriginInput = Loose<ColumnOrigin>;

@@ -9,7 +9,8 @@
  * `sourceport` / `targetport` edge attributes are kept as role columns; hyperedges follow the
  * `hyperedges` option (refuse, skip with a report entry, star, clique); yFiles `yfiles.type` keys
  * become `json` columns holding the nested XML as a tree (origin.namespace "yfiles"), reported as
- * a loss note because the structure, not the bytes, is preserved.
+ * a loss note because the structure, not the bytes, is preserved; a `y:ShapeNode` or
+ * `y:PolyLineEdge` in such a tree is also read into typed `yfiles.*` columns (yfiles.ts).
  *
  * Ids are coerced with the common rule (`ids: "canonical"` by default, design section 4.1); the
  * edge attribute whose `attr.name` is `weightFrom` ("weight" by default) is THE weight and is
@@ -82,6 +83,7 @@ import {
     XSI_NAMESPACE,
 } from "./constants.js";
 import { XmlTreeBuilder } from "./tree.js";
+import { graphicsDecl, graphicsValues } from "./yfiles.js";
 
 
 /** The XML attributes the importer reads on `<graph>`, `<node>` and `<edge>`; any other is reported. */
@@ -365,6 +367,9 @@ class GraphmlReader implements XmlHandler {
     private weightOrigin: { id: string; title: string | null; type: string | null } | null = null;
 
     private yfilesLossNoted = false;
+
+    /** The mapped yFiles graphics columns declared so far, by domain and field. */
+    private readonly graphicsColumns = new Map<string, ColumnHandle>();
 
     private hyperedgeCount = 0;
 
@@ -999,8 +1004,9 @@ class GraphmlReader implements XmlHandler {
         }
         this.pendingKey = {
             id,
-            attrName: attrs.get("attr.name") ?? null,
-            attrType: attrs.get("attr.type") ?? null,
+            // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
+            attrName: attrs.get("attr.name") ?? attrs.get("name") ?? null,
+            attrType: attrs.get("attr.type") ?? attrs.get("type") ?? null,
             yfilesType: attrs.get("yfiles.type") ?? null,
             domains,
             line,
@@ -1324,17 +1330,17 @@ class GraphmlReader implements XmlHandler {
                     }
                     return;
                 }
+                if (key.yfiles) {
+                    for (const [handle, mapped] of this.graphics("node", key, value, where)) {
+                        this.setNodeData(node, handle, mapped);
+                    }
+                }
                 if (key.node === null) {
                     return;
                 }
                 const parsed = this.parseValue(key.node, value, where);
-                if (parsed === undefined) {
-                    return;
-                }
-                if (node.index === INVALID_INDEX) {
-                    node.pending.push(key.node.handle, parsed);
-                } else if (!node.failed) {
-                    this.sink.setNodeValue(key.node.handle, node.index, parsed);
+                if (parsed !== undefined) {
+                    this.setNodeData(node, key.node.handle, parsed);
                 }
                 return;
             }
@@ -1360,6 +1366,11 @@ class GraphmlReader implements XmlHandler {
                         this.report.recordError(err, where);
                     }
                     return;
+                }
+                if (key.yfiles) {
+                    for (const [handle, mapped] of this.graphics("edge", key, value, where)) {
+                        edge.pending.push(handle, mapped);
+                    }
                 }
                 if (key.edge === null) {
                     return;
@@ -1389,6 +1400,54 @@ class GraphmlReader implements XmlHandler {
                 throw new GraphFormatError("E_UNSUPPORTED", `unknown data domain ${String(domain)}`, {});
             }
         }
+    }
+
+    /**
+     * Write a node value now, or keep it until the node is added.
+     * @param node - the node state
+     * @param handle - the column
+     * @param value - the value
+     */
+    private setNodeData(node: NodeState, handle: ColumnHandle, value: unknown): void {
+        if (node.index === INVALID_INDEX) {
+            node.pending.push(handle, value);
+        } else if (!node.failed) {
+            this.sink.setNodeValue(handle, node.index, value);
+        }
+    }
+
+    /**
+     * The typed values mapped from a yFiles graphics tree (yfiles.ts), each with its column,
+     * declared on first use.
+     * @param domain - node or edge
+     * @param key - the yFiles key
+     * @param tree - the `<data>` content
+     * @param where - the location for issues
+     * @returns column handle and value pairs
+     */
+    private graphics(domain: "node" | "edge", key: KeyEntry, tree: unknown, where: Where): [ColumnHandle, unknown][] {
+        const out: [ColumnHandle, unknown][] = [];
+        for (const [field, value] of graphicsValues(domain, tree)) {
+            const id = `${domain}:${field}`;
+            let handle = this.graphicsColumns.get(id);
+            if (handle === undefined) {
+                try {
+                    ({ handle } = declareResolved(
+                        this.sink,
+                        domain,
+                        graphicsDecl(domain, field, key.id),
+                        this.report,
+                        where,
+                    ));
+                } catch (err) {
+                    this.report.recordError(err, where);
+                    continue;
+                }
+                this.graphicsColumns.set(id, handle);
+            }
+            out.push([handle, value]);
+        }
+        return out;
     }
 
     /**

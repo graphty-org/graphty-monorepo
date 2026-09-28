@@ -30,6 +30,7 @@ import {
     isParameterKey,
     LABEL_COLUMN,
     ORIGINAL_ID_KEY,
+    POSITION_COLUMN,
     RELATION_COLUMN,
     SHAPE_COLUMN,
     SHAPES,
@@ -84,7 +85,7 @@ export const PAJEK_LOSS = Object.freeze({
 const SLOT_ROLES: ReadonlySet<string> = new Set(["label"]);
 
 /** The names the importer gives the slot columns, for the name-change notes. */
-const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "label" });
+const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "label", position: POSITION_COLUMN });
 
 /** The roles the exporter handles structurally rather than as parameters. */
 const STRUCTURAL_ROLES: ReadonlySet<string> = new Set([

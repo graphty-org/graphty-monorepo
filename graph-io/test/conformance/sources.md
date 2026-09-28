@@ -352,7 +352,7 @@ graph-io source: `formats/graphml/importer.ts` and `constants.ts`.
 
 | Case | graph-io today | Right behaviour |
 |---|---|---|
-| Classic yFiles (ShapeNode Geometry, Fill, NodeLabel, PolyLineEdge); yFiles 3 (`y:attr.uri`) | A json column plus a `W_GRAPHML_YFILES_JSON` loss note | Better: map `Geometry` x/y to position and `NodeLabel` to label, since users expect a yEd layout to survive. Test both dialects. |
+| Classic yFiles (ShapeNode Geometry, Fill, NodeLabel, PolyLineEdge); yFiles 3 (`y:attr.uri`) | A json column plus a `W_GRAPHML_YFILES_JSON` loss note; classic ShapeNode / PolyLineEdge also read into `yfiles.*` columns (position, size, colours, label, shape, arrows) | Better: map `Geometry` x/y to position and `NodeLabel` to label, since users expect a yEd layout to survive. Test both dialects. |
 | `.graphmlz` (gzip) | Not handled | Optional: decompress with `DecompressionStream`. |
 
 ---
@@ -506,7 +506,7 @@ graph-io source: `formats/gml/syntax.ts`, `importer.ts` and `common/escape.ts`.
 | **Several `graph` blocks** | **Fatal `E_GML_SECOND_GRAPH`** | Use the first graph and warn, as igraph does. Fatal throws away a readable graph. |
 | `directed`: 0, 1, absent, 2, a string, repeated | Other integers count as truthy with a warning; a non-integer is an error and the default applies | Keep it. |
 | Per-edge `directed` key | Stored as a plain attribute, silently | Acceptable, because GML has no per-edge direction. |
-| **String or bare-word node ids** (`id "a"`, `id a`) | **`ID_TYPE`; the node is skipped** | networkx and Gephi accept these. Accept them, keyed by exact value, and warn that they are outside the spec. |
+| **String or bare-word node ids** (`id "a"`, `id a`) | A string id is kept under the `ids` rule with one `W_GML_STRING_ID` per file; a bare word is a syntax error | networkx and Gephi accept these. Accept them, keyed by exact value, and warn that they are outside the spec. |
 | A node without an id | `MISSING_ID`, skipped | For an isolated node, generate an id and warn, as igraph does. |
 | Duplicate node id; edge missing source or target; edge to an undefined node | Error | Keep it. |
 | Edge before its nodes | ? | Must work (order does not matter in GML). Test it. |

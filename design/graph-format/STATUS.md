@@ -819,8 +819,9 @@ GraphML:
   `edgedefault` and namespaces so a mixed file re-exports with the same layout.
 - String cells holding characters XML 1.0 cannot carry are `E_XML_ILLEGAL_CHAR` in `check()` and
   refused by `export()`; `escapeXmlText` writes a carriage return as `&#13;` so it survives.
-- Open: yFiles graphics are kept only as json trees (no extraction of geometry / fill / labels);
-  nested `<graph id>` values and node / edge `<desc>` texts are not preserved; `W_PRECISION` is
+- yFiles `ShapeNode` / `PolyLineEdge` graphics are read into typed `yfiles.*` columns beside the
+  json trees (the exporter writes the trees only). Open: other yFiles graphics (GenericNode,
+  BezierEdge, ...) are kept as json trees only; nested `<graph id>` values and node / edge `<desc>` texts are not preserved; `W_PRECISION` is
   recorded once per file.
 
 GML:
@@ -993,7 +994,7 @@ Integration (registry, sniffing, children, build):
   capability tables and `check()` now say.
 - The independent XML reader probes (`fidelity-independent-readers`) use `fast-xml-parser` as a
   devDependency; the package has no runtime dependency beyond the format.
-- GraphML: yFiles graphics are kept as json trees only (no geometry / fill / label extraction);
+- GraphML: yFiles graphics other than `ShapeNode` / `PolyLineEdge` are kept as json trees only;
   nested `<graph id>` values and element `<desc>` texts are not preserved; `W_PRECISION` is once
   per file.
 - GEXF: 1.3 `timestamps` / `intervals` attribute syntax follows Gephi's toString form only; the

@@ -21,11 +21,20 @@ This is the one document graphty-element already publishes: `StyleDocument` in
 here is that shape plus optional members. Every document graphty-element 2.x has written is a
 conforming version 1 style document.
 
-**Version 1 is frozen to the values 2.x accepts** (README, "Versioning" rule 2): the channel names,
-selector kinds, scales and layer kinds listed here. A released 2.x reader refuses the whole
-document for one value it does not know, so a style using any newer one is written as version 2.
-New optional members (`id`, `legend`, `requires`, `extensions`) are additive in version 1, because
-2.x checks values and ignores member names it does not read.
+**Version 1 is frozen to what 2.x accepts** (README, "Versioning" rule 2): the channel names,
+selector kinds, scales and layer kinds listed here, and the value rules 2.x checks (edge ids in an
+`ids` selector are session ids, `top` never paints more than `n`, a layer writes at least one
+channel, `edge.patternCount` is at least 2, a binding has `domain` or `clamp` but not both). A
+released 2.x reader refuses the whole document for one value it does not accept, so a style using
+anything newer is written as version 2. New optional members (`id`, `legend`, `requires`,
+`extensions`, the shared metadata) are additive in version 1, because 2.x checks values and ignores
+member names it does not read -- with two consequences. 2.x also ignores `features`, so an addition
+that changes what is painted cannot be a version 1 member at all. And 2.x, as a writer, drops every
+member it does not copy: a version 1 style applied and re-saved by 2.x loses `kind`, layer `id`s,
+`extensions` (including the import stamp), `requires` and the licence, attribution and handling
+metadata, silently. A graphty-element 2.x patch release whose `toDocument()` writes back the members
+a document arrived with is RECOMMENDED; until one exists, a later writer SHOULD warn when it saves a
+style carrying slots, provenance or handling members that a 2.x reader re-saving it would discard.
 
 The repository's rule for appearance applies to every applier: node and edge appearance is
 applied only through style layers handed to graphty-element, never by writing to a mesh, a
@@ -82,8 +91,10 @@ binds note targets to it (open decision 29).
    paints an element that has no value at `by`: the layers beneath show through (the design
    studio's rule, `design/ui/framework/conceptual-model.md` 5.1: a missing value is not painted),
    unless the binding says `missing: { value }`.
-3. A layer is either a literal layer (`set`), an encoding (`encode`), or both; a layer with neither
-   is valid and paints nothing.
+3. A layer is either a literal layer (`set`), an encoding (`encode`), or both. A layer with neither
+   is a writer error: 2.x refuses it ("A layer with neither a set nor an encode writes no channel",
+   `graphty-element/src/session/styles/Layer.ts`), so a writer MUST NOT write one, and a reader adds
+   it disabled with `E_BAD_LAYER`.
 
 ### Selectors
 
@@ -92,22 +103,26 @@ binds note targets to it (open decision 29).
 | `everything` | -- | every node, or every edge, of the layer's target |
 | `has` | `path` | elements where the path resolves to a value |
 | `expression` | `where` | elements where the JMESPath predicate is true |
-| `ids` | `nodes`, `edges` | the listed elements: node ids, and edges as stable `EdgeMember` references |
-| `top` | `path`, `n` | the top `n` elements by the value at `path`; ties at the cut are all included, so more than `n` may match, and the binding report states the actual count as a notice |
+| `ids` | `nodes`, `edges` | the listed elements: node ids, and (see below) edge ids |
+| `top` | `path`, `n` | the top `n` elements by the value at `path`, which MUST be `results.<run>.<field>`; `n` is a whole number, 0 allowed. A group of elements sharing a value is taken whole or not at all, and only when the whole group fits inside `n`, so the top never holds more than `n` and can hold fewer; the binding report states the count and the elements left out (graphty-element's `TopRanking` tie policy, `graphty-element/src/session/results/types.ts`). A "ties included" top is a style version 2 selector |
 | `member` | `of` (a scope) | the members of a scope, usually a kept set `{ set: id }` |
 
 `match` is an open enumeration, frozen for version 1 (see "Purpose").
 
-Paths are field paths (README, "Paths") over the expression root `{ data: {...}, results: {
-<runId>: {...} } }`: `data.logFC` reads an imported attribute, `results.hubs.rank` reads the field
-`rank` of the run whose id is `hubs`, and `data."adj.P.Val"` reads an attribute whose name holds
-dots.
+Paths follow README "Paths" over the expression root `{ data: {...}, results: { <runId>: {...} }
+}`: `data.logFC` reads an imported attribute, `results.hubs.rank` reads the field `rank` of the run
+whose id is `hubs`, and `data.adj.P.Val` reads the attribute whose key is `adj.P.Val` (keys are
+flat; nothing is walked).
 
-`ids.edges` holds graphty-element's stable `EdgeMember` references (`source`, `target` and exactly
-one of `id` or `ordinal` with `among`), never session edge ids. A session `EdgeId` is a counter
-that restarts every session (`graphty-element/src/data/edgeIdentity.ts`), so an edge highlighted by
-it in a saved file would paint a different edge next time with no error. A member that does not
-resolve on the current graph leaves the layer disabled, naming it.
+**Edges in an `ids` selector.** In version 1, `ids.edges` holds what 2.x accepts: strings or
+numbers, which are session `EdgeId`s -- a counter that restarts every session
+(`graphty-element/src/data/edgeIdentity.ts`). An edge highlighted by one in a saved file would
+paint a different edge next time with no error, so a version 1 reader MUST disable the edge part
+of such a selector with `E_UNSTABLE_EDGE_ID` (its node ids still apply) and report it. Stable edge
+references -- graphty-element's `EdgeMember` (`source`, `target`, and exactly one of `id` or
+`ordinal` with `among`) -- in `ids.edges` are a **style version 2** value, because 2.x refuses a
+non-string entry and with it the whole document. An `EdgeMember` that does not resolve on the
+current graph leaves its layer disabled, naming it.
 
 A selector naming a kept set that the session does not hold (`{ match: "member", of: { set: id } }`)
 leaves the layer disabled with `E_UNKNOWN_SET`.
@@ -128,7 +143,7 @@ The member names of `set` and `encode` are channel names, a list published by gr
 | `*.label`, `*.tooltip`, `*Text` | a string |
 | `*Style` | a label style record (`LabelStyle`, `graphty-element/src/catalog/label-style.ts`); the applier clamps `sizePx` to 512, `padding`, `borderWidth` and `shadowBlur` to 64 |
 | `node.wireframe`, `node.flat`, `edge.curvature` | a boolean |
-| `edge.patternCount` | a non-negative integer |
+| `edge.patternCount` | an integer, at least 2 (the element's descriptor minimum) |
 | `edge.animationSpeed`, `node.glowStrength` | a non-negative number |
 
 `node.marker` draws nothing and is reserved for the element's note markers; a layer that writes it
@@ -137,7 +152,11 @@ malformed: it asked for a channel that draws nothing", `session/styles/encoding.
 `edge.tooltip` was withdrawn in 2.0 and is not a channel.
 
 The shape, line pattern and arrow vocabularies are the element's published enumerations; the
-schema checks only that the value is a string, and the applier checks membership. Named text styles
+schema checks only that the value is a string, and the applier checks membership. Likewise the
+applier MUST parse every colour string into RGBA on apply; a string that does not parse disables
+that layer with `E_BAD_LAYER`. The session and every export hold the parsed value, and an export
+writes only its normalised `#rrggbbaa` form, never the authored string, so a colour cannot carry
+text into a format another tool interprets (export-mapping.md). Named text styles
 are not part of version 1: label style records are inline (the design studio's door 67
 recommendation: text styles are written inline on each layer, not referenced by name).
 
@@ -165,8 +184,9 @@ The numeric members mean the following; this is normative, and matches
    value `2.4` is at `0.5 + 0.5 * 2.4 / 4.8 = 0.75`. A `midpoint` equal to either end is ignored.
 4. **`clamp`** `[p, q]` is a pair of percentiles (0 to 100) of the values present; the domain is
    narrowed to the values at those percentiles before placing, so a few outliers do not flatten the
-   ramp, and the number of values pushed to an end is reported. An explicit `domain` is used as
-   written.
+   ramp, and the number of values pushed to an end is reported. `clamp` and an explicit `domain`
+   MUST NOT both be given: both set the extent, and 2.x refuses the pair (`settleDomain`,
+   `graphty-element/src/session/styles/encoding.ts`).
 5. **`range`** `[a, b]` maps position 0 to `a` and 1 to `b` for a numeric channel; a colour channel
    reads its palette instead. `reverse: true` swaps the ends.
 6. **`missing`** decides an element with no value at `by`: `"skip"` (the default) paints nothing
@@ -185,7 +205,9 @@ A style MAY declare `requires.attributes`, the same slots a recipe declares (rec
 slots"), so a style shared "to apply to new data" can bind to differently named columns without a
 recipe: `applyTemplate(doc, { bindings })` takes explicit bindings, and otherwise name, case and
 hint matching apply as for a recipe. Every `data.<name>` path naming a bound slot is rewritten
-(parsed, not textual). A style without slots binds by exact path, as today.
+(parsed, not textual). A style without slots binds by exact path, as today. A style saved from a
+session is written with the slot names it was authored with and its `requires` block, never with
+the names the slots bound to on this data, as a recipe keeps its own `as`.
 
 ### Layer sources
 
@@ -209,14 +231,15 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
    `toDocument()` does today.
 3. It MUST write the descriptor of every non-built-in palette a layer names, and MUST NOT write
    descriptors of built-in palettes.
-4. It MUST NOT write a layer whose selector or bindings name a run id that was derived rather than
-   author-assigned. Such an id resolves to a different run in another session
-   (`graphty-element/src/session/runs/runId.ts`). The writer MUST either refuse with
-   `E_UNSTABLE_RUN_ID`, naming the layers, or write the layer with the run's author-assigned id if
-   it has one. graphty-element's `toDocument()` does not check this today; conformance requires it.
-5. It MUST write `ids.edges` as `EdgeMember` references, converting session edge ids the way sets
-   already do (`stableEdgeMember`, `graphty-element/src/data/edgeIdentity.ts`), or refuse the
-   layer. `toDocument()` copies selectors verbatim today, so session edge counters reach files;
+4. It MUST NOT write a derived run id. A derived id resolves to a different run in another session
+   (`graphty-element/src/session/runs/runId.ts`), so before writing a layer whose selector, bindings
+   or source name one, the writer gives that run an author-assigned alias and writes the alias
+   (README, "Identifiers" rule 2). graphty-element's `toDocument()` does not do this today;
+   conformance requires it.
+5. It MUST NOT write session edge ids. A layer whose `ids.edges` holds edges is written with
+   `EdgeMember` references, converted the way sets already do (`stableEdgeMember`,
+   `graphty-element/src/data/edgeIdentity.ts`), which makes the document style version 2 (rule 1).
+   `toDocument()` copies selectors verbatim today, so session edge counters reach files;
    conformance requires the conversion.
 6. It MUST refuse a layer whose `userData` is not representable as JSON (a function, a cycle, a
    non-finite number, nesting beyond the README limit), naming the layer. Today `userData` is
@@ -228,20 +251,26 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
    recipe's own `as` (recipe.md, "Saving an applied recipe"); in a standalone style they are the
    session's run ids.
 9. It MUST NOT write `fingerprint` until a scheme is approved (README).
+10. It MUST NOT write a layer with neither `set` nor `encode`, a `top` path outside `results.`, or a
+    binding with both `domain` and `clamp`; and it SHOULD write the colours it holds as parsed
+    values in hex form (`#rrggbb`, or `#rrggbbaa` when alpha is below 1).
 
 ## Reading and applying
 
 1. A top-level object with `version: 1`, an array `layers` and no `kind` is a style document
    version 1 (README, "Encoding" rule 2).
 2. A top-level structure that fails the schema (not an object, `layers` not an array, `version`
-   missing) MUST refuse the document with `E_BAD_COMMAND`. A `version` other than 1 MUST refuse it
-   with `E_UNSUPPORTED_VERSION` (README, "Versioning").
+   missing) MUST refuse the document with `E_BAD_COMMAND`. A `version` this reader does not
+   implement MUST refuse it with `E_UNSUPPORTED_VERSION` (README, "Versioning"); version 1 is always
+   implemented (README, "Versioning" rule 3).
 3. Validation is per unit. A channel entry of `set` or `encode` naming an unknown channel is
    dropped from that layer and reported (`E_UNKNOWN_CHANNEL`); the layer's other channels apply. A
    layer that otherwise fails -- an unknown selector kind (`E_BAD_SELECTOR`), an unknown scale
-   (`E_UNKNOWN_SCALE`), a channel value outside its vocabulary (`E_BAD_LAYER`), an expression over
-   the README limits (`E_BAD_SELECTOR`), `source.by: "element"` (`E_PROTECTED`), or any exception
-   while it is checked -- MUST be added to the stack disabled, with that code and a reason, and
+   (`E_UNKNOWN_SCALE`), a channel value outside its vocabulary or a colour that does not parse
+   (`E_BAD_LAYER`), neither `set` nor `encode` (`E_BAD_LAYER`), `domain` with `clamp`
+   (`E_BAD_LAYER`), an expression over the README limits (`E_BAD_SELECTOR`), `source.by:
+   "element"` (`E_PROTECTED`), or any exception while it is checked -- MUST be added to the stack
+   disabled, with that code and a reason, and
    reported. It MUST NOT be dropped, and MUST NOT refuse the rest of the document. graphty-element
    today refuses the whole document for one such layer; this specification changes that.
 4. A layer that is valid but reads nothing the session answers -- a path under `data` no element
@@ -257,18 +286,31 @@ yesterday must paint with viridis today" (`design/graphty-element/extension-poin
    reported.
 6. Layers are added above every layer already present, in document order, as `applyTemplate` does
    today (`stack: [...stack, ...final]`). Replacing the whole stack is an explicit applier option.
-7. **Imported layers are stamped.** Every layer added from a document records `importedFrom:
-   { templateId, digest }` (the document's RFC 8785 SHA-256), kept by the session and written back
-   in the layer's `extensions` under `graphty.importedFrom`. A document's claim of `source.by:
-   "user"` or `"plugin"` is replaced by `{ by: "template", templateId }`; `source.by: "run"` is kept
-   only when its `runId` binds to a run in this session, and is otherwise replaced the same way. A
-   document cannot make its layers look like the reader's own.
-8. The binding report lists as notices every imported layer that sets `node.opacity` or
-   `edge.opacity` to 0 or a size to 0, and every one with an `ids` selector, so a layer that hides
-   or singles out particular elements is seen.
+7. **Imported layers are stamped.** Every layer added from a document appends `{ templateId,
+   digest }` (the document's RFC 8785 SHA-256) to the layer's import chain, kept by the session and
+   written back in the layer's `extensions` under `graphty.importedFrom` as a list. A chain found
+   in the incoming document is kept as the document's claim and the reader's own entry is appended
+   after it; it is never taken as the reader's own record (README, "Extension data" rule 1). A
+   document's claim of `source.by: "user"` or `"plugin"` is replaced by `{ by: "template",
+   templateId }`; `source.by: "run"` is kept only when its `runId` binds to a run in this session,
+   and is otherwise replaced the same way. A document cannot make its layers look like the
+   reader's own.
+8. **Layers that hide or single out elements are noticed by effect, not by form.** The binding
+   report lists as a notice, with the number of elements it affects, every imported layer that
+   makes an element's effective alpha (opacity times colour alpha) or size fall below a visibility
+   threshold (RECOMMENDED: alpha 0.05, size 0.05), and every one whose selector matches few elements
+   against the graph (RECOMMENDED: five or fewer), whatever the selector's kind -- an `ids` list,
+   an `expression` naming one id, a `top` of 1.
 9. The applier returns a binding report (README, "Applying a document to new data").
 10. Applying a style document MUST NOT start a run, change column roles, change the drawing mode,
     move the camera, or fetch anything.
+11. **Work is bounded.** Evaluating a style costs layers times elements, and a `top` selector or a
+    `clamp` adds a sort per layer, repeated on repaint. The applier MUST bound the work of one
+    document by a published budget (RECOMMENDED: 20,000,000 selector evaluations on the current
+    graph, counting a sorting layer as ten), computed before evaluating and reported with an
+    estimate in the binding report; the layers beyond the budget are added disabled with
+    `W_STYLE_WORK_BOUND`, in document order from the top, and the rest apply. An envelope's style
+    is applied without a click, which is why the bound is not optional.
 
 ## Upgrading the 1.x style template
 
@@ -288,8 +330,8 @@ give the same result:
 | a layer's `calculatedStyle` | not convertible: reported with its expression for a person to rewrite as an encoding; the rest of the layer is converted |
 | `data.knownFields`, `data.directed` | the `dataPlan` member |
 | `graph.layoutOptions.weightProperty`, `weightPath` | the data plan's `knownFields.edgeWeightPath`, removed from the layout step (a layout option of that name is refused by 2.x) |
-| `data.algorithms` | the `recipe` member, one `algo.run` step per entry. A bare string entry becomes `{ algorithm }`. The key is translated through the element's legacy-key table (`algorithmByLegacyKey`): `graphty:scc` becomes `components` with `{ strength: "strong" }`, `graphty:dijkstra` becomes `shortest-path`. `as` is minted from the current key (the key, then `-2`, `-3`). The recipe never runs without the caller's instruction (recipe.md, "Consent") |
-| `graph.layout`, `graph.layoutOptions` (other options) | the `recipe` member, one `layout.set` step |
+| `data.algorithms` | one recipe in the `recipes` member, one `algo.run` step per entry. A bare string entry becomes `{ algorithm }`. The key is translated through the element's legacy-key table (`algorithmByLegacyKey`): `graphty:scc` becomes `components` with `{ strength: "strong" }`, `graphty:dijkstra` becomes `shortest-path`. `as` is minted from the current key (the key, then `-2`, `-3`). The recipe never runs without the caller's instruction (recipe.md, "Consent") |
+| `graph.layout`, `graph.layoutOptions` (other options) | the same recipe, one `layout.set` step |
 | `graph.viewMode` | the `view` member, a view with that `mode` and a `fitToGraph` framing |
 | `graph.startingCameraDistance`, `graph.twoD` | not representable (a bare distance is not a view): reported with their values |
 | `metadata` | the envelope's `name` and `description` |
@@ -314,25 +356,40 @@ A reader conforms when, for each case, it does what the right-hand column says:
 | Input | Required result |
 |---|---|
 | `{ "version": 1, "layers": [] }` (2.x output, no `kind`) | accepted as a style document; report `bound: 0` |
-| a document with `version: 2` | refused with `E_UNSUPPORTED_VERSION`, naming version 2 and the versions read |
+| a document whose `version` is above the highest this reader implements | refused with `E_UNSUPPORTED_VERSION`, naming the version found and the versions read |
+| a layer with neither `set` nor `encode` | added disabled, `E_BAD_LAYER`; the other layers apply |
+| a binding with both `domain` and `clamp` | layer added disabled, `E_BAD_LAYER` |
+| `edge.patternCount: 1` | layer added disabled, `E_BAD_LAYER` |
+| `"node.color": "red\" URL=\"javascript:alert(1)"` | does not parse as a colour; layer added disabled, `E_BAD_LAYER` |
+| a layer setting `node.color` to `#ffffff00` on one node picked by an `expression` naming its id | applied; reported as a notice (alpha below the threshold, one element) |
+| 1,001 layers, or layers whose estimated work exceeds the budget | the excess added disabled with the reason; the rest apply |
 | a layer writing `"node.colour": "#f00"` and `"node.size": 2` | `node.colour` dropped with `E_UNKNOWN_CHANNEL`; the layer applies its size |
 | a layer writing `node.marker` | that channel refused with `E_UNSUPPORTED` |
 | a layer whose `where` is 20,000 characters | disabled with `E_BAD_SELECTOR`; the other layers apply |
 | an unknown top-level member `"x-note": 1` | ignored, reported `W_UNKNOWN_MEMBER`, written back on save |
 | a layer reading `data.logFC` on a graph with no `logFC` | added disabled, `unresolvedPaths` contains `data.logFC` |
-| a layer ``{ match: "expression", where: "data.adj.P.Val < `0.05`" }`` on a graph with attribute `adj.P.Val` | matches nothing; `data."adj.P.Val"` is the path that reads it |
+| a layer ``{ match: "expression", where: "data.adj.P.Val < `0.05`" }`` on a graph with attribute `adj.P.Val` | matches the elements whose `adj.P.Val` is below 0.05 (flat keys) |
+| ``where: "data.\"adj.P.Val\" < `0.05`"`` | layer added disabled, `E_BAD_SELECTOR`: a quoted segment carries no dot |
 | a layer naming palette `lab-reds`, carried, unregistered | palette registered for this session and reported; layer binds |
 | a layer naming palette `lab-reds`, neither carried nor registered | disabled with `E_UNKNOWN_PALETTE` |
 | a carried descriptor under the id `viridis` | descriptor ignored and reported; the built-in palette is used |
-| `ids.edges: ["17"]` (a session edge id) | fails the schema; the layer is disabled |
-| a layer with `source: { by: "user" }` from a document | stored as `{ by: "template", templateId }` with `importedFrom` |
-| a `top` selector with `n: 10` and a tie at rank 10 | 12 elements painted; the report's notice says 12 matched |
+| version 1, `ids: { nodes: ["A"], edges: ["17"] }` (a session edge id, as 2.x writes) | node `A` selected; the edge part disabled with `E_UNSTABLE_EDGE_ID` and reported |
+| version 1, `ids.edges` holding an `EdgeMember` object | layer added disabled: an edge reference is a version 2 value |
+| a layer with `source: { by: "user" }` from a document | stored as `{ by: "template", templateId }` with the import chain |
+| a `top` selector with `n: 10` whose ranks run 1 to 8, then three nodes tied at 9 | 8 elements painted; the report says 3 were left out at the tie |
+| a `top` selector with `path: "data.degree"` | layer added disabled, `E_BAD_SELECTOR`: the path is `results.<run>.<field>` |
 | `encode: { "node.color": { "by": "data.x", "domain": [-1.4, 4.8], "midpoint": 0 } }`, value -0.7 | palette position 0.25 |
 | a style with a slot `padj` (name `padj`, hint `FDR`) applied to data with `FDR` | bound by hint; `data.padj` rewritten to `data.FDR` |
 
 A writer conforms when its output validates against the schema, carries `kind`, omits
 element-owned layers, carries exactly the non-built-in palettes named, writes stable edge
-references, and refuses derived run ids.
+references (as version 2), and writes aliases instead of derived run ids.
+
+**Compatibility with the released reader.** graphty-element's test suite MUST run 2.x's own layer
+checker (`checkLayerSpec`) and `applyTemplate` over every version 1 example and fixture of this
+specification and require acceptance, and MUST run a 2.x `applyTemplate` then `toDocument()` round
+trip over them and assert exactly which members survive, so any drift from the version 1 freeze
+fails in continuous integration.
 
 ## Worked examples
 

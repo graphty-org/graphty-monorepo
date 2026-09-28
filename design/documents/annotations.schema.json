@@ -59,7 +59,8 @@
             "node": {
               "$ref": "#/$defs/nodeId"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -69,8 +70,23 @@
           "properties": {
             "edge": {
               "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/edgeMember"
+            },
+            "check": {
+              "type": "object",
+              "required": [
+                "path",
+                "value"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {}
+              }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -82,7 +98,8 @@
               "type": "object",
               "required": [
                 "run",
-                "value"
+                "value",
+                "members"
               ],
               "properties": {
                 "run": {
@@ -106,7 +123,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -118,7 +136,8 @@
               "type": "string",
               "minLength": 1
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -134,7 +153,8 @@
               "minItems": 3,
               "maxItems": 3
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -145,7 +165,8 @@
             "graph": {
               "const": true
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -160,7 +181,8 @@
               "type": "string",
               "minLength": 1
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -172,7 +194,8 @@
               "type": "string",
               "minLength": 1
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -200,7 +223,8 @@
         "target",
         "text",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "digest"
       ],
       "properties": {
         "id": {
@@ -295,28 +319,39 @@
               },
               "digest": {
                 "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+              },
+              "target": {
+                "$ref": "#/$defs/target"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "quotes": {
+                "type": "array"
+              },
+              "cites": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
         },
         "importedFrom": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/importChain"
+        },
+        "runsAt": {
           "type": "object",
-          "required": [
-            "document",
-            "digest",
-            "at"
-          ],
-          "properties": {
-            "document": {
-              "type": "string"
-            },
-            "digest": {
-              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
-            },
-            "at": {
-              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
-            }
+          "additionalProperties": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
           }
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
         }
       }
     }

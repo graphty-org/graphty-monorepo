@@ -24,9 +24,11 @@ The word names three different things in this repository; this document is only 
 3. **A saved view** in the design studio's sense (`design/ui/framework/conceptual-model.md` 5.3)
    also captures filter steps, the style layers switched on, collapsed sets, stored positions,
    display toggles and an export setting. It belongs to a project and needs its data. Version 1
-   holds only the notes a view shows (`notes`); each of the other captures can be added as an
-   optional member later without a new major version. Canvas callouts, which report pages need
-   (`W15.yaml`), are open decision 14.
+   holds the filter (`filter`), the layers switched on (`layers`) and the notes a view shows
+   (`notes`), so four report pages can show four different subsets and emphases; each of the other
+   captures can be added as an optional member later without a new major version. Canvas callouts
+   and the image export of a page, which report pages need (`W15.yaml`), are open decisions 14 and
+   33.
 
 ### Changes from the element API design
 
@@ -67,7 +69,11 @@ interface View {
   mode?: "2d" | "3d" | "vr" | "ar";   // default: leave the current mode
   camera?: StoredCamera;         // at least one of camera and framing
   framing?: Framing;
+  prefer?: "camera" | "framing"; // with both, which to use when the graph's identity is unknown; default "framing"
+  filter?: Filter;               // what this page shows (envelope.md, "The active filter"); default: no filter
+  layers?: string[];             // ids (else names) of the style layers switched on; default: leave them as they are
   notes?: string[];              // ids of the notes this view (report page) shows, in order
+  features?: string[];
   extensions?: Record<string, unknown>;
 }
 
@@ -103,15 +109,20 @@ writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is u
 
 1. Views are added to the session's list in document order. Applying a view document does not by
    itself move the camera, unless `initial` names a view; then that view is applied.
-2. Applying a view sets the drawing mode when `mode` is present, then places the camera.
-3. When both `camera` and `framing` are present, the applier uses `camera` unless the document's
-   fingerprint (or, in an envelope, the envelope's, when the view member has none) `differs` from
-   the current graph's, and `framing` when it differs. `unknown` (no fingerprint, or a scheme the
-   reader does not compute) uses the stored camera and is reported, so retiring a fingerprint scheme
-   never replaces a submitted figure's camera. This is the one use of a fingerprint README allows.
-   When only `camera` is present, it is applied as stored and the binding report says whether the
-   graph matches; a stored camera on a different graph is legal and may point at empty space, which
-   is why a writer SHOULD write a framing beside it.
+2. Applying a view sets the drawing mode when `mode` is present, applies its `filter` and `layers`
+   when present, then places the camera. A layer id in `layers` that the stack does not hold is
+   reported and ignored; layers not listed are switched off.
+3. When both `camera` and `framing` are present, the applier uses `camera` when the document's
+   fingerprint (or, in an envelope, the envelope's, when the view member has none) matches the
+   current graph's, and `framing` when it differs. When it is `unknown` (no fingerprint, or a
+   scheme the reader does not compute) -- which is every view written until open decision 5 approves
+   a scheme -- the view's `prefer` decides: `framing` by default, so a view document applied to next
+   month's network frames it instead of pointing at old coordinates, and `camera` for a view that
+   must reproduce an exact figure (the writer of a submitted figure's view sets it). The caller's
+   `reproduce` option forces the stored camera. The choice is reported. This is the one use of a
+   fingerprint README allows. When only `camera` is present, it is applied as stored and the binding
+   report says whether the graph matches; a stored camera on a different graph is legal and may
+   point at empty space, which is why a writer SHOULD write a framing beside it.
 4. A `mode` of `vr` or `ar` on a page that cannot enter that mode is reported with `E_UNSUPPORTED`
    and the camera is applied in the current mode. Entering an immersive mode requires a user
    gesture in browsers; an applier MUST NOT try to enter it without one, and reports the view as
@@ -134,9 +145,11 @@ writes. Angles are degrees. The y axis is up in 3D; in 2D, x is right and y is u
 
 1. A writer MUST write every coordinate in scene units and every angle in degrees, whatever its
    renderer uses internally.
-2. A writer SHOULD write a `framing` beside a stored camera, so the view still works on new data.
-3. Saved filters are not part of version 1. A writer that saves views while a filter is active
-   MUST report it (`W_GRAPHTY_FILTER`), so a person knows the recipient will see the whole graph.
+2. A writer SHOULD write a `framing` beside a stored camera, so the view still works on new data,
+   and MUST write `prefer: "camera"` on a view saved as a figure that must be reproduced exactly.
+3. A view saved as a report page SHOULD carry the filter and the layers switched on when it was
+   captured. A filter the element cannot express as predicates is reported (`W_GRAPHTY_FILTER`), so
+   a person knows the recipient will see more than they did.
 4. A writer MUST NOT write `fingerprint` until a scheme is approved (README).
 5. The element's existing `exportCameraPresets()` map (`Graph.ts`) is not a view document. An
    applier that accepts it MUST convert it into a view document, one view per map key, and report
@@ -155,8 +168,11 @@ VR or AR remains behind the browser's own permission and gesture rules.
 | a view with neither `camera` nor `framing` | that view kept unapplied, reported with `E_BAD_COMMAND` |
 | a view with `camera: { "projection": "fisheye", ... }` and a valid framing | framing applied; camera reported |
 | a view framed on `{ "set": "set_ring_a" }` that the session does not hold | `E_UNKNOWN_SET`; whole graph framed |
-| a view with both, no fingerprint anywhere | the stored camera is used; `unknown` reported |
-| views saved while a filter hides half the graph | saved; `W_GRAPHTY_FILTER` reported |
+| a view with both, no fingerprint anywhere | the framing is used; `unknown` reported |
+| the same with `prefer: "camera"`, or applied with `reproduce` | the stored camera is used; `unknown` reported |
+| a view with `filter: { "nodes": "data.community == `3`" }` | only community 3 shown while the view is applied |
+| a view with `layers` naming a layer id the stack lacks | reported; the other listed layers on, the rest off |
+| views saved while a hand-picked hide is active | saved; `W_GRAPHTY_FILTER` reported |
 | a framing naming `cameraView: "orbitFromNorth"` that nothing registered | view kept, reported `E_UNKNOWN_CAMERA` |
 | a view with both, on a graph whose fingerprint differs | the framing is used |
 | `initial` naming an id not in `views` | reported; no view applied |
@@ -188,7 +204,9 @@ VR or AR remains behind the browser's own permission and gesture rules.
       "mode": "2d",
       "camera": { "projection": "orthographic", "center": [142.5, -38.0], "height": 60 },
       "framing": { "cameraView": "fitToGraph", "fit": { "set": "set_ring_a" } },
-      "notes": ["note_01", "note_02"]
+      "filter": { "nodes": "data.ring == 'A'" },
+      "layers": ["base", "ring-a-highlight"],
+      "notes": ["note_01K5KZ7Y2S0M3N4P5Q6R7S8T9V", "note_01K5KZ8A4B5C6D7E8F9G0H1J2K"]
     }
   ]
 }
@@ -196,8 +214,10 @@ VR or AR remains behind the browser's own permission and gesture rules.
 
 ### A publication figure in 3D
 
-`W25.yaml`: the exact camera of the submitted figure, with an isometric framing as the fallback
-for anyone who opens the style on their own data.
+`W25.yaml`: the exact camera of the submitted figure, preferred even when the graph's identity
+cannot be checked, with an isometric framing for anyone who opens the view on data it does not
+match. The figure's positions travel in the project (envelope.md, "Positions"), so the camera frames
+the same layout.
 
 ```json
 {
@@ -209,7 +229,8 @@ for anyone who opens the style on their own data.
       "name": "Figure 2",
       "mode": "3d",
       "camera": { "projection": "perspective", "position": [220, 180, 260], "target": [0, 0, 0], "fovDeg": 45 },
-      "framing": { "cameraView": "isometric", "fit": "graph" }
+      "framing": { "cameraView": "isometric", "fit": "graph" },
+      "prefer": "camera"
     }
   ]
 }

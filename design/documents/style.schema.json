@@ -121,8 +121,23 @@
         },
         "extensions": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "set"
+          ]
+        },
+        {
+          "required": [
+            "encode"
+          ]
+        }
+      ]
     },
     "selector": {
       "type": "object",
@@ -175,8 +190,9 @@
             "edges": {
               "type": "array",
               "items": {
-                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/edgeMember"
-              }
+                "$ref": "#/$defs/nodeId"
+              },
+              "description": "Version 1 holds what graphty-element 2.x accepts: session edge ids, which a reader disables with E_UNSTABLE_EDGE_ID. Stable EdgeMember references are a style version 2 value (style.md, Selectors)."
             }
           }
         },
@@ -186,11 +202,18 @@
               "const": "top"
             },
             "path": {
-              "$ref": "#/$defs/path"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/path"
+                },
+                {
+                  "pattern": "^results\\."
+                }
+              ]
             },
             "n": {
               "type": "integer",
-              "minimum": 1
+              "minimum": 0
             }
           },
           "required": [
@@ -474,7 +497,7 @@
         },
         "edge.patternCount": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 2
         },
         "edge.curvature": {
           "type": "boolean"
@@ -669,6 +692,17 @@
                 "hidden": {
                   "type": "boolean"
                 }
+              }
+            }
+          },
+          "not": {
+            "required": [
+              "domain",
+              "clamp"
+            ],
+            "properties": {
+              "domain": {
+                "type": "array"
               }
             }
           }

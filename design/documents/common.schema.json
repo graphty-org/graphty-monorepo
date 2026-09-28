@@ -54,8 +54,8 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^([A-Za-z_][A-Za-z0-9_]*|\"([^\"\\\\]|\\\\.)*\")(\\.([A-Za-z_][A-Za-z0-9_]*|\"([^\"\\\\]|\\\\.)*\"))*$",
-      "description": "README, Paths rule 1: identifiers or quoted identifiers joined by dots; never a full expression."
+      "pattern": "^[^\\u0000-\\u001f]+$",
+      "description": "README, Paths rule 3: a column key written as the column is named (dots are part of the key); never an expression."
     },
     "expression": {
       "type": "string",
@@ -189,7 +189,9 @@
           }
         },
         "license": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "An SPDX licence expression; the strict profile's validator checks its syntax."
         },
         "citation": {
           "type": "string"
@@ -215,23 +217,77 @@
             },
             "digest": {
               "$ref": "#/$defs/digest"
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "$ref": "#/$defs/httpsUrl"
+                  },
+                  "orcid": {
+                    "type": "string",
+                    "pattern": "^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$"
+                  }
+                }
+              }
+            },
+            "license": {
+              "type": "string"
+            },
+            "source": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "doi": {
+              "type": "string",
+              "pattern": "^10\\."
             }
           }
         },
         "handling": {
-          "type": "object",
-          "required": [
-            "marking"
-          ],
-          "properties": {
-            "marking": {
-              "type": "string",
-              "minLength": 1
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "marking"
+              ],
+              "properties": {
+                "marking": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "note": {
+                  "type": "string"
+                }
+              }
             },
-            "note": {
-              "type": "string"
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "marking"
+                ],
+                "properties": {
+                  "marking": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
             }
-          }
+          ],
+          "description": "A list of handling markings; a single object is read as a list of one."
         },
         "extensions": {
           "$ref": "#/$defs/extensions"
@@ -266,24 +322,18 @@
           }
         },
         "level": {
-          "enum": [
-            "categorical",
-            "ordinal",
-            "quantitative",
-            "temporal",
-            "identifier"
-          ]
+          "type": "string",
+          "minLength": 1,
+          "description": "categorical, ordinal, quantitative, temporal, identifier; an open enumeration"
         },
         "role": {
           "type": "string",
           "minLength": 1
         },
         "weightRole": {
-          "enum": [
-            "distance",
-            "similarity",
-            "capacity"
-          ]
+          "type": "string",
+          "minLength": 1,
+          "description": "distance or similarity; an open enumeration. A capacity is the separate role capacity."
         },
         "signed": {
           "type": "boolean"
@@ -293,8 +343,53 @@
         },
         "description": {
           "type": "string"
+        },
+        "features": {
+          "$ref": "#/$defs/features"
         }
       }
+    },
+    "filter": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "envelope.md, The active filter: predicates over the expression root.",
+      "properties": {
+        "nodes": {
+          "$ref": "#/$defs/expression"
+        },
+        "edges": {
+          "$ref": "#/$defs/expression"
+        }
+      }
+    },
+    "dataUrl": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^(https?://[^\\s\\\\]+|(?!\\.\\.?(/|$))[A-Za-z0-9._-]+(/(?!\\.\\.?(/|$))[A-Za-z0-9._-]+)*)$",
+      "description": "envelope.md, Fetching: an absolute https: URL (http: only when the caller allows it) with no whitespace or backslash, or a narrow relative reference: segments of letters, digits, dot, underscore and hyphen, none . or .., joined by /."
+    },
+    "importChain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "document",
+          "digest"
+        ],
+        "properties": {
+          "document": {
+            "type": "string",
+            "minLength": 1
+          },
+          "digest": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+          },
+          "at": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+          }
+        }
+      },
+      "description": "Import chain: each reader appends its own entry; entries found in a file are that file's claim (README, Trust rule 6)."
     }
   }
 }

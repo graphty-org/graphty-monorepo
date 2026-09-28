@@ -115,6 +115,22 @@
         },
         "features": {
           "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+        },
+        "prefer": {
+          "enum": [
+            "camera",
+            "framing"
+          ]
+        },
+        "filter": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/filter"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },

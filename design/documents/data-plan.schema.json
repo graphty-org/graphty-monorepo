@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schema/documents/graphty-data-plan/v1.json",
   "title": "graphty data plan, version 1",
-  "description": "Normative for what a conforming writer produces. Unknown members of the top level and of knownFields refuse the plan (data-plan.md, Applying rule 5), which is why both are closed here; attribute declarations and joins are validated one by one.",
+  "description": "Normative for what a conforming writer produces. Unknown members of the top level and of knownFields refuse the plan (data-plan.md, Applying rule 5; every legitimate addition there carries a feature name, README Versioning rule 8), which is why both are closed here; attribute declarations and joins are validated one by one.",
   "type": "object",
   "required": [
     "kind",
@@ -50,7 +50,14 @@
           "$ref": "#/$defs/nullableFieldPath"
         },
         "nodeTypePath": {
-          "$ref": "#/$defs/nullableFieldPath"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/nullableFieldPath"
+            },
+            {
+              "$ref": "#/$defs/typeSource"
+            }
+          ]
         },
         "edgeSrcIdPath": {
           "$ref": "#/$defs/nullableFieldPath"
@@ -106,6 +113,9 @@
             "canonical",
             "keep"
           ]
+        },
+        "edgeTypePath": {
+          "$ref": "#/$defs/nullableFieldPath"
         }
       },
       "additionalProperties": false
@@ -144,6 +154,28 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/join"
+      }
+    },
+    "sourceVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "term": {
+            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/httpsUrl"
+          }
+        }
       }
     }
   },
@@ -200,20 +232,14 @@
           "description": "A graph-format ColumnRole: a known role or any other string."
         },
         "level": {
-          "enum": [
-            "categorical",
-            "ordinal",
-            "quantitative",
-            "temporal",
-            "identifier"
-          ]
+          "type": "string",
+          "minLength": 1,
+          "description": "categorical, ordinal, quantitative, temporal, identifier; an open enumeration"
         },
         "weightRole": {
-          "enum": [
-            "distance",
-            "similarity",
-            "capacity"
-          ]
+          "type": "string",
+          "minLength": 1,
+          "description": "distance or similarity; an open enumeration"
         },
         "signed": {
           "type": "boolean"
@@ -256,9 +282,99 @@
             },
             "pattern": {
               "type": "string",
-              "maxLength": 256
+              "maxLength": 1024,
+              "description": "An I-Regexp (RFC 9485), matched in linear time."
+            },
+            "onViolation": {
+              "enum": [
+                "report",
+                "reject-row",
+                "fail"
+              ]
             }
           }
+        },
+        "input": {
+          "type": "string",
+          "minLength": 1
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1,
+          "description": "For type date: iso8601 (default), epoch-ms, epoch-s."
+        },
+        "delimiter": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "derive": {
+          "type": "object",
+          "required": [
+            "from",
+            "transform"
+          ],
+          "properties": {
+            "from": {
+              "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+            },
+            "transform": {
+              "enum": [
+                "one-minus",
+                "reciprocal",
+                "neg-log"
+              ]
+            }
+          }
+        },
+        "term": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/httpsUrl"
+        },
+        "idNamespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "origin": {
+          "type": "object",
+          "required": [
+            "run",
+            "field"
+          ],
+          "properties": {
+            "run": {
+              "type": "string",
+              "minLength": 1
+            },
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "caveat": {
+              "enum": [
+                "estimated",
+                "missing"
+              ]
+            }
+          }
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
         }
       },
       "if": {
@@ -352,6 +468,13 @@
           "items": {
             "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
           }
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
         }
       }
     }

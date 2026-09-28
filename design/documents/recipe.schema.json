@@ -162,6 +162,9 @@
         },
         "maximum": {
           "type": "number"
+        },
+        "features": {
+          "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
         }
       }
     },
@@ -242,7 +245,6 @@
         {
           "enum": [
             "graph",
-            "visible",
             "largest-component"
           ]
         },
@@ -251,9 +253,16 @@
           "required": [
             "where"
           ],
+          "additionalProperties": false,
           "properties": {
             "where": {
               "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/expression"
+            },
+            "target": {
+              "enum": [
+                "node",
+                "edge"
+              ]
             },
             "args": {
               "type": "object"
@@ -263,17 +272,19 @@
         {
           "type": "object",
           "required": [
-            "neighbourhood"
+            "neighborhood"
           ],
+          "additionalProperties": false,
           "properties": {
-            "neighbourhood": {
+            "neighborhood": {
               "type": "object",
               "required": [
-                "of",
-                "hops"
+                "seeds",
+                "depth"
               ],
+              "additionalProperties": false,
               "properties": {
-                "of": {
+                "seeds": {
                   "oneOf": [
                     {
                       "$ref": "#/$defs/argumentRef"
@@ -283,7 +294,7 @@
                     }
                   ]
                 },
-                "hops": {
+                "depth": {
                   "oneOf": [
                     {
                       "type": "integer",
@@ -301,19 +312,21 @@
         {
           "type": "object",
           "required": [
-            "window"
+            "range"
           ],
+          "additionalProperties": false,
           "properties": {
-            "window": {
+            "range": {
               "type": "object",
               "required": [
-                "path"
+                "attribute"
               ],
+              "additionalProperties": false,
               "properties": {
-                "path": {
+                "attribute": {
                   "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
                 },
-                "from": {
+                "min": {
                   "oneOf": [
                     {
                       "type": [
@@ -326,7 +339,7 @@
                     }
                   ]
                 },
-                "to": {
+                "max": {
                   "oneOf": [
                     {
                       "type": [
@@ -348,6 +361,7 @@
           "required": [
             "define"
           ],
+          "additionalProperties": false,
           "properties": {
             "define": {
               "type": "object"
@@ -464,8 +478,13 @@
         },
         "precision": {
           "const": "f64"
+        },
+        "defaults": {
+          "type": "object",
+          "description": "The resolved defaults of the options the author did not set (recipe.md, Steps rule 3)."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "layoutSet": {
       "type": "object",
@@ -502,8 +521,13 @@
             "fresh",
             "positions"
           ]
+        },
+        "defaults": {
+          "type": "object",
+          "description": "The resolved defaults of the options the author did not set (recipe.md, Steps rule 3)."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "asId": {
       "type": "string",
@@ -563,7 +587,9 @@
     "engine": {
       "type": "object",
       "required": [
-        "element"
+        "element",
+        "algorithms",
+        "layout"
       ],
       "properties": {
         "element": {
@@ -578,7 +604,32 @@
         "plugins": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": "Catalogue key -> the plugin's declared version, null when it declares none."
+        },
+        "accelerator": {
+          "type": "object",
+          "required": [
+            "package",
+            "version"
+          ],
+          "properties": {
+            "package": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "backend": {
+              "type": "string"
+            },
+            "adapter": {
+              "type": "string"
+            }
           }
         }
       }
@@ -648,5 +699,16 @@
     {
       "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
     }
-  ]
+  ],
+  "dependentRequired": {
+    "doi": [
+      "recipeVersion"
+    ],
+    "citation": [
+      "recipeVersion"
+    ],
+    "source": [
+      "recipeVersion"
+    ]
+  }
 }

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphty.app/schema/documents/graphty-view/v1.json",
+  "title": "graphty view document, version 1",
+  "description": "Normative for structure. Behaviour is specified in view-preset.md. Validation is applied per view: a view that fails is reported and skipped; only a failure of the top level refuses the document.",
+  "type": "object",
+  "required": ["kind", "version", "views"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "graphty-view" },
+    "version": { "const": 1 },
+    "name": { "type": "string" },
+    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "initial": { "type": "string", "minLength": 1, "description": "The id of the view to apply when the document is opened." },
+    "views": { "type": "array", "items": { "$ref": "#/$defs/view" } },
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+    }
+  },
+  "$defs": {
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "vec2": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "view": {
+      "type": "object",
+      "required": ["id", "name"],
+      "anyOf": [{ "required": ["camera"] }, { "required": ["framing"] }],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "caption": { "type": "string" },
+        "mode": { "enum": ["2d", "3d", "vr", "ar"] },
+        "camera": { "$ref": "#/$defs/camera" },
+        "framing": { "$ref": "#/$defs/framing" },
+        "extensions": { "type": "object" }
+      }
+    },
+    "camera": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["projection", "position", "target"],
+          "properties": {
+            "projection": { "const": "perspective" },
+            "position": { "$ref": "#/$defs/vec3" },
+            "target": { "$ref": "#/$defs/vec3" },
+            "up": { "$ref": "#/$defs/vec3" },
+            "fovDeg": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 180 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["projection", "center", "height"],
+          "properties": {
+            "projection": { "const": "orthographic" },
+            "center": { "$ref": "#/$defs/vec2" },
+            "height": { "type": "number", "exclusiveMinimum": 0 },
+            "rotationDeg": { "type": "number" }
+          }
+        }
+      ]
+    },
+    "framing": {
+      "type": "object",
+      "required": ["cameraView"],
+      "properties": {
+        "cameraView": { "type": "string", "minLength": 1 },
+        "options": { "type": "object" },
+        "fit": {
+          "oneOf": [
+            { "enum": ["visible", "graph", "selection", "largest-component"] },
+            { "type": "object", "required": ["set"], "properties": { "set": { "type": "string" } } }
+          ]
+        },
+        "paddingPercent": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    }
+  }
+}

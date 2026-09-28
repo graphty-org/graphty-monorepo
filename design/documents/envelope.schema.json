@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphty.app/schema/documents/graphty-document/v1.json",
+  "title": "graphty document envelope, version 1",
+  "description": "Normative for structure. Behaviour is specified in envelope.md. Each member is validated against its own kind's schema, independently: a member that fails is reported and skipped; only a failure of the envelope's own top level refuses the document.",
+  "type": "object",
+  "required": ["kind", "version", "createdAt"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "graphty-document" },
+    "version": { "const": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
+    "data": { "$ref": "#/$defs/data" },
+    "dataPlan": { "$ref": "https://graphty.app/schema/documents/graphty-data-plan/v1.json" },
+    "style": { "$ref": "https://graphty.app/schema/documents/graphty-style/v1.json" },
+    "recipe": { "$ref": "https://graphty.app/schema/documents/graphty-recipe/v1.json" },
+    "view": { "$ref": "https://graphty.app/schema/documents/graphty-view/v1.json" },
+    "annotations": { "$ref": "https://graphty.app/schema/documents/graphty-annotations/v1.json" },
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+    }
+  },
+  "$defs": {
+    "data": {
+      "type": "object",
+      "required": ["format"],
+      "oneOf": [
+        { "required": ["inline"] },
+        { "required": ["url"] },
+        { "required": ["part"] }
+      ],
+      "properties": {
+        "format": { "type": "string", "minLength": 1, "description": "A format id from the element's format catalogue, or graph-format for the binary wire form inside a zip container." },
+        "inline": { "type": "string", "description": "The whole data file as text." },
+        "url": { "type": "string", "format": "uri-reference" },
+        "part": { "type": "string", "minLength": 1, "description": "A path inside the zip container." },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "options": { "type": "object", "description": "Format-specific import options, for example a JSON dialect or a CSV delimiter." }
+      }
+    }
+  }
+}

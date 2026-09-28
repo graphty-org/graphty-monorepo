@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphty.app/schema/documents/graphty-style/v1.json",
+  "title": "graphty style document, version 1",
+  "description": "Normative for structure. Behaviour is specified in style.md. Validation is applied per layer: a layer that fails is added disabled with its reason; only a failure of the top level refuses the document.",
+  "type": "object",
+  "required": ["version", "layers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "graphty-style", "description": "Optional in version 1 because graphty-element 2.x writes the document without it. Writers conforming to this specification MUST write it." },
+    "version": { "const": 1 },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "fingerprint": { "$ref": "#/$defs/fingerprint" },
+    "generator": { "$ref": "#/$defs/generator" },
+    "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } },
+    "palettes": { "type": "array", "items": { "$ref": "#/$defs/palette" } },
+    "extensions": { "$ref": "#/$defs/extensions" }
+  },
+  "$defs": {
+    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+    },
+    "path": { "type": "string", "minLength": 1, "description": "A JMESPath field path over the expression root {data, results}." },
+    "runId": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "nodeId": { "type": ["string", "number"] },
+    "layer": {
+      "type": "object",
+      "required": ["name", "selector"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "target": { "enum": ["node", "edge"] },
+        "kind": { "enum": ["base", "encoding", "highlight", "custom"] },
+        "selector": { "$ref": "#/$defs/selector" },
+        "set": { "$ref": "#/$defs/staticStyle" },
+        "encode": { "$ref": "#/$defs/encoding" },
+        "source": { "$ref": "#/$defs/layerSource" },
+        "enabled": { "type": "boolean" },
+        "userData": { "type": "object" },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "selector": {
+      "type": "object",
+      "required": ["match"],
+      "properties": { "match": { "type": "string" } },
+      "oneOf": [
+        { "properties": { "match": { "const": "expression" }, "where": { "type": "string" } }, "required": ["where"] },
+        { "properties": { "match": { "const": "has" }, "path": { "$ref": "#/$defs/path" } }, "required": ["path"] },
+        { "properties": { "match": { "const": "ids" }, "nodes": { "type": "array", "items": { "$ref": "#/$defs/nodeId" } }, "edges": { "type": "array" } } },
+        { "properties": { "match": { "const": "top" }, "path": { "$ref": "#/$defs/path" }, "n": { "type": "integer", "minimum": 1 } }, "required": ["path", "n"] },
+        { "properties": { "match": { "const": "everything" } } },
+        { "properties": { "match": { "const": "member" }, "of": { "$ref": "#/$defs/scope" } }, "required": ["of"] }
+      ]
+    },
+    "scope": {
+      "oneOf": [
+        { "enum": ["visible", "graph", "selection", "largest-component"] },
+        { "type": "object", "required": ["set"], "properties": { "set": { "type": "string" } } },
+        { "type": "object", "required": ["where"], "properties": { "where": { "type": "string" } } },
+        { "type": "object", "required": ["nodes"], "properties": { "nodes": { "type": "array", "items": { "$ref": "#/$defs/nodeId" } } } },
+        { "type": "object", "required": ["define"], "properties": { "define": { "type": "object" } } }
+      ]
+    },
+    "layerSource": {
+      "type": "object",
+      "required": ["by"],
+      "oneOf": [
+        { "properties": { "by": { "const": "run" }, "runId": { "$ref": "#/$defs/runId" }, "algorithm": { "type": "string" }, "params": { "type": "object" } }, "required": ["runId", "algorithm", "params"] },
+        { "properties": { "by": { "const": "user" } } },
+        { "properties": { "by": { "const": "template" }, "templateId": { "type": "string" } }, "required": ["templateId"] },
+        { "properties": { "by": { "const": "plugin" }, "name": { "type": "string" } }, "required": ["name"] }
+      ]
+    },
+    "rgba": {
+      "type": "object",
+      "required": ["r", "g", "b", "a"],
+      "properties": {
+        "r": { "type": "number", "minimum": 0, "maximum": 255 },
+        "g": { "type": "number", "minimum": 0, "maximum": 255 },
+        "b": { "type": "number", "minimum": 0, "maximum": 255 },
+        "a": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "color": { "oneOf": [{ "type": "string", "minLength": 1 }, { "$ref": "#/$defs/rgba" }] },
+    "labelStyle": { "type": "object" },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "nonNegative": { "type": "number", "minimum": 0 },
+    "staticStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "node.color": { "$ref": "#/$defs/color" },
+        "node.size": { "$ref": "#/$defs/nonNegative" },
+        "node.shape": { "type": "string" },
+        "node.label": { "type": "string" },
+        "node.labelStyle": { "$ref": "#/$defs/labelStyle" },
+        "node.tooltip": { "type": "string" },
+        "node.tooltipStyle": { "$ref": "#/$defs/labelStyle" },
+        "node.opacity": { "$ref": "#/$defs/unit" },
+        "node.outline": { "$ref": "#/$defs/color" },
+        "node.glow": { "$ref": "#/$defs/color" },
+        "node.glowStrength": { "$ref": "#/$defs/nonNegative" },
+        "node.wireframe": { "type": "boolean" },
+        "node.flat": { "type": "boolean" },
+        "edge.color": { "$ref": "#/$defs/color" },
+        "edge.width": { "$ref": "#/$defs/nonNegative" },
+        "edge.opacity": { "$ref": "#/$defs/unit" },
+        "edge.style": { "type": "string" },
+        "edge.patternCount": { "type": "integer", "minimum": 0 },
+        "edge.curvature": { "type": "boolean" },
+        "edge.arrowHead": { "type": "string" },
+        "edge.arrowHeadSize": { "$ref": "#/$defs/nonNegative" },
+        "edge.arrowHeadColor": { "$ref": "#/$defs/color" },
+        "edge.arrowHeadOpacity": { "$ref": "#/$defs/unit" },
+        "edge.arrowHeadText": { "type": "string" },
+        "edge.arrowHeadTextStyle": { "$ref": "#/$defs/labelStyle" },
+        "edge.arrowTail": { "type": "string" },
+        "edge.arrowTailSize": { "$ref": "#/$defs/nonNegative" },
+        "edge.arrowTailColor": { "$ref": "#/$defs/color" },
+        "edge.arrowTailOpacity": { "$ref": "#/$defs/unit" },
+        "edge.arrowTailText": { "type": "string" },
+        "edge.arrowTailTextStyle": { "$ref": "#/$defs/labelStyle" },
+        "edge.animationSpeed": { "$ref": "#/$defs/nonNegative" },
+        "edge.label": { "type": "string" },
+        "edge.labelStyle": { "$ref": "#/$defs/labelStyle" }
+      }
+    },
+    "binding": {
+      "oneOf": [
+        { "type": "object", "required": ["value"], "properties": { "value": {} } },
+        {
+          "type": "object",
+          "required": ["by"],
+          "properties": {
+            "by": { "$ref": "#/$defs/path" },
+            "scale": { "type": "string" },
+            "palette": { "type": "string" },
+            "domain": { "oneOf": [{ "const": "auto" }, { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }] },
+            "clamp": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "range": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "map": { "type": "object", "additionalProperties": { "type": ["string", "number"] } },
+            "other": { "type": "object", "required": ["threshold", "value"], "properties": { "threshold": { "type": "number" }, "value": { "type": ["string", "number"] } } },
+            "overflow": { "enum": ["other", "shape", "extend"] },
+            "missing": { "oneOf": [{ "const": "skip" }, { "type": "object", "required": ["value"], "properties": { "value": { "type": ["string", "number"] } } }] },
+            "reverse": { "type": "boolean" },
+            "midpoint": { "type": "number" },
+            "bins": { "type": "integer", "minimum": 1 },
+            "exponent": { "type": "number" }
+          }
+        }
+      ]
+    },
+    "encoding": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/channelName" },
+      "additionalProperties": { "$ref": "#/$defs/binding" }
+    },
+    "channelName": {
+      "enum": [
+        "node.color", "node.size", "node.shape", "node.label", "node.labelStyle", "node.tooltip",
+        "node.tooltipStyle", "node.opacity", "node.outline", "node.glow", "node.glowStrength",
+        "node.wireframe", "node.flat",
+        "edge.color", "edge.width", "edge.opacity", "edge.style", "edge.patternCount", "edge.curvature",
+        "edge.arrowHead", "edge.arrowHeadSize", "edge.arrowHeadColor", "edge.arrowHeadOpacity",
+        "edge.arrowHeadText", "edge.arrowHeadTextStyle", "edge.arrowTail", "edge.arrowTailSize",
+        "edge.arrowTailColor", "edge.arrowTailOpacity", "edge.arrowTailText", "edge.arrowTailTextStyle",
+        "edge.animationSpeed", "edge.label", "edge.labelStyle"
+      ]
+    },
+    "palette": {
+      "type": "object",
+      "required": ["id", "plainName", "kind", "colors", "capacity", "colorblindSafe"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "plainName": { "type": "string" },
+        "kind": { "enum": ["sequential", "diverging", "categorical"] },
+        "colors": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+        "capacity": { "type": ["integer", "null"], "minimum": 1 },
+        "colorblindSafe": { "type": "array", "items": { "enum": ["deuteranopia", "protanopia", "tritanopia"] } }
+      }
+    }
+  }
+}

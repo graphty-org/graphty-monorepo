@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphty.app/schema/documents/graphty-data-plan/v1.json",
+  "title": "graphty data plan, version 1",
+  "description": "Normative for structure. Behaviour is specified in data-plan.md. Validation is applied per attribute declaration: one that fails is reported and ignored; only a failure of the top level refuses the document.",
+  "type": "object",
+  "required": ["kind", "version"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "graphty-data-plan" },
+    "version": { "const": 1 },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "format": { "type": "string", "description": "The format id this plan was written for, from the element's format catalogue. Advisory." },
+    "knownFields": {
+      "type": "object",
+      "properties": {
+        "nodeIdPath": { "$ref": "#/$defs/fieldPath" },
+        "nodeLabelPath": { "$ref": "#/$defs/nullableFieldPath" },
+        "nodeWeightPath": { "$ref": "#/$defs/nullableFieldPath" },
+        "nodeTimePath": { "$ref": "#/$defs/nullableFieldPath" },
+        "nodeTypePath": { "$ref": "#/$defs/nullableFieldPath" },
+        "edgeSrcIdPath": { "$ref": "#/$defs/nullableFieldPath" },
+        "edgeDstIdPath": { "$ref": "#/$defs/nullableFieldPath" },
+        "edgeIdPath": { "$ref": "#/$defs/nullableFieldPath" },
+        "edgeWeightPath": { "$ref": "#/$defs/nullableFieldPath" },
+        "edgeTimePath": { "$ref": "#/$defs/nullableFieldPath" }
+      }
+    },
+    "directed": { "oneOf": [{ "type": "boolean" }, { "const": "auto" }] },
+    "repeatedEdges": { "enum": ["keep", "error", "first", "last", "sum", "min", "max"] },
+    "idCoercion": { "enum": ["canonical", "keep"] },
+    "positionScale": { "type": "number", "exclusiveMinimum": 0 },
+    "attributes": { "type": "array", "items": { "$ref": "#/$defs/attribute" } },
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+    }
+  },
+  "$defs": {
+    "fieldPath": { "type": "string", "minLength": 1 },
+    "nullableFieldPath": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "attribute": {
+      "type": "object",
+      "required": ["element", "name"],
+      "properties": {
+        "element": { "enum": ["node", "edge"] },
+        "name": { "type": "string", "minLength": 1 },
+        "rename": { "type": "string", "minLength": 1 },
+        "include": { "type": "boolean" },
+        "type": { "enum": ["string", "number", "integer", "boolean", "date", "list"] },
+        "role": { "type": "string", "minLength": 1, "description": "A graph-format ColumnRole: a known role or any other string." },
+        "level": { "enum": ["categorical", "ordinal", "quantitative", "temporal", "identifier"] },
+        "weightRole": { "enum": ["distance", "similarity", "capacity"] },
+        "signed": { "type": "boolean" },
+        "missingValues": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
+        "extensions": { "type": "object" }
+      }
+    }
+  }
+}

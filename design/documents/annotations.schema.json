@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphty.app/schema/documents/graphty-annotations/v1.json",
+  "title": "graphty annotations, version 1",
+  "description": "Normative for structure. Behaviour is specified in annotations.md. Validation is applied per note: a note that fails is reported and kept aside; only a failure of the top level refuses the document.",
+  "type": "object",
+  "required": ["kind", "version", "notes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "graphty-annotations" },
+    "version": { "const": 1 },
+    "name": { "type": "string" },
+    "fingerprint": { "type": "string", "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "notes": { "type": "array", "items": { "$ref": "#/$defs/note" } },
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" }
+    }
+  },
+  "$defs": {
+    "nodeId": { "type": ["string", "number"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "edgeRef": {
+      "type": "object",
+      "anyOf": [{ "required": ["id"] }, { "required": ["source", "target"] }],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source": { "$ref": "#/$defs/nodeId" },
+        "target": { "$ref": "#/$defs/nodeId" },
+        "key": { "type": ["string", "number"] },
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "among": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "target": {
+      "oneOf": [
+        { "type": "object", "required": ["node"], "properties": { "node": { "$ref": "#/$defs/nodeId" }, "nodeType": { "type": "string" } } },
+        { "type": "object", "required": ["edge"], "properties": { "edge": { "$ref": "#/$defs/edgeRef" } } },
+        { "type": "object", "required": ["point"], "properties": { "point": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 } } },
+        { "type": "object", "required": ["graph"], "properties": { "graph": { "const": true } } },
+        { "type": "object", "required": ["run"], "properties": { "run": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" } } },
+        { "type": "object", "required": ["layer"], "properties": { "layer": { "type": "string", "minLength": 1 } } }
+      ]
+    },
+    "quote": {
+      "type": "object",
+      "required": ["path", "value"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "value": {},
+        "at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "note": {
+      "type": "object",
+      "required": ["id", "target", "text", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "target": { "$ref": "#/$defs/target" },
+        "text": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "author": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "quotes": { "type": "array", "items": { "$ref": "#/$defs/quote" } },
+        "cites": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" } },
+        "orphaned": {
+          "type": "object",
+          "required": ["since", "lastTarget"],
+          "properties": { "since": { "$ref": "#/$defs/timestamp" }, "lastTarget": { "type": "string" } }
+        },
+        "userData": { "type": "object" },
+        "extensions": { "type": "object" }
+      }
+    }
+  }
+}

@@ -1,13 +1,15 @@
 /**
- * The Fruchterman-Reingold loop as it stood before fruchtermanReingoldLayout ran on
- * indexed.fruchtermanReingold, kept as the oracle the simulation and the wrapper are tested against.
+ * The Fruchterman-Reingold loop as it stood before fruchtermanReingoldLayout ran on indexed.fruchtermanReingold.
+ * fruchtermanReingoldLayout still runs it for what the indexed code does not take (a dim other than 2 or 3, a
+ * negative or infinite k), so the positional signature keeps its behaviour until it is removed; the tests also use it
+ * as the oracle of the simulation and the wrapper.
  */
 
-import type { Graph, Node, PositionMap } from "../../src/types";
-import { getEdgesFromGraph,getNodesFromGraph } from "../../src/utils/graph";
-import { _processParams } from "../../src/utils/params";
-import { RandomNumberGenerator } from "../../src/utils/random";
-import { rescaleLayout } from "../../src/utils/rescale";
+import type { Graph, Node, PositionMap } from "../../types";
+import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
+import { _processParams } from "../../utils/params";
+import { RandomNumberGenerator } from "../../utils/random";
+import { rescaleLayout } from "../../utils/rescale";
 
 /**
  * Position nodes using Fruchterman-Reingold force-directed algorithm.

@@ -1,9 +1,16 @@
 import { fromEdgeArrays, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import { arfLayout, forceatlas2Layout, fruchtermanReingoldLayout, indexed, kamadaKawaiLayout } from "../../src";
+import {
+    arfLayout,
+    forceatlas2Layout,
+    fruchtermanReingoldLayout,
+    indexed,
+    kamadaKawaiLayout,
+    springLayout,
+} from "../../src";
+import { fruchtermanReingoldLayoutLegacy } from "../../src/layouts/force-directed/fruchterman-reingold-legacy";
 import { RandomNumberGenerator } from "../../src/utils/random";
-import { fruchtermanReingoldLayoutLegacy } from "../legacy/fruchterman-reingold";
 
 type NodeColumns = NonNullable<Parameters<typeof fromEdgeArrays>[0]["nodeColumns"]>;
 
@@ -159,6 +166,24 @@ describe("indexed.kamadaKawai", () => {
             assert.deepEqual(legacy[i], [r.positions[2 * i], r.positions[2 * i + 1]]);
         }
     });
+
+    it("lays kamadaKawaiLayout out in the dim it is given, 1 and 4 included, about the centre", () => {
+        const cycle = { nodes: () => [0, 1, 2, 3], edges: (): [number, number][] => [[0, 1], [1, 2], [2, 3], [3, 0]] };
+        for (const center of [[7], [7, 8, 9, 10]]) {
+            const out = kamadaKawaiLayout(cycle, null, null, "weight", 1, center, center.length);
+            for (let k = 0; k < center.length; k++) {
+                const mean = [0, 1, 2, 3].reduce((sum, i) => sum + out[i][k], 0) / 4;
+                assert.approximately(mean, center[k], 1e-9, `dim ${center.length} component ${k}`);
+            }
+            for (const i of [0, 1, 2, 3]) {
+                assert.equal(out[i].length, center.length);
+                assert.isTrue(out[i].every(Number.isFinite));
+            }
+            // opposite corners of the cycle end further apart than neighbours
+            const d = (a: number, b: number): number => Math.hypot(...out[a].map((v, k) => v - out[b][k]));
+            assert.isAbove(d(0, 2), d(0, 1));
+        }
+    });
 });
 
 describe("indexed.forceAtlas2", () => {
@@ -250,6 +275,35 @@ describe("indexed.fruchtermanReingold", () => {
                 assertClose(actual[i], expected[i], 1e-6, `dim ${dim} node ${i}`);
             }
         }
+    });
+
+    it("runs the ceiling of a fractional iteration count and none for a negative or non-finite one", () => {
+        const s = grid(3, 3);
+        const run = (iterations: number): number[] => Array.from(indexed.fruchtermanReingold(s, { iterations, seed: 1 }).positions);
+        assert.deepEqual(run(2.5), run(3));
+        assert.notDeepEqual(run(3), run(0));
+        for (const none of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+            assert.deepEqual(run(none), run(0), String(none));
+        }
+    });
+
+    it("keeps the legacy fruchtermanReingoldLayout and springLayout for a dim other than 2 or 3 and an unusual k", () => {
+        const graph = { nodes: () => [0, 1, 2, 3], edges: (): [number, number][] => [[0, 1], [1, 2], [2, 3], [3, 0]] };
+        for (const dim of [1, 4]) {
+            const center = Array.from({ length: dim }, (_, k) => k + 7);
+            const expected = fruchtermanReingoldLayoutLegacy(graph, null, null, null, 50, 1, center, dim, 3);
+            assert.deepEqual(fruchtermanReingoldLayout(graph, null, null, null, 50, 1, center, dim, 3), expected);
+            assert.deepEqual(springLayout(graph, null, null, null, 50, 1, center, dim, 3), expected);
+            assert.equal(expected[0].length, dim);
+        }
+        for (const k of [-1, Number.POSITIVE_INFINITY]) {
+            const expected = fruchtermanReingoldLayoutLegacy(graph, k, null, null, 50, 1, null, 2, 3);
+            assert.deepEqual(fruchtermanReingoldLayout(graph, k, null, null, 50, 1, null, 2, 3), expected, String(k));
+        }
+        assert.deepEqual(
+            fruchtermanReingoldLayout(graph, Number.NaN, null, null, 50, 1, null, 2, 3),
+            fruchtermanReingoldLayout(graph, null, null, null, 50, 1, null, 2, 3),
+        );
     });
 });
 

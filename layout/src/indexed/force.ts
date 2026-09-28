@@ -13,6 +13,15 @@ import { toLayoutSnapshot } from "../simulation/snapshot";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types";
 import { layoutDim, startColumn } from "./start";
 
+/**
+ * An iteration count as a whole number: the ceiling of a fraction, 0 for a negative or non-finite count.
+ * @param count - the option
+ * @returns the iterations to run
+ */
+function wholeCount(count: number): number {
+    return Number.isFinite(count) ? Math.max(0, Math.ceil(count)) : 0;
+}
+
 /** Options of indexed.forceAtlas2: the simulation's, without the stepping controls, plus a start. */
 export interface IndexedForceAtlas2Options extends Omit<ForceAtlas2Options, keyof SimulationOptions> {
     /** Start positions, `dim` values per node in index order; a row holding NaN is drawn from the seed. */
@@ -41,7 +50,7 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
     const { pos, scale = 1, center, maxIter = 100, ...rest } = options;
     const column = startColumn(s, pos, dim);
     seedPositions(s, column, options.seed ?? null, dim, 1, null, "fa2");
-    const iterations = Number.isFinite(maxIter) ? Math.max(0, Math.ceil(maxIter)) : 0;
+    const iterations = wholeCount(maxIter);
     const sim = new ForceAtlas2Simulation({ ...rest, dim, maxIter: Math.max(1, iterations), settleThreshold: 0 });
     sim.load(s, column);
     if (iterations > 0) {
@@ -53,7 +62,8 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
 }
 
 /**
- * Fruchterman-Reingold run for `iterations` iterations (default 50) with the linear cooling schedule. A row of
+ * Fruchterman-Reingold run for `iterations` iterations (default 50; a fractional count runs its ceiling, and 0, a
+ * negative or a non-finite count runs none) with the linear cooling schedule. A row of
  * `pos` holding NaN is drawn from the seed in [0, 1). Without pinned nodes the result is rescaled to `scale` about
  * `center`; with a `fixed` option or a role-`fixed` bool column it is left in the units of `pos`, so a pinned node
  * keeps exactly the coordinates it was given.
@@ -64,9 +74,10 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
 export function fruchtermanReingold(g: GraphSnapshot, options: IndexedFruchtermanReingoldOptions = {}): LayoutResult {
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
-    const { pos, scale = 1, center, iterations = 50, ...rest } = options;
+    const { pos, scale = 1, center, iterations: count = 50, ...rest } = options;
     const column = startColumn(s, pos, dim);
     seedPositions(s, column, options.seed ?? null, dim, 1, null, "fr");
+    const iterations = wholeCount(count);
     const sim = new FruchtermanReingoldSimulation({ ...rest, dim, iterations, settleThreshold: 0 });
     sim.load(s, column);
     if (iterations > 0) {

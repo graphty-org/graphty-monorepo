@@ -49,6 +49,7 @@ graphty-element 2.6.0, webgpu-graph-algorithms 0.6.10, graph-samples 0.1.5, grap
 | #490             | Instanced edges: `Edge.ts`, `Graph.ts`, `UpdateManager.ts`.                                                                                                                                                                                                                                                                                                                             | `element-data-layer-cleanup`                                                                                                                                                                   |
 | #513             | Force layout on an accelerator: `SimulationLayoutEngine.ts`, `LayoutManager.ts`, `catalog/layouts.ts`.                                                                                                                                                                                                                                                                                  | `element-static-layout-engines`                                                                                                                                                                |
 | #559             | visual-review baselines in Git LFS and one-story seeding. No baseline is committed on master yet. layout's Storybook is a visual-review project on the integration branch.                                                                                                                                                                                                              | every item with a visual change, through `visual-review-ready`                                                                                                                                 |
+| #519             | Settles graphty-element's Storybook and pixel tests. `design/visual-testing/plan.md` lets master seed graphty-element's visual-review baselines only after it merges.                                                                                                                                                                                                                   | `visual-review-ready` (the graphty-element half of its done-when)                                                                                                                              |
 | #549, #550, #552 | GPU all-pairs, label propagation plus triangles, betweenness. Only add GPU members that fit the existing seam.                                                                                                                                                                                                                                                                          | nothing here; routing them is issue #558 (section 8)                                                                                                                                           |
 
 ## 2. Design statements that later decisions or facts have superseded
@@ -263,8 +264,11 @@ and `indexed.labelPropagation` are reachable from the package barrel, `package-w
 `visual-review/projects.json` and the CI visual matrix, and have the owner seed baselines for
 graphty-element and layout on master. Until a project has baselines, an item with a visual change
 attaches before/after captures made with `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` to its
-commit instead. Done when: master has seeded baselines for both projects and a pull request that
-changes a layout story shows the diff in visual-review.
+commit instead. graphty-element cannot be seeded from master until PR #519 (which settles its
+Storybook and pixel tests) merges: until then `visual-review/projects.json` keeps its
+`seedFromMaster` false and the review page refuses master baselines for it
+(`design/visual-testing/plan.md`). Done when: master has seeded baselines for both projects and a
+pull request that changes a layout story shows the diff in visual-review.
 
 **absorb-open-element-prs.** After #553, #490 and #513 have merged to master, merge `origin/master`
 into the integration branch, resolving conflicts with this plan's edits to `STATUS.md`, the design

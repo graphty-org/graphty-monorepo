@@ -1,7 +1,7 @@
 /**
  * The k-core decomposition as it was before `kCoreDecomposition` delegated to
  * `indexed.kCoreDecomposition`, unchanged. The facade in `k-core.ts` still calls it for the graphs
- * the port cannot answer the same way (a directed graph, a self-loop, ids spelled alike), its facade
+ * the port cannot answer the same way (a directed graph, a self-loop, a NaN weight, ids spelled alike), its facade
  * test uses it as the oracle, and the other k-core functions read the graph through
  * `graphToAdjacencySet`.
  */

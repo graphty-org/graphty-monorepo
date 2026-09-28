@@ -1,7 +1,7 @@
 /**
  * Girvan-Newman as it was before `girvanNewman` delegated to `indexed.girvanNewman`, unchanged. The
- * facade in `girvan-newman.ts` still calls it for a graph with a self-loop or with ids spelled
- * alike, and its facade test uses it as the oracle.
+ * facade in `girvan-newman.ts` still calls it for a directed graph, a self-loop, a NaN weight or
+ * ids spelled alike, and its facade test uses it as the oracle.
  */
 
 import { Graph } from "../../core/graph.js";

@@ -66,8 +66,11 @@ Adamic-Adar functions, `calculateMCLModularity`, `spectralClustering`, `teraHAC`
 code. So do the randomised or differently ruled community functions -- `louvain` and `leiden` (the
 ports visit nodes in another seeded order, so they stop at other partitions), `labelPropagationAsync`
 (the synchronous port adds a swap guard the old loop lacks) and `labelPropagationSemiSupervised`
-(another random stream, and the port renumbers the seed labels) -- and the matching and isomorphism
-functions, which have no port. The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
+(another random stream, and the port renumbers the seed labels) -- `maximumBipartiteMatching` and
+`greedyBipartiteMatching` (a matching read off `indexed.bipartiteFlowNetwork` and `indexed.maxFlow`
+can pair other nodes than the old augmenting-path loop, which follows the order `bipartitePartition`
+lists each side in, and the greedy matching is by design not a maximum one) -- and `isGraphIsomorphic`
+and `findAllIsomorphisms`, which have no port. The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
 `test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
 replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts` as their test oracle.
 Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade

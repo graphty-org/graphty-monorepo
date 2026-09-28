@@ -347,6 +347,12 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         window.addEventListener("resize", handleViewportChange);
         window.addEventListener("scroll", handleViewportChange, true);
 
+        // A web font that finishes loading after the panel opened reflows the text beside its
+        // anchor ("Resolution" before an InfoCircle), which moves the anchor without resizing
+        // it, so neither observer fires and the panel stayed where the fallback font put it.
+        const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+        fonts?.addEventListener("loadingdone", schedule);
+
         return () => {
             if (frame !== 0) {
                 cancelAnimationFrame(frame);
@@ -355,6 +361,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             moveObserver.disconnect();
             window.removeEventListener("resize", handleViewportChange);
             window.removeEventListener("scroll", handleViewportChange, true);
+            fonts?.removeEventListener("loadingdone", schedule);
         };
     }, [isOpen, updatePosition, resolveAnchors, hasDragged]);
 

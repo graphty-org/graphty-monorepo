@@ -5,6 +5,7 @@ import React from "react";
 import { InfoCircle, PANEL_GRID, PANEL_INK } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { waitForSettledLayout } from "../../helpers/settled";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise the
 // exports a consumer installs.
@@ -111,7 +112,10 @@ export const States: Story = {
             </Group>
         </Stack>
     ),
-    play: ({ canvasElement }) => expectStatesApply(canvasElement),
+    play: async ({ canvasElement }) => {
+        await waitForSettledLayout(canvasElement, "[data-testid='popout-panel']");
+        await expectStatesApply(canvasElement);
+    },
 };
 
 /** Where it lives: immediately after the name it explains, in a section header row. */

@@ -45,6 +45,7 @@ import { PopoutPanel } from "../../../src/components/popout/PopoutPanel";
 import { PopoutTrigger } from "../../../src/components/popout/PopoutTrigger";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { waitForSettledLayout } from "../../helpers/settled";
 
 // Components come from "../../../src", the package's published entry point, so a story stops
 // compiling if an export is dropped. The parts reached as `Popout.Panel`, `Popout.Trigger` and
@@ -372,6 +373,12 @@ export const LightPopoverSurfaces: Story = {
             </Column>
         </Group>
     ),
+    play: async ({ canvasElement }) => {
+        await waitForSettledLayout(
+            canvasElement,
+            "[data-testid='popout-panel'], .mantine-Popover-dropdown, .mantine-HoverCard-dropdown",
+        );
+    },
 };
 
 /** The assertions for the default pop-out: ARIA wiring, the drag handle, close and reopen. */

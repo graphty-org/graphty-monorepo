@@ -1,5 +1,6 @@
 import { Box, ScrollArea, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, waitFor } from "@storybook/test";
 
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -72,4 +73,14 @@ export const States: Story = {
             ))}
         </Box>
     ),
+    play: async ({ canvasElement }) => {
+        // Mantine measures the scroller with a ResizeObserver and draws the thumb on the animation
+        // frame after that, so the story is not finished until the held-visible thumb is there.
+        // Without this wait a screenshot showed the left scroller with or without its thumb.
+        await waitFor(async () => {
+            const thumb = canvasElement.querySelector<HTMLElement>(".mantine-ScrollArea-thumb");
+            await expect(thumb).not.toBeNull();
+            await expect(thumb?.getBoundingClientRect().height).toBeGreaterThan(0);
+        });
+    },
 };

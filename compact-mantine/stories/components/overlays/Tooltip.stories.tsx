@@ -4,6 +4,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { TooltipShortcut, UiGlyph } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { waitForSettledLayout } from "../../helpers/settled";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and Chromatic.
@@ -157,6 +158,7 @@ export const States: Story = {
         </Group>
     ),
     play: async ({ canvasElement }) => {
+        await waitForSettledLayout(canvasElement, ".mantine-Tooltip-tooltip");
         // Every cell holds its tooltip open, drawn on the dark tooltip surface.
         const tips = [...canvasElement.querySelectorAll<HTMLElement>(".mantine-Tooltip-tooltip")];
         await expect(tips).toHaveLength(5);

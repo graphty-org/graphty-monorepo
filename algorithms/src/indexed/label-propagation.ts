@@ -33,7 +33,7 @@ const EPOCH_LIMIT = 0x7fffffff;
  * @param seed - Generator seed; only its low 32 bits are used
  * @returns The generator
  */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
     let a = seed >>> 0;
     return () => {
         a = (a + 0x6d2b79f5) | 0;

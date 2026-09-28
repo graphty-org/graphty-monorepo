@@ -103,6 +103,13 @@ export type { DegreeCentralityOptions } from "./indexed/degree.js";
 export type { DeltaPageRankComputeOptions, DeltaPageRankEngineOptions } from "./indexed/delta-pagerank.js";
 export type { DfsOptions, DfsResult } from "./indexed/dfs.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
+// Aliased: the flat MaxFlowResult and MinCutResult name the legacy flow functions' types.
+export type {
+    BipartiteFlowNetwork as IndexedBipartiteFlowNetwork,
+    MaxFlowOptions as IndexedMaxFlowOptions,
+    MaxFlowResult as IndexedMaxFlowResult,
+    MinCutResult as IndexedMinCutResult,
+} from "./indexed/flow.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
 // option types one capital letter apart in the same barrel is a trap, not a convenience.
@@ -122,6 +129,10 @@ export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,
 } from "./indexed/louvain.js";
+export type {
+    KargerOptions as IndexedKargerOptions,
+    StoerWagnerOptions as IndexedStoerWagnerOptions,
+} from "./indexed/min-cut.js";
 export type { MstOptions, MstResult, PrimOptions, PrimResult } from "./indexed/mst.js";
 export type { CondensationResult } from "./indexed/scc.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).

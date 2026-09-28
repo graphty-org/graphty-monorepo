@@ -24,10 +24,16 @@ import type {
     IndexedApspOptions,
     IndexedApspResult,
     IndexedBellmanFordResult,
+    IndexedBipartiteFlowNetwork,
     IndexedEigenvectorOptions,
     IndexedEigenvectorResult,
+    IndexedKargerOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    IndexedMaxFlowOptions,
+    IndexedMaxFlowResult,
+    IndexedMinCutResult,
+    IndexedStoerWagnerOptions,
     LabelResult,
     PathOptions,
     PathResult,
@@ -191,5 +197,21 @@ describe("indexed delta PageRank exports", () => {
             expect(scores[0]).toBeCloseTo(0.5, 6);
             expect(scores[1]).toBeCloseTo(0.5, 6);
         }
+    });
+});
+
+describe("indexed flow and cut exports", () => {
+    it("reaches the flow and cut family and its flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const network: IndexedBipartiteFlowNetwork = pkg.indexed.bipartiteFlowNetwork(["a"], ["x"], [["a", "x"]]);
+        const options: IndexedMaxFlowOptions = { algorithm: "ford-fulkerson" };
+        const flow: IndexedMaxFlowResult = pkg.indexed.maxFlow(network.snapshot, network.source, network.sink, options);
+        expect(flow.maxFlow).toBe(1);
+        const cut: IndexedMinCutResult = pkg.indexed.minSTCut(network.snapshot, network.source, network.sink);
+        expect(cut.cutValue).toBe(1);
+        const sw: IndexedStoerWagnerOptions = {};
+        expect(pkg.indexed.stoerWagner(network.snapshot, sw).cutValue).toBe(1);
+        const karger: IndexedKargerOptions = { iterations: 3, randomSeed: 1 };
+        expect(pkg.indexed.kargerMinCut(network.snapshot, karger).cutValue).toBe(1);
     });
 });

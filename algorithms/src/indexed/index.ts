@@ -45,11 +45,21 @@ export {
 export { depthFirstSearch, type DfsOptions, type DfsResult, hasCycle, topologicalSort } from "./dfs.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 export { eigenvectorCentrality, type EigenvectorOptions, type EigenvectorResult } from "./eigenvector.js";
+export {
+    type BipartiteFlowNetwork,
+    bipartiteFlowNetwork,
+    maxFlow,
+    type MaxFlowOptions,
+    type MaxFlowResult,
+    type MinCutResult,
+    minSTCut,
+} from "./flow.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
+export { kargerMinCut, type KargerOptions, stoerWagner, type StoerWagnerOptions } from "./min-cut.js";
 export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions, type PrimResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult, personalizedPageRank } from "./pagerank.js";
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";

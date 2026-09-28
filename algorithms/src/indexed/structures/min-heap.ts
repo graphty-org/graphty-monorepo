@@ -11,13 +11,18 @@ export class IndexedMinHeap {
     private readonly heap: U32; // slot -> node
     private readonly slot: U32; // node -> slot, INVALID_INDEX when absent
     private readonly key: F64; // node -> key
+    private readonly tieBreakByIndex: boolean;
     private size = 0;
 
     /**
      * Create an empty heap over node indices in `[0, capacity)`.
      * @param capacity - The number of distinct node indices the heap may hold
+     * @param tieBreakByIndex - When true, of two equal keys the lower node index pops first, so
+     * the pop order is fully determined by the keys; when false (the default) equal keys pop in
+     * an order that depends on the push history
      */
-    constructor(capacity: number) {
+    constructor(capacity: number, tieBreakByIndex = false) {
+        this.tieBreakByIndex = tieBreakByIndex;
         this.heap = new Uint32Array(capacity);
         this.slot = new Uint32Array(capacity).fill(INVALID_INDEX);
         this.key = new Float64Array(capacity);
@@ -109,14 +114,25 @@ export class IndexedMinHeap {
         return top;
     }
 
+    /**
+     * Whether node `a` pops before node `b`.
+     * @param a - A node index in the heap
+     * @param b - A node index in the heap
+     * @returns True when a's key is smaller, or equal with the tie-break on and a lower index
+     */
+    private before(a: number, b: number): boolean {
+        const ka = this.key[a];
+        const kb = this.key[b];
+        return ka < kb || (this.tieBreakByIndex && ka === kb && a < b);
+    }
+
     private siftUp(from: number): void {
         let at = from;
         const node = this.heap[at];
-        const key = this.key[node];
         while (at > 0) {
             const parent = (at - 1) >> 1;
             const parentNode = this.heap[parent];
-            if (this.key[parentNode] <= key) {
+            if (!this.before(node, parentNode)) {
                 break;
             }
             this.heap[at] = parentNode;
@@ -130,16 +146,15 @@ export class IndexedMinHeap {
     private siftDown(from: number): void {
         let at = from;
         const node = this.heap[at];
-        const key = this.key[node];
         for (;;) {
             const left = 2 * at + 1;
             if (left >= this.size) {
                 break;
             }
             const right = left + 1;
-            const child = right < this.size && this.key[this.heap[right]] < this.key[this.heap[left]] ? right : left;
+            const child = right < this.size && this.before(this.heap[right], this.heap[left]) ? right : left;
             const childNode = this.heap[child];
-            if (key <= this.key[childNode]) {
+            if (!this.before(childNode, node)) {
                 break;
             }
             this.heap[at] = childNode;

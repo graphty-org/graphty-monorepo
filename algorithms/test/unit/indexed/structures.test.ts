@@ -209,6 +209,19 @@ describe("IndexedMaxHeap", () => {
     it("is usable at capacity zero", () => {
         expect(new IndexedMaxHeap(0).isEmpty()).toBe(true);
     });
+
+    it("pops equal keys lowest index first, whatever the push order", () => {
+        const heap = new IndexedMaxHeap(6);
+        for (const node of [5, 3, 0, 4, 1, 2]) {
+            heap.push(node, node % 2 === 0 ? 7 : 1);
+        }
+        heap.pushOrIncrease(5, 7); // now ties with 0, 2 and 4
+        const popped: number[] = [];
+        while (!heap.isEmpty()) {
+            popped.push(heap.pop());
+        }
+        expect(popped).toEqual([0, 2, 4, 5, 1, 3]);
+    });
 });
 
 describe("RingQueue", () => {

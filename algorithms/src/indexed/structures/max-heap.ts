@@ -4,7 +4,9 @@ import { IndexedMinHeap } from "./min-heap.js";
  * A binary max-heap over node indices with O(log n) increase-key: an {@link IndexedMinHeap} over
  * negated keys. Negation is exact in f64, so keys come back bit-for-bit. Stoer-Wagner's
  * maximum-adjacency ordering is the caller it exists for: every node starts at 0 and gains the
- * weight of each edge to the growing set, `pushOrIncrease(v, keyOf(v) + w)`.
+ * weight of each edge to the growing set, `pushOrIncrease(v, keyOf(v) + w)`. Of two equal keys the
+ * lower node index pops first, which is the order the legacy Stoer-Wagner scan picks in.
+ * @public
  */
 export class IndexedMaxHeap {
     private readonly min: IndexedMinHeap;
@@ -14,7 +16,7 @@ export class IndexedMaxHeap {
      * @param capacity - The number of distinct node indices the heap may hold
      */
     constructor(capacity: number) {
-        this.min = new IndexedMinHeap(capacity);
+        this.min = new IndexedMinHeap(capacity, true);
     }
 
     /**

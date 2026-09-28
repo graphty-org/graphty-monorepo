@@ -134,14 +134,18 @@ describe("indexed.girvanNewman", () => {
         const r = girvanNewman(s);
         expect(r.levels.map((l) => [...l])).toEqual([[0, 1]]);
         expect([...r.modularity]).toEqual([0]);
-        const empty = girvanNewman(new GraphBuilder({ directed: false }).freeze());
+        const none = new GraphBuilder({ directed: false }).freeze({ checksum: true });
+        const empty = girvanNewman(none);
         expect(empty.levels.map((l) => [...l])).toEqual([[]]);
+        none.validate({ checksum: true });
         s.validate({ checksum: true });
     });
 
     it("rejects a directed snapshot", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b");
-        expect(() => girvanNewman(b.freeze())).toThrow("requires an undirected graph");
+        const s = b.freeze({ checksum: true });
+        expect(() => girvanNewman(s)).toThrow("requires an undirected graph");
+        s.validate({ checksum: true });
     });
 });

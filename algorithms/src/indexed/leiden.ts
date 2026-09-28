@@ -4,13 +4,21 @@ import { type LabelResult, withGroups } from "./components.js";
 import { exactEdgeWeights, mulberry32 } from "./label-propagation.js";
 import { modularity } from "./modularity.js";
 
-/** Options of the index-based Leiden, matching the legacy `leiden`. @public */
+/**
+ * Options of the index-based Leiden. The names and defaults are the legacy `leiden`'s, but
+ * `maxIterations` counts something else: see below.
+ * @public
+ */
 export interface LeidenOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Seed of the visit orders; default 42. */
     readonly randomSeed?: number | undefined;
-    /** Cap on whole passes of the algorithm over the original graph; default 100. */
+    /**
+     * Cap on whole passes over the original graph, each running as many levels as it needs; default
+     * 100. The legacy `leiden` caps levels instead, so its `maxIterations: 1` is one level where
+     * this is one full pass. The result's `iterations` counts levels.
+     */
     readonly maxIterations?: number | undefined;
     /** Stop once a pass improves modularity by no more than this; default 1e-7. */
     readonly threshold?: number | undefined;

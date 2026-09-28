@@ -70,6 +70,27 @@ function hasVotingArc(s: GraphSnapshot, weights: NumericVector | null): boolean 
 }
 
 /**
+ * Whether every node not held fixed holds a label at the largest vote among its neighbours (or has
+ * no neighbour that votes).
+ * @param tally - A tally over the voting rows
+ * @param label - The label of every node
+ * @param fixed - 1 for a node held at its label, or null when none is
+ * @returns True when no free node would move
+ */
+function allDominant(tally: Tally, label: U32, fixed: Uint8Array | null): boolean {
+    for (let u = 0; u < label.length; u++) {
+        if (fixed !== null && fixed[u] === 1) {
+            continue;
+        }
+        const max = tally.collect(u, label);
+        if (max !== 0 && tally.voteOf(label[u]) !== max) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * The per-arc weights of `view` that the votes use: the snapshot's exact f64 weights when it keeps
  * them (graph-format keeps a role-"weight" f64 edge column whenever some weight is not f32-exact),
  * gathered through arcToEdge; otherwise the view's own f32 arc array. Voting on the f32 values would
@@ -405,8 +426,9 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
  * not kept: read a seed's community through `labels[seedNode]`. With no seed at all this is
  * `labelPropagation` with the same seed and options, bit for bit.
  *
- * `converged` is true when the work queue emptied: every unseeded node's label is dominant among
- * its neighbours. Seeded nodes are not held to that.
+ * `converged` is true when the work queue emptied, or when `maxIterations` is 0 and the starting
+ * labels already are dominant: every unseeded node's label is dominant among its neighbours.
+ * Seeded nodes are not held to that.
  * @param s - Any snapshot
  * @param seeds - One entry per node: its fixed label, any value but `INVALID_INDEX`, or
  *   `INVALID_INDEX` for a node free to move
@@ -449,8 +471,11 @@ export function labelPropagationSemiSupervised(
         fixed[u] = 1;
     }
     const { visits, size } = flpa(s, rows, weighted, label, fixed, maxIterations, randomSeed);
+    // At maxIterations 0 nothing was visited, so the queue says nothing: check the labels, as
+    // labelPropagation does.
+    const converged = size === 0 || (maxIterations === 0 && allDominant(new Tally(n, rows, weighted), label, fixed));
     const { labels, count } = renumberPartition(label);
-    return { ...withGroups(labels, count), iterations: n === 0 ? 0 : Math.ceil(visits / n), converged: size === 0 };
+    return { ...withGroups(labels, count), iterations: n === 0 ? 0 : Math.ceil(visits / n), converged };
 }
 
 /** Options of the synchronous label propagation. @public */
@@ -473,6 +498,11 @@ export interface SynchronousLabelPropagationOptions {
  * two passes in a row with no move, one up and one down -- then every node's label is dominant and
  * `converged` is true -- or after `maxIterations` passes.
  *
+ * The guard stops the single-edge swap but not every cycle: on some weighted graphs a node climbs to
+ * a higher label on each up pass and falls back on each down pass. When a pass returns the labels
+ * of two passes before, the run can only repeat itself, so it stops there with `converged` false;
+ * the result is then the same for any larger `maxIterations`. Longer cycles run to the cap.
+ *
  * This is what the legacy `labelPropagationAsync` does, despite its name, with the swap guard it
  * lacks and the tie rule applied to the finished tally rather than to a running one. Conventions
  * match {@link labelPropagation}: self-loops are skipped, parallel arcs summed, a directed snapshot
@@ -480,7 +510,7 @@ export interface SynchronousLabelPropagationOptions {
  * negative, NaN or infinite weight throws.
  * @param s - Any snapshot
  * @param options - Pass cap and weighting
- * @returns The partition, the passes run, and whether two quiet passes ended the run
+ * @returns The partition, the passes run, and whether every label ended dominant
  * @public
  */
 export function labelPropagationSynchronous(
@@ -496,12 +526,15 @@ export function labelPropagationSynchronous(
     const { touched, acc } = tally;
     let label = new Uint32Array(n);
     let next = new Uint32Array(n);
+    // The labels two passes back, to catch a period-2 cycle.
+    let before = new Uint32Array(n).fill(INVALID_INDEX);
     for (let i = 0; i < n; i++) {
         label[i] = i;
     }
     let passes = 0;
     let quiet = 0;
-    while (quiet < 2 && passes < maxIterations) {
+    let cycling = false;
+    while (quiet < 2 && passes < maxIterations && !cycling) {
         const up = passes % 2 === 0;
         passes++;
         let moved = false;
@@ -524,9 +557,26 @@ export function labelPropagationSynchronous(
                 moved = true;
             }
         }
-        [label, next] = [next, label];
+        cycling = moved && sameLabels(next, before);
+        [before, label, next] = [label, next, before];
         quiet = moved ? 0 : quiet + 1;
     }
+    const converged = quiet >= 2 || allDominant(tally, label, null);
     const { labels, count } = renumberPartition(label);
-    return { ...withGroups(labels, count), iterations: passes, converged: quiet >= 2 };
+    return { ...withGroups(labels, count), iterations: passes, converged };
+}
+
+/**
+ * Whether two label arrays are equal.
+ * @param a - Labels
+ * @param b - Labels of the same length
+ * @returns True when every entry matches
+ */
+function sameLabels(a: U32, b: U32): boolean {
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
 }

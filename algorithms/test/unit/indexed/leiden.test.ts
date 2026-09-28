@@ -154,9 +154,55 @@ describe("indexed.leiden", () => {
         s.validate({ checksum: true });
     });
 
+    it("merges a node in refinement only into a well-connected sub-community", () => {
+        // A 10-node graph where merging into a poorly connected sub-community (one that is weakly
+        // tied to the rest of its community) lands at modularity 0.1112 instead of 0.1304.
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < 10; i++) {
+            b.addNode(i);
+        }
+        const edges = [
+            [0, 3],
+            [0, 5],
+            [0, 6],
+            [0, 8],
+            [0, 9],
+            [1, 2],
+            [1, 4],
+            [1, 5],
+            [1, 7],
+            [1, 9],
+            [2, 4],
+            [2, 8],
+            [2, 9],
+            [3, 4],
+            [3, 5],
+            [3, 8],
+            [3, 9],
+            [4, 6],
+            [5, 7],
+            [5, 8],
+            [5, 9],
+            [6, 7],
+            [6, 8],
+            [7, 8],
+            [8, 9],
+        ];
+        for (const [u, v] of edges) {
+            b.addEdge(u, v);
+        }
+        const s = b.freeze({ checksum: true });
+        const r = leiden(s);
+        expect([...r.labels]).toEqual([0, 1, 1, 0, 1, 0, 2, 2, 0, 0]);
+        expect(r.modularity).toBeCloseTo(0.1304, 4);
+        expect(communitiesConnected(s, r.groups())).toBe(true);
+        s.validate({ checksum: true });
+    });
+
     it("answers an empty and an edgeless snapshot with singletons and modularity 0", () => {
         const empty = new GraphBuilder({ directed: false }).freeze({ checksum: true });
         expect(leiden(empty).count).toBe(0);
+        empty.validate({ checksum: true });
         const b = new GraphBuilder({ directed: false });
         for (const id of ["a", "b", "c"]) {
             b.addNode(id);
@@ -172,12 +218,16 @@ describe("indexed.leiden", () => {
     it("rejects a directed snapshot, a fractional seed and a negative weight", () => {
         const directed = new GraphBuilder({ directed: true });
         directed.addEdge("a", "b");
-        expect(() => leiden(directed.freeze())).toThrow("requires an undirected graph");
+        const d = directed.freeze({ checksum: true });
+        expect(() => leiden(d)).toThrow("requires an undirected graph");
+        d.validate({ checksum: true });
         const s = checksummedSnapshot(gnm(10, 20, false, 3));
         expect(() => leiden(s, { randomSeed: 0.5 })).toThrow(RangeError);
         const g = new Graph({ directed: false });
         g.addEdge("a", "b", -1);
-        expect(() => leiden(checksummedSnapshot(g))).toThrow(RangeError);
+        const negative = checksummedSnapshot(g);
+        expect(() => leiden(negative)).toThrow(RangeError);
+        negative.validate({ checksum: true });
         s.validate({ checksum: true });
     });
 });

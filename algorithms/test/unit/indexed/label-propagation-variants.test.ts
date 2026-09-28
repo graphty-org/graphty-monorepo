@@ -223,6 +223,17 @@ describe("indexed.labelPropagationSemiSupervised", () => {
         s.validate({ checksum: true });
     });
 
+    it("reports converged at maxIterations 0 when every starting label is already dominant, as labelPropagation does", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        b.addNode("b");
+        const s = b.freeze({ checksum: true });
+        expect(labelPropagation(s, { maxIterations: 0 }).converged).toBe(true);
+        expect(labelPropagationSemiSupervised(s, freeSeeds(2), { maxIterations: 0 }).converged).toBe(true);
+        expect(labelPropagationSynchronous(s, { maxIterations: 0 }).converged).toBe(true);
+        s.validate({ checksum: true });
+    });
+
     it("returns an empty partition on an empty snapshot", () => {
         const s = new GraphBuilder({ directed: false }).freeze({ checksum: true });
         const r = labelPropagationSemiSupervised(s, new Uint32Array(0));
@@ -355,6 +366,75 @@ describe("indexed.labelPropagationSynchronous", () => {
         expect(none.iterations).toBe(0);
         expect(none.converged).toBe(false);
         expect(none.count).toBe(6);
+        s.validate({ checksum: true });
+    });
+
+    it("keeps a label while it is dominant, even when a lower label ties it", () => {
+        // A path of four in the order 2-0-3-1: two pairs, each node's label tied with the other pair's.
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < 4; i++) {
+            b.addNode(i);
+        }
+        b.addEdge(0, 2);
+        b.addEdge(0, 3);
+        b.addEdge(1, 3);
+        const s = b.freeze({ checksum: true });
+        const r = labelPropagationSynchronous(s);
+        expect([...r.labels]).toEqual([0, 1, 0, 1]);
+        expect(r.converged).toBe(true);
+        s.validate({ checksum: true });
+    });
+
+    it("takes the lowest of the tied labels", () => {
+        // The centre of a two-leaf star sees labels 1 and 2 once each; after one pass it holds 1.
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < 3; i++) {
+            b.addNode(i);
+        }
+        b.addEdge(0, 1);
+        b.addEdge(0, 2);
+        const s = b.freeze({ checksum: true });
+        expect([...labelPropagationSynchronous(s, { maxIterations: 1 }).labels]).toEqual([0, 0, 1]);
+        s.validate({ checksum: true });
+    });
+
+    it("stops on a two-pass cycle with converged false, whatever the pass cap above it", () => {
+        // Nodes 6 and 8 climb on every up pass and fall back on every down pass.
+        const g = new Graph({ directed: false });
+        for (let i = 0; i < 9; i++) {
+            g.addNode(i);
+        }
+        const edges = [
+            [0, 2, 3],
+            [0, 3, 5],
+            [1, 8, 2],
+            [1, 7, 3],
+            [1, 5, 4],
+            [2, 4, 1],
+            [2, 8, 4],
+            [2, 3, 2],
+            [3, 4, 1],
+            [3, 7, 2],
+            [3, 8, 2],
+            [4, 6, 2],
+            [4, 7, 3],
+            [5, 8, 3],
+            [5, 6, 4],
+            [6, 8, 3],
+            [6, 7, 3],
+        ];
+        for (const [u, v, w] of edges) {
+            g.addEdge(u, v, w);
+        }
+        const s = checksummedSnapshot(g);
+        const r = labelPropagationSynchronous(s, { maxIterations: 1000 });
+        expect(r.converged).toBe(false);
+        expect(r.iterations).toBeLessThan(100);
+        for (const maxIterations of [997, 998, 999]) {
+            const again = labelPropagationSynchronous(s, { maxIterations });
+            expect([...again.labels]).toEqual([...r.labels]);
+            expect(again.iterations).toBe(r.iterations);
+        }
         s.validate({ checksum: true });
     });
 

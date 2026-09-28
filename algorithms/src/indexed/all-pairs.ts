@@ -1,5 +1,7 @@
-import type { F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
+import { type F64, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
+import { PathWalkError } from "../errors.js";
+import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
 /** The default `maxNodes`: the GPU kernel's ceiling at WebGPU's 128 MiB storage binding, floor(sqrt(2^27 / 4)). */
@@ -74,7 +76,9 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
     for (let a = 0; a < s.arcCount; a++) {
         const x = w[a];
         if (!Number.isFinite(x)) {
-            throw new RangeError(`allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite`);
+            throw new RangeError(
+                `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite`,
+            );
         }
         unit &&= x === 1;
         negative ||= x < 0;
@@ -91,9 +95,10 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
  * @param w - The weights in use, or `null` for 1 per arc
  * @param negative - Whether some weight is negative, so a cycle is possible
  * @param d - The n x n output, overwritten
+ * @param p - The n x n predecessor arcs, filled with INVALID_INDEX, or `null` when paths are off
  * @returns True when a negative cycle was found; `d` is then partial
  */
-function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: boolean, d: F64): boolean {
+function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: boolean, d: F64, p: U32 | null): boolean {
     const { nodeCount: n, rowPtr, colIdx } = s;
     d.fill(Infinity);
     for (let u = 0; u < n; u++) {
@@ -103,6 +108,9 @@ function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: bool
             const x = w === null ? 1 : w[a];
             if (v !== u && x < d[ur + v]) {
                 d[ur + v] = x;
+                if (p !== null) {
+                    p[ur + v] = a;
+                }
             }
         }
         d[ur + u] = 0;
@@ -115,10 +123,21 @@ function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: bool
             if (dik === Infinity) {
                 continue;
             }
-            for (let j = 0; j < n; j++) {
-                const via = dik + d[kr + j];
-                if (via < d[ir + j]) {
-                    d[ir + j] = via;
+            // two copies of the j loop so the common no-paths sweep carries no per-cell branch
+            if (p === null) {
+                for (let j = 0; j < n; j++) {
+                    const via = dik + d[kr + j];
+                    if (via < d[ir + j]) {
+                        d[ir + j] = via;
+                    }
+                }
+            } else {
+                for (let j = 0; j < n; j++) {
+                    const via = dik + d[kr + j];
+                    if (via < d[ir + j]) {
+                        d[ir + j] = via;
+                        p[ir + j] = p[kr + j];
+                    }
                 }
             }
         }
@@ -156,13 +175,15 @@ function negativeCycleFromWeights(s: GraphSnapshot, w: NumericVector): boolean {
  * queue of n entries serves every source.
  * @param s - The snapshot
  * @param d - The n x n output, overwritten
+ * @param p - The n x n predecessor arcs, filled with INVALID_INDEX, or `null`: the discovering arc
  */
-function bfsRows(s: GraphSnapshot, d: F64): void {
+function bfsRows(s: GraphSnapshot, d: F64, p: U32 | null): void {
     const { nodeCount: n, rowPtr, colIdx } = s;
     const queue = new Uint32Array(n);
     d.fill(Infinity);
     for (let src = 0; src < n; src++) {
         const row = d.subarray(src * n, src * n + n);
+        const prow = p?.subarray(src * n, src * n + n);
         row[src] = 0;
         queue[0] = src;
         let tail = 1;
@@ -173,6 +194,9 @@ function bfsRows(s: GraphSnapshot, d: F64): void {
                 const v = colIdx[a];
                 if (row[v] === Infinity) {
                     row[v] = next;
+                    if (prow !== undefined) {
+                        prow[v] = a;
+                    }
                     queue[tail++] = v;
                 }
             }
@@ -187,13 +211,15 @@ function bfsRows(s: GraphSnapshot, d: F64): void {
  * @param s - The snapshot
  * @param w - The weights in use, all non-negative
  * @param d - The n x n output, overwritten
+ * @param p - The n x n predecessor arcs, filled with INVALID_INDEX, or `null`: the relaxing arc
  */
-function dijkstraRows(s: GraphSnapshot, w: NumericVector, d: F64): void {
+function dijkstraRows(s: GraphSnapshot, w: NumericVector, d: F64, p: U32 | null): void {
     const { nodeCount: n, rowPtr, colIdx } = s;
     const heap = new IndexedMinHeap(n);
     d.fill(Infinity);
     for (let src = 0; src < n; src++) {
         const row = d.subarray(src * n, src * n + n);
+        const prow = p?.subarray(src * n, src * n + n);
         row[src] = 0;
         heap.push(src, 0);
         while (!heap.isEmpty()) {
@@ -204,6 +230,9 @@ function dijkstraRows(s: GraphSnapshot, w: NumericVector, d: F64): void {
                 const dv = du + w[a];
                 if (dv < row[v]) {
                     row[v] = dv;
+                    if (prow !== undefined) {
+                        prow[v] = a;
+                    }
                     heap.pushOrDecrease(v, dv);
                 }
             }
@@ -262,26 +291,36 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
     const { w, negative } = weightsInUse(s, options);
     const method = pickStrategy(s, w, negative, options.method);
     const dist = new Float64Array(n * n);
+    const predArc = options.paths === true ? new Uint32Array(n * n).fill(INVALID_INDEX) : null;
     let hasNegativeCycle = false;
     if (method === "bfs") {
-        bfsRows(s, dist);
+        bfsRows(s, dist, predArc);
     } else if (method === "dijkstra" && w !== null) {
-        dijkstraRows(s, w, dist);
+        dijkstraRows(s, w, dist, predArc);
     } else {
         hasNegativeCycle =
-            (negative && w !== null && negativeCycleFromWeights(s, w)) || floydWarshall(s, w, negative, dist);
+            (negative && w !== null && negativeCycleFromWeights(s, w)) || floydWarshall(s, w, negative, dist, predArc);
     }
     if (hasNegativeCycle) {
         dist.fill(NaN);
     }
-    const empty = new Uint32Array(0);
+    // Row i of predArc is a single-source predecessor-arc array, so the SSSP walkers apply to it.
+    const row = (source: number, target: number): U32 => {
+        if (predArc === null) {
+            throw new Error("allPairsShortestPath: pass paths: true to walk shortest paths");
+        }
+        if (hasNegativeCycle) {
+            throw new PathWalkError(source, target, "cycle");
+        }
+        return predArc.subarray(source * n, source * n + n);
+    };
     return {
         dist,
         n,
         hasNegativeCycle,
         method,
-        predArc: null,
-        pathTo: () => empty,
-        pathEdges: () => empty,
+        predArc,
+        pathTo: (source, target) => walkPredArcs(s, row(source, target), source, target),
+        pathEdges: (source, target) => walkPredEdges(s, row(source, target), source, target),
     };
 }

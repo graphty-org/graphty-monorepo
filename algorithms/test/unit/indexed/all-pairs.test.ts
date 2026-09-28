@@ -2,7 +2,8 @@ import { expandEdges, GraphBuilder, type GraphSnapshot, type NumericVector } fro
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
-import { allPairsShortestPath } from "../../../src/indexed/all-pairs.js";
+import { PathWalkError } from "../../../src/errors.js";
+import { allPairsShortestPath, type ApspResult } from "../../../src/indexed/all-pairs.js";
 import {
     apspRowsOracle,
     expectMatrixTriangleInequality,
@@ -399,5 +400,117 @@ describe("indexed.allPairsShortestPath -- per-source strategies and the rule", (
         expect(() => allPairsShortestPath(s, { method: "per-source" })).toThrow(/negative/);
         expect(allPairsShortestPath(s).method).toBe("floyd-warshall");
         s.validate({ checksum: true });
+    });
+});
+
+/** Every reachable pair's path walks from i to j over real edges and weighs exactly `dist`. */
+function expectPathsMatchDist(s: GraphSnapshot, r: ApspResult, arcWeights: NumericVector | null, label: string): void {
+    const el = s.edgeList();
+    // one weight per logical edge, read through the edge's first arc
+    const edgeWeight = new Float64Array(s.edgeCount);
+    for (let a = 0; a < s.arcCount; a++) {
+        edgeWeight[s.arcToEdge[a]] = arcWeights === null ? 1 : arcWeights[a];
+    }
+    const { n } = r;
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            const nodes = r.pathTo(i, j);
+            const edges = r.pathEdges(i, j);
+            const d = r.dist[i * n + j];
+            if (d === Infinity) {
+                expect(nodes.length, label).toBe(0);
+                expect(edges.length, label).toBe(0);
+                continue;
+            }
+            expect(nodes[0], label).toBe(i);
+            expect(nodes[nodes.length - 1], label).toBe(j);
+            expect(edges.length, label).toBe(nodes.length - 1);
+            let sum = 0;
+            for (let e = 0; e < edges.length; e++) {
+                const [u, v] = [nodes[e], nodes[e + 1]];
+                const [a, b] = [el.src[edges[e]], el.dst[edges[e]]];
+                expect(a === u && b === v ? true : !s.directed && a === v && b === u, label).toBe(true);
+                sum += edgeWeight[edges[e]];
+            }
+            expect(sum, `${label} ${String(i)}->${String(j)}`).toBe(d);
+        }
+    }
+}
+
+describe("indexed.allPairsShortestPath -- paths", () => {
+    it("walks every reachable pair on every fixture and strategy", () => {
+        for (const { name, graph } of allFixtures()) {
+            const s = checksummedSnapshot(graph);
+            for (const method of ["floyd-warshall", "per-source"] as const) {
+                const own = allPairsShortestPath(s, { method, paths: true });
+                expectPathsMatchDist(s, own, s.weights, `${name} ${method}`);
+                const twos = allTwos(s);
+                const viaTwos = allPairsShortestPath(s, { method, paths: true, weights: twos });
+                expectPathsMatchDist(s, viaTwos, twos, `${name} ${method} all-2`);
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("gives [i] and no edges on the diagonal, nothing when unreachable", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b", 1);
+        g.addNode("z");
+        const s = checksummedSnapshot(g);
+        for (const method of ["floyd-warshall", "per-source"] as const) {
+            const r = allPairsShortestPath(s, { method, paths: true });
+            expect([...r.pathTo(1, 1)]).toEqual([1]);
+            expect(r.pathEdges(1, 1).length).toBe(0);
+            expect(r.pathTo(1, 0).length).toBe(0);
+            expect(r.pathEdges(0, 2).length).toBe(0);
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("names the cheaper of two parallel edges on every strategy", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", 5);
+        b.addEdge("a", "b", 2);
+        const s = b.freeze({ checksum: true });
+        const el = s.edgeList();
+        for (const method of ["auto", "floyd-warshall", "per-source"] as const) {
+            const r = allPairsShortestPath(s, { method, paths: true });
+            for (const [i, j] of [
+                [0, 1],
+                [1, 0],
+            ]) {
+                const edges = r.pathEdges(i, j);
+                expect(edges.length, method).toBe(1);
+                expect(el.weights?.[edges[0]], method).toBe(2);
+            }
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("has no predArc and throwing accessors without paths: true", () => {
+        const s = square(1);
+        const r = allPairsShortestPath(s);
+        expect(r.predArc).toBeNull();
+        expect(() => r.pathTo(0, 3)).toThrow(/paths: true/);
+        expect(() => r.pathEdges(0, 3)).toThrow(/paths: true/);
+    });
+
+    it("throws PathWalkError from the accessors under a negative cycle", () => {
+        const cycle = checksummedSnapshot(
+            directed([
+                ["a", "b", 1],
+                ["b", "c", 1],
+                ["c", "a", -10],
+            ]),
+        );
+        const r = allPairsShortestPath(cycle, { paths: true });
+        expect(() => r.pathTo(0, 2)).toThrow(PathWalkError);
+        expect(() => r.pathEdges(0, 2)).toThrow(PathWalkError);
+
+        const loop = checksummedSnapshot(directed([["a", "a", -1]], true));
+        const rl = allPairsShortestPath(loop, { paths: true });
+        expect(() => rl.pathTo(0, 0)).toThrow(PathWalkError);
+        cycle.validate({ checksum: true });
+        loop.validate({ checksum: true });
     });
 });

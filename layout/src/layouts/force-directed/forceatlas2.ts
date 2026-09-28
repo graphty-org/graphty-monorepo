@@ -7,7 +7,7 @@ import type { Graph, Node, PositionMap } from "../../types";
  *
  * A one-shot wrapper over the steppable ForceAtlas2Simulation of the layout seam (design 9.3, D-17): the legacy
  * graph is converted to an undirected snapshot once, the caller's positions seed the stride-3 array (missing rows
- * and components are drawn from the seed), the simulation runs every one of maxIter iterations, and the result is
+ * and a missing x or y are drawn from the seed, a missing 3D z is 0), the simulation runs every one of maxIter iterations, and the result is
  * rescaled as the legacy body did (f64 scratch, f32 output). The positional signature and the return type are
  * unchanged. Documented behaviour changes (design 9.3, 7.2; graph-format design 14.3): the published FA2 laws
  * replace the port's 1/d^2 repulsion; force-based swing / traction; the attraction sums over parallel arcs (the
@@ -56,6 +56,15 @@ export function forceatlas2Layout(
     const given = fromPositionMap(pos, s.ids, dimension, (i, out) =>
         out.fill(Number.NaN, dimension * i, dimension * (i + 1)),
     );
+    // fromPositionMap reads a missing component as 0; here only a missing z is 0, and a missing x or y is NaN too
+    for (let i = 0; pos !== null && i < n; i++) {
+        const row = pos[s.ids.idOf(i)];
+        for (let k = 0; row !== undefined && k < 2; k++) {
+            if (row[k] === undefined) {
+                given[dimension * i + k] = Number.NaN;
+            }
+        }
+    }
     const positions = toPositionColumn({ positions: given, dim: dimension, n }, 1, null);
     seedPositions(s, positions, seed, dimension, 1, null, "fa2");
     // legacy tolerance: the old `for (iter = 0; iter < maxIter; iter++)` ran ceil(maxIter) iterations and none for

@@ -163,6 +163,12 @@ describe("rescaleInPlace", () => {
             center: [1, 2],
         },
         { name: "one node", dim: 3, rows: [[3, -1, 2]], scale: 4 },
+        {
+            // an f32 running sum of these loses whole units, which moves every rescaled row by more than 1e-6
+            name: "many rows far from the origin",
+            dim: 2,
+            rows: Array.from({ length: 2000 }, (_, i) => [1e6 + i * 0.5, 1e6 - i * 0.25]),
+        },
     ];
     for (const c of cases) {
         it(`matches rescaleLayout within 1e-6: ${c.name}`, () => {

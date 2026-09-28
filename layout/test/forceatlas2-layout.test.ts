@@ -79,6 +79,23 @@ describe("ForceAtlas2 Layout", () => {
             // Disconnected components should be separated by gravity
         });
 
+        it("draws a missing x or y of a given row from the seed, and reads a missing 3D z as 0", () => {
+            const graph = {
+                nodes: () => ["a", "b", "c"],
+                edges: () => [
+                    ["a", "b"],
+                    ["b", "c"],
+                ],
+            };
+            const run = (pos: Record<string, number[]>, dim: number): Record<string, number[]> =>
+                forceatlas2Layout(graph, pos, 0, 1, 2, 1, false, false, null, null, null, false, false, 7, dim);
+            const rest = { b: [1, 0], c: [0, 1] };
+            // a zero-filled y would lay out exactly as an explicit 0
+            assert.notDeepEqual(run({ a: [5], ...rest }, 2), run({ a: [5, 0], ...rest }, 2));
+            assert.notDeepEqual(run({ a: [5], ...rest }, 3), run({ a: [5, 0], ...rest }, 3));
+            assert.deepEqual(run({ a: [5, 1], ...rest }, 3), run({ a: [5, 1, 0], ...rest }, 3));
+        });
+
         it("should use initial positions if provided", () => {
             const graph = starGraph(5);
             const initialPos = {};

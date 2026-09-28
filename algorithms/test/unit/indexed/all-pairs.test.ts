@@ -1,6 +1,7 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { floydWarshall } from "../../../src/algorithms/shortest-path/floyd-warshall.js";
 import { Graph } from "../../../src/core/graph.js";
 import { PathWalkError } from "../../../src/errors.js";
 import { allPairsShortestPath, type ApspResult } from "../../../src/indexed/all-pairs.js";
@@ -13,13 +14,19 @@ import {
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
-/** The exact f64 weights `toSnapshot` keeps beside the f32 arc column, expanded to one per arc. */
+/**
+ * The exact f64 weights, one per arc: the shadow column `toSnapshot` keeps when some weight is not
+ * f32-exact, else the arc column itself, which is then exact.
+ */
 function f64Weights(s: GraphSnapshot): NumericVector {
     const shadow = s.edges.byRole("weight");
-    if (shadow === null || shadow.dtype !== "f64") {
-        throw new Error("expected an f64 shadow weight column");
+    if (shadow !== null && shadow.dtype === "f64") {
+        return expandEdges(s, shadow.data);
     }
-    return expandEdges(s, shadow.data);
+    if (s.weights === null) {
+        throw new Error("expected a weight column");
+    }
+    return s.weights;
 }
 
 function allFixtures(): { name: string; graph: Graph }[] {
@@ -512,5 +519,29 @@ describe("indexed.allPairsShortestPath -- paths", () => {
         expect(() => rl.pathTo(0, 0)).toThrow(PathWalkError);
         cycle.validate({ checksum: true });
         loop.validate({ checksum: true });
+    });
+});
+
+describe("indexed.allPairsShortestPath -- against the shipped floydWarshall", () => {
+    // The shipped function is the reference here and nowhere else; fixtures are at most 90 nodes.
+    it("matches bit for bit with the f64 override, and exactly by default", () => {
+        for (const { name, graph } of allFixtures()) {
+            const s = checksummedSnapshot(graph);
+            const legacy = floydWarshall(graph);
+            const exact = allPairsShortestPath(s, { method: "floyd-warshall", weights: f64Weights(s) });
+            const auto = allPairsShortestPath(s);
+            expect(legacy.hasNegativeCycle, name).toBe(false);
+            expect(exact.hasNegativeCycle, name).toBe(false);
+            const { n } = exact;
+            for (let i = 0; i < n; i++) {
+                const row = legacy.distances.get(s.ids.idOf(i));
+                for (let j = 0; j < n; j++) {
+                    const expected = row?.get(s.ids.idOf(j));
+                    expect(Object.is(exact.dist[i * n + j], expected), `${name} ${String(i)}->${String(j)}`).toBe(true);
+                    expect(auto.dist[i * n + j], `${name} ${String(i)}->${String(j)}`).toBe(expected);
+                }
+            }
+            s.validate({ checksum: true });
+        }
     });
 });

@@ -11,6 +11,9 @@ export * from "./types";
 // Re-export utilities that are part of the public API
 export { rescaleLayout, rescaleLayoutDict } from "./utils/rescale";
 
+// Conversions between index-based layout results, PositionMap and the scene position column
+export * from "./positions";
+
 // Re-export all layout algorithms
 export * from "./layouts";
 

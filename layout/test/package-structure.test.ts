@@ -52,6 +52,11 @@ describe("Package Structure", () => {
             "resolveNodeVector",
             "resolveWeights",
             "toLayoutSnapshot",
+            "toPositionMap",
+            "fromPositionMap",
+            "toPositionColumn",
+            "fromPositionColumn",
+            "rescaleInPlace",
         ]) {
             assert.equal(typeof layout[name], "function", `${name} is exported`);
         }

@@ -399,13 +399,135 @@ describe("accelerated(acc)", () => {
         });
     });
 
-    it("carries exactly the twelve methods whose ports exist", () => {
+    describe("the path centralities", () => {
+        function sixNodes(): GraphSnapshot {
+            // a small undirected graph with several equal shortest paths
+            const g = new Graph({ directed: false });
+            for (const [u, v] of ["ab", "bc", "cd", "da", "ce", "ef", "df"]) {
+                g.addEdge(u, v);
+            }
+            return toSnapshot(g);
+        }
+
+        function multigraph(): GraphSnapshot {
+            const b = new GraphBuilder({ directed: false });
+            b.addEdge("a", "b");
+            b.addEdge("a", "b");
+            b.addEdge("b", "c");
+            return b.freeze();
+        }
+
+        const scores: PageRankResultLike = {
+            scores: Float32Array.of(7, 7, 7, 7, 7, 7),
+            iterations: 1,
+            converged: true,
+        };
+        const edgeScores = { scores: Float32Array.of(9) };
+
+        function stub(calls: unknown[][]): AlgorithmAccelerator {
+            return {
+                kind: "fake",
+                betweennessCentrality: (...a) => (calls.push(["betweennessCentrality", ...a]), Promise.resolve(scores)),
+                edgeBetweennessCentrality: (...a) => (
+                    calls.push(["edgeBetweennessCentrality", ...a]),
+                    Promise.resolve(edgeScores)
+                ),
+                closenessCentrality: (...a) => (calls.push(["closenessCentrality", ...a]), Promise.resolve(scores)),
+            };
+        }
+
+        it("runs the CPU ports with no accelerator", async () => {
+            const s = sixNodes();
+            const cpu = accelerated(null);
+            expect((await cpu.betweennessCentrality(s, { normalized: true })).scores).toEqual(
+                indexed.betweennessCentrality(s, { normalized: true }).scores,
+            );
+            expect((await cpu.edgeBetweennessCentrality(s)).scores).toEqual(
+                indexed.edgeBetweennessCentrality(s).scores,
+            );
+            expect((await cpu.closenessCentrality(s, { harmonic: true })).scores).toEqual(
+                indexed.closenessCentrality(s, { harmonic: true }).scores,
+            );
+        });
+
+        it("hands a plain or sampled call to the accelerator with the same snapshot and options", async () => {
+            const s = sixNodes();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            const sampled = { sources: [0, 3], normalized: true };
+            const drawn = { k: 2 };
+            expect(await dispatcher.betweennessCentrality(s, sampled)).toBe(scores);
+            expect(await dispatcher.betweennessCentrality(s, { endpoints: false })).toBe(scores);
+            expect(await dispatcher.edgeBetweennessCentrality(s, drawn)).toBe(edgeScores);
+            expect(calls).toHaveLength(3);
+            expect(calls[0][1]).toBe(s);
+            expect(calls[0][2]).toBe(sampled);
+            expect(calls[2]).toEqual(["edgeBetweennessCentrality", s, drawn]);
+            expect(calls[2][2]).toBe(drawn);
+        });
+
+        it("hands closeness an explicit weighted flag, and nothing else", async () => {
+            const s = sixNodes();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            expect(await dispatcher.closenessCentrality(s)).toBe(scores);
+            expect(await dispatcher.closenessCentrality(s, { weighted: true })).toBe(scores);
+            expect(calls).toEqual([
+                ["closenessCentrality", s, { weighted: false }],
+                ["closenessCentrality", s, { weighted: true }],
+            ]);
+        });
+
+        it("runs the CPU port for every call the accelerator would answer differently", async () => {
+            const s = sixNodes();
+            const m = multigraph();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            // a multigraph: the port counts parallel edges as one path, the WebGPU kernel as several
+            expect((await dispatcher.betweennessCentrality(m)).scores).toEqual(indexed.betweennessCentrality(m).scores);
+            expect((await dispatcher.edgeBetweennessCentrality(m)).scores).toEqual(
+                indexed.edgeBetweennessCentrality(m).scores,
+            );
+            // endpoints, which the WebGPU kernel refuses
+            expect((await dispatcher.betweennessCentrality(s, { endpoints: true })).scores).toEqual(
+                indexed.betweennessCentrality(s, { endpoints: true }).scores,
+            );
+            // an alive-edge mask, which the seam has no way to pass
+            const alive = Uint32Array.of(0b0111111);
+            expect((await dispatcher.edgeBetweennessCentrality(s, { alive })).scores).toEqual(
+                indexed.edgeBetweennessCentrality(s, { alive }).scores,
+            );
+            // every closeness option but weighted
+            for (const options of [
+                { normalized: true },
+                { harmonic: true },
+                { cutoff: 1 },
+                { weighted: true, weights: new Float64Array(s.arcCount).fill(2) },
+            ]) {
+                expect((await dispatcher.closenessCentrality(s, options)).scores, JSON.stringify(options)).toEqual(
+                    indexed.closenessCentrality(s, options).scores,
+                );
+            }
+            expect(calls).toEqual([]);
+        });
+
+        it("lets a throwing accelerator reject unchanged", async () => {
+            const boom = new Error("E_DEVICE_LOST");
+            const fake: AlgorithmAccelerator = { kind: "fake", betweennessCentrality: () => Promise.reject(boom) };
+            await expect(accelerated(fake).betweennessCentrality(sixNodes())).rejects.toBe(boom);
+        });
+    });
+
+    it("carries exactly the fifteen methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
             "allPairsShortestPath",
+            "betweennessCentrality",
             "breadthFirstSearch",
+            "closenessCentrality",
             "connectedComponents",
+            "edgeBetweennessCentrality",
             "hits",
             "kCoreDecomposition",
             "katzCentrality",

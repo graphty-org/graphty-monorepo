@@ -293,6 +293,7 @@ export { KNOWN_LOG_SINK_IDS } from "./src/catalog/types";
  * and `weight(path)`. `compareNodeIds` is the order the view iterates in.
  */
 export type { OptionDescriptorDomain } from "./src/catalog/types";
+export type { DefaultPalettes } from "./src/session/styles";
 export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
@@ -321,6 +322,7 @@ export type {
     PlainLogRecord,
     Point,
     Score,
+    ShorthandValue,
     WholeGraphScoreDefinition,
 } from "./src/simple/types";
 export { compareNodeIds } from "./src/simple/view";

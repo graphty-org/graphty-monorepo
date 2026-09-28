@@ -122,18 +122,45 @@ defineAlgorithm({
   `E_OPTION_RANGE` and lists what the nodes do carry, instead of reading `undefined` everywhere.
 - **The number 0 is an id like any other.** `graph.node(0)` and `graph.node("0")` are two nodes.
 
+In the notation of a network paper:
+
+| Paper | Here |
+| --- | --- |
+| a_ij, "i and j are adjacent" | `node.edgesTo(j).length > 0` |
+| w_ij | `node.weightTo(j, w)`, parallel edges added |
+| k_i on a simple graph (no loops, no repeats) | `node.neighbors().length` |
+| s_i | `node.strength(w)` |
+
+On a graph with parallel edges, `node.degree` counts each of them, so the number of distinct
+neighbours is `node.neighbors().length`, not `node.degree`.
+
+### Coming from NetworkX
+
+| NetworkX | Here |
+| --- | --- |
+| `G.degree(n)` with a self-loop | counts the loop twice; `node.degree` counts it once -- add `node.edgesTo(node).length` |
+| `G.degree(n, weight="w")` with an edge missing `w` | reads the edge as 1; `node.strength("w")` leaves it out and the run's record counts it |
+| `G[u][v]["w"]` | `u.weightTo(v, "w")` (summed over parallel edges) |
+| `G.edges(keys=True)` on a `MultiGraph` | `graph.edges()`: each parallel edge with its own `edge.id` |
+| `nx.to_scipy_sparse_array(G)` | `strength()` and `weightTo()`: parallel edges add, a self-loop appears once |
+
+So a random walk (PageRank) written over `strength()` and `edges()` weighs the edges as
+`nx.pagerank` does on a `MultiGraph`. The element's own "degree" algorithm is a third convention: it counts a self-loop
+twice and a repeated edge (same ends, same direction) once.
+
 ## Where to import from
 
 Everything an extension author needs comes from three subpaths:
 
 ```ts
+import { defineAlgorithm, defineLayout, definePalette, defineLogDestination } from "@graphty/graphty-element/extend";
 import { registerPalette, LayoutEngine, DataSource } from "@graphty/graphty-element/extend";
 import { paletteDescriptor, cameraDescriptor } from "@graphty/graphty-element/catalog";
 import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
 ```
 
-`@graphty/graphty-element/extend` is the registration surface: the verb that files your extension,
-and the types it takes. `@graphty/graphty-element/catalog` is what the element can do, as plain
+`@graphty/graphty-element/extend` is the registration surface: the simple tier's four `define*`
+verbs first, then the advanced verbs that file your extension, and the types they take. `@graphty/graphty-element/catalog` is what the element can do, as plain
 JSON -- the descriptor tables and the lookups a picker reads.
 `@graphty/graphty-element/logging` is the logger's own vocabulary, which a log destination needs
 and nothing else does.
@@ -142,7 +169,7 @@ All three resolve in Node with no Babylon.js, no Lit and no DOM in their import 
 can be written, type-checked and published without a browser anywhere in the loop.
 
 A page that loads the self-contained `@graphty/graphty-element/bundle` with no build step can
-import `registerPalette`, `registerCameraView`, `registerLogSink`, `Algorithm`, `LayoutEngine` and
+import the four `define*` verbs, `GraphtyLogger` (to switch logging on), `registerPalette`, `registerCameraView`, `registerLogSink`, `Algorithm`, `LayoutEngine` and
 `DataSource` from the bundle itself. Registrations are kept once per page rather than once per
 copy of the package, so a plugin registered through `./extend` also reaches an element that the
 bundle, or any other copy of graphty-element on the same page, defined.

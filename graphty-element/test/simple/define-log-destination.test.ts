@@ -200,6 +200,21 @@ describe("defineLogDestination", () => {
             });
         });
 
+        it("detaches only what its own call attached: an old handle leaves a redefinition alone", () => {
+            const messages: string[] = [];
+            const definition: LogDestinationDefinition = {
+                id: "acme-reloaded",
+                write: (record) => void messages.push(record.message),
+            };
+            const first = define(definition);
+            define({ ...definition });
+
+            first();
+            logger().warn("still here");
+
+            assert.deepStrictEqual(messages, ["still here"]);
+        });
+
         it("treats the same definition object defined twice as one destination", () => {
             const messages: string[] = [];
             const definition: LogDestinationDefinition = {

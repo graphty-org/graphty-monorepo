@@ -91,6 +91,16 @@ describe("registering a definition", () => {
         assert.strictEqual(entry("acme-again"), first, "the registration was not replaced");
     });
 
+    it("takes a changed definition that carries the same function", () => {
+        const node = (view: NodeView): number => view.degree;
+        defineAlgorithm({ id: "acme-changed", options: { factor: 1 }, node });
+        defineAlgorithm({ id: "acme-changed", name: "Renamed", options: { factor: 10 }, direction: "directed", node });
+
+        const { descriptor } = entry("acme-changed");
+        assert.strictEqual(descriptor.plainName, "Renamed");
+        assert.strictEqual(descriptor.options.find((option) => option.name === "factor")?.default, 10);
+    });
+
     it("refuses a different algorithm under a taken id when asked to be strict", () => {
         defineAlgorithm({ id: "acme-taken", node: () => 1 });
 

@@ -10,23 +10,54 @@ and a `place` function that returns where each node goes. The element does every
 Each node with a `tier` attribute goes on the row for its tier; nodes on the same row are spaced
 out from left to right.
 
-<<< ../../examples/simple-tier/layout-tiers.ts#example
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-tiers",
+    dimensions: 2,
+    options: { tier: { type: "attribute", default: "tier" }, spacing: 2 },
+    place(graph, { options }) {
+        const positions = new Map();
+        const used = new Map();
+        for (const node of graph.nodes()) {
+            const tier = node.number(options.tier);
+            if (tier === undefined) continue; // no tier: left unplaced
+            const column = used.get(tier) ?? 0;
+            used.set(tier, column + 1);
+            positions.set(node.id, [column * options.spacing, tier * options.spacing]);
+        }
+        return positions;
+    },
+});
+```
 
 Use it:
 
-<<< ../../examples/simple-tier/layout-tiers.ts#use
+```ts
+await element.setLayout("acme-tiers", { spacing: 3 });
+```
 
 That is the whole plugin. `place` receives the graph and the options, already checked and
 filled in with their defaults, and returns a `Map` from node id to `[x, y]` or `[x, y, z]`.
 
 - **Positions are in scene units**, the units the camera and the node sizes use. A node at the
   default size is 1 unit across, so a spacing of 2 leaves a node's width between neighbours.
-  Nothing multiplies what you return.
+  Nothing multiplies what you return. +x is right and +y is up, so tier 0 is the bottom row and a
+  column that runs down the screen uses negative y.
 - **A node you leave out of the map is not placed** by your layout. So is one you map to `null`
   or to a position that is not finite. Here, a node with no tier is left alone.
-- **`tier` is an attribute option.** Its value is the NAME of an attribute, and the reader can
-  point it at another one (`{ tier: "level" }`) without touching your code. `node.number(name)`
-  reads that attribute as a number, or `undefined` when the node has none.
+- **`tier` is an attribute option.** Its value is the NAME of an attribute -- the key on the node
+  record as loaded, `tier` for `{ id: 1, tier: 2 }` -- and the reader can point it at another one
+  (`{ tier: "level" }`) without touching your code. `node.number(name)` reads that attribute as a
+  number, or `undefined` when the node has none.
+- **`tier * spacing` assumes whole-number tiers.** For a continuous score (0.0 to 1.0), cut it into
+  bands first: `Math.min(bands - 1, Math.floor(score * bands))`, with `bands` an option such as
+  `bands: { type: "integer", default: 4, min: 1, max: 20 }` -- the short form takes `min` and `max`
+  as the full option does.
+- **In strict TypeScript**, type your maps when you call a method on what they hold:
+  `new Map<NodeId, Point>()`, with `NodeId` and `Point` imported as types from
+  `@graphty/graphty-element/extend`. A `for...of` loop needs no annotation.
 
 `element` is the `<graphty-element>` on your page: `document.querySelector("graphty-element")`.
 With a bundler, import `defineLayout` from `@graphty/graphty-element/extend` as above. With no
@@ -40,22 +71,63 @@ The more common request. `graph.groupBy(name)` hands over the nodes grouped by a
 value, groups in readable order ("2" before "10"); a node without the attribute is in no group,
 so it is left unplaced.
 
-<<< ../../examples/simple-tier/layout-category-rows.ts#example
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-category-rows",
+    dimensions: 2,
+    options: { category: { type: "attribute", default: "category" }, spacing: 2 },
+    place(graph, { options }) {
+        const positions = new Map();
+        let row = 0;
+        for (const nodes of graph.groupBy(options.category).values()) {
+            nodes.forEach((node, column) => positions.set(node.id, [column * options.spacing, row * options.spacing]));
+            row++;
+        }
+        return positions;
+    },
+});
+```
 
 Use it, with your data's own column in place of the default:
 
-<<< ../../examples/simple-tier/layout-category-rows.ts#use
+```ts
+await element.setLayout("acme-category-rows", { category: "department" });
+```
 
 ### Nodes at coordinates your data already carries
 
 `z` is an optional attribute (`default: null`): unbound until the reader picks a column, and
 `node.number(undefined)` is `undefined`, so a 2D dataset is not refused.
 
-<<< ../../examples/simple-tier/layout-precomputed.ts#example
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-precomputed",
+    options: {
+        x: { type: "attribute", default: "x" },
+        y: { type: "attribute", default: "y" },
+        z: { type: "attribute", default: null },
+    },
+    place(graph, { options }) {
+        const positions = new Map();
+        for (const node of graph.nodes()) {
+            const x = node.number(options.x);
+            const y = node.number(options.y);
+            if (x !== undefined && y !== undefined) positions.set(node.id, [x, y, node.number(options.z) ?? 0]);
+        }
+        return positions;
+    },
+});
+```
 
 Use it:
 
-<<< ../../examples/simple-tier/layout-precomputed.ts#use
+```ts
+await element.setLayout("acme-precomputed", { z: "z" });
+```
 
 Coordinates from NetworkX's `spring_layout` fall between -1 and 1, and a node is 1 unit across,
 so they overlap: multiply them in `place` (a `scale: 50` option) or ask NetworkX for a larger
@@ -94,6 +166,11 @@ first line is the one to search for.
 | an attribute name no node carries (a typo, or a missing column)                        | from `setLayout`: `E_OPTION_RANGE`, naming the attribute and listing the ones the nodes do carry                                                                    |
 | a map keyed by the wrong kind of id (`String(node.id)` on numeric ids, a loop counter) | from `setLayout`: `E_EXTENSION_FAILED`, `place() returned 34 positions but no key matches a node id (got "1"; node ids here are numbers)`. Key the map by `node.id` |
 | code in `place` that throws                                                            | from `setLayout`: `E_EXTENSION_FAILED`, `acme-tiers: place() threw (TypeError: ...)`, with your original error as `cause`                                           |
+
+Some things do not stop the layout but are never silent: nodes with no number at an attribute
+you read, keys in your map that are not nodes, and a `place` that holds the page for more than
+200 ms. The layout completes and the console says so, whether or not logging is on:
+`acme-tiers: 2 of 3 nodes have no number at "tier" (1 holds text, e.g. "NA"); they were left out.`
 
 In TypeScript, a misspelt option is a compile error. Its first line spells out the whole options
 type; read the LAST line, which names the mistake:

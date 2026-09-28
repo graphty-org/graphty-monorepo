@@ -92,10 +92,10 @@ describe("the caveats a run is filled in with", () => {
             id: "acme-settle",
             options: { strength: { type: "attribute", on: "edge", default: "confidence" } },
             weights: { option: "strength", meaning: "strength" },
-            nodes: (graph, { note, converged }) => {
+            nodes: (graph, { options, note, converged }) => {
                 note("Every node starts at 1.");
                 converged(false, 7);
-                return new Map(graph.nodes().map((node) => [node.id, 1]));
+                return new Map(graph.nodes().map((node) => [node.id, 1 + node.strength(options.strength)]));
             },
         });
 

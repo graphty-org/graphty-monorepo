@@ -1,5 +1,5 @@
 /**
- * @file `defineLayout`: the simple tier's layout verb (design/extensions/simple-tier.md section 4.2).
+ * @file `defineLayout`: the simple tier's layout verb.
  *
  * A definition is an id, options in short form and `place(graph, context)`, which returns a map
  * from node id to `[x, y]` or `[x, y, z]` in scene units. `defineLayout` checks the definition,
@@ -20,14 +20,15 @@
  * - `context.progress()` yields to the page and rejects once the layout is replaced;
  * - a throw from `place` is `E_EXTENSION_FAILED`, and a map keyed by the wrong kind of id is
  *   refused instead of silently placing nothing.
- *
- * INTERNAL ADAPTER. The advanced contract this is meant to compile to -- the snapshot layout
- * registration of design/extensions/layout.md (`SnapshotLayoutRegistration`) -- is not built yet.
- * Until it is, the definition compiles to a `SimpleLayoutEngine` subclass that fills the
- * engine's own `positions` record, the one route every static engine publishes through. The class
- * is never exported; replace it with a `SnapshotLayoutRegistration` when that contract lands.
  */
 
+// INTERNAL ADAPTER. The advanced contract this is meant to compile to -- the snapshot layout
+// registration of design/extensions/layout.md (`SnapshotLayoutRegistration`) -- is not built yet.
+// Until it is, the definition compiles to a `SimpleLayoutEngine` subclass that fills the
+// engine's own `positions` record, the one route every static engine publishes through. The class
+// is never exported; replace it with a `SnapshotLayoutRegistration` when that contract lands.
+
+import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import { LayoutEngine, SimpleLayoutEngine, type SimpleLayoutOpts } from "../layout/LayoutEngine";
@@ -43,7 +44,7 @@ import {
 } from "./definition";
 import { checkViewOptions, expandOptions } from "./options";
 import { viewSourceOf } from "./source";
-import type { DefineLayout, GraphView, LayoutContext, NodeId, Point } from "./types";
+import type { GraphView, LayoutContext, LayoutDefinition, NodeId, OptionsShorthand, Point } from "./types";
 import { createGraphView, quoteId, viewWarnings } from "./view";
 
 const VERB = "defineLayout";
@@ -70,8 +71,29 @@ interface Plan {
     readonly place: (graph: GraphView, context: LayoutContext<Record<string, unknown>>) => unknown;
 }
 
-/** The engine each id was last filed with, and the function it came from: the sameness rule. */
-const filed = new Map<string, { readonly place: unknown; readonly engine: DefinedEngine }>();
+/**
+ * The engine each id was last filed with, the function it came from and the rest of the definition
+ * it was built from: the sameness rule. A changed member files a new engine, which replaces it.
+ */
+const filed = new Map<string, { readonly place: unknown; readonly signature: string; readonly engine: DefinedEngine }>();
+
+/** A definition with no options, the default of the verb's generic. */
+type NoOptions = Readonly<Record<never, never>>;
+
+/**
+ * Say something a layout's author must hear. The log is off by default, so a warning that went
+ * only there would reach no one: while the log's own console is not showing it, it goes to the
+ * console directly.
+ * @param id - The layout's id.
+ * @param message - The sentence, starting with the id.
+ * @param data - The facts, for the log.
+ */
+function warn(id: string, message: string, data: Record<string, unknown> = {}): void {
+    logger.warn(message, { layout: id, ...data });
+    if (!GraphtyLogger.isEnabled() || !GraphtyLogger.getSinks().some((sink) => sink.name === "console")) {
+        console.warn(`[graphty] ${message}`);
+    }
+}
 
 /** The engine class a definition compiles to. */
 type DefinedEngine = new (opts: object) => LayoutEngine;
@@ -188,9 +210,10 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
         }
 
         const [x, y] = point;
-        const z = point.length === 3 ? point[2] : 0;
+        // In 2D the z is dropped before it is judged: a position the view never uses cannot unplace a node.
+        const z = point.length === 3 && !twoD ? point[2] : 0;
         if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-            positions[String(node.id)] = [x, y, twoD ? 0 : z];
+            positions[String(node.id)] = [x, y, z];
         }
     }
 
@@ -203,11 +226,13 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
     }
 
     if (unknown.length > 0) {
-        logger.warn(`${id}: place() returned positions for nodes the graph does not have`, {
-            layout: id,
-            count: unknown.length,
-            keys: unknown.slice(0, LISTED_KEYS).map(quoteKey),
-        });
+        const keys = unknown.slice(0, LISTED_KEYS).map(quoteKey);
+        warn(
+            id,
+            `${id}: place() returned positions for ${String(unknown.length)} keys that are not nodes ` +
+                `(${keys.join(", ")}); they were left out.`,
+            { count: unknown.length, keys },
+        );
     }
 
     return positions;
@@ -356,7 +381,8 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#run = run;
 
             const graph = this._nodes[0]?.parentGraph;
-            const session = graph?.getSession?.();
+            // Only the element's own Graph has a session; a bare GraphContext (a test harness) does not.
+            const session = graph !== undefined && "getSession" in graph ? graph.getSession() : undefined;
             if (graph === undefined || session === undefined) {
                 // No nodes yet, or an engine driven without an element: nothing to place.
                 return {};
@@ -396,12 +422,11 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             if (longest > LONG_TASK_MS && !warnedLongTask.has(id)) {
                 warnedLongTask.add(id);
                 const advice = `${id}: place() held the page for over ${LONG_TASK_MS} ms at a time; await context.progress(i / n) inside its loop.`;
-                logger.warn(advice, { layout: id });
-                console.warn(advice);
+                warn(id, advice);
             }
 
             for (const warning of viewWarnings(view)) {
-                logger.warn(warning, { layout: id });
+                warn(id, warning);
             }
 
             return positionsOf(id, returned, view, twoD);
@@ -457,7 +482,10 @@ function structuralInputsOf(options: readonly OptionDescriptor[]): LayoutDescrip
  * @param options - How to register it; `strict` refuses replacing a different layout under the id.
  * @throws A GraphtyError E_BAD_COMMAND for a malformed definition, before anything is registered.
  */
-export const defineLayout: DefineLayout = (definition, options) => {
+export function defineLayout<const O extends OptionsShorthand = NoOptions>(
+    definition: LayoutDefinition<O>,
+    options?: RegisterOptions,
+): void {
     const checked = checkDefinition(VERB, definition);
     const { id } = checked;
     requireFunction(VERB, checked, "place");
@@ -469,19 +497,27 @@ export const defineLayout: DefineLayout = (definition, options) => {
         declared.push({ name: "seed", plainName: "Seed", type: "seed" } as OptionDescriptor);
     }
 
-    // The same definition registered again is a no-op (design/extensions/README.md section 4.2).
+    const maxDimensions = checked.dimensions === 2 ? 2 : 3;
+    const name = displayName(checked);
+    const description = typeof checked.description === "string" ? checked.description : "";
+    const signature = JSON.stringify([name, description, maxDimensions, random, declared]);
+
+    // The same definition registered again is a no-op; a changed one replaces the old.
     const previous = filed.get(id);
-    if (previous !== undefined && previous.place === checked.place && LayoutEngine.getClass(id) === previous.engine) {
+    if (
+        previous !== undefined &&
+        previous.place === checked.place &&
+        previous.signature === signature &&
+        LayoutEngine.getClass(id) === previous.engine
+    ) {
         return;
     }
 
-    const maxDimensions = checked.dimensions === 2 ? 2 : 3;
-    const name = displayName(checked);
     const descriptor: AuthoredLayoutDescriptor = {
         id,
         plainName: name,
         technicalName: name,
-        description: typeof checked.description === "string" ? checked.description : "",
+        description,
         family: "custom",
         kind: "batch",
         maxDimensions,
@@ -496,5 +532,5 @@ export const defineLayout: DefineLayout = (definition, options) => {
         maxDimensions,
     );
     LayoutEngine.register(engine, options);
-    filed.set(id, { place: checked.place, engine });
-};
+    filed.set(id, { place: checked.place, signature, engine });
+}

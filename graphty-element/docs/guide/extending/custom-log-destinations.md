@@ -11,7 +11,25 @@ Available from graphty-element 2.7.
 
 Send the element's errors to your telemetry endpoint:
 
-<<< @/examples/simple-tier/log-destination-telemetry.ts
+```ts
+import { defineLogDestination } from "@graphty/graphty-element/extend";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
+
+// Send the element's errors to a telemetry endpoint.
+defineLogDestination({
+    id: "acme-telemetry",
+    level: "error",
+    write: (record) =>
+        fetch("https://telemetry.acme.example/v1/errors", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(record),
+        }),
+});
+
+// Logging is off until the page turns it on, and until then no destination receives anything.
+await GraphtyLogger.configure({ enabled: true });
+```
 
 That is the whole destination. `id` is the name it is known by -- lower-case words joined by
 hyphens, led by your own prefix -- and `write` is your code: it receives one record at a time.
@@ -20,13 +38,17 @@ hyphens, led by your own prefix -- and `write` is your code: it receives one rec
 **Logging has to be on.** While logging is off, which is the default, no destination receives
 anything: not yours, and not the element's own console either. The last line of the example turns
 it on. It also turns on the developer console's output at the `info` level; to keep that quiet,
-detach the console after turning logging on with `GraphtyLogger.removeSink("console")` (a later
-`configure` call attaches it again).
+detach the console after turning logging on with `GraphtyLogger.removeSink("console")`. Every
+`configure` call attaches the console again, so if other code on the page calls `configure`,
+remove it after that call too.
 
 ### What the element does for you
 
 - **It attaches the destination at once**, under its id. `defineLogDestination` returns a
-  function; call it to stop the destination.
+  function; call it to stop the destination. Defining the same id again -- a hot reload running
+  your setup twice -- replaces the earlier destination, so records are never sent twice, and the
+  earlier call's stop function no longer stops anything. Pass `{ strict: true }` as the second
+  argument to be refused instead.
 - **It hands you a plain record.** `JSON.stringify(record)` keeps all of it:
 
     | Member     | What it holds                                                |
@@ -60,7 +82,29 @@ detach the console after turning logging on with `GraphtyLogger.removeSink("cons
 
 A panel beside the graph that shows what the element says about its layouts:
 
-<<< @/examples/simple-tier/log-destination-panel.ts
+```ts
+import { defineLogDestination } from "@graphty/graphty-element/extend";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
+
+/**
+ * Show what the element says about its layouts, one line per record, in a panel on the page.
+ * @param panel - Where the lines go.
+ * @returns A function that stops it.
+ */
+export async function showLayoutLog(panel: HTMLElement): Promise<() => void> {
+    const stop = defineLogDestination({
+        id: "acme-layout-panel",
+        level: "info",
+        categories: ["layout"],
+        write: (record) => {
+            panel.append(`${record.level}: ${record.message}\n`);
+        },
+    });
+
+    await GraphtyLogger.configure({ enabled: true });
+    return stop;
+}
+```
 
 `showLayoutLog(document.querySelector("pre"))` before the element is created, and the panel fills
 with lines such as `info: Setting layout`. Records made before a destination is attached are not
@@ -72,9 +116,16 @@ With a bundler, install `@graphty/graphty-element` and import exactly as the exa
 verb from `@graphty/graphty-element/extend`, the logger from `@graphty/graphty-element/logging`.
 Neither needs a renderer, so the same code runs in a test or a worker.
 
-The self-contained bundle for a page with no build step exports `defineLogDestination` but not
-yet `GraphtyLogger`, so on such a page a destination can be defined and cannot yet be switched
-on.
+On a page with no build step, import both from the self-contained bundle:
+
+```html
+<script type="module">
+    import { defineLogDestination, GraphtyLogger } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js";
+
+    defineLogDestination({ id: "acme-page-log", write: (record) => console.log(record.message) });
+    await GraphtyLogger.configure({ enabled: true });
+</script>
+```
 
 To test a destination, call `write` yourself: it is a plain function. Hand it a record such as
 `{ time: new Date(), level: "error", category: "graphty.data", message: "Data source loading failed" }`
@@ -84,11 +135,19 @@ with `fetch` stubbed, and check what it sent.
 
 `data` and `error.stack` can hold graph content: node ids, attribute values, labels, file names
 and URLs. The element removes none of it. A destination that sends records to another party and
-handles sensitive graphs leaves `data` out itself:
+handles sensitive graphs leaves them out itself, and adds what it wants every record to carry --
+a session id, the app's name -- in the same place:
 
 ```ts
-write: ({ data, ...rest }) => fetch(url, { method: "POST", body: JSON.stringify(rest) }),
+write: (record) =>
+    fetch(url, {
+        method: "POST",
+        body: JSON.stringify({ ...record, data: undefined, error: record.error?.name, sessionId }),
+    }),
 ```
+
+`JSON.stringify` drops a member that is `undefined`, so `data` is not sent, and only the error's
+name is.
 
 ### When it goes wrong
 

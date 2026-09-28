@@ -1,7 +1,6 @@
 /**
  * @file The graph view of the simple extension tier: the whole graph as nodes and edges with
- * their real ids, built once per run over the element's snapshot
- * (design/extensions/simple-tier.md section 2.3; shapes in simple.d.ts).
+ * their real ids, built once per run over the element's snapshot.
  *
  * An author reads `node.neighbors()`, `edge.other(node)`, `node.strength("confidence")` and never
  * sees a row, a typed array or an adjacency index. Everything below exists to keep the numbers
@@ -84,6 +83,8 @@ interface ViewState {
     /** Paths already checked, keyed by target and path. */
     readonly checked: Map<string, { readonly target: ViewTarget; readonly path: string }>;
     readonly tallies: Map<string, Tally>;
+    /** The edge paths read as weights (weight, strength, weightTo), in first-read order. */
+    readonly weightPaths: Set<string>;
     readonly edges: EdgeImpl[];
     /** Where each node row sits in the view's order. */
     readonly nodePosition: Int32Array;
@@ -546,6 +547,7 @@ class EdgeImpl implements EdgeView {
 
         const state = this.#state;
         ensureCarried(state, "edge", path, (facts) => literalRefusal(state.options.id, `edge.weight(${JSON.stringify(path)})`, facts));
+        state.weightPaths.add(path);
         return counted(state, "edge", path, this.#row, state.source.edgeValue(this.#row, path));
     }
 
@@ -622,6 +624,7 @@ export function createGraphView(source: ViewSource, options: GraphViewOptions): 
         source,
         checked: new Map(),
         tallies: new Map(),
+        weightPaths: new Set(),
         edges,
         nodePosition: new Int32Array(nodeCount),
         edgePosition: new Int32Array(edgeCount),
@@ -758,8 +761,18 @@ export function viewInputs(view: GraphView): readonly { readonly target: ViewTar
 }
 
 /**
+ * The edge paths the run read as weights -- through edge.weight, node.strength or node.weightTo --
+ * which is what the run record's weight says the numbers used.
+ * @param view - The view.
+ * @returns The paths, in first-read order.
+ */
+export function viewWeightPaths(view: GraphView): readonly string[] {
+    return [...stateOf(view).weightPaths];
+}
+
+/**
  * The warnings a run over this view completes with: one per path at which some read found no
- * number (design/extensions/simple-tier.md section 2.3 rule 10).
+ * number.
  * @param view - The view.
  * @returns The sentences, in first-read order; empty when every read found a number.
  */

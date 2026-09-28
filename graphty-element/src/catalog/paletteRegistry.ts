@@ -111,6 +111,17 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
         colors.push(hex);
     }
 
+    const claims: unknown = descriptor.colorblindSafe ?? [];
+    const deficiencies = ["deuteranopia", "protanopia", "tritanopia"];
+    if (!Array.isArray(claims) || claims.some((claim) => !deficiencies.includes(claim as string))) {
+        refuse(
+            descriptor.id,
+            "colorblindSafe",
+            `the palette "${String(descriptor.id)}" claims colorblindSafe ${JSON.stringify(claims)}; ` +
+                'a claim lists "deuteranopia", "protanopia" or "tritanopia"',
+        );
+    }
+
     const capacity = descriptor.kind === "categorical" ? colors.length : null;
     if (descriptor.capacity !== undefined && descriptor.capacity !== capacity) {
         refuse(

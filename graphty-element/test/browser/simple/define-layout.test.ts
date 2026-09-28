@@ -33,6 +33,7 @@ import {
     SimpleLayoutEngine,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+import { GraphtyLogger } from "../../../logging";
 import { expandOptions } from "../../../src/simple/options";
 
 /**
@@ -287,6 +288,72 @@ describe("defineLayout on a rendered graph", () => {
             assertAt("a", [1, 2, 0]);
             assertAt("d", [0, -2, 0]);
             assertAt("e", [2, 2, 0]);
+        });
+    });
+
+    describe("what place() returns that the layout cannot fully use", () => {
+        it("places a node in a 2D view whatever its dropped z is", async () => {
+            await graph.setViewMode("2d");
+            await settled("the switch to 2D");
+            defineLayout({
+                id: "acme-bad-z",
+                place: () =>
+                    new Map<string, Point>([
+                        ["a", [5, 6, Number.NaN]],
+                        ["b", [7, 8]],
+                    ]),
+            });
+
+            await graph.setLayout("acme-bad-z");
+            await settled("the bad-z layout");
+
+            assertAt("a", [5, 6, 0]);
+            assertAt("b", [7, 8, 0]);
+        });
+
+        it("says so on the console with logging off: missing numbers and keys that are not nodes", async () => {
+            await GraphtyLogger.configure({ enabled: false });
+            const warned: string[] = [];
+            const original = console.warn;
+            console.warn = (...args: unknown[]) => warned.push(args.map(String).join(" "));
+            try {
+                defineLayout({
+                    id: "acme-noisy",
+                    place: (view) => {
+                        const positions = new Map<string | number, Point>([["zz", [0, 0]]]);
+                        for (const node of view.nodes()) {
+                            const tier = node.number("tier");
+                            if (tier !== undefined) {
+                                positions.set(node.id, [0, tier]);
+                            }
+                        }
+                        return positions;
+                    },
+                });
+
+                await graph.setLayout("acme-noisy");
+                await settled("the noisy layout");
+            } finally {
+                console.warn = original;
+            }
+
+            assert.include(warned, '[graphty] acme-noisy: 1 of 6 nodes has no number at "tier"; they were left out.');
+            assert.include(
+                warned,
+                '[graphty] acme-noisy: place() returned positions for 1 keys that are not nodes ("zz"); they were left out.',
+            );
+        });
+    });
+
+    describe("defining a layout again", () => {
+        it("takes the new options when the place function is the same", () => {
+            const place = (): Map<string, Point> => new Map();
+            defineLayout({ id: "acme-again", options: { spacing: 1 }, place });
+            defineLayout({ id: "acme-again", options: { spacing: 5 }, dimensions: 2, place });
+
+            const descriptor = layoutDescriptor("acme-again");
+            assert.strictEqual(descriptor?.options.find((option) => option.name === "spacing")?.default, 5);
+            assert.strictEqual(descriptor?.maxDimensions, 2);
         });
     });
 

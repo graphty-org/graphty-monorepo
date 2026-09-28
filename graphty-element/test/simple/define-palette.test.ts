@@ -78,6 +78,34 @@ describe("a palette defined through the simple tier", () => {
         assert.strictEqual(code, "E_DUPLICATE_PLUGIN");
     });
 
+    it("refuses a colour-vision claim that is not one of the three deficiencies, in both tiers", () => {
+        const refusals = [
+            () => definePalette({ id: "acme-claim", kind: "categorical", colors: COLORS, colorblindSafe: ["nonsense"] as never }),
+            () =>
+                registerPalette({
+                    id: "acme-claim-advanced",
+                    plainName: "Acme claim",
+                    kind: "categorical",
+                    colors: COLORS,
+                    colorblindSafe: ["deuteranomaly"] as never,
+                }),
+        ];
+        for (const refused of refusals) {
+            let caught: unknown;
+            try {
+                refused();
+            } catch (error) {
+                caught = error;
+            }
+
+            assert.isTrue(isGraphtyError(caught), "refused with a GraphtyError");
+            assert.strictEqual((caught as { details: { field: string } }).details.field, "colorblindSafe");
+        }
+
+        assert.isUndefined(paletteDescriptor("acme-claim"));
+        assert.isUndefined(paletteDescriptor("acme-claim-advanced"));
+    });
+
     it("is one palette, not two, when the same definition is registered again", () => {
         const definition = { id: "acme-again", kind: "sequential", colors: ["#000000", "#FFFFFF"] } as const;
         definePalette(definition);

@@ -10,19 +10,36 @@ used everywhere a built-in one is.
 
 Brand colours for groups, and a brand ramp for amounts:
 
-<<< @/examples/simple-tier/palette/brand-palettes.ts#example
+```ts
+import { definePalette } from "@graphty/graphty-element/extend";
+
+definePalette({
+    id: "acme-brand",
+    kind: "categorical",
+    colors: ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"],
+});
+definePalette({ id: "acme-brand-ramp", kind: "sequential", colors: ["#E8F1FA", "#1B7F79", "#0B1D51"] });
+```
 
 **Use it** -- make them the colours every colour binding uses when it names none:
 
-<<< @/examples/simple-tier/palette/use-brand-palettes.ts#use
+```ts
+element.setDefaultPalettes({ categorical: "acme-brand", sequential: "acme-brand-ramp" });
+```
 
 Call it before you load data or add style layers: a default is looked up when a layer is written,
 so the layer records `acme-brand` by name and a saved document keeps its meaning. A layer that
 names its own palette is never touched.
 
-That is all. `kind` is `"categorical"` (one colour per group), `"sequential"` (a ramp for an
-amount, low to high) or `"diverging"` (a ramp through a middle value). Colours are anything CSS
-understands -- hex, `rgb()`, `hsl()`, `oklch()`, a colour name.
+That is all: no capacity, no plain name, nothing else is needed. `kind` is `"categorical"` (one
+colour per group), `"sequential"` (a ramp for an amount, low to high) or `"diverging"` (a ramp
+through a middle value); give a ramp at least two colours. Colours are anything CSS understands --
+hex, `rgb()`, `hsl()`, `oklch()`, a colour name. Palettes are opaque: an alpha channel
+(`#0B1D5180`, `rgb(27 127 121 / 50%)`) is discarded.
+
+A helper function that sets the defaults takes the element as `DefaultPaletteControls` (from
+`@graphty/graphty-element/extend`), the part of it that chooses palettes, so the helper's module
+needs no renderer types.
 
 ### What the element does for you
 
@@ -33,8 +50,12 @@ understands -- hex, `rgb()`, `hsl()`, `oklch()`, a colour name.
   names `viridis`; the legend shows your swatches, and `reverse: true` turns a ramp round.
 - **Normalises your colours** to six-digit hex once, so the renderer, the legend and a saved
   document all read the same values.
+- **Colours groups in a fixed order.** Groups take the palette's colours in order, largest group
+  first, ties broken by name: the most common department gets your first colour. Order the colours
+  by how much you want each one seen.
 - **Never wraps a categorical palette.** Five colours name five groups. A sixth group is not given
-  the first colour again: the layer paints nothing and the element reports `E_CAP_EXCEEDED`. Give
+  the first colour again: the layer paints nothing and the console says why, with the code
+  `E_CAP_EXCEEDED` ("more groups than colours"). Give
   a brand palette as many colours as the groupings it will colour.
 - **Makes no colour-blindness claim for you.** Add `colorblindSafe: ["deuteranopia"]` only when you
   have checked it; the element takes the claim on trust.
@@ -69,12 +90,19 @@ starts with the call and your id:
 | `colors: ["navvy"]` | the colour it could not read, quoted |
 | `kind: "qualitative"` | `"kind"` must be `"categorical"`, `"sequential"` or `"diverging"` |
 | `id: "Acme Brand"` | an id is lower-case words joined by hyphens, led by your own prefix |
+| `colorblindSafe: ["deuteranomaly"]` | a claim lists `"deuteranopia"`, `"protanopia"` or `"tritanopia"` |
 | `id: "viridis"` | `E_DUPLICATE_PLUGIN`: the element ships that one |
 
 **Colours from design tokens.** Read each token's value first, after the stylesheet that defines
 it has loaded (a module script that runs after the page's stylesheets, or on `DOMContentLoaded`):
 
-<<< @/examples/simple-tier/palette/token-colour.ts#example
+```ts
+import { definePalette } from "@graphty/graphty-element/extend";
+
+const token = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+definePalette({ id: "acme-token-brand", kind: "categorical", colors: [token("--brand-navy"), token("--brand-teal")] });
+```
 
 ### When you need more
 

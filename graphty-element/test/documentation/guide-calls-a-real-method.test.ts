@@ -153,10 +153,11 @@ function callsOn(file: string, receiver: string): { name: string; line: number }
  * `custom-algorithms.md` writes `const graph = this.algorithmGraph("undirected")` -- the
  * algorithm's own read-only view of the data, which is a different object with a different API.
  * Every `graph.` on that page is about that object, so checking it against the renderer's class
- * would be checking the wrong class.
+ * would be checking the wrong class. `custom-layouts.md` does the same: its `place(graph, ...)`
+ * receives the graph view (`graph.nodes()`, `graph.groupBy()`), not the renderer.
  */
 const REBOUND: Record<string, readonly string[]> = {
-    graph: ["docs/guide/extending/custom-algorithms.md"],
+    graph: ["docs/guide/extending/custom-algorithms.md", "docs/guide/extending/custom-layouts.md"],
 };
 
 const GUIDES = markdownUnder("docs/guide");

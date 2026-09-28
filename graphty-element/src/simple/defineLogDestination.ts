@@ -1,6 +1,5 @@
 /**
- * @file `defineLogDestination`: the simple tier's log destination verb (design/extensions/simple-tier.md
- * section 4.7).
+ * @file `defineLogDestination`: the simple tier's log destination verb.
  *
  * It builds an ordinary `LogSinkRegistration` -- a descriptor derived from the definition and a
  * `create` that returns a `Sink` -- and hands it to `registerLogSink`, the advanced tier's own
@@ -14,16 +13,17 @@
  * at most 1000 records wait, `flush` awaits the queue and `dispose` drains it with a timeout.
  * A `write` that returns nothing is called synchronously, exactly as an advanced sink is.
  *
- * TODAY'S DELIVERY RULE STANDS (owner decision 34 not taken): the destination sits behind the
- * same global gate as every other sink, so while logging is globally off it receives nothing.
+ * THE DELIVERY RULE IS EVERY DESTINATION'S: the destination sits behind the same global gate as
+ * every other sink, so while logging is off (the default) it receives nothing.
  * `GraphtyLogger.addSink` and advanced sinks are unchanged: the queue lives in this wrapper only.
  */
 
 import { type LogSinkRegistration, registerLogSink } from "../catalog/logSinkRegistry";
+import type { RegisterOptions } from "../catalog/pluginRegistry";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { LogLevel, type LogRecord, type Sink } from "../logging/types";
 import { badDefinition, checkDefinition, describeValue, displayName, optionalOneOf, requireFunction } from "./definition";
-import type { DefineLogDestination, LogDestinationDefinition, LogLevelName, PlainLogRecord } from "./types";
+import type { LogDestinationDefinition, LogLevelName, PlainLogRecord } from "./types";
 
 /** The five level words, in the order of `LogLevel` from ERROR (1) to TRACE (5). */
 const LEVELS: readonly LogLevelName[] = ["error", "warn", "info", "debug", "trace"];
@@ -39,9 +39,6 @@ const DRAIN_TIMEOUT_MS = 5000;
 
 /** The registration built for each definition object, so defining it again is a no-op. */
 const registrations = new WeakMap<LogDestinationDefinition, LogSinkRegistration>();
-
-/** Every sink this module built, so a detach removes only its own. */
-const built = new WeakSet<Sink>();
 
 let flushesOnPagehide = false;
 
@@ -238,16 +235,12 @@ function checkLogDestination(definition: unknown): ReturnType<typeof checkDefini
  * @throws A GraphtyError `E_BAD_COMMAND` naming the member at fault, or `E_DUPLICATE_PLUGIN` for
  * an id the element keeps for its own destinations.
  */
-export const defineLogDestination: DefineLogDestination = (definition, options) => {
+export function defineLogDestination(definition: LogDestinationDefinition, options?: RegisterOptions): () => void {
     const checked = checkLogDestination(definition);
     const { id } = checked;
     const registration: LogSinkRegistration = registrations.get(definition) ?? {
         descriptor: { id, plainName: displayName(checked), description: typeof checked.description === "string" ? checked.description : "", options: [] },
-        create: () => {
-            const sink = createSimpleSink(id, checked as unknown as LogDestinationDefinition);
-            built.add(sink);
-            return sink;
-        },
+        create: () => createSimpleSink(id, checked as unknown as LogDestinationDefinition),
     };
 
     registerLogSink(registration, options);
@@ -258,15 +251,17 @@ export const defineLogDestination: DefineLogDestination = (definition, options) 
         window.addEventListener("pagehide", () => void GraphtyLogger.flush());
     }
 
-    if (checked.attach !== false) {
-        GraphtyLogger.addSink(registration.create({}));
+    const sink = checked.attach === false ? undefined : registration.create({});
+    if (sink !== undefined) {
+        GraphtyLogger.addSink(sink);
     }
 
+    // Detaches only the destination THIS call attached: an old handle must not remove a later
+    // definition under the same id.
     return () => {
-        const attached = GraphtyLogger.getSinks().find((sink) => sink.name === id);
-        if (attached !== undefined && built.has(attached)) {
+        if (sink !== undefined && GraphtyLogger.getSinks().includes(sink)) {
             GraphtyLogger.removeSink(id);
         }
     };
-};
+}
 

@@ -339,7 +339,9 @@ describe("the lists that decide what a subpath actually ships", () => {
     const build = entryFiles(literalsIn("graphty-element/vite.config.ts", "entries"));
     const types = entryFiles(literalsIn("graphty-element/tsconfig.build.json", "include"));
     const docs = entryFiles(literalsIn("graphty-element/typedoc.json", "entryPoints"));
-    const knip = entryFiles(literalsIn("knip.config.ts", "graphty-element"));
+    // bundle.ts is the entry of the self-contained bundle (vite.bundle.config.ts): the root entry
+    // plus the logger, with no types or docs of its own, so it is knip's alone.
+    const knip = entryFiles(literalsIn("knip.config.ts", "graphty-element")).filter((file) => file !== "bundle.ts");
 
     it("names the same entry files in the build, the type emit, the docs and the dead-code analysis", () => {
         assert.deepEqual(types, build, "tsconfig.build.json's include disagrees with vite.config.ts's entries");

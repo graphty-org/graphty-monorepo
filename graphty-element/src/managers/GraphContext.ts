@@ -3,7 +3,6 @@ import type { Scene } from "@babylonjs/core";
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
-import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
@@ -118,12 +117,6 @@ export interface GraphContext {
      * @since 2.0.0
      */
     getAcceleration?(): AccelerationController;
-
-    /**
-     * The headless model behind this renderer; absent on a context built without a graph.
-     * @since 2.7.0
-     */
-    getSession?(): GraphSession;
 }
 
 /**

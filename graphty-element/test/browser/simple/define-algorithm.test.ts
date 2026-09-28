@@ -223,7 +223,11 @@ describe("the first plugin: confidence-weighted degree and its edge companion", 
         assert.strictEqual(result.node("a")?.value, 1 + 3);
         assert.strictEqual(result.node("c")?.value, 2 + 3 + 4);
         assert.strictEqual(result.node("d")?.value, 4);
-        assert.deepEqual(run.caveats.notes, [], "every edge carries a score, so nothing was left out");
+        assert.deepEqual(
+            run.caveats.notes,
+            ['acme-confidence-degree read: edge "score".'],
+            "every edge carries a score, so nothing was left out: the only note lists what the run read",
+        );
     });
 
     it("refuses a misspelt attribute before any code runs, naming what the edges carry", async () => {

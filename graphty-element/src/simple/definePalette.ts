@@ -1,5 +1,5 @@
 /**
- * @file `definePalette`: the simple tier's palette verb (design/extensions/simple-tier.md section 4.5).
+ * @file `definePalette`: the simple tier's palette verb.
  *
  * It builds an ordinary palette registration and hands it to `registerPalette`, so there is one
  * validation path and one registry: a palette defined here and the same palette registered
@@ -16,9 +16,10 @@
 
 import { normalizeHexAnchor } from "../catalog/color";
 import { registerPalette } from "../catalog/paletteRegistry";
+import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { PaletteDescriptor, PaletteRegistration } from "../catalog/types";
 import { badDefinition, checkDefinition, describeValue, displayName } from "./definition";
-import type { DefinePalette } from "./types";
+import type { PaletteDefinition } from "./types";
 
 const KINDS: readonly string[] = ["sequential", "diverging", "categorical"];
 
@@ -35,7 +36,7 @@ const READ_THE_TOKEN =
  * @throws A `GraphtyError` with `E_BAD_COMMAND` naming the member at fault, or with
  *   `E_DUPLICATE_PLUGIN` when the id is one of the element's own palettes.
  */
-export const definePalette: DefinePalette = (definition, options) => {
+export function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void {
     const checked = checkDefinition("definePalette", definition);
     const { id } = checked;
 
@@ -88,6 +89,16 @@ export const definePalette: DefinePalette = (definition, options) => {
         }
     }
 
+    const claims: unknown = checked.colorblindSafe ?? [];
+    if (!Array.isArray(claims) || claims.some((claim) => !["deuteranopia", "protanopia", "tritanopia"].includes(claim as string))) {
+        throw badDefinition(
+            "definePalette",
+            id,
+            "colorblindSafe",
+            `"colorblindSafe" lists "deuteranopia", "protanopia" or "tritanopia"; got ${describeValue(claims)}.`,
+        );
+    }
+
     const registration: PaletteRegistration = {
         id,
         plainName: displayName(checked),
@@ -99,4 +110,4 @@ export const definePalette: DefinePalette = (definition, options) => {
     };
 
     registerPalette(registration, options);
-};
+}

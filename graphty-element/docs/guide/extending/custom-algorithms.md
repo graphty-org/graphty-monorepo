@@ -56,6 +56,23 @@ when it first completes, with no style code: a node score becomes a colour ramp 
 measured, an edge score one over the edges. Your own style layer reaches the values at
 `results.strength.value` and `results.share.value` -- the path is `results.<as name>.value` -- and a
 script reads them from the result the run resolves to: `(await element.run(...)).node(id)?.value`.
+The colour layer is written just after the run resolves, so a script that inspects the style
+layers straight after the `await` may not see it yet.
+
+An edge score is keyed by the element's edge id. To read each one with its two ends -- to compare
+with a Python result, say -- walk the result's ranking and look the edge up:
+
+```ts
+const share = await element.run("acme-confidence-share", {}, { as: "share" });
+for (const { id, value } of share.ranking("value")) {
+    const edge = element.session.data.edge(String(id)); // { id, source, target, ...attributes }
+    console.log(edge?.source, edge?.target, value);
+}
+```
+
+`strength()` counts a self-loop once. NetworkX's `G.degree(weight="confidence")` counts it twice
+and reads a missing weight as 1; to match it, add `node.edgesTo(node)` once more
+([the overview](./index#coming-from-networkx) has the whole comparison).
 
 With a bundler, import `defineAlgorithm` from `@graphty/graphty-element/extend`. On a page with no
 build step, import it from the bundle, as in
@@ -71,7 +88,8 @@ build step, import it from the bundle, as in
   `passes: { type: "integer", default: 30, min: 1, max: 200 }` a bounded one. Your function
   receives every option already checked and defaulted.
 - **The loop.** `node` is called once per node and `edge` once per edge; you never write the loop,
-  the progress report or the cancellation check.
+  the progress report or the cancellation check. Each call must return the score itself: an
+  `async` `node` is refused with a message that says so.
 - **"Not measured".** Returning `undefined`, `null`, `NaN` or an infinity leaves that node or edge
   out of the result, which is different from a score of 0. Only the elements you measured are
   ranked, summarised and coloured: the rest keep whatever the layers beneath painted.
@@ -111,7 +129,11 @@ error TS2551: Property 'confidance' does not exist on type
 ### An optional weight
 
 A score that should also run on a graph with no weights declares the attribute with
-`default: null`. It is unbound until the reader picks one, and then every edge weighs 1:
+`default: null`. It is unbound until the reader picks one; until then every edge weighs 1. The
+run's record says which weight the numbers used -- whichever edge attribute your code read through
+`weight`, `strength` or `weightTo` -- and every attribute it read. An optional
+`weights: { option: "weight", meaning: "distance" }` member says what a larger weight MEANS; left
+out, a weight is read as a strength:
 
 ```ts
 import { defineAlgorithm, type EdgeView } from "@graphty/graphty-element/extend";
@@ -134,8 +156,16 @@ element.run("acme-strongest-tie", { weight: "confidence" }, { as: "tie" }); // t
 ```
 
 `node.weightTo(other, options.weight)` is the weight between two nodes, parallel edges added, and
-`undefined` when they are not adjacent. A helper that takes an edge imports the `EdgeView` type,
-as here.
+`undefined` when they are not adjacent -- or when they are, but none of their edges has a number
+at the attribute. A helper that takes an edge imports the `EdgeView` type, as here.
+
+Options that name nodes are checked too. `seeds: { type: "node-set", default: [] }` takes a list of
+node ids, and `start: { type: "node-id" }` one; an id the graph does not have is refused with
+`E_OPTION_RANGE` before your code runs, so you need no check of your own. The ids arrive as the
+reader wrote them and match only as the data spelled them: `"0"` on a graph whose ids are numbers
+is refused, not silently missed. `min` and `max` are inclusive, so an option that must stay above
+0 -- a convergence tolerance -- takes a small positive minimum:
+`tolerance: { type: "number", default: 1e-6, min: 1e-12, max: 1 }`.
 
 ### Four kinds of function
 

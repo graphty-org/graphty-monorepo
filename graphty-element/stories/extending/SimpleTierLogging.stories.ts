@@ -13,12 +13,16 @@ import "../../src/graphty-element";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { showLayoutLog } from "../../docs/examples/simple-tier/log-destination-panel";
+import { GraphtyLogger } from "../../logging";
 import { holds } from "../assertions";
 import { eventWaitingDecorator, waitForGraphSettled } from "../helpers";
 
 /** A small ring. */
 const NODES = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id }));
 const EDGES = NODES.map((node, index) => ({ src: node.id, dst: NODES[(index + 1) % NODES.length].id }));
+
+/** The running destination's stop function, so the story's cleanup can detach it. */
+let showing: Promise<() => void> | undefined;
 
 /**
  * The graph and, beside it, the panel the log destination writes into.
@@ -36,7 +40,7 @@ function render(): HTMLElement {
     panel.style.font = "12px monospace";
 
     // Defined before the element exists: records made before a destination is attached are not replayed.
-    void showLayoutLog(panel);
+    showing = showLayoutLog(panel);
 
     const element = document.createElement("graphty-element");
     element.nodeData = [...NODES];
@@ -54,6 +58,17 @@ const meta: Meta = {
     component: "graphty-element",
     render,
     decorators: [eventWaitingDecorator],
+    // The example switches logging on for the whole page. Leaving the story detaches its
+    // destination and puts logging back as it was, so no other story inherits either.
+    beforeEach: () => {
+        const wasEnabled = GraphtyLogger.isEnabled();
+        return async () => {
+            const stop = await showing;
+            showing = undefined;
+            stop?.();
+            await GraphtyLogger.configure({ enabled: wasEnabled });
+        };
+    },
 };
 export default meta;
 

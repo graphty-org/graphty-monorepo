@@ -202,15 +202,44 @@ describe("the brand palettes from the guide's first example", () => {
         assert.include(saved, '"acme-brand-ramp"');
     });
 
-    it("leaves a group past its last colour unpainted rather than wrapping round", async () => {
+    it("never wraps round: six groups on five colours paint nothing and report E_CAP_EXCEEDED", async () => {
         await defineBrand();
         element.nodeData = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id, team: id }));
         await element.graph.operationQueue.waitForCompletion();
         const before = painted("a");
-
-        await addLayer(colourBy("data.team", "ordinal", "acme-brand"));
+        const warned: string[] = [];
+        const original = console.warn;
+        console.warn = (...args: unknown[]) => warned.push(args.map(String).join(" "));
+        try {
+            await addLayer(colourBy("data.team", "ordinal", "acme-brand"));
+        } finally {
+            console.warn = original;
+        }
 
         assert.strictEqual(painted("a"), before, "six groups do not fit five colours, so the layer paints nothing");
+        assert.isTrue(
+            warned.some((line) => line.includes('"Colour by data.team" paints nothing') && line.includes("E_CAP_EXCEEDED")),
+            `the element says why on the console; it said: ${JSON.stringify(warned)}`,
+        );
+    });
+
+    it("colours a run's result with the default palette, with no style code", async () => {
+        await defineBrand();
+        useBrandPalettes(element);
+        await loadGraph();
+
+        const run = element.run("degree", {}, { as: "deg" });
+        await run;
+        const deadline = Date.now() + 5000;
+        const derived = (): boolean =>
+            element.session.styles.list().some((layer) => layer.source.by === "run" && layer.source.runId === run.id);
+        while (!derived() && Date.now() < deadline) {
+            await new Promise((settle) => setTimeout(settle, 10));
+        }
+        await element.graph.operationQueue.waitForCompletion();
+
+        assert.strictEqual(painted("loner"), RAMP[0], "the lowest degree takes the ramp's first colour");
+        assert.strictEqual(painted("a2"), RAMP[2], "the highest takes its last");
     });
 });
 

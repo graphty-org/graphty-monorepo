@@ -17,6 +17,7 @@ import { assert, describe, it } from "vitest";
 
 import { defineAlgorithm } from "../../extend";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
+import { authorLines, internalTermsIn, tsBlocks } from "./guide-examples";
 
 const ROOT = join(__dirname, "..", "..");
 const GUIDE = readFileSync(join(ROOT, "docs", "guide", "extending", "custom-algorithms.md"), "utf8");
@@ -27,6 +28,15 @@ const EXAMPLE_FILES = readdirSync(EXAMPLES_DIR).filter(
     (name) => name.endsWith(".ts") && readFileSync(join(EXAMPLES_DIR, name), "utf8").includes("defineAlgorithm("),
 );
 
+/**
+ * The guide's "use it" lines for the optional weight, which test/browser/simple/define-algorithm.test.ts
+ * runs as the "acme-strongest-tie" tests.
+ */
+const STRONGEST_TIE_USE = [
+    'element.run("acme-strongest-tie", {}, { as: "tie" }); // every edge weighs 1',
+    'element.run("acme-strongest-tie", { weight: "confidence" }, { as: "tie" }); // the reader\'s weight',
+];
+
 /** Where the simple tier ends in the guide and the advanced tier begins. */
 const ADVANCED_HEADING = "## Advanced: full control";
 
@@ -34,44 +44,6 @@ const ADVANCED_HEADING = "## Advanced: full control";
 const FIRST_PLUGIN_USE = [
     'element.run("acme-confidence-degree", {}, { as: "strength" }); // colours the nodes',
     'element.run("acme-confidence-share", {}, { as: "share" }); // colours the edges',
-];
-
-/**
- * Terms a first plugin must not need (design/extensions/README.md section 8.1 item 4), matched
- * as whole words.
- */
-const INTERNAL_TERMS = [
-    "snapshot",
-    "row",
-    "rows",
-    "rowPtr",
-    "colIdx",
-    "CSR",
-    "arc",
-    "arcs",
-    "Float32Array",
-    "Int32Array",
-    "Uint32Array",
-    "mask",
-    "NodeMask",
-    "EdgeMask",
-    "yieldNow",
-    "forEachChunked",
-    "chunk",
-    "costClass",
-    "costUnits",
-    "complexity",
-    "plainName",
-    "technicalName",
-    "namespace",
-    "descriptor",
-    "fields",
-    "caveats",
-    "declaredCaveats",
-    "GraphtyError",
-    "idOf",
-    "edgeId",
-    "DeclaredAlgorithm",
 ];
 
 /**
@@ -84,27 +56,6 @@ function shown(name: string): string {
     const text = readFileSync(join(EXAMPLES_DIR, name), "utf8");
     const afterHeader = text.slice(text.indexOf("*/\n") + 3);
     return afterHeader.replaceAll('"../../../extend"', '"@graphty/graphty-element/extend"').trim();
-}
-
-/**
- * Every TypeScript block of a Markdown text, in order.
- * @param markdown - The text.
- * @returns The blocks' contents.
- */
-function tsBlocks(markdown: string): string[] {
-    return [...markdown.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1].trim());
-}
-
-/**
- * Author lines: not blank, not a comment, not an import.
- * @param code - The code.
- * @returns How many.
- */
-function authorLines(code: string): number {
-    return code.split("\n").filter((line) => {
-        const trimmed = line.trim();
-        return trimmed !== "" && !trimmed.startsWith("//") && !trimmed.startsWith("import ");
-    }).length;
 }
 
 /**
@@ -161,6 +112,10 @@ describe("the algorithm guide and its examples", () => {
         assert.include(tsBlocks(simpleTier), FIRST_PLUGIN_USE.join("\n"));
     });
 
+    it("shows the optional weight's use-it lines as the browser tests run them", () => {
+        assert.include(tsBlocks(simpleTier), STRONGEST_TIE_USE.join("\n"));
+    });
+
     it("keeps the first plugin, end to end, within the adoption budget", () => {
         const total =
             authorLines(shown("confidence-degree.ts")) +
@@ -178,7 +133,7 @@ describe("the algorithm guide and its examples", () => {
     it("names no internal concept in any example", () => {
         for (const name of EXAMPLE_FILES) {
             const code = shown(name);
-            const named = INTERNAL_TERMS.filter((term) => new RegExp(`\\b${term}\\b`, "i").test(code));
+            const named = internalTermsIn(code);
             assert.deepEqual(named, [], `${name} names ${named.join(", ")}`);
         }
     });

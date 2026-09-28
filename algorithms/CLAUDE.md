@@ -54,7 +54,8 @@ their port and keep only their signature and result shape: `floydWarshall`, `flo
 `topologicalSort`, the connected, weakly and strongly connected component functions (and
 `condensationGraph` through them), `singleSourceShortestPath` (and `allPairsShortestPath` through it),
 `hasNegativeCycle`, `kruskalMST`, the five common-neighbour link prediction functions,
-`hierarchicalClustering`, `markovClustering`, `syncClustering` and `grsbm`. Traversal facades pass
+`hierarchicalClustering`, `markovClustering`, `syncClustering`, `grsbm`, `kCoreDecomposition` (and
+`getKCore` through it) and `girvanNewman`. Traversal facades pass
 `legacyArcOrder` so neighbours are tried in the graph's insertion order. A graph with a NaN weight has
 no weighted snapshot: `toTopologySnapshot` freezes it without weights for the ports that read none,
 and the weighted facades keep their legacy code for it (and `singleSourceShortestPath` for negative
@@ -62,7 +63,11 @@ weights). Functions whose port breaks ties differently (`dijkstra`, `dijkstraPat
 `bellmanFordPath`, `astar`, `astarWithDetails`, `primMST`), returns less order (`bipartitePartition`,
 `findStronglyConnectedComponents`, `connectedComponentsDFS`) or gives different answers (the
 Adamic-Adar functions, `calculateMCLModularity`, `spectralClustering`, `teraHAC`) stay on legacy
-code. The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
+code. So do the randomised or differently ruled community functions -- `louvain` and `leiden` (the
+ports visit nodes in another seeded order, so they stop at other partitions), `labelPropagationAsync`
+(the synchronous port adds a swap guard the old loop lacks) and `labelPropagationSemiSupervised`
+(another random stream, and the port renumbers the seed labels) -- and the matching and isomorphism
+functions, which have no port. The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
 `test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
 replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts` as their test oracle.
 Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade

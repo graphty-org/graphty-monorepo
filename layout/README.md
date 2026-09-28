@@ -587,10 +587,12 @@ const pos = toPositionMap(r, s.ids); // { [id]: [x, y, z] }, the shape the legac
 | `indexed.arf`                 | `arfLayout`                 | `pos`, `scaling`, `a`, `maxIter` (no `scale` or `center`)               |
 
 - **Nodes are indices.** Options that name nodes (`root`, `start`, `top`, `subsets`, `nlist`) take node indices,
-  a node mask or the name of a node column of the snapshot, never node ids. Use `s.ids.indexOf(id)` to find one.
+  a node mask or the name of a node column of the snapshot, never node ids. Use `s.ids.indexOf(id)` to find one;
+  for an id that is not in the graph it returns `INVALID_INDEX` (0xffffffff), not -1.
 - **Weights** come from the snapshot: `weight: true` reads its edge weights and a string names a numeric edge column.
 - **Start positions** (`pos`) are a `Float32Array` of `dim` values per node in index order. For the force layouts
-  and `arf` a row holding `NaN` is drawn from `seed`; `kamadaKawai` reads `NaN` as 0.
+  and `arf` each `NaN` component is drawn from `seed` and the finite components of the same row are kept;
+  `kamadaKawai` reads `NaN` as 0.
 - **Unplaced nodes**: `shell` and `multipartite` leave the row of a node in no shell or layer as `NaN`.
 - **Directed snapshots** are laid out as their undirected copy by every layout that reads edges.
 - `toPositionColumn(r, scale, center)` turns a result into the stride-3 scene-unit column that graphty-element and the

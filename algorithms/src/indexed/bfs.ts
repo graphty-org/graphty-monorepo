@@ -12,8 +12,19 @@ export interface BfsResult {
     readonly visitedCount: number;
 }
 
+/** The neighbour-order option the order-sensitive traversals share. @public */
+export interface ArcOrderOption {
+    /**
+     * A permutation of the arc indices, `arcCount` long, whose slice `[rowPtr[u], rowPtr[u + 1])`
+     * lists node `u`'s arcs in the order to try them. The default is row order (ascending neighbour
+     * index). A caller that must reproduce a traversal over another neighbour order -- a legacy
+     * `Graph` hands out neighbours in insertion order -- passes that order here.
+     */
+    readonly arcOrder?: U32 | undefined;
+}
+
 /** Options of the index-based BFS. @public */
-export interface BfsOptions {
+export interface BfsOptions extends ArcOrderOption {
     /** Stop expanding at this depth; unbounded when omitted. */
     readonly maxDepth?: number | undefined;
     /**
@@ -22,6 +33,46 @@ export interface BfsOptions {
      * prefix of nodes that were expanded.
      */
     readonly target?: number | undefined;
+}
+
+/**
+ * Check a start node index.
+ * @param g - The adjacency
+ * @param start - The start node index
+ * @throws RangeError when `start` is not a node index of `g`
+ */
+export function checkStart(g: AdjacencyView, start: number): void {
+    if (!Number.isInteger(start) || start < 0 || start >= g.nodeCount) {
+        throw new RangeError(`start node index ${String(start)} is out of range for ${String(g.nodeCount)} nodes`);
+    }
+}
+
+/**
+ * Check an `arcOrder` option: `arcCount` entries, and every entry of a row's slice an arc of that
+ * row.
+ * @param g - The adjacency
+ * @param arcOrder - The option, or undefined
+ * @returns The order, or null for row order
+ * @throws RangeError when the order does not fit the adjacency
+ */
+export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 | null {
+    if (arcOrder === undefined) {
+        return null;
+    }
+    const { rowPtr, nodeCount } = g;
+    if (arcOrder.length !== g.arcCount) {
+        throw new RangeError(`arcOrder has ${String(arcOrder.length)} entries, expected ${String(g.arcCount)}`);
+    }
+    for (let u = 0; u < nodeCount; u++) {
+        const begin = rowPtr[u];
+        const end = rowPtr[u + 1];
+        for (let a = begin; a < end; a++) {
+            if (arcOrder[a] < begin || arcOrder[a] >= end) {
+                throw new RangeError(`arcOrder[${String(a)}] = ${String(arcOrder[a])} is not an arc of node ${String(u)}`);
+            }
+        }
+    }
+    return arcOrder;
 }
 
 /**
@@ -34,7 +85,9 @@ export interface BfsOptions {
  * @public
  */
 export function breadthFirstSearch(g: AdjacencyView, start: number, options: BfsOptions = {}): BfsResult {
+    checkStart(g, start);
     const { nodeCount, rowPtr, colIdx } = g;
+    const arcOrder = checkArcOrder(g, options.arcOrder);
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const order = new Uint32Array(nodeCount);
@@ -55,7 +108,7 @@ export function breadthFirstSearch(g: AdjacencyView, start: number, options: Bfs
         }
         const end = rowPtr[u + 1];
         for (let a = rowPtr[u]; a < end; a++) {
-            const v = colIdx[a];
+            const v = colIdx[arcOrder === null ? a : arcOrder[a]];
             if (depth[v] === INVALID_INDEX) {
                 depth[v] = d + 1;
                 parent[v] = u;
@@ -80,7 +133,8 @@ export interface DirectionOptimizedBfsOptions {
 /**
  * Direction-optimising breadth-first search (Beamer, Asanovic and Patterson, SC'12): a top-down
  * step expands the frontier's out-arcs, a bottom-up step has every unvisited node look for a
- * frontier node among its in-neighbours over `s.reverse()`, and the search switches between the two
+ * frontier node among its in-neighbours over `s.reverse()` (fetched only when a bottom-up step
+ * runs), and the search switches between the two
  * by frontier size. Both steps give a node the LOWEST-index frontier node that reaches it as its
  * parent, so the result does not depend on which steps ran: `depth` equals `breadthFirstSearch`'s,
  * and `order` lists the visited nodes level by level, ascending within a level.
@@ -95,10 +149,11 @@ export function directionOptimizedBfs(
     source: number,
     options: DirectionOptimizedBfsOptions = {},
 ): BfsResult {
+    checkStart(s, source);
     const { nodeCount, rowPtr, colIdx } = s;
     const alpha = options.alpha ?? 15;
     const beta = options.beta ?? 18;
-    const reverse = s.reverse();
+    let reverse: AdjacencyView | null = null;
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     // order[levelStart, tail) is the current frontier, sorted ascending.
@@ -122,6 +177,7 @@ export function directionOptimizedBfs(
         }
         const levelEnd = tail;
         if (bottomUp) {
+            reverse ??= s.reverse();
             for (let v = 0; v < nodeCount; v++) {
                 if (depth[v] !== INVALID_INDEX) {
                     continue;

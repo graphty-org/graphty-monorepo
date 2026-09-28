@@ -84,7 +84,7 @@ export type {
 export { accelerated } from "./indexed/accelerator.js";
 // `Indexed` prefix: @graphty/webgpu-graph-algorithms publishes a different ApspOptions.
 export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
-export type { BfsOptions, BfsResult, DirectionOptimizedBfsOptions } from "./indexed/bfs.js";
+export type { ArcOrderOption, BfsOptions, BfsResult, DirectionOptimizedBfsOptions } from "./indexed/bfs.js";
 export type { BipartiteResult } from "./indexed/bipartite.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";

@@ -1,4 +1,4 @@
-import { type AdjacencyView, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type AdjacencyView, type GraphSnapshot, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 
 /** Result of the index-based bipartiteness test. @public */
 export interface BipartiteResult {
@@ -14,15 +14,19 @@ export interface BipartiteResult {
 const UNSEEN = 2;
 
 /**
- * Two-colour the graph by BFS over out-neighbours, one BFS per component in index order. A
- * self-loop makes a graph non-bipartite; parallel arcs change nothing. On a directed adjacency only
- * out-arcs are followed, as the legacy `bipartitePartition` does.
- * @param g - The adjacency to test
+ * Two-colour the graph by BFS, one BFS per component in index order. A self-loop makes a graph
+ * non-bipartite; parallel arcs change nothing. Arc direction plays no part in bipartiteness, so on
+ * a directed snapshot every node is coloured against its in-neighbours (over `s.reverse()`) as well
+ * as its out-neighbours. Following out-arcs only -- as the legacy `bipartitePartition` does -- makes
+ * the answer depend on node order: with the single arc `a -> b`, a walk that starts at `b` never
+ * meets `a`, colours it as a new root and then finds the arc inside one side.
+ * @param s - The snapshot to test
  * @returns Whether the graph is bipartite and, when it is, its two sides
  * @public
  */
-export function isBipartite(g: AdjacencyView): BipartiteResult {
-    const { nodeCount, rowPtr, colIdx } = g;
+export function isBipartite(s: GraphSnapshot): BipartiteResult {
+    const { nodeCount } = s;
+    const views: AdjacencyView[] = s.directed ? [s, s.reverse()] : [s];
     const side = new Uint8Array(nodeCount).fill(UNSEEN);
     const queue = new Uint32Array(nodeCount);
     for (let r = 0; r < nodeCount; r++) {
@@ -35,14 +39,16 @@ export function isBipartite(g: AdjacencyView): BipartiteResult {
         queue[tail++] = r;
         while (head < tail) {
             const u = queue[head++];
-            const end = rowPtr[u + 1];
-            for (let a = rowPtr[u]; a < end; a++) {
-                const v = colIdx[a];
-                if (side[v] === UNSEEN) {
-                    side[v] = side[u] ^ 1;
-                    queue[tail++] = v;
-                } else if (side[v] === side[u]) {
-                    return { bipartite: false, sides: null };
+            for (const { rowPtr, colIdx } of views) {
+                const end = rowPtr[u + 1];
+                for (let a = rowPtr[u]; a < end; a++) {
+                    const v = colIdx[a];
+                    if (side[v] === UNSEEN) {
+                        side[v] = side[u] ^ 1;
+                        queue[tail++] = v;
+                    } else if (side[v] === side[u]) {
+                        return { bipartite: false, sides: null };
+                    }
                 }
             }
         }

@@ -1,5 +1,6 @@
 import { type AdjacencyView, type DerivedGraph, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
+import { type ArcOrderOption, checkArcOrder } from "./bfs.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Result of {@link condensation}. @public */
@@ -16,21 +17,23 @@ export interface CondensationResult {
 
 /**
  * Strongly connected components by an iterative Tarjan: roots in index order, neighbours in row
- * order, and component `c` is the `c`-th to complete -- the numbering the legacy
+ * order unless `options.arcOrder` gives another, and component `c` is the `c`-th to complete -- the numbering the legacy
  * `stronglyConnectedComponents` gives its result array. Completion order is a reverse topological
  * order of the condensation.
  * @param g - A directed adjacency
+ * @param options - The neighbour order
  * @returns The partition, labels in completion order
  * @throws Error when the graph is undirected
  * @public
  */
-export function stronglyConnectedComponents(g: AdjacencyView): LabelResult {
+export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderOption = {}): LabelResult {
     if (!g.directed) {
         throw new Error(
             "Strongly connected components require a directed graph. Use connectedComponents for an undirected one.",
         );
     }
     const { nodeCount, rowPtr, colIdx } = g;
+    const arcOrder = checkArcOrder(g, options.arcOrder);
     const index = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const low = new Uint32Array(nodeCount);
     const cursor = new Uint32Array(nodeCount);
@@ -60,7 +63,8 @@ export function stronglyConnectedComponents(g: AdjacencyView): LabelResult {
         while (top > 0) {
             const x = callStack[top - 1];
             if (cursor[x] < rowPtr[x + 1]) {
-                const v = colIdx[cursor[x]++];
+                const a = cursor[x]++;
+                const v = colIdx[arcOrder === null ? a : arcOrder[a]];
                 if (index[v] === INVALID_INDEX) {
                     enter(v);
                 } else if (onStack[v] === 1 && index[v] < low[x]) {
@@ -93,12 +97,13 @@ export function stronglyConnectedComponents(g: AdjacencyView): LabelResult {
  * so contract keeps them as block indices and the condensed node numbering is the component
  * numbering.
  * @param s - A directed snapshot
+ * @param options - The neighbour order Tarjan tries arcs in, which fixes the component numbering
  * @returns The components and the condensed graph
  * @throws Error when the snapshot is undirected
  * @public
  */
-export function condensation(s: GraphSnapshot): CondensationResult {
-    const components = stronglyConnectedComponents(s);
+export function condensation(s: GraphSnapshot, options: ArcOrderOption = {}): CondensationResult {
+    const components = stronglyConnectedComponents(s, options);
     const condensed = s.contract(components.labels, { selfLoops: "drop", parallel: "merge", weights: "first" });
     return { components, condensed };
 }

@@ -115,7 +115,13 @@ export interface AlgorithmAccelerator {
     katzCentrality?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<ScoresResultLike>;
     connectedComponents?(s: GraphSnapshot): Promise<LabelResultLike>;
     weaklyConnectedComponents?(s: GraphSnapshot): Promise<LabelResultLike>;
-    breadthFirstSearch?(s: GraphSnapshot, source: number, options?: BfsOptions): Promise<BfsResultLike>;
+    // Only maxDepth: a GPU BFS expands whole levels in index order, so it can neither stop early at a
+    // target nor try arcs in a caller's order.
+    breadthFirstSearch?(
+        s: GraphSnapshot,
+        source: number,
+        options?: Pick<BfsOptions, "maxDepth">,
+    ): Promise<BfsResultLike>;
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<ScoresResultLike>;
@@ -179,8 +185,8 @@ export interface BetweennessAcceleratorOptions {
  * `indexed.labelPropagation` directly for those. webgpu-graph-algorithms does not implement
  * `labelPropagation` yet, so with its accelerator this method runs the CPU port.
  *
- * `breadthFirstSearch` with a `target` runs the CPU port: a GPU BFS expands whole levels and has
- * no early stop, so it would visit a different set of nodes.
+ * `breadthFirstSearch` with a `target` or an `arcOrder` runs the CPU port: a GPU BFS expands whole
+ * levels and has no early stop and no neighbour order, so it would give a different result.
  *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
@@ -264,7 +270,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.sssp(s, source, options).then((like) => decorateSssp(s, source, like))
                 : Promise.resolve(indexed.dijkstra(s, source, options)),
         breadthFirstSearch: (s, source, options) =>
-            acc?.breadthFirstSearch !== undefined && options?.target === undefined
+            acc?.breadthFirstSearch !== undefined && options?.target === undefined && options?.arcOrder === undefined
                 ? acc.breadthFirstSearch(s, source, options)
                 : Promise.resolve(indexed.breadthFirstSearch(s, source, options)),
         connectedComponents: (s) =>

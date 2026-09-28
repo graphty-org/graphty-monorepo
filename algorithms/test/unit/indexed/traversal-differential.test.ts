@@ -1,13 +1,14 @@
 /**
- * The traversal ports against their legacy counterparts. Order-dependent results (visit orders, DFS
- * trees, topological orders, Tarjan's completion-order labels, the condensation numbering, BFS
- * parents) are compared on each fixture rebuilt in index order, where legacy and the snapshot try
- * neighbours in the same order; order-free results are compared on the fixture as built as well.
- * Each is also run on a multigraph with every edge doubled and must still give the legacy answer.
- * Every port call is followed by `validate({ checksum: true })`.
+ * The traversal ports against their legacy counterparts, on every fixture as built. A legacy
+ * `Graph` tries neighbours in insertion order and a snapshot row is sorted by index, so the
+ * order-dependent ports (visit orders, DFS trees, topological orders, Tarjan's completion-order
+ * labels, the condensation numbering, BFS target order) are given the legacy neighbour order
+ * through their `arcOrder` option, as a facade will be. Each is also run on a multigraph with every
+ * edge doubled and must still give the legacy answer. Every port call is followed by
+ * `validate({ checksum: true })`.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, maskTest } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,11 +26,12 @@ import {
     hasCycleDFS,
     topologicalSort as legacyTopologicalSort,
 } from "../../../src/algorithms/traversal/dfs.js";
-import type { Graph } from "../../../src/core/graph.js";
+import { Graph } from "../../../src/core/graph.js";
 import { breadthFirstSearch, directionOptimizedBfs } from "../../../src/indexed/bfs.js";
 import { isBipartite } from "../../../src/indexed/bipartite.js";
 import { depthFirstSearch, hasCycle, topologicalSort } from "../../../src/indexed/dfs.js";
 import { condensation, stronglyConnectedComponents } from "../../../src/indexed/scc.js";
+import { legacyArcOrder } from "../../../src/indexed/to-snapshot.js";
 import { directionOptimizedBFS } from "../../../src/optimized/direction-optimized-bfs.js";
 import { toCSRGraph } from "../../../src/optimized/graph-adapter.js";
 import type { NodeId } from "../../../src/types/index.js";
@@ -46,22 +48,42 @@ interface Case {
     readonly name: string;
     readonly graph: Graph;
     readonly s: GraphSnapshot;
+    /** The legacy neighbour order of `graph` over the arcs of `s`. */
+    readonly arcOrder: U32;
 }
 
-/** Each fixture in index order, paired with its simple snapshot and its doubled multigraph. */
+/**
+ * Each fixture as built, paired with its simple snapshot and its doubled multigraph.
+ * @param fixtures - The legacy fixtures
+ * @param nodeOrder - Rebuild each fixture with its nodes sorted this way first
+ * @returns The cases
+ */
 function cases(fixtures: { name: string; graph: Graph }[], nodeOrder?: (a: NodeId, b: NodeId) => number): Case[] {
     const out: Case[] = [];
     for (const f of fixtures) {
-        const graph = inIndexOrder(f.graph, nodeOrder);
-        out.push({ name: f.name, graph, s: checksummedSnapshot(graph) });
-        out.push({ name: `${f.name} (every edge doubled)`, graph, s: doubledSnapshot(graph) });
+        const graph = nodeOrder === undefined ? f.graph : inIndexOrder(f.graph, nodeOrder);
+        for (const [name, s] of [
+            [f.name, checksummedSnapshot(graph)],
+            [`${f.name} (every edge doubled)`, doubledSnapshot(graph)],
+        ] as const) {
+            out.push({ name, graph, s, arcOrder: legacyArcOrder(graph, s) });
+        }
     }
     return out;
 }
 
-/** The fixtures as built, where only order-free results are expected to agree. */
-function asBuilt(fixtures: { name: string; graph: Graph }[]): Case[] {
-    return fixtures.map((f) => ({ name: f.name, graph: f.graph, s: checksummedSnapshot(f.graph) }));
+/** The same graph with every arc undirected: legacy `bipartitePartition` answers correctly on it. */
+function undirectedCopy(graph: Graph): Graph {
+    const out = new Graph({ directed: false });
+    for (const node of graph.nodes()) {
+        out.addNode(node.id);
+    }
+    for (const edge of graph.edges()) {
+        if (!out.hasEdge(edge.source, edge.target)) {
+            out.addEdge(edge.source, edge.target);
+        }
+    }
+    return out;
 }
 
 const undirected = undirectedTraversalFixtures();
@@ -91,14 +113,14 @@ function sortedStrings(values: Iterable<NodeId>): string[] {
 
 describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
     it("gives the pre-order, the tree and the depths on every fixture", () => {
-        for (const { name, graph, s } of cases(all)) {
+        for (const { name, graph, s, arcOrder } of cases(all)) {
             for (const start of starts(s)) {
                 const at = `${name} from ${String(s.ids.idOf(start))}`;
                 const legacyDepths = new Map<NodeId, number>();
                 const legacy = legacyDfs(graph, s.ids.idOf(start) as NodeId, {
                     visitCallback: (node, depth) => legacyDepths.set(node, depth),
                 });
-                const port = depthFirstSearch(s, start);
+                const port = depthFirstSearch(s, start, { arcOrder });
                 s.validate({ checksum: true });
                 expect(ids(s, port.order), at).toEqual(legacy.order);
                 expect(port.visitedCount, at).toBe(legacy.visited.size);
@@ -112,10 +134,10 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
     });
 
     it("gives the post-order on every fixture", () => {
-        for (const { name, graph, s } of cases(all)) {
+        for (const { name, graph, s, arcOrder } of cases(all)) {
             for (const start of starts(s)) {
                 const legacy = legacyDfs(graph, s.ids.idOf(start) as NodeId, { preOrder: false });
-                const port = depthFirstSearch(s, start, { order: "post" });
+                const port = depthFirstSearch(s, start, { order: "post", arcOrder });
                 s.validate({ checksum: true });
                 expect(ids(s, port.order), name).toEqual(legacy.order);
                 expect([...parentMap(s, port.order, port.parent)].sort(), name).toEqual([...legacy.tree].sort());
@@ -124,24 +146,25 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
     });
 
     it("stops at the target where legacy does", () => {
-        for (const { name, graph, s } of cases(all)) {
+        for (const { name, graph, s, arcOrder } of cases(all)) {
             if (s.nodeCount < 3) {
                 continue;
             }
-            const full = depthFirstSearch(s, 0);
+            const full = depthFirstSearch(s, 0, { arcOrder });
             const target = full.order[full.visitedCount >> 1];
             const legacy = legacyDfs(graph, s.ids.idOf(0) as NodeId, { targetNode: s.ids.idOf(target) as NodeId });
-            const port = depthFirstSearch(s, 0, { target });
+            const port = depthFirstSearch(s, 0, { target, arcOrder });
             s.validate({ checksum: true });
             expect(ids(s, port.order), name).toEqual(legacy.order);
+            expect(port.visitedCount, name).toBe(legacy.visited.size);
             expect([...parentMap(s, port.order, port.parent)], name).toEqual([...legacy.tree]);
         }
     });
 });
 
 describe("indexed.hasCycle against legacy hasCycleDFS", () => {
-    it("agrees on every fixture, as built and in index order", () => {
-        for (const { name, graph, s } of [...asBuilt(all), ...cases(all)]) {
+    it("agrees on every fixture", () => {
+        for (const { name, graph, s } of cases(all)) {
             const port = hasCycle(s);
             s.validate({ checksum: true });
             expect(port, name).toBe(hasCycleDFS(graph));
@@ -152,9 +175,9 @@ describe("indexed.hasCycle against legacy hasCycleDFS", () => {
 describe("indexed.topologicalSort against legacy topologicalSort", () => {
     it("gives the same order, or null, on every directed fixture", () => {
         let sorted = 0;
-        for (const { name, graph, s } of cases(directed)) {
+        for (const { name, graph, s, arcOrder } of cases(directed)) {
             const legacy = legacyTopologicalSort(graph);
-            const port = topologicalSort(s);
+            const port = topologicalSort(s, { arcOrder });
             s.validate({ checksum: true });
             expect(port === null ? null : ids(s, port), name).toEqual(legacy);
             sorted += legacy === null ? 0 : 1;
@@ -165,15 +188,17 @@ describe("indexed.topologicalSort against legacy topologicalSort", () => {
 });
 
 describe("indexed.isBipartite against legacy isBipartite and bipartitePartition", () => {
-    it("gives the same answer and the same two sides on every fixture, as built and in index order", () => {
+    it("gives the same answer and the same two sides on every fixture", () => {
+        // Legacy bipartitePartition follows out-arcs only, so on a directed graph its answer depends
+        // on node order; the port reads arcs both ways, which is what legacy answers on the
+        // undirected copy.
         let bipartite = 0;
-        for (const { name, graph, s } of [...asBuilt(all), ...cases(all)]) {
+        for (const { name, graph, s } of cases(all)) {
             const port = isBipartite(s);
             s.validate({ checksum: true });
-            if (!graph.isDirected) {
-                expect(port.bipartite, name).toBe(legacyIsBipartite(graph));
-            }
-            const partition = bipartitePartition(graph);
+            const simple = graph.isDirected ? undirectedCopy(graph) : graph;
+            expect(port.bipartite, name).toBe(legacyIsBipartite(simple));
+            const partition = bipartitePartition(simple);
             expect(port.bipartite, name).toBe(partition !== null);
             if (partition === null) {
                 expect(port.sides, name).toBeNull();
@@ -196,8 +221,8 @@ describe("indexed.isBipartite against legacy isBipartite and bipartitePartition"
 
 describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju", () => {
     it("labels every node with its legacy component index", () => {
-        for (const { name, graph, s } of cases(directed)) {
-            const port = stronglyConnectedComponents(s);
+        for (const { name, graph, s, arcOrder } of cases(directed)) {
+            const port = stronglyConnectedComponents(s, { arcOrder });
             s.validate({ checksum: true });
             const legacy = legacyScc(graph);
             expect(port.count, name).toBe(legacy.length);
@@ -214,10 +239,10 @@ describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju
         }
     });
 
-    it("gives the same partition as both legacy functions on the fixtures as built", () => {
+    it("gives the same partition as both legacy functions in row order", () => {
         const partition = (groups: Iterable<Iterable<NodeId>>): string[] =>
             [...groups].map((g) => sortedStrings(g).join(",")).sort();
-        for (const { name, graph, s } of asBuilt(directed)) {
+        for (const { name, graph, s } of cases(directed)) {
             const port = stronglyConnectedComponents(s);
             s.validate({ checksum: true });
             const groups = port.groups().map((g) => ids(s, g));
@@ -229,8 +254,8 @@ describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju
 
 describe("indexed.condensation against legacy condensationGraph", () => {
     it("gives the componentMap, the component numbering and the condensed edges", () => {
-        for (const { name, graph, s } of cases(directed)) {
-            const { components, condensed } = condensation(s);
+        for (const { name, graph, s, arcOrder } of cases(directed)) {
+            const { components, condensed } = condensation(s, { arcOrder });
             s.validate({ checksum: true });
             const legacy = condensationGraph(graph);
             const portMap = Array.from(components.labels, (label, i) => [s.ids.idOf(i), label]);
@@ -259,7 +284,7 @@ describe("indexed.directionOptimizedBfs against legacy directionOptimizedBFS", (
         // Legacy numbers nodes by sorted id, not by insertion, and so picks the frontier node with
         // the lowest id where the port picks the lowest index: the two agree once they coincide.
         for (const [list, compareParents] of [
-            [asBuilt(all), false],
+            [cases(all), false],
             [cases(all, legacyCsrOrder), true],
         ] as const) {
             for (const { name, graph, s } of list) {
@@ -305,14 +330,14 @@ describe("indexed.directionOptimizedBfs against legacy directionOptimizedBFS", (
 
 describe("indexed.breadthFirstSearch target option against legacy breadthFirstSearch", () => {
     it("stops where legacy stops, visiting the same nodes with the same tree", () => {
-        for (const { name, graph, s } of cases(all)) {
+        for (const { name, graph, s, arcOrder } of cases(all)) {
             if (s.nodeCount < 3) {
                 continue;
             }
-            const full = breadthFirstSearch(s, 0);
+            const full = breadthFirstSearch(s, 0, { arcOrder });
             for (const target of [full.order[full.visitedCount - 1], full.order[full.visitedCount >> 1]]) {
                 const legacy = legacyBfs(graph, s.ids.idOf(0) as NodeId, { targetNode: s.ids.idOf(target) as NodeId });
-                const port = breadthFirstSearch(s, 0, { target });
+                const port = breadthFirstSearch(s, 0, { target, arcOrder });
                 s.validate({ checksum: true });
                 const visited = ids(s, port.order);
                 expect(visited, name).toEqual([...legacy.visited]);

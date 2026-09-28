@@ -15,6 +15,7 @@
 
 export { allPairsShortestPath, type ApspOptions, type ApspResult } from "./all-pairs.js";
 export {
+    type ArcOrderOption,
     type BfsOptions,
     type BfsResult,
     breadthFirstSearch,

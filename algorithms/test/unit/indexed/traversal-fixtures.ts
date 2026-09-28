@@ -1,14 +1,7 @@
 /**
  * The fixtures the traversal ports are compared against their legacy counterparts on, and the two
- * rewrites of a fixture the comparison needs.
- *
- * Why a rewrite: a legacy `Graph` hands out neighbours in the order its adjacency Map received
- * them, while a snapshot row is sorted by node index (graph-format invariant I4). Every result that
- * depends on the order neighbours are tried in -- a DFS visit order, a topological order, the order
- * Tarjan completes components in -- can therefore agree with legacy only on a graph whose adjacency
- * Maps are already in index order. `inIndexOrder` rebuilds a fixture that way (same nodes in the
- * same order, edges re-added sorted); the order-free results (cycle, bipartiteness and sides, the
- * strong-component partition, BFS depths) are compared on the fixture as built too.
+ * rewrites of a fixture the comparison needs: a multigraph with every edge doubled, and the same
+ * graph renumbered in the node order the legacy `CSRGraph` uses.
  */
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
@@ -113,8 +106,9 @@ export function directedTraversalFixtures(): FacadeFixture[] {
 
 /**
  * The same graph with every adjacency Map in node-index order: nodes re-added in their original
- * order, then edges sorted by (lower index, higher index) -- (source, target) when directed -- so
- * each node meets its neighbours in ascending index order, which is how a snapshot row is sorted.
+ * order (or sorted by `nodeOrder`), then edges sorted by (lower index, higher index) -- (source,
+ * target) when directed -- so each node meets its neighbours in ascending index order, which is how
+ * a snapshot row and a legacy `CSRGraph` row are sorted.
  * @param graph - A legacy fixture
  * @param nodeOrder - Re-add the nodes sorted by this comparator instead of in their original order
  * @returns A new legacy graph with the same nodes and edges

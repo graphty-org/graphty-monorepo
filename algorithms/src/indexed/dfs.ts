@@ -1,5 +1,6 @@
 import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
+import { type ArcOrderOption, checkArcOrder, checkStart } from "./bfs.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
 /** Result of the index-based DFS. @public */
@@ -15,7 +16,7 @@ export interface DfsResult {
 }
 
 /** Options of the index-based DFS. @public */
-export interface DfsOptions {
+export interface DfsOptions extends ArcOrderOption {
     /**
      * Stop the whole walk as soon as this node index is visited. Pre-order only: a post-order walk
      * always runs to the end, since a node's post-order place is known only once its subtree is done.
@@ -61,13 +62,14 @@ function newWalk(nodeCount: number): Walk {
 
 /**
  * Iterative DFS from `root` with an explicit arc cursor per node, so the walk tries neighbours in
- * row order exactly as a recursive DFS would and never overflows the call stack.
+ * row order (or `arcOrder`) exactly as a recursive DFS would and never overflows the call stack.
  * @param g - The adjacency to walk
  * @param root - An unvisited node index
  * @param w - The shared walk state
  * @param target - Stop the walk when this node is reached; INVALID_INDEX for none
+ * @param arcOrder - The order to try each row's arcs in; null for row order
  */
-function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number): void {
+function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOrder: U32 | null): void {
     const { rowPtr, colIdx } = g;
     const { state, parent, depth, cursor, stack, pre, post } = w;
     let top = 0;
@@ -82,7 +84,8 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number): void
     while (top > 0) {
         const u = stack[top - 1];
         if (cursor[u] < rowPtr[u + 1]) {
-            const v = colIdx[cursor[u]++];
+            const a = cursor[u]++;
+            const v = colIdx[arcOrder === null ? a : arcOrder[a]];
             if (state[v] === NEW) {
                 state[v] = OPEN;
                 parent[v] = u;
@@ -105,7 +108,8 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number): void
 }
 
 /**
- * Depth-first search over out-neighbours, trying them in row (ascending index) order. Takes any
+ * Depth-first search over out-neighbours, trying them in row (ascending index) order unless
+ * `options.arcOrder` gives another. Takes any
  * `AdjacencyView`, so `s.reverse()` walks in-neighbours.
  * @param g - The adjacency to traverse
  * @param start - The node index to start from
@@ -114,9 +118,11 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number): void
  * @public
  */
 export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOptions = {}): DfsResult {
+    checkStart(g, start);
+    const arcOrder = checkArcOrder(g, options.arcOrder);
     const w = newWalk(g.nodeCount);
     const postOrder = options.order === "post";
-    walkFrom(g, start, w, postOrder ? INVALID_INDEX : (options.target ?? INVALID_INDEX));
+    walkFrom(g, start, w, postOrder ? INVALID_INDEX : (options.target ?? INVALID_INDEX), arcOrder);
     const order = postOrder ? w.post.subarray(0, w.postCount) : w.pre.subarray(0, w.preCount);
     return { order, parent: w.parent, depth: w.depth, visitedCount: w.preCount };
 }
@@ -135,7 +141,7 @@ export function hasCycle(g: AdjacencyView): boolean {
         const w = newWalk(nodeCount);
         for (let r = 0; r < nodeCount && !w.backArc; r++) {
             if (w.state[r] === NEW) {
-                walkFrom(g, r, w, INVALID_INDEX);
+                walkFrom(g, r, w, INVALID_INDEX, null);
             }
         }
         return w.backArc;
@@ -159,20 +165,22 @@ export function hasCycle(g: AdjacencyView): boolean {
 
 /**
  * Topological order of a directed graph: reverse DFS post-order, roots taken in index order and
- * neighbours in row order.
+ * neighbours in row order unless `options.arcOrder` gives another.
  * @param g - A directed adjacency
+ * @param options - The neighbour order
  * @returns The node indices in topological order, or null when the graph has a cycle
  * @throws Error when the graph is undirected
  * @public
  */
-export function topologicalSort(g: AdjacencyView): U32 | null {
+export function topologicalSort(g: AdjacencyView, options: ArcOrderOption = {}): U32 | null {
     if (!g.directed) {
         throw new Error("Topological sort requires a directed graph");
     }
+    const arcOrder = checkArcOrder(g, options.arcOrder);
     const w = newWalk(g.nodeCount);
     for (let r = 0; r < g.nodeCount && !w.backArc; r++) {
         if (w.state[r] === NEW) {
-            walkFrom(g, r, w, INVALID_INDEX);
+            walkFrom(g, r, w, INVALID_INDEX, arcOrder);
         }
     }
     return w.backArc ? null : w.post.reverse();

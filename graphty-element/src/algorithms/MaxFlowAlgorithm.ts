@@ -169,7 +169,8 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         });
 
         // Parallel edges are one arc of the network, carrying their capacities together, so each of
-        // them reports the pair's flow against the pair's capacity. The net flow through a node is
+        // them reports the pair's flow against the pair's capacity. A negative capacity counts as
+        // none, as it does in the flow itself. The net flow through a node is
         // what arrives minus what leaves.
         const n = graph.nodeCount;
         const pairFlow = new Map<number, number>();
@@ -178,7 +179,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         for (let k = 0; k < graphEdges.length; k++) {
             const pair = networkSrc[k] * n + networkDst[k];
             pairFlow.set(pair, (pairFlow.get(pair) ?? 0) + result.flow[k]);
-            pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + capacities[k]);
+            pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + Math.max(capacities[k], 0));
             net[networkSrc[k]] -= result.flow[k];
             net[networkDst[k]] += result.flow[k];
         }

@@ -310,11 +310,27 @@ describe("min-cut equals the legacy route", () => {
     }
 
     it("gives Karger's cut the same answer on every run", async () => {
-        const graph = await createMockGraph(randomGraph(15, 40, 3));
-        const run = async () => compute(new MinCutAlgorithm(graph, { useGlobalMinCut: true, useKarger: true }));
-        const [first, second] = [await run(), await run()];
+        // Two six-node cliques joined by one edge, cut in a single contraction: different seeds
+        // land on cuts of 1, 5, 8 or 9 edges, so runs agree only when the seed is fixed.
+        const edges: Edge[] = [{ srcId: "a0", dstId: "b0" }];
+        for (const side of ["a", "b"]) {
+            for (let i = 0; i < 6; i++) {
+                for (let j = i + 1; j < 6; j++) {
+                    edges.push({ srcId: `${side}${i}`, dstId: `${side}${j}` });
+                }
+            }
+        }
 
-        assert.deepStrictEqual(second.edges, first.edges);
+        const graph = await createMockGraph({ nodes: [], edges });
+        const run = async () =>
+            compute(new MinCutAlgorithm(graph, { useGlobalMinCut: true, useKarger: true, kargerIterations: 1 }));
+        const first = await run();
+        for (let k = 0; k < 10; k++) {
+            const again = await run();
+            assert.strictEqual(again.graph?.cutValue, first.graph?.cutValue, `run ${k} cut value`);
+            assert.deepStrictEqual(again.edges, first.edges, `run ${k} cut edges`);
+        }
+
         assert.isAtLeast(
             first.graph?.cutValue as number,
             legacyMinCut(graph).cutValue,
@@ -377,6 +393,34 @@ describe("bipartite matching equals the legacy route", () => {
             assert.strictEqual(matched, 2 * expected.size, "both ends of every pair are matched");
         });
     }
+
+    it("marks every declared edge between a pair, whichever way and however often it was declared", async () => {
+        // l0 can only partner r0, which leaves l1 with r1, so the pairing is forced: l0 with r0
+        // through a reciprocal pair and a parallel edge, l1 with r1 through an edge declared from
+        // the right, and the l1-r0 edge left out.
+        const graph = await createMockGraph({
+            nodes: ["l0", "l1", "r0", "r1"].map((id) => ({ id })),
+            edges: [
+                { srcId: "l0", dstId: "r0" },
+                { srcId: "r0", dstId: "l0" },
+                { srcId: "r1", dstId: "l1" },
+                { srcId: "l1", dstId: "r0" },
+                { srcId: "l0", dstId: "r0" },
+            ],
+        });
+        const output = await compute(new BipartiteMatchingAlgorithm(graph));
+        const dm = dataManager(graph);
+
+        const edges = byId(output.edges);
+        assert.strictEqual(edges.size, 5);
+        for (const [id, values] of edges) {
+            const record = dm.edges.get(id) as { srcId: unknown; dstId: unknown };
+            const ends = [String(record.srcId), String(record.dstId)].sort().join("-");
+            assert.strictEqual(values.in, ends !== "l1-r0", `edge ${ends} in the pairing`);
+        }
+
+        assert.isTrue([...byId(output.nodes).values()].every((values) => values.matched === true));
+    });
 
     it("pairs nothing in a graph without two sides", async () => {
         const graph = await createMockGraph({

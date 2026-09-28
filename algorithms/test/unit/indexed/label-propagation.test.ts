@@ -1,6 +1,8 @@
 import { GraphBuilder, type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
+import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
+import { labelPropagation as legacyLabelPropagation } from "../../../src/algorithms/community/label-propagation.js";
 import { Graph } from "../../../src/core/graph.js";
 import { labelPropagation } from "../../../src/indexed/label-propagation.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
@@ -621,5 +623,109 @@ describe("indexed.labelPropagation: directed snapshots", () => {
             }
             s.validate({ checksum: true });
         }
+    });
+});
+
+/** The legacy result as a dense label array in snapshot index order, renumbered first-seen. */
+function legacyLabels(s: GraphSnapshot, graph: Graph, randomSeed: number): { labels: number[]; converged: boolean } {
+    const r = legacyLabelPropagation(graph, { randomSeed });
+    const raw = new Uint32Array(s.nodeCount);
+    for (let i = 0; i < s.nodeCount; i++) {
+        const c = r.communities.get(String(s.ids.idOf(i)));
+        if (c === undefined) {
+            throw new Error(`legacy result has no community for node ${i}`);
+        }
+        raw[i] = c;
+    }
+    return { labels: [...renumberPartition(raw).labels], converged: r.converged };
+}
+
+/** Adjusted Rand index of two partitions (Hubert and Arabie 1985), by pair counting. */
+function adjustedRandIndex(a: ArrayLike<number>, b: ArrayLike<number>): number {
+    const n = a.length;
+    const pairs = (k: number): number => (k * (k - 1)) / 2;
+    const cells = new Map<string, number>();
+    const rows = new Map<number, number>();
+    const cols = new Map<number, number>();
+    for (let i = 0; i < n; i++) {
+        const key = `${a[i]},${b[i]}`;
+        cells.set(key, (cells.get(key) ?? 0) + 1);
+        rows.set(a[i], (rows.get(a[i]) ?? 0) + 1);
+        cols.set(b[i], (cols.get(b[i]) ?? 0) + 1);
+    }
+    let index = 0;
+    for (const k of cells.values()) {
+        index += pairs(k);
+    }
+    let sumRows = 0;
+    for (const k of rows.values()) {
+        sumRows += pairs(k);
+    }
+    let sumCols = 0;
+    for (const k of cols.values()) {
+        sumCols += pairs(k);
+    }
+    const expected = (sumRows * sumCols) / pairs(n);
+    const maximum = (sumRows + sumCols) / 2;
+    return maximum === expected ? 1 : (index - expected) / (maximum - expected);
+}
+
+describe("indexed.labelPropagation: against the legacy labelPropagation", () => {
+    it("finds the same communities where the graph determines them", () => {
+        for (const { name, graph } of undirectedFixtures()) {
+            if (name !== "two triangles and an isolated node" && name !== "two five-cliques, disconnected") {
+                continue;
+            }
+            const s = checksummedSnapshot(graph);
+            for (const seed of SEEDS_10) {
+                expect([...labelPropagation(s, { randomSeed: seed }).labels], `${name}, seed ${seed}`).toEqual(
+                    legacyLabels(s, graph, seed).labels,
+                );
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("ends dominant wherever both report convergence, on every shared undirected fixture", () => {
+        for (const { name, graph } of undirectedFixtures()) {
+            const s = checksummedSnapshot(graph);
+            for (const seed of SEEDS_10) {
+                const port = labelPropagation(s, { randomSeed: seed });
+                const legacy = legacyLabels(s, graph, seed);
+                if (port.converged && legacy.converged) {
+                    expect(dominanceHolds(s, port.labels), `${name}, seed ${seed}, port`).toBe(true);
+                    expect(dominanceHolds(s, legacy.labels), `${name}, seed ${seed}, legacy`).toBe(true);
+                }
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("recovers a planted partition at least as well as the legacy function (mean ARI >= 0.9)", () => {
+        let portSum = 0;
+        let legacySum = 0;
+        for (const seed of SEEDS_10) {
+            const sample = plantedPartitionGraph({ groups: 4, groupSize: 50, pIn: 0.3, pOut: 0.01, seed });
+            const g = new Graph({ directed: false });
+            for (let i = 0; i < sample.nodeCount; i++) {
+                g.addNode(String(i));
+            }
+            for (let e = 0; e < sample.src.length; e++) {
+                g.addEdge(String(sample.src[e]), String(sample.dst[e]));
+            }
+            const truth = sample.nodeColumns?.community;
+            if (!(truth instanceof Uint32Array)) {
+                throw new Error("planted partition graph has no u32 community column");
+            }
+            const s = checksummedSnapshot(g);
+            const planted = Array.from({ length: s.nodeCount }, (_, i) => truth[Number(s.ids.idOf(i))]);
+            portSum += adjustedRandIndex(labelPropagation(s, { randomSeed: seed }).labels, planted);
+            legacySum += adjustedRandIndex(legacyLabels(s, g, seed).labels, planted);
+            s.validate({ checksum: true });
+        }
+        const portMean = portSum / SEEDS_10.length;
+        const legacyMean = legacySum / SEEDS_10.length;
+        expect(portMean).toBeGreaterThanOrEqual(0.9);
+        expect(portMean).toBeGreaterThanOrEqual(legacyMean - 0.05);
     });
 });

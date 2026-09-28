@@ -289,8 +289,9 @@ describe("accelerated(acc)", () => {
         };
         const dispatcher = accelerated(fake);
         expect((await dispatcher.kCoreDecomposition(undirected)).coreness[0]).toBe(9);
-        expect((await dispatcher.katzCentrality(s)).scores).toBeInstanceOf(Float32Array);
-        expect((await dispatcher.hits(s)).hubs).toBeInstanceOf(Float32Array);
+        // The accelerator's vectors, rescaled the ports' way (see the HITS and Katz routing below).
+        expect([...(await dispatcher.katzCentrality(s)).scores]).toEqual([1, 1, 1]);
+        expect([...(await dispatcher.hits(s)).hubs]).toEqual([1, 0, 0]);
         expect((await dispatcher.louvain(undirected)).count).toBe(1);
         expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
     });
@@ -877,5 +878,111 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
         await expect(dispatcher.eigenvectorCentrality(triangle(), { maxIterations: 7 })).rejects.toThrow(
             "eigenvectorCentrality did not converge in 7 iterations",
         );
+    });
+});
+
+describe("accelerated(acc) routing for HITS and Katz", () => {
+    // The WebGPU members scale their vectors differently from the ports -- HITS by the sum, Katz to
+    // unit length -- and default `weighted` to true. The dispatcher hands them explicit options and
+    // rescales what comes back, so the caller gets the port's answer whichever path ran.
+    function hitsStub(calls: unknown[][]): AlgorithmAccelerator {
+        return {
+            kind: "fake",
+            hits: (...a) => (
+                calls.push(a),
+                Promise.resolve({
+                    hubs: Float32Array.of(1, 2, 2),
+                    authorities: Float32Array.of(0, 3, 4),
+                    iterations: 6,
+                    converged: true,
+                })
+            ),
+        };
+    }
+
+    function katzStub(calls: unknown[][]): AlgorithmAccelerator {
+        return {
+            kind: "fake",
+            katzCentrality: (...a) => (
+                calls.push(a),
+                Promise.resolve({ scores: Float32Array.of(0.2, 0.4, 0.8), iterations: 5, converged: true })
+            ),
+        };
+    }
+
+    it("hands HITS explicit options and rescales both vectors to unit length, as the port leaves them", async () => {
+        const s = cycle();
+        const calls: unknown[][] = [];
+        const r = await accelerated(hitsStub(calls)).hits(s, { maxIterations: 40, tolerance: 1e-4 });
+        expect(calls[0][1]).toEqual({ maxIterations: 40, tolerance: 1e-4, weighted: false });
+        expect([...r.hubs]).toEqual([1 / 3, 2 / 3, 2 / 3]);
+        expect([...r.authorities]).toEqual([0, 3 / 5, 4 / 5]);
+        expect(r.iterations).toBe(6);
+        expect(r.converged).toBe(true);
+    });
+
+    it("rescales HITS to a largest entry of 1 when normalized is false, as the port does", async () => {
+        const r = await accelerated(hitsStub([])).hits(cycle(), { normalized: false });
+        expect([...r.hubs]).toEqual([0.5, 1, 1]);
+        expect([...r.authorities]).toEqual([0, 0.75, 1]);
+    });
+
+    it("hands Katz alpha, beta and an explicit weighted, and min-max rescales its vector like the port", async () => {
+        const s = cycle();
+        const calls: unknown[][] = [];
+        const r = await accelerated(katzStub(calls)).katzCentrality(s, { alpha: 0.2, beta: 2, weighted: true });
+        expect(calls[0][1]).toEqual({ alpha: 0.2, beta: 2, maxIterations: undefined, tolerance: undefined, weighted: true });
+        expect(r.scores[0]).toBe(0);
+        expect(r.scores[2]).toBe(1);
+        expect(r.scores[1]).toBeCloseTo(1 / 3, 6);
+    });
+
+    it("keeps Katz with normalized false on the CPU port: the raw sums cannot be recovered from a unit vector", async () => {
+        const s = cycle();
+        const calls: unknown[][] = [];
+        const r = await accelerated(katzStub(calls)).katzCentrality(s, { normalized: false });
+        expect(calls).toHaveLength(0);
+        expect([...r.scores]).toEqual([...indexed.katzCentrality(s, { normalized: false }).scores]);
+    });
+
+    it("gives the port's answer on both paths for a real graph, to single precision", async () => {
+        const g = new Graph({ directed: true });
+        for (const [u, v] of [["a", "b"], ["b", "c"], ["c", "a"], ["a", "c"], ["d", "c"]] as const) {
+            g.addEdge(u, v);
+        }
+        const s = toSnapshot(g);
+        // A stand-in that computes like the WebGPU members: the port's vectors, rescaled their way.
+        const gpuLike: AlgorithmAccelerator = {
+            kind: "fake",
+            hits: (g, o) => {
+                const r = indexed.hits(g, o);
+                const sum = (v: Float64Array): number => v.reduce((a, b) => a + b, 0);
+                return Promise.resolve({
+                    hubs: Float32Array.from(r.hubs, (x) => x / sum(r.hubs)),
+                    authorities: Float32Array.from(r.authorities, (x) => x / sum(r.authorities)),
+                    iterations: r.iterations,
+                    converged: r.converged,
+                });
+            },
+            katzCentrality: (g, o) => {
+                const r = indexed.katzCentrality(g, { ...o, normalized: false });
+                const norm = Math.hypot(...r.scores);
+                return Promise.resolve({
+                    scores: Float32Array.from(r.scores, (x) => x / norm),
+                    iterations: r.iterations,
+                    converged: r.converged,
+                });
+            },
+        };
+        const viaGpu = accelerated(gpuLike);
+        for (const normalized of [true, false]) {
+            const want = indexed.hits(s, { normalized });
+            const got = await viaGpu.hits(s, { normalized });
+            want.hubs.forEach((x, i) => expect(got.hubs[i]).toBeCloseTo(x, 6));
+            want.authorities.forEach((x, i) => expect(got.authorities[i]).toBeCloseTo(x, 6));
+        }
+        const want = indexed.katzCentrality(s);
+        const got = await viaGpu.katzCentrality(s);
+        want.scores.forEach((x, i) => expect(got.scores[i]).toBeCloseTo(x, 6));
     });
 });

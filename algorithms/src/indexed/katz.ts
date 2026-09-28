@@ -27,6 +27,30 @@ export interface KatzResult {
 }
 
 /**
+ * Rescale a vector in place so its smallest entry is 0 and its largest 1, as the legacy function
+ * does; left alone when every entry is equal.
+ * @param v - The vector to scale
+ */
+export function minMaxNormalize(v: Float64Array): void {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < v.length; i++) {
+        if (v[i] < min) {
+            min = v[i];
+        }
+        if (v[i] > max) {
+            max = v[i];
+        }
+    }
+    const range = max - min;
+    if (range > 0) {
+        for (let i = 0; i < v.length; i++) {
+            v[i] = (v[i] - min) / range;
+        }
+    }
+}
+
+/**
  * Katz centrality by power iteration over incoming arcs: `x[v] = alpha * sum(x[u] for u -> v) + beta`.
  *
  * `reverse()` supplies the in-arcs, and is the forward adjacency itself on an undirected snapshot,
@@ -67,22 +91,7 @@ export function katzCentrality(s: GraphSnapshot, o: KatzOptions = {}): KatzResul
         converged = maxDiff < tol;
     }
     if (o.normalized !== false) {
-        let min = Infinity;
-        let max = -Infinity;
-        for (let v = 0; v < n; v++) {
-            if (cur[v] < min) {
-                min = cur[v];
-            }
-            if (cur[v] > max) {
-                max = cur[v];
-            }
-        }
-        const range = max - min;
-        if (range > 0) {
-            for (let v = 0; v < n; v++) {
-                cur[v] = (cur[v] - min) / range;
-            }
-        }
+        minMaxNormalize(cur);
     }
     return { scores: cur, iterations: it, converged };
 }

@@ -32,7 +32,7 @@ export interface HitsResult {
  * Divide a vector by its L2 norm, in place; a zero vector is left alone.
  * @param v - The vector to scale
  */
-function l2Normalize(v: Float64Array): void {
+export function l2Normalize(v: Float64Array): void {
     let sum = 0;
     for (let i = 0; i < v.length; i++) {
         sum += v[i] * v[i];
@@ -49,7 +49,7 @@ function l2Normalize(v: Float64Array): void {
  * Divide a vector by its largest entry, in place; left alone when that entry is not positive.
  * @param v - The vector to scale
  */
-function maxNormalize(v: Float64Array): void {
+export function maxNormalize(v: Float64Array): void {
     let max = 0;
     for (let i = 0; i < v.length; i++) {
         if (v[i] > max) {

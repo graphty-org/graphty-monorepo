@@ -21,9 +21,9 @@ import type { BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { type EigenvectorOptions, minMaxRescale } from "./eigenvector.js";
-import type { HitsOptions } from "./hits.js";
+import { type HitsOptions, l2Normalize, maxNormalize } from "./hits.js";
 import * as indexed from "./index.js";
-import type { KatzOptions } from "./katz.js";
+import { type KatzOptions, minMaxNormalize } from "./katz.js";
 import type { LabelPropagationOptions } from "./label-propagation.js";
 import type { LouvainOptions } from "./louvain.js";
 import type { MstOptions } from "./mst.js";
@@ -191,11 +191,17 @@ export interface BetweennessAcceleratorOptions {
  *
  * The list GROWS with the A2 ports -- each port PR adds its method (plan departure DEP-8A-E).
  *
- * The four newest methods take their port's own option type, which is WIDER than the
- * `HitsOptionsLike` the accelerator side still declares: an accelerator therefore never sees Katz's
- * `alpha` / `beta` or Louvain's `resolution`, and one that is handed them would answer a different
- * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
- * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
+ * `kCoreDecomposition` and `louvain` pass their options through unchanged; webgpu-graph-algorithms
+ * implements neither, so with its accelerator both run the CPU port.
+ *
+ * `hits` and `katzCentrality` hand the accelerator explicit options -- Katz's `alpha` and `beta`,
+ * and `weighted` resolved to the port's default (false), since the WebGPU members default it to
+ * true -- and rescale what comes back: the WebGPU members scale HITS by the sum and Katz to unit
+ * length, and the port leaves HITS at unit length (a largest entry of 1 with `normalized: false`)
+ * and min-max rescales Katz. Every one of those scalings is blind to a positive factor, so the
+ * rescaled vector is the port's. Katz with `normalized: false` runs the CPU port, because the raw
+ * sums cannot be recovered from a vector of unit length. The iteration counts of the two paths
+ * differ.
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
@@ -461,6 +467,52 @@ function decorateSssp(s: GraphSnapshot, source: number, like: SsspResultLike): S
 }
 
 /**
+ * The Katz options an accelerator is handed: the port's own members with `weighted` resolved to the
+ * port's default (false), since an accelerator may default it the other way. `normalized` is never
+ * forwarded: a call that sets it false runs the port.
+ * @param options - The caller's port options
+ * @returns The accelerator's options
+ */
+function katzOptionsLike(options: KatzOptions | undefined): KatzOptions {
+    return {
+        alpha: options?.alpha,
+        beta: options?.beta,
+        maxIterations: options?.maxIterations,
+        tolerance: options?.tolerance,
+        weighted: options?.weighted === true,
+    };
+}
+
+/**
+ * Give an accelerator's Katz vector the port's min-max scaling. Min-max is blind to a positive
+ * scale factor, so whatever length the accelerator left the vector at, the result is the port's.
+ * @param like - The accelerator's result
+ * @returns The result, rescaled into a new vector
+ */
+function finishKatz(like: ScoresResultLike): ScoresResultLike {
+    const scores = Float64Array.from(like.scores);
+    minMaxNormalize(scores);
+    return { scores, iterations: like.iterations, converged: like.converged };
+}
+
+/**
+ * Give an accelerator's HITS vectors the port's scaling: unit length, or a largest entry of 1 when
+ * `normalized: false`. Both are blind to a positive scale factor, so an accelerator that scales by
+ * the sum gives the port's vectors.
+ * @param like - The accelerator's result
+ * @param options - The caller's port options
+ * @returns The result, rescaled into new vectors
+ */
+function finishHits(like: HitsResultLike, options: HitsOptions | undefined): HitsResultLike {
+    const hubs = Float64Array.from(like.hubs);
+    const authorities = Float64Array.from(like.authorities);
+    const scale = options?.normalized === false ? maxNormalize : l2Normalize;
+    scale(hubs);
+    scale(authorities);
+    return { hubs, authorities, iterations: like.iterations, converged: like.converged };
+}
+
+/**
  * Build the dispatcher for an accelerator, or for none.
  * @param acc - The injected accelerator, or `null` / `undefined` for the CPU path
  * @returns A dispatcher whose methods delegate where they can and run the CPU port otherwise
@@ -523,11 +575,19 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.kCoreDecomposition(s)
                 : Promise.resolve(indexed.kCoreDecomposition(s)),
         katzCentrality: (s, options) =>
-            acc?.katzCentrality !== undefined
-                ? acc.katzCentrality(s, options)
+            acc?.katzCentrality !== undefined && options?.normalized !== false
+                ? acc.katzCentrality(s, katzOptionsLike(options)).then(finishKatz)
                 : Promise.resolve(indexed.katzCentrality(s, options)),
         hits: (s, options) =>
-            acc?.hits !== undefined ? acc.hits(s, options) : Promise.resolve(indexed.hits(s, options)),
+            acc?.hits !== undefined
+                ? acc
+                      .hits(s, {
+                          maxIterations: options?.maxIterations,
+                          tolerance: options?.tolerance,
+                          weighted: options?.weighted === true,
+                      })
+                      .then((like) => finishHits(like, options))
+                : Promise.resolve(indexed.hits(s, options)),
         louvain: (s, options) =>
             acc?.louvain !== undefined ? acc.louvain(s, options) : Promise.resolve(indexed.louvain(s, options)),
         allPairsShortestPath: (s, options) =>

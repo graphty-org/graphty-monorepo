@@ -44,7 +44,8 @@ function rejectIndexOptions(options: BetweennessCentralityOptions, fn: string): 
     if (options.sources !== undefined || options.k !== undefined) {
         throw new Error(
             `${fn}: 'sources' and 'k' are node INDICES and are meaningful only against a GraphSnapshot; ` +
-                "call accelerated(accelerator).betweennessCentrality(snapshot, options) instead",
+                "sampled betweenness is available only from an AlgorithmAccelerator that implements " +
+                "betweennessCentrality(snapshot, options)",
         );
     }
 }

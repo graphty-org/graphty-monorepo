@@ -12,7 +12,10 @@ export interface ClosenessOptions {
     readonly normalized?: boolean | undefined;
     /** Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs. Default false. */
     readonly harmonic?: boolean | undefined;
-    /** Count only nodes at most this far away. Default: every reachable node. */
+    /**
+     * Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge
+     * reaches it from a node closer than the cutoff, as in the legacy functions. Default: every reachable node.
+     */
     readonly cutoff?: number | undefined;
     /**
      * Measure distance by edge weight (Dijkstra) rather than by hops, as the legacy
@@ -69,10 +72,13 @@ function scorer(s: GraphSnapshot, o: ClosenessOptions): Scorer {
         heap.push(source, 0);
         while (!heap.isEmpty()) {
             const v = heap.pop();
+            if (dist[v] >= cutoff) {
+                continue;
+            }
             for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
                 const w = colIdx[a];
                 const d = dist[v] + weights[a];
-                if (d < dist[w] && d <= cutoff) {
+                if (d < dist[w]) {
                     if (dist[w] === Infinity) {
                         reached[tail++] = w;
                     }
@@ -113,9 +119,6 @@ function scorer(s: GraphSnapshot, o: ClosenessOptions): Scorer {
  * Closeness centrality of every node: `1 / sum(distance to each reached node)` by default, exactly the legacy
  * `closenessCentrality` (hops) and `weightedClosenessCentrality` (`weighted: true`) numbers. An unreached node
  * adds nothing, and a node that reaches nothing scores 0.
- *
- * One departure: a weighted `cutoff` here counts only nodes within the cutoff. The legacy weighted function also
- * counts a node one edge past it whenever that edge leaves a node closer than the cutoff.
  * @param s - The snapshot
  * @param options - Normalisation, harmonic form, cutoff and weights
  * @returns One score per node index; `iterations` is the number of searches run

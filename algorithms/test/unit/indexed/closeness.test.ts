@@ -69,14 +69,16 @@ describe("indexed.closenessCentrality", () => {
         expect([...closenessCentrality(b.freeze(), { weighted: true }).scores]).toEqual([1 / 2, 1 / 2]);
     });
 
-    it("with a weighted cutoff, counts only nodes within it", () => {
-        const b = new GraphBuilder({ directed: false });
-        b.addEdge("a", "b", 1);
-        b.addEdge("b", "c", 5);
-        const s = b.freeze();
-        // c is 6 away from a; the legacy weighted function counts it anyway, since b is closer than 2
-        expect(closenessCentrality(s, { weighted: true, cutoff: 2 }).scores[0]).toBe(1);
-        expect(closenessCentrality(s, { weighted: true, cutoff: 6 }).scores[0]).toBe(1 / 7);
+    it("with a weighted cutoff, stops searching past it as the legacy weighted function does", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b", 1);
+        g.addEdge("b", "c", 5);
+        const s = checksummedSnapshot(g);
+        // c is 6 away from a and past the cutoff, but it is counted: the search expands b, which is closer than 2
+        expect(closenessCentrality(s, { weighted: true, cutoff: 2 }).scores[0]).toBe(1 / 7);
+        for (const options of [{ cutoff: 2 }, { cutoff: 0.5 }, { cutoff: 1, harmonic: true }, { cutoff: 5, normalized: true }]) {
+            expectMatches(s, closenessCentrality(s, { ...options, weighted: true }).scores, legacyWeightedCloseness(g, options));
+        }
     });
 
     it("gives the empty graph an empty result", () => {
@@ -94,7 +96,7 @@ describe("indexed.closenessCentrality", () => {
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1, normalized: true }]) {
                 expectMatches(s, closenessCentrality(s, options).scores, legacyCloseness(graph, options));
             }
-            for (const options of OPTION_SETS) {
+            for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1.5, harmonic: true }]) {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true, weights }).scores,

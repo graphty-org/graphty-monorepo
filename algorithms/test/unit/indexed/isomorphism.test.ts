@@ -200,6 +200,32 @@ describe("indexed.findAllIsomorphisms", () => {
         expect([...kept[0]]).toEqual([0, 1, 2]);
     });
 
+    it("an edge predicate on a directed graph sees an arc that only the reverse view reaches", () => {
+        // b is mapped after a and has no out-arcs: a -> b is offered only as an in-arc of b.
+        const arc = (weight: number): GraphSnapshot => {
+            const b = new GraphBuilder({ directed: true });
+            b.addEdge("a", "b", weight);
+            return b.freeze();
+        };
+        const byWeight = { edgeMatch: (e1: number, e2: number, a: GraphSnapshot, b: GraphSnapshot) => a.edgeList().weights?.[e1] === b.edgeList().weights?.[e2] };
+        expect(findAllIsomorphisms(arc(1), arc(2), byWeight)).toHaveLength(0);
+        expect(isGraphIsomorphic(arc(1), arc(2), byWeight).isomorphic).toBe(false);
+        expect(findAllIsomorphisms(arc(1), arc(1), byWeight)).toHaveLength(1);
+    });
+
+    it("an edge predicate sees self-loops", () => {
+        const loop = (weight: number): GraphSnapshot => {
+            const b = new GraphBuilder({ directed: false });
+            b.addEdge("a", "a", weight);
+            b.addEdge("a", "b", 5);
+            return b.freeze();
+        };
+        const byWeight = { edgeMatch: (e1: number, e2: number, a: GraphSnapshot, b: GraphSnapshot) => a.edgeList().weights?.[e1] === b.edgeList().weights?.[e2] };
+        expect(findAllIsomorphisms(loop(1), loop(2), byWeight)).toHaveLength(0);
+        expect(isGraphIsomorphic(loop(1), loop(2), byWeight).isomorphic).toBe(false);
+        expect(findAllIsomorphisms(loop(1), loop(1), byWeight)).toHaveLength(1);
+    });
+
     it("finds none between graphs with the same degrees that are not isomorphic", () => {
         const cycle = fromPairs(false, "a-b b-c c-d d-e e-f f-a");
         const triangles = fromPairs(false, "a-b b-c c-a d-e e-f f-d");

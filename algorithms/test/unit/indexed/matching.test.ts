@@ -142,6 +142,25 @@ function legacyInIndexOrder(s: GraphSnapshot): Graph {
     return g;
 }
 
+function pathXYZ(): GraphSnapshot {
+    const b = new GraphBuilder({ directed: false });
+    b.addEdge("x", "y");
+    b.addEdge("y", "z");
+    return b.freeze();
+}
+
+function explicitSides(s: GraphSnapshot, leftIds: readonly NodeId[], rightIds: readonly NodeId[]): { left: Uint32Array; right: Uint32Array } {
+    const left = makeMask(s.nodeCount);
+    const right = makeMask(s.nodeCount);
+    for (const id of leftIds) {
+        maskSet(left, s.ids.indexOf(id), true);
+    }
+    for (const id of rightIds) {
+        maskSet(right, s.ids.indexOf(id), true);
+    }
+    return { left, right };
+}
+
 describe("indexed.maximumBipartiteMatching", () => {
     for (const fixture of fixtures) {
         it(`${fixture.name}: the size equals legacy and the matching is valid`, () => {
@@ -172,6 +191,24 @@ describe("indexed.maximumBipartiteMatching", () => {
         const s = checksummedSnapshot(directed);
         expect(maximumBipartiteMatching(s).size).toBe(legacyMaximum(undirected).size);
         expect(maximumBipartiteMatching(s).size).toBe(3);
+    });
+
+    it("ignores arc direction by default when the left side has only in-arcs", () => {
+        // l0 is index 0, so the left side is the l side; every arc points into it.
+        const b = new GraphBuilder({ directed: true });
+        for (const id of ["l0", "l1", "l2"]) {
+            b.addNode(id);
+        }
+        for (const [u, v] of [
+            ["r0", "l0"],
+            ["r1", "l1"],
+            ["r2", "l2"],
+        ]) {
+            b.addEdge(u, v);
+        }
+        const s = b.freeze();
+        expect(maximumBipartiteMatching(s).size).toBe(3);
+        expect(greedyBipartiteMatching(s).size).toBe(3);
     });
 
     it("keeps its size on a multigraph with every edge doubled", () => {
@@ -207,6 +244,17 @@ describe("indexed.maximumBipartiteMatching", () => {
         expect(result.size).toBe(legacy.size);
         expect(result.size).toBe(2);
         expect(result.matching[s.ids.indexOf("a2")]).toBe(INVALID_INDEX);
+    });
+
+    it("never matches a left node to a node on neither side, even its lowest neighbour", () => {
+        // x (index 0) is on neither side; y's row is [x, z], so x is the first candidate.
+        const s = pathXYZ();
+        const sides = explicitSides(s, ["y"], ["z"]);
+        for (const match of [maximumBipartiteMatching, greedyBipartiteMatching]) {
+            const result = match(s, sides);
+            expect(result.size).toBe(1);
+            expect(result.matching[s.ids.indexOf("y")]).toBe(s.ids.indexOf("z"));
+        }
     });
 
     it("throws on a graph that is not bipartite, as legacy does", () => {
@@ -282,4 +330,15 @@ describe("indexed.greedyBipartiteMatching", () => {
             s.validate({ checksum: true });
         });
     }
+
+    it("takes out-arcs before in-arcs on a directed snapshot", () => {
+        // u (index 0) has an in-arc from a (index 1) and an out-arc to b (index 2).
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("u");
+        b.addEdge("a", "u");
+        b.addEdge("u", "b");
+        const s = b.freeze();
+        const result = greedyBipartiteMatching(s, explicitSides(s, ["u"], ["a", "b"]));
+        expect(result.matching[s.ids.indexOf("u")]).toBe(s.ids.indexOf("b"));
+    });
 });

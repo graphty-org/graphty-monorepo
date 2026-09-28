@@ -6,8 +6,9 @@ export interface IsomorphismOptions {
     readonly nodeMatch?: ((i1: number, i2: number, s1: GraphSnapshot, s2: GraphSnapshot) => boolean) | undefined;
     /**
      * Whether logical edge `e1` of `s1` may map to logical edge `e2` of `s2`. Called once for every
-     * pair of adjacent nodes, when the second of them is mapped; between parallel edges it sees the
-     * lowest edge index.
+     * pair of adjacent nodes, when the second of them is mapped, and once for a self-loop, when its
+     * node is mapped; between parallel edges it sees the lowest edge index. On a directed snapshot
+     * it sees every arc, whichever end is mapped last.
      */
     readonly edgeMatch?: ((e1: number, e2: number, s1: GraphSnapshot, s2: GraphSnapshot) => boolean) | undefined;
 }
@@ -142,6 +143,14 @@ function search(
     const feasible = (u1: number, u2: number): boolean => {
         if (sig1[u1] !== sig2[u2] || (nodeMatch !== undefined && !nodeMatch(u1, u2, s1, s2))) {
             return false;
+        }
+        // The signatures agree, so u1 has a self-loop exactly when u2 has one: offer the two loops.
+        if (edgeMatch !== undefined && sig1[u1] % 2 === 1) {
+            const loop1 = s1.arcToEdge[s1.findArc(u1, u1)];
+            const loop2 = s2.arcToEdge[s2.findArc(u2, u2)];
+            if (!edgeMatch(loop1, loop2, s1, s2)) {
+                return false;
+            }
         }
         step++;
         for (let k = 0; k < views1.length; k++) {

@@ -26,10 +26,14 @@ import type {
     IndexedApspResult,
     IndexedBellmanFordResult,
     IndexedBipartiteFlowNetwork,
+    IndexedBipartiteMatchingOptions,
+    IndexedBipartiteMatchingResult,
     IndexedEigenvectorOptions,
     IndexedEigenvectorResult,
     IndexedGrsbmOptions,
     IndexedGrsbmResult,
+    IndexedIsomorphismOptions,
+    IndexedIsomorphismResult,
     IndexedKargerOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
@@ -260,5 +264,25 @@ describe("indexed research clustering exports", () => {
         const bisect: IndexedGrsbmOptions = { weighted: false };
         const bisectResult: IndexedGrsbmResult = pkg.indexed.grsbm(s, bisect);
         expect(bisectResult.count).toBe(1);
+    });
+});
+
+describe("indexed matching and isomorphism exports", () => {
+    it("reaches the bipartite matchings and the isomorphism search and their flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "x");
+        b.addEdge("b", "x");
+        b.addEdge("b", "y");
+        const s = b.freeze();
+        const matchingOptions: IndexedBipartiteMatchingOptions = { arcs: "both" };
+        const maximum: IndexedBipartiteMatchingResult = pkg.indexed.maximumBipartiteMatching(s, matchingOptions);
+        expect(maximum.size).toBe(2);
+        expect(pkg.indexed.greedyBipartiteMatching(s, matchingOptions).size).toBeGreaterThanOrEqual(1);
+        const isoOptions: IndexedIsomorphismOptions = { nodeMatch: () => true };
+        const iso: IndexedIsomorphismResult = pkg.indexed.isGraphIsomorphic(s, s, isoOptions);
+        expect(iso.isomorphic).toBe(true);
+        expect(pkg.indexed.findAllIsomorphisms(s, s, isoOptions)).toHaveLength(2);
     });
 });

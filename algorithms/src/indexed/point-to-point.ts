@@ -48,7 +48,7 @@ const NO_PATH: PathResult = { distance: Infinity, path: new Uint32Array(0), edge
  * @param target - The node index to reach
  * @param options - Per-arc weight override
  * @returns The distance, the node path and the logical edges on it
- * @throws Error when the search meets a negative weight
+ * @throws Error when any weight is negative
  * @public
  */
 export function bidirectionalDijkstra(
@@ -62,14 +62,13 @@ export function bidirectionalDijkstra(
     }
     const n = s.nodeCount;
     const weights: NumericVector | null = options.weights ?? s.weights;
+    // Checked up front, not per relaxed arc: the search stops early, so a per-arc check would miss
+    // a negative edge beyond the meeting point that legacy (which runs both searches out) refuses.
+    if (weights?.some((w) => w < 0) === true) {
+        throw new Error("Bidirectional Dijkstra does not support negative edge weights");
+    }
     const rev = s.reverse();
-    const weightOf = (arc: number): number => {
-        const w = weights === null ? 1 : weights[arc];
-        if (w < 0) {
-            throw new Error("Bidirectional Dijkstra does not support negative edge weights");
-        }
-        return w;
-    };
+    const weightOf = (arc: number): number => (weights === null ? 1 : weights[arc]);
     const distF = new Float64Array(n).fill(Infinity);
     const distB = new Float64Array(n).fill(Infinity);
     // Forward: the arc into each node. Backward: the reverse-view arc that reached each node from
@@ -178,6 +177,9 @@ export function astar(
     options: PathOptions = {},
 ): AstarResult {
     const n = g.nodeCount;
+    if (!(target >= 0 && target < n)) {
+        throw new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`);
+    }
     const weights: NumericVector | null = options.weights ?? g.weights;
     const gScore = new Float64Array(n).fill(Infinity);
     const fScore = new Float64Array(n).fill(Infinity);

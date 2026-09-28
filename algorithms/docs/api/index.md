@@ -43,6 +43,9 @@ Find optimal paths between nodes.
 
 - `dijkstra()` - Weighted non-negative edges
 - `bellmanFord()` - Handles negative weights
+- `indexed.bellmanFord()` - Bellman-Ford over a snapshot, with the negative-cycle flag
+- `indexed.bidirectionalDijkstra()` - One shortest path over a snapshot, naming the exact edges taken
+- `indexed.astar()` - A* over a snapshot, the heuristic taking node indices
 - `floydWarshall()` - All pairs shortest paths
 - `indexed.allPairsShortestPath()` - All pairs shortest paths over a snapshot, as a typed-array matrix
 - `aStar()` - Heuristic-guided search
@@ -81,6 +84,7 @@ Find minimum-weight spanning trees.
 
 - `kruskal()` - Kruskal's algorithm
 - `prim()` - Prim's algorithm
+- `indexed.primMST()` - Prim over a snapshot, optionally spanning every component
 - `minimumSpanningTree()` - Auto-selects best algorithm
 
 [MST functions in the generated TypeDoc](./generated/index/)

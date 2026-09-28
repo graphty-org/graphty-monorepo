@@ -150,6 +150,20 @@ describe("indexed.bidirectionalDijkstra", () => {
         const s = checksummedSnapshot(g);
         expect(() => bidirectionalDijkstra(s, 0, 1)).toThrow("does not support negative edge weights");
     });
+
+    it("refuses a negative weight beyond the meeting point, as legacy does", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("s", "t", 1);
+        g.addEdge("s", "x", 5);
+        g.addEdge("x", "y", -1);
+        for (let i = 0; i < 10; i++) {
+            g.addNode(`pad${String(i)}`); // more than 10 nodes, so legacy dijkstraPath goes bidirectional
+        }
+        expect(() => legacyDijkstraPath(g, "s", "t")).toThrow("does not support negative edge weights");
+        const s = checksummedSnapshot(g);
+        const [from, to] = [s.ids.requireIndex("s"), s.ids.requireIndex("t")];
+        expect(() => bidirectionalDijkstra(s, from, to)).toThrow("does not support negative edge weights");
+    });
 });
 
 describe("indexed.astar", () => {
@@ -206,6 +220,35 @@ describe("indexed.astar", () => {
             }
         }
         expect(new Set(Array.from(r.visited, (i) => String(s.ids.idOf(i))))).toEqual(legacy.visited);
+    });
+
+    it("never reopens an expanded node, as legacy astarWithDetails, under an inconsistent heuristic", () => {
+        // a is expanded at cost 4 before b offers it at cost 2; legacy keeps the cost-4 route.
+        const adjacency = new Map([
+            ["s", new Map([["a", 4], ["b", 1]])],
+            ["b", new Map([["a", 1]])],
+            ["a", new Map([["t", 10]])],
+            ["t", new Map<string, number>()],
+        ]);
+        const h = new Map([["b", 5]]);
+        const legacy = legacyAstarWithDetails(adjacency, "s", "t", (id) => h.get(id) ?? 0);
+        const s = fromAdjacencyMap(adjacency);
+        const r = astar(s, s.ids.requireIndex("s"), s.ids.requireIndex("t"), (i) => h.get(String(s.ids.idOf(i))) ?? 0);
+        expect(legacy.cost).toBe(14);
+        expect(r.distance).toBe(legacy.cost);
+        expect(Array.from(r.path, (i) => s.ids.idOf(i))).toEqual(legacy.path);
+        for (let i = 0; i < s.nodeCount; i++) {
+            const id = String(s.ids.idOf(i));
+            expect(r.gScore[i], id).toBe(legacy.gScores.get(id) ?? Infinity);
+            expect(r.fScore[i], id).toBe(legacy.fScores.get(id) ?? Infinity);
+        }
+    });
+
+    it("refuses a node index outside the graph", () => {
+        const s = fromAdjacencyMap(new Map([["a", new Map([["b", 1]])]]));
+        expect(() => astar(s, 0, 99, () => 0)).toThrow(RangeError);
+        expect(() => astar(s, 99, 0, () => 0)).toThrow(RangeError);
+        expect(() => bidirectionalDijkstra(s, 0, 99)).toThrow(RangeError);
     });
 
     it("returns the start alone when start is the goal", () => {

@@ -82,8 +82,9 @@ export interface PrimResult extends MstResult {
 /**
  * Prim's minimum spanning tree, grown from a start node by always taking the cheapest arc from the
  * tree to a node outside it (an indexed heap keyed per node, so of several parallel edges the
- * cheapest is the one taken). `edges` lists the logical edges in the order they joined the tree
- * and `totalWeight` sums them in that order, as legacy `primMST` does.
+ * cheapest, and of equal ones the lowest-indexed, is the one taken). `edges` lists the logical
+ * edges in the order they joined the tree and `totalWeight` sums them in that order, as legacy
+ * `primMST` does. The start index is checked: one outside the graph throws a RangeError.
  * @param s - An undirected snapshot
  * @param o - Per-arc weight override, start node and the spanning-forest switch
  * @returns The accepted edges, their total weight and the discovery arc per node

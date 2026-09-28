@@ -61,8 +61,12 @@ export class IndexedMinHeap {
      * Insert a node that is not in the heap.
      * @param node - The node index
      * @param key - Its key
+     * @throws RangeError when the node index is outside `[0, capacity)`
      */
     push(node: number, key: number): void {
+        if (!(node >= 0 && node < this.slot.length)) {
+            throw new RangeError(`Node index ${String(node)} is outside the heap's ${String(this.slot.length)} nodes`);
+        }
         this.key[node] = key;
         this.heap[this.size] = node;
         this.slot[node] = this.size;

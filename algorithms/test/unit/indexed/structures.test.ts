@@ -48,6 +48,12 @@ describe("IntUnionFind", () => {
 });
 
 describe("IndexedMinHeap", () => {
+    it("refuses a node index outside its capacity", () => {
+        const heap = new IndexedMinHeap(4);
+        expect(() => heap.push(4, 0)).toThrow(RangeError);
+        expect(() => heap.push(-1, 0)).toThrow(RangeError);
+    });
+
     it("pops in ascending key order", () => {
         const heap = new IndexedMinHeap(100);
         for (let i = 0; i < 100; i++) {

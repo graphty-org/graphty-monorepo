@@ -159,6 +159,21 @@ describe("indexed.bellmanFord", () => {
         expect(Array.from(r.dist)).toEqual([0, 1, Infinity]);
     });
 
+    it("runs all nodeCount - 1 rounds before deciding there is a negative cycle", () => {
+        // A path from the highest index down to 0: the ascending scan moves it one node per round.
+        const n = 12;
+        const b = new GraphBuilder({ directed: true });
+        for (let i = 0; i < n; i++) {
+            b.addNode(`v${String(i)}`);
+        }
+        for (let i = n - 1; i > 0; i--) {
+            b.addEdgeByIndex(i, i - 1, 1);
+        }
+        const r = bellmanFord(b.freeze(), n - 1);
+        expect(r.hasNegativeCycle).toBe(false);
+        expect(r.dist[0]).toBe(n - 1);
+    });
+
     it("handles a single isolated node", () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("only");

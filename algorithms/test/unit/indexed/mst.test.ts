@@ -239,6 +239,22 @@ describe("indexed.primMST", () => {
         s.validate({ checksum: true });
     });
 
+    it("takes the lowest-indexed of equal-weight parallel edges", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", 2);
+        b.addEdge("a", "b", 2);
+        const s = b.freeze();
+        expect(Array.from(primMST(s).edges)).toEqual([0]);
+        expect(Array.from(primMST(s, { start: 1 }).edges)).toEqual([0]);
+    });
+
+    it("refuses a start index outside the graph", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", 1);
+        b.addNode("z");
+        expect(() => primMST(b.freeze(), { start: 99, forest: true })).toThrow(RangeError);
+    });
+
     it("refuses a directed snapshot and returns nothing for an empty one", () => {
         const directed = new GraphBuilder({ directed: true });
         directed.addEdge("a", "b", 1);

@@ -1,3 +1,14 @@
+## 0.8.10 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+- **compact-mantine:** draw the indicator story's avatar without the network ([21399ea2](https://github.com/graphty-org/graphty-monorepo/commit/21399ea2))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.9 (2026-09-28)
 
 ### 🩹 Fixes

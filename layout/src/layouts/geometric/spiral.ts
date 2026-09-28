@@ -17,6 +17,8 @@ import { _processParams } from "../../utils/params";
  * @param resolution - Controls the spacing between spiral elements
  * @param equidistant - Whether to place nodes equidistant from each other
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.spiral` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the id-keyed
+ *   map this function returns. Removed in layout 2.0.0.
  */
 export function spiralLayout(
     G: Graph,

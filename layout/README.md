@@ -55,6 +55,36 @@ has many more families; they will be removed in layout's next major version:
 - **combineLayouts** - Blend multiple layout algorithms
 - **interpolateLayouts** - Smooth animation between layouts
 
+## Deprecated entry points
+
+The 16 positional layouts, which take a graph object and return a `PositionMap`, and the
+`PositionMap` rescalers are deprecated and are removed in layout 2.0.0. Their replacements in the
+`indexed` namespace take a `GraphSnapshot` from `@graphty/graph-format` and return a `LayoutResult`
+whose row `i` is node index `i`; `toPositionMap(result, snapshot.ids)` turns it back into the
+id-keyed map (see "Position helpers" below). The eight graph generators are deprecated too, in
+favour of `@graphty/graph-samples/generators`.
+
+| Deprecated                  | Replacement                                           |
+| --------------------------- | ----------------------------------------------------- |
+| `arfLayout`                 | `indexed.arf`                                         |
+| `bfsLayout`                 | `indexed.bfs`                                         |
+| `bipartiteLayout`           | `indexed.bipartite`                                   |
+| `circularLayout`            | `indexed.circular`                                    |
+| `forceatlas2Layout`         | `indexed.forceAtlas2`                                 |
+| `fruchtermanReingoldLayout` | `indexed.fruchtermanReingold`                         |
+| `gridLayout`                | `indexed.grid`                                        |
+| `kamadaKawaiLayout`         | `indexed.kamadaKawai`                                 |
+| `multipartiteLayout`        | `indexed.multipartite`                                |
+| `planarLayout`              | `indexed.planar`                                      |
+| `radialLayout`              | `indexed.radial`                                      |
+| `randomLayout`              | `indexed.random`                                      |
+| `shellLayout`               | `indexed.shell`                                       |
+| `spectralLayout`            | `indexed.spectral`                                    |
+| `spiralLayout`              | `indexed.spiral`                                      |
+| `springLayout`              | `indexed.fruchtermanReingold`                         |
+| `rescaleLayout`             | `rescaleInPlace` on an `indexed` result's `positions` |
+| `rescaleLayoutDict`         | `rescaleInPlace` on an `indexed` result's `positions` |
+
 ## Installation
 
 ```bash

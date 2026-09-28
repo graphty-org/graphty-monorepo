@@ -24,6 +24,8 @@ import { shellsToPositionMap } from "./shell";
  * @param scale - Radius of the outermost ring
  * @param center - Coordinate pair around which to center the layout
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.radial` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the id-keyed
+ *   map this function returns. Removed in layout 2.0.0.
  */
 export function radialLayout(
     G: Graph,

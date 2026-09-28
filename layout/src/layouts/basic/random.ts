@@ -15,6 +15,8 @@ import { _processParams } from "../../utils/params";
  * @param dim - Dimension of layout
  * @param seed - Random seed for reproducible layouts
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.random` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the id-keyed
+ *   map this function returns. Removed in layout 2.0.0.
  */
 export function randomLayout(
     G: Graph | Node[],

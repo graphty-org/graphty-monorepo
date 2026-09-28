@@ -19,6 +19,8 @@ import { _processParams } from "../../utils/params";
  * @param scale - Half the length of the lattice's longer side
  * @param center - Coordinate pair around which to center the layout
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.grid` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the id-keyed map
+ *   this function returns. Removed in layout 2.0.0.
  */
 export function gridLayout(
     G: Graph | Node[],

@@ -12,6 +12,8 @@ import { randomLayout } from "../basic/random";
  * @param maxIter - Maximum number of iterations
  * @param seed - Random seed for initial positions
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.arf` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the id-keyed map
+ *   this function returns. Removed in layout 2.0.0.
  */
 export function arfLayout(
     G: Graph,

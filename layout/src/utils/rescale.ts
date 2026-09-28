@@ -10,6 +10,7 @@ import { PositionMap } from "../types";
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @returns Rescaled positions dictionary
+ * @deprecated Use `rescaleInPlace` on the flat positions of an `indexed` layout result. Removed in layout 2.0.0.
  */
 export function rescaleLayout(
     pos: PositionMap | number[][],
@@ -162,6 +163,7 @@ export function rescaleLayout(
  * @param pos - Dictionary of positions
  * @param scale - Scale factor for positions
  * @returns Dictionary of scaled positions
+ * @deprecated Use `rescaleInPlace` on the flat positions of an `indexed` layout result. Removed in layout 2.0.0.
  */
 export function rescaleLayoutDict(pos: PositionMap, scale: number = 1): PositionMap {
     if (Object.keys(pos).length === 0) {

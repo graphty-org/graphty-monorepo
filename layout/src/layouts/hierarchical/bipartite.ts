@@ -20,6 +20,8 @@ import { nodeListsToRows, shellsToPositionMap } from "../geometric/shell";
  * @param center - Coordinate pair around which to center the layout
  * @param aspectRatio - The ratio of the width to the height of the layout
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.bipartite` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the
+ *   id-keyed map this function returns. Removed in layout 2.0.0.
  */
 export function bipartiteLayout(
     G: Graph,

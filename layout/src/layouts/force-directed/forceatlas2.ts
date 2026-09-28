@@ -31,6 +31,8 @@ import type { Graph, Node, PositionMap } from "../../types";
  * @param seed - Random seed for initial positions
  * @param dim - Dimension of layout
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.forceAtlas2` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives the
+ *   id-keyed map this function returns. Removed in layout 2.0.0.
  */
 export function forceatlas2Layout(
     G: Graph,

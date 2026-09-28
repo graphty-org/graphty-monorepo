@@ -17,6 +17,8 @@ import { fruchtermanReingoldLayout } from "./fruchterman-reingold";
  * @param dim - Dimension of layout
  * @param seed - Random seed for initial positions
  * @returns Positions dictionary keyed by node
+ * @deprecated Use `indexed.fruchtermanReingold` over a `GraphSnapshot`; `toPositionMap(result, snapshot.ids)` gives
+ *   the id-keyed map this function returns. Removed in layout 2.0.0.
  */
 export function springLayout(
     G: Graph,

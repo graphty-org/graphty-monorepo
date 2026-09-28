@@ -1,3 +1,21 @@
+## 2.1.0 (2026-09-28)
+
+### 🚀 Features
+
+- **algorithms:** index-based k-core, Katz, HITS and Louvain ([#423](https://github.com/graphty-org/graphty-monorepo/issues/423))
+
+### 🩹 Fixes
+
+- **algorithms:** treat node id 0 as a node, not as "no node" ([#492](https://github.com/graphty-org/graphty-monorepo/issues/492))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.1.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.6 (2026-09-27)
 
 ### 🧱 Updated Dependencies

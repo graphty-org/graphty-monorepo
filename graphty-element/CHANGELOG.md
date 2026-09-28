@@ -1,3 +1,74 @@
+## 2.6.0 (2026-09-28)
+
+### 🚀 Features
+
+- **graphty-element:** apply the decided sets names, result ids and kept records ([91e0043d](https://github.com/graphty-org/graphty-monorepo/commit/91e0043d))
+- **graphty-element:** hold sets within their memory budget at scale ([9eccdb20](https://github.com/graphty-org/graphty-monorepo/commit/9eccdb20))
+- **graphty-element:** lay out one set while holding the rest of the graph still ([ce45487a](https://github.com/graphty-org/graphty-monorepo/commit/ce45487a))
+- **graphty-element:** a plugin algorithm learns and computes over its run's scope ([83511019](https://github.com/graphty-org/graphty-monorepo/commit/83511019))
+- **graphty-element:** eigenvector and link prediction compute over their run's scope ([c409ac7c](https://github.com/graphty-org/graphty-monorepo/commit/c409ac7c))
+- **graphty-element:** path and flow algorithms compute over their run's scope ([59da5e49](https://github.com/graphty-org/graphty-monorepo/commit/59da5e49))
+- **graphty-element:** community detection groups over its run's scope ([4e9642a7](https://github.com/graphty-org/graphty-monorepo/commit/4e9642a7))
+- **graphty-element:** dijkstra routes within its run's scope ([a5d18eef](https://github.com/graphty-org/graphty-monorepo/commit/a5d18eef))
+- **graphty-element:** breadth-first search walks its run's scope ([7d7dfc0a](https://github.com/graphty-org/graphty-monorepo/commit/7d7dfc0a))
+- **graphty-element:** kruskal spans its run's scope ([ea6a749d](https://github.com/graphty-org/graphty-monorepo/commit/ea6a749d))
+- **graphty-element:** connected components groups over its run's scope ([879b6296](https://github.com/graphty-org/graphty-monorepo/commit/879b6296))
+- **graphty-element:** pagerank ranks over its run's scope ([7a2bdf87](https://github.com/graphty-org/graphty-monorepo/commit/7a2bdf87))
+- **graphty-element:** betweenness counts paths within its run's scope ([874a5765](https://github.com/graphty-org/graphty-monorepo/commit/874a5765))
+- **graphty-element:** closeness measures distances within its run's scope ([325aa6af](https://github.com/graphty-org/graphty-monorepo/commit/325aa6af))
+- **graphty-element:** k-core peels its run's scope ([501035c0](https://github.com/graphty-org/graphty-monorepo/commit/501035c0))
+- **graphty-element:** katz centrality scores over its run's scope ([ae0358d2](https://github.com/graphty-org/graphty-monorepo/commit/ae0358d2))
+- **graphty-element:** hits scores over its run's scope ([f91100df](https://github.com/graphty-org/graphty-monorepo/commit/f91100df))
+- **graphty-element:** degree counts over its run's scope ([596c08a3](https://github.com/graphty-org/graphty-monorepo/commit/596c08a3))
+- **graphty-element:** the two base classes read their nodes and counts from the input ([fd583e44](https://github.com/graphty-org/graphty-monorepo/commit/fd583e44))
+- **graphty-element:** the scoped input accessor and derived inputs ([a9bcb6e0](https://github.com/graphty-org/graphty-monorepo/commit/a9bcb6e0))
+- **graphty-element:** the visibility filter follows the sets it names ([0b61e970](https://github.com/graphty-org/graphty-monorepo/commit/0b61e970))
+- **graphty-element:** style layers name sets ([ea20d0b9](https://github.com/graphty-org/graphty-monorepo/commit/ea20d0b9))
+- **graphty-element:** change notification and the re-resolution scheduler ([ea703640](https://github.com/graphty-org/graphty-monorepo/commit/ea703640))
+- **graphty-element:** offered sets and memberships ([dd63f477](https://github.com/graphty-org/graphty-monorepo/commit/dd63f477))
+- **graphty-element:** set algebra and the materialising doors ([35e00137](https://github.com/graphty-org/graphty-monorepo/commit/35e00137))
+- **graphty-element:** set status, path kind, used by and held-item captures ([848fd50c](https://github.com/graphty-org/graphty-monorepo/commit/848fd50c))
+- **graphty-element:** the item and threshold rule leaves ([c75ac48b](https://github.com/graphty-org/graphty-monorepo/commit/c75ac48b))
+- **graphty-element:** publish session.sets and the set:changed event ([502ec3d0](https://github.com/graphty-org/graphty-monorepo/commit/502ec3d0))
+- **graphty-element:** the scope leaf, inline set definitions and cycle refusal ([242511fa](https://github.com/graphty-org/graphty-monorepo/commit/242511fa))
+- **graphty-element:** cache set resolutions by what they read, and round-trip stored sets ([d97d875a](https://github.com/graphty-org/graphty-monorepo/commit/d97d875a))
+- **graphty-element:** bind listed edge members and paths across re-freezes ([a29e95b4](https://github.com/graphty-org/graphty-monorepo/commit/a29e95b4))
+- **graphty-element:** resolve every scope form to node and edge bitmaps ([013ddcbb](https://github.com/graphty-org/graphty-monorepo/commit/013ddcbb))
+- **graphty-element:** the kept-set store and its synchronous doors ([206167f6](https://github.com/graphty-org/graphty-monorepo/commit/206167f6))
+- **graphty-element:** attribute revisions, the input tick and execution tokens ([5dc8facd](https://github.com/graphty-org/graphty-monorepo/commit/5dc8facd))
+- **graphty-element:** stable edge identity and hash columns ([fa0bf98e](https://github.com/graphty-org/graphty-monorepo/commit/fa0bf98e))
+- **graphty-element:** member hashes, the r1 revision and a benchmark runner ([694dc3bb](https://github.com/graphty-org/graphty-monorepo/commit/694dc3bb))
+- **graphty-element:** set definition types, canonical form and validator ([cec68049](https://github.com/graphty-org/graphty-monorepo/commit/cec68049))
+
+### 🩹 Fixes
+
+- **graphty-element:** close the sets review's door gaps and repaint only moved rows ([8a2010f9](https://github.com/graphty-org/graphty-monorepo/commit/8a2010f9))
+- **graphty-element:** canonical undirected edges at every door, status matching resolution ([1e56b36d](https://github.com/graphty-org/graphty-monorepo/commit/1e56b36d))
+- **graphty-element:** cheaper load completion, and every scope door admits the same way ([70463668](https://github.com/graphty-org/graphty-monorepo/commit/70463668))
+- **graphty-element:** stop charging module loads to test timeouts ([#491](https://github.com/graphty-org/graphty-monorepo/issues/491))
+- **graphty-element:** set the acceleration routing floors from a measurement taken through the element ([#424](https://github.com/graphty-org/graphty-monorepo/issues/424))
+- **graphty-element:** report the last frame's draw calls, not the frame count ([09a1cefd](https://github.com/graphty-org/graphty-monorepo/commit/09a1cefd))
+- **graphty-element:** dijkstra uses the shortest of parallel edges ([1f4f7f38](https://github.com/graphty-org/graphty-monorepo/commit/1f4f7f38))
+- **graphty-element:** scoped runs compute over their scope ([166fe1d2](https://github.com/graphty-org/graphty-monorepo/commit/166fe1d2))
+- **graphty-element:** selection.promote keeps the selected edges ([5d62c8ac](https://github.com/graphty-org/graphty-monorepo/commit/5d62c8ac))
+- **graphty-element:** scope.save never reissues a removed id ([ac35f705](https://github.com/graphty-org/graphty-monorepo/commit/ac35f705))
+- **graphty-element:** scope.save keeps the current members of selection and visible ([a17c25bd](https://github.com/graphty-org/graphty-monorepo/commit/a17c25bd))
+- **graphty-element:** version scope digests as d1 and sum them from hash columns ([0d7eb15f](https://github.com/graphty-org/graphty-monorepo/commit/0d7eb15f))
+- **graphty-element:** never reissue an edge id after a clear or a replacing import ([37cda562](https://github.com/graphty-org/graphty-monorepo/commit/37cda562))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.10
+- Updated @graphty/remote-logger to 1.3.9
+- Updated graph-samples to 0.1.5
+- Updated graph-format to 1.1.0
+- Updated algorithms to 2.1.0
+- Updated layout to 1.10.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.5.2 (2026-09-27)
 
 ### 🧱 Updated Dependencies

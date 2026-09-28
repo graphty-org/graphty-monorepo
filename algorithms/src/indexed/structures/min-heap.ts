@@ -50,6 +50,14 @@ export class IndexedMinHeap {
     }
 
     /**
+     * The smallest key in the heap, without removing it.
+     * @returns The minimum key, or Infinity when the heap is empty
+     */
+    peekKey(): number {
+        return this.size === 0 ? Infinity : this.key[this.heap[0]];
+    }
+
+    /**
      * Insert a node that is not in the heap.
      * @param node - The node index
      * @param key - Its key

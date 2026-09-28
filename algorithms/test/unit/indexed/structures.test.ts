@@ -90,6 +90,18 @@ describe("IndexedMinHeap", () => {
         expect(heap.pop()).toBe(0);
         expect(heap.pop()).toBe(1);
     });
+
+    it("peekKey reports the smallest key without popping, and Infinity when empty", () => {
+        const heap = new IndexedMinHeap(4);
+        expect(heap.peekKey()).toBe(Infinity);
+        heap.push(0, 3);
+        heap.push(1, 2);
+        expect(heap.peekKey()).toBe(2);
+        heap.pushOrDecrease(0, 1);
+        expect(heap.peekKey()).toBe(1);
+        expect(heap.pop()).toBe(0);
+        expect(heap.peekKey()).toBe(2);
+    });
 });
 
 describe("arcSourceIn", () => {

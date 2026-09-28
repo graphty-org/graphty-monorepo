@@ -111,6 +111,7 @@ export type {
     PageRankOptions as IndexedPageRankOptions,
     PageRankResult as IndexedPageRankResult,
 } from "./indexed/pagerank.js";
+export type { AstarResult, PathOptions, PathResult } from "./indexed/point-to-point.js";
 
 // Note: Configuration exports have been removed.
 // The library now automatically optimizes based on graph size.

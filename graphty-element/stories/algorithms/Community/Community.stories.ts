@@ -24,8 +24,7 @@ export const GirvanNewman: Story = createAlgorithmStory("graphty:girvan-newman",
  * Draws with the default categorical palette, Okabe-Ito, like every community story here
  *
  * Not held distinct from Louvain. Both maximise modularity, and on the cat network both reach the
- * same four communities -- Louvain has since the element started running it on the index-based
- * port, where the reference implementation found five.
+ * same four communities, where the legacy Louvain function drew six at a lower modularity.
  * The same answer from two methods that optimise the same quantity is correct, as Kruskal and Prim
  * drawing one tree is; the picture each draws is still held to its own baseline.
  */

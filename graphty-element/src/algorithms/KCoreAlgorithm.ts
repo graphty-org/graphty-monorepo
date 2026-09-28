@@ -69,7 +69,10 @@ export class KCoreAlgorithm extends MetricAlgorithm {
                 weight: null,
                 precision,
                 method: "k-core",
-                notes: ["Counted over the graph read as undirected; edge weights are not read."],
+                notes: [
+                    "Counted over the graph read as undirected; edge weights are not read.",
+                    "A self-loop does not count toward its node's core number, and parallel edges count once.",
+                ],
             },
         };
     }

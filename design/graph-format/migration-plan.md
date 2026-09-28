@@ -319,7 +319,10 @@ implemented or refused, never dropped); Degree from the input snapshot's degree 
 `acceleration/types.ts` (section 3); k-core and Louvain stay on the CPU port. Done when: all five
 are on the dispatcher, adapter tests match the legacy route on the existing fixtures (scores within
 1e-9, identical coreness and degree, Louvain modularity within tolerance), routing tests cover both
-sides of each floor, and the visual change is reviewed.
+sides of each floor, and the visual change is reviewed. Merged into the integration branch; two readings differ
+from the legacy route on purpose: a self-loop no longer raises its node's core number, and Louvain
+finds a higher-modularity partition. The changed stories are recorded for the owner in
+`visual-changes/element-shipped-port-adapters/README.md`, not yet reviewed.
 
 ### Phase 2 -- algorithm ports by family
 

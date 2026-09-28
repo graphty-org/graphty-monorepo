@@ -222,8 +222,8 @@ export interface BetweennessAcceleratorOptions {
  * Katz runs the CPU port under `normalized: false` (the raw sums cannot be recovered from a
  * rescaled vector), with `alpha` 0, and when every node has the same in-degree (or in-weight):
  * there every score is equal, and the port leaves an equal vector unscaled. It also runs the CPU
- * port unless `alpha` times the largest in-arc total is below 1, where the series is certain to
- * converge: past that an f32 accelerator can overflow to Infinity. The iteration counts
+ * port unless `alpha` times a bound on the spectral radius is below 1, where the series is certain
+ * to converge: past that an f32 accelerator can overflow to Infinity. The iteration counts
  * of the two paths differ.
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
@@ -503,9 +503,13 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * of a vector that is not constant, from a series certain to converge. Raw sums (`normalized:
  * false`) are lost to the accelerator's own rescaling, and a constant vector -- `alpha` 0, or the
  * same in-degree (in-weight) everywhere -- is one the port leaves unscaled. The series converges
- * when `alpha` times the largest in-arc total is below 1, which bounds the spectral radius; past
- * that an accelerator iterating in f32 with no per-iteration normaliser can overflow to Infinity
- * where the f64 port stays finite and reports `converged: false`.
+ * when `alpha` times the spectral radius is below 1; past that an accelerator iterating in f32 with
+ * no per-iteration normaliser can overflow to Infinity where the f64 port stays finite and reports
+ * `converged: false`. The radius is bounded, in one pass over the arcs, by the largest
+ * `sqrt(r_u * r_v)` over the arcs u -> v, where `r` is a node's in-arc total (absolute weights):
+ * scale the in-arc matrix by `diag(sqrt(r))` and each row sum is at most that, by Cauchy-Schwarz.
+ * It is never above the largest in-arc total, and it is tight on a star -- a hub of degree d has
+ * radius sqrt(d), not d -- so one busy node does not keep a graph off the accelerator.
  * @param s - The snapshot
  * @param options - The caller's port options
  * @returns True when the call may go to the accelerator
@@ -516,21 +520,29 @@ function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefin
     }
     const rev = s.reverse();
     const weights = options?.weighted === true ? rev.weights : null;
+    const totals = new Float64Array(s.nodeCount);
     let first: number | undefined;
     let uneven = false;
-    let largest = 0;
     for (let v = 0; v < s.nodeCount; v++) {
         let inWeight = 0;
-        let inTotal = 0;
         for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
             inWeight += weights === null ? 1 : weights[a];
-            inTotal += weights === null ? 1 : Math.abs(weights[a]);
+            totals[v] += weights === null ? 1 : Math.abs(weights[a]);
         }
         first ??= inWeight;
         uneven ||= inWeight !== first;
-        largest = Math.max(largest, inTotal);
     }
-    return uneven && Math.abs(options?.alpha ?? 0.1) * largest < 1;
+    if (!uneven) {
+        return false;
+    }
+    let largest = 0;
+    for (let v = 0; v < s.nodeCount; v++) {
+        for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
+            largest = Math.max(largest, totals[v] * totals[rev.colIdx[a]]);
+        }
+    }
+    const alpha = options?.alpha ?? 0.1;
+    return alpha * alpha * largest < 1;
 }
 
 /**

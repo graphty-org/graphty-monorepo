@@ -155,9 +155,9 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             label: "Direction Mode",
             description: "Which score is the published value: authority (in), hub (out) or their average (total)",
             options: [
-                { value: "total", label: "Total (both directions)" },
-                { value: "in", label: "In-degree (incoming edges)" },
-                { value: "out", label: "Out-degree (outgoing edges)" },
+                { value: "total", label: "Average of hub and authority" },
+                { value: "in", label: "Authority score" },
+                { value: "out", label: "Hub score" },
             ],
             advanced: true,
         },

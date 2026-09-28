@@ -177,9 +177,9 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             description:
                 "Which paths count: arriving along each edge's direction (in), leaving (out), or either way (total)",
             options: [
-                { value: "total", label: "Total (both directions)" },
-                { value: "in", label: "In-degree (incoming edges)" },
-                { value: "out", label: "Out-degree (outgoing edges)" },
+                { value: "total", label: "Either direction" },
+                { value: "in", label: "Paths arriving" },
+                { value: "out", label: "Paths leaving" },
             ],
             advanced: true,
         },

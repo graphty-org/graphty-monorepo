@@ -10,7 +10,14 @@
  * more than 0.01 below the reference's -- and that the routing rules hold on both sides of each floor.
  */
 
-import { hits, katzCentrality, kCoreDecomposition, louvain } from "@graphty/algorithms";
+import {
+    Graph as AlgorithmGraph,
+    hits,
+    indexed,
+    katzCentrality,
+    kCoreDecomposition,
+    louvain,
+} from "@graphty/algorithms";
 import { assert, describe, it } from "vitest";
 
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
@@ -18,6 +25,7 @@ import { narrowAlgorithms } from "../../src/acceleration/narrow";
 import { ACCELERATION_MIN_NODES_BY_CAPABILITY, type GraphAccelerator } from "../../src/acceleration/types";
 import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
 import { HITSAlgorithm } from "../../src/algorithms/HITSAlgorithm";
+import { createScopedInput } from "../../src/algorithms/input/ScopedInput";
 import { KatzCentralityAlgorithm } from "../../src/algorithms/KatzCentralityAlgorithm";
 import { KCoreAlgorithm } from "../../src/algorithms/KCoreAlgorithm";
 import { LouvainAlgorithm } from "../../src/algorithms/LouvainAlgorithm";
@@ -44,10 +52,14 @@ const MIXED: MockGraphOpts = {
     ],
 };
 
-/** The fixtures every comparison runs over: the shared 77-node data set and the mixed one above. */
+/**
+ * The fixtures every comparison runs over: the shared 77-node data set, the mixed one above, and
+ * the mixed one loaded undirected, where the snapshot's in- and out-degree views are one array.
+ */
 const FIXTURES: readonly [string, MockGraphOpts][] = [
     ["data4", { dataPath: "./data4.json" }],
     ["mixed", MIXED],
+    ["mixed undirected", { ...MIXED, directed: false }],
 ];
 
 /**
@@ -104,7 +116,10 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                     const run = new HITSAlgorithm(graph, { normalized });
                     await run.run();
 
-                    const reference = hits(toAlgorithmGraph(graph.getDataManager(), "directed"), { normalized });
+                    // A graph loaded undirected has no direction to read, so each edge is a hub and an
+                    // authority link both ways: the reference runs over the undirected graph too.
+                    const mode = fixture.directed === false ? "undirected" : "directed";
+                    const reference = hits(toAlgorithmGraph(graph.getDataManager(), mode), { normalized });
                     for (const [id, values] of published(graph, run)) {
                         const hub = reference.hubs[String(id)];
                         const authority = reference.authorities[String(id)];
@@ -160,7 +175,11 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                         assert.strictEqual(values.value, coreness.get(String(id)), `core number of ${String(id)}`);
                     }
                 }
-                if (name === "mixed") {
+                assert.include(
+                    run.result?.summary().caveats.notes ?? [],
+                    "A self-loop does not count toward its node's core number, and parallel edges count once.",
+                );
+                if (name !== "data4") {
                     assert.strictEqual(published(graph, run).get("E")?.value, 1);
                 }
             });
@@ -182,16 +201,36 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                 }
             });
 
-            it("louvain: a partition of every node, at a modularity at most 0.01 below the reference's", async () => {
+            it("louvain: groups that score the modularity it reports, at most 0.01 below the reference's", async () => {
                 const graph = await createMockGraph(fixture);
                 const output = await computed(new LouvainAlgorithm(graph));
+                const { nodes } = graph.getDataManager();
 
-                const reference = louvain(toAlgorithmGraph(graph.getDataManager(), "undirected"));
-                assert.strictEqual(output.nodes?.length, graph.getDataManager().nodes.size);
+                /* Both partitions are scored by one function over the snapshot the run read, so a
+                   self-loop counts the same way in each (twice in its node's degree, as NetworkX
+                   counts it; the reference's own figure counts it once). */
+                const snapshot = createScopedInput(graph.getDataManager(), "undirected").subgraph();
+                const score = (groupOf: Map<unknown, number>): number =>
+                    indexed.modularity(
+                        snapshot,
+                        Uint32Array.from({ length: snapshot.nodeCount }, (_, index) => {
+                            const group = groupOf.get(snapshot.ids.idOf(index));
+                            assert.isDefined(group, `node ${String(snapshot.ids.idOf(index))} has no group`);
+                            return group;
+                        }),
+                    );
+
+                const groups = new Map(output.nodes?.map((node) => [node.id, node.values.group as number]));
+                assert.strictEqual(groups.size, nodes.size);
+                assert.approximately(output.graph?.modularity as number, score(groups), 1e-9);
+
                 // The port is not move-for-move identical to the reference, so the two partitions
-                // can differ; the quality they reach is what is held to the reference's. On data4
-                // the port lands 0.0009 below it, on the mixed graph 0.04 above.
-                assert.isAtLeast(output.graph?.modularity as number, reference.modularity - 0.01);
+                // can differ; the quality they reach is what is held to the reference's.
+                const reference = louvain(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+                const referenceGroups = new Map(
+                    reference.communities.flatMap((members, group) => members.map((id) => [id, group] as const)),
+                );
+                assert.isAtLeast(output.graph?.modularity as number, score(referenceGroups) - 0.01);
                 assert.strictEqual(output.caveats.precision, "f64");
             });
         });
@@ -244,13 +283,25 @@ describe("the direction and endpoint options", () => {
             assert.approximately(values.value as number, inReference[String(id)], 1e-9, `in score of ${String(id)}`);
         }
 
-        // F has no edges and G has none either, so both sit at the bottom; E points out only, so
-        // its out-path score is above its in-path score's rank -- the two modes disagree.
+        // Out-paths are the in-paths of the graph with every edge turned around.
+        const reversed = new AlgorithmGraph({ directed: true });
+        for (const node of directed.nodes()) {
+            reversed.addNode(node.id);
+        }
+        for (const edge of directed.edges()) {
+            reversed.addEdge(edge.target, edge.source, edge.weight);
+        }
         const outRun = new KatzCentralityAlgorithm(graph, { mode: "out" });
         await outRun.run();
-        const outValues = published(graph, outRun);
-        const inValues = published(graph, inRun);
-        assert.isAbove(outValues.get("E")?.value as number, inValues.get("E")?.value as number);
+        const outReference = katzCentrality(reversed);
+        for (const [id, values] of published(graph, outRun)) {
+            assert.approximately(values.value as number, outReference[String(id)], 1e-9, `out score of ${String(id)}`);
+        }
+        // E points out only, so the two modes disagree about it.
+        assert.isAbove(
+            published(graph, outRun).get("E")?.value as number,
+            published(graph, inRun).get("E")?.value as number,
+        );
         assert.strictEqual(outRun.result?.summary().caveats.direction, "directed");
     });
 
@@ -261,6 +312,24 @@ describe("the direction and endpoint options", () => {
             await run.run();
             assert.strictEqual(run.result?.summary().caveats.direction, "undirected", mode);
         }
+    });
+
+    it("labels each mode by what it publishes, not by a degree", () => {
+        const labels = (Run: typeof HITSAlgorithm | typeof KatzCentralityAlgorithm): Record<string, string> => {
+            const { mode } = Run.optionsSchema;
+            assert.strictEqual(mode.type, "select");
+            return Object.fromEntries((mode.options ?? []).map((option) => [option.value, option.label]));
+        };
+        assert.deepStrictEqual(labels(HITSAlgorithm), {
+            total: "Average of hub and authority",
+            in: "Authority score",
+            out: "Hub score",
+        });
+        assert.deepStrictEqual(labels(KatzCentralityAlgorithm), {
+            total: "Either direction",
+            in: "Paths arriving",
+            out: "Paths leaving",
+        });
     });
 
     it("hits and katz refuse endpoints, which neither method has", async () => {

@@ -84,7 +84,7 @@ export {
     registeredPaletteDescriptors,
     registerPalette,
 } from "./src/catalog/paletteRegistry";
-export type { PaletteDescriptor, PaletteId } from "./src/catalog/types";
+export type { PaletteDescriptor, PaletteId, PaletteRegistration } from "./src/catalog/types";
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------

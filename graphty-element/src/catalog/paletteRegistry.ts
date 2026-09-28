@@ -31,7 +31,7 @@
 import { GraphtyError } from "../errors";
 import { normalizeHexAnchor } from "./color";
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
-import { KNOWN_PALETTE_IDS, type PaletteDescriptor, type PaletteId } from "./types";
+import { KNOWN_PALETTE_IDS, type PaletteDescriptor, type PaletteId, type PaletteRegistration } from "./types";
 
 /**
  * The content of a descriptor, as one string.
@@ -74,13 +74,13 @@ function refuse(id: unknown, field: string, message: string): never {
 
 /**
  * Register a palette so that a style layer, a legend and a saved document can all name it.
- * @param descriptor - The palette: an id, a plain name, a kind, its colour anchors, its capacity
- *   and whatever colour-blindness safety it claims.
+ * @param descriptor - The palette: an id, a plain name, a kind and its colour anchors, and
+ *   optionally its capacity (derived when left off) and whatever colour-blindness safety it claims.
  * @param options - Whether a collision with an existing registration throws instead of replacing.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` when the descriptor is malformed, naming the
  * field, or with `E_DUPLICATE_PLUGIN` when the id is one the element ships.
  */
-export function registerPalette(descriptor: PaletteDescriptor, options?: RegisterOptions): void {
+export function registerPalette(descriptor: PaletteRegistration, options?: RegisterOptions): void {
     if (typeof descriptor !== "object") {
         refuse("", "descriptor", "registerPalette takes a palette descriptor");
     }

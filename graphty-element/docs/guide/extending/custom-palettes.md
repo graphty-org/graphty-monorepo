@@ -230,7 +230,9 @@ belongs to the binding rather than to the palette. No built-in palette takes con
 up when a layer is WRITTEN and the layer records the palette it got, so changing the default never
 changes what an already-saved document means. `setDefaultPalettes(palettes, { reapply: true })`
 re-resolves the layers that took the old default; without it, a call made after such layers exist
-writes a warning naming them. The highlight default, `blue-highlight`, has no slot and stays fixed.
+writes a warning naming them. A binding on groups (an `ordinal` scale) takes the `categorical`
+default, a binding with a `midpoint` takes the `diverging` one, and any other binding on amounts
+takes the `sequential` one. The highlight default, `blue-highlight`, has no slot and stays fixed.
 
 **The colour-blindness claim is taken on trust**, exactly as the element takes its own palettes'.
 Computing the answer for you would have the element overrule you about your own palette. A picker

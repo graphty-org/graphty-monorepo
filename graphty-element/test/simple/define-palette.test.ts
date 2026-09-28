@@ -86,3 +86,23 @@ describe("a palette defined through the simple tier", () => {
         assert.strictEqual(palettesOfKind("sequential").filter((palette) => palette.id === "acme-again").length, 1);
     });
 });
+
+describe("what definePalette fills in", () => {
+    it("names the palette from its id, derives the capacity and makes no colour-vision claim", () => {
+        definePalette({ id: "acme-filled-in", kind: "sequential", colors: ["white", "oklch(0.3 0.1 260)"] });
+
+        const filled = paletteDescriptor("acme-filled-in");
+        assert.isDefined(filled);
+        assert.strictEqual(filled.plainName, "Acme filled in");
+        assert.strictEqual(filled.capacity, null, "a ramp has no fixed number of groups");
+        assert.deepStrictEqual([...filled.colorblindSafe], []);
+        assert.strictEqual(filled.colors[0], "#FFFFFF");
+        assert.match(filled.colors[1], /^#[0-9A-F]{6}$/);
+    });
+
+    it("gives a categorical palette one group per colour", () => {
+        definePalette({ id: "acme-three", kind: "categorical", colors: ["red", "green", "blue"] });
+
+        assert.strictEqual(paletteDescriptor("acme-three")?.capacity, 3);
+    });
+});

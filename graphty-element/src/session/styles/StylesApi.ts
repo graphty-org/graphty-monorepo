@@ -62,6 +62,7 @@
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
+    Binding,
     Channel,
     EdgeId,
     FieldDescriptor,
@@ -97,7 +98,7 @@ import {
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
-import { isChannel } from "./channels";
+import { channelDescriptor, isChannel } from "./channels";
 import type { PreparedBinding } from "./encoding";
 import { type EncodingRun, type EncodingSource, type EncodingSpec, planEncoding } from "./EncodingSpec";
 import {
@@ -412,6 +413,30 @@ export interface StylesApi {
      * @returns The document, bottom first.
      */
     toDocument(): StyleDocument;
+    /**
+     * Choose the palette a colour binding uses when it names none, one per palette kind: a
+     * binding on groups takes the categorical default, one on amounts the sequential default, and
+     * one with a `midpoint` the diverging default. A kind left out keeps its current default.
+     *
+     * RESOLVED WHEN A LAYER IS WRITTEN: a binding that names no palette records the default's id,
+     * so a saved document always names a concrete palette. The call therefore belongs before the
+     * layers are added. A later call leaves the layers that took the previous default as they are
+     * and writes a warning naming them; with `reapply: true` it re-resolves those layers instead.
+     * A layer that names its palette is never touched.
+     * @param palettes - The palette id per kind. Each must name a palette of that kind.
+     * @param options - How a late call treats the layers already written.
+     * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @throws `E_UNKNOWN_PALETTE` for an id no palette answers to, `E_BAD_COMMAND` for a palette
+     *   of the wrong kind or a slot that is not a palette kind.
+     */
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+}
+
+/** The palette a colour binding naming none uses, per palette kind. */
+export interface DefaultPalettes {
+    readonly categorical?: string;
+    readonly sequential?: string;
+    readonly diverging?: string;
 }
 
 /**
@@ -1074,7 +1099,75 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      *     document's layer, which may name a set of the session it was saved in).
      * @returns The verdict and, when it is sound, the compiled layer.
      */
-    const check = (spec: LayerSpec, id: LayerId, admit = true): LayerCheck => {
+    /** The defaults `setDefaultPalettes` chose; empty until it is called. */
+    let defaultPalettes: DefaultPalettes = {};
+    /**
+     * The bindings, as "layer id / channel", whose palette was filled in from a default rather
+     * than named by the author. Only ever read against the live stack, so an entry for a layer
+     * that is gone answers for nothing.
+     */
+    const defaulted = new Set<string>();
+
+    /**
+     * The palette kind a colour binding's default comes from, or null when it reads no palette.
+     * @param binding - The binding.
+     * @returns The kind.
+     */
+    const paletteKindOf = (binding: Binding): keyof DefaultPalettes | null => {
+        if (!("by" in binding) || binding.map !== undefined || binding.scale === "passthrough") {
+            return null;
+        }
+
+        if (scales.describe(binding.scale ?? "linear")?.domainKind === "categorical") {
+            return "categorical";
+        }
+
+        return binding.midpoint === undefined ? "sequential" : "diverging";
+    };
+
+    /**
+     * The colour bindings of a specification that name no palette, and the default each takes.
+     * @param spec - The specification.
+     * @returns Each such channel, with its binding and the default palette's id (undefined when
+     *   no default is set for its kind).
+     */
+    const unnamedPalettes = (spec: LayerSpec): { channel: string; binding: Binding; kind: keyof DefaultPalettes }[] => {
+        const found: { channel: string; binding: Binding; kind: keyof DefaultPalettes }[] = [];
+        for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
+            if (binding === undefined || channelDescriptor(channel)?.accepts !== "color") {
+                continue;
+            }
+
+            const kind = paletteKindOf(binding);
+            if (kind !== null && "by" in binding && binding.palette === undefined) {
+                found.push({ channel, binding, kind });
+            }
+        }
+
+        return found;
+    };
+
+    /**
+     * Write the default palettes into a specification's colour bindings that name none.
+     * @param spec - The specification.
+     * @param id - The layer it is written to, so the default it took can be found again.
+     * @returns The specification with every default it takes named.
+     */
+    const withDefaultPalettes = (spec: LayerSpec, id: LayerId): LayerSpec => {
+        let encode: Record<string, Binding> | undefined;
+        for (const { channel, binding, kind } of unnamedPalettes(spec)) {
+            const palette = defaultPalettes[kind];
+            if (palette !== undefined) {
+                encode ??= { ...(spec.encode as Record<string, Binding>) };
+                encode[channel] = { ...binding, palette };
+                defaulted.add(`${id}/${channel}`);
+            }
+        }
+
+        return encode === undefined ? spec : { ...spec, encode };
+    };
+
+    const check = (given: LayerSpec, id: LayerId, admit = true): LayerCheck => {
         const options: LayerCheckOptions = {
             id,
             elements: sources.elements,
@@ -1085,7 +1178,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
         };
 
-        return checkLayerSpec(spec, options);
+        return checkLayerSpec(withDefaultPalettes(given, id), options);
     };
 
     /**
@@ -1436,7 +1529,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         seed(spec);
     }
 
-    return {
+    const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
         },
@@ -1845,6 +1938,99 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return explainStyle(target, explainSources);
         },
 
+        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
+            for (const [kind, id] of Object.entries(palettes)) {
+                if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
+                    throw badCommand(
+                        `setDefaultPalettes takes a palette for "categorical", "sequential" or "diverging", not "${kind}".`,
+                        { field: kind },
+                    );
+                }
+
+                if (id === undefined) {
+                    continue;
+                }
+
+                const palette = paletteDescriptor(String(id));
+                if (palette === undefined) {
+                    const available = knownPaletteIds();
+                    throw new GraphtyError({
+                        code: "E_UNKNOWN_PALETTE",
+                        message: `There is no palette named "${String(id)}". Define it before making it a default.`,
+                        source: "style",
+                        details: { palette: id, available, candidates: available },
+                    });
+                }
+
+                if (palette.kind !== kind) {
+                    throw badCommand(
+                        `The palette "${palette.id}" is ${palette.kind}, so it cannot be the ${kind} default.`,
+                        { field: kind, palette: palette.id },
+                    );
+                }
+            }
+
+            // The layers that took the default a kind is about to lose: a binding naming no palette
+            // took the element's own choice, and one this session filled in took the old default.
+            const previous = defaultPalettes;
+            const stale: { layer: Layer; channels: { channel: string; kind: keyof DefaultPalettes }[] }[] = [];
+            for (const { layer } of stack) {
+                if (layer.locked) {
+                    continue;
+                }
+
+                const channels = Object.entries(layer.encode ?? {}).flatMap(([channel, binding]) => {
+                    const kind =
+                        binding === undefined || channelDescriptor(channel)?.accepts !== "color"
+                            ? null
+                            : paletteKindOf(binding);
+                    if (
+                        kind === null ||
+                        !("by" in binding) ||
+                        palettes[kind] === undefined ||
+                        palettes[kind] === previous[kind]
+                    ) {
+                        return [];
+                    }
+
+                    const took =
+                        binding.palette === undefined ||
+                        (binding.palette === previous[kind] && defaulted.has(`${layer.id}/${channel}`));
+                    return took ? [{ channel, kind }] : [];
+                });
+                if (channels.length > 0) {
+                    stale.push({ layer, channels });
+                }
+            }
+
+            defaultPalettes = { ...previous, ...palettes };
+
+            if (stale.length === 0) {
+                return;
+            }
+
+            if (options.reapply !== true) {
+                const named = stale.map(({ layer }) => `"${layer.name}" (${layer.id})`).join(", ");
+                console.warn(
+                    `[graphty] setDefaultPalettes: ${named} took the previous default palette and keep it. ` +
+                        "Call setDefaultPalettes before adding layers, or pass { reapply: true } to repaint them.",
+                );
+                return;
+            }
+
+            for (const { layer, channels } of stale) {
+                const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
+                for (const { channel, kind } of channels) {
+                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] } as Binding;
+                    defaulted.add(`${layer.id}/${channel}`);
+                }
+
+                api.update(layer.id, { encode }).then(undefined, (error: unknown) => {
+                    console.error(`[graphty] setDefaultPalettes could not reapply the layer "${layer.name}".`, error);
+                });
+            }
+        },
+
         toDocument(): StyleDocument {
             const layers = stack.filter((entry) => !entry.layer.locked).map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
@@ -1858,4 +2044,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         },
     };
+
+    return api;
 }

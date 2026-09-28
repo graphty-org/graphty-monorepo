@@ -56,6 +56,7 @@ export { quotePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { Selector } from "./selector";
 export type {
+    DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,
     SessionStylesApi,

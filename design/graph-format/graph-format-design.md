@@ -1964,7 +1964,10 @@ for text-cell formats, `"keep"` for JSON; `"string"`, `"number"`; section
 table and the edge table it is paired with through its format option
 `nodes` (`got-nodes.csv` + `got-edges.csv`), so endpoints and node ids
 agree across the two files); `nodeIdFrom` (`"id"` default, `"label"`, `"index"` for the GML /
-Pajek / d3 ambiguity); `addMissingNodes` (default true; the GEXF importer
+Pajek / d3 ambiguity; under `"id"` a GML string `id`, `source` or
+`target`, which the GML spec does not allow but NetworkX and Gephi write,
+is kept under the `ids` rule with one `W_GML_STRING_ID` warning per file,
+while a real or record id stays an `E_GML_ID_TYPE` error); `addMissingNodes` (default true; the GEXF importer
 defaults false for EDGES and reports, while `pid` / `<parent for>`
 references are resolved by deferral, below); `duplicateEdges` (default
 `"keep"`); `selfLoops` (default `"keep"`); `onMixedDirection` (default

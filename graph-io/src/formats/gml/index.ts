@@ -45,6 +45,7 @@ import {
     REPEATED_KEY_CODE,
     ROLE_TAKEN_CODE,
     SECOND_GRAPH_CODE,
+    STRING_ID_CODE,
     UNKNOWN_ENTITY_CODE,
 } from "./importer.js";
 
@@ -77,8 +78,10 @@ export const GML_ISSUE = Object.freeze({
     MISSING_LABEL: MISSING_LABEL_CODE,
     /** An edge without `source` or `target`. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
-    /** A node id, source or target that is not an integer. */
+    /** A node id, source or target that is neither an integer nor a string. */
     ID_TYPE: ID_TYPE_CODE,
+    /** String node ids, sources or targets (outside the spec's integers), kept under the ids rule; warned once. */
+    STRING_ID: STRING_ID_CODE,
     /** A node id declared twice (later keys overwrite). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** A structural key repeated in one element. */

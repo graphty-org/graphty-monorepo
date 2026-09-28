@@ -98,7 +98,11 @@ describe("undo and redo under the engines with a graph of their own", () => {
         const imported = JSON.stringify({ nodes: [{ id: "n1" }, { id: "n6" }], edges: [{ src: "n1", dst: "n6" }] });
         await session
             .transaction("Loaded a project", async (tx) => {
-                await tx.execute({ op: "data.import", source: { type: "json", config: { data: imported } }, mode: "replace" });
+                await tx.execute({
+                    op: "data.import",
+                    source: { type: "json", config: { data: imported } },
+                    mode: "replace",
+                });
                 graph.getLayoutManager().running = true;
                 settle(graph);
                 throw new Error("The load failed on purpose.");

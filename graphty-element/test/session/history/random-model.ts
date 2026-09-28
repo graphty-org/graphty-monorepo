@@ -593,9 +593,9 @@ async function edit(
         before = laneOf(real);
     }
 
-    // Where the lane is before the edit, to see whether an edit that reshapes the graph moved it:
-    // an add under a layout that places newcomers by stepping (ngraph, d3) moves every node as it
-    // is derived.
+    // Where the lane is before the edit, to see whether a graph edit moved it: an add under a
+    // layout that places newcomers by stepping (ngraph, d3) moves every node as it is derived --
+    // even one that only gives a record to a row an earlier edge created.
     const laneBefore = laneOf(real);
     let refused = false;
     try {
@@ -616,7 +616,10 @@ async function edit(
             // Sealed at its commit, or where the layout came to rest while it was open.
             model.steps[model.position].arr = laneOf(real);
             model.moved = false;
-        } else if ((before !== null || shapeOf(real) !== shape) && moved(before ?? laneBefore, laneOf(real))) {
+        } else if (
+            (before !== null || history.steps[history.position - 1].slices.includes("graph")) &&
+            moved(before ?? laneBefore, laneOf(real))
+        ) {
             // A layout that placed the nodes as the command ran: at rest, that is where its step
             // ends; still running, the nodes are in flight, and the next seal gives them to it.
             if (real.layout.running) {
@@ -928,7 +931,7 @@ class Layout implements Command {
                 layout.play();
             }
 
-            const running = layout.running;
+            const { running } = layout;
             model.moved ||= running;
             layout.step();
             if (running && !layout.running) {

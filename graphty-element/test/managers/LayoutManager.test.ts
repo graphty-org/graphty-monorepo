@@ -476,7 +476,7 @@ describe("LayoutManager", () => {
             await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
             const at = (): string => JSON.stringify(layoutManager.getNodePosition(dataManager.getNode("a")!));
             layoutManager.running = true;
-            const {restoring} = layoutManager;
+            const { restoring } = layoutManager;
             layoutManager.restoring = () => true;
             // Strict state reports the placement it refuses; this test asks only that it refuses.
             const report = (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__;

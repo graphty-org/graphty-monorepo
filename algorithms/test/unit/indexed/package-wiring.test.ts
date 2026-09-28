@@ -4,10 +4,20 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type {
+    ArcOrderOption,
+    BfsOptions,
+    BfsResult,
+    BipartiteOptions,
+    BipartiteResult,
+    CondensationResult,
+    DfsOptions,
+    DfsResult,
+    DirectionOptimizedBfsOptions,
     IndexedApspOptions,
     IndexedApspResult,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    LabelResult,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -55,5 +65,34 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed traversal family exports", () => {
+    it("reaches the traversal ports and their option and result types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: true });
+        b.addEdge(0, 1);
+        b.addEdge(1, 2);
+        const s = b.freeze();
+        const bfsOptions: BfsOptions = { target: 1 };
+        const bfs: BfsResult = pkg.indexed.breadthFirstSearch(s, 0, bfsOptions);
+        expect(bfs.visitedCount).toBe(2);
+        const dobfsOptions: DirectionOptimizedBfsOptions = { alpha: 15 };
+        expect(pkg.indexed.directionOptimizedBfs(s, 0, dobfsOptions).visitedCount).toBe(3);
+        const dfsOptions: DfsOptions = { order: "post" };
+        const dfs: DfsResult = pkg.indexed.depthFirstSearch(s, 0, dfsOptions);
+        expect(Array.from(dfs.order)).toEqual([2, 1, 0]);
+        expect(pkg.indexed.hasCycle(s)).toBe(false);
+        expect(Array.from(pkg.indexed.topologicalSort(s) ?? [])).toEqual([0, 1, 2]);
+        const bipartiteOptions: BipartiteOptions = { arcs: "out" };
+        const bipartite: BipartiteResult = pkg.indexed.isBipartite(s, bipartiteOptions);
+        expect(bipartite.bipartite).toBe(true);
+        const arcOrder: ArcOrderOption = { arcOrder: new Uint32Array([0, 1]) };
+        const scc: LabelResult = pkg.indexed.stronglyConnectedComponents(s, arcOrder);
+        expect(scc.count).toBe(3);
+        const condensed: CondensationResult = pkg.indexed.condensation(s, arcOrder);
+        expect(condensed.condensed.snapshot.edgeCount).toBe(2);
     });
 });

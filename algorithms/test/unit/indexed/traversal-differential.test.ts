@@ -217,6 +217,35 @@ describe("indexed.isBipartite against legacy isBipartite and bipartitePartition"
         }
         expect(bipartite).toBeGreaterThan(10);
     });
+
+    it("gives legacy bipartitePartition's answer and sides on every directed fixture as built with arcs: out", () => {
+        let bipartite = 0;
+        let differs = 0;
+        for (const { name, graph, s } of cases(directed)) {
+            const port = isBipartite(s, { arcs: "out" });
+            s.validate({ checksum: true });
+            const partition = bipartitePartition(graph);
+            expect(port.bipartite, name).toBe(partition !== null);
+            differs += isBipartite(s).bipartite === port.bipartite ? 0 : 1;
+            if (partition === null) {
+                expect(port.sides, name).toBeNull();
+                continue;
+            }
+            bipartite++;
+            const { sides } = port;
+            const left: NodeId[] = [];
+            const right: NodeId[] = [];
+            for (let i = 0; i < s.nodeCount; i++) {
+                (sides !== null && maskTest(sides, i) ? right : left).push(s.ids.idOf(i) as NodeId);
+            }
+            expect(sortedStrings(left), name).toEqual(sortedStrings(partition.left));
+            expect(sortedStrings(right), name).toEqual(sortedStrings(partition.right));
+        }
+        expect(bipartite).toBeGreaterThan(0);
+        // The hub with five targets and five sources, simple and doubled: bipartite with direction
+        // ignored, not when only out-arcs are followed.
+        expect(differs).toBe(2);
+    });
 });
 
 describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju", () => {

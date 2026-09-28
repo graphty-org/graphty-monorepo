@@ -31,25 +31,42 @@ export interface BfsOptions extends ArcOrderOption {
      * Stop when this node index is taken off the queue, before its neighbours are expanded. Every
      * node discovered by then stays in `order`; the target's own position in `order` ends the
      * prefix of nodes that were expanded.
+     * @throws RangeError when it is not a node index
      */
     readonly target?: number | undefined;
 }
 
 /**
- * Check a start node index.
+ * Check a start (or target) node index.
  * @param g - The adjacency
- * @param start - The start node index
+ * @param start - The node index
+ * @param what - What the index is, for the error message
  * @throws RangeError when `start` is not a node index of `g`
  */
-export function checkStart(g: AdjacencyView, start: number): void {
+export function checkStart(g: AdjacencyView, start: number, what = "start"): void {
     if (!Number.isInteger(start) || start < 0 || start >= g.nodeCount) {
-        throw new RangeError(`start node index ${String(start)} is out of range for ${String(g.nodeCount)} nodes`);
+        throw new RangeError(`${what} node index ${String(start)} is out of range for ${String(g.nodeCount)} nodes`);
     }
 }
 
 /**
- * Check an `arcOrder` option: `arcCount` entries, and every entry of a row's slice an arc of that
- * row.
+ * Check an optional target node index.
+ * @param g - The adjacency
+ * @param target - The option, or undefined
+ * @returns The target, or INVALID_INDEX for none
+ * @throws RangeError when `target` is set and is not a node index of `g`
+ */
+export function checkTarget(g: AdjacencyView, target: number | undefined): number {
+    if (target === undefined) {
+        return INVALID_INDEX;
+    }
+    checkStart(g, target, "target");
+    return target;
+}
+
+/**
+ * Check an `arcOrder` option: `arcCount` entries, and every row's slice a permutation of that row's
+ * arcs.
  * @param g - The adjacency
  * @param arcOrder - The option, or undefined
  * @returns The order, or null for row order
@@ -63,6 +80,7 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
     if (arcOrder.length !== g.arcCount) {
         throw new RangeError(`arcOrder has ${String(arcOrder.length)} entries, expected ${String(g.arcCount)}`);
     }
+    const seen = new Uint8Array(arcOrder.length);
     for (let u = 0; u < nodeCount; u++) {
         const begin = rowPtr[u];
         const end = rowPtr[u + 1];
@@ -70,6 +88,10 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
             if (arcOrder[a] < begin || arcOrder[a] >= end) {
                 throw new RangeError(`arcOrder[${String(a)}] = ${String(arcOrder[a])} is not an arc of node ${String(u)}`);
             }
+            if (seen[arcOrder[a]] === 1) {
+                throw new RangeError(`arcOrder[${String(a)}] = ${String(arcOrder[a])} repeats an arc of node ${String(u)}`);
+            }
+            seen[arcOrder[a]] = 1;
         }
     }
     return arcOrder;
@@ -92,7 +114,7 @@ export function breadthFirstSearch(g: AdjacencyView, start: number, options: Bfs
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const order = new Uint32Array(nodeCount);
     const maxDepth = options.maxDepth ?? INVALID_INDEX;
-    const target = options.target ?? INVALID_INDEX;
+    const target = checkTarget(g, options.target);
     let head = 0;
     let tail = 0;
     order[tail++] = start;

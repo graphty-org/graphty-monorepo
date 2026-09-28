@@ -1,6 +1,6 @@
 import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { type ArcOrderOption, checkArcOrder, checkStart } from "./bfs.js";
+import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget } from "./bfs.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
 /** Result of the index-based DFS. @public */
@@ -20,6 +20,7 @@ export interface DfsOptions extends ArcOrderOption {
     /**
      * Stop the whole walk as soon as this node index is visited. Pre-order only: a post-order walk
      * always runs to the end, since a node's post-order place is known only once its subtree is done.
+     * @throws RangeError when it is not a node index
      */
     readonly target?: number | undefined;
     /** "pre" (default) lists a node when it is first reached, "post" when its subtree is finished. */
@@ -120,9 +121,10 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
 export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOptions = {}): DfsResult {
     checkStart(g, start);
     const arcOrder = checkArcOrder(g, options.arcOrder);
+    const target = checkTarget(g, options.target);
     const w = newWalk(g.nodeCount);
     const postOrder = options.order === "post";
-    walkFrom(g, start, w, postOrder ? INVALID_INDEX : (options.target ?? INVALID_INDEX), arcOrder);
+    walkFrom(g, start, w, postOrder ? INVALID_INDEX : target, arcOrder);
     const order = postOrder ? w.post.subarray(0, w.postCount) : w.pre.subarray(0, w.preCount);
     return { order, parent: w.parent, depth: w.depth, visitedCount: w.preCount };
 }

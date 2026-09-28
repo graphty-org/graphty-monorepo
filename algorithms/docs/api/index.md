@@ -34,6 +34,12 @@ Visit nodes in a systematic order.
 - `iterativeDeepeningDfs()` - Iterative Deepening DFS
 - `bidirectionalSearch()` - Bidirectional BFS
 - `topologicalSort()` - Topological ordering (DAG)
+- `indexed.breadthFirstSearch()` - BFS over a snapshot; `target` stops early, `arcOrder` sets the neighbour order
+- `indexed.directionOptimizedBfs()` - Direction-optimising BFS over a snapshot, switching to bottom-up steps over `reverse()`
+- `indexed.depthFirstSearch()` - DFS over a snapshot in pre- or post-order; takes `target` and `arcOrder`
+- `indexed.hasCycle()` - Whether a snapshot has a cycle
+- `indexed.topologicalSort()` - Topological order of a snapshot as node indices, or null on a cycle
+- `indexed.isBipartite()` - Bipartiteness and the two sides as a node mask; `arcs: "out"` follows out-arcs only on a directed snapshot
 
 [Traversal functions in the generated TypeDoc](./generated/index/)
 
@@ -72,6 +78,8 @@ Find connected subgraphs.
 - `weaklyConnectedComponents()` - Directed (ignoring direction)
 - `isConnected()` - Check connectivity
 - `isStronglyConnected()` - Check strong connectivity
+- `indexed.stronglyConnectedComponents()` - Tarjan over a snapshot, components labelled in completion order
+- `indexed.condensation()` - Strongly connected components and the condensed DAG built by `contract()`
 
 [Components functions in the generated TypeDoc](./generated/index/)
 

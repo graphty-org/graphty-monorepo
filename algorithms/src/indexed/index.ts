@@ -22,7 +22,7 @@ export {
     directionOptimizedBfs,
     type DirectionOptimizedBfsOptions,
 } from "./bfs.js";
-export { type BipartiteResult, isBipartite } from "./bipartite.js";
+export { type BipartiteOptions, type BipartiteResult, isBipartite } from "./bipartite.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
 export { depthFirstSearch, type DfsOptions, type DfsResult, hasCycle, topologicalSort } from "./dfs.js";

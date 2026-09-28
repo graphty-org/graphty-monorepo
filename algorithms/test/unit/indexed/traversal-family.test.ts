@@ -1,7 +1,9 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, maskToIndices } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { Graph } from "../../../src/core/graph.js";
 import { accelerated, type AlgorithmAccelerator, type BfsResultLike, indexed } from "../../../src/index.js";
+import { legacyArcOrder } from "../../../src/indexed/to-snapshot.js";
 
 /** A snapshot from an edge list over numeric ids 0..n-1, frozen with checksums. */
 function snap(directed: boolean, n: number, edges: [number, number][]): GraphSnapshot {
@@ -270,5 +272,89 @@ describe("indexed.directionOptimizedBfs", () => {
             expect([...r.depth]).toEqual([0, 1, INVALID_INDEX, 1, 2, 2]);
         }
         s.validate({ checksum: true });
+    });
+});
+
+describe("traversal input checks", () => {
+    // 0 -> 1, 0 -> 2: node 0 owns arcs 0 and 1.
+    const s = snap(true, 3, [
+        [0, 1],
+        [0, 2],
+    ]);
+
+    it("rejects a start or a target that is not a node index", () => {
+        expect(() => indexed.breadthFirstSearch(s, 3)).toThrow(RangeError);
+        expect(() => indexed.depthFirstSearch(s, -1)).toThrow(RangeError);
+        expect(() => indexed.directionOptimizedBfs(s, 1.5)).toThrow(RangeError);
+        expect(() => indexed.breadthFirstSearch(s, 0, { target: 99 })).toThrow("target node index 99");
+        expect(() => indexed.depthFirstSearch(s, 0, { target: 99 })).toThrow("target node index 99");
+    });
+
+    it("rejects an arcOrder of the wrong length, with a foreign arc, or with a repeated arc", () => {
+        expect(() => indexed.breadthFirstSearch(s, 0, { arcOrder: new Uint32Array([0]) })).toThrow("expected 2");
+        expect(() => indexed.depthFirstSearch(s, 0, { arcOrder: new Uint32Array([0, 2]) })).toThrow(
+            "is not an arc of node 0",
+        );
+        const repeated = new Uint32Array([0, 0]);
+        expect(() => indexed.breadthFirstSearch(s, 0, { arcOrder: repeated })).toThrow("repeats an arc");
+        expect(() => indexed.depthFirstSearch(s, 0, { arcOrder: repeated })).toThrow("repeats an arc");
+        expect(() => indexed.topologicalSort(s, { arcOrder: repeated })).toThrow("repeats an arc");
+        expect(() => indexed.stronglyConnectedComponents(s, { arcOrder: repeated })).toThrow("repeats an arc");
+        expect(() => indexed.condensation(s, { arcOrder: repeated })).toThrow("repeats an arc");
+        const reversed = indexed.breadthFirstSearch(s, 0, { arcOrder: new Uint32Array([1, 0]) });
+        expect([...reversed.order]).toEqual([0, 2, 1]);
+        s.validate({ checksum: true });
+    });
+
+    it("runs the CPU port through the dispatcher when an arcOrder is set", async () => {
+        const calls: number[] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            breadthFirstSearch: (_s, source) => {
+                calls.push(source);
+                return Promise.reject(new Error("the accelerator cannot follow an arcOrder"));
+            },
+        };
+        const r = await accelerated(fake).breadthFirstSearch(s, 0, { arcOrder: new Uint32Array([1, 0]) });
+        expect(calls).toEqual([]);
+        expect([...r.order]).toEqual([0, 2, 1]);
+    });
+});
+
+describe("indexed.condensation weights", () => {
+    it("gives each condensed edge the weight of the first source edge of its pair", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge(0, 1, 5);
+        b.addEdge(0, 1, 9);
+        b.addEdge(1, 2, 7);
+        const s = b.freeze({ checksum: true });
+        const d = indexed.condensation(s).condensed.snapshot;
+        const el = d.edgeList();
+        const weighted = Array.from(
+            { length: d.edgeCount },
+            (_, e) => `${String(el.src[e])}->${String(el.dst[e])}:${String(el.weights?.[e])}`,
+        );
+        // Components complete as 2, 1, 0, so node 0 is component 2.
+        expect(weighted.sort()).toEqual(["1->0:7", "2->1:5"]);
+        s.validate({ checksum: true });
+    });
+});
+
+describe("legacyArcOrder", () => {
+    it("refuses a snapshot whose last row holds an arc the graph does not", () => {
+        const graph = new Graph({ directed: false });
+        graph.addEdge("a", "b");
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        expect(() => legacyArcOrder(graph, b.freeze())).toThrow("does not hold this graph's nodes and neighbours");
+    });
+
+    it("refuses a snapshot that numbers the graph's nodes in another order", () => {
+        const graph = new Graph({ directed: false });
+        graph.addEdge("b", "a");
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        expect(() => legacyArcOrder(graph, b.freeze())).toThrow("does not hold this graph's nodes and neighbours");
     });
 });

@@ -11,6 +11,18 @@ export interface BipartiteResult {
     readonly sides: NodeMask | null;
 }
 
+/** Options of {@link isBipartite}. @public */
+export interface BipartiteOptions {
+    /**
+     * Which arcs of a directed snapshot to colour along. "both" (default) follows out- and in-arcs,
+     * which answers for the graph with direction ignored. "out" follows out-arcs only, as the legacy
+     * `bipartitePartition` does: roots are taken in index order and a node first reached through an
+     * in-arc is coloured as a new root, so the answer depends on node order. Ignored on an undirected
+     * snapshot.
+     */
+    readonly arcs?: "both" | "out" | undefined;
+}
+
 const UNSEEN = 2;
 
 /**
@@ -19,14 +31,16 @@ const UNSEEN = 2;
  * a directed snapshot every node is coloured against its in-neighbours (over `s.reverse()`) as well
  * as its out-neighbours. Following out-arcs only -- as the legacy `bipartitePartition` does -- makes
  * the answer depend on node order: with the single arc `a -> b`, a walk that starts at `b` never
- * meets `a`, colours it as a new root and then finds the arc inside one side.
+ * meets `a`, colours it as a new root and then finds the arc inside one side. `options.arcs: "out"`
+ * gives that legacy answer.
  * @param s - The snapshot to test
+ * @param options - Which arcs to follow on a directed snapshot
  * @returns Whether the graph is bipartite and, when it is, its two sides
  * @public
  */
-export function isBipartite(s: GraphSnapshot): BipartiteResult {
+export function isBipartite(s: GraphSnapshot, options: BipartiteOptions = {}): BipartiteResult {
     const { nodeCount } = s;
-    const views: AdjacencyView[] = s.directed ? [s, s.reverse()] : [s];
+    const views: AdjacencyView[] = s.directed && options.arcs !== "out" ? [s, s.reverse()] : [s];
     const side = new Uint8Array(nodeCount).fill(UNSEEN);
     const queue = new Uint32Array(nodeCount);
     for (let r = 0; r < nodeCount; r++) {

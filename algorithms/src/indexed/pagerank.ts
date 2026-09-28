@@ -43,10 +43,14 @@ export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankRes
 }
 
 /**
- * Personalized PageRank: the personalization vector, normalised to sum 1, replaces the uniform
- * `1 / n` both in the teleport and in the redistribution of the dangling mass, as networkx does.
+ * Personalized PageRank, as the legacy function computes it: the personalization vector,
+ * normalised to sum 1, replaces the uniform `1 / n` in the teleport, and each node receives
+ * `d * dangling / n` of the dangling mass scaled by its personalization. That keeps only a
+ * `1 / n` share of the dangling mass, so on a graph with a dangling node the scores sum to less
+ * than 1 (networkx spreads all of it). An all-zero vector gives plain PageRank, as the legacy
+ * function does for an empty list of personal nodes.
  * @param s - The snapshot
- * @param personalization - One finite, non-negative mass per node index, not all zero
+ * @param personalization - One finite, non-negative mass per node index
  * @param o - Algorithm options
  * @returns The scores, the iteration count and the convergence flag
  * @public
@@ -56,11 +60,7 @@ export function personalizedPageRank(
     personalization: F32 | F64,
     o: PageRankOptions = {},
 ): PageRankResult {
-    const p = distribution(personalization, s.nodeCount, "personalization");
-    if (p === null) {
-        throw new Error("personalizedPageRank: personalization must not be all zero");
-    }
-    return run(s, p, o);
+    return run(s, distribution(personalization, s.nodeCount, "personalization"), o);
 }
 
 /**
@@ -76,9 +76,20 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
     const maxIter = o.maxIterations ?? 100;
     const tol = o.tolerance ?? 1e-6;
     const useMax = o.convergenceNorm === "max";
+    if (n === 0) {
+        return { scores: new Float64Array(0), iterations: 0, converged: true };
+    }
     const rev = s.reverse();
     const weighted = o.weighted === true && rev.weights !== null;
-    const outW: NumericVector = weighted ? s.weightedOutDegree() : s.outDegree();
+    // The f64 shadow toSnapshot keeps when a weight is not f32-exact, else the f32 arc weights.
+    const shadow = weighted ? s.edges.byRole("weight") : null;
+    const exact = shadow?.dtype === "f64" ? shadow.data : null;
+    let revW: NumericVector | null = weighted ? rev.weights : null;
+    let outW: NumericVector = weighted ? s.weightedOutDegree() : s.outDegree();
+    if (exact !== null) {
+        revW = gather(exact, rev.arcToEdge);
+        outW = rowSums(s, gather(exact, s.arcToEdge));
+    }
     let rank =
         (o.initialRanks === undefined ? null : distribution(o.initialRanks, n, "initialRanks")) ??
         new Float64Array(n).fill(o.initialRanks === undefined ? 1 / n : 0);
@@ -92,8 +103,9 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
                 dangling += rank[u];
             }
         }
-        // Teleport plus dangling mass: (1 - d) + d * dangling in total, spread by p or uniformly.
-        const spread = 1 - d + d * dangling;
+        // Teleport (1 - d) spread by p or uniformly; the dangling mass d * dangling spread uniformly,
+        // and with p scaled by p[v] on top of the uniform 1 / n, as the legacy function does.
+        const spread = 1 - d + d * dangling * (p === null ? 1 : 1 / n);
         let delta = 0;
         for (let v = 0; v < n; v++) {
             let acc = 0;
@@ -102,7 +114,7 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
                 const u = rev.colIdx[a];
                 const ow = outW[u];
                 if (ow > 0) {
-                    acc += (rank[u] * (weighted && rev.weights !== null ? rev.weights[a] : 1)) / ow;
+                    acc += (rank[u] * (revW === null ? 1 : revW[a])) / ow;
                 }
             }
             next[v] = spread * (p === null ? 1 / n : p[v]) + d * acc;
@@ -113,6 +125,36 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
         converged = delta < tol;
     }
     return { scores: rank, iterations: it, converged };
+}
+
+/**
+ * One value per arc, read through the arc's logical edge.
+ * @param perEdge - One value per logical edge
+ * @param arcToEdge - The logical edge of every arc
+ * @returns One value per arc
+ */
+function gather(perEdge: F64, arcToEdge: Uint32Array): F64 {
+    const out = new Float64Array(arcToEdge.length);
+    for (let a = 0; a < out.length; a++) {
+        out[a] = perEdge[arcToEdge[a]];
+    }
+    return out;
+}
+
+/**
+ * The sum of each node's out-arc values.
+ * @param s - The snapshot
+ * @param perArc - One value per forward arc
+ * @returns One sum per node
+ */
+function rowSums(s: GraphSnapshot, perArc: F64): F64 {
+    const out = new Float64Array(s.nodeCount);
+    for (let u = 0; u < s.nodeCount; u++) {
+        for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+            out[u] += perArc[a];
+        }
+    }
+    return out;
 }
 
 /**

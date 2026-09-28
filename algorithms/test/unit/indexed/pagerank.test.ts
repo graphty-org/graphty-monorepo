@@ -124,7 +124,12 @@ describe("indexed.pageRank", () => {
         // by about its residual, which on scores near 0.25 is several times 1e-6 relative.
         // `useDelta: false` is MANDATORY, not tidiness: `options.useDelta !== false && n > 100`
         // (pagerank.ts) switches the legacy call to SimpleDeltaPageRank, a separate implementation.
-        const legacy = legacyPageRank(g, { dampingFactor: 0.85, maxIterations: 200, tolerance: 1e-12, useDelta: false });
+        const legacy = legacyPageRank(g, {
+            dampingFactor: 0.85,
+            maxIterations: 200,
+            tolerance: 1e-12,
+            useDelta: false,
+        });
         const ported = pageRank(s, { dampingFactor: 0.85, maxIterations: 200, tolerance: 1e-12 });
         for (let u = 0; u < s.nodeCount; u++) {
             expect(ported.scores[u]).toBeCloseTo(legacy.ranks[String(s.ids.idOf(u))], 9); // 1e-9 absolute
@@ -247,6 +252,20 @@ describe("indexed.pageRank initialRanks", () => {
         }
     });
 
+    it("starts from all zero when every initial rank is 0, as legacy does", () => {
+        const { graph } = directedFixtures()[2];
+        const s = checksummedSnapshot(graph);
+        const zeros = new Map<string, number>();
+        for (let u = 0; u < s.nodeCount; u++) {
+            zeros.set(String(s.ids.idOf(u)), 0);
+        }
+        expectSameRanks(
+            s,
+            pageRank(s, { initialRanks: new Float64Array(s.nodeCount), maxIterations: 1, ...LEGACY_RULE }),
+            legacyPageRank(graph, { initialRanks: zeros, maxIterations: 1, ...LEGACY }),
+        );
+    });
+
     it("refuses initial ranks of the wrong length", () => {
         const s = checksummedSnapshot(directedFixtures()[0].graph);
         expect(() => pageRank(s, { initialRanks: new Float64Array(1) })).toThrow(/initialRanks/);
@@ -257,10 +276,11 @@ describe("indexed.personalizedPageRank", () => {
     const fixtures = [
         ...directedFixtures(),
         ...undirectedFixtures().map(({ name, graph }) => ({ name: `both arcs of ${name}`, graph: bothArcs(graph) })),
-    ].filter(({ graph }) => !hasDanglingNode(graph));
+    ];
 
-    it("has fixtures to compare on", () => {
+    it("has fixtures to compare on, dangling nodes included", () => {
         expect(fixtures.length).toBeGreaterThanOrEqual(5);
+        expect(fixtures.some(({ graph }) => hasDanglingNode(graph))).toBe(true);
     });
 
     for (const { name, graph } of fixtures) {
@@ -283,10 +303,10 @@ describe("indexed.personalizedPageRank", () => {
         });
     }
 
-    it("with a uniform vector equals plain PageRank, dangling nodes included", () => {
-        const { graph } = directedFixtures()[0]; // has a sink
+    it("with a uniform vector equals plain PageRank when no node is dangling", () => {
+        const { graph } = fixtures.find(({ graph: g }) => !hasDanglingNode(g)) ?? fixtures[0];
         const s = checksummedSnapshot(graph);
-        expect(hasDanglingNode(graph)).toBe(true);
+        expect(hasDanglingNode(graph)).toBe(false);
         const plain = pageRank(s);
         const uniform = personalizedPageRank(s, new Float64Array(s.nodeCount).fill(3));
         expect(uniform.iterations).toBe(plain.iterations);
@@ -295,25 +315,56 @@ describe("indexed.personalizedPageRank", () => {
         }
     });
 
-    it("keeps the total rank at 1 when a dangling node's mass is redistributed", () => {
-        // Legacy scales the dangling redistribution by 1 / n as well as by the personalization, so
-        // its ranks sum to less than 1 here; the port redistributes by the personalization alone,
-        // as networkx and the GPU kernel do.
-        const s = checksummedSnapshot(directedFixtures()[0].graph);
-        const p = new Float64Array(s.nodeCount);
-        p[0] = 1;
-        const r = personalizedPageRank(s, p, { tolerance: 1e-12, maxIterations: 500 });
-        expect(Math.abs(sum(r.scores) - 1)).toBeLessThan(1e-9);
+    it("an all-zero vector gives plain PageRank, as legacy does for no personal nodes", () => {
+        const { graph } = directedFixtures()[0];
+        const s = checksummedSnapshot(graph);
+        expectSameRanks(
+            s,
+            personalizedPageRank(s, new Float64Array(s.nodeCount), LEGACY_RULE),
+            legacyPersonalizedPageRank(graph, [], LEGACY),
+        );
     });
 
-    it("refuses a vector of the wrong length, a negative entry or an all-zero vector", () => {
+    it("reads weights that are not f32-exact at full precision, as legacy does", () => {
+        const g = directedFrom([
+            ["a", "b", 0.1],
+            ["a", "c", 2.345678901234567],
+            ["b", "c", 1.3],
+            ["c", "a", 0.7],
+            ["c", "b", 0.2],
+        ]);
+        const s = checksummedSnapshot(g);
+        const legacy = { weight: "weight", tolerance: 1e-10, maxIterations: 500, ...LEGACY };
+        const port = { weighted: true, tolerance: 1e-10, maxIterations: 500, ...LEGACY_RULE };
+        expectSameRanks(s, pageRank(s, port), legacyPageRank(g, legacy));
+        const p = Float64Array.of(1, 0, 0);
+        expectSameRanks(s, personalizedPageRank(s, p, port), legacyPersonalizedPageRank(g, ["a"], legacy));
+        // Exact to the last bit on the f64 side: the f32 rounding of 0.1 alone moves a score by
+        // about 1e-9, far above what this comparison allows.
+        const ported = pageRank(s, port).scores;
+        const { ranks } = legacyPageRank(g, legacy);
+        for (let u = 0; u < s.nodeCount; u++) {
+            expect(Math.abs(ported[u] - ranks[String(s.ids.idOf(u))])).toBeLessThan(1e-12);
+        }
+    });
+
+    it("returns an empty result on an empty snapshot, as legacy does", () => {
+        const s = new GraphBuilder({ directed: true }).freeze();
+        for (const r of [pageRank(s), personalizedPageRank(s, new Float64Array(0))]) {
+            expect(r.scores).toHaveLength(0);
+            expect(r.iterations).toBe(0);
+            expect(r.converged).toBe(true);
+        }
+    });
+
+    it("refuses a vector of the wrong length, a negative or a non-finite entry", () => {
         const s = checksummedSnapshot(directedFixtures()[0].graph);
         const n = s.nodeCount;
         expect(() => personalizedPageRank(s, new Float64Array(n - 1).fill(1))).toThrow(/personalization/);
-        expect(() => personalizedPageRank(s, new Float64Array(n))).toThrow(/personalization/);
-        const negative = new Float64Array(n).fill(1);
-        negative[1] = -1;
-        expect(() => personalizedPageRank(s, negative)).toThrow(/personalization/);
+        for (const bad of [-1, Number.NaN, Infinity]) {
+            const vector = new Float64Array(n).fill(1);
+            vector[1] = bad;
+            expect(() => personalizedPageRank(s, vector)).toThrow(/personalization/);
+        }
     });
 });
-

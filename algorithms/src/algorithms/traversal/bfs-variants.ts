@@ -1,7 +1,6 @@
 import type { Graph } from "../../core/graph.js";
 import { PriorityQueue } from "../../data-structures/priority-queue.js";
 import { CSRGraph } from "../../optimized/csr-graph.js";
-import { DirectionOptimizedBFS } from "../../optimized/direction-optimized-bfs.js";
 import { toCSRGraph } from "../../optimized/graph-adapter.js";
 import type { NodeId } from "../../types/index.js";
 
@@ -415,37 +414,15 @@ function bfsWithPathCountingCSR(
  * @returns Map of node IDs to their shortest distances from the source
  */
 function bfsDistancesOnlyCSR(graph: CSRGraph, source: NodeId, cutoff?: number): Map<NodeId, number> {
-    // Use Direction-Optimized BFS for best performance
-    if (graph.nodeCount() > LARGE_GRAPH_THRESHOLD) {
-        const dobfs = new DirectionOptimizedBFS(graph);
-        const result = dobfs.search(source);
-
-        // Filter by cutoff if specified
-        if (cutoff !== undefined) {
-            const filtered = new Map<NodeId, number>();
-            for (const [nodeId, distance] of result.distances) {
-                if (distance <= cutoff) {
-                    filtered.set(nodeId, distance);
-                }
-            }
-            return filtered;
-        }
-
-        return result.distances;
-    }
-
-    // Fallback to standard BFS on CSR
+    // Plain top-down BFS on CSR. The DirectionOptimizedBFS class is not used here: its 16-bit
+    // distances throw once a path passes 65,534 hops.
     const distances = new Map<NodeId, number>();
-    const queue: NodeId[] = [];
+    const queue: NodeId[] = [source];
 
     distances.set(source, 0);
-    queue.push(source);
 
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (current === undefined) {
-            continue;
-        }
+    for (let head = 0; head < queue.length; head++) {
+        const current = queue[head];
 
         const currentDistance = distances.get(current) ?? 0;
 

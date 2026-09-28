@@ -30,6 +30,13 @@ describe("BetweennessCentralityOptions sources / k", () => {
         expect(() => edgeBetweennessCentrality(g, { sources: [0] })).toThrow(/node INDICES/);
     });
 
+    it("points at something that exists: the accelerator's own method, not a dispatcher member", () => {
+        // The dispatcher returned by accelerated() has no betweennessCentrality member yet, so a
+        // message sending the caller there would send them to a TypeError.
+        expect(() => betweennessCentrality(path(), { k: 1 })).toThrow(/AlgorithmAccelerator/);
+        expect(() => betweennessCentrality(path(), { k: 1 })).not.toThrow(/accelerated\(/);
+    });
+
     it("leaves the existing three members working exactly as before", () => {
         const g = path();
         expect(betweennessCentrality(g, { normalized: false }).b).toBe(1);

@@ -1,8 +1,11 @@
-import { GraphBuilder } from "@graphty/graph-format";
+import { GraphBuilder, maskToIndices } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { arcSourceIn } from "../../../src/indexed/structures/arc-source.js";
+import { BitSet } from "../../../src/indexed/structures/bit-set.js";
+import { IndexedMaxHeap } from "../../../src/indexed/structures/max-heap.js";
 import { IndexedMinHeap } from "../../../src/indexed/structures/min-heap.js";
+import { RingQueue } from "../../../src/indexed/structures/ring-queue.js";
 import { IntUnionFind } from "../../../src/indexed/structures/union-find.js";
 
 describe("IntUnionFind", () => {
@@ -128,5 +131,158 @@ describe("arcSourceIn", () => {
             expect(arcSourceIn(s.rowPtr, arc)).toBe(s.arcSource(arc));
         }
         s.validate({ checksum: true });
+    });
+});
+
+describe("IndexedMinHeap has / keyOf", () => {
+    it("reports membership and the current key, and forgets a popped node", () => {
+        const heap = new IndexedMinHeap(3);
+        expect(heap.has(1)).toBe(false);
+        heap.push(1, 4);
+        heap.pushOrDecrease(1, 2);
+        expect(heap.has(1)).toBe(true);
+        expect(heap.keyOf(1)).toBe(2);
+        heap.pop();
+        expect(heap.has(1)).toBe(false);
+    });
+});
+
+describe("IndexedMaxHeap", () => {
+    it("pops in descending key order", () => {
+        const heap = new IndexedMaxHeap(5);
+        [3, 1, 4, 0, 2].forEach((key, node) => {
+            heap.push(node, key);
+        });
+        const popped: number[] = [];
+        while (!heap.isEmpty()) {
+            popped.push(heap.pop());
+        }
+        expect(popped).toEqual([2, 0, 4, 1, 3]);
+    });
+
+    it("pushOrIncrease inserts, raises, and ignores a smaller key", () => {
+        const heap = new IndexedMaxHeap(3);
+        heap.pushOrIncrease(0, 1);
+        heap.pushOrIncrease(1, 2);
+        heap.pushOrIncrease(0, 5); // raise: node 0 now leads
+        heap.pushOrIncrease(1, 0); // smaller: ignored
+        expect(heap.keyOf(0)).toBe(5);
+        expect(heap.keyOf(1)).toBe(2);
+        expect(heap.pop()).toBe(0);
+        expect(heap.has(0)).toBe(false);
+        expect(heap.pop()).toBe(1);
+        expect(heap.isEmpty()).toBe(true);
+    });
+
+    it("accumulates the way a maximum-adjacency ordering does", () => {
+        // Stoer-Wagner's phase: every node starts at 0 and gains the weight of each edge to the
+        // growing set; the most tightly connected node leaves next.
+        const heap = new IndexedMaxHeap(3);
+        for (let v = 0; v < 3; v++) {
+            heap.push(v, 0);
+        }
+        heap.pushOrIncrease(2, heap.keyOf(2) + 0.1);
+        heap.pushOrIncrease(2, heap.keyOf(2) + 0.2);
+        heap.pushOrIncrease(1, heap.keyOf(1) + 0.3);
+        expect(heap.keyOf(2)).toBe(0.1 + 0.2); // exact f64, no rounding through f32
+        expect(heap.pop()).toBe(2);
+    });
+
+    it("is usable at capacity zero", () => {
+        expect(new IndexedMaxHeap(0).isEmpty()).toBe(true);
+    });
+});
+
+describe("RingQueue", () => {
+    it("is first in, first out", () => {
+        const q = new RingQueue(4);
+        q.push(3);
+        q.push(1);
+        q.push(2);
+        expect(q.size).toBe(3);
+        expect(q.shift()).toBe(3);
+        expect(q.shift()).toBe(1);
+        expect(q.shift()).toBe(2);
+        expect(q.isEmpty()).toBe(true);
+    });
+
+    it("wraps around its buffer without losing order", () => {
+        const q = new RingQueue(3);
+        const out: number[] = [];
+        for (let i = 0; i < 10; i++) {
+            q.push(i);
+            if (q.size === 3) {
+                out.push(q.shift(), q.shift());
+            }
+        }
+        while (!q.isEmpty()) {
+            out.push(q.shift());
+        }
+        expect(out).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    });
+
+    it("throws on overflow and on underflow instead of corrupting the order", () => {
+        const q = new RingQueue(1);
+        q.push(0);
+        expect(() => {
+            q.push(1);
+        }).toThrow(RangeError);
+        q.shift();
+        expect(() => q.shift()).toThrow(RangeError);
+    });
+
+    it("clear empties it for reuse", () => {
+        const q = new RingQueue(2);
+        q.push(5);
+        q.clear();
+        expect(q.isEmpty()).toBe(true);
+        q.push(6);
+        q.push(7);
+        expect(q.shift()).toBe(6);
+    });
+
+    it("is usable at capacity zero", () => {
+        const q = new RingQueue(0);
+        expect(q.isEmpty()).toBe(true);
+        expect(() => {
+            q.push(0);
+        }).toThrow(RangeError);
+    });
+});
+
+describe("BitSet", () => {
+    it("adds, tests and deletes bits across word boundaries", () => {
+        const bits = new BitSet(70);
+        for (const i of [0, 31, 32, 69]) {
+            bits.add(i);
+        }
+        expect(bits.has(31)).toBe(true);
+        expect(bits.has(33)).toBe(false);
+        expect(bits.count()).toBe(4);
+        bits.delete(32);
+        expect(bits.has(32)).toBe(false);
+        expect([...bits.toIndices()]).toEqual([0, 31, 69]);
+    });
+
+    it("exposes its words as a graph-format mask", () => {
+        const bits = new BitSet(40);
+        bits.add(3);
+        bits.add(35);
+        expect(bits.words).toHaveLength(2);
+        expect([...maskToIndices(bits.words, 40)]).toEqual([3, 35]);
+    });
+
+    it("clear drops every bit", () => {
+        const bits = new BitSet(10);
+        bits.add(9);
+        bits.clear();
+        expect(bits.count()).toBe(0);
+        expect(bits.has(9)).toBe(false);
+    });
+
+    it("is usable at length zero", () => {
+        const bits = new BitSet(0);
+        expect(bits.count()).toBe(0);
+        expect(bits.toIndices()).toHaveLength(0);
     });
 });

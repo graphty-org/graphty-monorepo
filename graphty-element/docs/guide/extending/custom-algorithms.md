@@ -418,6 +418,8 @@ every iteration), source-edge pairs for `heavy`, operations for `cubic`. Once th
 calibrated the estimate reports `"calibrated"`, like a built-in's. The older
 `static cost = (n, m) => seconds` still works, but those seconds cannot be scaled to the device,
 so its estimate always reports `"modelled"`; `costUnits` wins when a class declares both.
+`costUnits` is also handed the run's option values, the declared defaults filled in, so an option
+that multiplies the work is priced: `(n, m, options) => (n + m) * Number(options.maxIterations)`.
 
 ### Computing over the run's scope
 
@@ -505,7 +507,9 @@ a method that silently ignores its weights is worse than one that declares none.
 
 Until both land, write an algorithm that needs either with the simple tier above: its `edge` form
 publishes by the element's own edge ids, and its graph reads any attribute or result by name.
-Field-spec builders exist for every shape the advanced tier can publish: `metricFieldSpecs`,
+The descriptor's fields have builders for three shapes -- `nodeMetricFields`, `edgeMetricFields`
+and `communityFields` -- and `metricField` for any other. Field-spec builders exist for every shape
+the advanced tier can publish: `metricFieldSpecs`,
 `communityFieldSpecs`, `PATH_FIELD_SPECS`, `LAYERED_GROUPING_FIELD_SPECS` and `setFieldSpecs`.
 `checkShapeContract` tells you whether your fields match the shape you declared.
 

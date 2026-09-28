@@ -206,7 +206,7 @@ export type { Node, NodeIdType } from "./src/Node";
 export type { AlgorithmStatics } from "./src/algorithms/Algorithm";
 export { Algorithm } from "./src/algorithms/Algorithm";
 export type { ScopedInput, ScopedInputOptions, ScopeInputDeclaration } from "./src/algorithms/input/ScopedInput";
-export { metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
+export { communityFields, edgeMetricFields, metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
 export {
     communityFieldSpecs,

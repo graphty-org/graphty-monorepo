@@ -4,12 +4,13 @@
  * importer from @graphty/graph-io.
  *
  * A problem is any of:
- *   - a *DataSource.ts in graphty-element/src/data (other than the DataSource.ts base class)
- *     that does not import from @graphty/graph-io
+ *   - a *DataSource.ts under graphty-element/src/data (other than the DataSource.ts base class)
+ *     with no value import from @graphty/graph-io (a type-only import does not count)
  *   - a graphty-element/src file that imports papaparse or fast-xml-parser
  *   - graphty-element/src/data/csv-variant-detection.ts existing
- *   - a file in graphty-element/src/data defining one of the hand-written parser functions:
- *     parsePajek, tokenizeLine (Pajek) or tokenize (the DOT and GML tokenisers)
+ *   - a file under graphty-element/src/data defining one of the hand-written parser functions:
+ *     parsePajek, tokenizeLine (Pajek) or tokenize (the DOT and GML tokenisers), as a function,
+ *     a method, a class property or a variable
  *
  * PENDING lists the problems the element's data sources still have while their move onto
  * graph-io is in progress. A problem in PENDING is reported but does not fail the check; a new
@@ -65,24 +66,32 @@ function sourceFiles(dir) {
 /**
  * The module specifiers a source file imports or re-exports, statically or dynamically.
  * @param source - the file's text
+ * @param values - true to skip `import type` and `export type` statements
  * @returns the specifiers
  */
-function importsOf(source) {
-    const re = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)["']([^"']+)["']/gm;
-    return [...source.matchAll(re)].map((m) => m[1]);
+function importsOf(source, values = false) {
+    const text = values ? source.replace(/^\s*(?:import|export)\s+type\b[^;]*;/gm, "") : source;
+    const re = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)["'`]([^"'`$]+)["'`]/gm;
+    return [...text.matchAll(re)].map((m) => m[1]);
 }
 
 /**
  * Whether a source file defines a function or method of a name.
  * @param source - the file's text
  * @param name - the function name
- * @returns true for `function name(`, `name(` at the start of a (possibly modified) member, or
- *          `const name =`
+ * @returns true for `function name(`, a method `name(...) {` or `name(...): T` at the start of
+ *          a line, a class property `name =` or `name: T` at the start of a line, or
+ *          `const name =`; a call such as `name(x);` is not a definition
  */
 function defines(source, name) {
-    const modifiers = "(?:(?:private|public|protected|static|async|export|default)\\s+)*";
+    const mods = "(?:(?:private|public|protected|static|async|export|default|readonly|override|abstract|declare)\\s+)*";
     return new RegExp(
-        `\\bfunction\\s*\\*?\\s*${name}\\s*[(<]|^\\s*${modifiers}\\*?${name}\\s*[(<]|\\b(?:const|let|var)\\s+${name}\\s*=`,
+        [
+            `\\bfunction\\s*\\*?\\s*${name}\\s*[(<]`,
+            `^\\s*${mods}\\*?${name}\\s*(?:<[^>]*>)?\\([^)]*\\)\\s*[:{]`,
+            `^\\s*${mods}${name}\\s*[?!]?\\s*(?::|=(?!=))`,
+            `\\b(?:const|let|var)\\s+${name}\\s*[:=]`,
+        ].join("|"),
         "m",
     ).test(source);
 }
@@ -107,8 +116,8 @@ function check(rootDir) {
     for (const file of sourceFiles(dataDir)) {
         const source = readFileSync(file, "utf8");
         const name = file.split(/[\\/]/).pop();
-        if (dirname(file) === dataDir && /^\w+DataSource\.ts$/.test(name) && name !== "DataSource.ts") {
-            if (!importsOf(source).some((s) => s === "@graphty/graph-io" || s.startsWith("@graphty/graph-io/"))) {
+        if (/^\w+DataSource\.ts$/.test(name)) {
+            if (!importsOf(source, true).some((s) => s === "@graphty/graph-io" || s.startsWith("@graphty/graph-io/"))) {
                 problems.push(`${rel(file)}: does not import its importer from @graphty/graph-io`);
             }
         }
@@ -160,7 +169,11 @@ function selfTest() {
             `${DATA_DIR}/CSVDataSource.ts`,
             'import { importCsv } from "@graphty/graph-io/csv";\nimport { DataSource } from "./DataSource.js";\n',
         );
-        write(`${DATA_DIR}/DOTDataSource.ts`, 'import { importDot } from "@graphty/graph-io/dot";\n');
+        write(
+            `${DATA_DIR}/DOTDataSource.ts`,
+            'import { importDot, tokenize } from "@graphty/graph-io/dot";\nexport function run(s) {\n    tokenize(s);\n}\n',
+        );
+        write(`${DATA_DIR}/JsonDataSource.ts`, 'import { importJson } from "@graphty/graph-io";\n');
         write(`${SRC_DIR}/Graph.ts`, 'import { Scene } from "@babylonjs/core";\n');
         expect("the migrated tree", []);
 
@@ -195,6 +208,55 @@ function selfTest() {
             `${DATA_DIR}/gml.ts: defines the parser function tokenize`,
         ]);
 
+        rmSync(join(dir, `${DATA_DIR}/PajekDataSource.ts`));
+        rmSync(join(dir, `${DATA_DIR}/gml.ts`));
+        rmSync(join(dir, `${DATA_DIR}/csv-variant-detection.ts`));
+
+        write(`${SRC_DIR}/a.ts`, 'const P = require("papaparse/papaparse.min.js");\n');
+        write(`${SRC_DIR}/b.ts`, 'const X = await import("fast-xml-parser");\n');
+        write(`${SRC_DIR}/c.ts`, "const P = await import(`papaparse`);\n");
+        expect("required and dynamic imports", [
+            `${SRC_DIR}/a.ts: imports papaparse`,
+            `${SRC_DIR}/b.ts: imports fast-xml-parser`,
+            `${SRC_DIR}/c.ts: imports papaparse`,
+        ]);
+        for (const f of ["a", "b", "c"]) {
+            rmSync(join(dir, `${SRC_DIR}/${f}.ts`));
+        }
+
+        write(
+            `${DATA_DIR}/sub/XDataSource.ts`,
+            [
+                'import type { ImportReport } from "@graphty/graph-io";',
+                "class XDataSource {",
+                "    private readonly tokenize = (s: string) => [];",
+                "    override tokenizeLine(s: string): string[] {",
+                "        return [];",
+                "    }",
+                "    parsePajek: (s: string) => void = () => {};",
+                "}",
+                "",
+            ].join("\n"),
+        );
+        expect("a type-only graph-io import and parsers as properties", [
+            `${DATA_DIR}/sub/XDataSource.ts: defines the parser function parsePajek`,
+            `${DATA_DIR}/sub/XDataSource.ts: defines the parser function tokenize`,
+            `${DATA_DIR}/sub/XDataSource.ts: defines the parser function tokenizeLine`,
+            `${DATA_DIR}/sub/XDataSource.ts: does not import its importer from @graphty/graph-io`,
+        ]);
+        rmSync(join(dir, `${DATA_DIR}/sub`), { recursive: true });
+        write(`${DATA_DIR}/dot.ts`, "export const tokenize = (s: string): string[] => [];\n");
+        const line = `${DATA_DIR}/dot.ts: defines the parser function tokenize`;
+        expect("a parser as a const", [line]);
+
+        const { log, error } = console;
+        console.log = console.error = () => {};
+        const codes = [run(dir, [line]), run(dir, []), run(dir, [line, `${DATA_DIR}/gone.ts: exists`])];
+        Object.assign(console, { log, error });
+        if (JSON.stringify(codes) !== "[0,1,1]") {
+            throw new Error(`exit codes for pending, new and stale problems: expected [0,1,1], got ${codes}`);
+        }
+
         const { fresh, known, stale } = compare(
             [`${DATA_DIR}/a.ts: imports papaparse`, `${DATA_DIR}/b.ts: imports papaparse`],
             [`${DATA_DIR}/a.ts: imports papaparse`, `${DATA_DIR}/c.ts: imports papaparse`],
@@ -208,12 +270,14 @@ function selfTest() {
     }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    if (process.argv.includes("--self-test")) {
-        selfTest();
-        process.exit(0);
-    }
-    const { fresh, known, stale } = compare(check(resolve(dirname(fileURLToPath(import.meta.url)), "..")), PENDING);
+/**
+ * Checks a tree against a pending list and prints the verdict.
+ * @param rootDir - the repository root
+ * @param pending - the problems that are allowed for now
+ * @returns the process exit code: 1 on a new problem or a pending entry that no longer occurs
+ */
+function run(rootDir, pending) {
+    const { fresh, known, stale } = compare(check(rootDir), pending);
     for (const p of known) {
         console.log(`pending: ${p}`);
     }
@@ -230,11 +294,20 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
             `\n${fresh.length} new problem(s), ${stale.length} stale pending entr(y/ies). ` +
                 "graphty-element data sources read files through @graphty/graph-io importers.",
         );
-        process.exit(1);
+        return 1;
     }
     console.log(
         known.length === 0
             ? "check-data-source-migration: every element data source reads files through @graphty/graph-io"
             : `check-data-source-migration: no new problems; ${known.length} pending`,
     );
+    return 0;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    if (process.argv.includes("--self-test")) {
+        selfTest();
+        process.exit(0);
+    }
+    process.exit(run(resolve(dirname(fileURLToPath(import.meta.url)), ".."), PENDING));
 }

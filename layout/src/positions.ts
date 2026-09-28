@@ -4,7 +4,7 @@
  * graphty-element and the steppable simulations share (graph-format design 14.3).
  */
 
-import type { F32, NodeIdMap } from "@graphty/graph-format";
+import type { F32, F64, NodeIdMap } from "@graphty/graph-format";
 
 import type { PositionMap } from "./types";
 
@@ -118,7 +118,7 @@ export function fromPositionColumn(
  * @param center - the target centre (missing components are 0)
  * @returns `positions`
  */
-export function rescaleInPlace(positions: F32, dim: number, scale = 1, center?: ArrayLike<number>): F32 {
+export function rescaleInPlace<T extends F32 | F64>(positions: T, dim: number, scale = 1, center?: ArrayLike<number>): T {
     const n = Math.floor(positions.length / dim);
     const mean = new Float64Array(dim);
     const counts = new Float64Array(dim);

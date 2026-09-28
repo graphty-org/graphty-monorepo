@@ -3,7 +3,7 @@
  * (README section 11.2, open decision 9). Every check* function of the kit also takes the id of a
  * registered extension, so a simple extension is checked by the same checks as an advanced one.
  */
-import type { GraphView, LoadContext, NodeId, PlainRecord } from "./simple";
+import type { GraphView, LoadContext, LogLevelName, NodeId, PlainLogRecord, PlainRecord } from "./simple";
 
 /** A graph view built from plain records, for a unit test of place, node, edge, nodes or groups. */
 export declare function graphView(graph: {
@@ -33,3 +33,13 @@ export declare function checkSameResults(
     readonly passed: boolean;
     readonly differences: readonly { readonly id: NodeId; readonly before: unknown; readonly after: unknown }[];
 }>;
+
+/**
+ * A log record for a unit test of a log destination's write(): the fields not given are filled
+ * with plausible values (time now, category "graphty.test").
+ */
+export declare function logRecord(init: {
+    readonly level?: LogLevelName;
+    readonly message: string;
+    readonly error?: { readonly name: string; readonly message: string; readonly stack?: string };
+}): PlainLogRecord;

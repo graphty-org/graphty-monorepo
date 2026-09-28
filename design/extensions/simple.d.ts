@@ -69,11 +69,14 @@ type ShorthandValue<S> = S extends number
 
 /**
  * The resolved option values an extension's functions receive, typed from the declaration with no
- * generic written by the author. An option with a default is always present; one without may be
- * undefined.
+ * generic written by the author. An option with a default is always present; one with no default,
+ * or with `default: null`, may be undefined. For an "attribute" option that is the way to say
+ * "optional": it is NOT BOUND unless the reader picks an attribute, the run-start existence check
+ * skips it, and passing its undefined value to attr() or number() returns undefined
+ * (simple-tier.md section 2.2).
  */
 export type OptionValuesOf<O extends OptionsShorthand> = {
-    readonly [K in keyof O]: O[K] extends number | string | boolean | { readonly default: {} | null }
+    readonly [K in keyof O]: O[K] extends number | string | boolean | { readonly default: {} }
         ? ShorthandValue<O[K]>
         : ShorthandValue<O[K]> | undefined;
 };
@@ -98,8 +101,12 @@ export interface DefinitionBase<O extends OptionsShorthand> {
 /**
  * The whole graph, as nodes and edges with real ids. Built by the element from the snapshot; an
  * author never sees a row, a mask or a typed array. Iteration order is stable: numeric ids
- * ascending, then string ids in code-unit order (edges likewise by edge id), so a result does not
- * depend on the order records were loaded in.
+ * ascending, then string ids in code-unit order (edges likewise by edge id), the order
+ * compareNodeIds defines, so a result does not depend on the order records were loaded in.
+ *
+ * Every array a view hands back (nodes(), edges(), and each node's neighbors(), edges() and
+ * directed forms) is frozen, built once per run and cached, so calling a method again inside a
+ * loop costs nothing.
  */
 export interface GraphView {
     /** True when the definition asked for `direction: "directed"` and the graph has directed edges. */
@@ -117,7 +124,7 @@ export interface NodeView {
     readonly id: NodeId;
     /** edges().length. */
     readonly degree: number;
-    /** Every adjacent node once, whichever way the edge points. */
+    /** Every adjacent node once, whichever way the edge points. Never the node itself: a self-loop is in edges() only. */
     neighbors(): readonly NodeView[];
     /**
      * The directed forms. They throw unless the definition declares `direction: "directed"`
@@ -132,17 +139,31 @@ export interface NodeView {
     outEdges(): readonly EdgeView[];
     inEdges(): readonly EdgeView[];
     /**
-     * An attribute or a published result, by path, resolved exactly as a style selector resolves
-     * it ("tier", "location.lat", "results.clusters.group"). undefined when absent. Pass an
-     * "attribute" option's value here to let the reader choose the attribute.
+     * Every edge between this node and `other`, parallel edges included; empty when they are not
+     * adjacent. `node.edgesTo(node)` is the node's self-loops. In a directed view, only the edges
+     * from this node to `other`.
      */
-    attr(path: string): unknown;
+    edgesTo(other: NodeView): readonly EdgeView[];
+    /**
+     * The sum of `path` over edgesTo(other) -- w_ij, with parallel edges added together -- or
+     * undefined when there is no such edge. An edge whose value is missing adds nothing; when
+     * `path` is undefined (an unbound optional weight) every edge counts 1, so the same call serves
+     * a weighted and an unweighted graph.
+     */
+    weightTo(other: NodeView, path: string | undefined): number | undefined;
+    /**
+     * An attribute or a published result, by path, resolved exactly as a style selector resolves
+     * it ("tier", "location.lat", "results.clusters.group"). undefined when absent, or when `path`
+     * is undefined (an unbound optional "attribute" option). Pass an "attribute" option's value
+     * here to let the reader choose the attribute.
+     */
+    attr(path: string | undefined): unknown;
     /**
      * attr(path) when it is a finite number; undefined otherwise. A numeric string is NOT parsed
      * here: columns are typed when the data is loaded (simple-tier.md section 2.6), so both tiers
      * read the same values.
      */
-    number(path: string): number | undefined;
+    number(path: string | undefined): number | undefined;
 }
 
 export interface EdgeView {
@@ -157,9 +178,17 @@ export interface EdgeView {
     readonly target: NodeView;
     /** The end that is not `node` (a self-loop returns `node`). Throws when `node` is not an end. */
     other(node: NodeView): NodeView;
-    attr(path: string): unknown;
-    number(path: string): number | undefined;
+    attr(path: string | undefined): unknown;
+    number(path: string | undefined): number | undefined;
 }
+
+/**
+ * The order every graph view iterates in: numbers ascending, then strings in code-unit order.
+ * Published for the advanced tier, so an order-dependent method (label propagation, a greedy
+ * colouring) that graduates can sort its rows the same way and give the same result
+ * (simple-tier.md section 5).
+ */
+export declare function compareNodeIds(a: NodeId, b: NodeId): number;
 
 // =============================================================================================
 // Algorithm -- simple-tier.md section 4.1
@@ -179,7 +208,10 @@ export interface AlgorithmContext<V> {
     progress(fraction: number): Promise<void>;
     /** A sentence for the run record's caveats ("Dangling mass returns to the seeds."). */
     note(text: string): void;
-    /** Record how an iterative method ended; a run that did not converge says so in its caveats. */
+    /**
+     * Record how an iterative method ended; a run that did not converge says so in its caveats.
+     * When it is never called, the run record says nothing about convergence.
+     */
     converged(converged: boolean, iterations: number): void;
 }
 
@@ -319,6 +351,12 @@ export interface Records {
     readonly directed?: boolean;
 }
 
+/**
+ * How a column is typed on load, overriding the element's number check (simple-tier.md section
+ * 2.6): `columns: { zip: "string" }` keeps a column as text even when every value looks numeric.
+ */
+export type ColumnTypes = Readonly<Record<string, "string" | "number" | "boolean">>;
+
 export interface ReadContext<V> {
     readonly options: V;
     readonly signal: AbortSignal;
@@ -349,6 +387,8 @@ export interface FormatDefinition<O extends OptionsShorthand> extends Definition
     readonly extensions: readonly string[];
     /** Default: looked up from the extensions; "text/plain" when none is known. */
     readonly mediaTypes?: readonly string[];
+    /** Column typing that overrides the number check on load. Default: none. */
+    readonly columns?: ColumnTypes;
     /** Whether a sample of the file (its first 4 KiB, as text) is this format. Optional. */
     readonly detect?: (sample: string) => boolean;
     /** Text in, plain records out. Omit for a write-only format. */
@@ -398,6 +438,11 @@ export interface LoadContext<V> {
      * honours the signal, and turns a failed response into E_FETCH_FAILED. It refuses the same URL
      * twice in one load and more than `maxRequests` requests (E_FETCH_FAILED, details.reason
      * "repeated" or "limit"), so a pager whose API repeats its `next` link stops.
+     *
+     * The credential is attached ONLY to a URL whose origin is on `hosts`: never to an origin the
+     * reader confirmed or the embedder allowed with allowSourceHosts, and never across a redirect
+     * to another origin. The URL is passed through unchanged, as the platform fetch passes it, so
+     * a query string the author built (`%0d` separators included) arrives as written.
      */
     fetch(
         url: string,
@@ -414,7 +459,11 @@ export interface LoadContext<V> {
 }
 
 export interface DataSourceDefinition<O extends OptionsShorthand> extends DefinitionBase<O> {
-    /** The origins the source contacts ("https://api.example.org"). At least one. */
+    /**
+     * The origins the source contacts ("https://api.example.org"). At least one. A string option
+     * whose default is an http(s) URL off these origins is refused by defineDataSource
+     * (E_BAD_COMMAND, details.field = the option), so the two cannot drift apart.
+     */
     readonly hosts: readonly string[];
     /**
      * A secret the element asks the reader for, keeps, and never logs, publishes or saves. The
@@ -423,6 +472,8 @@ export interface DataSourceDefinition<O extends OptionsShorthand> extends Defini
     readonly credential?: { readonly name?: string; readonly header?: string; readonly scheme?: string };
     /** The most requests one load may make. Default 1000. */
     readonly maxRequests?: number;
+    /** Column typing that overrides the number check on load. Default: none. */
+    readonly columns?: ColumnTypes;
     /** One batch, a promise of one, or an async iterable of batches (a pager). */
     readonly load: (context: LoadContext<OptionValuesOf<O>>) => Records | Promise<Records> | AsyncIterable<Records>;
 }
@@ -440,7 +491,10 @@ export declare function defineDataSource<const O extends OptionsShorthand = {}>(
 export interface DataSourceControls {
     /** Supply a source's credential in code, for an embedder that already holds a token. Never saved. */
     setSourceCredential(sourceId: string, secret: string): void;
-    /** Origins a source may fetch from without asking the reader, beyond the hosts it declared. */
+    /**
+     * Origins a source may fetch from without asking the reader, beyond the hosts it declared. The
+     * credential is never sent to them.
+     */
     allowSourceHosts(sourceId: string, origins: readonly string[]): void;
 }
 
@@ -488,7 +542,13 @@ export interface DefaultPaletteControls {
 export interface ViewFrame {
     /** The scene's up direction. A view that uses orbit() never needs it. */
     readonly up: Vec3;
-    /** The current camera's angle round `up`, and above the horizontal, both in radians. */
+    /**
+     * The camera's angle round `up`, and above the horizontal, both in radians. For a motion,
+     * `azimuth`, `elevation` and `current` are captured ONCE, when the motion starts or resumes,
+     * and stay fixed while it plays; a re-measure when the layout settles refreshes only `center`,
+     * `size`, `radius` and `fitDistance`. So `frame.azimuth + angle(t)` never counts an angle
+     * twice.
+     */
     readonly azimuth: number;
     readonly elevation: number;
     /**
@@ -546,11 +606,21 @@ export interface CameraMotionControls {
     /**
      * Starts the motion; settles when it stops. Rejects at once with E_UNKNOWN_OPTION for an option
      * the motion does not declare, E_UNKNOWN_CAMERA for an unknown id, and E_UNSUPPORTED when the
-     * drawing mode is not in the motion's `modes`.
+     * drawing mode is not in the motion's `modes`. When the reader's system asks for reduced
+     * motion (prefers-reduced-motion) the motion does not start: the promise resolves at once and
+     * the element writes one console line saying why, so a developer testing with that setting is
+     * not left with a silent no-op.
      */
     playCameraMotion(id: string, options?: Readonly<Record<string, unknown>>): Promise<void>;
     stopCameraMotion(): void;
 }
+
+/**
+ * The consumer calls the simple tier adds to the element. The element class (`Graphty`, which
+ * HTMLElementTagNameMap already maps "graphty-element" to) implements all of them, so
+ * `document.querySelector("graphty-element")` is typed with them and needs no cast.
+ */
+export interface SimpleTierElementControls extends CameraMotionControls, DefaultPaletteControls, DataSourceControls {}
 
 // =============================================================================================
 // Logging -- simple-tier.md section 4.7
@@ -567,7 +637,7 @@ export interface PlainLogRecord {
     readonly message: string;
     /** Removed by the element's redaction unless the embedder turned it off (logging.md 7). */
     readonly data?: Readonly<Record<string, unknown>>;
-    /** The failure as plain data, so JSON.stringify(record) keeps it (an Error would become {}). */
+    /** The failure as plain data, so JSON.stringify(record) keeps it (an Error would become {}). `time` serialises as an ISO string. */
     readonly error?: { readonly name: string; readonly message: string; readonly stack?: string };
 }
 
@@ -582,6 +652,11 @@ export interface LogDestinationDefinition {
     /**
      * May return a promise (a fetch); the element queues, orders, retries and flushes. A rejection,
      * or a promise that resolves to a fetch Response whose `ok` is false, counts as a failed send.
+     * A failed send is retried three times, after 1, 2 and 4 seconds; a 4xx response other than
+     * 408 and 429 is not retried. The queue holds at most 1000 records: past that the oldest is
+     * dropped, and the next send starts with one "warn" record in category "graphty.logging" saying
+     * how many were dropped, so an error storm against a slow endpoint cannot grow memory without
+     * limit and the loss is still visible.
      * Context the page owns (a session id) comes from the author's own closure.
      */
     readonly write: (record: PlainLogRecord) => void | Promise<unknown>;

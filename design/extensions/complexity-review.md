@@ -26,15 +26,15 @@ the task (`README.md` section 8.1 item 4 lists them); "domain concepts" are the 
 the input checks the task needs (`README.md` section 8.1 item 1); the first simple-tier draft's
 count, which left both out, is in brackets.
 
-| Point       | Task                                          | Today: lines                                                           | Today: internal / domain concepts | Simple tier, end to end: lines                                                             | Simple tier: internal concepts | Prior art: lines           |
-| ----------- | --------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ | -------------------------- |
-| Algorithm   | confidence-weighted degree and its edge share | 111                                                                    | 29 / 7                            | 20 (14)                                                                                    | 0                              | 3 to 15 (Gephi about 120)  |
-| Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 18 (16) and about 8; 1 once the built-in `fixed` layout takes attribute options            | 0                              | 1 to 10 (Gephi 150 to 200) |
-| File format | tab-separated edge list, read and write       | 114                                                                    | 26 / 5                            | 18 (18, with no check of a malformed row)                                                  | 0                              | 4 to 16 (Gephi about 180)  |
-| Data source | paged REST API with a bearer token            | 75, and still no cancellation, retries, host check or credential store | 16 / 4                            | 17 (14, with no check of the response body)                                                | 0                              | 8 to 40                    |
-| Palette     | brand categorical and sequential colours      | 17 (13 without types)                                                  | 9 / 5                             | 3, with the default-palette call (2)                                                       | 0                              | 1 to 4                     |
-| Camera      | slow orbit; a corner view                     | 34, outside the extension point (the orbit cannot be an extension)     | 11 / 4                            | 1 for the built-in orbit; 5 for a custom motion (8) and 1 for the view (7), plus 1 to play | 0                              | 1 to 9                     |
-| Logging     | errors to a telemetry endpoint                | 58 (20 for a shorter form that breaks the spec)                        | 17 / 4                            | 10 (9, which lost the error and ignored an HTTP 500)                                       | 0                              | 2 to 10                    |
+| Point       | Task                                          | Today: lines                                                           | Today: internal / domain concepts | Simple tier, end to end: lines                                                                        | Simple tier: internal concepts | Prior art: lines           |
+| ----------- | --------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------ | -------------------------- |
+| Algorithm   | confidence-weighted degree and its edge share | 111                                                                    | 29 / 7                            | 20 (14)                                                                                               | 0                              | 3 to 15 (Gephi about 120)  |
+| Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 19 (16); 19 for rows by a category; 17 for preset coordinates, 1 once `fixed` takes attribute options | 0                              | 1 to 10 (Gephi 150 to 200) |
+| File format | tab-separated edge list, read and write       | 114                                                                    | 26 / 5                            | 19 (18, with no check of a malformed row)                                                             | 0                              | 4 to 16 (Gephi about 180)  |
+| Data source | paged REST API with a bearer token            | 75, and still no cancellation, retries, host check or credential store | 16 / 4                            | 17 (14, with no check of the response body)                                                           | 0                              | 8 to 40                    |
+| Palette     | brand categorical and sequential colours      | 17 (13 without types)                                                  | 9 / 5                             | 3, with the default-palette call (2)                                                                  | 0                              | 1 to 4                     |
+| Camera      | slow orbit; a corner view                     | 34, outside the extension point (the orbit cannot be an extension)     | 11 / 4                            | 1 for the built-in orbit; 5 for a custom motion (8) and 1 for the view (7), plus 1 to play            | 0                              | 1 to 9                     |
+| Logging     | errors to a telemetry endpoint                | 58 (20 for a shorter form that breaks the spec)                        | 17 / 4                            | 10 (9, which lost the error and ignored an HTTP 500)                                                  | 0                              | 2 to 10                    |
 
 Every point except palettes cost five to ten times what the same task costs in the libraries a
 plugin author is coming from, and the excess was almost entirely internal concepts. The simple
@@ -309,6 +309,53 @@ What they met, by kind:
 6. **Blame in the wrong place.** A plugin's own exception was reported as `E_INTERNAL`, "a bug in
    graphty-element". It is now `E_EXTENSION_FAILED`, naming the plugin and the function.
 
+## The second blind-author round
+
+The same twelve authors wrote a plugin again from the revised `simple-tier.md` and `simple.d.ts`.
+**Every run is "type-checked only"**: no `define*` function exists at run time in 2.6.1, so no
+author ran a plugin, read a real error message or saw a result. The error messages of
+`simple-tier.md` section 2.4, the attribute check, the long-task warning, the unplaced-node list
+and the colour on first run are therefore still untested. The playground (`simple-tier.md`
+section 3 item 6) exists so the next round can run them.
+
+A run over 20 author lines is a FAILURE of the budget even though the plugin compiled (`README.md`
+section 8.1 item 6). "Named task" marks a run of a first-plugin task the budget is defined on;
+the other runs are the persona's own, harder task, where the count is informative and the cause
+still gets a fix.
+
+| Persona                   | Point       | Task                                      | Named task | Author lines           | Result          | Cause of the excess, and the fix                                                                                                                                                                          |
+| ------------------------- | ----------- | ----------------------------------------- | ---------- | ---------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| data scientist            | algorithm   | confidence-weighted degree and edge share | yes        | 25                     | FAIL (over)     | the reference sat at exactly 20, so writing the node score as a loop instead of `reduce` cost 5 lines; the order-and-name contract of the two runs is now stated next to the example                      |
+| data scientist            | layout      | tiers by a number; preset coordinates     | yes        | 38 for two layouts     | pass per layout | the optional `z` needed a guard; `default: null` now makes an attribute optional. The preset task becomes one line once the built-in `fixed` takes attribute options                                      |
+| front-end developer       | palette     | brand categorical and sequential          | yes        | 20                     | pass            | --                                                                                                                                                                                                        |
+| front-end developer       | camera      | slow orbit                                | yes        | 6                      | pass            | the frame's `azimuth` during a re-measure was unstated; it is now captured once per start or resume                                                                                                       |
+| front-end developer       | logging     | errors to telemetry                       | yes        | 10                     | pass            | retry count, backoff and queue cap were unstated; now specified                                                                                                                                           |
+| domain researcher         | file format | tab-separated edge list, read and write   | yes        | 20                     | pass            | the reference reader refused `src`/`dst` headers, shifted line numbers on a leading blank line and did not escape a tab; the element now checks endpoints and refuses a tab in a `.tsv` cell              |
+| domain researcher         | algorithm   | Barrat weighted clustering                | no         | 27                     | FAIL (over)     | no way to get w_ij between two nodes: the author built a neighbour-to-weight map and handled parallel edges and self-loops by hand. `node.weightTo(other, path)` now does it                              |
+| graph library author      | algorithm   | label propagation at 100,000 nodes        | no         | 43 simple, 81 advanced | informative     | the task starts at the advanced tier (the guide says so); graduation parity needed the view's order, now `compareNodeIds`, and a cost model that sees options (section 6 of `simple-tier.md`)             |
+| graph library author      | data source | a paged REST API                          | yes        | 18                     | pass            | two passages disagreed on the error code of a throw from `load`; now one rule                                                                                                                             |
+| expert analyst            | algorithm   | personalised PageRank                     | no         | 51                     | FAIL (over)     | an optional edge weight was refused on every unweighted graph; `default: null` fixes that. The rest is a whole-graph iterative method, beyond a first plugin                                              |
+| business analyst          | layout      | rows by a category column                 | yes (now)  | 23                     | FAIL (over)     | the guide showed only the numeric version and described the category one in prose that turned a missing value into the row "undefined"; the category layout is now a named task with an 18-line reference |
+| bioinformatics researcher | data source | a STRING-style interaction service        | no         | 32                     | FAIL (over)     | mostly the service's own row format (a domain cost); the guide had no single-request example and no answer on labels or URL encoding, now added                                                           |
+
+Named-task results: seven of nine passed on line count, two failed. Five runs of the twelve were
+over 20 lines. Every blocker reported was the release state ("defineX is not a function").
+
+What they met, beyond the release state:
+
+1. **An optional attribute could not be said.** The up-front attribute check refused an edge
+   weight on every unweighted graph and a `z` coordinate on every 2D dataset; the workarounds were
+   a guard or a silent `?? 1`. Now `default: null` means "not bound".
+2. **The weight between two nodes had to be built by hand.** Now `edgesTo` and `weightTo`.
+3. **The spec contradicted itself** on what a data source's throw becomes. Now one rule.
+4. **Traps the element could absorb**: a numeric-looking column with leading zeros would have
+   lost them (now the JSON number grammar decides), a reader-edited endpoint would have received
+   the embedder's token (now the credential goes to `hosts` only), a map keyed by `String(id)`
+   over numeric ids would have placed nothing (now refused with the key and the id kind), and a
+   camera orbit could have jumped on a re-measure (now the frame's angles are fixed per start).
+5. **Finding the start.** No file said "start here"; the README and `simple-tier.md` now do, and
+   every example is shown to run in the one-page example with no build step.
+
 ## Why the specifications missed it
 
 The complexity did not arrive in one step. It accumulated through a review process that measured
@@ -360,6 +407,21 @@ round above found:
     mistake (`?? 0`, direction defaulted to undirected, text where numbers were meant) are the
     cheapest thing to write and the most expensive thing to debug.
 
+The second round found three more, all about how the budget was enforced rather than designed:
+
+11. **Compiling was recorded as succeeding.** Every run of the second round reported
+    "succeeded" because the plugin type-checked, although the budget's own rule says a type-check
+    is not a pass. A result column that can only say yes hides that the half of the design a
+    compiler cannot see -- error messages, warnings, wrong answers -- was never exercised.
+12. **The budget was checked on the reference, not on the authors.** The reference examples were
+    held to 20 lines; five of the twelve authors' plugins were over and were still reported as
+    successes. A reference at exactly the ceiling leaves no room for an ordinary author's style,
+    and the most common layout request (rows by a category) was not a named task at all, so no
+    reference existed for it.
+13. **Checks on the easy path lived in prose.** The rule that setup is part of the budget, the
+    line ceiling and the internal-term list were all written down, and the only automated check
+    compiled examples with the very settings (`lib` ES2024, path mappings) the rules forbid.
+
 ## What changes
 
 1. **The adoption budget is normative** (`README.md` section 8.1): about 15 author lines, at most
@@ -384,3 +446,13 @@ round above found:
 8. **Dogfood**: some built-ins are built on the simple tier, so the tier is exercised by the
    element's own code and cannot quietly lose capability.
 9. **The guide defects above are corrections** listed in `README.md` section 13.
+10. **Over budget is a failure, and so is "compiled only".** A blind run records "type-checked
+    only" when it could not run the plugin, and FAIL when a named task is over 20 lines, with the
+    cause and the element-side fix (`README.md` section 8.1 item 6).
+11. **A playground runs the plugin before release** (`simple-tier.md` section 3 item 6), and at
+    least one built-in per point is built on the simple tier (item 5 there), which also gives the
+    ceilings measured numbers.
+12. **The checker enforces the budget.** `check-examples.mjs` now compiles the simple-tier
+    examples against `simple.d.ts` alone under `lib` ES2020, type-checks every "use it" line
+    against the element class, and fails a point's first example over 20 lines or naming an
+    internal term.

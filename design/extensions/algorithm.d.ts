@@ -101,7 +101,10 @@ export interface AlgorithmRunContext {
     /** Aborted when the run is cancelled. Throw its reason; never swallow it. */
     readonly signal: AbortSignal;
     report(progress: RunProgressReport): void;
-    /** Hand the frame back. Await it between chunks of work. */
+    /**
+     * Hand the frame back. Await it between chunks of work. It never rejects, cancelled or not:
+     * check `signal` (signal.throwIfAborted()) beside it. The simple tier's progress() does both.
+     */
     yieldNow(): Promise<void>;
     input(orientation: "declared" | "undirected", options?: ScopedInputOptions): ScopedInput;
 }

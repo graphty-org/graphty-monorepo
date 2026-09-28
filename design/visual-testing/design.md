@@ -157,8 +157,9 @@ for this milestone", gives the reason for each.
   request itself (above).
 - **Capture is at device scale factor 2, cropped to the content, as Chromatic's.** Each story and
   mode renders in a 1200 x 900 viewport at scale 2, and the PNG is cropped to the union of every
-  visible element's box (portals such as tooltips and popovers are elements of the body too) plus
-  a 32 CSS-pixel margin, within the page; a taller story is captured past the viewport. A canvas
+  visible element's box (portals such as tooltips and popovers are elements of the body too),
+  each cut to the ancestors whose overflow clips it (so rows hidden in a scroll area do not
+  stretch it; a fixed element escapes them), plus a 32 CSS-pixel margin, within the page; a taller story is captured past the viewport. A canvas
   project (`canvas: true` in `projects.json`: graphty-element, and algorithms and layout when they
   join) keeps the viewport: its full width, and the content's height plus the margin, never past
   the viewport, since a larger capture can resize the Babylon canvas and clear it. results.json
@@ -167,11 +168,15 @@ for this milestone", gives the reason for each.
   width and cropped only in height (for example 2400 x 192 for an AdvancedButton row).
 - **Determinism at scale 2, cropped (measured 2026-09-27).** Two full captures back to back of
   each project on the development server (i9-14900KF, no baselines, so every item was also
-  captured twice within each run): compact-mantine, 8 workers, 828 items, 134 s and 124 s;
-  graphty-element, 4 workers, 176 items plus 2 excluded, 477 s and 760 s (the second run shared
-  the machine with a test suite, and other agents held the load average near 80). Every one of the 1,004 captured PNGs was byte-identical between
-  the two runs, and no item was `unstable` or `failed` within either run. This is one machine;
-  runner to runner is still unmeasured (section 6).
+  captured twice within each run, while other agents kept the load average between about 30 and
+  80): compact-mantine, 8 workers, 828 items, 144 s and 120 s; graphty-element, 4 workers, 176
+  items plus 2 excluded, 540 s and 571 s. Every one of the 1,004 PNGs was byte-identical between
+  the two runs. Within the runs, one capture of 2,008 differed from its twin:
+  `glyphs-glyph-gallery--field-glyphs.light` in the second compact-mantine run, by a single
+  anti-aliased glyph pixel (73,80,87 against 127,133,138), so it was reported `unstable`; its
+  first capture matched the other run's. An earlier pair of runs, before the crop stopped counting
+  what a scroll area hides, was byte-identical as well. This is one machine; runner to runner is
+  still unmeasured (section 6).
 - **The stories with their own `diffThreshold`.** 21 graphty-element captures set one, all with
   `diffIncludeAntiAliasing: true`: the ten Layout/3D stories (0.3 from the component, D3 0.8),
   Styles/Graph Skybox (0.3) and ten Styles/Label stories (0.25 to 0.5). Chromatic's per-story

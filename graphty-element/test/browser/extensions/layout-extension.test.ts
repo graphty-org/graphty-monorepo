@@ -75,6 +75,7 @@ import {
     SimpleLayoutEngine,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+import { operationQueueOf } from "../../../src/Graph";
 // Not plugin code: the element's own deterministic stand-in for a device.
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
 
@@ -805,7 +806,7 @@ describe("a third party's layout engine", () => {
      */
     async function useLayout<T extends LayoutEngine>(type: string, opts: object = {}): Promise<T> {
         await graph.setLayout(type, opts);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const manager = graph.getLayoutManager();
         const engine = manager.layoutEngine;
@@ -823,7 +824,7 @@ describe("a third party's layout engine", () => {
      * @param what - how to describe the wait if it fails
      */
     async function waitForRedraw(what: string): Promise<void> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const manager = graph.getLayoutManager();
         await waitFor(() => (manager.layoutEngine?.isSettled ?? false) && !manager.running, what);
@@ -922,7 +923,7 @@ describe("a third party's layout engine", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Park the element on a layout that finishes in one pass before any test begins. The
         // element starts every graph on its own force simulation, which is still running while
@@ -1059,7 +1060,7 @@ describe("a third party's layout engine", () => {
             const engine = await useLayout<RingLayout>("test-ring");
 
             await graph.removeNodes(["c"]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.deepStrictEqual(engine.removedNodeIds, ["c"], "the element named the node it removed");
             assert.strictEqual([...engine.nodes].length, NODES.length - 1, "and the engine is no longer holding it");
@@ -1324,10 +1325,13 @@ describe("a third party's layout engine", () => {
             const inThree = await useLayout<RingLayout>("test-ring", { radius: 250 });
             assert.strictEqual(inThree.radius, 250);
             assert.strictEqual(inThree.dimensions, 3);
-            assert.isUndefined(inThree.config, "this engine never filled the element's old `config` slot");
+            assert.isUndefined(
+                Reflect.get(inThree, "config"),
+                "this engine never filled the element's old `config` slot",
+            );
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // The helper refuses anything that is not the plugin's engine, so reaching this line
             // is itself the assertion that the element rebuilt the same plugin rather than falling
@@ -1468,7 +1472,7 @@ describe("a third party's layout engine", () => {
 
             // The same accelerator is live: a built-in simulation layout on this graph takes it.
             await graph.setLayout("forceatlas2");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.strictEqual(fake.calls.forceAtlas2, 1);
         });
     });

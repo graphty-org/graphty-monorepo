@@ -11,17 +11,18 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 import fc from "fast-check";
-import { afterEach, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { EdgeId, NodeId } from "../../../src/catalog/types";
 import { EDGE_ID_COLUMN, edgeIdOf } from "../../../src/data/edgeIdentity";
 import { isGraphtyError } from "../../../src/errors";
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { DataManager } from "../../../src/managers/DataManager";
 import { setsOfSession } from "../../../src/session/GraphSession";
 import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import type { SetsStore } from "../../../src/session/sets/store";
 import type { SetsApi } from "../../../src/session/sets/types";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 import type { EdgeRecord, LoadOptions } from "../../session/sets/graphs";
 import { type Driver, Model, opsFor, Step } from "../../session/sets/refreeze-model";
@@ -31,6 +32,7 @@ class DataManagerDriver implements Driver {
     readonly sets: SetsApi;
     readonly setsStore: SetsStore;
     lastLoadRead = 0;
+    lastLoadRolledBack = false;
     lastLoadSources: number[] = [];
     private replacing = false;
     private readonly created: unknown[] = [];
@@ -68,7 +70,7 @@ class DataManagerDriver implements Driver {
      * @param path - The path.
      */
     set path(path: string | null) {
-        this.graph.styles.config.data.knownFields.edgeIdPath = path;
+        void this.graph.getSession().config.set({ data: { knownFields: { edgeIdPath: path } } });
     }
 
     snapshot(): GraphSnapshot {
@@ -137,6 +139,7 @@ class DataManagerDriver implements Driver {
         }));
         this.created.length = 0;
         this.lastLoadRead = records.length;
+        this.lastLoadRolledBack = false;
         this.lastLoadSources = [];
         if (records.length === 0 && options.asLoad !== false) {
             // The element refuses an empty file; replacing the graph with nothing is a Clear.
@@ -153,19 +156,28 @@ class DataManagerDriver implements Driver {
                 this.data.addNodes(nodes);
                 this.data.addEdges(edges, { repeated: policy });
             } else {
-                this.graph.styles.config.data.knownFields.repeatedEdges = policy;
+                void this.graph.getSession().config.set({ data: { knownFields: { repeatedEdges: policy } } });
                 const replace = this.replacing;
                 this.replacing = false;
                 await this.graph.addDataFromSource("json", { data: JSON.stringify({ nodes, edges }) }, { replace });
             }
         } catch (error) {
-            // The `error` policy refuses a repeat, keeping what came before it.
             if (!isGraphtyError(error) || error.code !== "E_DUPLICATE_EDGE") {
                 throw error;
             }
+
+            // The `error` policy refuses a repeat. An import is one step, so the refused load is
+            // rolled back whole: nothing of it was read into the graph, and the render objects its
+            // first chunk built went with it. A record push adds the nodes in a step of its own and
+            // refuses the edges whole, so every record's nodes were read.
+            if (options.asLoad !== false) {
+                this.lastLoadRead = 0;
+                this.lastLoadRolledBack = true;
+                this.created.length = 0;
+            }
         }
 
-        await this.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(this.graph).waitForCompletion();
         const created = this.counters().filter((counter) => !before.has(counter));
         if (this.created.length !== created.length) {
             throw new Error(`${created.length} edges created but ${this.created.length} announced`);
@@ -200,15 +212,32 @@ describe("every kept set survives the data manager's edits and re-freezes", () =
     });
 
     it("matches the model after every command, over 100 sequences", async () => {
+        // A derivation hook that throws -- a redraw of an edge the layout engine lost -- rejects
+        // no command the model awaits, so it would pass here and fail only the run as a whole.
+        const escaped: unknown[] = [];
+        const onRejection = (event: PromiseRejectionEvent): void => {
+            escaped.push(event.reason);
+        };
+        const onError = (event: ErrorEvent): void => {
+            escaped.push(event.error);
+        };
+        window.addEventListener("unhandledrejection", onRejection);
+        window.addEventListener("error", onError);
         const driver = new DataManagerDriver(graph);
         const ops = opsFor({ embed: false, declared: false }).map((arb) => arb.map((op) => new Step(op)));
-        await fc.assert(
-            fc.asyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
-                graph.getDataManager().clear();
-                driver.path = null;
-                await fc.asyncModelRun(() => ({ model: new Model(), real: driver }), commands);
-            }),
-            fcParams(100),
-        );
+        await fc
+            .assert(
+                guardedAsyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
+                    graph.getDataManager().clear();
+                    driver.path = null;
+                    await fc.asyncModelRun(() => ({ model: new Model(), real: driver }), commands);
+                }),
+                fcParams(100),
+            )
+            .finally(() => {
+                window.removeEventListener("unhandledrejection", onRejection);
+                window.removeEventListener("error", onError);
+            });
+        assert.deepEqual(escaped.map(String), [], "no error escaped a command");
     });
 });

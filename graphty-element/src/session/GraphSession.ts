@@ -20,11 +20,13 @@ import {
     type AccelerationPolicy,
     type GraphAccelerator,
 } from "../acceleration";
+import type { CameraState } from "../camera/types";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
     EdgeMember,
     EdgeReading,
+    LayoutId,
     NodeId,
     Path,
     Query,
@@ -41,16 +43,39 @@ import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
+import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
+import type { ImportReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
+import { DEFINITIONS } from "./commands";
+import { readProjectConfig } from "./commands/config";
+import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
-import { SessionData } from "./data";
-import { estimateCommand, type Plan, planCommand, type PlanningContext, type SessionCommand } from "./planning";
+import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { recommendLayout } from "./layout";
+import {
+    type AlgorithmRunCommand,
+    estimateCommand,
+    type Plan,
+    planCommand,
+    type PlanningContext,
+    type SessionCommand,
+} from "./planning";
+import {
+    Dispatcher,
+    type DispatchFunction,
+    runQueueScheduler,
+    type Scheduler,
+    type TransactionScope as DispatchScope,
+} from "./project/Dispatcher";
+import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
+import type { GraphSlice, LayoutChoice } from "./project/state";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
+import { shareNodeIndex } from "./results/RunResult";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -60,6 +85,7 @@ import {
     type ResolvedScope,
     type Run,
     type RunExecutionContext,
+    type RunExecutor,
     type RunOptions,
     type RunOutcome,
     type RunsApi,
@@ -74,11 +100,12 @@ import {
     type ScopeApi,
     type ScopeResolver,
 } from "./scope";
+import { sealedSet } from "./sealed";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
 import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
-import { type DependencySources, referentReading } from "./sets/dependencies";
+import { dependencyOf, type DependencySources, referentReading } from "./sets/dependencies";
 import { LayerScopes } from "./sets/layers";
 import { SetsNotifier } from "./sets/notify";
 import { createOffering } from "./sets/offers";
@@ -97,26 +124,75 @@ import {
     type SessionStylesApi,
 } from "./styles";
 import { channelsFor } from "./styles/channels";
+import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
     AccelerationControllerLike,
+    CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
     GraphSession,
+    HistoryOutcome,
+    PositionEntry,
+    ProjectConfig,
+    ProjectConfigPatch,
+    ProjectSlice,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHistory,
+    SessionLayout,
+    SessionPositions,
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    SessionViews,
+    TransactionOptions,
+    TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
 import type { FilterRunResult } from "./visibility/filter";
+
+/**
+ * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
+ * pins into. The element's data manager is one; a consumer only ever sees the read-only form.
+ * @internal
+ */
+export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
+    /** The lane itself. */
+    readonly positions: ElementPositions;
+    /** Whether structural changes wait for the next read of the graph; see `GraphStore.deferring`. */
+    readonly deferring?: boolean;
+    /** Whether the next read of the graph would freeze a snapshot; see `GraphStore.stale`. */
+    readonly stale?: boolean;
+    /**
+     * The attribute revisions and input tick of whoever builds the stores (design/sets 6.2): the
+     * data manager's, the same across a Clear. Absent, the store's own.
+     */
+    readonly inputs?: InputCounters;
+}
+
+/**
+ * What the element's own session takes beyond {@link CreateGraphSessionOptions}: the data
+ * manager's store, whose only writer is the dispatcher, a record source, and a data configuration
+ * read live. No entry point exports it.
+ * @internal
+ */
+export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config"> {
+    /** The store to read. When absent the session builds one of its own and disposes it. */
+    readonly store?: LaneStore;
+    /** Where to read the attributes a record arrived with, for rows the graph slice lacks. */
+    readonly records?: SessionRecordSource;
+    /** The configuration; `data` may be a function, read on every use. */
+    readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
+        readonly data?: SessionDataConfig | (() => SessionDataConfig);
+    };
+}
 
 /**
  * What a session with no configuration of its own runs on.
@@ -164,6 +240,21 @@ const DISPOSED_STATUS: SessionStatus = Object.freeze({
 /** The prefix an attribute path carries in front of the key the record actually holds. */
 const ATTRIBUTE_PREFIX = "data.";
 
+/** The parts of a session whose verbs a transaction's `tx` routes into the transaction. */
+const TX_PARTS = [
+    "data",
+    "runs",
+    "results",
+    "scope",
+    "sets",
+    "selection",
+    "visibility",
+    "styles",
+    "views",
+    "positions",
+    "config",
+] as const satisfies readonly (keyof GraphSession)[];
+
 /**
  * What the factory hands the session, with the ownership question already answered.
  *
@@ -172,15 +263,15 @@ const ATTRIBUTE_PREFIX = "data.";
  */
 interface SessionParts {
     /** The store to read, whoever built it. */
-    readonly store: SessionGraphStore;
+    readonly store: LaneStore;
     /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
     /** The data surface over that store. */
     readonly data: SessionData;
-    /** Reads the data configuration, live. */
-    readonly readData: () => SessionDataConfig;
+    /** Reads the project settings, live. */
+    readonly readProject: () => ProjectConfig;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -207,6 +298,19 @@ interface SessionParts {
     readonly planning: PlanningContext;
     /** Where a run notification is delivered, so the session can publish it to its watchers. */
     readonly watchers: Watchers;
+    /** The one path every change to project state takes; the styles API already writes through it. */
+    readonly dispatcher: Dispatcher;
+}
+
+/**
+ * What the element's own tests hand a session besides its options: the clock of the coalescing
+ * window and the queue queued commands take their turn on, so a random sequence can drive both.
+ */
+interface SessionInternals {
+    readonly now?: () => number;
+    readonly scheduler?: Scheduler;
+    /** Open the baseline window: what the page declared at construction is not undoable. */
+    readonly baselineWindow?: boolean;
 }
 
 /**
@@ -243,6 +347,23 @@ function refuseToExecute(context: RunExecutionContext): Promise<RunOutcome> {
 }
 
 /**
+ * An executor whose results read their nodes through the snapshot's id index when they hold the
+ * same ids in the same order, so a finished result keeps its columns and not a second index
+ * (design/undo/undo-design.md section 7).
+ * @param execute - The executor.
+ * @param snapshot - The resident snapshot.
+ * @param token - The graph token now.
+ * @returns The executor, sharing.
+ */
+function sharingIndexes(execute: RunExecutor, snapshot: () => GraphSnapshot, token: () => number): RunExecutor {
+    return async (context) => {
+        const outcome = await execute(context);
+        shareNodeIndex(outcome.result, snapshot().ids, token());
+        return outcome;
+    };
+}
+
+/**
  * A graph with no view attached.
  *
  * Build one with {@link createGraphSession} rather than with `new`: the factory is what settles
@@ -250,6 +371,7 @@ function refuseToExecute(context: RunExecutionContext): Promise<RunOutcome> {
  * acts on.
  */
 class Session implements ElementSession {
+    readonly history: SessionHistory;
     readonly data: SessionDataApi;
     readonly catalog: SessionCatalogApi;
     readonly runs: RunsApi;
@@ -259,6 +381,8 @@ class Session implements ElementSession {
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
+    readonly views: SessionViews;
+    readonly layout: SessionLayout;
     readonly paint: ElementPaint;
 
     /** Cancels every style edit still pending. */
@@ -266,9 +390,10 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
-    private readonly readData: () => SessionDataConfig;
+    /** The settings; identity-stable, every member read live. */
+    readonly config: SessionConfig;
     private readonly sessionData: SessionData;
-    private readonly store: SessionGraphStore;
+    private readonly store: LaneStore;
     private readonly controller: AccelerationControllerLike;
     /** The store, when this session built it and therefore has to dispose it. */
     private readonly ownedStore: GraphStore | null;
@@ -276,7 +401,11 @@ class Session implements ElementSession {
     private readonly ownedAcceleration: AccelerationController | null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
+    /** The one path every change to project state takes, and the history it records. */
+    private readonly dispatcher: Dispatcher;
     private disposed = false;
+    /** The lane with the positions verbs beside it; built once, on first read. */
+    private positionsView: SessionPositions | undefined;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -289,7 +418,6 @@ class Session implements ElementSession {
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
-        this.readData = parts.readData;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -310,15 +438,217 @@ class Session implements ElementSession {
         this.unwatchController = this.controller.onChange(() => {
             publish(this.watchers, "capabilities:changed", { capabilities: this.controller.capabilities });
         });
+        let version = 0;
+        this.dispatcher = parts.dispatcher;
+        // Chained: the kept sets hear each change after it, to tell `set:changed`.
+        const beside = this.dispatcher.events.project;
+        this.dispatcher.events.project = (change) => {
+            publish(this.watchers, "project:changed", {
+                slices: change.slices as readonly ProjectSlice[],
+                cause: change.cause,
+            });
+            beside?.(change);
+        };
+        this.dispatcher.events.history = (reason) => {
+            version++;
+            publish(this.watchers, "history:changed", { reason });
+        };
+        // Undo and redo select what changed; selection itself is never a step.
+        this.dispatcher.events.touched = {
+            cap: () => this.selection.cap,
+            select: (ids) => {
+                const target = { nodes: [...ids.nodes], edges: [...ids.edges] };
+                // Resolving ids reads the graph; an undo that left rows to rebuild does not rebuild
+                // them only to select, it waits for whatever reads the graph next.
+                if (this.store instanceof GraphStore && this.store.stale) {
+                    this.selection.applyAtNextRead(target, "replace", "history");
+                } else {
+                    this.selection.applyNow(target, "replace", "history");
+                }
+            },
+        };
+        DISPATCHERS.set(this, this.dispatcher);
+        LANES.set(this, this.store);
+        SESSION_RUNS.set(this, this.sessionRuns);
+        this.history = historyOf(this.dispatcher, () => version);
+        this.views = viewsOf(this.dispatcher);
+        this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
+        // What an import asking for a recommended layout chooses, for the graph it loaded.
+        this.dispatcher.services.layoutAdvice = () => {
+            const advice = recommendLayout(this.data.statistics(), { placedNodes: this.store.seededNodeCount });
+            return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
+        };
+        this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
     }
 
     /**
-     * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
-     * where a row no layout has placed reads NaN rather than the origin.
-     * @returns the live position array
+     * Whether `undo()` would do something.
+     * @returns True when it would undo a step or cancel pending work.
      */
-    get positions(): ElementPositions {
-        return this.store.positions;
+    get canUndo(): boolean {
+        return this.dispatcher.nextUndo !== null;
+    }
+
+    /**
+     * Whether `redo()` would do something.
+     * @returns True when a step has been undone and not recorded over.
+     */
+    get canRedo(): boolean {
+        return this.dispatcher.history.position < this.dispatcher.history.steps.length;
+    }
+
+    /**
+     * Undo the last step, or cancel pending work dispatched after it.
+     * @returns What was done, once the picture has caught up.
+     */
+    undo(): Promise<HistoryOutcome> {
+        return this.dispatcher.undo() as Promise<HistoryOutcome>;
+    }
+
+    /**
+     * Redo the last undone step.
+     * @returns What was done, once the picture has caught up.
+     */
+    redo(): Promise<HistoryOutcome> {
+        return this.dispatcher.redo() as Promise<HistoryOutcome>;
+    }
+
+    /**
+     * Record everything `fn` dispatches through `tx` as one step.
+     * @param label - The step's label.
+     * @param fn - The body.
+     * @param options - Provenance stamped on the step.
+     * @returns What `fn` returned.
+     */
+    transaction<T>(
+        label: string,
+        fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>,
+        options: TransactionOptions = {},
+    ): Promise<T> {
+        return this.dispatcher.transaction(label, (scope, signal) => fn(this.scopeOf(scope), signal), options);
+    }
+
+    /**
+     * Do one command in the vocabulary.
+     * @param command - The command.
+     * @returns Its outcome.
+     */
+    execute<C extends SessionCommand>(command: C): CommandOutcome<C> {
+        return this.executeThrough(command, (each, options) => this.dispatcher.dispatch(each, options));
+    }
+
+    /**
+     * Do one command through `dispatch`. A run is started through the runs API, which dispatches
+     * it and hands back its handle.
+     * @param command - The command.
+     * @param dispatch - The session's dispatch, or a transaction's.
+     * @returns Its outcome.
+     */
+    private executeThrough<C extends SessionCommand>(command: C, dispatch: DispatchFunction): CommandOutcome<C> {
+        if (command.op === "set.create") {
+            // The element mints these; one a caller supplied could collide with the register or
+            // re-point a stored reference (design/sets/undo-integration.md section 8, decision 2).
+            const minted = ["id", "order", "createdFrom"].filter((field) => Object.hasOwn(command, field));
+            if (minted.length > 0) {
+                return Promise.reject(
+                    new GraphtyError({
+                        code: "E_BAD_COMMAND",
+                        message: `A set's ${minted.join(", ")} ${minted.length === 1 ? "is" : "are"} minted by the element; leave ${minted.length === 1 ? "it" : "them"} out of set.create.`,
+                        source: "data",
+                        details: { fields: minted },
+                    }),
+                ) as CommandOutcome<C>;
+            }
+        }
+
+        if (command.op === "algo.run") {
+            return this.startCommand(dispatch, command) as CommandOutcome<C>;
+        }
+
+        return dispatch(command) as unknown as CommandOutcome<C>;
+    }
+
+    /**
+     * Start a run command through a dispatch.
+     * @param dispatch - The session's dispatch, or a transaction's.
+     * @param command - The run.
+     * @param options - The signal, the progress handler and how the call joins the queue.
+     * @returns The run.
+     */
+    private startCommand(dispatch: DispatchFunction, command: AlgorithmRunCommand, options: RunOptions = {}): Run {
+        return this.sessionRuns.startVia(dispatch, command.algorithm, command.params, {
+            ...options,
+            ...(command.scope === undefined ? {} : { scope: command.scope }),
+            ...(command.seed === undefined ? {} : { seed: command.seed }),
+            ...(command.sample === undefined ? {} : { sample: command.sample }),
+            ...(command.exact === undefined ? {} : { exact: command.exact }),
+            ...(command.as === undefined ? {} : { as: command.as }),
+            ...(command.applySuggestedStyles === undefined
+                ? {}
+                : { applySuggestedStyles: command.applySuggestedStyles }),
+        });
+    }
+
+    /**
+     * The session a transaction's callback works through: this session, with every command it
+     * executes joining the transaction.
+     * @param scope - The dispatcher's scope for the transaction.
+     * @returns The scope.
+     */
+    private scopeOf(scope: DispatchScope): TransactionScope {
+        const via: DispatchFunction = (each, options) => scope.dispatch(each, options);
+        // Every verb of a part runs with its dispatches routed into the transaction, so
+        // `tx.styles.add` and `tx.data.addNodes` join it exactly as `tx.execute` does.
+        const parts = Object.fromEntries(TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via) }]));
+        const tx: TransactionScope = Object.create(this, {
+            ...parts,
+            execute: {
+                value: <C extends SessionCommand>(command: C) => this.executeThrough(command, via),
+            },
+            run: {
+                value: (command: AlgorithmRunCommand, options?: RunOptions) => this.startCommand(via, command, options),
+            },
+            // Its layout verbs join the transaction too.
+            layout: {
+                value: layoutOf(this.dispatcher, (command) => scope.dispatch(command)),
+            },
+            transaction: {
+                value: <T>(
+                    label: string,
+                    fn: (inner: TransactionScope, signal: AbortSignal) => T | Promise<T>,
+                    options?: TransactionOptions,
+                ) => scope.transaction(label, (_same, signal) => fn(tx, signal), options),
+            },
+        }) as TransactionScope;
+        return tx;
+    }
+
+    /**
+     * A part of this session whose every method runs with its dispatches routed to `via`. Values
+     * read from it are handed back as they are.
+     * @param part - The part.
+     * @param via - Where its dispatches go.
+     * @returns The routed part.
+     */
+    private routedPart<P extends object>(part: P, via: DispatchFunction): P {
+        return new Proxy(Object.create(null) as P, {
+            get: (_target, key) => {
+                const value: unknown = Reflect.get(part, key, part);
+                return typeof value === "function"
+                    ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
+                    : value;
+            },
+            has: (_target, key) => key in part,
+        });
+    }
+
+    /**
+     * The element-owned node coordinates, read-only, with the verbs that place and pin nodes.
+     * @returns the coordinates and the verbs
+     */
+    get positions(): SessionPositions {
+        this.positionsView ??= positionsOf(this.store, this.dispatcher);
+        return this.positionsView;
     }
 
     /**
@@ -329,29 +659,6 @@ class Session implements ElementSession {
      */
     get seededNodeCount(): number {
         return this.store.seededNodeCount;
-    }
-
-    /**
-     * The configuration this session runs under, as a fresh frozen struct on every read.
-     *
-     * It is read rather than held because the element REPLACES its configuration object when a
-     * style template is applied, and a session holding the old one would answer from a setting
-     * nobody is running under any more.
-     *
-     * The trade: `config` and the `config.acceleration` inside it are NOT identity-stable, so
-     * `prev === next` is not a staleness test here as it is on `capabilities`. Read the values,
-     * do not cache the object. `config` is not one of the identity-stable structs.
-     * @returns the configuration
-     */
-    get config(): SessionConfig {
-        return Object.freeze({
-            data: this.readData(),
-            // Read from the controller, not from a value frozen at construction: the policy and
-            // the threshold are changed at runtime through the accessors below and through the
-            // element's attributes, and a copy taken here would answer from a setting nobody is
-            // running under any more.
-            acceleration: Object.freeze({ policy: this.controller.policy, minNodes: this.controller.minNodes }),
-        });
     }
 
     /**
@@ -436,8 +743,8 @@ class Session implements ElementSession {
     }
 
     /**
-     * The current snapshot, by reference: nothing is copied.
-     * @returns the immutable graph-format snapshot
+     * The current snapshot, with copies of its coordinate and pin columns.
+     * @returns the sealed graph-format snapshot
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     snapshot(): GraphSnapshot {
@@ -459,15 +766,8 @@ class Session implements ElementSession {
      * @param options - The signal, the progress handler and how the call joins the queue.
      * @returns The run.
      */
-    run(command: SessionCommand, options: RunOptions = {}): Run {
-        return this.runs.start(command.algorithm, command.params, {
-            ...options,
-            ...(command.scope === undefined ? {} : { scope: command.scope }),
-            ...(command.seed === undefined ? {} : { seed: command.seed }),
-            ...(command.sample === undefined ? {} : { sample: command.sample }),
-            ...(command.exact === undefined ? {} : { exact: command.exact }),
-            ...(command.as === undefined ? {} : { as: command.as }),
-        });
+    run(command: AlgorithmRunCommand, options: RunOptions = {}): Run {
+        return this.startCommand((each, dispatched) => this.dispatcher.dispatch(each, dispatched), command, options);
     }
 
     /**
@@ -528,6 +828,9 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        // The store may be the renderer's, and gone: nothing is captured on the way out.
+        this.dispatcher.arrangement.bind(null);
+        this.dispatcher.clear();
         this.unwatchController();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
@@ -539,6 +842,310 @@ class Session implements ElementSession {
         this.ownedAcceleration?.dispose();
         this.ownedStore?.dispose();
     }
+}
+
+/** Each session's runs API with the parts only the element reaches; see {@link sessionRunsOf}. */
+const SESSION_RUNS = new WeakMap<GraphSession, SessionRunsApi>();
+
+/**
+ * The runs API behind a session, with `startVia`: how the renderer starts the on-load runs as
+ * deferred members of the command that added the rows. Not published.
+ * @param session - A session this module built.
+ * @returns Its runs API.
+ */
+export function sessionRunsOf(session: GraphSession): SessionRunsApi {
+    const runs = SESSION_RUNS.get(session);
+    if (runs === undefined) {
+        throw new GraphtyError({
+            code: "E_INTERNAL",
+            message: "This session was not built by createGraphSession, so it has no runs API of its own.",
+            source: "run",
+        });
+    }
+
+    return runs;
+}
+
+/** Each headless session's `graph` repaint hook, by dispatcher, to unregister. */
+const HEADLESS_GRAPH_PAINT = new WeakMap<Dispatcher, () => void>();
+
+/**
+ * Hand a session's repaint after a data change to the renderer drawing it, which repaints once
+ * it has reconciled its own objects. Only the element calls it, before registering its own
+ * `graph` hook; without it a session repaints by itself.
+ * @param session - A session this module built.
+ */
+export function handGraphPaintToRenderer(session: GraphSession): void {
+    const dispatcher = dispatcherOf(session);
+    HEADLESS_GRAPH_PAINT.get(dispatcher)?.();
+    HEADLESS_GRAPH_PAINT.delete(dispatcher);
+}
+
+/** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
+const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
+
+/** Each session's store, with its lane writable; see {@link laneOf}. */
+const LANES = new WeakMap<GraphSession, LaneStore>();
+
+/**
+ * The coordinate lane behind a session, writable: what a layout engine writes every frame, and
+ * what a test standing in for one writes. Not published; a consumer places nodes through
+ * `session.positions.set`.
+ * @param session - A session this module built.
+ * @returns Its lane.
+ */
+export function laneOf(session: GraphSession): ElementPositions {
+    const store = LANES.get(session);
+    if (store === undefined) {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
+    }
+
+    return store.positions;
+}
+
+/**
+ * The dispatcher behind a session. Not published: the element's own tests spy on it and read the
+ * project state it holds.
+ * @param session - A session this module built.
+ * @returns Its dispatcher.
+ */
+export function dispatcherOf(session: GraphSession): Dispatcher {
+    const dispatcher = DISPATCHERS.get(session);
+    if (dispatcher === undefined) {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
+    }
+
+    return dispatcher;
+}
+
+/**
+ * The pinned ids as a consumer reads them: a sealed copy, because the slice itself is project
+ * state that only the dispatcher writes.
+ * @param pins - The pins slice.
+ * @returns The copy.
+ */
+function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
+    // ponytail: copies per read (O(pins)); cache per pins revision if a caller reads it per frame.
+    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.");
+}
+
+/**
+ * The coordinates, read-only, with the verbs that place and pin nodes as steps beside them.
+ * @param store - The store whose lane it reads.
+ * @param dispatcher - The dispatcher the verbs dispatch through.
+ * @returns The coordinates and the verbs.
+ */
+function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionPositions {
+    return Object.defineProperties(
+        readonlyPositions(() => store.positions),
+        {
+            pinned: { get: () => pinnedOf(dispatcher.state.pins), enumerable: true },
+            set: {
+                value: async (entries: readonly PositionEntry[]) => {
+                    await dispatcher.dispatch({ op: "positions.set", entries });
+                },
+                enumerable: true,
+            },
+            pin: {
+                value: async (ids: readonly NodeId[]) => {
+                    await dispatcher.dispatch({ op: "positions.pin", ids, pinned: true });
+                },
+                enumerable: true,
+            },
+            unpin: {
+                value: async (ids: readonly NodeId[]) => {
+                    await dispatcher.dispatch({ op: "positions.pin", ids, pinned: false });
+                },
+                enumerable: true,
+            },
+        },
+    ) as SessionPositions;
+}
+
+/**
+ * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
+ * write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The views.
+ */
+/**
+ * The `layout` slice with its verbs.
+ * @param dispatcher - The session's dispatcher, whose state is read.
+ * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
+ * @returns The layout surface.
+ */
+function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) => Promise<unknown>): SessionLayout {
+    const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
+    return Object.freeze({
+        get id() {
+            return choice().id;
+        },
+        get engine() {
+            return choice().engine;
+        },
+        get options() {
+            return choice().options;
+        },
+        get dimension() {
+            return choice().dimension;
+        },
+        set: async (
+            id: LayoutId,
+            options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
+        ) => {
+            await dispatch({
+                op: "layout.set",
+                id,
+                ...(options?.engine === undefined ? {} : { engine: options.engine }),
+                ...(options?.options === undefined ? {} : { options: options.options }),
+            });
+        },
+        setDimension: async (dimension: "2d" | "3d") => {
+            await dispatch({ op: "view.dimension", dimension });
+        },
+    });
+}
+
+function viewsOf(dispatcher: Dispatcher): SessionViews {
+    const held = dispatcher.state.views;
+    const views: SessionViews = Object.freeze({
+        get size() {
+            return held.size;
+        },
+        get: (name: string) => held.get(name),
+        has: (name: string) => held.has(name),
+        forEach: (
+            visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void,
+            self?: unknown,
+        ) => {
+            held.forEach((camera, name) => {
+                visit.call(self, camera, name, views);
+            });
+        },
+        entries: () => held.entries(),
+        keys: () => held.keys(),
+        values: () => held.values(),
+        [Symbol.iterator]: () => held.entries(),
+        save: async (saved: readonly { readonly name: string; readonly camera: CameraState }[]) => {
+            await dispatcher.dispatch({ op: "view.save", views: saved });
+        },
+        remove: async (names: readonly string[]) => {
+            await dispatcher.dispatch({ op: "view.remove", names });
+        },
+    });
+
+    return views;
+}
+
+/**
+ * Read the project settings from the `config` slice, rebuilt only when the slice or the base has
+ * changed since the last read, so two reads with no change between them return the same object.
+ * @param dispatcher - The dispatcher holding the slice.
+ * @param base - Reads the data configuration an unset `data.` key falls back to.
+ * @returns The reader.
+ */
+function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConfig): () => ProjectConfig {
+    let cache: { writes: number; base: SessionDataConfig; value: ProjectConfig } | undefined;
+    return () => {
+        const writes = dispatcher.lane.writes("config");
+        const from = base();
+        if (cache?.writes !== writes || cache.base !== from) {
+            cache = { writes, base: from, value: readProjectConfig(dispatcher.state.config, from) };
+        }
+
+        return cache.value;
+    };
+}
+
+/**
+ * The session's settings: every project setting read live, the acceleration policy read from the
+ * controller, and `set`, which dispatches `config.set`.
+ * @param dispatcher - The dispatcher.
+ * @param read - Reads the project settings.
+ * @param controller - The acceleration controller.
+ * @returns The settings.
+ */
+function configOf(
+    dispatcher: Dispatcher,
+    read: () => ProjectConfig,
+    controller: AccelerationControllerLike,
+): SessionConfig {
+    return Object.freeze({
+        get data() {
+            return read().data;
+        },
+        get runAlgorithmsOnLoad() {
+            return read().runAlgorithmsOnLoad;
+        },
+        get background() {
+            return read().background;
+        },
+        get selectionStyle() {
+            return read().selectionStyle;
+        },
+        get layoutBehavior() {
+            return read().layoutBehavior;
+        },
+        // Read from the controller, not from a value frozen at construction: the policy and the
+        // threshold are changed at runtime through the session's accessors and the element's
+        // attributes.
+        get acceleration() {
+            return Object.freeze({ policy: controller.policy, minNodes: controller.minNodes });
+        },
+        set: async (values: ProjectConfigPatch) => {
+            await dispatcher.dispatch({ op: "config.set", values });
+        },
+    });
+}
+
+/**
+ * The published face of a dispatcher's history.
+ * @param dispatcher - The dispatcher.
+ * @param version - Counts `history:changed` events.
+ * @returns The history.
+ */
+function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistory {
+    const { history } = dispatcher;
+    // The dispatcher's steps and pending items are the published ones, with plain string ids
+    // and slice names where the published types brand them.
+    type Published = SessionHistory;
+    return Object.freeze({
+        get version() {
+            return version();
+        },
+        get steps() {
+            return history.steps as Published["steps"];
+        },
+        get position() {
+            return history.position;
+        },
+        get pending() {
+            return dispatcher.pending as Published["pending"];
+        },
+        get nextUndo() {
+            return dispatcher.nextUndo as Published["nextUndo"];
+        },
+        get bytes() {
+            return history.bytes;
+        },
+        get limitBytes() {
+            return history.limitBytes;
+        },
+        set limitBytes(value: number) {
+            history.limitBytes = value;
+        },
+        get limitSteps() {
+            return history.limitSteps;
+        },
+        set limitSteps(value: number) {
+            history.limitSteps = value;
+        },
+        restoreTo: (step: string | null) => dispatcher.restoreTo(step) as Promise<HistoryOutcome>,
+        cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
+        clear: () => {
+            dispatcher.clear();
+        },
+    });
 }
 
 /**
@@ -592,10 +1199,10 @@ interface FreezeFollower {
  * @returns the store, and the same object again when this call allocated it
  */
 function resolveStore(
-    given: SessionGraphStore | undefined,
+    given: LaneStore | undefined,
     readData: () => SessionDataConfig,
     follow: FreezeFollower,
-): { store: SessionGraphStore; owned: GraphStore | null } {
+): { store: LaneStore; owned: GraphStore | null } {
     if (given !== undefined) {
         return { store: given, owned: null };
     }
@@ -1089,10 +1696,10 @@ function repaintAgainstCurrentData(
  * accelerator, disposed with it. That is the headless case -- a CI job, a Node test, a check on
  * a server -- and it needs no canvas, no GPU and no DOM.
  *
- * Handed a store, it reads that one instead and disposes nothing that arrived from outside. That
- * is how a rendered graph gets a session: the element's data manager already owns one store for
- * the life of the graph, and a second one would be a second, disagreeing copy.
- * @param options - the store, the record source, the configuration and the accelerator, each
+ * The session is the only writer of its graph and settings, which is what makes every change an
+ * undoable step: data arrives through `session.data.import`, `addNodes` and `addEdges`, and
+ * settings through `session.config.set`.
+ * @param options - the starting configuration, the accelerator and how runs execute, each
  *     optional
  * @returns the session
  * @example
@@ -1105,7 +1712,14 @@ function repaintAgainstCurrentData(
  * ```
  */
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
-    return buildSession(options);
+    // Only the published options, even from a caller the types did not check: a store or a record
+    // source handed in would make that caller a second writer of the graph.
+    const { config, acceleration, runs } = options;
+    return buildSession({
+        ...(config === undefined ? {} : { config }),
+        ...(acceleration === undefined ? {} : { acceleration }),
+        ...(runs === undefined ? {} : { runs }),
+    });
 }
 
 /**
@@ -1116,10 +1730,14 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
  * the difference is a shape one, and it exists because a renderer tests one element at a time
  * where a consumer reads a list of ids.
  * @param options - The store, the record source, the configuration and the accelerator.
+ * @param internals - The history clock and queue, which only the element's own tests replace.
  * @returns The session.
  */
-export function createElementSession(options: CreateGraphSessionOptions = {}): ElementSession {
-    return buildSession(options);
+export function createElementSession(
+    options: ElementSessionOptions = {},
+    internals: SessionInternals = {},
+): ElementSession {
+    return buildSession(options, internals);
 }
 
 /**
@@ -1131,10 +1749,30 @@ export function createElementSession(options: CreateGraphSessionOptions = {}): E
  * that reach the other two through a function call, and they are built afterwards holding the
  * resolver itself. Nothing reads through those readers during construction.
  * @param options - What the caller asked for.
+ * @param internals - The history clock and queue, when a test replaces them.
  * @returns The session.
  */
-function buildSession(options: CreateGraphSessionOptions): Session {
-    const readData = resolveDataConfig(options.config?.data);
+function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
+    const runsOptions = options.runs ?? {};
+    // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
+    // run both read the whole graph, and two queues would let one start while the other is
+    // halfway through. A rendered graph hands in the element's own, so a filter also takes its
+    // turn among the loads, the layouts and the style passes. A queued command (an import) takes
+    // its turn there too, unless the host hands in a scheduler of its own.
+    const queue = runsOptions.queue ?? createLocalRunQueue();
+
+    // Built first: the project settings, which the store and the data surface read, live in its
+    // `config` slice, and the scope resolver, the visibility model and the style stack live in its
+    // other slices and write through it.
+    const dispatcher = new Dispatcher({
+        definitions: DEFINITIONS,
+        ...(internals.now === undefined ? {} : { now: internals.now }),
+        scheduler: internals.scheduler ?? runQueueScheduler(queue),
+        baselineWindow: internals.baselineWindow === true,
+    });
+    const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
+    dispatcher.services.config = readProject;
+    const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
     const policy = options.acceleration?.policy ?? options.config?.acceleration?.policy ?? ACCELERATION_POLICY_DEFAULT;
@@ -1146,9 +1784,6 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
     let selection: SelectionOwner | null = null;
-    // The same shape, for the same reason: the style stack is built after the runs, and a run
-    // reaching its end is what tells it that a column it prepared a binding against has moved.
-    let forgetPreparedBindings: (() => void) | null = null;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -1166,23 +1801,46 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // The attribute revisions and the input tick (design/sets 6.2), shared with whoever writes the
     // store's records: the store owner's, so its writes, its freezes and this session's masks and
     // runs all advance one tick.
-    const inputs = inputCountersOf(store.store);
+    const inputs = (store.store as { readonly inputs?: InputCounters }).inputs ?? inputCountersOf(store.store);
     const advanceTick = (): void => {
         inputs.tick.advance();
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
-    const data = new SessionData(store.store, options.records ?? null, readData);
-    const runsOptions = options.runs ?? {};
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    dispatcher.arrangement.bind({
+        snapshot,
+        get positions() {
+            return store.store.positions;
+        },
+        holdsNoRows: () => (store.store instanceof GraphStore ? store.store.holdsNoRows : true),
+        get stale() {
+            return (store.store as { readonly stale?: boolean }).stale === true;
+        },
+    });
+    const slice = (): GraphSlice => dispatcher.state.graph;
+    // What the records say, from the `graph` slice every primitive fills, then from a host's own
+    // source for rows it wrote some other way.
+    const records = sliceRecords(
+        slice,
+        snapshot,
+        () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
+        options.records ?? null,
+    );
+    const data = new SessionData(store.store, records, readData, {
+        dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+        importer: () => dispatcher.capturedDispatch(),
+        slice,
+    });
+    // A session that holds a store of its own kind writes it through its own ingest; the element
+    // hands its data manager's in instead.
+    if (store.store instanceof GraphStore) {
+        dispatcher.services.data = headlessDataService(store.store, dispatcher, readData);
+    }
+
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
-        sessionEdgeMember(
-            snapshot(),
-            id,
-            (row) => options.records?.edgeAttributes(row),
-            readData().knownFields.edgeIdPath,
-        );
+        sessionEdgeMember(snapshot(), id, (row) => records.edgeAttributes(row), readData().knownFields.edgeIdPath);
     // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
     // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
     // API are built below.
@@ -1225,6 +1883,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // Users of sets the element adds from outside the session: its running layout.
     const hostUsers: SetsUsersProvider[] = [];
     const sets = createSetsApi({
+        dispatcher,
         edgeMember,
         pairsOrdered: () => pairsOrdered(snapshot()),
         dependencies,
@@ -1271,17 +1930,21 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     keptSets.onCommit((changes) => {
         notifier.notify({ kind: "sets", ids: changes.map((change) => change.id) });
     });
+    // The attribute fields record edits changed since the graph hook last ran, by element: what
+    // lets it repaint only the layers that read them.
+    const edited = { node: new Set<string>(), edge: new Set<string>() };
     const stopHearing = inputs.tick.listen((input) => {
+        if (input.kind === "attributes") {
+            for (const field of input.fields) {
+                edited[input.element].add(field);
+            }
+        }
+
         notifier.notify(input);
     });
     keptSets.onChange((change) => {
         publish(watchers, "set:changed", change);
     });
-    // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
-    // run both read the whole graph, and two queues would let one start while the other is
-    // halfway through. A rendered graph hands in the element's own, so a filter also takes its
-    // turn among the loads, the layouts and the style passes.
-    const queue = runsOptions.queue ?? createLocalRunQueue();
 
     // The token of the result a predicate reads; a result published with none (an executor
     // outside the runs API) stands for itself, so a new result is never read as the old one.
@@ -1342,13 +2005,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         edgeMember,
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
-        ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
+        values: valueSourceOf(records, snapshot),
     });
 
     const visibility = createVisibilityApi({
         snapshot,
         components,
-        queue,
+        dispatcher,
         dependencies,
         admit: (filter: RuleTree) => scope.admit(filter),
         scope: (spec: Scope) => scope.leafOf(spec),
@@ -1365,7 +2028,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
-        ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
+        values: valueSourceOf(records, snapshot),
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);
@@ -1400,6 +2063,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     };
     const runs = createRunsApi({
         queue,
+        // Finished runs are the `runs` slice, recorded in this session's history.
+        dispatcher,
         catalog: SESSION_CATALOG_TABLES,
         resolveScope: (spec: Scope) => scope.resolveNow(attached(spec)),
         admitScope: (spec: ScopeInput) => scope.admit(spec) as Scope,
@@ -1416,7 +2081,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
         },
         setName: (id: SetId) => sets.get(id)?.name,
-        execute: runsOptions.execute ?? refuseToExecute,
+        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
@@ -1453,13 +2118,12 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         // one API, and a decision made at the doors is a decision made more than once.
         styling: createAutoApplyPolicy({
             styles: () => stack ?? undefined,
-            // WHERE A REFUSAL GOES WHEN NOBODY IS AWAITING IT. The element paints a run's
-            // suggestion on the run's own completion, fire-and-forget, because a consumer must
-            // not have to await the picture in order to have started the work. That leaves a
-            // refusal with nowhere to arrive: not at a call site, because there was no call.
-            // Unwired, it was swallowed, and a graph kept the picture it already had while the
-            // element believed it had painted a new one -- which is the silent failure the whole
-            // style system exists to replace.
+            // WHERE A REFUSAL GOES WHEN NOBODY ASKED FOR THE LAYER. The element paints a run's
+            // suggestion in the step that records the run, which nobody called for layer by
+            // layer, so a refused suggestion has no call site to arrive at. The run is still
+            // recorded without it, and the refusal is published here rather than swallowed --
+            // a graph that kept its old picture while the element believed it had painted a new
+            // one is the silent failure the whole style system exists to replace.
             onProblem: (runId, error) => {
                 publish(watchers, "style:problem", {
                     runId,
@@ -1480,30 +2144,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         // A layer records the run it came from in its own `source`, so this is a read of the
         // stack rather than a second register that could disagree with it. Late-bound for the
         // same reason the policy above is: the stack is built from this API and cannot exist yet.
+        // A layer's removal with its run is planned into the removal's own step, through this
+        // dispatcher's style stack; only the question of which layers read a run is asked here.
         layers: {
             bindings: (runId) =>
                 (stack?.list() ?? [])
                     .filter((layer) => layer.source.by === "run" && layer.source.runId === runId)
                     .map((layer) => layer.id),
-            remove: (layerIds) => {
-                for (const layerId of layerIds) {
-                    // Fire and forget with the refusal reported, on the same terms as every other
-                    // style edit the element starts on a consumer's behalf: removing the run is
-                    // what was asked for, and it must not wait on the repaint that follows.
-                    void stack?.remove(layerId).then(
-                        () => undefined,
-                        (error: unknown) => {
-                            // Said out loud rather than swallowed. A run layer is never locked,
-                            // so a refusal here means something unexpected about the stack, and a
-                            // layer left behind reads a column whose run has gone.
-                            console.error(
-                                `[graphty] Could not remove style layer "${layerId}" with the run that produced it.`,
-                                error,
-                            );
-                        },
-                    );
-                }
-            },
         },
         onChange: (change) => {
             // The token is minted when the work starts, but the result it stamps is published
@@ -1517,16 +2164,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
                 advanceTick();
             }
 
-            if (change.phase === "queued" || change.phase === "end") {
+            if (change.phase !== "start" && change.phase !== "progress") {
                 notifier.notify({ kind: "run", run: change.run.id });
-            }
-
-            if (change.phase === "end") {
-                // A run that has just published has replaced the column a style layer bound to
-                // it was prepared against, so what was prepared describes the numbers as they
-                // stood before the run finished. A re-run keeps its id and its layers, which is
-                // exactly the case where nothing else would notice.
-                forgetPreparedBindings?.();
             }
 
             publish(watchers, "run:changed", change);
@@ -1544,7 +2183,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
-        ...(options.records === undefined ? {} : { records: options.records }),
+        records,
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
@@ -1567,7 +2206,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         results,
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
-        ...(options.records === undefined ? {} : { records: options.records }),
+        records,
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
@@ -1594,7 +2233,6 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         }),
         snapshot,
     );
-    forgetPreparedBindings = painter.invalidate;
 
     const teardown = new AbortController();
     // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
@@ -1625,6 +2263,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         notifier.dispose();
     });
     const styles = createStylesApi({
+        dispatcher,
         elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
@@ -1654,6 +2293,73 @@ function buildSession(options: CreateGraphSessionOptions): Session {
 
     stack = styles;
 
+    // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
+    // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
+    // and a reader's layer selecting on the run's values), so what was prepared is forgotten and
+    // every layer kept across the change is repainted. Layers added or removed with the run are
+    // the `styles` hook's, which runs after this one.
+    dispatcher.lane.register("runs", async (rendered, target, dirty) => {
+        if (![...dirty].some((id) => rendered.runs.get(id) !== target.runs.get(id))) {
+            return;
+        }
+
+        painter.invalidate();
+        const kept = new Set(rendered.styles);
+        // ponytail: repaints every kept layer, not only those reading the changed runs -- the
+        // cost the element paid before on every finished run; name the readers if it shows.
+        const edits = target.styles
+            .filter((entry) => kept.has(entry))
+            .map((entry) => ({ previous: entry, next: entry }));
+
+        if (edits.length > 0) {
+            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
+        }
+    });
+
+    // The `graph` hook of a session with no renderer: a layer may select on any value a data
+    // command wrote, and a node a command added has no paint until a pass reaches it. So a change
+    // to the rows -- an add, a removal, a replace, a weight or the direction, forward or on undo
+    // and redo -- repaints every layer. A change to records' attributes alone repaints only the
+    // layers that read a field it changed, from the lowest of them up: a record edit the stack does
+    // not read paints nothing. A renderer that reconciles its own objects and repaints from there
+    // takes this over; see `handGraphPaintToRenderer`.
+    HEADLESS_GRAPH_PAINT.set(
+        dispatcher,
+        dispatcher.lane.register("graph", async (_rendered, target, dirty) => {
+            const changed = { node: [...edited.node], edge: [...edited.edge] };
+            edited.node.clear();
+            edited.edge.clear();
+            // Undone rows wait to be rebuilt until something reads the graph, so a run of undos
+            // rebuilds it once; painting now would read it. The picture catches up at the next
+            // pass over a settled graph.
+            // ponytail: no pass is owed for it; repaint on the store's next rebuild if a headless
+            // reader needs the picture current between an unawaited undo and its next edit.
+            if (target.styles.length === 0 || store.store.deferring === true) {
+                return;
+            }
+
+            const recordsOnly = ![...dirty].some(
+                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || key.startsWith("e:") || key.startsWith("v:")),
+            );
+            const readers = recordsOnly
+                ? target.styles.filter((entry) => readsAnyField(entry, changed))
+                : target.styles;
+            if (readers.length === 0) {
+                return;
+            }
+
+            painter.invalidate();
+            const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+            const fromIndex = target.styles.indexOf(readers[0]);
+            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
+            if (recordsOnly) {
+                // The layers above paint what the edited field's readers match now; an element the
+                // edit took out of a reader's match is found by its own row, repainted whole.
+                await painter.repaintElements(target.styles, editedRows(snapshot(), dirty), RUNS_PASS);
+            }
+        }),
+    );
+
     const planning = planningContext(
         runsOptions,
         data,
@@ -1675,7 +2381,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
         }),
-        readData,
+        readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         runs,
@@ -1691,6 +2397,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         paint: painter.paint,
         planning,
         watchers,
+        dispatcher,
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
@@ -1698,6 +2405,53 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     sessionHostUsers.set(session, hostUsers);
 
     return session;
+}
+
+/**
+ * The rows of the records a pass's dirty keys name, that the snapshot holds.
+ * @param graph - The snapshot.
+ * @param dirty - The `graph` slice's dirty keys.
+ * @returns Their dense indices, by element.
+ */
+function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: number[]; edge: number[] } {
+    const rows = { node: [] as number[], edge: [] as number[] };
+    const space = edgeSpaceOf(graph);
+    for (const key of dirty) {
+        if (key.startsWith("n:")) {
+            const row = graph.ids.indexOf(nodeOfKey(key) as string | number);
+            if (row !== INVALID_INDEX) {
+                rows.node.push(row);
+            }
+        } else if (key.startsWith("e:")) {
+            const row = space.indexOf(key.slice(2));
+            if (row !== INVALID_INDEX) {
+                rows.edge.push(row);
+            }
+        }
+    }
+
+    return rows;
+}
+
+/**
+ * Whether a layer reads an attribute field a record edit changed: one of its paths names the field,
+ * on the kind of element it paints.
+ * @param entry - The layer.
+ * @param changed - The fields changed, by element.
+ * @param changed.node - The node fields changed.
+ * @param changed.edge - The edge fields changed.
+ * @returns True when it does.
+ */
+function readsAnyField(entry: CompiledLayer, changed: { readonly node: string[]; readonly edge: string[] }): boolean {
+    const fields = changed[entry.layer.target];
+    if (fields.length === 0) {
+        return false;
+    }
+
+    return entry.reads.some((path) => {
+        const read = dependencyOf(path);
+        return "field" in read && fields.includes(read.field);
+    });
 }
 
 /**
@@ -1795,6 +2549,9 @@ export function inputCountersOfSession(session: GraphSession): InputCounters {
 
     return inputs;
 }
+
+/** The context of the `runs` hook's repaint: nothing cancels it, and it reports nowhere. */
+const RUNS_PASS = Object.freeze({ signal: new AbortController().signal, report: () => undefined });
 
 /**
  * The selection, once the session has one.

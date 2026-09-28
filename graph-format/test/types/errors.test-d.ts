@@ -44,6 +44,7 @@ expectTypeOf<GraphFormatErrorCode>().toEqualTypeOf<
     | "E_UNSUPPORTED_VERSION"
     | "E_DETACHED"
     | "E_BUILDER_DISPOSED"
+    | "E_FROZEN"
     | "E_UNSUPPORTED"
     | "E_IMPORT"
 >();

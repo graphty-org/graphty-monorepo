@@ -86,6 +86,7 @@ import {
 } from "../../../index.js";
 import type { AdHocData } from "../../../schema";
 import type { LayerSpec, StyleChange } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 // -------------------------------------------------------------------------------------------
 // The extension: a format the element has never heard of
@@ -245,8 +246,7 @@ function parseRoster(text: string, scoreScale: number): ParsedRoster {
             );
         } else {
             throw rosterParseFailure(
-                `roster line ${index + 1} begins with "${verb}", which is none of "roster", "person" ` +
-                    'or "knows"',
+                `roster line ${index + 1} begins with "${verb}", which is none of "roster", "person" ` + 'or "knows"',
                 index + 1,
             );
         }
@@ -564,9 +564,11 @@ const ROSTER_DECLARING_UNDIRECTED = `roster undirected\n${ROSTER}`;
 const ROSTER_DECLARING_DIRECTED = `roster directed\n${ROSTER}`;
 
 /** Two people and one link that carries a strength the element reads as the edge's weight. */
-const ROSTER_WITH_A_WEIGHTED_LINK = ["person ada Engineering 9", "person brian Engineering 4", "knows ada brian strong 7"].join(
-    "\n",
-);
+const ROSTER_WITH_A_WEIGHTED_LINK = [
+    "person ada Engineering 9",
+    "person brian Engineering 4",
+    "knows ada brian strong 7",
+].join("\n");
 
 /**
  * A graph in the element's own JSON format, with node ids nothing in the roster shares.
@@ -703,7 +705,7 @@ async function mountElement(): Promise<Graphty> {
  */
 async function loadRoster(opts: RosterConfig): Promise<void> {
     await element.addDataFromSource(ROSTER_FORMAT, opts);
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 }
 
 /**
@@ -790,7 +792,7 @@ beforeEach(async () => {
 afterEach(async () => {
     // A load leaves queued work behind it, and disposing while that work is still queued runs it
     // against a graph that no longer exists.
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     container.remove();
     beforeChunk = null;
 });
@@ -811,7 +813,7 @@ describe("a third party's file format", () => {
             element.dataSourceConfig = { data: ROSTER };
 
             await loaded;
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE, "every person in the file is a node in the graph");
             assert.strictEqual(element.getDataManager().edges.size, LINKS, "and every link is an edge");
@@ -838,9 +840,13 @@ describe("a third party's file format", () => {
 
             element.clearData();
             await element.addDataFromSource("json", { data: BUILT_IN_JSON });
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), ["ceres", "pallas"], "and the built-in JSON format still loads its own");
+            assert.deepStrictEqual(
+                heldNodeIds(),
+                ["ceres", "pallas"],
+                "and the built-in JSON format still loads its own",
+            );
         },
         TEST_TIMEOUT_MS,
     );
@@ -905,7 +911,7 @@ describe("a third party's file format", () => {
             await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }), {
                 format: ROSTER_FORMAT,
             });
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE);
         },
@@ -1029,7 +1035,10 @@ describe("a third party's file format", () => {
 
             const failure: unknown = await element
                 .addDataFromSource(ROSTER_FORMAT, { data: "person gil\nperson hal\n" })
-                .then(() => null, (error: unknown) => error);
+                .then(
+                    () => null,
+                    (error: unknown) => error,
+                );
 
             assert.isTrue(isGraphtyError(failure) && failure.code === "E_EMPTY_LOAD");
             assert.strictEqual((await summary).totalErrors, 2, "both rejected rows are reported");
@@ -1048,7 +1057,10 @@ describe("a third party's file format", () => {
                     { data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 },
                     { replace: true },
                 )
-                .then(() => null, (error: unknown) => error);
+                .then(
+                    () => null,
+                    (error: unknown) => error,
+                );
 
             assert.isTrue(isGraphtyError(failure) && failure.code === "E_PARSE_FAILED");
             assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the partial read did not replace the roster");
@@ -1203,7 +1215,7 @@ describe("a third party's format being recognised from a file", () => {
             await element.loadFromFile(
                 new File([ROSTER_ONLY_ITS_NAME_IDENTIFIES], "team.roster", { type: "text/plain" }),
             );
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the element worked out which format it had been handed");
             assert.strictEqual(
@@ -1221,7 +1233,7 @@ describe("a third party's format being recognised from a file", () => {
             const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
 
             await element.loadFromFile(new File([ROSTER], "notes.txt", { type: "text/plain" }));
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the sniffer the format declared was asked and answered");
             assert.strictEqual((await finished).format, ROSTER_FORMAT, "and it was that format that read the file");
@@ -1238,7 +1250,7 @@ describe("a third party's format being recognised from a file", () => {
 
             try {
                 await element.loadFromUrl(url);
-                await element.graph.operationQueue.waitForCompletion();
+                await operationQueueOf(element.graph).waitForCompletion();
 
                 assert.deepStrictEqual(heldNodeIds(), PEOPLE);
             } finally {
@@ -1255,7 +1267,7 @@ describe("a third party's format being recognised from a file", () => {
 
             try {
                 await element.loadFromUrl(url, { format: ROSTER_FORMAT });
-                await element.graph.operationQueue.waitForCompletion();
+                await operationQueueOf(element.graph).waitForCompletion();
 
                 assert.deepStrictEqual(heldNodeIds(), PEOPLE);
             } finally {
@@ -1295,9 +1307,13 @@ describe("a third party's format being recognised from a file", () => {
             );
 
             await element.loadFromFile(new File([ACME_XML], "team.xml", { type: "text/xml" }));
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), ACME_PEOPLE, "and the file loaded through the format that claimed it");
+            assert.deepStrictEqual(
+                heldNodeIds(),
+                ACME_PEOPLE,
+                "and the file loaded through the format that claimed it",
+            );
         },
         TEST_TIMEOUT_MS,
     );
@@ -1331,15 +1347,19 @@ describe("a third party's format being recognised from a file", () => {
 });
 
 describe("a third party's format being configured", () => {
-    it("takes the default it declared when the host sets nothing", async () => {
-        await loadRoster({ data: ROSTER });
+    it(
+        "takes the default it declared when the host sets nothing",
+        async () => {
+            await loadRoster({ data: ROSTER });
 
-        assert.strictEqual(
-            element.getDataManager().nodes.get("ada")?.data.score,
-            9,
-            "the declared default of 1 was filled in and multiplied nothing away",
-        );
-    }, TEST_TIMEOUT_MS);
+            assert.strictEqual(
+                element.getDataManager().nodes.get("ada")?.data.score,
+                9,
+                "the declared default of 1 was filled in and multiplied nothing away",
+            );
+        },
+        TEST_TIMEOUT_MS,
+    );
 
     it("refuses a value its published declaration would not accept", () => {
         const refusal = refusalFrom(() => DataSource.get(ROSTER_FORMAT, { data: ROSTER, scoreScale: -5 }));
@@ -1383,7 +1403,7 @@ describe("a third party's format being configured", () => {
             // identity paths. None of those is an option this format declared, and a format that
             // was refused for them could not be reached through either call.
             await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }));
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
 
             assert.deepStrictEqual(heldNodeIds(), PEOPLE);
         },

@@ -5,6 +5,7 @@ import { GraphtyError, isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
 import { LayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, EventManager, LayoutManager } from "../../src/managers";
+import { layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("LayoutManager", () => {
@@ -32,7 +33,7 @@ describe("LayoutManager", () => {
         });
 
         it("should dispose layout engine on dispose", async () => {
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
             layoutManager.dispose();
 
             // LayoutEngine doesn't have a dispose method in the abstract interface
@@ -43,7 +44,7 @@ describe("LayoutManager", () => {
 
     describe("layout management", () => {
         it("should set layout engine", async () => {
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             assert.isNotNull(layoutManager.layoutEngine);
             assert.equal(layoutManager.layoutEngine?.type, "ngraph");
@@ -58,7 +59,7 @@ describe("LayoutManager", () => {
                 { id: "node2", label: "Node 2" },
             ] as Record<string, unknown>[]);
 
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             // Verify layout was initialized
             assert.isNotNull(layoutManager.layoutEngine);
@@ -67,7 +68,7 @@ describe("LayoutManager", () => {
 
         it("should run configured number of pre-steps when setting layout", async () => {
             // Configure pre-steps in styles
-            graph.styles.config.behavior.layout.preSteps = 10;
+            graph.setLayoutBehavior({ layout: { preSteps: 10 } });
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -106,7 +107,7 @@ describe("LayoutManager", () => {
 
             try {
                 // Set layout which should trigger pre-steps
-                await layoutManager.setLayout("ngraph", {});
+                await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
                 // Verify that pre-steps were run
                 assert.equal(stepCount, 10, "Layout engine should have been stepped 10 times for pre-steps");
@@ -122,11 +123,11 @@ describe("LayoutManager", () => {
         it("should report an unknown layout name as a coded failure", async () => {
             // A bare TypeError left a consumer parsing a message to find out what went wrong, and
             // told it nothing about what it could have asked for instead.
-            await expect(layoutManager.setLayout("unknown", {})).rejects.toThrow(GraphtyError);
+            await expect(layoutManagerInternals.setLayout(layoutManager, "unknown", {})).rejects.toThrow(GraphtyError);
 
             let thrown: unknown;
             try {
-                await layoutManager.setLayout("unknown", {});
+                await layoutManagerInternals.setLayout(layoutManager, "unknown", {});
             } catch (error) {
                 thrown = error;
             }
@@ -139,7 +140,7 @@ describe("LayoutManager", () => {
 
         it("should handle zero pre-steps configuration", async () => {
             // Configure zero pre-steps
-            graph.styles.config.behavior.layout.preSteps = 0;
+            graph.setLayoutBehavior({ layout: { preSteps: 0 } });
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -168,7 +169,7 @@ describe("LayoutManager", () => {
 
             try {
                 // Set layout which should NOT trigger any pre-steps
-                await layoutManager.setLayout("ngraph", {});
+                await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
                 // Verify that NO pre-steps were run
                 assert.equal(stepCount, 0, "Layout engine should not have been stepped when preSteps is 0");
@@ -183,7 +184,7 @@ describe("LayoutManager", () => {
 
         it("should ensure pre-steps affect node positions", async () => {
             // Configure pre-steps in styles
-            graph.styles.config.behavior.layout.preSteps = 50;
+            graph.setLayoutBehavior({ layout: { preSteps: 50 } });
 
             // Add some nodes in a connected graph
             const dataManager = graph.getDataManager();
@@ -201,7 +202,7 @@ describe("LayoutManager", () => {
             ] as Record<string, unknown>[]);
 
             // Set layout which should trigger pre-steps
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             // Get positions after pre-steps
             const nodes = Array.from(layoutManager.nodes);
@@ -212,7 +213,7 @@ describe("LayoutManager", () => {
             // Verify that nodes have positions
             positions.forEach((pos, i) => {
                 assert.isDefined(pos, `Node ${i} should have a position after pre-steps`);
-                 
+
                 if (pos) {
                     assert.isArray(pos);
                     assert.equal(pos.length, 3);
@@ -230,11 +231,11 @@ describe("LayoutManager", () => {
 
         it("should dispose previous layout when setting new one", async () => {
             // Set first layout
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
             const firstEngine = layoutManager.layoutEngine;
 
             // Set second layout
-            await layoutManager.setLayout("random", {});
+            await layoutManagerInternals.setLayout(layoutManager, "random", {});
 
             // LayoutEngine doesn't have a dispose method, so we just check that layout was set
             assert.isNotNull(firstEngine);
@@ -244,7 +245,7 @@ describe("LayoutManager", () => {
 
     describe("layout stepping", () => {
         beforeEach(async () => {
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
         });
 
         it("should step layout when running", () => {
@@ -287,7 +288,7 @@ describe("LayoutManager", () => {
                 { id: "node2", label: "Node 2" },
             ] as Record<string, unknown>[]);
 
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             const nodes = Array.from(layoutManager.nodes);
             assert.equal(nodes.length, 2);
@@ -304,7 +305,7 @@ describe("LayoutManager", () => {
             ] as Record<string, unknown>[]);
             dataManager.addEdges([{ id: "edge1", src: "node1", dst: "node2" }] as Record<string, unknown>[]);
 
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             const edges = Array.from(layoutManager.edges);
             assert.equal(edges.length, 1);
@@ -318,7 +319,7 @@ describe("LayoutManager", () => {
             const dataManager = graph.getDataManager();
             dataManager.addNodes([{ id: "node1", label: "Node 1" }] as Record<string, unknown>[]);
 
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
         });
 
         it("should get node position from layout engine", () => {
@@ -370,8 +371,8 @@ describe("LayoutManager", () => {
             const node = nodes[0];
 
             // Clear the layout engine to make it return undefined
-             
-            (newManager as any).layoutEngine = undefined;
+
+            layoutManagerInternals.setEngine(newManager, undefined);
 
             const position = newManager.getNodePosition(node);
 
@@ -385,7 +386,7 @@ describe("LayoutManager", () => {
 
     describe("layout state", () => {
         it("should report settled state from layout engine", async () => {
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             // ngraph layout might or might not be settled immediately
             assert.isBoolean(layoutManager.isSettled);
@@ -409,7 +410,7 @@ describe("LayoutManager", () => {
 
         it("a layout stopped before it converged is paused, not settled, and emits no graph-settled", async () => {
             graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
             const engine = layoutManager.layoutEngine;
             assert.isDefined(engine);
             // Still arranging: the engine has not converged.
@@ -432,7 +433,7 @@ describe("LayoutManager", () => {
 
         it("a converged layout is settled and not paused", async () => {
             graph.getDataManager().addNodes([{ id: "a" }] as Record<string, unknown>[]);
-            await layoutManager.setLayout("circular", {});
+            await layoutManagerInternals.setLayout(layoutManager, "circular", {});
             layoutManager.running = false;
 
             assert.isTrue(layoutManager.isSettled);
@@ -444,7 +445,7 @@ describe("LayoutManager", () => {
         it("holds through every internal restart until the consumer resumes", async () => {
             const dataManager = graph.getDataManager();
             dataManager.addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             graph.setRunning(false);
             assert.isFalse(graph.isRunning());
@@ -459,11 +460,57 @@ describe("LayoutManager", () => {
             const late = layoutManager.getNodePosition(dataManager.getNode("late")!);
             assert.isDefined(late, "but the new node is placed");
 
-            await layoutManager.setLayout("circular", {});
+            await layoutManagerInternals.setLayout(layoutManager, "circular", {});
             assert.isFalse(graph.isRunning(), "neither does setting another layout");
 
             graph.setRunning(true);
             assert.isTrue(graph.isRunning(), "the consumer's resume runs it again");
+        });
+    });
+
+    describe("a layout that cannot place the graph as it stands", () => {
+        it("reports it on the error channel and the add is still drawn and painted", async () => {
+            await graph.setLayout("bfs", { start: "a" });
+            const errors: unknown[] = [];
+            graph.on("error", (event) => errors.push(event));
+
+            // Two nodes and no edge: disconnected, which bfs refuses until the edge arrives.
+            await graph.addNodes([{ id: "a" }, { id: "b" }]);
+
+            assert.lengthOf(errors, 1, "reported once, on the element's error channel");
+            for (const node of graph.getNodes()) {
+                assert.isNotNull(graph.getStylePainter().nodePaint(node.index), `node ${node.id} is painted`);
+            }
+        });
+    });
+
+    describe("while the lane is restoring", () => {
+        it("neither a frame nor newcomers step the layout", async () => {
+            const dataManager = graph.getDataManager();
+            dataManager.addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            dataManager.addEdges([{ src: "a", dst: "b" }] as Record<string, unknown>[]);
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
+            const at = (): string => JSON.stringify(layoutManager.getNodePosition(dataManager.getNode("a")!));
+            layoutManager.running = true;
+            const { restoring } = layoutManager;
+            layoutManager.restoring = () => true;
+            // Strict state reports the placement it refuses; this test asks only that it refuses.
+            const report = (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__;
+            const reported: unknown[] = [];
+            (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__ = (error) => {
+                reported.push(error);
+            };
+            try {
+                const before = at();
+                layoutManager.step();
+                assert.strictEqual(at(), before, "a frame does not step it");
+                await layoutManager.updatePositions([dataManager.getNode("a")!]);
+                assert.strictEqual(at(), before, "newcomers do not step it");
+                assert.lengthOf(reported, 1, "strict state reports the placement");
+            } finally {
+                (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__ = report;
+                layoutManager.restoring = restoring;
+            }
         });
     });
 
@@ -479,11 +526,11 @@ describe("LayoutManager", () => {
             };
 
             for (const { id, engine } of LAYOUT_DESCRIPTORS) {
-                await layoutManager.setLayout(id, required[id] ?? {});
+                await layoutManagerInternals.setLayout(layoutManager, id, required[id] ?? {});
                 assert.strictEqual(layoutManager.layoutType, engine, `"${id}" runs its default engine`);
             }
 
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
             assert.strictEqual(layoutManager.layoutType, "ngraph");
         });
     });
@@ -491,8 +538,9 @@ describe("LayoutManager", () => {
     describe("2D layout dimension support", () => {
         it("should use 2D mode for NGraphEngine when twoD is set in styles", async () => {
             // Configure 2D mode in styles (testing deprecated API for backward compatibility)
-             
-            graph.styles.config.graph.twoD = true;
+
+            // The dimension's one home is the `layout` slice; the deprecated flag is computed from it.
+            await graph.setViewMode("2d");
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -507,7 +555,7 @@ describe("LayoutManager", () => {
             ] as Record<string, unknown>[]);
 
             // Set ngraph layout which should respect 2D configuration
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             // Run some steps to let layout settle
             for (let i = 0; i < 100; i++) {
@@ -521,7 +569,7 @@ describe("LayoutManager", () => {
             // Verify all nodes have positions with z=0 in 2D mode
             positions.forEach((pos, i) => {
                 assert.isDefined(pos, `Node ${i} should have a position`);
-                 
+
                 if (pos) {
                     assert.equal(pos[2], 0, `Node ${i} Z coordinate should be 0 in 2D mode`);
                 }
@@ -530,8 +578,9 @@ describe("LayoutManager", () => {
 
         it("should use 3D mode for NGraphEngine when twoD is not set", async () => {
             // Ensure 3D mode (testing deprecated API for backward compatibility)
-             
-            graph.styles.config.graph.twoD = false;
+
+            // The dimension's one home is the `layout` slice; the deprecated flag is computed from it.
+            await graph.setViewMode("3d");
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -546,7 +595,7 @@ describe("LayoutManager", () => {
             ] as Record<string, unknown>[]);
 
             // Set ngraph layout in 3D mode
-            await layoutManager.setLayout("ngraph", { seed: 12345 });
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", { seed: 12345 });
 
             // Run some steps to let layout settle
             for (let i = 0; i < 100; i++) {

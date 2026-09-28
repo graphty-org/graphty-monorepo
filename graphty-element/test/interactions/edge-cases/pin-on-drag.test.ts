@@ -7,7 +7,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: "node1" }, { id: "node2" }, { id: "node3" }];
@@ -29,10 +29,15 @@ describe("pinOnDrag Behavior", () => {
 
             graph = new Graph(container);
             await graph.init();
-            await configureGraph(graph, { viewMode: "3d", layout: "ngraph", layoutOptions: { dim: 3 }, pinOnDrag: true });
+            await configureGraph(graph, {
+                viewMode: "3d",
+                layout: "ngraph",
+                layoutOptions: { dim: 3 },
+                pinOnDrag: true,
+            });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 200));
         });
 
@@ -102,10 +107,15 @@ describe("pinOnDrag Behavior", () => {
 
             graph = new Graph(container);
             await graph.init();
-            await configureGraph(graph, { viewMode: "3d", layout: "ngraph", layoutOptions: { dim: 3 }, pinOnDrag: false });
+            await configureGraph(graph, {
+                viewMode: "3d",
+                layout: "ngraph",
+                layoutOptions: { dim: 3 },
+                pinOnDrag: false,
+            });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 200));
         });
 

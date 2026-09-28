@@ -10,7 +10,9 @@
  * THE RULES, ALL SIX OF THEM:
  *
  * - **A run paints on its FIRST completion, and never again.** A re-run keeps its id, so it keeps
- *   its layers too -- repainting would stack a second copy on the one already bound to it.
+ *   its layers too -- repainting would stack a second copy on the one already bound to it. Whether
+ *   a run has had that moment is kept on its entry in the `runs` slice (`RunEntry.painted`), so an
+ *   undo that takes the run away takes the moment with it, and a redo brings both back.
  * - **A layer somebody wrote by hand wins.** If an authored layer already drives the channel a
  *   suggestion would paint, the suggestion is dropped rather than painted over the decision. The
  *   element's own base layers are not authored and do not suppress anything, or nothing would ever
@@ -21,60 +23,47 @@
  *   the one that would have ended up on top -- so the picture is the same as running the six by
  *   hand, without the five dead layers.
  * - **An explicit `encode()` replaces the derived layer rather than stacking on it.** That rule is
- *   `styles.encode()`'s own, which is exactly why this policy applies suggestions THROUGH the same
- *   verb a consumer calls instead of adding layers by another door: a stranger who runs an
- *   algorithm and then colours by it gets one layer and one legend block, in the place the derived
- *   layer already had.
+ *   `styles.encode()`'s own, which is exactly why a suggestion is applied as the same command a
+ *   consumer's call dispatches (see {@link suggestionCommand}) instead of adding layers by another
+ *   door: a stranger who runs an algorithm and then colours by it gets one layer and one legend
+ *   block, in the place the derived layer already had.
  * - **A highlight is exclusive**, likewise enforced by `styles.highlight()`: a second route or
  *   chosen set replaces the first.
  * - **`{ style: false }` opts out**, and a run that failed, was cancelled or has nothing per
  *   element to paint suggests nothing in the first place.
  *
+ * WHERE THE LAYERS GO. This policy only decides; the runs API plans what it decides into the run's
+ * own step, in the synchronous tail that records the run, so the run, its result and its layers are
+ * one step and one undo (design/undo/undo-design.md section 4.7). A batch's decisions are held and
+ * planned into the batch's step when it is released.
+ *
  * WHAT THIS DOES NOT DO. It never removes a layer, never disables one, and never paints an element
  * a run measured nothing about: what a suggestion becomes is decided by {@link suggestStyles} and
- * applied by the two verbs, both of which scope the layer to the elements carrying that run's
- * value. Dimming the rest is a reader's choice and is not made here.
+ * applied as an encoding or a highlight, both of which scope the layer to the elements carrying
+ * that run's value. Dimming the rest is a reader's choice and is not made here.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { Channel, RunId } from "../../catalog/types";
+import type { StyleCommand } from "../commands/style";
+import type { RunRef } from "../results/types";
 import type { RunStatus, RunStyle } from "../runs/types";
 import { type StyleSuggestion, suggestStyles } from "./derive";
-import type { EncodingRun, EncodingSpec } from "./EncodingSpec";
+import type { EncodingRun } from "./EncodingSpec";
 import type { Layer } from "./Layer";
-import type { HighlightSpec } from "./StylesApi";
 
 // ---------------------------------------------------------------------------------------------
 // What the policy talks to
 // ---------------------------------------------------------------------------------------------
 
-/**
- * The stack, as the policy needs it: what is in it, and the two verbs that bind a run to it.
- *
- * Narrow on purpose. A policy that held the whole styles API could add, move and remove layers,
- * and the reason it applies a suggestion through `encode()` rather than through `add()` is that
- * `encode()` carries the replacement rule and the generated selector. Taking only the two verbs is
- * what makes going around them impossible rather than merely discouraged.
- */
+/** The stack, as the policy reads it: what is in it, so an authored layer can win. */
 export interface AutoApplyStyles {
     /**
      * Every layer in the stack, bottom first.
      * @returns The layers.
      */
     list(): readonly Layer[];
-    /**
-     * Paint a run's measurement onto a channel.
-     * @param spec - The run, the channel and the taste.
-     * @returns A run that resolves with the layer.
-     */
-    encode(spec: EncodingSpec): PromiseLike<unknown>;
-    /**
-     * Paint the elements a run chose.
-     * @param spec - The run, the field that says which elements it chose, and what they look like.
-     * @returns A run that resolves with the layers it added.
-     */
-    highlight(spec: HighlightSpec): PromiseLike<unknown>;
 }
 
 /**
@@ -103,40 +92,55 @@ export interface AutoApplySources {
     /**
      * Called when applying a suggestion was refused.
      *
-     * Optional, and the reason it exists at all is that the defect this whole system replaces was
-     * silent: a style that failed to apply left the picture looking like an answer. A host that
-     * wires this can say so; a host that does not still never has a refusal reach a consumer's
-     * click handler, because applying is fire-and-forget.
+     * The defect this whole system replaces was silent: a style that failed to apply left the
+     * picture looking like an answer. The run is still recorded without the refused layer, and
+     * the refusal arrives here instead of at a caller who did not ask for the layer.
      * @param runId - The run whose suggestion was refused.
      * @param error - Why.
      */
     readonly onProblem?: (runId: RunId, error: unknown) => void;
 }
 
-/**
- * The policy, as whoever finishes a run calls it.
- *
- * Three verbs, and the middle two are a pair: everything between `hold()` and `release()` is one
- * piece of work as far as painting is concerned.
- */
+/** A batch's suggestions, held until the batch is released. */
+export interface PaintHold {
+    /**
+     * Stop holding.
+     * @returns What was held, one suggestion per channel, keeping the member that would have
+     * ended up on top, minus what an authored layer already drives; empty on a second release.
+     */
+    release(): readonly StyleSuggestion[];
+}
+
+/** What the policy decided about one finished run. */
+interface PaintDecision {
+    /** Whether the run has now had its first-completion moment: `RunEntry.painted`. */
+    readonly painted: boolean;
+    /** What to plan into the run's step now; empty when held or when there is nothing to paint. */
+    readonly paint: readonly StyleSuggestion[];
+}
+
+/** The policy, as whoever records a finished run calls it. */
 export interface AutoApplyPolicy {
     /**
-     * A run reached the end of its life. Paint it, if this is the moment to.
+     * A run reached the end of its life. Decide whether this is the moment it paints.
      * @param run - The run that finished.
+     * @param painted - Whether it had its moment already: the `painted` flag of the entry its
+     * record replaces.
+     * @param hold - The batch holding it, whose release paints it instead.
+     * @returns The decision.
      */
-    completed(run: AutoApplyRun): void;
-    /** Hold painting until the matching {@link AutoApplyPolicy.release}. Nests. */
-    hold(): void;
-    /** Release one hold, painting what was held once the last one is released. */
-    release(): void;
+    completed(run: AutoApplyRun, painted: boolean, hold?: PaintHold): PaintDecision;
     /**
-     * Forget that a run has already painted, because the session no longer holds it.
-     *
-     * Starting the same work again after it was removed is a first completion again: the layers
-     * that painted it went with it, so "never again" would leave a run that nothing can draw.
-     * @param runId - The run that was removed.
+     * Hold a batch's painting until the hold is released.
+     * @returns The hold.
      */
-    forget(runId: RunId): void;
+    hold(): PaintHold;
+    /**
+     * Report a suggestion the stack refused.
+     * @param runId - The run.
+     * @param error - Why.
+     */
+    refused(runId: RunId, error: unknown): void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -146,13 +150,8 @@ export interface AutoApplyPolicy {
 /** The layer sources that are somebody's decision rather than the element's derivation. */
 const AUTHORED: readonly string[] = Object.freeze(["user", "template", "plugin"]);
 
-/** One suggestion waiting to be painted, and the run it came from. */
-interface Pending {
-    /** The run that suggested it, for a refusal that has to name something. */
-    readonly runId: RunId;
-    /** What it suggests. */
-    readonly suggestion: StyleSuggestion;
-}
+/** Nothing to paint. */
+const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
 
 /**
  * What two suggestions have to agree on to be the same picture.
@@ -194,102 +193,106 @@ function authoredDrives(layers: readonly Layer[], channels: readonly Channel[]):
     });
 }
 
+/**
+ * A run reference as the id a command carries.
+ * @param ref - The reference.
+ * @returns The id.
+ */
+function idOf(ref: RunRef): RunId {
+    if (typeof ref === "string") {
+        return ref;
+    }
+
+    return "runId" in ref ? ref.runId : ref.id;
+}
+
+/**
+ * The command a suggestion is applied as: the one `styles.encode()` or `styles.highlight()`
+ * dispatches for the same specification, so the replacement and exclusivity rules of those verbs
+ * hold for it too.
+ * @param suggestion - The suggestion.
+ * @returns The style command.
+ */
+export function suggestionCommand(suggestion: StyleSuggestion): StyleCommand {
+    return suggestion.as === "highlight"
+        ? { op: "style.patch", action: "highlight", spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) } }
+        : { op: "style.encode", spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) } };
+}
+
 // ---------------------------------------------------------------------------------------------
 // The policy
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Build the policy one session applies its runs' styling through.
- * @param sources - The stack to paint into, and where a refusal is reported.
+ * Build the policy one session decides its runs' styling with.
+ * @param sources - The stack to read, and where a refusal is reported.
  * @returns The policy.
  */
 export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolicy {
-    /** The runs that have already had their moment, whether or not anything was painted. */
-    const painted = new Set<RunId>();
-    /** What is waiting for the last hold to be released, newest last. */
-    const pending = new Map<string, Pending>();
-    let holds = 0;
+    /** Every hold still open, with what it has been handed, newest last. */
+    const held = new WeakMap<PaintHold, Map<string, StyleSuggestion>>();
 
     /**
-     * Apply one suggestion, through the same verb a consumer would have called.
-     * @param styles - The stack to paint into.
-     * @param entry - The suggestion and the run it came from.
+     * Drop what an authored layer already drives, reading the stack once: a suggestion is
+     * suppressed by a decision somebody had already made, never by a layer the suggestion beside
+     * it is about to add.
+     * @param suggestions - The candidates.
+     * @returns What to paint.
      */
-    const apply = (styles: AutoApplyStyles, entry: Pending): void => {
-        const { suggestion } = entry;
-        const report = (error: unknown): void => {
-            sources.onProblem?.(entry.runId, error);
-        };
-        const edit =
-            suggestion.as === "highlight" ? styles.highlight(suggestion.spec) : styles.encode(suggestion.spec);
-
-        // Fire and forget, with the refusal caught: a style edit is a queued run, and the element
-        // must not make a consumer await the picture in order to have started the work.
-        void edit.then(() => undefined, report);
-    };
-
-    /** Paint everything that was held, one edit per channel. */
-    const flush = (): void => {
-        const entries = [...pending.values()];
-        pending.clear();
-
+    const unsuppressed = (suggestions: readonly StyleSuggestion[]): readonly StyleSuggestion[] => {
         const styles = sources.styles();
 
-        if (entries.length === 0 || styles === undefined) {
-            return;
+        if (suggestions.length === 0 || styles === undefined) {
+            return NOTHING;
         }
 
-        // Read once, before any of these edits lands: a suggestion is suppressed by a decision
-        // somebody had already made, never by the layer the entry beside it is about to add.
         const stack = styles.list();
 
-        for (const entry of entries) {
-            if (!authoredDrives(stack, entry.suggestion.channels)) {
-                apply(styles, entry);
-            }
-        }
+        return Object.freeze(suggestions.filter((suggestion) => !authoredDrives(stack, suggestion.channels)));
     };
 
     return {
-        completed(run: AutoApplyRun): void {
+        completed(run: AutoApplyRun, painted: boolean, hold?: PaintHold): PaintDecision {
             // A cancel and a failure have no result to paint, and a re-run keeps its id -- so a
             // run that already had its moment keeps the layers it already has.
-            if (run.status !== "succeeded" || !run.style || painted.has(run.id)) {
-                return;
+            if (run.status !== "succeeded" || !run.style || painted) {
+                return { painted, paint: NOTHING };
             }
 
-            // Marked whether or not anything is painted. The moment a run first completes is the
+            // Had whether or not anything is painted. The moment a run first completes is the
             // moment the policy had, and coming back to it later -- after a reader has arranged
             // the stack -- would repaint a picture they had already decided about.
-            painted.add(run.id);
+            const suggestions = suggestStyles(run, run.style);
+            const pending = hold === undefined ? undefined : held.get(hold);
 
-            for (const suggestion of suggestStyles(run, run.style)) {
-                pending.set(coalesceKey(suggestion), { runId: run.id, suggestion });
+            if (pending === undefined) {
+                return { painted: true, paint: unsuppressed(suggestions) };
             }
 
-            if (holds === 0) {
-                flush();
+            for (const suggestion of suggestions) {
+                // The member that finished last replaces the one before it on the same channel.
+                pending.set(coalesceKey(suggestion), suggestion);
             }
+
+            return { painted: true, paint: NOTHING };
         },
 
-        hold(): void {
-            holds++;
+        hold(): PaintHold {
+            const hold: PaintHold = {
+                release: () => {
+                    const pending = held.get(hold);
+                    held.delete(hold);
+
+                    return pending === undefined ? NOTHING : unsuppressed([...pending.values()]);
+                },
+            };
+            held.set(hold, new Map());
+
+            return hold;
         },
 
-        release(): void {
-            if (holds === 0) {
-                return;
-            }
-
-            holds--;
-
-            if (holds === 0) {
-                flush();
-            }
-        },
-
-        forget(runId: RunId): void {
-            painted.delete(runId);
+        refused(runId: RunId, error: unknown): void {
+            sources.onProblem?.(runId, error);
         },
     };
 }

@@ -5,6 +5,7 @@
 
 import type { AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
+import type { TransactionScope } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
@@ -34,6 +35,16 @@ export interface AiControllerOptions {
 export interface ExecutionResult extends CommandResult {
     /** Raw response text from LLM (if any) */
     llmText?: string;
+}
+
+/**
+ * A tool threw, so the message's transaction rolled back everything its tools did. Carries the
+ * result the reader is told, which reports the failure.
+ */
+class MessageRolledBack extends Error {
+    constructor(readonly result: ExecutionResult) {
+        super(result.message);
+    }
 }
 
 /**
@@ -120,60 +131,23 @@ export class AiController {
         this.statusManager.submit();
 
         try {
-            // Build messages for LLM
-            const messages: Message[] = this.buildMessages(input);
+            // One message is one undoable step: everything its tools do through `ctx.tx` joins
+            // the transaction, a tool that throws rolls all of it back, and an undo while the
+            // message is still going aborts it, which stops the model and every tool.
+            let result: ExecutionResult;
+            try {
+                result = await this.graph
+                    .getSession()
+                    .transaction(input, (tx, signal) => this.converse(input, tx, signal), {
+                        provenance: { via: "assistant" },
+                    });
+            } catch (error) {
+                if (!(error instanceof MessageRolledBack)) {
+                    throw error;
+                }
 
-            // Get tool definitions from registry
-            const tools = this.commandRegistry.toToolDefinitions();
-
-            logger.debug("Request", { messages, tools: tools.map((t) => t.name) });
-
-            // Transition to streaming state
-            this.statusManager.startStreaming();
-
-            // Call the LLM
-            const response = await this.provider.generate(messages, tools, { signal: this.abortController.signal });
-
-            logger.debug("Response", {
-                text: response.text || "(no text)",
-                toolCalls: response.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
-            });
-
-            // Append any text response and emit stream chunk event
-            if (response.text) {
-                this.statusManager.appendStreamedText(response.text);
-                this.emitAiEvent({
-                    type: "ai-stream-chunk",
-                    text: response.text,
-                    accumulated: response.text,
-                });
+                ({ result } = error);
             }
-
-            // If no tool calls, return text response
-            if (response.toolCalls.length === 0) {
-                this.statusManager.complete();
-
-                const result: ExecutionResult = {
-                    success: true,
-                    message: response.text || "No response from AI",
-                    llmText: response.text,
-                };
-
-                // Emit complete event
-                this.emitAiEvent({
-                    type: "ai-command-complete",
-                    result,
-                    duration: Date.now() - this.startTime,
-                });
-
-                return result;
-            }
-
-            // Transition to executing state
-            this.statusManager.startExecuting();
-
-            // Execute tool calls
-            const result = await this.executeToolCalls(response.toolCalls, response.text);
 
             // Complete
             this.statusManager.complete();
@@ -289,15 +263,91 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
+     * One message, inside its transaction: ask the model, then run the tools it calls.
+     * @param input - The user's natural language input
+     * @param tx - The message's transaction, which the tools write through
+     * @param signal - Fires when the message is cancelled or its transaction aborted
+     * @returns The execution result
+     */
+    private async converse(input: string, tx: TransactionScope, signal: AbortSignal): Promise<ExecutionResult> {
+        // The transaction's abort (an undo during the message) stops the model and every tool.
+        const { abortController } = this;
+        signal.addEventListener(
+            "abort",
+            () => {
+                abortController?.abort(signal.reason);
+            },
+            { once: true },
+        );
+        const aborted = abortController?.signal ?? signal;
+
+        // Build messages for LLM
+        const messages: Message[] = this.buildMessages(input);
+
+        // Get tool definitions from registry
+        const tools = this.commandRegistry.toToolDefinitions();
+
+        logger.debug("Request", { messages, tools: tools.map((t) => t.name) });
+
+        // Transition to streaming state
+        this.statusManager.startStreaming();
+
+        // Call the LLM
+        const response = await this.provider.generate(messages, tools, { signal: aborted });
+
+        logger.debug("Response", {
+            text: response.text || "(no text)",
+            toolCalls: response.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
+        });
+
+        // Append any text response and emit stream chunk event
+        if (response.text) {
+            this.statusManager.appendStreamedText(response.text);
+            this.emitAiEvent({
+                type: "ai-stream-chunk",
+                text: response.text,
+                accumulated: response.text,
+            });
+        }
+
+        // If no tool calls, return text response
+        if (response.toolCalls.length === 0) {
+            return {
+                success: true,
+                message: response.text || "No response from AI",
+                llmText: response.text,
+            };
+        }
+
+        // Transition to executing state
+        this.statusManager.startExecuting();
+
+        // Execute tool calls
+        return this.executeToolCalls(response.toolCalls, tx, aborted, response.text);
+    }
+
+    /**
      * Execute a list of tool calls.
      * @param toolCalls - Tool calls to execute
+     * @param tx - The message's transaction
+     * @param signal - Fires when the message is cancelled
      * @param llmText - Text response from LLM (if any)
      * @returns Combined execution result
+     * @throws MessageRolledBack when a tool threw, so the message's transaction rolls back.
      */
-    private async executeToolCalls(toolCalls: ToolCall[], llmText?: string): Promise<ExecutionResult> {
+    private async executeToolCalls(
+        toolCalls: ToolCall[],
+        tx: TransactionScope,
+        signal: AbortSignal,
+        llmText?: string,
+    ): Promise<ExecutionResult> {
         const results: CommandResult[] = [];
+        let threw = false;
 
         for (const toolCall of toolCalls) {
+            // Cancelled, or undone while the message was going: no further tool runs.
+            signal.throwIfAborted();
+
             // Add tool call to status
             this.statusManager.addToolCall(toolCall.name);
             this.statusManager.updateToolCallStatus(toolCall.name, "executing");
@@ -310,7 +360,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             });
 
             try {
-                const result = await this.executeToolCall(toolCall);
+                const result = await this.executeToolCall(toolCall, tx);
 
                 results.push(result);
 
@@ -351,20 +401,27 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                     result: { error: errorMessage },
                     success: false,
                 });
+                threw = true;
                 break;
             }
         }
 
         // Combine results
-        return this.combineResults(results, llmText);
+        const combined = this.combineResults(results, llmText);
+        if (threw) {
+            throw new MessageRolledBack(combined);
+        }
+
+        return combined;
     }
 
     /**
      * Execute a single tool call.
      * @param toolCall - The tool call to execute
+     * @param tx - The message's transaction, handed to the command as `ctx.tx`
      * @returns Command result
      */
-    private async executeToolCall(toolCall: ToolCall): Promise<CommandResult> {
+    private async executeToolCall(toolCall: ToolCall, tx: TransactionScope): Promise<CommandResult> {
         logger.debug("Executing command", { name: toolCall.name, arguments: toolCall.arguments });
 
         const command = this.commandRegistry.get(toolCall.name);
@@ -396,6 +453,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // Create execution context
         const context: CommandContext = {
             graph: this.graph,
+            tx,
             abortSignal: this.abortController?.signal ?? new AbortController().signal,
             emitEvent: (type: string, data: unknown) => {
                 // Bridge from string-based events to AiEvent

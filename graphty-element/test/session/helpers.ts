@@ -5,15 +5,15 @@ import type { EdgeId } from "../../src/catalog/types";
 import { DataConfig } from "../../src/config/DataConfig";
 import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/data/ingest";
 import {
-    createGraphSession,
     type GraphSession,
     type SessionAttributes,
     type SessionDataConfig,
     type SessionRunsOptions,
 } from "../../src/session";
+import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */
 export interface NodeRow {
@@ -65,7 +65,10 @@ export function edgeBetween(harness: Harness, source: string | number, target: s
     const snapshot = harness.session.data.snapshot();
     const space = edgeSpaceOf(snapshot);
     for (let edge = 0; edge < snapshot.edgeCount; edge++) {
-        if (snapshot.ids.idOf(snapshot.edgeSource(edge)) === source && snapshot.ids.idOf(snapshot.edgeTarget(edge)) === target) {
+        if (
+            snapshot.ids.idOf(snapshot.edgeSource(edge)) === source &&
+            snapshot.ids.idOf(snapshot.edgeTarget(edge)) === target
+        ) {
             return space.idOf(edge);
         }
     }
@@ -84,11 +87,17 @@ export interface Harness {
     /** Attribute bags by dense edge index. */
     edgeAttributes: Map<number, SessionAttributes>;
     /**
-     * Push more records in, exactly the way the data manager does.
+     * Push more records in beneath the session, as a write its history does not record: straight
+     * into the store and the record maps, then {@link Harness.touch}.
      * @param nodes - node records
      * @param edges - edge records
      */
     add(nodes: readonly NodeRow[], edges?: readonly EdgeRow[]): void;
+    /**
+     * Say that the rows or the records changed beneath the session: the store drops its snapshot
+     * and the graph token moves, as it does for every write the element makes.
+     */
+    touch(): void;
 }
 
 /**
@@ -101,7 +110,13 @@ export interface Harness {
  * @returns the harness
  */
 export function makeSession(
-    options: { directed?: boolean | "auto"; config?: SessionDataConfig; runs?: SessionRunsOptions } = {},
+    options: {
+        directed?: boolean | "auto";
+        config?: SessionDataConfig;
+        runs?: SessionRunsOptions;
+        /** The history clock and queue, for a test that drives them itself. */
+        internals?: Parameters<typeof createElementSession>[1];
+    } = {},
 ): Harness {
     // ONE configuration for both halves. A store told one thing and a session told another is the
     // bug this exists to make impossible: the session would report a graph as undirected while the
@@ -118,21 +133,30 @@ export function makeSession(
     const nodeAttributes = new Map<number, SessionAttributes>();
     const edgeAttributes = new Map<number, SessionAttributes>();
 
-    const session = createGraphSession({
+    const sessionOptions = {
         store,
         records: {
-            nodeAttributes: (index) => nodeAttributes.get(index),
-            edgeAttributes: (index) => edgeAttributes.get(index),
+            nodeAttributes: (index: number) => nodeAttributes.get(index),
+            edgeAttributes: (index: number) => edgeAttributes.get(index),
         },
         config: { data: config },
         ...(options.runs === undefined ? {} : { runs: options.runs }),
-    });
+    };
+    // The element's own form: a harness hands in its store and record source, which the published
+    // options do not take.
+    const session = createElementSession(sessionOptions, options.internals ?? {});
+
+    const touch = (): void => {
+        store.touch();
+        dispatcherOf(session).graph.retoken();
+    };
 
     return {
         session,
         store,
         nodeAttributes,
         edgeAttributes,
+        touch,
         add(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): void {
             for (const row of nodes) {
                 const { index } = ingestNode(store, row.id, row);
@@ -145,6 +169,8 @@ export function makeSession(
                 const { src: _src, dst: _dst, source: _source, target: _target, ...rest } = row;
                 edgeAttributes.set(index, rest);
             }
+
+            touch();
         },
     };
 }
@@ -170,7 +196,11 @@ export async function loadGexfCorpus(harness: Harness, file: string): Promise<vo
         // harness would read a file that says it is undirected as a digraph, and every count,
         // density and metric availability measured here would be measured on the wrong graph.
         if (source.declaredDirection !== null) {
-            ingestDeclaredDirection(harness.store, source.declaredDirection.directed, source.declaredDirection.statedBy);
+            ingestDeclaredDirection(
+                harness.store,
+                source.declaredDirection.directed,
+                source.declaredDirection.statedBy,
+            );
         }
 
         harness.add(

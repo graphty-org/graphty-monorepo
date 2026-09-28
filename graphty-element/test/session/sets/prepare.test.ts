@@ -13,6 +13,7 @@ import { loadRecord, MAX_EDGE_MEMBER_EDIT } from "../../../src/session/sets/prep
 import { createSetsApi } from "../../../src/session/sets/SetsApi";
 import { SetsStore } from "../../../src/session/sets/store";
 import type { SetsApi } from "../../../src/session/sets/types";
+import { plant } from "./plant";
 
 /** A store and its doors; session edge id "7" is the edge a -> b with file id "e7". */
 function harness(maxEdgeMembers?: number): { store: SetsStore; sets: SetsApi } {
@@ -218,21 +219,20 @@ describe("member edits", () => {
 
     it("refuses a set that is not fixed, opaque content, an unknown edge id and too many edge members", () => {
         const { store, sets } = harness();
+        plant(
+            store,
+            loadRecord({
+                id: "set_weighted",
+                name: "Weighted",
+                order: 9,
+                definition: { kind: "fixed", nodes: ["b", "a"], weights: [2, 1], reading: "induced" },
+                createdFrom: { kind: "user" },
+            }),
+        );
         const rule = sets.create({ kind: "rule", where: "degree > `1`", reading: "induced" }, { name: "R" });
         assert.strictEqual(refusal(() => sets.addMembers(rule, { nodes: ["a"] })).code, "E_BAD_COMMAND");
         assert.strictEqual(refusal(() => sets.removeMembers(rule, { nodes: ["a"] })).code, "E_BAD_COMMAND");
 
-        store.transact(() => {
-            store.put(
-                loadRecord({
-                    id: "set_weighted",
-                    name: "Weighted",
-                    order: 9,
-                    definition: { kind: "fixed", nodes: ["b", "a"], weights: [2, 1], reading: "induced" },
-                    createdFrom: { kind: "user" },
-                }),
-            );
-        });
         for (const call of [
             () => sets.addMembers("set_weighted", { nodes: ["c"] }),
             () => sets.removeMembers("set_weighted", { nodes: ["a"] }),
@@ -328,18 +328,17 @@ describe("unknown top-level fields", () => {
     it("survive rename untouched", () => {
         const { store, sets } = harness();
         const meta = { colour: "red", tags: ["x"] };
-        store.transact(() => {
-            store.put(
-                loadRecord({
-                    id: "set_meta",
-                    name: "Meta",
-                    order: 1,
-                    definition: { kind: "fixed", nodes: ["a"], reading: "induced" },
-                    createdFrom: { kind: "user" },
-                    meta,
-                }),
-            );
-        });
+        plant(
+            store,
+            loadRecord({
+                id: "set_meta",
+                name: "Meta",
+                order: 1,
+                definition: { kind: "fixed", nodes: ["a"], reading: "induced" },
+                createdFrom: { kind: "user" },
+                meta,
+            }),
+        );
         const before = sets.get("set_meta") as unknown as { meta: unknown };
         sets.rename("set_meta", "Renamed");
         sets.addMembers("set_meta", { nodes: ["b"] });
@@ -352,11 +351,7 @@ describe("unknown top-level fields", () => {
     it("an opaque definition can be renamed and removed, and round-trips value-identical", () => {
         const { store, sets } = harness();
         const definition = { kind: "plugin:ring", centre: "a", radius: 2 };
-        store.transact(() => {
-            store.put(
-                loadRecord({ id: "set_ring", name: "Ring", order: 1, definition, createdFrom: { kind: "user" } }),
-            );
-        });
+        plant(store, loadRecord({ id: "set_ring", name: "Ring", order: 1, definition, createdFrom: { kind: "user" } }));
         sets.rename("set_ring", "Ring 2");
         assert.deepStrictEqual(sets.get("set_ring")?.definition as unknown, definition);
         assert.match(sets.get("set_ring")?.revision ?? "", /^r1:/);

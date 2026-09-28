@@ -339,7 +339,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
 
 **graphty:**
-- Browser-based tests (Playwright)
+- `browser` - Browser-based tests (Playwright)
+- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
 - `default` - Node.js tests

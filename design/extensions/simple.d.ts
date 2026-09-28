@@ -70,7 +70,8 @@ type ShorthandValue<S> = S extends number
 /**
  * The resolved option values an extension's functions receive, typed from the declaration with no
  * generic written by the author. An option with a default is always present; one with no default,
- * or with `default: null`, may be undefined. For an "attribute" option that is the way to say
+ * or with `default: null`, may be undefined. A "node-id" or "node-set" option naming a node the
+ * graph lacks is refused before the code runs (E_OPTION_RANGE). For an "attribute" option that is the way to say
  * "optional": it is NOT BOUND unless the reader picks an attribute, the run-start existence check
  * skips it, and passing its undefined value to attr() or number() returns undefined
  * (simple-tier.md section 2.2).
@@ -118,11 +119,20 @@ export interface GraphView {
     edges(): readonly EdgeView[];
     node(id: NodeId): NodeView | undefined;
     edge(id: string): EdgeView | undefined;
+    /**
+     * The nodes grouped by the value at `path`, each group in the view's order. Groups come in
+     * readable order: numbers ascending, then text in natural order ("2" before "10"). A node
+     * without the attribute is in no group; an undefined `path` gives an empty map.
+     */
+    groupBy(path: string | undefined): ReadonlyMap<string | number | boolean, readonly NodeView[]>;
 }
 
 export interface NodeView {
     readonly id: NodeId;
-    /** edges().length. */
+    /**
+     * edges().length: a self-loop counts ONCE, as the element's built-in degree counts it
+     * (NetworkX and igraph count it twice; add edgesTo(node).length to match them).
+     */
     readonly degree: number;
     /** Every adjacent node once, whichever way the edge points. Never the node itself: a self-loop is in edges() only. */
     neighbors(): readonly NodeView[];
@@ -145,12 +155,17 @@ export interface NodeView {
      */
     edgesTo(other: NodeView): readonly EdgeView[];
     /**
-     * The sum of `path` over edgesTo(other) -- w_ij, with parallel edges added together -- or
-     * undefined when there is no such edge. An edge whose value is missing adds nothing; when
-     * `path` is undefined (an unbound optional weight) every edge counts 1, so the same call serves
-     * a weighted and an unweighted graph.
+     * The sum of edge.weight(path) over edgesTo(other) -- w_ij, with parallel edges added together
+     * -- or undefined when there is no such edge. The weight rule is EdgeView.weight's.
      */
     weightTo(other: NodeView, path: string | undefined): number | undefined;
+    /**
+     * The weighted degree: the sum of edge.weight(path) over edges() (default "all"), or over
+     * outEdges() / inEdges() (which need `direction: "directed"`). With `path` undefined it is the
+     * degree. An edge with no number at `path` is left out and counted in the run record's warning.
+     * Computed once per node, path and direction per run, so calling it from edge() is cheap.
+     */
+    strength(path: string | undefined, direction?: "all" | "out" | "in"): number;
     /**
      * An attribute or a published result, by path, resolved exactly as a style selector resolves
      * it ("tier", "location.lat", "results.clusters.group"). undefined when absent, or when `path`
@@ -178,6 +193,13 @@ export interface EdgeView {
     readonly target: NodeView;
     /** The end that is not `node` (a self-loop returns `node`). Throws when `node` is not an end. */
     other(node: NodeView): NodeView;
+    /**
+     * The edge's weight at `path`: 1 when `path` is undefined (an unbound optional weight), the
+     * number when there is one, undefined when the value is missing or is not a number. One rule
+     * for weight, strength and weightTo (simple-tier.md section 2.3 rule 10). A read that finds no
+     * number is counted in the run record's warning, never read as 0.
+     */
+    weight(path: string | undefined): number | undefined;
     attr(path: string | undefined): unknown;
     number(path: string | undefined): number | undefined;
 }
@@ -347,7 +369,10 @@ export type PlainRecord = Readonly<Record<string, unknown>>;
 export interface Records {
     readonly nodes?: readonly PlainRecord[];
     readonly edges?: readonly PlainRecord[];
-    /** What the source says about edge direction, when it says anything. */
+    /**
+     * What the source says about edge direction. Absent: it says nothing, and the element's own
+     * direction setting applies, as for any file that does not state one.
+     */
     readonly directed?: boolean;
 }
 
@@ -434,8 +459,8 @@ export interface LoadContext<V> {
      * source when it installed it. A URL off `hosts` (from an option the reader edited) is fetched
      * only after the reader confirms it, or when the embedder allowed its origin
      * (DataSourceControls.allowSourceHosts); with no reader to ask it is refused. The fetch also
-     * attaches the credential, retries with backoff, applies the timeout and the rate limit,
-     * honours the signal, and turns a failed response into E_FETCH_FAILED. It refuses the same URL
+     * attaches the credential, retries with backoff, applies a 30-second timeout per request, sends
+     * one request at a time and waits out an HTTP 429's Retry-After, honours the signal, and turns a failed response into E_FETCH_FAILED. It refuses the same URL
      * twice in one load and more than `maxRequests` requests (E_FETCH_FAILED, details.reason
      * "repeated" or "limit"), so a pager whose API repeats its `next` link stops.
      *
@@ -506,9 +531,11 @@ export interface PaletteDefinition {
     readonly id: string;
     readonly kind: PaletteDescriptor["kind"];
     /**
-     * Any colour CSS can parse EXCEPT var(): a custom property is not resolved (read it first with
-     * getComputedStyle(document.documentElement).getPropertyValue("--brand-navy")). Normalised to
-     * six-digit hex. A categorical palette has one colour per group; the element never wraps, so
+     * Any colour CSS can parse EXCEPT var(), which definePalette refuses (E_BAD_COMMAND) with the
+     * fix in the message: read the token first with
+     * getComputedStyle(document.documentElement).getPropertyValue("--brand-navy").trim(), after
+     * its stylesheet has loaded. An empty string is refused the same way. Normalised to six-digit
+     * hex. A categorical palette has one colour per group; the element never wraps, so
      * groups past the last colour are left in the base colour and reported (E_CAP_EXCEEDED).
      */
     readonly colors: readonly string[];
@@ -527,11 +554,19 @@ export declare function definePalette(definition: PaletteDefinition, options?: R
  * names a concrete palette.
  */
 export interface DefaultPaletteControls {
-    setDefaultPalettes(palettes: {
-        readonly categorical?: string;
-        readonly sequential?: string;
-        readonly diverging?: string;
-    }): void;
+    /**
+     * A call made after layers took the OLD default writes a warning naming them; with
+     * `reapply: true` it re-resolves those layers instead. A layer that names its palette is never
+     * touched.
+     */
+    setDefaultPalettes(
+        palettes: {
+            readonly categorical?: string;
+            readonly sequential?: string;
+            readonly diverging?: string;
+        },
+        options?: { readonly reapply?: boolean },
+    ): void;
 }
 
 // =============================================================================================
@@ -599,8 +634,10 @@ export declare function defineCameraMotion<const O extends OptionsShorthand = {}
 
 /**
  * Added to the element (a consumer API, not an extension verb), so
- * document.querySelector("graphty-element") is already typed with it. "orbit" is a built-in
- * motion. A motion pauses on any input the element owns and resumes 3 seconds after it ends.
+ * document.querySelector("graphty-element") is typed with it (element.d.ts). "orbit" is a built-in
+ * motion with two options: secondsPerTurn (default 60; negative turns the other way) and elevation
+ * in degrees (default: the camera's current elevation). A motion pauses on any input the element
+ * owns and resumes 3 seconds after it ends.
  */
 export interface CameraMotionControls {
     /**
@@ -617,8 +654,9 @@ export interface CameraMotionControls {
 
 /**
  * The consumer calls the simple tier adds to the element. The element class (`Graphty`, which
- * HTMLElementTagNameMap already maps "graphty-element" to) implements all of them, so
- * `document.querySelector("graphty-element")` is typed with them and needs no cast.
+ * HTMLElementTagNameMap already maps "graphty-element" to) gains all of them -- element.d.ts is
+ * that addition -- so with the element installed `document.querySelector("graphty-element")` is
+ * typed with them and needs no cast.
  */
 export interface SimpleTierElementControls extends CameraMotionControls, DefaultPaletteControls, DataSourceControls {}
 

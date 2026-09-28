@@ -28,8 +28,8 @@ count, which left both out, is in brackets.
 
 | Point       | Task                                          | Today: lines                                                           | Today: internal / domain concepts | Simple tier, end to end: lines                                                                        | Simple tier: internal concepts | Prior art: lines           |
 | ----------- | --------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------ | -------------------------- |
-| Algorithm   | confidence-weighted degree and its edge share | 111                                                                    | 29 / 7                            | 20 (14)                                                                                               | 0                              | 3 to 15 (Gephi about 120)  |
-| Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 19 (16); 19 for rows by a category; 17 for preset coordinates, 1 once `fixed` takes attribute options | 0                              | 1 to 10 (Gephi 150 to 200) |
+| Algorithm   | confidence-weighted degree and its edge share | 111                                                                    | 29 / 7                            | 17 (14)                                                                                               | 0                              | 3 to 15 (Gephi about 120)  |
+| Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 18 (16); 15 for rows by a category; 17 for preset coordinates, 1 once `fixed` takes attribute options | 0                              | 1 to 10 (Gephi 150 to 200) |
 | File format | tab-separated edge list, read and write       | 114                                                                    | 26 / 5                            | 19 (18, with no check of a malformed row)                                                             | 0                              | 4 to 16 (Gephi about 180)  |
 | Data source | paged REST API with a bearer token            | 75, and still no cancellation, retries, host check or credential store | 16 / 4                            | 17 (14, with no check of the response body)                                                           | 0                              | 8 to 40                    |
 | Palette     | brand categorical and sequential colours      | 17 (13 without types)                                                  | 9 / 5                             | 3, with the default-palette call (2)                                                                  | 0                              | 1 to 4                     |
@@ -356,6 +356,56 @@ What they met, beyond the release state:
 5. **Finding the start.** No file said "start here"; the README and `simple-tier.md` now do, and
    every example is shown to run in the one-page example with no build step.
 
+## The third blind-author round
+
+The same twelve personas wrote a plugin again from the revised `simple-tier.md` and `simple.d.ts`.
+**No run passed**, whatever its length: every run was "type-checked only", because no `define*`
+function exists at run time in 2.6.1 and the playground story had not been built, and a run that
+could only be type-checked is never a pass (`README.md` section 8.1 item 6). Four authors named
+"defineX is not a function" as the point where a real user would give up. The next round waits
+for the playground (`simple-tier.md` section 3 item 6).
+
+| Persona                   | Point       | Task                                      | Named task | Author lines            | Result                           | Cause of the excess or the stuck point, and the fix                                                                                                                                                                    |
+| ------------------------- | ----------- | ----------------------------------------- | ---------- | ----------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| data scientist            | algorithm   | confidence-weighted degree and edge share | yes        | 22                      | FAIL (over); type-checked only   | the edge score reached the node score through a result path (an extra option, a sequenced run) and every read needed `?? 0`. Now `node.strength` and `edge.weight`, and the edge score computes its own ends: 17 lines |
+| data scientist            | layout      | tiers by a number; preset coordinates     | yes        | 17 and 19 (36 for both) | within budget; type-checked only | the author added a `scale` for NetworkX's -1 to 1 coordinates. The proposed built-in `fixed` gains `scale`, and the guide says how to place preset coordinates on 2.6.1                                                |
+| front-end developer       | palette     | brand categorical and sequential          | yes        | 7                       | within budget; type-checked only | no element type carried `setDefaultPalettes`, and a late call gave the old colours silently. Now `element.d.ts`, a warning on a late call and `{ reapply: true }`                                                      |
+| front-end developer       | camera      | slow orbit                                | yes        | 8                       | within budget; type-checked only | the documented "use it" line did not compile against the published declarations. Now `element.d.ts`; the built-in orbit takes `secondsPerTurn`, so the task is one line                                                |
+| front-end developer       | logging     | errors to telemetry                       | yes        | 11                      | within budget; type-checked only | what redaction removes before a third party receives a record was behind a pointer; now stated                                                                                                                         |
+| domain researcher         | file format | tab-separated edge list, read and write   | yes        | 20                      | within budget; type-checked only | endpoint columns named `bait` and `prey` took five edits to read AND write; the guide now shows both halves                                                                                                            |
+| domain researcher         | algorithm   | Opsahl generalised degree                 | no         | 12                      | informative                      | the attribute option holding a NAME, not a value, took a second reading; the first example now says so in a comment, with the NetworkX analogy                                                                         |
+| graph library author      | algorithm   | label propagation at 100,000 nodes        | no         | 75 advanced             | informative                      | two rules disagreed on a run that stops at its iteration cap; now one rule: an option cap is the caller's, and the run publishes partial in both tiers                                                                 |
+| graph library author      | data source | a paged REST API                          | yes        | 23                      | FAIL (over); type-checked only   | five lines typed the page body for the author's own no-unsafe lint rules, and one reported progress; without them, 18. The guide now shows the one-line cast                                                           |
+| expert analyst            | algorithm   | personalised PageRank                     | no         | 56                      | informative                      | out-strength with a hand-written missing-weight rule, and seeds filtered by hand (hiding a typo). Now `node.strength(path, "out")` and unknown node ids are refused up front                                           |
+| business analyst          | layout      | rows by a category column                 | yes        | 21                      | FAIL (over); type-checked only   | grouping by hand cost two non-null assertions and a nested loop. Now `graph.groupBy(path)`: 15 lines                                                                                                                   |
+| bioinformatics researcher | data source | a STRING-style interaction service        | no         | 25                      | informative                      | no route at all on 2.6.1, unstated; labels and an absent `directed` unanswered. All three are now stated                                                                                                               |
+
+Named-task runs: eight; five within the line budget, three over, and none a pass, because none ran.
+
+What they met, beyond the release state:
+
+1. **The reference taught the silent zero.** The first example read `edge.number(...) ?? 0`, so a
+   weight option left unbound, or a weight column that stayed text, summed to 0 for every node
+   and counted as measured. The weight rule now lives in the element (`edge.weight`,
+   `node.strength`: unbound is 1, missing is left out and counted in a warning), and no example
+   writes `?? 0`.
+2. **One `NA` cell kept a column as text**, which zeroed every read and would have neutralised
+   `-2.31` on export. Missing-value tokens are now absent in an otherwise numeric column, a mostly
+   numeric column that stays text is named in the load report, and a numeric string is never
+   neutralised.
+3. **The declarations under test were not the ones a consumer gets.** The checker added the
+   element-class declaration itself, so the documented `querySelector` line compiled only there.
+   It is now a file, `element.d.ts`, that the check includes.
+4. **Two plugins were coupled through a magic string.** The edge score read the node score at
+   `results.strength.value`, which only worked after a run named exactly "strength". The first
+   example is now independent; chaining is shown as an optimisation, with a refusal that says
+   which run to do first.
+5. **Behaviour nobody had specified**: a seed id not in the graph, a node record arriving on a
+   later page than the edge that named it, and an absent `directed`. Each now has one rule.
+6. **Silent wrong colours**: a default palette set after data loaded kept the old colours, and
+   `var()` colours were neither resolved nor refused. The first now warns and can re-resolve; the
+   second is refused with the fix.
+
 ## Why the specifications missed it
 
 The complexity did not arrive in one step. It accumulated through a review process that measured
@@ -422,6 +472,22 @@ The second round found three more, all about how the budget was enforced rather 
     line ceiling and the internal-term list were all written down, and the only automated check
     compiled examples with the very settings (`lib` ES2024, path mappings) the rules forbid.
 
+The third round found three more:
+
+14. **The line ceiling rewarded the silent default.** The reference fitted in 20 lines partly by
+    writing `?? 0`, the shortest way to handle a missing value and the one that hides it. A budget
+    that counts only length pushes every example towards the default that hides a mistake. The
+    fix is to make the element own the default -- a missing weight is counted and reported, never
+    read as 0 -- so the short code and the safe code are the same code.
+15. **The checker supplied what it checked.** `check-examples.mjs` wrote the declaration that
+    types the element's new calls into its own temporary directory, so the documented line
+    compiled in the check and nowhere else. Every declaration a check depends on must be a file
+    under review.
+16. **A round was run that could not pass.** The playground was the precondition for a real pass
+    and was still unbuilt, so the round could only repeat "type-checked only". Its findings were
+    real, but its verdict was known in advance: the playground is now a precondition of the next
+    round, not a hope.
+
 ## What changes
 
 1. **The adoption budget is normative** (`README.md` section 8.1): about 15 author lines, at most
@@ -452,7 +518,13 @@ The second round found three more, all about how the budget was enforced rather 
 11. **A playground runs the plugin before release** (`simple-tier.md` section 3 item 6), and at
     least one built-in per point is built on the simple tier (item 5 there), which also gives the
     ceilings measured numbers.
-12. **The checker enforces the budget.** `check-examples.mjs` now compiles the simple-tier
+12. **Every point says what works on 2.6.1**, beside its first example, and says plainly when
+    nothing does (a data source), so an author on the released package is never left with code
+    that only type-checks.
+13. **The next blind round waits for the playground**; a round without it passes nothing.
+14. **Declarations a check depends on are files under review** (`element.d.ts`), never text the
+    checker writes for itself.
+15. **The checker enforces the budget.** `check-examples.mjs` now compiles the simple-tier
     examples against `simple.d.ts` alone under `lib` ES2020, type-checks every "use it" line
     against the element class, and fails a point's first example over 20 lines or naming an
     internal term.

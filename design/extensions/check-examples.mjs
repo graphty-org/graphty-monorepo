@@ -5,7 +5,7 @@
 //
 // Three checks, all of which must pass:
 // 1. Every ts block compiles against the element (below). A "use it" block's `element` is the
-//    element class plus the simple tier's consumer calls (SimpleTierElementControls).
+//    element class plus the simple tier's consumer calls, as element.d.ts adds them.
 // 2. Every simple-tier.md block that imports ./extend also compiles against simple.d.ts ALONE, under
 //    lib ES2020, with skipLibCheck off and no other path -- the setup a third party has
 //    (README section 8.1 item 2).
@@ -25,7 +25,6 @@ const specDir = join(root, "design/extensions");
 const out = mkdtempSync(join(tmpdir(), "extension-examples-"));
 // `session` and `graph` are typed from the element's own published types, so a consumer-side call
 // in an example (session.runs.start, graph.setLayout) is checked too, not waved through as `any`.
-const elementSource = join(root, "graphty-element/src/graphty-element");
 const prelude = [
     'import type { createGraphSession } from "@graphty/graphty-element/session";',
     'import type { Graph } from "@graphty/graphty-element";',
@@ -49,19 +48,6 @@ for (const name of readdirSync(specDir).filter((file) => file.endsWith(".md"))) 
         count++;
     });
 }
-
-// The simple tier adds consumer calls to the element class; the playground and the release add them
-// to Graphty itself, which HTMLElementTagNameMap maps "graphty-element" to.
-writeFileSync(
-    join(out, "_element.ts"),
-    [
-        `import type { SimpleTierElementControls } from ${JSON.stringify(join(specDir, "simple"))};`,
-        `declare module ${JSON.stringify(elementSource)} {`,
-        "    interface Graphty extends SimpleTierElementControls {}",
-        "}",
-        "",
-    ].join("\n"),
-);
 
 writeFileSync(
     join(out, "_extend.ts"),
@@ -93,7 +79,9 @@ writeFileSync(
                 "@graphty/graphty-element": [join(root, "graphty-element/index.ts")],
             },
         },
-        include: ["*.ts"],
+        // element.d.ts is the normative addition of the simple tier's consumer calls to the element
+        // class, so a "use it" line is checked against the declarations a consumer receives.
+        include: ["*.ts", join(specDir, "element.d.ts")],
     }),
 );
 
@@ -106,7 +94,12 @@ try {
 } catch (error) {
     report = String(error.stdout ?? "");
 }
-const failures = report.split("\n").filter((line) => line.startsWith(out) || line.includes("extension-examples-"));
+const failures = report
+    .split("\n")
+    .filter(
+        (line) =>
+            line.startsWith(out) || line.includes("extension-examples-") || line.includes("extensions/element.d.ts"),
+    );
 if (failures.length > 0) {
     console.error(failures.join("\n"));
     process.exit(1);
@@ -118,7 +111,8 @@ const simpleText = readFileSync(join(specDir, "simple-tier.md"), "utf8");
 const alone = mkdtempSync(join(tmpdir(), "extension-simple-"));
 let aloneCount = 0;
 for (const [index, match] of [...simpleText.matchAll(/```ts\n([\s\S]*?)```/g)].entries()) {
-    if (match[1].includes('from "@graphty/graphty-element/extend"')) {
+    // A block that imports a define* verb; a 2.6.1 form beside it imports advanced verbs only.
+    if (/import \{[^}]*\bdefine[A-Z][^}]*\} from "@graphty\/graphty-element\/extend"/.test(match[1])) {
         writeFileSync(join(alone, `simple_${index}.ts`), match[1]);
         aloneCount++;
     }

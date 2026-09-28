@@ -144,7 +144,8 @@ indistinguishable from "nothing was run".
    naming the transform (for example `"log10"`), and the method caveat saying so.
 9. **Partial results.** A run that fails (throws) publishes nothing. A run that stops early because
    a limit the CALLER set was reached (a time box or an iteration cap, once forwarded; section
-   5.1) MAY publish what it has, and then MUST set `caveats.exact` to `false` and
+   5.1; an iteration cap declared as one of the algorithm's own options, such as
+   `maxIterations`, is a limit the caller sets) MAY publish what it has, and then MUST set `caveats.exact` to `false` and
    `caveats.partialReason`; the element records the run as partial. A run that stops early for
    its own reason (an iterative method that did not converge) fails with `E_NOT_CONVERGED`. README
    section 9.3 states the same rule.
@@ -284,6 +285,12 @@ reader's choice, never the algorithm's.
 
 `simplify: "none"` keeps every parallel edge as its own row, so an event-level algorithm on a
 multigraph sees each one.
+
+The whole graph in the orientation asked is therefore `context.input("undirected").subgraph()`,
+not `.graph`: with no `scopeInput` the scope is the whole graph, and only `subgraph()` applies the
+orientation. `input.column(option)` reads the column behind a declared "attribute" option;
+`input.columnAt(path)` (proposed, `simple-tier.md` section 6) reads a literal attribute or result
+path, checked and recorded the same way.
 
 A reciprocal pair collapsed by `"undirected"` is merged by the same policy. For an edge list that
 lists every interaction in both directions (STRING does), the default `"sum"` doubles every

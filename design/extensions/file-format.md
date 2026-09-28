@@ -434,7 +434,9 @@ Two further rules for any writer:
    named `=HYPERLINK(...)` becomes a CSV header), because imported attribute values are untrusted and a spreadsheet executes
    a formula. It MUST NOT touch a value that is a finite number in the snapshot (a column of type
    `number` or `integer`): a negative fold change of `-2.31` is written as `-2.31`, or every
-   down-regulated gene would be read back as text. The rule is per value type, the writer offers
+   down-regulated gene would be read back as text. Nor does it touch a STRING cell that is itself
+   a number in the JSON number grammar (`-2.31` in a column that stayed text because of one odd
+   cell): a spreadsheet reads it as that number, and no formula can hide in it. The rule is per value type, the writer offers
    an option to switch neutralisation off for a pipeline that reads the file with a CSV parser,
    and the conformance kit checks that a numeric column with negative values round-trips byte for
    byte. **(not yet met)** graph-io's CSV writer, which the element's own export will use,

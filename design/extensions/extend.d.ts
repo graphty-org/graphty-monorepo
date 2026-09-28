@@ -2,7 +2,9 @@
  * The whole @graphty/graphty-element/extend entry point, both tiers, as one declaration file, so a
  * single paths entry covers it: "@graphty/graphty-element/extend": ["design/extensions/extend.d.ts"].
  *
- * A plugin that uses only the simple tier needs only simple.d.ts, which reaches no other package.
+ * A plugin that uses only the simple tier (every define* verb) maps the path to simple.d.ts
+ * instead: it reaches no other package and needs no lib setting beyond ES2020 and no skipLibCheck.
+ * Map to this file only for the advanced tier.
  * The advanced declarations import @graphty/graph-format, which a plugin resolves from its own
  * node_modules (the package the element depends on), never from this repository's source.
  *

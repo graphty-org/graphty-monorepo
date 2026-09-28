@@ -378,6 +378,12 @@ export interface ScopedInputColumns {
      * values; the run record lists it as an input. E_OPTION_RANGE when the name resolves to nothing.
      */
     column(optionName: string): Column;
+    /**
+     * PROPOSED (simple-tier.md section 6). The column at a literal attribute or result path, for a
+     * read the plugin does not let the reader rebind. Checked (E_OPTION_RANGE when nothing
+     * carries it) and recorded as an input exactly as column() is.
+     */
+    columnAt(path: string, on?: "node" | "edge"): Column;
 }
 
 /** PROPOSED -- open decision 17. Added to ScopedInputOptions. */

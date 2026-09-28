@@ -1,3 +1,14 @@
+## 2.6.2 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.12
+- Updated @graphty/remote-logger to 1.3.11
+- Updated graph-samples to 0.1.7
+- Updated graph-format to 1.1.2
+- Updated algorithms to 2.1.2
+- Updated layout to 1.10.5
+
 ## 2.6.1 (2026-09-28)
 
 ### 🧱 Updated Dependencies

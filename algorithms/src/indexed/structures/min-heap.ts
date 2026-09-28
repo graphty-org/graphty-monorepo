@@ -32,6 +32,24 @@ export class IndexedMinHeap {
     }
 
     /**
+     * Whether a node is currently in the heap.
+     * @param node - The node index
+     * @returns True when the node was pushed and has not been popped since
+     */
+    has(node: number): boolean {
+        return this.slot[node] !== INVALID_INDEX;
+    }
+
+    /**
+     * The key a node was last given. Meaningful only while `has(node)` is true.
+     * @param node - The node index
+     * @returns Its key
+     */
+    keyOf(node: number): number {
+        return this.key[node];
+    }
+
+    /**
      * Insert a node that is not in the heap.
      * @param node - The node index
      * @param key - Its key

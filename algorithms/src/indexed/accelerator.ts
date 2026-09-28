@@ -32,8 +32,9 @@ import type { LabelPropagationOptions } from "./label-propagation.js";
 import type { LeidenOptions, LeidenResult } from "./leiden.js";
 import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
 import type { LouvainOptions } from "./louvain.js";
+import type { BipartiteMatchingOptions, BipartiteMatchingResult } from "./matching.js";
 import type { KargerOptions, StoerWagnerOptions } from "./min-cut.js";
-import type { MstOptions } from "./mst.js";
+import type { MstOptions, PrimOptions, PrimResult } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
 
 // ============================================================ result shapes (design 9.2 lines 2909-2922)
@@ -280,8 +281,8 @@ export interface BetweennessAcceleratorOptions {
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
  *
  * `depthFirstSearch`, `stronglyConnectedComponents`, `leiden`, `girvanNewman`, `maxFlow`,
- * `minSTCut`, `stoerWagner`, `kargerMinCut`, `commonNeighborsPrediction` and
- * `adamicAdarPrediction` always run the CPU port: `AlgorithmAccelerator` declares no member for
+ * `minSTCut`, `stoerWagner`, `kargerMinCut`, `commonNeighborsPrediction`, `adamicAdarPrediction`,
+ * `primMST` and `maximumBipartiteMatching` always run the CPU port: `AlgorithmAccelerator` declares no member for
  * them, since no GPU kernel exists. They are here so graphty-element runs every algorithm through
  * one object, and each gains an accelerator branch when a kernel lands. A port's throw becomes a
  * rejection.
@@ -321,6 +322,8 @@ export interface AcceleratedAlgorithms {
     kargerMinCut(s: GraphSnapshot, options?: KargerOptions): Promise<MinCutResult>;
     commonNeighborsPrediction(s: GraphSnapshot, options?: LinkPredictionOptions): Promise<LinkPredictionResult>;
     adamicAdarPrediction(s: GraphSnapshot, options?: LinkPredictionOptions): Promise<LinkPredictionResult>;
+    primMST(s: GraphSnapshot, options?: PrimOptions): Promise<PrimResult>;
+    maximumBipartiteMatching(s: GraphSnapshot, options?: BipartiteMatchingOptions): Promise<BipartiteMatchingResult>;
 }
 
 /**
@@ -726,5 +729,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
         kargerMinCut: (s, options) => onCpu(() => indexed.kargerMinCut(s, options)),
         commonNeighborsPrediction: (s, options) => onCpu(() => indexed.commonNeighborsPrediction(s, options)),
         adamicAdarPrediction: (s, options) => onCpu(() => indexed.adamicAdarPrediction(s, options)),
+        primMST: (s, options) => onCpu(() => indexed.primMST(s, options)),
+        maximumBipartiteMatching: (s, options) => onCpu(() => indexed.maximumBipartiteMatching(s, options)),
     };
 }

@@ -1,4 +1,3 @@
-import { breadthFirstSearch } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -16,6 +15,7 @@ import {
     type ResultFieldSpec,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { declarationArcOrder } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for BFS algorithm
@@ -129,123 +129,78 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
            is the same one on either route. */
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
 
-        /* A run that stops early at a target visits a different set of nodes, and no index-based
-           port has an early stop, so this one keeps the reference implementation and says so in
-           its notes. The decision is taken before the undirected view is derived, so a walk that
-           never reaches the accelerator does not pay for the trip. */
-        if (targetNode !== undefined) {
-            return this.legacyWalk(context, nodeIds, source, targetNode);
-        }
+        /* Undirected: the traversal follows an edge in either direction.
 
-        // Undirected: the traversal follows an edge in either direction.
-        const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected");
+           A walk that stops at a target is not one an accelerator answers -- a GPU walk expands
+           whole levels at once -- so the decision says so before any work starts. It also tries
+           each node's neighbours in the order their edges were declared: which nodes it expands
+           before it reaches the target depends on that order, and the element's walks have always
+           used it. A walk with no target keeps row order, which an accelerator can reproduce and
+           which reaches every node on the same level either way. */
+        const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected", {
+            accelerable: targetNode === undefined,
+        });
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
+        const targetIndex = targetNode === undefined ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
         context.report({ phase: "Walking outwards", total: null });
-        const { value, precision } = await run((dispatch, s) => dispatch.breadthFirstSearch(s, sourceIndex));
+        const { value, precision } = await run((dispatch, s) =>
+            dispatch.breadthFirstSearch(
+                s,
+                sourceIndex,
+                targetIndex === undefined ? undefined : { target: targetIndex, arcOrder: declarationArcOrder(s) },
+            ),
+        );
 
-        // `order` holds the visited rows in visit order, so the position a node was reached in is
-        // its place in that array.
+        /* `order` holds the visited rows in visit order, so the position a node was reached in is
+           its place in that array. A walk that stopped at its target discovered some nodes it
+           never expanded; they sit after the target in `order`, and the walk did not reach them in
+           the sense a reader means, so they carry nothing. */
+        const visited = value.order.subarray(0, value.visitedCount);
+        const stop = targetIndex === undefined ? -1 : visited.indexOf(targetIndex);
+        const expanded = stop === -1 ? visited : visited.subarray(0, stop + 1);
         const orderOf = new Map<number, number>();
-        for (let position = 0; position < value.visitedCount; position++) {
-            orderOf.set(value.order[position], position);
-        }
+        expanded.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
             const index = snapshot.ids.indexOf(nodeId);
-            const level = index === INVALID_INDEX ? INVALID_INDEX : value.depth[index];
+            const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 
-            // INVALID_INDEX is the port's "never reached", and a node the walk never reached
-            // carries nothing at all -- it is not on level 0.
-            if (level === INVALID_INDEX) {
+            // A node the walk never reached carries nothing at all -- it is not on level 0.
+            if (order === undefined) {
                 return;
             }
 
-            nodes.push({ id: nodeId, values: { level, order: orderOf.get(index) } });
-        });
-
-        return {
-            shape: "layered-grouping",
-            fields: [...LAYERED_GROUPING_FIELD_SPECS, { name: "order", kind: "node", type: "integer" }],
-            nodes,
-            caveats: declaredCaveats({
-                method: "bfs",
-                direction: "undirected",
-                weight: null,
-                precision,
-                notes: [`Walked outwards from ${String(source)}, which is level 0.`],
-            }),
-        };
-    }
-
-    /**
-     * Walk with an early stop at a target, on the CPU reference implementation.
-     * @param context - What the element gave the run.
-     * @param nodeIds - The nodes to publish for.
-     * @param source - Where the walk starts.
-     * @param targetNode - Where it stops.
-     * @returns The layered result, or null when the source is not in the graph.
-     */
-    private async legacyWalk(
-        context: AlgorithmRunContext,
-        nodeIds: readonly (number | string)[],
-        source: number | string,
-        targetNode: number | string,
-    ): Promise<AlgorithmOutput | null> {
-        const graphData = this.algorithmGraph("undirected");
-
-        if (!graphData.hasNode(source)) {
-            return null;
-        }
-
-        const levelOf = new Map<number | string, number>();
-        const orderOf = new Map<number | string, number>();
-        let targetFound = false;
-
-        context.report({ phase: "Walking outwards", total: null });
-        breadthFirstSearch(graphData, source, {
-            targetNode,
-            visitCallback: (node, level) => {
-                levelOf.set(node, level);
-                orderOf.set(node, orderOf.size);
-
-                if (node === targetNode) {
-                    targetFound = true;
-                }
-            },
-        });
-
-        const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
-            const level = levelOf.get(nodeId);
-
-            if (level === undefined) {
-                return;
-            }
-
-            nodes.push({ id: nodeId, values: { level, order: orderOf.get(nodeId) } });
+            nodes.push({ id: nodeId, values: { level: value.depth[index], order } });
         });
 
         const fields: ResultFieldSpec[] = [
             ...LAYERED_GROUPING_FIELD_SPECS,
             { name: "order", kind: "node", type: "integer" },
-            { name: "targetFound", kind: "graph", type: "boolean" },
         ];
+        const notes = [`Walked outwards from ${String(source)}, which is level 0.`];
+
+        if (targetNode !== undefined) {
+            fields.push({ name: "targetFound", kind: "graph", type: "boolean" });
+            notes.push(
+                stop === -1
+                    ? `The walk never reached ${String(targetNode)}, so it covered everything reachable.`
+                    : `The walk stopped at ${String(targetNode)}.`,
+            );
+        }
 
         return {
             shape: "layered-grouping",
             fields,
             nodes,
-            graph: { targetFound },
+            ...(targetNode === undefined ? {} : { graph: { targetFound: stop !== -1 } }),
             caveats: declaredCaveats({
                 method: "bfs",
                 direction: "undirected",
                 weight: null,
-                notes: [
-                    `Walked outwards from ${String(source)}, which is level 0.`,
-                    `Computed on the CPU reference implementation: the walk stops early at ${String(targetNode)}, and no accelerated implementation has an early stop.`,
-                ],
+                precision,
+                notes,
             }),
         };
     }

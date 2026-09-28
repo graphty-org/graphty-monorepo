@@ -1,4 +1,4 @@
-import { bellmanFord } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
@@ -15,7 +15,6 @@ import {
     PATH_FIELD_SPECS,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Bellman-Ford algorithm
@@ -118,46 +117,49 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodeIds[nodeIds.length - 1];
 
-        const graphData = this.algorithmGraph("undirected");
+        /* Undirected: a shortest path may cross an edge in either direction, and a negative edge
+           read that way is a loop of its own. No accelerator the element hands work to runs
+           Bellman-Ford, so this is the CPU port's decision. */
+        const { snapshot, edgeRemap, run } = this.accelerated("bellmanFord", "undirected");
+        const sourceIndex = this.nodeIndex(snapshot, "source", source);
+        const targetIndex = this.nodeIndex(snapshot, "target", target);
 
         context.report({ phase: "Relaxing edges", total: null });
-        const result = bellmanFord(graphData, source);
+        const { value, precision } = await run((dispatch, s) => dispatch.bellmanFord(s, sourceIndex));
 
-        const path = this.reconstructPath(result.predecessors, source, target);
-        const orderOf = new Map<number | string, number>();
-        path.forEach((nodeId, position) => orderOf.set(nodeId, position));
+        /* With a negative loop the predecessors can chase each other round it, so no route is
+           read off them: the distances are published, and the graph half says why there is no
+           route. */
+        const path = value.hasNegativeCycle ? new Uint32Array(0) : value.pathTo(targetIndex);
+        const routeEdges = new Set<number>(value.hasNegativeCycle ? [] : value.pathEdges(targetIndex));
+        const orderOf = new Map<number, number>();
+        path.forEach((index, position) => orderOf.set(index, position));
 
-        // The 1.10 result scaled every distance against the furthest reachable node.
-        let furthest = 0;
-        for (const distance of result.distances.values()) {
-            if (isFinite(distance) && distance > furthest) {
-                furthest = distance;
-            }
-        }
-
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
-            const order = orderOf.get(nodeId);
-            const distance = result.distances.get(nodeId) ?? Infinity;
+            const index = ids.indexOf(nodeId);
+            const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
+            const distance = index === INVALID_INDEX ? Infinity : value.dist[index];
 
             nodes.push({ id: nodeId, values: { onPath: order !== undefined, order, distance } });
         });
 
-        const routeEdges = this.getPathEdges(path);
+        /* The route names edges of the UNDIRECTED, simplified view, so each of the element's own
+           edges is mapped onto that space: both records of a reciprocal pair, and every edge of a
+           parallel group, stand for the one merged edge the route crossed, and all of them are on
+           it. The id PUBLISHED is the element's own, which a style layer can name. */
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the route", scopeEdges(input), (edge) => {
-            // The pair keys match an @graphty/algorithms route back onto element edges; the id
-            // PUBLISHED is the element's own, which is the only one that can name one of two
-            // parallel edges.
-            const key = edgePairKey(edge.source, edge.target);
-            const reversed = edgePairKey(edge.target, edge.source);
-
-            edges.push({ id: edge.id, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
+            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
+            edges.push({ id: edge.id, values: { onPath: routeEdges.has(merged) } });
         });
 
         const notes = [`Route from ${String(source)} to ${String(target)}.`];
-        if (result.hasNegativeCycle) {
-            notes.push("A loop that costs less every time round was found, so no distance past it is meaningful.");
+        if (value.hasNegativeCycle) {
+            notes.push(
+                "A loop that costs less every time round was found, so no distance past it is meaningful and no route is marked.",
+            );
         }
 
         return {
@@ -171,64 +173,18 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
             edges,
             graph: {
                 length: path.length,
-                cost: path.length > 0 ? (result.distances.get(target) ?? 0) : 0,
+                cost: path.length > 0 ? value.dist[targetIndex] : 0,
                 hops: Math.max(path.length - 1, 0),
-                hasNegativeCycle: result.hasNegativeCycle,
+                hasNegativeCycle: value.hasNegativeCycle,
             },
             caveats: declaredCaveats({
                 method: "bellman-ford",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
+                precision,
                 notes,
             }),
         };
-    }
-
-    /**
-     * Reconstruct the shortest path from predecessors
-     * @param predecessors - Map of node to its predecessor in the shortest path
-     * @param source - The source node
-     * @param target - The target node
-     * @returns Array of node IDs representing the shortest path
-     */
-    private reconstructPath(
-        predecessors: Map<string | number, string | number | null>,
-        source: string | number,
-        target: string | number,
-    ): (string | number)[] {
-        const path: (string | number)[] = [];
-        let current: string | number | null = target;
-
-        while (current !== null) {
-            path.unshift(current);
-            if (current === source) {
-                break;
-            }
-
-            current = predecessors.get(current) ?? null;
-        }
-
-        // If path doesn't start with source, no valid path exists
-        if (path.length === 0 || path[0] !== source) {
-            return [];
-        }
-
-        return path;
-    }
-
-    /**
-     * Get set of edge keys that are part of the path
-     * @param path - Array of node IDs representing the path
-     * @returns Set of edge keys in "srcId:dstId" format
-     */
-    private getPathEdges(path: (string | number)[]): Set<string> {
-        const edges = new Set<string>();
-
-        for (let i = 0; i < path.length - 1; i++) {
-            edges.add(edgePairKey(path[i], path[i + 1]));
-        }
-
-        return edges;
     }
 }
 

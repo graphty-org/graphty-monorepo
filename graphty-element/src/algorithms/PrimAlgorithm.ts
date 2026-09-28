@@ -9,10 +9,11 @@
  * from a starting node, which can be optionally configured.
  */
 
-import { connectedComponents, Graph as AlgorithmGraph, primMST } from "@graphty/algorithms";
+import { indexed } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
-import type { EdgeId, NodeId } from "../catalog/types";
+import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -26,7 +27,6 @@ import {
     setFieldSpecs,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Prim algorithm
@@ -47,51 +47,6 @@ const primOptionsSchema = defineOptions({
 interface PrimOptions extends Record<string, unknown> {
     /** Optional starting node for the algorithm */
     startNode: number | string | null;
-}
-
-/**
- * Prim's tree over every piece of a graph that may be in several, as Kruskal's is: a scope often
- * cuts a component, and `primMST` refuses a graph that is not connected.
- * @param graph - The undirected graph.
- * @param startNode - Where to grow the start node's own piece from; the piece's first node when
- *   absent, and for every other piece.
- * @returns The forest's edges and their total weight.
- * @throws An Error when the start node is not in the graph, as `primMST` does.
- */
-function spanningForest(
-    graph: AlgorithmGraph,
-    startNode: NodeId | undefined,
-): { edges: { source: NodeId; target: NodeId }[]; totalWeight: number } {
-    if (startNode !== undefined && !graph.hasNode(startNode)) {
-        throw new Error(`Start node ${String(startNode)} not found in graph`);
-    }
-
-    const pieces = connectedComponents(graph);
-    if (pieces.length <= 1) {
-        return primMST(graph, startNode);
-    }
-
-    const edges: { source: NodeId; target: NodeId }[] = [];
-    let totalWeight = 0;
-    for (const piece of pieces) {
-        const members = new Set(piece);
-        const part = new AlgorithmGraph({ directed: false });
-        for (const id of piece) {
-            part.addNode(id);
-        }
-
-        for (const edge of graph.edges()) {
-            if (members.has(edge.source)) {
-                part.addEdge(edge.source, edge.target, edge.weight);
-            }
-        }
-
-        const tree = primMST(part, startNode !== undefined && members.has(startNode) ? startNode : undefined);
-        edges.push(...tree.edges);
-        totalWeight += tree.totalWeight;
-    }
-
-    return { edges, totalWeight };
 }
 
 /**
@@ -156,24 +111,27 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         // Legacy configure() takes precedence for backward compatibility
         const startNode = this.legacyOptions?.startNode ?? this._schemaOptions.startNode ?? undefined;
 
-        // Undirected: a spanning tree is a set of unordered pairs, and primMST refuses a directed input.
-        const graphData = this.algorithmGraph("undirected");
+        /* Undirected: a spanning tree is a set of unordered pairs, chosen over the undirected view,
+           whose edge space merged every reciprocal pair and parallel group into one edge. A scope
+           often cuts a component, so the tree is a forest: one tree per piece, the start node's
+           grown from it and every other piece's from its first node. No accelerator grows a Prim
+           tree, so this is the CPU port's decision. */
+        const { snapshot, edgeRemap, run } = this.accelerated("primMST", "undirected");
+        const start = startNode === undefined ? undefined : this.nodeIndex(snapshot, "startNode", startNode);
 
         context.report({ phase: "Choosing edges", total: null });
-        const tree = spanningForest(graphData, startNode);
+        const { value: tree, precision } = await run((_dispatch, s) =>
+            Promise.resolve(indexed.primMST(s, { start, forest: true })),
+        );
 
-        // Both directions, because the element's edge carries the direction it was declared in
-        // and the tree's does not.
-        const chosen = new Set<string>();
-        for (const edge of tree.edges) {
-            chosen.add(edgePairKey(edge.source, edge.target));
-            chosen.add(edgePairKey(edge.target, edge.source));
-        }
+        // Read the remap from the edge the reader declared to the edge the tree chose, which is
+        // what flags BOTH halves of a merged reciprocal pair and every edge of a parallel group.
+        const chosen = new Set<number>(tree.edges);
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
-            // The pair key looks the tree's answer up; the element's own id is what is published.
-            edges.push({ id: edge.id, values: { in: chosen.has(edgePairKey(edge.source, edge.target)) } });
+            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
+            edges.push({ id: edge.id, values: { in: chosen.has(merged) } });
         });
 
         return {
@@ -185,6 +143,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
                 method: "prim",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
+                precision,
                 notes: [`The tree joins the graph with ${String(tree.edges.length)} edges.`],
             }),
         };

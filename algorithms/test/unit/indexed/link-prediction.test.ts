@@ -103,6 +103,24 @@ function expectScoresMatch(actual: LinkPredictionScore[], expected: LinkPredicti
     });
 }
 
+/**
+ * Adamic-Adar rankings equal legacy up to the order of tied pairs: the port's weights are snapped so
+ * tied pairs score identically, where legacy sums in visit order and splits them by rounding. Each
+ * position must hold legacy's score, and each pair the score legacy gives that pair.
+ */
+function expectRankingMatch(
+    actual: LinkPredictionScore[],
+    expected: LinkPredictionScore[],
+    legacyScore: (u: NodeId, v: NodeId) => number,
+    at: string,
+): void {
+    expect(actual.length, `${at} length`).toBe(expected.length);
+    actual.forEach((x, k) => {
+        expectClose(x.score, expected[k].score, `${at}[${String(k)}]`);
+        expectClose(x.score, legacyScore(x.source, x.target), `${at} ${String(x.source)}-${String(x.target)}`);
+    });
+}
+
 function expectMetricsMatch(actual: object, expected: object, at: string): void {
     const a = actual as Record<string, number>;
     const e = expected as Record<string, number>;
@@ -175,9 +193,10 @@ describe("indexed link prediction, against legacy", () => {
                         legacy.commonNeighborsPrediction(c.graph, o),
                         `common neighbours ${at}`,
                     );
-                    expectScoresMatch(
+                    expectRankingMatch(
                         toLegacy(s, adamicAdarPrediction(s, o)),
                         legacy.adamicAdarPrediction(c.graph, o),
+                        (u, v) => legacy.adamicAdarScore(c.graph, u, v, o),
                         `Adamic-Adar ${at}`,
                     );
                 }
@@ -220,9 +239,10 @@ describe("indexed link prediction, against legacy", () => {
                             legacy.getTopCandidatesForNode(c.graph, id, o),
                             `common neighbours ${at}`,
                         );
-                        expectScoresMatch(
+                        expectRankingMatch(
                             toLegacy(s, getTopAdamicAdarCandidatesForNode(s, u, { ...o, candidates })),
                             legacy.getTopAdamicAdarCandidatesForNode(c.graph, id, { ...o, candidates: candidateIds }),
+                            (a, b) => legacy.adamicAdarScore(c.graph, a, b, o),
                             `Adamic-Adar ${at}`,
                         );
                     }
@@ -281,6 +301,21 @@ describe("indexed link prediction", () => {
         s.validate({ checksum: true });
     });
 
+    it("leaves the legacy score unsnapped", () => {
+        // The port snaps its weights; the published legacy function must keep returning its own.
+        const graph = new Graph({ directed: false });
+        for (const [u, v] of [
+            ["x", "z"],
+            ["z", "y"],
+            ["z", "w"],
+        ]) {
+            graph.addEdge(u, v);
+        }
+        expect(legacy.adamicAdarScore(graph, "x", "y")).toBe(1 / Math.log(3));
+        const s = checksummedSnapshot(graph);
+        expect(adamicAdarScore(s, s.ids.indexOf("x"), s.ids.indexOf("y"))).not.toBe(1 / Math.log(3));
+    });
+
     it("ranks the one missing pair, in both orientations, and nothing else", () => {
         const s = square();
         const r = commonNeighborsPrediction(s);
@@ -309,8 +344,9 @@ describe("indexed link prediction", () => {
 
     it("scores two pairs with the same common-neighbour degrees identically, whatever the order", () => {
         // 1 and s2 both have the common neighbours 3 (degree 3), s4 (degree 5, a self-loop counted
-        // once) and 1 or s2 itself (degree 3), reached in a different order. Summed unsnapped, the
-        // two scores differ in the last bit, and the stable edges-first ranking splits the tie.
+        // once) and 1 or s2 itself (degree 3), reached in a different order. Legacy sums unsnapped
+        // weights in visit order, so its two scores differ in the last bit and its ranking splits
+        // the tie; the port's scores are identical, and so is the rank of every pair.
         const graph = new Graph({ directed: false, allowSelfLoops: true });
         const b = new GraphBuilder({ directed: false });
         for (const id of ["s2", "s4", "s0", 1, 3]) {
@@ -347,9 +383,11 @@ describe("indexed link prediction", () => {
         const o = { includeExisting: true };
         const scores = adamicAdarForPairs(s, indexed([...test, ...non]), o);
         expect(new Set(scores).size).toBe(1);
+        legacy.adamicAdarForPairs(graph, [...test, ...non], o).forEach((x, k) => {
+            expectClose(scores[k], x.score, `${String(x.source)}-${String(x.target)}`);
+        });
         const metrics = evaluateAdamicAdar(s, indexed(test), indexed(non), o);
-        expect(metrics).toEqual(legacy.evaluateAdamicAdar(graph, test, non, o));
-        expect(metrics.auc).toBe(1);
+        expect(metrics).toEqual({ precision: 1, recall: 1, f1Score: 1, auc: 1 });
         s.validate({ checksum: true });
     });
 

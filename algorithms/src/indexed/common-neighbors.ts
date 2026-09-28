@@ -8,8 +8,9 @@ export interface CommonNeighborsOptions {
 
 /**
  * Merge row u of `fwd` with row v of `bwd` (both sorted) and add up each DISTINCT common neighbour
- * once: 1 per neighbour, or `weight(z)` when a weight function is given. The adjacent-skip after a
- * match is what gives simple-graph semantics on a multigraph.
+ * once: 1 per neighbour, or `weight(z)` when a weight function is given. Skipping the repeats of a
+ * match in row v gives simple-graph semantics on a multigraph; a repeat in row u is then smaller
+ * than the next entry of row v and the ordinary advance passes it.
  * @param fwd - The view whose row u is read
  * @param bwd - The view whose row v is read
  * @param u - A node index
@@ -36,9 +37,6 @@ export function sortedRowMerge(
             sum += weight === undefined ? 1 : weight(a);
             i++;
             j++;
-            while (i < iEnd && fwd.colIdx[i] === a) {
-                i++;
-            }
             while (j < jEnd && bwd.colIdx[j] === b) {
                 j++;
             }

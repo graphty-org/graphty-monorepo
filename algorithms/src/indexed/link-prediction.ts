@@ -67,12 +67,13 @@ const WEIGHT_GRID = 2 ** 36;
 
 /**
  * The Adamic-Adar weight of a common neighbour of the given degree: 1 / ln(degree) snapped to the
- * weight grid, 1 for degree 1 (ln 1 is 0) and 0 for degree 0. Shared with the legacy
- * `adamicAdarScore` so both add the same weights.
+ * weight grid, 1 for degree 1 (ln 1 is 0) and 0 for degree 0. The legacy `adamicAdarScore` adds
+ * the unsnapped weights in neighbour-visit order, so its scores differ from these in the last bits
+ * and it may order two exactly tied pairs either way.
  * @param degree - The neighbour's degree
  * @returns The weight
  */
-export function adamicAdarWeight(degree: number): number {
+function adamicAdarWeight(degree: number): number {
     // ponytail: exact only while a pair's score stays below 2^16 (tens of thousands of hub neighbours);
     // a coarser grid chosen from the graph's largest row sum lifts that ceiling if it is ever reached.
     if (degree > 1) {

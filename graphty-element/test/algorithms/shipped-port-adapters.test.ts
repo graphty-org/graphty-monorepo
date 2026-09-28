@@ -322,6 +322,18 @@ describe("hits and katz on an accelerator", () => {
         assert.strictEqual(core.result?.summary().caveats.precision, "f64");
         assert.strictEqual(communities.caveats.precision, "f64");
     });
+
+    it("under acceleration required, k-core fails loudly when the accelerator cannot compute cores", async () => {
+        const { fake } = counting();
+        const graph = await createMockGraph(MIXED);
+        graph.acceleration.setPolicy("required");
+        graph.acceleration.setAccelerator(fake);
+
+        const error = await rejection(() => new KCoreAlgorithm(graph).run());
+
+        assert.strictEqual(error.code, "E_NO_ACCELERATOR");
+        assert.deepInclude(error.details, { capability: "kCoreDecomposition" });
+    });
 });
 
 describe("the hits and katz floors", () => {

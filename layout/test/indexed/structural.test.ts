@@ -1,0 +1,335 @@
+import assert from "node:assert";
+
+import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import { describe, it } from "vitest";
+
+import {
+    bfsLayout,
+    bipartiteLayout,
+    type CommonLayoutOptions,
+    completeGraph,
+    type Graph,
+    gridGraph,
+    indexed,
+    type LayoutResult,
+    multipartiteLayout,
+    type Node,
+    planarLayout,
+    type PositionMap,
+    spectralLayout,
+    toLayoutSnapshot,
+    toPositionMap,
+    wheelGraph,
+} from "../../src";
+
+/** An undirected snapshot of `n` nodes (ids 0 .. n - 1) and the given edges. */
+const graph = (n: number, edges: readonly (readonly [number, number])[] = []): GraphSnapshot =>
+    fromEdgeArrays({
+        directed: false,
+        nodeCount: n,
+        src: Uint32Array.from(edges.map(([u]) => u)),
+        dst: Uint32Array.from(edges.map(([, v]) => v)),
+    });
+
+/** Row `i` of a result. */
+const row = (r: LayoutResult, i: number): number[] => Array.from(r.positions.subarray(r.dim * i, r.dim * i + r.dim));
+
+/** Every value of `actual` is within 1e-6 of the legacy map's, and the keys are the same. */
+function matchesLegacy(actual: PositionMap, expected: PositionMap): void {
+    assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort());
+    for (const [node, p] of Object.entries(expected)) {
+        assert.equal(actual[node].length, p.length, `node ${node} length`);
+        p.forEach((v, k) => {
+            assert.ok(Math.abs(actual[node][k] - v) <= 1e-6, `node ${node}[${k}]: ${actual[node][k]} vs ${v}`);
+        });
+    }
+}
+
+/** The legacy duck-typed graph of a snapshot's edges, listed in ascending (source, target) order. */
+function duck(s: GraphSnapshot): Graph {
+    const ids: Node[] = Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i) as Node);
+    const edges: [Node, Node][] = [];
+    for (let u = 0; u < s.nodeCount; u++) {
+        for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+            if (s.colIdx[a] > u) {
+                edges.push([ids[u], ids[s.colIdx[a]]]);
+            }
+        }
+    }
+    return { nodes: () => ids, edges: () => edges };
+}
+
+/** A path of `n` nodes. */
+const path = (n: number): GraphSnapshot =>
+    graph(
+        n,
+        Array.from({ length: n - 1 }, (_, i) => [i, i + 1] as const),
+    );
+
+type Run = (s: GraphSnapshot, options: CommonLayoutOptions) => LayoutResult;
+
+// every structural layout, deterministic and on a graph each accepts
+const layouts: Record<string, Run> = {
+    bfs: (s, o) => indexed.bfs(s, o),
+    bipartite: (s, o) => indexed.bipartite(s, o),
+    multipartite: (s, o) => indexed.multipartite(s, { subsets: [Array.from({ length: s.nodeCount }, (_, i) => i)], ...o }),
+    planar: (s, o) => indexed.planar(s, { seed: 3, ...o }),
+    spectral: (s, o) => indexed.spectral(s, { seed: 3, ...o }),
+};
+
+describe("indexed structural layouts: common options", () => {
+    for (const [name, run] of Object.entries(layouts)) {
+        for (const dim of [2, 3] as const) {
+            it(`${name}: n = 0 gives an empty ${dim}D result`, () => {
+                const r = run(graph(0), { dim });
+                assert.equal(r.n, 0);
+                assert.equal(r.dim, dim);
+                assert.equal(r.positions.length, 0);
+            });
+
+            it(`${name}: n = 1 places the node on the ${dim}D centre`, () => {
+                const center = dim === 2 ? [3, -2] : [3, -2, 5];
+                assert.deepEqual(row(run(graph(1), { dim, center }), 0), center);
+            });
+
+            it(`${name}: ${dim}D scale is the distance of the farthest node from the centre`, () => {
+                const center = dim === 2 ? [1, 2] : [1, 2, 3];
+                const r = run(path(7), { dim, scale: 3, center });
+                let farthest = 0;
+                for (let i = 0; i < 7; i++) {
+                    const p = row(r, i);
+                    assert.ok(p.every(Number.isFinite), `${name} node ${i}: ${p.join(",")}`);
+                    farthest = Math.max(farthest, Math.hypot(...p.map((v, k) => v - center[k])));
+                }
+                assert.ok(Math.abs(farthest - 3) < 1e-5, `${name}: ${farthest}`);
+                if (dim === 3 && name !== "spectral") {
+                    for (let i = 0; i < 7; i++) {
+                        assert.equal(row(r, i)[2], 3);
+                    }
+                }
+            });
+        }
+
+        it(`${name}: rejects a dimension other than 2 or 3`, () => {
+            assert.throws(() => run(path(4), { dim: 4 as 2 }), /dim must be 2 or 3/);
+        });
+    }
+});
+
+describe("indexed.multipartite", () => {
+    const s = fromEdgeArrays({
+        directed: false,
+        nodeCount: 6,
+        src: Uint32Array.of(0, 1, 2),
+        dst: Uint32Array.of(3, 4, 5),
+        nodeColumns: {
+            level: Uint32Array.of(4, 4, 4, 9, 9, 2),
+            side: { data: ["l", "l", "l", "r", "r", "m"], decl: { dtype: "dict" } },
+            subset: Uint32Array.of(0, 0, 0, 1, 1, 1),
+            weight: Float32Array.of(1, 2, 3, 4, 5, 6),
+        },
+    });
+
+    it("matches the legacy layout for the same layers, vertical and horizontal", () => {
+        const layers = [[5], [0, 1, 2], [3, 4]];
+        const legacy = layers.map((layer) => layer.map((i) => s.ids.idOf(i) as Node));
+        const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
+        matchesLegacy(map(indexed.multipartite(s, { subsets: layers, scale: 2, center: [1, -1] })), multipartiteLayout(duck(s), legacy, "vertical", 2, [1, -1]));
+        // the legacy layout rescales around the centre before it swaps x and y, so it lands on the swapped centre
+        matchesLegacy(
+            map(indexed.multipartite(s, { subsets: layers, align: "horizontal", center: [1, -1] })),
+            multipartiteLayout(duck(s), legacy, "horizontal", 1, [-1, 1]),
+        );
+    });
+
+    it("a horizontal layout is centred on the centre asked for", () => {
+        const r = indexed.multipartite(s, { subsets: [[0, 1, 2], [3, 4, 5]], align: "horizontal", center: [10, -5] });
+        const mean = [0, 1].map((k) => [0, 1, 2, 3, 4, 5].reduce((sum, i) => sum + row(r, i)[k], 0) / 6);
+        assert.ok(Math.abs(mean[0] - 10) < 1e-5 && Math.abs(mean[1] + 5) < 1e-5, mean.join(","));
+        // the layers are rows: equal y within a layer
+        assert.equal(row(r, 0)[1], row(r, 2)[1]);
+        assert.notEqual(row(r, 0)[1], row(r, 3)[1]);
+    });
+
+    it("a u32 column puts equal values on one layer, in ascending value order", () => {
+        assert.deepEqual(indexed.multipartite(s, { subsets: "level" }).positions, indexed.multipartite(s, { subsets: [[5], [0, 1, 2], [3, 4]] }).positions);
+    });
+
+    it("a dict column puts equal values on one layer, in dictionary order", () => {
+        assert.deepEqual(indexed.multipartite(s, { subsets: "side" }).positions, indexed.multipartite(s, { subsets: [[0, 1, 2], [3, 4], [5]] }).positions);
+    });
+
+    it("reads the column subset by default", () => {
+        assert.deepEqual(indexed.multipartite(s).positions, indexed.multipartite(s, { subsets: [[0, 1, 2], [3, 4, 5]] }).positions);
+    });
+
+    it("rejects a missing column and a column of another dtype", () => {
+        assert.throws(() => indexed.multipartite(s, { subsets: "missing" }));
+        assert.throws(() => indexed.multipartite(s, { subsets: "weight" }), /u32 or dict/);
+    });
+
+    it("leaves a node in no layer NaN and rejects an index outside the graph", () => {
+        const r = indexed.multipartite(s, { subsets: [[0, 1], [2, 3]] });
+        assert.ok(row(r, 4).every(Number.isNaN) && row(r, 5).every(Number.isNaN));
+        assert.throws(() => indexed.multipartite(s, { subsets: [[0, 6]] }), /not a node/);
+    });
+
+    it("rejects an alignment other than vertical or horizontal", () => {
+        assert.throws(() => indexed.multipartite(s, { subsets: [[0]], align: "diagonal" as "vertical" }), /align must be/);
+    });
+});
+
+describe("indexed.bipartite", () => {
+    const s = fromEdgeArrays({
+        directed: false,
+        nodeCount: 7,
+        src: Uint32Array.of(0, 0, 3, 5),
+        dst: Uint32Array.of(1, 2, 4, 6),
+        nodeColumns: {
+            top: { data: Uint32Array.of(0b0101001), decl: { dtype: "bool" } },
+            weight: Float32Array.of(1, 2, 3, 4, 5, 6, 7),
+        },
+    });
+    const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
+    const topIds: Node[] = [0, 3, 5];
+
+    it("matches the legacy layout for a mask, vertical and horizontal", () => {
+        const mask = Uint32Array.of(0b0101001);
+        matchesLegacy(map(indexed.bipartite(s, { top: mask, scale: 2, center: [3, 4] })), bipartiteLayout(duck(s), topIds, "vertical", 2, [3, 4]));
+        matchesLegacy(
+            map(indexed.bipartite(s, { top: mask, align: "horizontal", aspectRatio: 2, center: [3, 4] })),
+            bipartiteLayout(duck(s), topIds, "horizontal", 1, [4, 3], 2),
+        );
+    });
+
+    it("a bool column gives the same layout as the mask of its true rows", () => {
+        assert.deepEqual(indexed.bipartite(s, { top: "top" }).positions, indexed.bipartite(s, { top: Uint32Array.of(0b0101001) }).positions);
+    });
+
+    it("defaults to the even node indices, as the legacy layout does", () => {
+        matchesLegacy(map(indexed.bipartite(s)), bipartiteLayout(duck(s)));
+    });
+
+    it("rejects a column that is not bool and a mask too short for the graph", () => {
+        assert.throws(() => indexed.bipartite(s, { top: "weight" }), /must be bool/);
+        assert.throws(() => indexed.bipartite(graph(40), { top: Uint32Array.of(1) }), /words/);
+    });
+});
+
+describe("indexed.bfs", () => {
+    it("matches the legacy layout when the edges are listed in ascending order", () => {
+        const s = graph(7, [
+            [0, 1],
+            [0, 2],
+            [1, 3],
+            [1, 4],
+            [2, 5],
+            [2, 6],
+        ]);
+        const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
+        matchesLegacy(map(indexed.bfs(s, { start: 0, scale: 2, center: [1, 1] })), bfsLayout(duck(s), 0, "vertical", 2, [1, 1]));
+        matchesLegacy(map(indexed.bfs(s, { start: 4 })), bfsLayout(duck(s), 4));
+    });
+
+    it("visits neighbours in ascending node index, whatever the edge order", () => {
+        // 0 reaches 3, 1, 2 in edge order; the layer is 1, 2, 3 top to bottom
+        const s = graph(4, [
+            [0, 3],
+            [0, 1],
+            [0, 2],
+        ]);
+        const r = indexed.bfs(s);
+        assert.ok(row(r, 1)[1] < row(r, 2)[1] && row(r, 2)[1] < row(r, 3)[1]);
+        assert.equal(row(r, 1)[0], row(r, 3)[0]);
+    });
+
+    it("puts each node in the layer of its hop distance", () => {
+        const r = indexed.bfs(path(4), { start: 1 });
+        // layers [1], [0, 2], [3]: x steps by one layer
+        assert.ok(row(r, 1)[0] < row(r, 0)[0]);
+        assert.equal(row(r, 0)[0], row(r, 2)[0]);
+        assert.ok(row(r, 2)[0] < row(r, 3)[0]);
+    });
+
+    it("reads a directed snapshot as undirected", () => {
+        const s = fromEdgeArrays({ directed: true, nodeCount: 3, src: Uint32Array.of(1, 2), dst: Uint32Array.of(0, 1) });
+        const r = indexed.bfs(s);
+        assert.ok(row(r, 0)[0] < row(r, 1)[0] && row(r, 1)[0] < row(r, 2)[0]);
+    });
+
+    it("throws for a disconnected graph and a start outside the graph", () => {
+        assert.throws(() => indexed.bfs(graph(4, [[0, 1]])), /disconnected/);
+        assert.throws(() => indexed.bfs(path(3), { start: 3 }), /not in the graph/);
+    });
+});
+
+describe("indexed.planar", () => {
+    it("matches the legacy layout when the edges are listed in ascending order", () => {
+        for (const g of [gridGraph(3, 4), wheelGraph(7), wheelGraph(12)]) {
+            const s = toLayoutSnapshot(g);
+            const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
+            matchesLegacy(map(indexed.planar(s, { seed: 5, scale: 2, center: [1, -1] })), planarLayout(duck(s), 2, [1, -1], 2, 5));
+        }
+        // a tree has no cycle: every node on the outer circle
+        const tree = graph(10, Array.from({ length: 9 }, (_, i) => [Math.floor(i / 2), i + 1] as const));
+        matchesLegacy(toPositionMap(indexed.planar(tree, { seed: 1 }), tree.ids), planarLayout(duck(tree), 1, null, 2, 1));
+    });
+
+    it("repeats for a seed", () => {
+        const s = toLayoutSnapshot(wheelGraph(12));
+        assert.deepEqual(indexed.planar(s, { seed: 9 }).positions, indexed.planar(s, { seed: 9 }).positions);
+    });
+
+    it("rejects K5, K3,3 and a connected graph of more than 3n - 6 edges", () => {
+        assert.throws(() => indexed.planar(toLayoutSnapshot(completeGraph(5))), /G is not planar/);
+        const k33: [number, number][] = [];
+        for (const u of [0, 1, 2]) {
+            for (const v of [3, 4, 5]) {
+                k33.push([u, v]);
+            }
+        }
+        assert.throws(() => indexed.planar(graph(6, k33)), /G is not planar/);
+        assert.throws(() => indexed.planar(toLayoutSnapshot(completeGraph(7))), /G is not planar/);
+    });
+
+    it("lays out a disconnected graph and puts an isolated interior node on the centre", () => {
+        // a triangle plus isolated nodes: the triangle is the outer face
+        const r = indexed.planar(graph(5, [[0, 1], [1, 2], [2, 0]]), { seed: 2 });
+        assert.deepEqual(row(r, 3), row(r, 4));
+    });
+
+    it("lays out a long path without overflowing the stack", () => {
+        const r = indexed.planar(path(20000), { seed: 1 });
+        assert.equal(r.n, 20000);
+    });
+});
+
+describe("indexed.spectral", () => {
+    it("matches the legacy layout exactly in 2D and 3D, with parallel edges and a self-loop", () => {
+        // edges out of index order, a parallel pair (2, 4) and a self-loop on 5
+        const g: Graph = {
+            nodes: () => ["a", "b", "c", "d", "e", "f", "g"],
+            edges: () => [
+                ["c", "e"],
+                ["a", "b"],
+                ["e", "c"],
+                ["f", "f"],
+                ["b", "c"],
+                ["d", "e"],
+                ["f", "g"],
+                ["a", "g"],
+                ["d", "a"],
+            ],
+        };
+        const s = toLayoutSnapshot(g);
+        const map = (r: LayoutResult): PositionMap => toPositionMap(r, s.ids);
+        matchesLegacy(map(indexed.spectral(s, { seed: 4, scale: 2, center: [1, 2] })), spectralLayout(g, 2, [1, 2], 2, 4));
+        matchesLegacy(map(indexed.spectral(s, { seed: 8, dim: 3 })), spectralLayout(g, 1, null, 3, 8));
+    });
+
+    it("puts two nodes at the centre minus and plus scale", () => {
+        const r = indexed.spectral(graph(2, [[0, 1]]), { scale: 2, center: [1, 1] });
+        assert.deepEqual(row(r, 0), [-1, -1]);
+        assert.deepEqual(row(r, 1), [3, 3]);
+    });
+});

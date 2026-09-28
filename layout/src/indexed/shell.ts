@@ -3,6 +3,7 @@ import type { F64, GraphSnapshot } from "@graphty/graph-format";
 import type { LayoutResult } from "../positions";
 import { np } from "../utils/numpy";
 import { type CommonLayoutOptions, planar, resolve, result } from "./common";
+import { groupsOfColumn } from "./multipartite";
 
 /** Options of the index-based shell layout. */
 export interface ShellLayoutOptions extends CommonLayoutOptions {
@@ -50,32 +51,6 @@ export function shellRows(n: number, shells: readonly ArrayLike<number>[], scale
 }
 
 /**
- * The shells a node column names: nodes with equal values share a shell, shells in ascending value order.
- * @param s - the snapshot
- * @param name - a `u32` or `dict` node column
- * @returns node indices per shell
- */
-function shellsOfColumn(s: GraphSnapshot, name: string): number[][] {
-    const column = s.nodes.require(name);
-    if (column.dtype !== "u32" && column.dtype !== "dict") {
-        throw new Error(`shell column "${name}" must be u32 or dict, not ${column.dtype}`);
-    }
-    const values = column.dtype === "u32" ? column.data : column.codes;
-    const byValue = new Map<number, number[]>();
-    for (let i = 0; i < s.nodeCount; i++) {
-        if (column.isSet(i)) {
-            const shell = byValue.get(values[i]);
-            if (shell === undefined) {
-                byValue.set(values[i], [i]);
-            } else {
-                shell.push(i);
-            }
-        }
-    }
-    return [...byValue.keys()].sort((a, b) => a - b).map((v) => byValue.get(v) ?? []);
-}
-
-/**
  * Nodes on concentric circles, one circle per shell, each circle's nodes evenly spaced in the order listed. In 3D the
  * circles lie in the plane of the centre's z.
  * @param s - the snapshot
@@ -86,7 +61,7 @@ export function shell(s: GraphSnapshot, options: ShellLayoutOptions = {}): Layou
     const { n, dim, scale, center } = resolve(s, options);
     const { nlist } = options;
     const shells =
-        typeof nlist === "string" ? shellsOfColumn(s, nlist) : (nlist ?? [Array.from({ length: n }, (_, i) => i)]);
+        typeof nlist === "string" ? groupsOfColumn(s, nlist, "shell") : (nlist ?? [Array.from({ length: n }, (_, i) => i)]);
     for (const list of shells) {
         for (let j = 0; j < list.length; j++) {
             if (!Number.isInteger(list[j]) || list[j] < 0 || list[j] >= n) {

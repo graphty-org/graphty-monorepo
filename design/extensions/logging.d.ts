@@ -111,8 +111,9 @@ export interface GraphtyLoggerConfig {
 export interface LogSinkEgress {
     /**
      * The origins ("https://logs.example.com") the destination may send records to; [] for a
-     * destination that keeps records in the page. Absent means "not declared", which a settings
-     * panel MUST show as unknown.
+     * destination that says it keeps records in the page. Absent means "not declared", which a
+     * settings panel MUST show as unknown and the element treats as EGRESS. Either way it is the
+     * author's claim: only the embedder, in code, can mark a destination as in-page.
      */
     readonly destinations?: readonly string[];
     /** Whether the destination forwards LogRecord.data. Absent means "not declared". */
@@ -121,8 +122,8 @@ export interface LogSinkEgress {
 
 /**
  * PROPOSED -- open decision 13. An element-level setting, settable from code only: what the
- * element strips from a record before the write of EVERY destination that sends records off the
- * page (the built-in remote included). "data-and-stacks" (the default) strips data, error.stack,
+ * element strips from a record before the write of EVERY destination -- console and live addSink
+ * objects included -- except those the embedder marked as in-page in code. "data-and-stacks" (the default) strips data, error.stack,
  * error.cause and GraphtyError.details; "none" delivers the record whole. Message text carries no
  * graph values by the rule of logging.md section 7 item 2.
  */

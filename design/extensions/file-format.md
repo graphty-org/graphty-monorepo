@@ -40,8 +40,8 @@ section 12.4).
 | --- | --- |
 | `id` | Non-empty; MUST equal the class's `static type`; not in `KNOWN_FORMAT_IDS` |
 | `plainName` | Non-empty |
-| `extensions` | At least one; each MUST begin with `.` and MUST be lower case |
-| `mimeTypes` | At least one; each a `type/subtype` media type |
+| `extensions` | At least one; each MUST begin with `.`, MUST be lower case and MUST contain no further `.` (detection compares only the last segment of a file name, so `.nt.gz` could never match; refused with `E_BAD_COMMAND`, `field: "descriptor.extensions"`, until compound extensions land with open decision 20) **(not yet met:** 2.6.1 accepts `.nt.gz` silently**)** |
+| `mimeTypes` | At least one; each a `type/subtype` media type. A format with no registered type (SIF, GMT) can only list a generic one; whether `mimeTypes` may be empty or entries marked generic is part of open decision 2 |
 | `canImport` | MUST be `true` for a registered reader |
 | `canExport` | MUST be `false` in 2.6.1 |
 | `options` | The reader's options (README section 7); MAY be empty |
@@ -61,6 +61,9 @@ A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource
      styles read. A reader whose format has a strength or distance column SHOULD emit it there, and
      say in its documentation which it is;
    - the edge endpoint spellings below, and `id` on an edge.
+   - every key beginning with `graphty.`, the prefix of the element's internal columns
+     (`algorithm.md` section 3.1 item 6), so a file exported by another tool cannot re-import one
+     of them with the element's meaning.
    These are the reserved record keys. A reader MUST NOT emit any of them with another meaning; an
    attribute of the source format that would compact to one of them (`dcterms:source`, a `from`
    column on a record that also has `source` and `target`) MUST be renamed by the reader, because
@@ -68,13 +71,21 @@ A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource
 2. An edge record MUST carry its endpoints as `source` and `target`. The element also accepts
    `src`/`dst` and `from`/`to`, in that order of preference, but a reader SHOULD emit
    `source`/`target`: that is what every built-in emits and what `session.data.edge(id)` returns.
-3. An edge record MAY carry `id`; when absent the element identifies the edge by its position
-   among the edges of the same ordered pair (`ImportReport.edgeIdentity` counts both kinds). A
-   position is not stable when an updated file lists a pair's edges in another order, so saved
-   results, annotations and sets can point at a different edge after a reload. A reader whose
-   format has a natural edge name SHOULD emit it as `id` (SIF's `A (pp) B`, with an ordinal
-   suffix for a repeat, as the worked example does). Deterministic assignment is part of open
-   decision 19.
+3. An edge record MAY carry `id`, but **as built the element reads it only when the consumer
+   has set `data.knownFields.edgeIdPath`** (default `null`, `src/config/DataConfig.ts`). With the
+   default, a reader's `id` is an ordinary attribute and every edge is identified by its position
+   among the edges of the same ordered pair (`ImportReport.edgeIdentity` counts both kinds). The
+   setting is global, so it cannot differ between loads, and once set the element matches record
+   ids across the whole graph and every load, without looking at endpoints, so two GraphML files
+   that both number their edges `e0`, `e1`, ... collide (`DataManager.knownEdgeFor`). A position is
+   not stable when an updated file lists a pair's edges in another order, so saved results,
+   annotations and sets can point at a different edge after a reload. A reader whose format has a
+   natural edge name SHOULD still emit it as `id` (SIF's `A (pp) B`), because open decision 19
+   recommends that the reserved `id` identify the edge by default, scoped to its load; until then
+   it takes effect only under `edgeIdPath: "id"`. Generated edge ids MUST be injective: a reader
+   that builds an id from parts escapes the separator text in each part, or keeps the set of ids
+   already emitted and takes the next free ordinal, so a node named `B #2` cannot reproduce the id
+   of the second `A (pp) B` edge. Deterministic assignment is part of open decision 19.
 4. An edge MAY reference a node the reader never yielded; the element creates that node, as it
    does for built-ins. `E_EDGE_ENDPOINTS_UNRESOLVED` is something else: the element raises it when
    no endpoint spelling (`source`/`target`, `src`/`dst`, `from`/`to`) answers in a batch of edge
@@ -111,12 +122,28 @@ A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource
      from the load options or `data.knownFields`) to the records of EVERY reader, built-in or
      plugin (`Graph.ts`, the load path). A plugin reader therefore emits its records in the
      source's own terms and leaves the mapping to the element; `resolveOptions` skipping those keys
-     (section 6 item 2) is what lets it;
+     (section 6 item 2) is what lets it. **(not yet met)** `loadFromUrl` and `loadFromFile` put the
+     mapping into the reader's options as `edgeSource` and `edgeTarget`, but
+     `ELEMENT_OWNED_OPTIONS` (`DataSource.ts`) lists `edgeSrcIdPath` and `edgeDstIdPath` instead,
+     so a conforming plugin reader's `resolveOptions` refuses `edgeSource` with
+     `E_UNKNOWN_OPTION` whenever a consumer maps edges -- while a built-in, which skips
+     `resolveOptions`, loads the same call. The fix adds `edgeSource` and `edgeTarget` to that set,
+     and the parity suite loads a plugin format by URL and by `File` with an edge mapping;
    - ids are document-local in many formats (an RDF blank node `_:b0`, a GraphML id, an
      auto-numbered row) but the element matches them globally, so two files that both use `_:b0`
      for unrelated things merge them into one node under the default add. A reader SHOULD
      qualify such ids with something unique to the file until open decision 19 gives it a
      per-load token.
+9. **Ids as the source spells them.** A reader SHOULD emit node ids and edge endpoints exactly as
+   the source spells them, as strings, unless the format itself types them (GML integers) or the
+   caller declares an id type. Leading zeros are significant in employee numbers, ZIP codes and
+   many system keys, and because ids compare by value and type, a reader that emits `7157` as a
+   number and another that emits `"7157"` make the same gene two nodes. **(not yet met)** The
+   built-in CSV reader parses with `dynamicTyping: true`, so `00123` becomes the number 123, and
+   it keeps node-list ids as numbers while turning edge-list endpoints into strings
+   (`CSVDataSource.ts`), so a CSV node list and edge list of the same system do not even meet. The
+   migration's CSV item, which requires every existing CSV test to pass unchanged, MUST NOT carry
+   that coercion onto graph-io; the id type policy for loads and joins is open decision 19.
 
 ## 3. Registration
 
@@ -178,7 +205,11 @@ NOT offer a way to publish one without the other.
    and a dropped file's `File.type` are ignored. A URL with no known extension is therefore
    sniffed, and a generic built-in sniffer may claim it first (the CSV sniffer reads
    `@prefix foaf: <...> .` as space-separated words). Ranking a format whose `mimeTypes` match
-   above content sniffing is part of open decision 2.
+   above content sniffing is part of open decision 2, with its matching rule: parameters stripped,
+   compared case-insensitively, and a match on a GENERIC type (`text/plain`,
+   `application/octet-stream`) never outranking a positive content sniff -- otherwise every `.txt`
+   file and every `text/plain` response would go to whichever plugin claims `text/plain`, as the
+   worked example must.
 10. **A dialect of a built-in cannot win on the built-in's extension.** Among the formats that
     claim an extension, built-ins come first and the sample only reorders claimants whose sniffers
     accept it; the built-in JSON sniffer accepts any JSON, so a JSON-LD reader that also claims
@@ -245,8 +276,10 @@ Parity statements:
    `addDataFromSource("roster", { data, scoreScale: 2 })`.
 2. The reader MUST call `this.resolveOptions(opts)` in its constructor and MUST read option values
    only from its result. `resolveOptions` skips the keys the element itself puts in an options
-   object (`data`, `file`, `url`, `chunkSize`, `errorLimit`, `filename`, `size`, `format`,
-   `nodeIdPath`, `edgeSrcIdPath`, `edgeDstIdPath`) unless the reader declares one, and validates
+   object unless the reader declares one -- as 2.6.1 builds the set, `data`, `file`, `url`,
+   `chunkSize`, `errorLimit`, `filename`, `size`, `format`, `nodeIdPath`, `edgeSrcIdPath` and
+   `edgeDstIdPath`; the load routes actually pass `edgeSource` and `edgeTarget`, which the set
+   MUST also hold (section 2.2 item 8, not yet met) -- and validates
    everything else: an undeclared name is `E_UNKNOWN_OPTION` (with the nearest declared
    name in `details`), a bad value `E_OPTION_RANGE`.
 3. A reader's constructor MAY narrow its parameter type to its own config interface (extending
@@ -345,18 +378,35 @@ Three consequences of item 3 conflict with items 1 and 2, and are open decision 
 
 Two further rules for any writer:
 
-4. Every exported value MUST be escaped for the target syntax (XML, DOT and CSV quoting). A CSV or
-   TSV writer MUST, by default, neutralise a STRING cell that begins with `=`, `+`, `-`, `@`, tab
-   or carriage return, because imported attribute values are untrusted and a spreadsheet executes
+4. Every exported string -- values, attribute keys, node and edge ids, and exported column names
+   -- MUST be escaped for the target syntax (XML and DOT quoting of keys and ids as well as values,
+   CSV quoting). A CSV or TSV writer MUST, by default, neutralise a STRING cell, header cells
+   included, that begins with `=`, `+`, `-`, `@`, tab or carriage return (a hostile GraphML key
+   named `=HYPERLINK(...)` becomes a CSV header), because imported attribute values are untrusted and a spreadsheet executes
    a formula. It MUST NOT touch a value that is a finite number in the snapshot (a column of type
    `number` or `integer`): a negative fold change of `-2.31` is written as `-2.31`, or every
    down-regulated gene would be read back as text. The rule is per value type, the writer offers
    an option to switch neutralisation off for a pipeline that reads the file with a CSV parser,
    and the conformance kit checks that a numeric column with negative values round-trips byte for
-   byte.
+   byte. **(not yet met)** graph-io's CSV writer, which the element's own export will use,
+   neutralises nothing (README section 10 item 9).
 5. Whether a caller may export a chosen subset (a selection, some columns, pseudonymised ids) and
    report each deliberate omission as a loss note is part of open decision 24, and needs the
    owner's confirmation as consistent with "whatever the format supports".
+6. **An unmeasured value is absent.** An element the algorithm did not measure has no value
+   (`algorithm.md` section 2.2 item 3) and no `rank` or `percentile`, and a writer MUST write that
+   as the format's absent value -- no `<data>` element, an empty cell, JSON `null` -- never as a
+   default or a sentinel, and MUST NOT declare a key default for a result column: a GraphML
+   `<default>` of 0 would bring 30,000 isolated accounts back measured, low and ranked. A format
+   that cannot express absence raises `W_UNMEASURED_AS_DEFAULT` (open decision 24). The kit exports
+   a result with an unmeasured node and checks that it reads back absent.
+7. **Element-internal columns are never exported.** The snapshot the element builds carries
+   bookkeeping columns (`graphty.edgeId`, `graphty.nodeHash`, `graphty.edgeHash`,
+   `graphty.edgeOrdinal`, `graphty.edgeAmong`, and before attachment `graphty.importPosition`);
+   they are not data and are left out of every export. Pins (`graphty.pinned`) are reader state:
+   whether they, and import positions, are exported as declared roles is part of open decision 24.
+   The reserved `graphty.` record-key prefix (section 2.2 item 1) keeps a re-import from giving
+   them the element's meaning. The migration's `element-export-api` item carries the same rule.
 
 ### 8.2 Where writers register -- NOT decided
 
@@ -454,7 +504,11 @@ Until that is decided, a third party writes a `DataSource` subclass as specified
   another id (for example `acme-cx2`), and a saved document naming `cx2` fails with the deprecation
   reason even when such a reader is installed; letting a reader answer a deprecated id is open
   decision 25.
-- The record member names in section 2.2 are part of the contract.
+- The record member names in section 2.2 are part of the contract, and so is the SET of reserved
+  keys with their meanings. Records are written by extensions, so giving a new meaning to a key an
+  existing reader may already emit (a reserved `time` or `label`) is a format-contract major, or it
+  arrives only by opt-in -- a `declareSchema` declaration or a key under a reserved prefix no earlier
+  reader can have emitted (README section 6.2 item 3; open decision 29).
 
 ## 11. Security
 
@@ -496,6 +550,9 @@ Run by `checkFormat(ReaderClass, { samples, invalidSamples })` in the proposed k
 | duplicates are the element's | a sample with a repeated node line and a repeated edge gives the counts section 2.2 item 8 predicts, and the reader merged nothing itself |
 | document-local ids stay local | loading the same sample with document-local ids twice (added) gives disjoint nodes (fails until open decision 19 gives a per-load token, unless the reader qualifies its ids) |
 | reserved keys are used as reserved | a sample with coordinates yields `position`, and one with a strength column yields the configured weight key (skipped when the format has neither) |
+| edge ids are stable | the same sample with its edges in another order, loaded with `edgeIdPath: "id"`, gives every edge the same id (skipped when the format has no natural edge name) |
+| generated ids are injective | a sample whose node names contain the reader's own separator and ordinal text yields no two edges with one id |
+| ids keep their spelling | a sample with leading-zero and mixed-width ids (`00123`, `0123`, `123`) yields three distinct node ids, spelled as in the file |
 | options default and validate | each declared option's default is applied when omitted; an undeclared name raises `E_UNKNOWN_OPTION`; a value outside `min`/`max`/`values` raises `E_OPTION_RANGE` |
 | invalid input fails coded | each invalid sample fails with `E_PARSE_FAILED`, `details.format` equal to the id |
 | records are JSON | every record survives `JSON.parse(JSON.stringify(record))` unchanged |
@@ -528,13 +585,18 @@ class SifDataSource extends DataSource {
         id: "acme-sif",
         plainName: "Simple Interaction Format",
         extensions: [".sif"],
-        mimeTypes: ["text/plain"],
+        mimeTypes: ["text/plain"],                        // generic: SIF has no registered type (section 4 item 9)
         canImport: true,
         canExport: false,
         options: [{ name: "directed", plainName: "Directed interactions", type: "boolean", default: false }],
     };
-    // "nodeA <relationship> nodeB [nodeC ...]", tab or space separated
-    static override detect = (sample: string): boolean => /^\S+\t\S+\t\S+/.test(sample);
+    // "nodeA <relationship> nodeB [nodeC ...]", tab separated. Require it on several lines, and a
+    // short relation token rather than a URL, so a GMT gene-set file ("NAME<tab>http://...<tab>GENE")
+    // is not claimed.
+    static override detect = (sample: string): boolean => {
+        const lines = sample.split(/\r?\n/).filter((line) => line.trim() !== "").slice(0, 5);
+        return lines.length >= 2 && lines.every((line) => /^[^\t]+\t[A-Za-z][\w-]{0,15}\t[^\t]+/.test(line));
+    };
 
     readonly #config: SifConfig;
     readonly #directed: boolean;
@@ -551,7 +613,7 @@ class SifDataSource extends DataSource {
         const text = await this.getContent();
         const ids = new Set<string>();
         const edges = [];
-        const seen = new Map<string, number>();          // natural edge name -> repeats so far
+        const emitted = new Set<string>();               // every edge id so far, so ids stay injective
         for (const [index, line] of text.split(/\r?\n/).entries()) {
             if (line.trim() === "") continue;
             const [source, relation, ...targets] = line.split(line.includes("\t") ? "\t" : /\s+/);
@@ -567,12 +629,13 @@ class SifDataSource extends DataSource {
             ids.add(source);
             for (const target of targets) {
                 ids.add(target);
-                // Cytoscape's own edge name, "A (pp) B", so an annotation on an edge survives a
-                // reload of a reordered file; a repeat gets an ordinal suffix (section 2.2 item 3).
+                // Cytoscape's own edge name, "A (pp) B"; a repeat takes the next FREE ordinal, so
+                // a node named "B #2" cannot reproduce another edge's id (section 2.2 item 3). The
+                // element reads it as the edge's identity only under edgeIdPath: "id".
                 const name = `${source} (${relation}) ${target}`;
-                const repeat = seen.get(name) ?? 0;
-                seen.set(name, repeat + 1);
-                const id = repeat === 0 ? name : `${name} #${repeat + 1}`;
+                let id = name;
+                for (let n = 2; emitted.has(id); n++) id = `${name} #${n}`;
+                emitted.add(id);
                 edges.push(DataSource.toRecord({ id, source, target, relation }));
             }
         }
@@ -611,6 +674,16 @@ await graph.loadFromFile(droppedFile);            // recognised by ".sif"; by co
 - Detection ignores media types, takes a URL's extension with its query string, and fetches an
   unknown URL once without retry (section 4).
 - Attribute keys containing `.` load but cannot be bound (section 2.2 item 7).
+- A plugin reader refuses an edge field mapping that a built-in accepts (`edgeSource`,
+  `edgeTarget`; section 2.2 item 8).
+- An edge record's `id` is read only under a global `edgeIdPath`, and then matched across every
+  load (section 2.2 item 3).
+- The built-in CSV reader turns `00123` into the number 123 and types node-list and edge-list ids
+  differently (section 2.2 item 9).
+- Multi-dot extensions register but never match (section 2.1); input is always decoded as UTF-8
+  and missing-value tokens are not recognised (open decision 20).
+- An unmeasured result value and the element's internal columns have export rules no writer
+  implements yet (section 8.1 items 6 and 7).
 - A reader cannot report progress in bytes or against a known total, so a large plugin format
   shows no progress until its first chunk (open decision 20).
 
@@ -623,7 +696,7 @@ await graph.loadFromFile(droppedFile);            // recognised by ".sif"; by co
 | STRING and BioGRID edge-list FILES | `design/designloom/workflows/W20.yaml` | yes; compressed releases need open decision 20 |
 | A STRING or BioGRID QUERY from a gene list | `design/designloom/workflows/W20.yaml`, `W08.yaml` | not yet: a service is a data source (open decision 15) |
 | A gene list joined to an attribute table, with a match report | `design/designloom/workflows/W20.yaml` | not yet: open decision 19 |
-| GMT gene sets and identifier lists | `design/designloom/workflows/W22.yaml` | not yet: not a graph; open decision 22 |
+| GMT gene sets and identifier lists | `design/designloom/workflows/W22.yaml` | partly: a GMT reader that yields a bipartite gene-set-to-gene graph conforms today; joining the enrichment table onto the gene-set nodes needs open decision 19, and an enrichment map needs the "apply as edges" operation (`candidates.md` section 18); a gene set as a run input is open decision 22 |
 | GraphML and CX for collaborators, upload to NDEx, tables as CSV | `design/designloom/workflows/W25.yaml`, `W21.yaml`, `W23.yaml`, `W24.yaml` | not yet: no writer seam (open decision 1); upload is a data-source publish direction (open decision 15) |
 | RDF and OWL files | `design/designloom/personas/knowledge-engineer.yaml` | partly: a reader loads them, but predicate IRIs cannot be bound (open decision 29), blank nodes merge across files (open decision 19), and types, languages, labels and prefixes need open decision 20 |
 | Refreshing one of several integrated sources | `design/designloom/workflows/W13.yaml` | not yet: no load keeps its source, so none can be replaced alone (open decision 19) |

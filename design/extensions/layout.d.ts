@@ -30,9 +30,16 @@ export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 export type NodeIdType = string | number;
 
 /**
- * A node as a layout sees it. TYPE-ONLY: a layout MUST NOT construct one, and MAY read only
- * `id`, `index` and `data` (layout.md section 2). The element's Node class has many more members;
- * they are not part of this contract.
+ * A node as a layout may READ it: `id`, `index` and `data` (layout.md section 2).
+ *
+ * AS BUILT, 2.6.1 does NOT publish this structural shape. `./extend` re-exports the element's full
+ * render class `Node` (type-only), which has some fifty further members (`parentGraph`, `opts`,
+ * `mesh`, `drawnStyle`, ...). The declaration below lists only the contract members, so it is
+ * WIDER-assignable than the published type: an object literal `{ id, index, data }` satisfies it
+ * but not the published `Node`, and a layout unit test cannot build one without a cast. Nothing in
+ * the published type stops a layout reading `n.mesh` either. The fix is the PROPOSED `LayoutNode`
+ * and `LayoutEdge` below (README section 1, "Which text is normative", item 4, for the check that
+ * keeps declarations and ./extend together).
  */
 export interface Node {
     readonly id: NodeIdType;
@@ -42,7 +49,7 @@ export interface Node {
     readonly data: Readonly<Record<string, unknown>>;
 }
 
-/** An edge as a layout sees it. TYPE-ONLY; read only the members below. */
+/** An edge as a layout may read it. AS BUILT the published `Edge` is the full render class; see `Node`. */
 export interface Edge {
     readonly id: string;
     readonly srcId: NodeIdType;
@@ -232,10 +239,34 @@ export declare function clearRegisteredLayoutsForTesting(): void;
 // =============================================================================================
 
 
+/**
+ * PROPOSED -- additive. Structural node and edge types published on ./extend, with LayoutEngine's
+ * members and runLayoutHeadless typed against them. Method parameters are bivariant, so an
+ * existing override typed with the render class still compiles.
+ */
+export interface LayoutNode {
+    readonly id: NodeIdType;
+    readonly index: number;
+    readonly data: Readonly<Record<string, unknown>>;
+}
+export interface LayoutEdge {
+    readonly id: string;
+    readonly srcId: NodeIdType;
+    readonly dstId: NodeIdType;
+    readonly data: Readonly<Record<string, unknown>>;
+}
+
 /** PROPOSED. What a batch layout over the snapshot is given. CALLED BY EXTENSIONS. */
 export interface SnapshotLayoutInput {
-    /** The graph, or the scope's compact subgraph for a scoped layout. */
+    /**
+     * The WHOLE graph, also for a scoped layout (open decision 14): a compact subgraph would drop
+     * the rows the scope must sit beside, which `fixed` has to name.
+     */
     readonly graph: GraphSnapshot;
+    /** For a scoped layout, the rows it places; null for the whole graph. */
+    readonly scope: NodeMask | null;
+    /** Resolve a declared "attribute" option as a path, exactly as styles and filters do. */
+    column(optionName: string): ArrayLike<unknown> | null;
     readonly dimensions: 2 | 3;
     /** Validated and defaulted against descriptor.options. */
     readonly options: Readonly<Record<string, unknown>>;
@@ -294,8 +325,8 @@ export interface LayoutReport {
 export declare function runLayoutHeadless(
     engine: new (opts: object) => LayoutEngine,
     input: {
-        readonly nodes: readonly Node[];
-        readonly edges: readonly Edge[];
+        readonly nodes: readonly LayoutNode[];
+        readonly edges: readonly LayoutEdge[];
         readonly options?: Readonly<Record<string, unknown>>;
         readonly dim?: 2 | 3;
         readonly steps?: number;

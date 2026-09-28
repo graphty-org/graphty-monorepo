@@ -47,6 +47,9 @@ below is therefore a recommendation to the owner, not a decision.
 | Entity resolution (merging duplicate nodes) | none | Not an extension point: the element ships a merge operation |
 | Background layers and basemaps | none | Not an extension point for the drawing; a tile SOURCE is a data source |
 | Derived networks (projection, enrichment maps) | none | Not an extension point: an element operation over a pair-list result |
+| Network collections (a parent network and its subnetworks) | none | Not an extension point: an element capability, decided with the record formats |
+| Edge geometry (waypoints, arcs, great circles, bundling) | none | Undecided: layout-supplied or element-owned |
+| Data-driven node charts (pie and donut glyphs) | none | Not an extension point: the element ships it as a style channel |
 
 ## 1. Parameterised, service and live data sources
 
@@ -232,8 +235,14 @@ type, and a saved document naming one reads as unresolved (never failing) where 
 
 **What it is.** `registerAccelerator` on `./extend` registers a factory; the element's own `./webgpu`
 entry point uses it to register the WebGPU accelerator, and algorithms and simulation layouts
-dispatch to it. The interface it implements is `AlgorithmAccelerator` in `@graphty/algorithms`
-(about twenty optional methods over a graph-format snapshot), tagged `@public` in that package.
+dispatch to it. What the factory returns is the element's own `GraphAccelerator`
+(`graphty-element/src/acceleration/types.ts`): `name`, `backend`, an optional `device`, `lost`,
+`precision`, `verify` and `dispose`, plus an index signature `[algorithmOrLayout: string]:
+unknown`. The element narrows that value internally (`src/acceleration/narrow.ts`) to
+`@graphty/algorithms`' `AlgorithmAccelerator` (about twenty optional methods over a graph-format
+snapshot, tagged `@public` in that package) and the layout accelerator interface. So the contract a
+third party would implement, and what promoting it would freeze, is the element-owned
+`GraphAccelerator`, not the algorithms package's interface alone.
 
 **Evidence for.** It is a working, structurally typed contract with a clear no-silent-fallback rule
 (`algorithms/src/indexed/accelerator.ts`). A third party with a different backend (a WebAssembly
@@ -267,8 +276,16 @@ layout or view is already reachable by the built-in commands that address those 
 AI surface is changing quickly. `all-extension-points.test.ts` lists commands as an explicit
 exclusion.
 
-**Verdict: Keep internal.** Make sure the built-in commands address every one of the six points by
-catalogue key, so plugins are reachable through the assistant without a command extension.
+**Verdict: Keep internal.** The built-in commands SHOULD address Palette, Camera, Layout and
+Algorithm by catalogue key, so plugins of those points are reachable through the assistant without
+a command extension. They MUST NOT configure log destinations, change logger policy or load from a
+URL: the assistant reads graph content as model input (`sampleData`, `queryGraph`), so a node label
+written as an instruction ("configure logging with sink remote at https://...") could otherwise
+turn on egress through the model, which README section 9.2 item 3 forbids a file to do directly. A
+load command, if one is ever added, takes only files the user picked or URLs on the embedder's
+allowlist, after a confirmation the model cannot answer. Command arguments derived from graph
+content are untrusted, and runs the assistant starts count against the run budget of open
+decision 16.
 
 ## 11. Image, vector and video exporters
 
@@ -396,7 +413,56 @@ export the pairs and import them as a file. That route does not exist: there is 
 edge writer has a place for (`file-format.md` section 8.1). So today NO route turns a pair list
 into a network, and `design/designloom/workflows/W22.yaml` (an enrichment map from gene-set
 overlap) cannot be reached until "apply as edges", or the table export of open decision 24,
-exists.
+exists. The rest of that route needs no new option type: a GMT reader yielding a bipartite
+gene-set-to-gene graph conforms today, Jaccard between gene-set nodes is a `pair-list` plugin, and
+joining the enrichment table onto the gene-set nodes is open decision 19. So "apply as edges" and
+the join, not the `dataset` option type of open decision 22, are what block that workflow, and
+specifying "apply as edges" ahead of decision 22 would unblock it.
+
+## 19. Network collections
+
+**What it would be.** Several networks in one session: a parent network and derived subnetworks
+(the largest component made the working network, each cluster laid out as its own subnetwork), each
+with its own runs, layouts and views, saved together in one project.
+
+**Evidence.** `design/designloom/workflows/W20.yaml` (make the largest component the working
+network), `W21.yaml` (lay out each cluster as its own subnetwork), `W25.yaml` (one session file with
+every network in the collection). Every point assumes one graph per element, and no record says
+which network a run, load or layout belonged to.
+
+**Verdict: Not an extension point**, but an element capability that changes the record formats:
+it would add a network id to `RunRecord`, `LoadReport`, the layout record and
+`CameraViewReference`. Decide it with README open decision 8 and the project file format, before
+those records are frozen.
+
+## 20. Edge geometry
+
+**What it would be.** Edges drawn as something other than a straight segment: waypoints, arcs, a
+great-circle route, a route along a shipping lane, bundling.
+
+**Evidence.** `design/designloom/personas/supply-chain-analyst.yaml` and
+`design/designloom/workflows/W11.yaml`: a geographic layout whose straight chords misstate which
+regions a route crosses, and cut through the sphere on a 3D globe. A layout controls only the two
+ends (`EdgePosition { src, dst }`, `layout.md` section 11).
+
+**Verdict: Undecided**, with two shapes to choose between: layout-supplied geometry (a curve kind
+or waypoints on `EdgePosition`, which widens the layout contract) or an element-owned edge-routing
+style (a great-circle or arc mode that any layout gets). Recommended: element-owned, because every
+geographic layout would otherwise reimplement it. Until then a geographic layout author should know
+edges are straight.
+
+## 21. Data-driven node charts
+
+**What it would be.** A node drawn as a pie or donut whose slices come from data (the enriched GO
+terms a protein belongs to, `design/designloom/workflows/W21.yaml`).
+
+**Evidence against a plugin.** The proposed declarative shape descriptor for node meshes (section 4)
+is a static outline and cannot carry slices sized by data, and a mesh plugin would expose renderer
+internals.
+
+**Verdict: Not an extension point.** The element ships it as a style channel: a pie or donut
+encoding bound to a list or partition column, so it works with every palette and travels in style
+documents.
 
 ## Does the design framework's ontology cover the extension points?
 

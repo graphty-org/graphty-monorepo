@@ -52,7 +52,12 @@ changes in section 7 below); the design studio's gap workflows (`design/designlo
 
 ### 2.2 The result
 
-`compute` returns `AlgorithmOutput` or `null` (nothing to compute, for example an empty scope).
+`compute` returns `AlgorithmOutput` or `null`. `null` is reserved for "no input to compute over"
+(an empty scope), which the element SHOULD surface as `E_SCOPE_EMPTY` or a recorded no-op run. A
+search that RAN and found nothing MUST return an empty result of its declared shape (for a
+`node-set`, `count: 0` and no entries), so it gets a run record: a documented negative hunt ("this
+scope, these indicators, nothing found") has to be citable and replayable, and must not be
+indistinguishable from "nothing was run".
 
 1. `shape` MUST equal `descriptor.shape`.
 2. `fields` lists the fields this run filled; it MAY be fewer than the descriptor declares when a
@@ -65,7 +70,13 @@ changes in section 7 below); the design studio's gap workflows (`design/designlo
    source-target pair, which cannot name one of two parallel edges).
 5. `graph` holds graph-level values.
 6. Fields the element can derive (group sizes, level counts, a set's count, a metric's ranking and
-   range) MUST NOT be published by the algorithm. Section 2.2.3 defines them.
+   range) MUST NOT be published by the algorithm. Section 2.2.3 defines them. The set will grow,
+   so the names are reserved up front: the derived names of the table in section 2.2.1, plus every
+   name beginning with `graphty` for future derived fields, which a plugin field MUST NOT use
+   (refused at registration). If a later element derives a field a plugin already declares under
+   its own name (a `zscore`, open decision 31), the plugin's declared field wins and the derived
+   one is not produced for that run. Adding a REQUIRED field to a shape's contract is an algorithm
+   contract major; adding an optional one is a minor.
 7. `caveats` MUST state at least `method` and `direction`; build it with `declaredCaveats`, which
    fills `exact: true`, `precision: "f64"` and `notes: []`. An approximate, sampled, seeded,
    iterative or partial run MUST say so in the matching caveat member.
@@ -124,7 +135,12 @@ cannot be published without dropping a membership, and it has no per-group table
 score, its seed node, its name or its enriched terms). The `sizes`, `categories`, `steps`, `series`
 and `rates` table fields have no declared row schema: unlike `pairs` (section 2.2.2) nothing says
 which columns the element expects, so a plugin's temporal or category table may be shown wrong.
-All three are part of open decision 18.
+All three are part of open decision 18. Two more gaps, decided elsewhere: group NUMBERS are
+whatever the plugin chose, so a re-run or a reordered file can renumber clusters and move their
+colours and labels (open decision 32 recommends canonical renumbering by the element); and there is
+no convention for nodes a clustering leaves alone -- publishing every singleton as a group inflates
+`groupCount` and overflows every categorical palette, while omitting them changes `groupCount` and
+modularity away from the method's own tool (open decision 18, item c).
 
 ### 2.2.2 The `pair-list` table
 
@@ -133,9 +149,14 @@ type `table`. The element's own link predictor emits rows `{ source, target, sco
 plugin MUST emit the same:
 
 1. `source` and `target` MUST be node ids of the input graph. For an undirected method the pair is
-   unordered and each pair MUST appear once; for a directed method `source` is the tail.
+   unordered and each pair MUST appear once; for a directed method `source` is the tail. Which
+   endpoint of an undirected pair is `source` is not yet specified, so on a bipartite graph the
+   user can land in either column; a declared orientation is part of open decision 18 (f).
 2. `score` is a finite number, higher meaning more likely or more similar. Rows SHOULD be sorted
-   by `score`, descending; ties keep the algorithm's order.
+   by `score`, descending, and within equal scores by (`source`, `target`) in string form, BEFORE
+   any top-k cut, so which tied pairs survive a cut does not depend on record order. (Scores of
+   neighbourhood methods on sparse graphs are small integers, so large ties at the cut are the
+   normal case.) The element applying the cut itself is part of open decision 18 (f).
 3. Extra members MAY be added per row; they are plain JSON.
 4. Whether a pair already joined by an edge is allowed is the algorithm's to state in its
    description; the element does not check it, and no machine-readable flag says it.
@@ -167,9 +188,15 @@ them:
    every statistic and denominator below.
 2. **Rank.** Descending: rank 1 is the HIGHEST value. Ties share the lowest rank of their group
    and the next distinct value takes the rank its position implies ("competition" ranking, the
-   `min` method of `scipy.stats.rankdata` applied to the negated values: 1, 2, 2, 4). Within a
-   tie, entries are listed in order of their id's string form, so a re-run does not reshuffle
-   them; that order carries no meaning.
+   `min` method of `scipy.stats.rankdata` applied to the negated values: 1, 2, 2, 4). Ties are
+   decided by EXACT floating-point equality with no tolerance: `0.30000000000000004` and `0.3` are
+   not tied. Within a tie, entries are listed by their id's string form compared by UTF-16 code
+   unit (JavaScript's `<`, not a locale-aware comparison), so a re-run does not reshuffle them;
+   that order carries no meaning. **(not yet met)** The string `"1"` and the number `1` are two
+   nodes with the same string form, so their relative order is undefined (`rankEntries` in
+   `statistics.ts`); the rule SHOULD be type first (numbers before strings), then value. Every
+   rank is descending; a field whose LOW values are notable (a p-value) cannot say so yet (open
+   decision 31).
 3. **Percentile.** The share of measured elements this one ranks at or above:
    `(measured - rank + 1) / measured`, in (0, 1]. The top element is at 1, and when every value
    is equal every element is at 1. (This is inclusive and top-anchored; pandas'
@@ -251,13 +278,27 @@ Rules:
    plugin. In plain words: **a plugin algorithm is unweighted and topology-only today.** A plugin
    MUST NOT declare a weight or attribute option it cannot read (a weighted method that silently
    ignores its weights is worse than an unweighted one), and the plugin guide MUST say this in its
-   first section. Open decision 17 SHOULD be taken before the algorithm contract is frozen. The proposal (`ScopedInputColumns` in `algorithm.d.ts`): `input.column(optionName)`
+   first section. **Weights, as built, differ from this.** 2.6.1 already fills `graph.weights`: the
+   strength from `data.knownFields.edgeWeightPath`, then the legacy `value` key, else 1
+   (`src/data/ingest.ts`), merged under the repeated-edge policy and again by `simplify` in
+   `subgraph()`. A plugin MAY read it, and a weighted method that does SHOULD ask for
+   `simplify: "max"` and say in `caveats.method` that it used the configured weight; what it
+   cannot yet rely on is the MEANING (the contract does not promise a strength, and
+   `caveats.weight` has no route), which open decision 17 recommends publishing. Open decision 17
+   SHOULD be taken before the algorithm contract is frozen. The proposal (`ScopedInputColumns` in `algorithm.d.ts`): `input.column(optionName)`
    resolves a declared `"attribute"` or `"partition"` option to a typed column over the rows of
    `graph`; `ScopedInputOptions.weight` names the weight attribute and its meaning, the element
    fills the weights from it and fills `caveats.weight` itself; `subgraph()` keeps the weight and
    every column the algorithm named, merging them by the `simplify` policy; published result
    fields are readable as columns under their result paths, and the run record lists them as
    inputs.
+6. **Element-internal columns.** The snapshot carries columns the element uses for its own
+   bookkeeping: `graphty.edgeId`, `graphty.nodeHash`, `graphty.edgeHash`, `graphty.edgeOrdinal`,
+   `graphty.edgeAmong`, `graphty.pinned` and, before attachment, `graphty.importPosition`. Every
+   column whose name begins with `graphty.` is element-internal: a plugin MUST NOT read it (a
+   plugin that derives edge ids from `graphty.edgeId` works today and breaks silently when the
+   column changes). Edge ids come from the accessor of open decision 5, which is a wrapper over
+   that column.
 
 ### 3.2 Deprecated: `algorithmGraph()`
 
@@ -296,6 +337,12 @@ is not assignable to one from another. Therefore:
    surface.
 4. The re-exported snapshot types are "called by extensions" (README section 6.2): an element
    release that moves to a new graph-format major is an element major.
+5. **Calling `@graphty/algorithms` on the element's snapshot.** A plugin that imports its own
+   `@graphty/algorithms` (to reuse `adamicAdarForPairs`, say) gets that package's graph-format
+   copy, whose `GraphSnapshot` class is not assignable from the element's, so the call needs a
+   cast, which parity clause 6 forbids. Until the algorithms package accepts the structural
+   `GraphSnapshotContract` (open decision 9), a plugin MUST NOT pass the element's snapshot to
+   another package's snapshot functions.
 
 ## 4. Registration
 
@@ -357,7 +404,10 @@ is not assignable to one from another. Therefore:
    `context.signal` at least once per chunk of work and MUST let the abort propagate (never catch
    and swallow it). A cancelled run MUST NOT publish anything. `compute` SHOULD report progress at
    least once per second of work and MUST await `context.yieldNow()` (or use `forEachChunked`)
-   between chunks, so the page stays responsive.
+   between chunks of work done ON THE MAIN THREAD, so the page stays responsive. Work a plugin moves
+   into a worker (item 6) is not subject to the yield rule; until the `context.worker` helper of open
+   decision 9 exists, such a plugin relays progress and cancellation itself, and the kit reports
+   "yields" as skipped when the plugin declares that it works in a worker.
 3. **What does not reach `compute`.** The run's scope does (section 3.1). The run options `seed`,
    `exact`, `sample` and `timeBox` are resolved by the run and NOT forwarded, to a plugin or a
    built-in. A stochastic plugin therefore cannot be reproduced by the run's seed today; it SHOULD
@@ -396,6 +446,12 @@ is not assignable to one from another. Therefore:
    - a plugin MUST NOT construct its own WebGPU device (for example through its own import of
      `@graphty/webgpu-graph-algorithms`): the element owns detection, construction and device
      loss (root `CLAUDE.md`, "WebGPU");
+   - under the acceleration policy `require`, a run of an algorithm that cannot use the
+     accelerator -- every plugin, until `accelerated` is declared -- MUST be refused with
+     `E_NO_ACCELERATOR` (details naming the key), never run on the CPU, because a GPU-against-GPU
+     benchmark would otherwise compare a GPU run with a silent CPU one (root `CLAUDE.md`, "WebGPU":
+     no silent degradation). Under `auto` it runs on the CPU and the run records the route.
+     **(not yet met:** 2.6.1 does not refuse it, and records no route.**)**
    - a plugin cannot read whether an accelerator is attached or at what precision, so it cannot
      fill `caveats.precision` truthfully for a GPU pass. A read-only verdict on the run context
      (`AlgorithmRunContextAcceleration` in `algorithm.d.ts`) is part of open decision 16; when
@@ -472,8 +528,8 @@ is not assignable to one from another. Therefore:
    major, the shape of the run record (`RunRecord` in `algorithm.d.ts`) and what happens when a
    recorded version differs from the installed one are open decision 26.
 4. Result paths are `results.<runId>.<field>` (README section 4.4). A run id the element derives
-   is computed from the key, whether the run was exact or sampled, and the scope specification --
-   not from the parameters or the seed -- so re-running with new parameters keeps every saved
+   is computed from the key, the caller's `exact` option as given (true, false or absent), the
+   requested sample size and the scope specification -- not from the parameters or the seed -- so re-running with new parameters keeps every saved
    selector working, and renaming a key breaks every saved style that selects on a derived id. A
    style or recipe meant to be reused across runs and networks SHOULD bind to an `as` name.
 5. `algorithmGraph`/`AlgorithmGraphView`: deprecated in 3.x, removed in 4.0 (section 3.2).
@@ -493,7 +549,14 @@ reports a plugin that tries.
 runs a `DeclaredAlgorithm` over a graph-format snapshot (typed structurally, so one built by the
 plugin's own graph-format copy is accepted) with no renderer, in Node or a worker. It
 performs the element's own steps -- option resolution, scope handling, shape-contract check, caveat
-defaults, abort propagation -- and returns what `compute` returned. It would make the Node checks
+defaults, abort propagation -- and returns what `compute` returned together with the DERIVED
+result: values, `rank`, `percentile`, the summary, caveats and the result paths it would publish,
+from the same statistics module the session uses (or through a Node-safe `deriveResult(output)`
+the element itself uses). The values section 2.2.3 calls normative are derived by the element, so a
+Node pipeline that checks published ranks against a reference implementation, or writes `rank`
+and `percentile` into a feature store, must get them from the element rather than reimplement the
+tie and percentile rules. Its snapshot builder accepts named node and edge columns with their
+`AttributeType`, so an attribute- or partition-driven plugin can be tested headless. It would make the Node checks
 of the conformance kit possible and give plugins the unit-testability the design studio's
 expert reviewers expect (`design/designloom/personas/expert-emma.yaml`). It needs the algorithm
 base class to stop requiring the renderer-backed graph, which the snapshot migration makes
@@ -527,12 +590,14 @@ headless host (section 10); until it exists they run in the browser configuratio
 | options validate | an undeclared parameter raises `E_UNKNOWN_OPTION` and an out-of-range one `E_OPTION_RANGE` before `compute` is called |
 | reports progress | on the 500-node graph, `report` is called at least once with `completed` and `total` |
 | cancels | aborting after the first progress report rejects the run with the abort reason and publishes nothing |
-| yields | on the 500-node graph, `yieldNow` (or `forEachChunked`) is awaited at least once per 1,000 nodes or edges processed, counted by the kit; the longest uninterrupted stretch is reported as a measurement, never as a failure, because it depends on the machine |
+| yields | on the 500-node graph, the plugin crosses a chunk boundary -- a `yieldNow` await, or a `forEachChunked` boundary of `PROGRESS_CHUNK` (1,024) items whether or not the element's 16 ms budget made it yield -- at least once per 1,024 nodes or edges processed, counted structurally by the kit, so the result does not depend on the machine's clock (README section 11.2 item 7); the longest uninterrupted stretch is reported as a measurement, never as a failure; skipped when the plugin declares its work runs in a worker |
 | makes no network request | with the network APIs of README section 9.4 item 2 trapped, a run makes no call (mistake detection only) |
 | is deterministic with a seed | with a declared `"seed"` option, two runs with the same seed give identical output |
-| does not depend on record order | the same graph with its records loaded in a permuted order, with the same seed, gives the same values per id (a warning, with the ids that moved: an algorithm that breaks ties by row SHOULD sort by id first) |
+| undeclared nondeterminism | with NO `"seed"` option declared, two runs with identical input and options give identical output; a plugin whose output differs fails (it draws randomness it does not declare, and its run record would look reproducible) |
+| empty result is published | a search whose kit graph contains no match returns an empty result of its shape, not `null`, and gets a run record (section 2.2) |
+| does not depend on record order | the same graph with its records loaded in a permuted order, with the same seed, gives the same values per id, and for a `pair-list` the same rows (a warning, with the ids or rows that moved: an algorithm that breaks ties by row SHOULD sort by id first) |
 | values are finite | every published number is finite (section 2.2 item 8) |
-| cost is honest | on the kit's degree-skewed graphs (two hubs joined to many leaves; a clique beside a long path), the work the kit counts through `forEachChunked` and `yieldNow` stays within a factor of the declared `costUnits` (a warning with both numbers) |
+| cost is honest | on the kit's degree-skewed graphs (two hubs joined to many leaves; a clique beside a long path), the work the kit counts -- `forEachChunked` items, plus units reported through the work channel of open decision 16 once it exists -- stays within a factor of the declared `costUnits` (a warning with both numbers). Until the work channel exists this check cannot see work done inside one step and under-counts a plugin like the worked example, so it stays a warning |
 | replays from its record | a run record, handed back to the run API, is accepted and gives the same output (fails until open decision 26 is met) |
 | scope is honoured | with `scopeInput = "subgraph"`, every published id is inside the scope |
 | failures are coded | an invalid input the author supplies fails with a `GraphtyError` |
@@ -545,7 +610,11 @@ measures the largest connected component of the neighbourhood), so it does not b
 Its work is the sum of squared degrees, which the `(n, m)` cost signature cannot see, so it
 declares the worst case -- a star, where one node's neighbourhood is the whole graph -- and a
 graph with a hub of 200,000 leaves is estimated honestly and refused above the cap instead of
-passing as "instant". A cost model that sees the maximum degree is part of open decision 16:
+passing as "instant". A cost model that sees the maximum degree is part of open decision 16.
+One limit the example does not overcome: it chunks over ROWS, so on a star the hub's single step
+does degree-squared work with no yield. Chunking inside a step needs the work channel of open
+decision 16; a production plugin at that scale SHOULD move the work into a worker (section 5.1
+item 6) until it exists:
 
 ```ts
 import {
@@ -643,6 +712,11 @@ const run = session.runs.start("acmehub-neighbourhood-density", { epsilon: 1.7 }
 - Table fields other than `pairs` have no row schema; community results cannot overlap
   (section 2.2.1).
 - An option with no default can arrive absent, and nothing refuses the omission (section 6).
+- Ranks are always descending and the derived statistics have no spread measures (open decision 31).
+- Group numbers are the plugin's own, so colours and labels move on a re-run (open decision 32).
+- Ties between the string `"1"` and the number `1` have no defined order (section 2.2.3).
+- `require` acceleration does not refuse a plugin run (section 5.1 item 4).
+- Work inside one `forEachChunked` step is invisible to the kit and the run budget (open decision 16).
 
 ## 14. Who this serves
 
@@ -651,11 +725,11 @@ taken.
 
 | Need | Source | Served |
 | --- | --- | --- |
-| MCL and MCODE clustering, as the Cytoscape and stringApp protocols run them (weighted by the STRING score) | `design/designloom/workflows/W21.yaml` | not yet: a plugin cannot read weights (decision 17); an unweighted MCL runs but gives different modules from the published protocol |
+| MCL and MCODE clustering, as the Cytoscape and stringApp protocols run them (weighted by the STRING score) | `design/designloom/workflows/W21.yaml` | partly: the STRING score reaches `graph.weights` when it is the configured weight key, but the contract does not yet promise what the weights mean (section 3.1 item 5; decision 17) |
 | MCODE with overlapping membership, and cluster scores | `design/designloom/workflows/W21.yaml` | not yet: decision 18 |
 | Per-cluster enrichment (top terms per cluster, with FDR) | `design/designloom/workflows/W21.yaml` | not yet: a per-group table (decision 18) and gene-set input (decision 22) |
 | Per-cluster profiles (mean of a data column, dominant annotation) | `design/designloom/workflows/W21.yaml` | not yet: decision 17 |
-| Building an enrichment map from gene-set overlap | `design/designloom/workflows/W22.yaml` | not yet: gene sets have no route in (decision 22), and a derived network has no shape (decision 18) |
+| Building an enrichment map from gene-set overlap | `design/designloom/workflows/W22.yaml` | not yet, but the route is shorter than a dataset option: a GMT reader yielding a bipartite gene-set-to-gene graph conforms today, Jaccard between gene-set nodes is a `pair-list` plugin, and what blocks it is joining the enrichment table onto the gene-set nodes (decision 19) and the element-owned "apply as edges" operation (`candidates.md` section 18) |
 | Hub rankings (MCC, DMNC) | `design/designloom/workflows/W23.yaml` | yes |
 | Combined hub scores from several runs | `design/designloom/workflows/W23.yaml` | not yet: decision 17 |
 | Link prediction as scored pair lists | `design/designloom/workflows/W16.yaml`, `design/designloom/personas/ml-engineer-recsys.yaml` | partly: small, whole-graph pair lists only; no candidate set, per-source top-N, row schema, table export or columnar form (section 2.2.2) |

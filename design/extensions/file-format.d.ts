@@ -269,8 +269,10 @@ export interface LoadReport extends ImportReport {
         readonly kind: "data" | "file" | "url";
         readonly name: string | null;
         readonly byteLength: number | null;
-        /** sha256 of the raw input, hex. */
+        /** sha256 of the bytes AS RECEIVED (before decompression), hex; the digest algorithm is versioned with the record (open decision 26). */
         readonly sha256: string | null;
+        /** sha256 after decompression, when the element decompressed the input. */
+        readonly sha256Decompressed?: string | null;
         readonly loadedAt: string;
     };
     /** True when the load failed, was cancelled or stopped at a limit; then committed says what stayed. */
@@ -280,6 +282,20 @@ export interface LoadReport extends ImportReport {
     readonly readerVersion?: string;
     /** The reader's options after defaults were filled. */
     readonly options: Readonly<Record<string, unknown>>;
+    /**
+     * The element's field mapping for THIS load, as resolved (open decision 19): which column was
+     * the node id, the endpoints, the weight, and the repeated-edge policy in force. Part of the
+     * replay input identity.
+     */
+    readonly mapping: {
+        readonly nodeIdPath: string | null;
+        readonly edgeSource: string | null;
+        readonly edgeTarget: string | null;
+        readonly edgeWeightPath: string | null;
+        readonly repeatedEdges: string;
+    };
+    /** What the reader could not carry over (a file's visual style, title, description): the writer's LossNote type, so read and write losses are symmetric. */
+    readonly lossNotes: readonly LossNote[];
     readonly mode: "add" | "replace" | "join";
     readonly direction: DeclaredDirection | null;
     readonly nodes: number;

@@ -140,8 +140,12 @@ This is the extension point most likely to move graph data off the page.
    "sends to logs.example.com, including graph data" before a reader turns it on. Those fields are
    the author's CLAIM and nothing verifies them: the element hands every destination the full
    record. The same decision recommends an element-level redaction setting that applies to EVERY
-   destination that sends records off the page -- the built-in `remote` destination first among
-   them, since it is the one that already does -- and not only to third-party ones. Redaction is
+   destination -- the built-in `console` and `remote` destinations and live `Sink` objects attached
+   with `addSink` included -- except those the EMBEDDER marks as in-page in code, never on the
+   destination's own claim. A destination that declares nothing is treated as sending records off
+   the page. The console is not exempt by default because error trackers record console calls as
+   breadcrumbs and remote devtools and browser extensions read it; an `addSink` object has no
+   descriptor to classify at all. Redaction is
    specified by field, because stripping `data` alone leaves graph content in the text: it
    covers `data`, `error.stack`, `error.cause`, `GraphtyError.details` (whose `available` and
    `candidates` lists echo ids and option values), and message text. For message text to be
@@ -178,7 +182,13 @@ This is the extension point most likely to move graph data off the page.
    and replayed; a destination MUST NOT take one as an option until a `secret` option type exists
    (README section 7 item 10).
 6. A URL in any record the element emits (a load URL, a fetch failure) is written with its query
-   string and user information removed, by the element-wide rule of README section 9.2 item 7.
+   string and user information removed, by the element-wide rule of README section 9.2 item 7. The
+   host and path stay, and they are sensitive too (an internal SIEM host name, an incident id in
+   the path); open decision 13 recommends recording a URL by default as its origin plus a digest of
+   the full URL, with the path kept only when the embedder opts in.
+7. Once the embedder calls `lockRegistrations()` (open decision 21), `addSink` and
+   `configure({ sinks: [liveObject] })` are refused as well, or a later-loaded package attaches a
+   live sink and receives every record.
 
 ## 8. Conformance checks
 

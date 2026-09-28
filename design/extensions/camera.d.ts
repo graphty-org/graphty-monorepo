@@ -110,9 +110,11 @@ export declare function clearRegisteredCamerasForTesting(): void;
 // =============================================================================================
 
 /**
- * PROPOSED -- open decision 27 (scene convention). Added to CameraState, so a 3D view can say which
- * direction is up on screen. Absent keeps the controller's current up. Also proposed there: zoom
- * in CSS pixels per scene unit, pan as the scene coordinates of the viewport centre.
+ * PROPOSED -- open decision 27 (scene convention), ONLY as an alternative to documenting the
+ * published `pivotRotation`, which already fixes yaw, pitch and roll on the orbit controller: the
+ * decision adopts one route, not both. Also proposed there: zoom in CSS pixels per scene unit, pan
+ * as the scene coordinates of the viewport centre. A view returning `up` would declare it in its
+ * descriptor and list that member in mustUnderstand (README section 6.3 item 7).
  */
 export interface CameraStateUp {
     up?: { x: number; y: number; z: number };
@@ -133,11 +135,17 @@ export interface CameraViewInputLayout {
  */
 export interface CameraViewReference {
     readonly view: CameraId;
+    /** The drawing mode the state was resolved in; restoring in another mode switches to it or reports the view unresolved (open decision 8). */
+    readonly mode: DrawingMode;
     readonly options?: Readonly<Record<string, unknown>>;
     /** The npm package and the extension's own version when it declared them, as provenance. */
     readonly package?: string;
     readonly version?: string;
-    /** The scope the view framed (the element's ScopeInput, as plain JSON), or absent for the whole graph. */
+    /**
+     * The scope the view framed (the element's ScopeInput, as plain JSON), or absent for the whole
+     * graph. A live keyword ("selection", "visible", "largest-component") is replaced by its
+     * definition, or its member ids, when the record is saved, as run ids already do (README 4.4).
+     */
     readonly scope?: unknown;
     /**
      * The resulting state at the time of saving, so a reader without the extension installed can

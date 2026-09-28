@@ -32,7 +32,11 @@ export type OptionBoundSource =
 
 /** A bound that depends on the loaded graph, written as a documented reference string. */
 export interface OptionBound {
-    /** OPEN UNION: a reader MUST treat an unknown source as "no bound". */
+    /**
+     * OPEN UNION. An element meeting an unknown source at registration refuses it (E_UNSUPPORTED):
+     * an unknown bound fails closed. A reader shows it as a bound it cannot check. The element
+     * resolves every known source against the loaded graph or scope and enforces it (README 7).
+     */
     from: OptionBoundSource | (string & {});
 }
 
@@ -279,6 +283,20 @@ export interface OptionDescriptorEvolution {
     /** Old names the element rewrites to this one, so a saved configuration keeps working after a rename. */
     readonly deprecatedNames?: readonly string[];
     readonly deprecated?: { readonly since: string; readonly replacement?: string };
+    /** The unit of a numeric value, plain text ("scale 0-1", "iterations"), carried into run and load records. */
+    readonly unit?: string;
+    /** Ceilings the element enforces on a string or array value, tightening its own defaults (README section 7 item 2). */
+    readonly maxLength?: number;
+    readonly maxItems?: number;
+}
+
+/**
+ * PROPOSED -- open decision 22. A member every descriptor would gain: a reference for the method,
+ * plain text (a DOI or URL), carried into run and load records so the element can write a methods
+ * paragraph.
+ */
+export interface DescriptorCitation {
+    readonly citation?: string;
 }
 
 /** The option shape OptionValues reads: a `const` option descriptor. */

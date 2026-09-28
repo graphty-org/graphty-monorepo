@@ -27,7 +27,10 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 | `Node`, `Edge` (type-only), `Position`, `EdgePosition`, the protected helpers (`isHeld`, `writeNodePosition`), `holdMask`, `SimpleLayoutEngine.positions`, `_nodes`, `_edges`, `scalingFactor` | called by extensions |
 
 `Node` and `Edge` are published as type-only re-exports so that a plugin can type its members
-without importing the renderer. A layout MUST read only `Node.id`, `Node.index`, `Node.data`,
+without importing the renderer. They are the element's FULL render classes, not a three-member
+structural shape: a layout unit test cannot build a `Node` from `{ id, index, data }` without a
+cast, and nothing in the type stops a layout reading `n.mesh`. The structural `LayoutNode` and
+`LayoutEdge` in the "Proposed" section of `layout.d.ts` fix both, additively. A layout MUST read only `Node.id`, `Node.index`, `Node.data`,
 `Edge.id`, `Edge.srcId`, `Edge.dstId` and `Edge.data`, and MUST NOT construct, mutate or retain a
 `Node` or `Edge` beyond its own lifetime. Attribute access through `data` is allowed because the
 owner's parity rule requires it: a built-in arrangement may place nodes by their attributes, so a
@@ -193,6 +196,12 @@ Obligations:
    pre-empts that decision.
 6. A plugin cannot add an engine behind an existing arrangement id (for example a faster engine
    for `force`); the arrangement table is the element's own. It registers its own id instead.
+7. **Animated transition from the previous positions is vacuous.** No layout animates when the
+   consumer switches to it, built-in or plugin (`SimpleLayoutEngine` is static by design), so every
+   node jumps at once and a reader loses the node they were following
+   (`design/designloom/workflows/W02.yaml`). If a transition is added, the ELEMENT owns it, as a
+   tween over published positions, so every batch plugin gets it without code; a plugin MUST NOT
+   build its own tween into its engine.
 
 ## 5. Options
 
@@ -219,6 +228,13 @@ Obligations:
    with no error. The element SHOULD refuse a column no node carries with `E_OPTION_RANGE`
    (naming the nearest column names) and report a type mismatch (open decision 22). A layout
    MUST NOT turn an unreadable value into a real value (reading a missing tier as tier 0).
+   **(not yet met)** A style binding, a filter and a set resolve an attribute PATH (`location.lat`
+   reads `data.location.lat`), but a layout is handed only the option's string and reads
+   `node.data[name]` flat, and `./extend` publishes no resolver, so the same `"attribute"` value
+   means one thing to a filter and another to a layout, and nested data leaves every node unplaced
+   with no error. The element SHOULD publish an attribute accessor for layouts that resolves the
+   path exactly as styles do (open decision 27), and a plugin MUST read attribute options through
+   it once it exists.
 6. A layout has no channel for caveats. One that cannot place a node from its data (a geographic
    layout and a node with no coordinates) MAY leave it out of `positions` (section 3 obligation
    4), or place it in a documented area apart from the placed ones; either way it SHOULD say so
@@ -251,8 +267,12 @@ parity suite covers construction and `init` only.
 ## 7. Versioning and compatibility
 
 1. The abstract members of `LayoutEngine` are implemented by extensions. Adding an abstract member
-   is a major release; adding a member with a default implementation is a minor release.
-2. `Node` and `Edge` are type-only and their contract surface is the seven members in section 2.
+   is a major release. Adding a member WITH a default implementation is also a contract major when
+   its name is ordinary, because a plugin subclass may already declare a member of that name
+   (README section 6.2 item 1); it is a minor only when delivered as an argument (an init context)
+   or named with the reserved `graphty` prefix.
+2. `Node` and `Edge` are type-only and their contract surface is the seven members in section 2,
+   although the published types carry every render member (section 2).
 3. **The snapshot migration will change this contract.** The element's own layouts are moving onto
    graph-format snapshots (branch `feat/graph-format-migration`, the layout-indexed items).
    Publishing `Node` and `Edge` froze render classes into the plugin contract; a snapshot-based
@@ -285,10 +305,11 @@ create it from its own bundled code, not from a URL built at run time.
 
 Run by `checkLayout(EngineClass, { graphs })` in the proposed kit. The kit ships standard graphs
 (a path, a star, a 500-node random graph, a graph with an isolated node, a graph with a self-loop
-and parallel edges). `LayoutEngine` imports no Babylon.js and the `Node` a layout sees is
-structural (`{ id, index, data }`), so a headless driver needs no snapshot migration: the proposed
-`runLayoutHeadless` (`layout.d.ts`) feeds plain objects through the lifecycle of section 3 and
-returns positions. With it, every check except "disposes cleanly" and the settled-event half of
+and parallel edges). `LayoutEngine` imports no Babylon.js and a layout may read only `id`, `index`
+and `data` of a node, so a headless driver needs no snapshot migration: the proposed
+`runLayoutHeadless` (`layout.d.ts`) feeds plain `LayoutNode` and `LayoutEdge` objects through the
+lifecycle of section 3 and returns positions. It needs the structural types published first,
+because the published `Node` is the full render class (section 2). With it, every check except "disposes cleanly" and the settled-event half of
 "settles" runs in Node, so an author can unit-test placement, pins, holds and determinism under
 Vitest without a browser. Until it ships, the checks after the first four need the browser
 configuration.
@@ -412,6 +433,14 @@ await graph.setLayout("acmechain-tiers", { tierAttribute: "supplier_tier", spaci
   waits for the snapshot contract or the next major.
 - `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, two built-in arrangements the catalogue
   publishes (README section 5 item 4).
+- The published `Node` and `Edge` are the full render classes, so a layout cannot be unit-tested
+  without a cast (section 2).
+- An `"attribute"` option is read flat, not as a path (section 5 item 5).
+- Edges are always straight segments between their two ends: a layout controls only
+  `EdgePosition { src, dst }`, so a geographic layout cannot route an edge along a great circle, a
+  shipping lane or round a globe (in 3D a long chord cuts through the sphere). Edge geometry is
+  evaluated in `candidates.md` section 20.
+- No transition animates a layout switch (section 4.1 item 7).
 
 ## 12. Who this serves
 

@@ -55,13 +55,17 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 4. `input.options` is already validated and defaulted; `compute` MUST NOT re-validate it.
 5. A 3D result SHOULD set `position` and `target`, and MAY set `fov`. A 2D result SHOULD set `zoom`
    and `pan`, and MAY set `rotation`. Members it leaves out keep the camera's current values.
-   Two things a view needs are not published. `CameraState` has no up vector or roll for a 3D
-   camera, so a view that looks straight down (a map) cannot say where north lands on screen:
-   the controller's previous orientation decides, and for an orbit camera looking straight down
-   that direction is unstable. And the units of `zoom` and `pan` are not stated: the worked
-   example assumes CSS pixels per scene unit and the scene coordinates of the viewport centre,
-   and a view written with another reading frames the graph wrongly. An optional `up` member and
-   the units are part of open decision 27 (`CameraStateUp` in `camera.d.ts`).
+   **Orientation.** The published `CameraState` carries `pivotRotation: { x, y, z }`, which
+   `setCameraState` applies to the ORBIT controller as yaw (`y`), pitch (`x`) and roll (`z`)
+   (`Graph.ts`), so a 3D view that looks straight down (a map) CAN fix where north lands. Its axis
+   convention, the fact that it applies to the orbit controller only, and its precedence over
+   `position` and `target` are not documented here yet; a view that relies on it SHOULD set it
+   together with `position` and `target`. The units of `zoom` and `pan` are not stated either: the
+   worked example assumes CSS pixels per scene unit and the scene coordinates of the viewport
+   centre, and a view written with another reading frames the graph wrongly. Whether
+   `pivotRotation` becomes the documented orientation route or is deprecated for a new `up` member
+   (`CameraStateUp` in `camera.d.ts`), and the units, are open decision 27 -- ONE route, never two
+   with no stated precedence.
 6. Every number returned MUST be finite. A non-finite value MUST be refused by the element with
    `E_INTERNAL`, `source: "view"`, and the camera MUST NOT move. **(not yet met)** 2.6.1 ends
    `resolveCameraView` (`graphty-element/src/camera/resolve.ts`) with `return compute(input)`: it
@@ -153,8 +157,11 @@ carried into a report's page order, and a video path through saved views
 documents in the main checkout).
 
 This is README open decision 8, to be taken together with the view and recipe file formats. The
-recommended record is `CameraViewReference` in `camera.d.ts`: the view id, its package and
-version, its options, the scope it framed, and the resolved `CameraState` at the time of saving.
+recommended record is `CameraViewReference` in `camera.d.ts`: the view id, the drawing mode, its
+package and version, its options, the scope it framed (live keywords replaced by their definition
+when saved), and the resolved `CameraState` at the time of saving. The mode matters because a 3D
+state holds position and target and a 2D state zoom and pan: restored in the other mode, the state
+frames nothing.
 Recording the resolved state means a reader who lacks the plugin still gets the exact camera back,
 and a reader who has it can tell that the plugin now computes something different; recording the
 scope lets the view re-frame the same subset after the data changes. A camera view alone does not
@@ -247,7 +254,8 @@ await graph.applyCameraView("acmegeo-map", { scope: { set: "port-cities" }, para
 - A `compute` throw is not wrapped, a non-finite result is not refused, and an empty box still
   calls `compute` (sections 3, 4.4 and 5).
 - A saved camera snapshot can be shadowed by a later view of the same name (section 4.2).
-- No up vector for a 3D view, and no stated units for `zoom` and `pan` (section 3 item 5).
+- `pivotRotation` is the only orientation route and is undocumented; no stated units for `zoom`
+  and `pan` (section 3 item 5).
 - A view is not told which layout or coordinate frame produced the box, so a map view applied to
   a tiers layout frames it as a map without a word (open decision 27).
 - No scene convention (which way is north, what `scalingFactor` does) is published, so a map view

@@ -10,7 +10,16 @@ import { join, resolve } from "node:path";
 const root = resolve(import.meta.dirname, "../..");
 const specDir = join(root, "design/extensions");
 const out = mkdtempSync(join(tmpdir(), "extension-examples-"));
-const prelude = "declare const session: any;\ndeclare const graph: any;\ndeclare const droppedFile: File;\nexport {};\n";
+// `session` and `graph` are typed from the element's own published types, so a consumer-side call
+// in an example (session.runs.start, graph.setLayout) is checked too, not waved through as `any`.
+const prelude = [
+    'import type { createGraphSession } from "@graphty/graphty-element/session";',
+    'import type { Graph } from "@graphty/graphty-element";',
+    "declare const session: ReturnType<typeof createGraphSession>;",
+    "declare const graph: Graph;",
+    "declare const droppedFile: File;",
+    "",
+].join("\n");
 
 let count = 0;
 for (const name of readdirSync(specDir).filter((file) => file.endsWith(".md"))) {
@@ -40,6 +49,8 @@ writeFileSync(
             paths: {
                 "@graphty/graphty-element/extend": [join(root, "graphty-element/extend.ts")],
                 "@graphty/graphty-element/logging": [join(root, "graphty-element/logging.ts")],
+                "@graphty/graphty-element/session": [join(root, "graphty-element/session.ts")],
+                "@graphty/graphty-element": [join(root, "graphty-element/index.ts")],
             },
         },
         include: ["*.ts"],

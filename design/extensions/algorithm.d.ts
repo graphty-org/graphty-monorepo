@@ -103,6 +103,8 @@ export interface ResultFieldSpec {
     readonly kind: "node" | "edge" | "graph";
     readonly type: "number" | "integer" | "boolean" | "string" | "table";
     readonly normalization?: string;
+    /** PROPOSED -- open decision 31. Which end is notable; drives rank, percentile and the ramp. Default "descending". */
+    readonly order?: "descending" | "ascending";
 }
 
 /** A node or edge and the values published for it. Edge ids are the element's Edge.id. */
@@ -375,10 +377,14 @@ export interface RunRecord {
     /** The orientation and simplify policy the run's input used. */
     readonly orientation: "declared" | "undirected";
     readonly simplify: SimplifyPolicy;
-    /** Where it ran. */
+    /** Where it ran. A replay on another route or precision reads as a different computation. */
     readonly route: "cpu" | "accelerator";
+    /** The accelerator package whose kernel produced the numbers, when route is "accelerator". */
+    readonly accelerator?: { readonly package: string; readonly version: string };
     /** The scope as DEFINED at run time (the set or rule, its definition copied), and a digest of the resolved member ids. */
     readonly scope: { readonly definition: unknown; readonly membersDigest: string } | null;
+    /** What the run computed WITHOUT (open decision 23); part of the derived run id when present. */
+    readonly exclude: { readonly definition: unknown; readonly membersDigest: string } | null;
     /** The loads the input graph was built from (LoadReport.loadId), in order. */
     readonly loadIds: readonly number[];
     /** Result paths the run read as input (ScopedInputColumns). */

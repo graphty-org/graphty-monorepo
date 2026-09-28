@@ -2,7 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schemas/extensions/descriptors-1.json",
   "title": "graphty-element extension descriptors",
-  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table), each marked \"x-open-union\": true, are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken.",
+  "x-format-version": { "major": 1, "minor": 0 },
+  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table), each marked \"x-open-union\": true, are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken. x-format-version is the two-part version of the container this schema validates (README section 6.3 item 6).",
   "$defs": {
     "OptionBound": {
       "type": "object",
@@ -46,10 +47,20 @@
             "enum": [
               "__proto__",
               "constructor",
-              "prototype"
+              "prototype",
+              "toString",
+              "toLocaleString",
+              "valueOf",
+              "hasOwnProperty",
+              "isPrototypeOf",
+              "propertyIsEnumerable",
+              "__defineGetter__",
+              "__defineSetter__",
+              "__lookupGetter__",
+              "__lookupSetter__"
             ]
           },
-          "description": "Unique within one descriptor. Never a key that is special on a plain object (README section 9.2 item 6)."
+          "description": "Unique within one descriptor. Never a key that is special on a plain object, nor any member of Object.prototype (README section 7 item 3 and section 9.2 item 6)."
         },
         "plainName": {
           "type": "string",
@@ -330,7 +341,8 @@
           "minItems": 1,
           "items": {
             "type": "string",
-            "pattern": "^\\.[^A-Z]+$"
+            "pattern": "^\\.[^A-Z.]+$",
+            "description": "Lower case, one leading dot and no other: detection compares only the last segment of a file name (file-format.md section 2.1)."
           }
         },
         "mimeTypes": {
@@ -411,7 +423,8 @@
             "enum": [
               "2d",
               "3d"
-            ]
+            ],
+            "x-open-union": true
           }
         },
         "options": {

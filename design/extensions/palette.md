@@ -54,7 +54,11 @@ Authoring guidance (SHOULD, not enforced):
 
 - A sequential palette SHOULD have at least two anchors and SHOULD be monotonic in lightness.
 - A diverging palette SHOULD have an odd number of anchors, at least three, with the neutral colour
-  in the middle, because a binding's `midpoint` places the middle of the ramp at that value.
+  in the middle, because a binding's `midpoint` places the middle of the ramp at that value. With
+  an EVEN number of anchors (a 10-colour `RdBu` copied from R) the midpoint falls BETWEEN the two
+  central anchors, so a value exactly at the midpoint (a fold change of 0) is painted as a mix of
+  them and reads as faintly up- or down-regulated. Registration accepts it; the conformance kit
+  warns, and the element MAY publish a derived flag so a picker can warn too.
 - A categorical palette SHOULD have anchors that are distinguishable from each other and from the
   canvas background in both the light and dark themes.
 - A `colorblindSafe` claim SHOULD be checked with the element's `isPaletteSafe` (published on
@@ -71,8 +75,11 @@ registerPalette(descriptor: PaletteDescriptor, options?: RegisterOptions): void
 1. Synchronous; the palette is usable by the next repaint.
 2. Validation, in order, each failure an `E_BAD_COMMAND` with `source: "registry"` and
    `details = { kind: "palette", name: <id>, field: <member> }`:
-   - descriptor is not an object -> `field: "descriptor"`
-   - `plainName` missing or empty -> `"plainName"`
+   - descriptor is not an object, or is `null` -> `field: "descriptor"` **(not yet met:** 2.6.1
+     tests `typeof descriptor !== "object"`, which lets `null` through, and then throws an uncoded
+     `TypeError` reading `plainName`**)**
+   - `plainName` missing, empty or not a string -> `"plainName"` **(not yet met:** 2.6.1 checks
+     only for `undefined` and `""`, so a number or an object is published into every picker**)**
    - `kind` not one of the three -> `"kind"`
    - `colors` not a non-empty array -> `"colors"`
    - an anchor that does not parse as a colour -> `"colors"`, message names the anchor
@@ -110,6 +117,13 @@ by the same route. The "pinned by" column names the test in
 | A legend: swatches per group, or a ramp with its direction | legend API | the two "tells the legend..." tests |
 | Travelling in a saved style document | `session.styles.toDocument()` writes the descriptor of every non-built-in palette a layer names | "paints the same colours again when the document... is reopened" |
 | Passing the form check before Apply | the style form's validation | "passes the check a form runs..." |
+
+**Not specified: which anchor a category or group gets.** "One anchor per group" does not say
+which group gets which anchor. Group numbers are whatever the algorithm chose, and categories take
+an order the contract does not state, so a lab style mapping Up, Down and Unchanged shifts colours on
+a dataset with no Unchanged genes, and one module can be two colours in two conditions. A canonical
+group order, a documented category order and an explicit value-to-anchor map on a categorical
+binding are README open decision 32.
 
 Properties that belong to the BINDING, not the palette -- scale, domain, clamp, midpoint, reverse,
 missing, bins, overflow -- apply to a registered palette exactly as to a built-in one. That is why
@@ -232,6 +246,8 @@ the last two, which need the kit's browser configuration.
 | re-registration is idempotent | registering an equal descriptor object again changes nothing and warns nothing |
 | catalogue lists it | `registeredPaletteDescriptors()` contains the published descriptor |
 | safety claim holds | every deficiency in `colorblindSafe` passes `isPaletteSafe` (a warning, not a failure: the claim is the author's) |
+| diverging has a neutral middle | a diverging palette has an odd number of anchors (a warning, naming the two anchors the midpoint falls between) |
+| odd descriptors are refused | `null`, and a descriptor whose `plainName` is a number or an object, are refused with `E_BAD_COMMAND` (fails until section 3 item 2 is met) |
 | paints a ramp | a sequential or diverging palette bound to a numeric attribute paints the lowest value with the first anchor and the highest with the last (browser) |
 | survives a document round trip | `toDocument()` carries the descriptor, and applying it to a fresh element with the palette registered paints the same colours (browser) |
 | a renamed palette still applies | a document carrying the palette with a different `plainName` and an unknown extra member applies, reporting the difference (Node; fails until section 5 item 3 is met) |
@@ -295,6 +311,8 @@ registerPalette({ id: "acme-bad", plainName: "Bad", kind: "categorical", colors:
 - Nothing stops a document from carrying a palette under a built-in id or a code-registered id
   (section 5 item 4).
 - The content key that decides sameness leaves out `plainName` (section 3 item 4).
+- `null` and a non-string `plainName` are not refused with a code (section 3 item 2).
+- Which anchor a category or community group gets is unspecified (section 4; open decision 32).
 - The published parameter type of `registerPalette` requires `capacity` and `colorblindSafe`
   although the run time derives or defaults them; `PaletteRegistration` in `palette.d.ts` is the
   accurate shape.

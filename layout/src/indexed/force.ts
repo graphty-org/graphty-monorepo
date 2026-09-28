@@ -11,7 +11,7 @@ import { FruchtermanReingoldSimulation } from "../simulation/fruchterman-reingol
 import { seedPositions } from "../simulation/seed";
 import { toLayoutSnapshot } from "../simulation/snapshot";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types";
-import { layoutDim, startColumn } from "./common";
+import { layoutDim, startColumn } from "./start";
 
 /** Options of indexed.forceAtlas2: the simulation's, without the stepping controls, plus a start. */
 export interface IndexedForceAtlas2Options extends Omit<ForceAtlas2Options, keyof SimulationOptions> {

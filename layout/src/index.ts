@@ -24,11 +24,5 @@ export * from "./generators";
 export * from "./simulation";
 
 // Index-based layouts over a graph-format snapshot. A namespace, because indexed.forceAtlas2 and the rest sit beside
-// the legacy functions of the same layouts.
-export type {
-    ArfOptions,
-    IndexedForceAtlas2Options,
-    IndexedFruchtermanReingoldOptions,
-    KamadaKawaiOptions,
-} from "./indexed";
+// the legacy functions of the same layouts. Their option types are reached through it too (indexed.KamadaKawaiOptions).
 export * as indexed from "./indexed";

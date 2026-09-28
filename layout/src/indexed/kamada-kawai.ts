@@ -7,7 +7,7 @@ import { seedPositions } from "../simulation/seed";
 import { toLayoutSnapshot } from "../simulation/snapshot";
 import type { CommonLayoutOptions } from "../simulation/types";
 import { np } from "../utils/numpy";
-import { layoutDim } from "./common";
+import { layoutDim } from "./start";
 
 /** The ideal distance of a pair with no path between them, as networkx fills its matrix. */
 const UNREACHABLE = 1e6;
@@ -56,7 +56,7 @@ function arcDistances(s: GraphSnapshot, spec: boolean | string | null): NumericV
  * @param options - the options
  * @returns n rows of n distances
  */
-function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): number[][] {
+export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): number[][] {
     const n = s.nodeCount;
     let d: ArrayLike<number>;
     if (options.dist !== null && options.dist !== undefined) {

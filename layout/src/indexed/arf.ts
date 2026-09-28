@@ -3,7 +3,7 @@ import type { F32, GraphSnapshot } from "@graphty/graph-format";
 import type { LayoutResult } from "../positions";
 import { seedPositions } from "../simulation/seed";
 import { toLayoutSnapshot } from "../simulation/snapshot";
-import { layoutDim, startColumn } from "./common";
+import { layoutDim, startColumn } from "./start";
 
 /** Options of indexed.arf. */
 export interface ArfOptions {

@@ -169,6 +169,10 @@ jobs:
             - name: Element data sources on graph-io
               run: pnpm run check:data-source-migration
 
+            # The import reader of the script that prints the counts in design/graph-format/STATUS.md.
+            - name: Migration count script
+              run: pnpm run check:migration-counts
+
             # Reads source only. A new use of the legacy graph API (a legacy algorithms or layout
             # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails;
             # the uses the graph-format migration has not removed yet are in

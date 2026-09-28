@@ -6,7 +6,8 @@
  * Needs a build of algorithms (`pnpm exec nx run algorithms:build`): the indexed namespace and
  * the dispatcher are read from algorithms/dist. Everything else is read from source.
  *
- * Usage: node tools/count-migration-state.mjs   (from the repository root)
+ * Usage: node tools/count-migration-state.mjs              (from the repository root)
+ *        node tools/count-migration-state.mjs --self-test  (prove the import reader; no build needed)
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -44,6 +45,74 @@ function legacyFile(path) {
         return true;
     }
     return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts"].some((p) => path.startsWith(p));
+}
+
+/**
+ * The value names a source file imports from the modules a pattern matches, read from the syntax
+ * tree so that the import's layout (one line or several, one name or many, a default name) does
+ * not matter. Type-only imports and type-only specifiers are left out: they load no code.
+ * @param text - the source text
+ * @param moduleRe - matches the module specifiers to read
+ * @returns the imported names, as the exporting module spells them
+ */
+function valueImports(text, moduleRe) {
+    const names = [];
+    const file = ts.createSourceFile("x.ts", text, ts.ScriptTarget.ESNext);
+    for (const st of file.statements) {
+        if (!ts.isImportDeclaration(st) || !moduleRe.test(st.moduleSpecifier.text)) {
+            continue;
+        }
+        const clause = st.importClause;
+        if (clause === undefined) {
+            names.push("*side-effect*");
+            continue;
+        }
+        if (clause.isTypeOnly) {
+            continue;
+        }
+        if (clause.name !== undefined) {
+            names.push("default");
+        }
+        const bindings = clause.namedBindings;
+        if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
+            names.push("*");
+        } else if (bindings !== undefined) {
+            for (const el of bindings.elements) {
+                if (!el.isTypeOnly) {
+                    names.push((el.propertyName ?? el.name).text);
+                }
+            }
+        }
+    }
+    return names;
+}
+
+const LAYOUT_RE = /^@graphty\/layout$/;
+const GRAPH_IO_RE = /^@graphty\/graph-io(\/[a-z0-9-]+)?$/;
+
+if (process.argv.includes("--self-test")) {
+    const cases = [
+        ['import { circular } from "@graphty/layout";', LAYOUT_RE, ["circular"]],
+        ['import { circular, toPositionMap } from "@graphty/layout";', LAYOUT_RE, ["circular", "toPositionMap"]],
+        ['import {\n    circular,\n    shell,\n} from "@graphty/layout";', LAYOUT_RE, ["circular", "shell"]],
+        ['import type { LayoutResult } from "@graphty/layout";', LAYOUT_RE, []],
+        ['import { type LayoutResult, grid } from "@graphty/layout";', LAYOUT_RE, ["grid"]],
+        ['import { circular } from "@graphty/layout-extra";', LAYOUT_RE, []],
+        ['import gexf from "@graphty/graph-io/gexf";', GRAPH_IO_RE, ["default"]],
+        ['import * as io from "@graphty/graph-io";', GRAPH_IO_RE, ["*"]],
+        ['import { importGraphML as read } from "@graphty/graph-io/graphml";', GRAPH_IO_RE, ["importGraphML"]],
+    ];
+    for (const [text, re, want] of cases) {
+        const got = valueImports(text, re);
+        if (JSON.stringify(got) !== JSON.stringify(want)) {
+            console.error(
+                `count-migration-state self-test: ${JSON.stringify(text)} gave ${JSON.stringify(got)}, want ${JSON.stringify(want)}`,
+            );
+            process.exit(1);
+        }
+    }
+    console.log("count-migration-state self-test: passed");
+    process.exit(0);
 }
 
 /**
@@ -140,6 +209,7 @@ function reachesIndexed(symbol) {
 const delegating = [];
 const legacyOnly = [];
 const legacyClasses = [];
+const legacyClassesReaching = [];
 for (const exported of exportsOf(join(ALG_SRC, "index.ts"))) {
     const symbol = resolve(exported);
     const decl = symbol.declarations?.[0];
@@ -148,6 +218,9 @@ for (const exported of exportsOf(join(ALG_SRC, "index.ts"))) {
     }
     if (symbol.flags & ts.SymbolFlags.Class) {
         legacyClasses.push(exported.name);
+        if (reachesIndexed(symbol)) {
+            legacyClassesReaching.push(exported.name);
+        }
     } else if (symbol.flags & ts.SymbolFlags.Function) {
         (reachesIndexed(symbol) ? delegating : legacyOnly).push(exported.name);
     }
@@ -155,6 +228,7 @@ for (const exported of exportsOf(join(ALG_SRC, "index.ts"))) {
 print("legacy functions reaching a port", delegating);
 print("legacy functions not reaching a port", legacyOnly);
 print("legacy classes", legacyClasses);
+print("legacy classes reaching a port", legacyClassesReaching);
 
 // @deprecated exports.
 for (const [name, file] of [
@@ -182,11 +256,29 @@ print(
     "adapters calling indexed.* directly",
     adapters.filter((f) => !onDispatcher(f) && /\bindexed\./.test(adapterText(f))).map(adapterName),
 );
+const buildsLegacy = adapters.filter((f) =>
+    /\balgorithmGraph\(|new AlgorithmGraph\b|toAlgorithmGraph\(/.test(adapterText(f)),
+);
+print("adapters building a legacy Graph", buildsLegacy.map(adapterName));
+const legacyOnlyAdapters = buildsLegacy.filter((f) => !onDispatcher(f));
+print("adapters building a legacy Graph and not on the dispatcher", legacyOnlyAdapters.map(adapterName));
 print(
-    "adapters building a legacy Graph",
-    adapters
-        .filter((f) => /\balgorithmGraph\(|new AlgorithmGraph\b|toAlgorithmGraph\(/.test(adapterText(f)))
-        .map(adapterName),
+    "of them calling algorithmGraph()",
+    legacyOnlyAdapters.filter((f) => /\balgorithmGraph\(/.test(adapterText(f))).map(adapterName),
+);
+print(
+    "of them constructing a legacy Graph by hand",
+    legacyOnlyAdapters.filter((f) => /\bnew AlgorithmGraph\b/.test(adapterText(f))).map(adapterName),
+);
+const reachingNames = new Set(delegating);
+print(
+    "of them importing a legacy function that reaches a port",
+    legacyOnlyAdapters
+        .map((f) => {
+            const used = valueImports(adapterText(f), /^@graphty\/algorithms$/).filter((n) => reachingNames.has(n));
+            return used.length === 0 ? undefined : `${adapterName(f)} (${used.join(" ")})`;
+        })
+        .filter((x) => x !== undefined),
 );
 const layoutDir = join(root, "graphty-element/src/layout");
 const layoutText = (f) => readFileSync(join(layoutDir, f), "utf8");
@@ -196,16 +288,14 @@ const engines = readdirSync(layoutDir).filter(
 print("SimpleLayoutEngine subclasses", engines);
 print(
     "of them calling a @graphty/layout layout",
-    engines.filter((f) => /import \{ [a-zA-Z0-9]+ \} from "@graphty\/layout"/.test(layoutText(f))),
+    engines.filter((f) => valueImports(layoutText(f), LAYOUT_RE).length > 0),
 );
 const dataDir = join(root, "graphty-element/src/data");
 const sources = readdirSync(dataDir).filter((f) => /DataSource\.ts$/.test(f) && f !== "DataSource.ts");
 print("data sources", sources);
 print(
     "data sources importing @graphty/graph-io",
-    sources.filter((f) =>
-        /^import \{[^}]*\} from "@graphty\/graph-io(\/[a-z0-9-]+)?";/m.test(readFileSync(join(dataDir, f), "utf8")),
-    ),
+    sources.filter((f) => valueImports(readFileSync(join(dataDir, f), "utf8"), GRAPH_IO_RE).length > 0),
 );
 
 // The legacy-use baseline of tools/check-legacy-use.mjs.

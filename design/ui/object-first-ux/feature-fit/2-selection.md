@@ -1,0 +1,438 @@
+# Feature fit 2: selection, query, filters and sets
+
+Where every current and proposed capability in this area lands in the object-first model of
+`design/ui/object-first-ux/object-model.md`. The area covers: picking elements on the canvas,
+relational selection (neighbours, groups, parts), rule-based selection and filters, named and
+combined sets, text search, the data table, saved views, the time window, and the hover and
+tooltip behaviour that sits beside selection.
+
+The capabilities come from the two inventories, `inventory/element-capabilities.md`
+(section 2, "Selection, query and visibility") and `inventory/app-today-and-personas.md`
+(the Explore panel, the data table drawer, the node and multi-selection inspectors, the
+status bar, the keyboard table), and from the requirement lists in
+`design/designloom/capabilities/` for `node-selection`, `search`, `filtering`,
+`saved-filters`, `view-bookmarks`, `details-on-demand`, `selection-statistics`,
+`ego-network`, `neighborhood-expansion`, `pattern-search`, `hover-highlight`,
+`tooltip-display` and `temporal-navigation`. Nothing here changes the app; it is a design
+check.
+
+## 0. Terms
+
+The words below are the object model's, restated so this file stands alone.
+
+- **Object**: a row in the left-hand tree: the Dataset, a Set, a Group, a Measure, a
+  Grouping. The only things the inspector edits.
+- **Element**: one node or one edge. The material. Never edited directly.
+- **Set**: an object whose members are a list of elements, painted with one look. Made by a
+  rule (a filter), a neighbourhood, a path, a promoted selection, a cut of a measure, or a
+  combination of other objects.
+- **Measure**: an object with one value per element (a centrality, a numeric column).
+- **Grouping**: a measure of labels (communities, components) that is also a family of
+  **Group** objects, one per label.
+- **Definition**: the inspector section that says how an object is made (its rule, inputs,
+  parameters and scope) and re-runs it when edited.
+- **Fill**: an object's appearance, stored as a style layer on that object.
+- **Precedence**: when two objects paint the same channel of the same element, the one
+  nearer the top of the tree wins, per channel. The tree order is the layer order.
+- **The mask** (what is showing): the one visibility filter the element holds
+  (`session.visibility`). Elements outside it are not drawn.
+- **Focus**: the verb that sets the mask to one object's members. While Focus is on, every
+  tool scopes to that object and nests its result under it.
+- **The eye**: the toggle on a row that stops that object painting. It never hides members.
+- **Element selection**: the element's own `session.selection`, the set of nodes and edges
+  currently picked, shared by the canvas, the table, a headset and the assistant.
+- **Object selection**: the tree rows currently picked.
+- **Ctrl+G**: promote the element selection to a fixed Set (`session.selection.promote`).
+- **Tool**: a toolbar verb that creates an object (Select V, Hand H, Filter F, Neighbours E,
+  Path P, Groups G, Rank R, Note N). A tool's **popover** is the 240 px light panel above the
+  toolbar that holds its fields; its **secondary bar** is the one-line prompt above the
+  toolbar while it waits for a canvas click.
+- **Combine**: the four boolean buttons (Union, Intersect, Subtract, Exclude) shown in the
+  inspector when two or more tree rows are selected; each makes a linked Set.
+- **Linked**: an object whose Definition points at another object (Top 10 by Bridges points
+  at Bridges). Linked objects sit immediately above their first input and are not nested.
+- **Nested**: an object computed within its parent's members. Nesting means only that.
+- **State**: current, computing, waiting, stale, failed, frozen. Stale means the data or the
+  definition changed since the last run; the old members keep painting until Re-run.
+- **The table dock**: the bottom dock (Shift+T) with Nodes and Edges tabs, one column per
+  attribute plus one per Measure and Grouping in the tree, whose row selection is the element
+  selection.
+- **The palette**: Ctrl+K, every command by name. **Ctrl+F**: the tree header becomes a
+  search field that filters objects by name and lists nodes by label.
+- **Findings**: a section on an object listing results with no members (a fact, a pair list,
+  a series), each with Open in table and Export, never a tree row.
+
+## 1. How to read the table
+
+One row per capability. The columns:
+
+- **Capability**: the plain name, with its status in parentheses. "shipped" and "proposed"
+  are the element inventory's words; "app: inert" means the app draws it but nothing is
+  wired; "designloom" means only the requirement file asks for it. Issue numbers are open
+  issues in graphty-org/graphty-monorepo.
+- **Home**: exactly one place in the object-first screen. Other places listed after "also"
+  are shortcuts to the same command, never a second implementation.
+- **Fit**: **natural** (it is an object, a tool, a section row or a command with no
+  stretching), **awkward** (it lands, but the model has to bend or the reader's expectation
+  differs; explained in section 3), or **does not fit** (the paradigm has no honest place for
+  it; listed in section 4).
+- **Element API**: the session or element member it uses today, or the gap it needs, written
+  "gap:" with a size (small, medium, large). Every gap is collected in section 5.
+- **Precedence / state / tree**: whether using it moves anything in the tree, changes an
+  object's state, or changes which Fill wins. "none" means it is transient and touches no
+  object.
+
+## 2. The table
+
+### 2.1 Picking on the canvas
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Click a node to select it (shipped) | Select tool (V); the node inspector (model 4.8) opens; every tree row containing the node takes the child-of-selected fill | natural | pointer; `session.selection.apply({nodes:[id]}, "replace")`; membership lookup for the row highlight needs the objects API (gap: medium, model section 11) | none; object selection is unchanged |
+| Shift+click adds, Ctrl+click toggles, Alt subtracts (shipped in the element as ops; app: not wired) | Select tool; the modifier grammar is the same on the canvas, in the table and in Ctrl+F results | natural | `session.selection.apply(target, "add" / "toggle" / "remove")` | none |
+| Rectangle drag (marquee) from empty canvas; Shift extends, Alt subtracts; a 3D marquee selects the frustum slab (designloom node-selection; app: Escape cancels a drag but no marquee exists) | Select tool's flyout: Select, Marquee (Lasso later); a live preview while dragging | natural | gap: medium, the element hit-tests a screen rectangle (2D) or a frustum slab (3D) to ids; the app must not read positions and test them itself | none |
+| Click an edge to select it; a distinct selected-edge look (designloom; element: edges are unpickable, #319) | Select tool once edges pick; until then an edge is reached from a node's Neighbours rows or the table's Edges tab; the edge inspector is model 4.8 with Endpoints in place of Neighbours | natural, blocked | gap: medium, edge picking and an edge-click event (#319); `session.selection.edges` already holds edges | none |
+| Separate node and edge halves of one selection (designloom "maintain separate state") | one element selection with two halves; the inspector header counts both ("12 nodes, 3 edges") | natural | `session.selection.nodes`, `.edges`, `.size` | none |
+| The selection halo: colour, scale, opacity (shipped, `el.selectionStyle`) | file menu > Settings > Appearance: Selection colour. Not on the everyday screen | natural | `el.selectionStyle` | none; it is configuration, not a layer, and the model keeps it that way because the halo must beat every Fill |
+| The cap of 5,000 selected elements and the truncated note (shipped) | the inspector header of a large selection: "showing 5,000 of 12,000"; picking a Set row with more members than the cap shows the same line | natural | `session.selection.cap`, `.truncated` | none |
+| Clear the selection: Escape, click on empty canvas (shipped) | Escape ladder rung 3 (model section 8); click on empty canvas in the Select tool | natural | `session.selection.clear()` | none; the inspector returns to the object selection, then to the Dataset |
+| Select all visible (Ctrl+A); add the edges between them (Ctrl+Shift+A) (element shipped; app: inert, #322) | keyboard and the palette; also the Dataset inspector's Showing header action "Select all showing" | natural | `apply({scope: {kind: "visible"}}, "replace")`; `apply({edgesBetween: true}, "add")` | none |
+| Invert the selection (Ctrl+I) (element shipped; app: menu row, inert) | keyboard, palette, right-click on a node | natural | `apply({invert: true})` | none |
+| Selection count in the status bar (shipped, "1 selected") | the status bar's right end; clicking it selects the inspector's multi-selection surface | natural | `session.on("selection:changed")` counts | none |
+| Selection change event with cause (shipped) | not on screen; it is what keeps the canvas, table, tree highlight and headset in step | natural | `session.on("selection:changed")` | none |
+| Tab / Shift+Tab step through the selected object's members; double-click a node selects its depth-1 neighbours; Shift+Enter selects the smallest Set containing the selection (model section 8) | Select tool keyboard | natural | `apply({neighborsOf, depth: 1})`; smallest containing Set needs membership lookup from the objects API (gap above) | none |
+| Locked objects: their members are skipped by canvas clicks and the marquee (model 2.3) | the lock on any tree row | natural | gap: small, picking honours a lock mask handed to the element (the app must not filter hits itself) | the lock also stops rename, re-run, move, delete and Fill edits |
+| Pick what is under the pointer for a context menu (partial: nodes pick, edges do not, #319) | right-click a node: a dark menu of verbs (Select neighbours, Select connected part, Select its group, Path from here, Path to here, Note, Pin, Colour this node..., Copy id, Expand from server) | natural | `node-click`; gap: medium, a context-menu pick event that names the node or edge under the pointer (#319) | none |
+
+### 2.2 Relational selection: neighbours, groups, parts, paths
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Select the neighbours of the selection at depth 1 to 3, in / out / all (element shipped; app: menu row inert, Shift+E unbound) | the node inspector's Neighbours header action "Select"; right-click "Select neighbours"; Shift+E on the canvas. A transient selection, no object | natural | `apply({neighborsOf: seeds, depth, direction}, "replace")` | none; Ctrl+G promotes it |
+| Make a neighbourhood object (ego network) at N steps, with alter-alter edges (designloom ego-network; element filter `{kind: "neighborhood"}` shipped; app: "Ego network" action inert, #314) | the Neighbours tool (E): one click on a node or the current selection as seeds; secondary bar "Within [1 v] steps, [All directions v]"; Enter creates a Set "Around node 1" | natural | `session.scope.save(name, {neighborhood spec})` once the set vocabulary is unified (gap: medium, model section 11); the induced edges are `{edgesBetween: true}` on the resolved nodes | a new Set at the top of the current scope; its Fill is a highlight layer above the Dataset's defaults |
+| Expand or contract the ego depth by one; a depth indicator (designloom) | the Set's Definition: Within [2 v] steps; editing re-runs (cheap, so live) | natural | the same neighbourhood spec with a new depth | the Set's members change; anything nested under it turns stale; precedence unchanged |
+| Ego network density and Burt's constraint; "N nodes excluding ego" (designloom) | the Set's Findings section (density from `selection.statistics` over the set; constraint is a new fact) | natural | `session.selection.statistics()` over the set's ids gives inside and cut edges and density; gap: small, a constraint fact, or leave it out (no persona asked for it by name) | none |
+| Star pattern only (edges to the ego, not among alters) (designloom) | the Set's Definition: Edges [All among members v / To the centre only] | awkward | gap: small, a neighbourhood spec flag that keeps only edges incident to the seeds | the Set's edge members change |
+| Filter the ego network by node type or edge type (designloom) | Focus on the neighbourhood Set, then Filter (F) > By values within it; the result nests under the neighbourhood Set | natural | nested scope: `{filter}` combinators `all` over the set and the categories filter (unified vocabulary) | a nested Set; the tree shows "Around node 1 > type = person" |
+| Analyse the ego network independently, "store as subgraph" (designloom) | Focus on the Set; every tool then scopes to it and nests its result under it (model section 7) | natural | `session.visibility.set({kind: "set", id})` (unified vocabulary); runs take `scope: {set: id}` today | children nest under the Set; children paint above the Set's own Fill |
+| Expand a node's neighbourhood from a server: fetch and add its neighbours (element shipped, `layoutBehavior.fetchNodes / fetchEdges`; app: "Expand N neighbors" with a cost line, inert) | the node inspector's overflow "Expand from server" and the right-click menu; double-click when a fetch source is configured. Present only when a fetch source is configured | awkward | `el.layoutBehavior = {fetchNodes, fetchEdges}`; `data-added`; the "will add N nodes and M edges" preview needs the source to answer a count (gap: small, a `fetchCount` or a dry-run flag) | it is a data load: the Dataset's counts change; every cheap object re-runs and every expensive one turns stale (the model's data-change rule); nothing new appears in the tree unless the reader presses Ctrl+G on the added nodes (the added nodes arrive selected, so one keystroke keeps them) |
+| Collapse an expansion; an expansion history stack; track each node's expansion source (designloom neighborhood-expansion) | Undo (Ctrl+Z) removes the last expansion's nodes; that is the whole history | does not fit (see 4.1) | gap: the fetch path returns the ids it added so undo can remove them (small); a per-node "expanded from" record would be a hidden attribute (origin) the element could stamp (small) | undo re-runs or re-stales every object, as any data change does |
+| Fade-in and radial placement of expanded nodes, incremental layout, a temporary glow, warn above 500 and block above 2,000 (designloom) | element behaviour and the cost gate; the block is a refusal with a sentence in the node inspector | natural, off-screen | layout: the live layout integrates new nodes already; gap: small, a limit on added nodes with a `GraphtyError` code; the glow is the element's transient highlight layer (the hover layer's mechanism, reason "added") | none |
+| Select the connected part a node is in; select the largest part (element: filter `{kind: "component"}` and scope "largest component" shipped; app: menu row inert) | right-click "Select connected part"; Filter (F) > Largest connected part with Select or Create | natural | `apply({scope: {kind: "largest-component"}})`; component of a node from `session.data.statistics().components` | Create makes a Set; the Genomics persona's "keep the largest component" is Create then Focus |
+| Select the group the selection is in ("Select community", "Same group as selection") (designloom; app: inert) | the node inspector's Values row "Communities: Group 3" is a link to the Group row, and a Group row's click selects its members; right-click "Select its group" when exactly one Grouping is in the tree, a submenu when several | natural | the Group row: `apply({scope: {set: groupScopeId}})`; membership lookup from the objects API | none |
+| Path endpoints, "Path from here / Path to here" (app: "Find path from here" inert) | right-click a node: Path from here (starts the Path tool with A picked), Path to here | natural; the Path tool is feature-fit area 3 | the Path tool's gesture | a Set |
+| Select the endpoints of an edge (app: edge inspector, unreachable) | the edge inspector's Endpoints rows, each a clickable element row; header action "Select both" | natural, blocked on #319 | `session.data.edge(id)` gives the endpoints today | none |
+| Neighbour rows on a node with the edge's label and value, "See all in table", "Copy neighbor ids" (app: neighbours computed in the app from edge records, a reimplementation) | the node inspector's Neighbours section: up to 8 rows, then "See all in table" (the table's Edges tab showing that node's edges); Copy ids in the overflow | natural | gap: small, an edge listing per node (`session.data.edgesOf(id)` or `el.getEdges()`, #297); the app must stop walking edge records | none |
+
+### 2.3 Rule-based selection and filters (what is showing)
+
+The app today draws a Filter builder, saved Filters, filter chips and a status strip, none
+wired. The object model folds all of them into one thing: **a Set made by the Filter tool,
+plus Focus**. A filter that hides is a Set with Focus on; a filter that only marks is a Set
+with a Fill; a filter that only picks is the popover's Select button. This is the largest
+single change of expectation in the area and section 3.1 explains it.
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Filter by a categorical attribute with a checkbox list (element `{kind: "categories"}` shipped; designloom) | Filter (F) > By values: Attribute [conference v], a value list with checkboxes, live count "Matches 12 nodes", buttons Select and Create | natural | `session.scope.count(spec)` for the live count; Create: `scope.save` with the categories filter (unified vocabulary); Select: `apply({scope: spec})` | Create: a new Set at the top of the current scope with a highlight Fill; the mask is untouched until the reader presses Focus |
+| Filter by a numeric attribute with min and max (element `{kind: "range"}` shipped) | Filter (F) > By range: Attribute [value v], Min [ ] \| Max [ ], the same count and buttons; a 208 x 40 histogram of the attribute above the fields (the same widget as a Measure's Values) | natural | range filter; gap: small, a histogram over an attribute column (today `RunResult.histogram` exists only for a run's field) | as above |
+| Filter by degree band and direction (element `{kind: "degree"}` shipped) | Filter (F) > By connections: Min [ ] \| Max [ ], Direction [All v] | natural | degree filter | as above |
+| Filter by an expression (`degree > 10 and data.type == "person"`) (proposed #149; app: "By expression" inert) | Filter (F) > By rule: one expression field with autocompletion and inline validation; "+ Rule" adds an AND line | natural, blocked | gap: large, the query engine (#149); `session.catalog.validate()` and `.functions()` (#335, #332) for the field | as above |
+| Filter edges by an expression or by edge type (proposed #149 for expressions; categories on an edge attribute: gap) | Filter (F) > By values or By rule with Target [Nodes \| Edges] at the top of the popover; an edge Set's members are edges | natural | `{kind: "edges", where}` for expressions; gap: small, categories and range filters that read an edge attribute (today the eight node kinds and one edge kind) | an edge Set; its Fill writes edge channels; Focus on it hides every other edge and keeps every node |
+| Filter by a centrality threshold or a metric range (designloom; element: result fields unreachable from filters, #192) | the Measure's Values header "+": "Above threshold set...", "Top N set..."; both make a linked Set immediately above the Measure; Focus on it to hide the rest | natural | `{above: {run, field, threshold}}` and `{top: ...}` exist as selection targets; gap: small, the same two as Filter kinds (#192, falls out of the unified vocabulary) | a linked Set above its Measure, already winning precedence over it; stale when the Measure re-runs |
+| Filter to one community or one connected part (designloom) | click the Group row (selects members), then Focus on this; for parts, Groups (G) > Separate pieces makes a Grouping whose Groups are the parts | natural | `visibility.set({kind: "set", id: groupScope})`; component filter `{kind: "component", id}` | Focus sets the mask; the tree marks the focused row; tools now nest under it |
+| Filter to the N-hop neighbourhood of the selection (designloom; element `{kind: "neighborhood"}` shipped) | the Neighbours tool, then Focus (section 2.2) | natural | as 2.2 | as 2.2 |
+| Combine filters with AND (designloom "all conditions must match"; element `all` combinator shipped) | inside one Set: "+ Rule" adds an AND line to its Definition. Across Sets: select two rows, Combine > Intersect, then Focus on the result | natural | `{kind: "all", of: [...]}`; Combine writes a scope over `{kind: "set", id}` inputs (unified vocabulary) | "+ Rule" edits one Set (live re-run, cheap); Combine makes a linked Set above its first input |
+| OR and NOT over filters (element `any`, `not` shipped) | Combine > Union and Subtract / Exclude for OR and NOT across Sets; inside one Set the rule field's `or` and `not` | natural | `any`, `not` | a linked Set |
+| Invert a filter: show the hidden instead (designloom) | the Set's Definition gets a last row "Invert [switch]" that wraps the rule in `not`; Focus on it shows the complement. For a fixed Set (a promoted selection) the same switch works because `not` accepts `{kind: "set"}` | natural | `{kind: "not", of: filter}` | the Set's members flip; nested children turn stale; the chip and count update |
+| Reset all filters; the filter indicator icon; "Showing X of Y (Z%)" (designloom; app: chips never drawn) | Exit focus in the status bar ("Focused on Degree > 10: 6 of 34 [Exit]"), Escape when nothing else is pending, or Dataset > Showing > Show [Everything v]. The status bar line is the indicator; the tree's focus glyph is the second | natural | `visibility.set(null)`; `session.status.counts.visibleNodes` | the mask returns to everything; nothing else moves |
+| Filters apply within 300 ms; hidden nodes fade over 200 ms; positions are preserved; edges of hidden nodes are hidden (designloom) | element behaviour; nothing on screen | natural, off-screen | the visibility pass (`visibility:changed` reports its duration); gap: small, a fade on visibility change if the element does not animate it today (verify) | none |
+| Saved filters: name, description, list, apply in one click, edit, delete with confirmation, duplicate, show the criteria summary, an active indicator (designloom saved-filters; app: Filters section inert) | every filter Set IS a saved filter: the tree row is the list entry; its name and count are the summary; the Definition section is Edit; Duplicate and Delete are in the row's overflow; the focus glyph is the active indicator; a description is the Set's first Note | natural | the objects API (rename, duplicate, remove); `scope.save`, `.list()`, `.remove()` | the tree holds them in precedence order, not most-recently-used order (section 3.2) |
+| Combine saved filters: "apply A AND B" (designloom) | select both rows, Combine > Intersect, Focus | natural | as above | a linked Set |
+| Export and import saved filters as JSON; validate imported filters against the schema and warn (designloom) | Share > Export recipe writes every object's creation step; file menu > Run a recipe replays them onto the current dataset and reports unbound attributes; a single Set's Export section gets "Definition [JSON v] [Export]" | awkward (section 3.2) | recipes need the commands entry point (#337) and the journal (#145); `SavedScope.bound` already says whether a saved spec still resolves | an imported filter becomes an ordinary Set, waiting or computing |
+| Persist saved filters in localStorage, sync to an account, cap at 50 (designloom) | the project file (#301) saves the tree; there is no per-browser store | does not fit (section 4.3) | #301 | none |
+| Filter chips row, filter status strip (app: never drawn) | gone; the status bar line and the tree's focus glyph replace them | natural | none | none |
+| Select by an attribute criterion through a dialog ("Select by Attribute") (designloom) | Filter (F) popover's Select button: the same fields, a transient selection instead of a Set | natural | `apply({scope: spec}, op)` | none until Ctrl+G |
+| Select from a pasted list of ids (app: "From list" inert; element `{ids}` shipped) | Filter (F) > By id list: a text area, "12 of 14 ids found", Select and Create | natural | `apply({ids})`; unmatched ids from `SelectionDelta.unmatched` | Create makes a fixed Set |
+| Select what matches a filter ("Select matching filter") (app: inert) | click the Set's row: picking a Set selects its members (model section 8); or its Members header action Select | natural | `apply({scope: {set: id}})` | none |
+| Count or resolve a scope before running anything (element shipped) | the live count in every tool popover and secondary bar ("Rank what is showing (34 nodes)") | natural | `session.scope.count(spec, {approximate})`, `.resolve(spec)` | none |
+| Saved scopes that reference another saved scope (element shipped) | nesting: the Within field of a Definition names the parent Set | natural | `scope.save` with `{set: parentId}` inside; `SavedScope.bound` | a nested row; re-scoping a childless object moves its row |
+| Visibility summary, node and edge masks, the visible-count-versus-render-set rule (element shipped) | the status bar's "showing 12 of 34" and the Dataset's Showing row; the masks are for the table and the tools, not for the reader | natural | `visibility.summary`, `.nodeMask()`, `session.status.counts` | none |
+| Query validation and autocompletion (proposed #335, #332) | the Filter popover's rule field: inline error with position, completion list of attribute paths, result paths (`results.<name>.value`) and functions | natural, blocked | gap: `session.catalog.validate()`, `.functions()` (declared, unimplemented) | none |
+| Pattern (motif) search: a 2 to 10 node template with type and attribute constraints; match count; a capped match list; rank matches; highlight; click a match to centre; saved and pre-built patterns; approximate matching; timeouts (proposed, design `data.match`; designloom pattern-search; app: "Find a pattern" Coming) | Filter (F) > Pattern: a popover with a pre-built list (Triangle, Star of 3, Chain of 3, Square, Clique of 4) and a small template editor (see 3.4); Create makes a Set "Matches: Triangle" whose members are the union of all matches, with a Findings row "42 matches, Open in table" whose table rows are one per match, click centres and selects that match | awkward (section 3.4) | gap: large, a subgraph-isomorphism run (`data.match`) whose result shape is a new `match-list` (node-set for the union plus a pair-list-like table of matches); the query engine (#149) for the constraints; `session.estimate` for the timeout warning | a Set; the per-match table is Findings, not rows, because matches overlap and a Grouping cannot hold overlapping members |
+
+### 2.4 Sets: naming, promoting, combining, statistics
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Promote the selection to a named set (element shipped; app: "Save selection as set" inert) | Ctrl+G; the multi-selection inspector's first row "Make a set"; right-click a node; the new Set is named "Selection 3" with its name in rename | natural | `session.selection.promote(name)` returns a `ScopeId`; the objects API wraps it with a highlight layer | a fixed Set at the top of the current scope; its Fill is one colour |
+| Add the selection to an existing fixed set; remove from one (model 4.9 "Add to [set v]"; the Set's "[Edit members]") | the multi-selection inspector's second row "Add to [set v]"; on a fixed Set, Definition > Edit members: select on the canvas, press + or - | natural | gap: small, `scope.update(id, spec)` (today a saved scope is save-and-remove only) | the Set's members change; nested children turn stale |
+| Set operations on the selection: replace, add, remove, toggle, intersect (element shipped) | the modifier grammar (plain, Shift, Alt, Ctrl) everywhere; Intersect only through Combine, where the inputs are named | natural | `SetOp` | none |
+| Union, intersection, difference, exclusion of two or more objects (app: none; the model's Combine) | select two or more tree rows; the inspector's Combine row (Ctrl+Alt+U / I / S / X) | natural | gap: medium, the unified set vocabulary (`Filter` gains `{kind: "set", id}` so `all` / `any` / `not` combine sets) | a linked Set immediately above the first input |
+| Nested sets: a set computed within another (element: saved scopes reference each other) | Focus on a Set, then any tool; the Within field | natural | as 2.3 | nested rows; children paint above the parent |
+| Selection statistics: counts, inside and cut edges, per-attribute mean / median / min / max against the whole graph, categorical distributions (element shipped; app: "Coming", #322) | the multi-selection inspector's Statistics section (model 4.9); the same rows in a Set's Members section | natural | `session.selection.statistics()`; over a Set: the same call on its resolved ids (gap: small, `statistics(scope)` so the app never resolves ids itself) | none |
+| Highlight attributes where the selection differs from the graph by more than one standard deviation; "Above average" indicators; a mini-histogram per numeric attribute comparing selection to graph; p-values above 30 nodes (designloom) | the Statistics rows: the graph value in secondary text after the selection value, an up or down glyph when the difference passes the threshold, the histogram widget on hover of the row | natural, needs element additions | gap: small, `SelectionAttributeStatistics` gains the graph's standard deviation and a significance flag; the attribute histogram (2.3) | none |
+| Compare two selections, A against B; pin a statistics snapshot to compare against later selections (designloom; app: "Pin as A" sets a value nothing draws) | promote both to Sets (Ctrl+G twice), select both rows: a Compare section on the two-row inspector with the same statistics side by side | awkward (section 3.3) | `selection.statistics` over each set's ids; gap: small, `statistics(scope)` | two fixed Sets in the tree |
+| "Selection empty" and "too small for statistics" messages (designloom) | the inspector: with nothing selected it shows the Dataset; a selection under 3 nodes shows counts and no statistics rows, and no sentence | natural | none | none |
+| Export selection statistics as CSV (designloom) | the Set's Export section: Statistics [CSV v] [Export] | natural | gap: small, a CSV exporter for statistics (result and data exporters, inventory section 1) | none |
+| Multi-selection inspector actions: Filter to selection, Save as subgraph, Style selection, Select endpoints, Delete edge (app: unreachable, all Coming) | Filter to selection = Ctrl+G then Focus (a second row "Focus on these" does both); Save as subgraph = Ctrl+G; Style selection = "Colour these..." (a fixed Set with one paint row); Select endpoints = the edge inspector; Delete edge is a data edit (section 4.2) | natural except Delete | as above | Ctrl+G adds a Set |
+| "Colour this node..." and "Colour these..." (model 4.8, 4.9; the comparison's three-click colour change) | the node inspector's Look section, the multi-selection inspector's Look section, right-click | natural | a fixed Set (`selection.promote`) plus `session.styles.add` with a `{match: "scope", scope}` selector (gap: small, layer selector by scope) | a one-node Set at the top of the scope: it wins the colour channel on that node over everything below |
+| Selected nodes shown with a distinct border (designloom) | the halo (2.1) | natural | `el.selectionStyle` | none |
+
+### 2.5 Text search
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Search node labels by substring, exact, regex, or a named attribute (`type:person`); results update while typing (element `{text, mode}` declared, throws `E_UNSUPPORTED`, #149; app: search field inert; palette never finds nodes, #173) | Ctrl+F or "/": the Objects header becomes a search field; typing filters tree rows by name and lists matching nodes under a "Nodes" divider (label, then the matching attribute in secondary text); ArrowDown highlights, Enter selects and locates, Escape restores the tree. The prefixes exact:, regex:, attribute: are accepted; an info circle in the field lists them | natural, blocked | gap: large, the text search source and the query engine (#149); hits from `SelectionSearchHit` carry the matched attribute for the secondary text | none until Ctrl+G; Enter changes only the element selection |
+| Highlight every matching node on the canvas while the search is open; cap the list at 100 with "N more"; "No results" (designloom) | the search field: while it has text, the hits carry the element's transient search highlight on the canvas (the same mechanism as the hover outline); the list shows 100 and "showing 100 of 312" | natural | gap: medium, an element-owned transient highlight layer with a reason (`LayerSource.reason` reserves "hover"; add "search"); the app must not add a user layer for this | none; the highlight is not a layer the reader sees or can reorder |
+| Click a result to select and centre; double-click to select and zoom (designloom) | Enter or click: select and locate (frame the camera on it); Shift+Enter: select without moving the camera | natural | `apply({nodes})`; gap: small, fit the camera to a scope (design 4.8) | none |
+| Search scope: all nodes or visible only (designloom; app: a scope token) | Ctrl+F searches everything; a hit outside the mask reads "(hidden)" in secondary text and Enter on it asks nothing: it selects and the status bar's focus line stays; to make it visible the reader exits Focus | natural | search over the full graph; `visibility.isVisible(id)` for the tag | none |
+| Keep the last 10 queries (designloom) | a chevron in the search field lists them | natural, minor | app state; nothing in the element | none |
+| Promote the hits to a Set (so a search becomes a rule) | Ctrl+G while the results list has focus makes a Set whose Definition is the text rule (a live rule, not a fixed list) | natural | a text filter kind in the unified vocabulary (gap: small, `{kind: "text", text, mode}` as a Filter once #149 lands) | a new Set |
+| Search commands, algorithms by both names, saved things, notes, and "@node" in the palette (app design issues #173, #174, #175) | Ctrl+K holds commands, every flyout item under both names, and tree object names; nodes are Ctrl+F (decision 16 of the model); a sentence that matches nothing becomes "Ask: ..." | natural | none beyond the catalogue | none |
+
+### 2.6 The data table
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| A table of every node and edge with every attribute column; Nodes and Edges tabs; virtualised; resizable; maximise to a full Table view (app: works) | the table dock (Shift+T); the Graph / Table segmented control at the dock's top maximises it | natural | `el.getNodes()`; gap: small, `el.getEdges()` / `session.data.edges()` (#297); column list from `session.data.attributes()` | none |
+| A column per Measure and Grouping, in tree order (app: no metric columns, #168) | the dock: after the attribute columns, one column per Measure and Grouping in the tree, headed by the object's name with its Fill chip; hidden (eye off) objects keep their column | natural | `session.results.get(run).column(field)`; gap: small, column-to-ids (#148) so the app never re-derives which node a value belongs to | none; the column order follows the tree so dragging a row reorders the columns |
+| "Showing [object v]" at the dock's left: the rows are what is showing by default, or one object's members (model decision 28) | the dock header | natural | `session.scope.resolve({set: id})` for the row set; the default is `visibility.nodes` | none; it is a view of the table, not the mask |
+| Row selection is the element selection; a selected node scrolls into view; Shift and Ctrl on rows follow the modifier grammar (app: partly) | the dock | natural | `session.selection.apply` with `cause: "user"`; the table listens to `selection:changed` | none |
+| Sort by any column; a column header menu with Sort, Hide, and the attribute verbs Colour by, Size by, Filter by, Group by, Label by, Set as time, Set as type (app: no menu, #169) | the column header's "..."; the same verbs as the Dataset's Attributes section, so a column becomes an object from the table too | natural | sorting a result column: `RunResult.ranking()`; the verbs are the Attributes verbs (feature-fit area 1) | Colour by / Size by / Group by / Filter by add a Measure, Grouping or Set to the tree |
+| "See all N in table" from a Set's Members, a Measure's Values, a node's Neighbours; "Show in table" on a row's right-click (app: "See all ranked" lands on the plain table, #169) | opens the dock with Showing set to that object and sorted by that Measure, or the Edges tab filtered to the node's edges | natural | as above | none |
+| Click the status bar's counts to open the table (app: works) | the status bar | natural | none | none |
+| Export the table or one object's members as CSV (app: exports inert, #178) | the Set's Export section (Members [CSV v]); the Measure's (Ranked list [CSV v]); the dock's overflow "Export these rows..." for the current Showing and sort | natural | gap: small, result and data exporters in the element (inventory section 1, #178) | none |
+| The data table as the sample-inspection step of First Exploration and the triage step of Threat Hunting (workflows W01, W07) | the dock, with Showing set to the triage Set | natural | as above | none |
+| Edit a cell (update an attribute in place) (proposed #297) | out of this area (data edits); the table stays read-only in this phase | does not fit here (section 4.2) | #297 | every object reading that attribute turns stale |
+
+### 2.7 Saved views
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Save the current camera under a name; apply it in one click; animate the transition (element: camera presets shipped; app: "Save as view" Coming, #183) | the Views list above the tree: "+" saves; click applies with a 500 ms animation; the View inspector (model 4.7) | natural | `el.saveCameraPreset(name)`, `loadCameraPreset`, `setCameraState({animate: true, duration: 500})` | none; Views are aside from the tree |
+| A View also stores the view mode (2D, 3D, VR, AR) and the mask in force (model 4.7) | the View inspector: Mode, Showing [Everything v] | natural | gap: small, a view preset that carries the mode and a scope reference alongside the camera (today a preset is camera only) | applying a View sets the mask (it may enter or exit Focus); nothing else moves |
+| Rename, Update to current, Delete with confirmation; sort newest first or alphabetically (designloom) | rename in place; the View inspector's "Update to current"; Delete in the row's overflow; order is the list order (drag to reorder, like Figma's Pages); no sort menu | natural | preset save and remove | none |
+| Store the active filters at save time (designloom) | covered by the mask (above) | natural | as above | as above |
+| Store the node selection at save time (designloom) | not stored; Ctrl+G keeps a selection as a Set, and a View can Focus on it | awkward (section 3.5) | none | none |
+| Store the visual encoding settings (colour by, size by) at save time (designloom) | not stored; encodings are objects in the tree and outlive views | does not fit as stated (section 4.4) | none | none |
+| A thumbnail per bookmark (designloom "if feasible") | not in the row; the row's tooltip after 1000 ms shows a 160 x 100 capture taken at save time | awkward, optional | `el.captureScreenshot({preset: "thumbnail"})` | none |
+| Export and import views as JSON; cap at 20 (designloom) | the project file (#301) holds them; `exportCameraPresets` remains for a consumer; no cap | natural | `el.exportCameraPresets()`, `importCameraPresets()` | none |
+| "Bookmark saved" toast (designloom) | none: the new row appears selected in the Views list, which is the confirmation (Figma's pattern) | natural | none | none |
+| Camera presets Top, Front, Side, Isometric, Reset (app: Views menu) | the zoom menu in the right panel header (model decision 23); not rows in the Views list | natural | `el.applyCameraView(id)`, `resetCamera` | none |
+| Compare two views side by side (app: Compare toggle inert, #186) | the View inspector's "Compare with [View v]" | natural; details are feature-fit area 5 (camera) | gap: medium, a second view of one session (#186) | none |
+| "Follow selection" (app: Coming) | the zoom menu; camera area | out of this area | design 4.8 `followNode` | none |
+
+### 2.8 The time window
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| A time window from..to on a time attribute, with a step unit (element shipped; app: never drawn, no Time role, #299, #333) | Dataset > Showing > Time window [from] \| [to] with a Play glyph; present only when a time role exists; Attributes > "Set as time" assigns the role | natural | `visibility.setWindow({attribute, from, to, step})`; gap: medium, the time role and `catalog.timeAttributes()` (#333, #299) | the window is part of the mask: cheap objects re-run and expensive ones turn stale as the window moves |
+| A transport: slider over the full range, endpoint labels, current point or range, play / pause / speed / step, click to jump, tick marks where changes occur, "Viewing: ..." (designloom; app: TimeSlider drawn, never shown) | the status bar while a window is active: "Viewing 2019-03 [<] [play] [>] [1x v]" and a slider that grows on hover; the Escape ladder pauses playback first | natural | gap: medium, playback steps and per-step summaries (#300); tick marks need per-step change counts from the same | the status bar chip mirrors the Dataset row |
+| Playback that re-runs objects per step (proposed #300) | Dataset > Showing: "Re-run objects while playing [switch]", off by default | awkward | #300 | every object turns stale each step and shows it; the model says it never runs unasked, so the switch is explicit |
+| Keep positions during navigation; fade in and out over 200 ms (designloom) | element behaviour | natural, off-screen | the visibility pass; the fade as in 2.3 | none |
+| Focus and the time window at once (a Set and a window both masking) | both apply: what is showing is the Set's members within the window; the status bar reads "Focused on X, 2019-03: 6 of 34" | natural | the element holds `set(filter)` and `setWindow` as two independent masks already | none |
+
+### 2.9 Hover, tooltip and the two-way link
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Hover a tree row: its members outline on the canvas; hover a node: the rows of the objects it belongs to take the hover fill (the model's two-way hover link) | everywhere, always on | natural | gap: medium, an element-owned hover layer (`LayerSource.reason` "hover") that takes a scope; membership lookup from the objects API | none; the hover layer is transient and never in the tree |
+| Hover a node: highlight it, its edges and its neighbours; dim everything else to 30 percent; a "N neighbours" badge; 1 or 2 hops; suppress while panning; a setting to disable (designloom hover-highlight; element: a `node-hover` event only) | the canvas, always on; Settings > Appearance: Hover highlight [Off \| Neighbours \| 2 steps]. Dimming the rest is allowed here because it is transient and reader-owned, not an algorithm's suggested style | natural | gap: medium, the same hover layer, fed by `{neighborsOf, depth}` inside the element, with the dim as part of the layer; the app must not compute neighbours | none |
+| Show a node's label on hover even when labels are budgeted; an edge label on edge hover (designloom) | part of the hover layer | natural | the hover layer writes `node.label` for the hovered node; edge hover waits on #319 | none |
+| A tooltip after 300 ms with the label, the type, up to 5 attributes, "Connections: N", "Community: N"; which attributes appear; disable (designloom; element: `node.tooltip` channel shipped) | Dataset > Canvas: Tooltip [Label + 3 attributes v] with a gear that picks the attributes; the Measures and Groupings shown are those in the tree | natural | the `node.tooltip` and `node.tooltipStyle` channels on the Dataset's locked base layer; the values come from the tree's objects | none; it is a Dataset property, not an object |
+| Touch-and-hold as hover (designloom) | element behaviour | natural, off-screen | gap: small, if the element's pointer handling lacks it | none |
+
+### 2.10 Keyboard and commands in this area
+
+| Capability | Home | Fit | Element API | Precedence / state / tree |
+|---|---|---|---|---|
+| Ctrl+A, Ctrl+Shift+A, Ctrl+I, Ctrl+G, Ctrl+F, Ctrl+K, Shift+E, E, P, Tab, Shift+Enter, Escape (model section 8; app: most in the table, unbound) | the one binding table; every one is also a palette row | natural | as the rows above | as above |
+| Ctrl+Shift+H hide, Ctrl+Shift+L lock the selected objects (Figma's chords) | tree rows | natural | objects API `setVisible`, `setLocked` | hide = the eye: the object stops painting; lock: members skipped by picking |
+| "Inspect selection" (Enter) (app: unbound) | Enter with an element selection puts focus in the inspector; with an object selection, opens its first field | natural | none | none |
+| "Remove selected" (Delete) on elements (app: unbound) | Delete with tree rows selected deletes objects; Delete with an element selection does nothing in this phase (data edits, section 4.2) | does not fit in this area | a mutation API with inverses (design 9.2) | deleting an object freezes what linked to it and removes its children |
+| The Escape ladder: cancel a pick, close the top overlay, clear the element selection, clear the object selection, exit Focus (model section 8) | one rung per press | natural | `selection.clear()`, `visibility.set(null)` | exit Focus restores the mask |
+
+## 3. Notes on the awkward ones
+
+### 3.1 "Filter" means a Set plus Focus, and readers will expect a filter to hide
+
+Every graph tool a persona has used (Gephi, Cytoscape) treats a filter as a thing that hides.
+In the model a filter is a Set: the Filter tool's Create button makes a row with a highlight
+Fill and hides nothing. Hiding is a second step, Focus. The reason is decision 3 of the
+model: the eye on every row must mean one thing, and a filter row whose eye hid members would
+mean the opposite of a path row whose eye stops its paint.
+
+What this costs: the Genomics persona's "keep the largest component" and the Threat Hunting
+persona's "filter a huge graph, then hunt inside it" are two steps where they expect one.
+
+What softens it, all already in the model: the Filter popover's live count says what a
+Create will match before the click; the new Set's overflow and Members header both carry
+Focus; the status bar prints "Focused on X: 6 of 34 [Exit]" the moment Focus is on; and the
+eye's tooltip says "To hide everything else, use Focus". One addition worth trying in the
+mocks: a third button in the Filter popover, "Create and focus", so the Gephi habit is one
+click while the eye keeps its single meaning. It is a shortcut to two commands, not a third
+kind of filter.
+
+Element side: the unified set vocabulary (model section 11) is what makes a filter Set, a
+scoped run, a Combine and Focus one mechanism. Until it lands, a filter Set is a saved
+scope and Focus is `visibility.set(filter)` with the same spec, which works but keeps two
+copies of the rule.
+
+### 3.2 Saved filters are tree rows, so they are ordered by precedence, not by recency
+
+The `saved-filters` requirement wants a list sorted by most recently used, with export and
+import as JSON. In the model a saved filter is a Set in the tree, and the tree's order is
+the paint order. A reader who saves ten hunting filters gets ten rows whose position means
+"which colour wins", which is not what they were thinking about when they saved them.
+
+Two things keep this livable. Rows the reader is not using can be hidden (eye off), which
+dims them and stops their paint, and Ctrl+F filters the tree by name. Export and import of a
+single filter's Definition as JSON is a small Export row on the Set; export of the whole
+collection is the recipe (Share > Export recipe), which is the honest form because a filter
+that references another Set (a nested or combined one) cannot be exported alone.
+
+The one thing not solved: a filter library that outlives the dataset. A hunting filter
+written for one SIEM export is wanted on next week's export. The recipe covers replay
+(file menu > Run a recipe), but a library of recipes is a file-menu list the model has not
+drawn. It is a small addition and not a new object kind.
+
+### 3.3 Comparing two selections is a new inspector surface
+
+`selection-statistics` asks for Selection A against Selection B, a pinned snapshot to
+compare later selections against, and p-values. The model's multi-row inspector (4.6) shows
+Combine and shared Fill rows, not statistics. The honest placement is: promote both
+selections (Ctrl+G, twice), select both rows, and read a Compare section that puts the two
+Sets' Statistics side by side, with the whole graph as a third column. That is one new
+section on an existing surface and needs `selection.statistics` to accept a scope rather
+than reading only the live selection (a small element gap).
+
+The "pinned snapshot" requirement disappears: a fixed Set is a snapshot, and it survives
+every later selection without any pinning UI. The app's "Pin as A" header verb goes.
+
+### 3.4 Pattern search needs a template editor, and its matches overlap
+
+Two rough edges. First, defining a pattern means drawing a small graph (2 to 10 nodes, their
+edges, a constraint per node), and the model's premise is that nobody draws in graphty. The
+pre-built list (triangle, star, chain, square, clique) covers the persona's stated hunts
+without an editor; a custom template is a popover with a tiny node-and-edge editor, and that
+popover is the one drawing surface in the app. It should be built last and only if the
+pre-built list proves insufficient.
+
+Second, matches overlap: one node can sit in three triangles. A Grouping cannot hold that
+(one label per element), so "one Group per match" is wrong. The placement in the table:
+one Set whose members are the union of every match, with a Findings row "42 matches" whose
+table lists one row per match, click centring and selecting that match. Ranking matches by
+a criterion is a sort of that table. Saving a pattern is saving the Set; its Definition holds
+the template.
+
+Element side: a `data.match` run with a result shape that is a node-set plus a match table
+does not exist, and it depends on the query engine (#149) for the constraints. Large gap.
+
+### 3.5 Views do not store the selection
+
+`view-bookmarks` wants a bookmark to restore the selection. The model's View stores the
+camera, the mode and the mask, because those are "where I stand and what I look at". A
+selection restored by a view would change the inspector and the tree highlight under the
+reader as a side effect of moving the camera, which is a mode error waiting to happen. The
+replacement is Ctrl+G: a selection worth returning to is a Set, and a View can Focus on it.
+This is a deliberate narrowing of the requirement, not an omission.
+
+### 3.6 Server expansion is a data load, not an object
+
+"Expand from server" adds nodes to the dataset. It fits the model as an action on a node,
+but it is the one action in this area that changes the material: every cheap object re-runs
+and every expensive one turns stale, and the tree gains nothing. The persona (Fraud Ring
+Investigation) wants to see what an expansion added and to take it back. The model covers
+"take it back" with undo. "See what it added" is one keystroke because the added nodes
+arrive selected and Ctrl+G keeps them as a Set named "Added around node 1". Making that Set
+automatically would be the app deciding graph structure, which decision 19 of the model
+forbids; the mocks should show the selected-on-arrival state so the keystroke is obvious.
+
+### 3.7 Time playback with re-runs
+
+Playback that re-runs objects on every step turns every object stale on every step and
+shows it, and the model's rule that nothing runs unasked means the re-run is an explicit
+switch. On a graph where a Grouping takes four minutes, "play" with the switch on would be a
+queue of waiting rows. The element's per-step summaries (#300) are the better answer for the
+Network Evolution workflow: one Findings table of series on the Dataset, not N stale
+Measures, as the model's section 10 already notes.
+
+## 4. Capabilities that do not fit
+
+Each of these is asked for by a requirement file or drawn in the app today, and the
+paradigm has no honest place for it as stated. The line after each says what the model
+offers instead.
+
+### 4.1 Expansion history stack and per-node expansion source
+
+`neighborhood-expansion` wants a stack of expansions with selective collapse and a record of
+which expansion brought each node. In the model an expansion is a data load, and history
+is undo. Selective collapse (take back the second expansion but keep the third) is a data
+edit the element does not have and the tree cannot represent, because the added nodes are
+material, not members of anything. Instead: undo in order, or Ctrl+G on arrival to keep
+each expansion as a Set and Focus on the ones to keep.
+
+### 4.2 Data edits from a selection: Delete selected, Delete edge, edit a cell
+
+Removing the selected nodes, deleting an edge, or editing an attribute in the table all
+change the material. They are not selection features and this area does not place them;
+they belong to the data-editing area (feature-fit area 1) with the merge and computed
+attribute proposals, and they need the element's mutation API with inverses (design 9.2,
+#297). Until then, the way to "remove" something from the picture is Focus on its complement
+(a Set with Invert on).
+
+### 4.3 Saved filters in browser storage, synced to an account, capped at 50
+
+The tree is saved in the project file (#301) and nowhere else; the app must not keep an
+app-side store of sets (model decision 25). A per-browser filter list separate from the
+dataset is the app owning graph state. Instead: the project file, and a recipe library for
+filters wanted across datasets (3.2).
+
+### 4.4 Views that store encodings
+
+`view-bookmarks` wants a bookmark to restore "colour by, size by". In the model the encoding
+IS the tree: a Measure with a Fill. A view that restored an encoding would either duplicate
+the object or silently toggle eyes in the tree when applied, both of which break "the tree
+is the one place appearance lives". Instead: leave the objects in the tree and hide the
+ones not wanted (the eye). If a true "snapshot of eye states" is wanted later, it is a View
+property that toggles eyes visibly, and it should be decided as its own question.
+
+### 4.5 Search results in the command palette by "@"
+
+The app design (#173) puts nodes in Ctrl+K behind an "@" prefix. The model puts nodes in
+Ctrl+F and commands in Ctrl+K (decision 16). Not a loss of function; recorded here because
+the app's palette rows and issue text say otherwise.
+
+## 5. Element gaps this area depends on
+
+Collected from the table, smallest first within each size. Every gap is element work; the
+app must not bridge any of them.
+
+| Gap | Size | Used by | Issue |
+|---|---|---|---|
+| Picking honours a lock mask | small | locked rows (2.1) | new |
+| `statistics(scope)`: selection statistics over a scope, not only the live selection; standard deviation and a significance flag per attribute | small | Set Members, Compare (2.4, 3.3) | new |
+| Histogram over an attribute column, not only a run field | small | Filter > By range, Statistics rows (2.3, 2.4) | new |
+| `scope.update(id, spec)` | small | Edit members, Add to set (2.4) | new |
+| Layer selector by scope (`{match: "scope", scope}`) | small | Colour this node..., every Set's Fill (2.4) | new |
+| Categories and range filters over edge attributes; a star-only flag on the neighbourhood spec | small | edge Sets, ego networks (2.2, 2.3) | new |
+| Top and Above as Filter kinds (result-field filters) | small | threshold Sets, Focus on them (2.3) | #192 |
+| Text as a Filter kind once search exists | small | promoting a search to a rule (2.5) | after #149 |
+| Fit the camera to a scope | small | Locate on a search hit and on every Set (2.5) | design 4.8 |
+| Edge listing per node; `getEdges()` | small | node Neighbours rows, the table's Edges tab (2.2, 2.6) | #297 |
+| Column-to-ids for result columns | small | Measure columns in the table (2.6) | #148 |
+| Result and data CSV exporters | small | Export rows (2.4, 2.6) | #178 |
+| A fetch-count or dry-run for server expansion; a cap on added nodes; the added ids returned for undo | small | Expand from server (2.2, 3.6) | new |
+| A view preset that carries the mode and a scope reference | small | Views (2.7) | new |
+| Fade on visibility change; touch-and-hold hover | small, verify | filters, hover (2.3, 2.9) | new |
+| Unified set vocabulary: `Filter` gains `{kind: "set"}`, `{kind: "top"}`, `{kind: "above"}`; `Scope` accepts `{filter}` | medium | filter Sets, nested Sets, Combine, Focus by object (2.2, 2.3, 2.4) | new; model section 11 |
+| Objects API on the session: the tree, membership lookup for a node, Focus, hide, lock, rename, move | medium to large | the row highlight on a click, "Member of", Select its group, the whole tree (2.1, 2.2) | new; builds on #337, #301 |
+| Marquee: screen rectangle (2D) or frustum slab (3D) to ids | medium | Select tool (2.1) | new |
+| Edge picking, an edge-click event, a context-menu pick event | medium | edge selection, right-click (2.1, 2.2) | #319 |
+| Element-owned transient highlight layer with a reason (hover, search, added) that takes a scope and can dim the rest | medium | the two-way hover link, hover highlight, search hits, expansion glow (2.5, 2.9) | designloom hover-highlight; new |
+| Time role and `catalog.timeAttributes()`; playback steps and per-step summaries | medium | the time window and its transport (2.8) | #299, #333, #300 |
+| A second view of one session | medium | Compare (2.7) | #186 |
+| Query engine: expressions, text search, validation, autocompletion | large | Filter > By rule, Ctrl+F, edge expressions, pattern constraints (2.3, 2.5) | #149, #332, #335 |
+| A subgraph-match run (`data.match`) with a union-set-plus-match-table result shape | large | pattern search (2.3, 3.4) | new; design `data.match` |
+| Commands entry point and the journal, for recipes | large | export and import of filters as recipes (3.2) | #337, #145 |

@@ -1,0 +1,331 @@
+# Feature fit 4: layouts and the layout process
+
+Where every layout capability of graphty-element, shipped or proposed, lives in the object-first
+app described in `design/ui/object-first-ux/object-model.md`. The capabilities come from
+`design/ui/object-first-ux/inventory/element-capabilities.md` section 4 (and the GPU rows of
+section 10.3), from `design/ui/object-first-ux/inventory/app-today-and-personas.md` (the Style
+panel's Arrangement section, the Run Layout dialog, the status-bar layout chip, the node
+inspector's pin and layout actions), from the four layout capability files in
+`design/designloom/capabilities/` (`layout-force-directed.yaml`, `layout-hierarchical.yaml`,
+`layout-radial.yaml`, `animated-transitions.yaml`), from issue #144 and from section 4.7 of
+`design/element-api/element-api-design.md`.
+
+The premise the object model sets, and this file does not reopen: **a layout is not an
+object.** One arrangement is in force for the whole dataset, it has no members, and two cannot
+both be true, so it is a section of the Dataset's inspector (object model section 2.2 and 4.1),
+not a row in the tree. What this file adds is the placement of every control, option, state and
+input a layout has, and the places where "one arrangement, no members" strains.
+
+## 0. Terms
+
+Terms the object model already defines (object, element, tree, inspector, section, row, Fill,
+precedence, scope, mask, Focus, state, popover, dock, overlay) are used as defined there. New
+here:
+
+- **Layout** (or **arrangement**): the rule that gives every node a position. The element
+  publishes twelve arrangements by plain name ("Spread out", "Ring", "Tree") in
+  `graphty-element/src/catalog/layouts.ts`; which engine draws each one is catalogue data.
+- **Engine**: one implementation of an arrangement. "Spread out" is drawn by ngraph by default
+  and can be drawn by d3-force, ForceAtlas2, Fruchterman-Reingold (called "Spring" in the
+  catalogue) or Kamada-Kawai. A reader picks an arrangement; an engine is an option of it.
+- **Live layout**: a simulation that moves nodes every frame until it settles (ngraph, d3).
+  **Batch layout**: one placement, then done (everything else). A batch layout can still take
+  seconds (Kamada-Kawai solves over every pair of nodes).
+- **Settled**: a live layout whose nodes have stopped moving beyond a threshold. **Stopped**:
+  ended by the step cap or by the reader, not by convergence. The app's status chip already
+  keeps these two words apart (`graphty/src/components/shell/statusbar/layoutStates.ts`).
+- **Transport**: the play, pause, step, stop and re-run controls of a running process, the
+  word a video editor uses. The element has none yet (issue #144).
+- **Warm start**: starting a layout from the positions the nodes already have rather than from
+  scratch, so a change of layout glides instead of jumping.
+- **Seed**: the integer that fixes a layout's random choices so the same seed gives the same
+  picture. Six engines take one (ngraph, ForceAtlas2, Spring, ARF, Planar, Random).
+- **Pin**: fixing one node where it is so no layout moves it. Dragging pins by default
+  (`pinOnDrag` in `graphty-element/src/config/GraphBehavior.ts`). A pin survives a layout
+  change, a 2D/3D switch and a style template.
+- **Structural input**: something a layout needs beyond the graph: a root node (Tree), a
+  grouping (Concentric Rings, Two Columns, Columns by Group). The catalogue names them in
+  `structuralInputs`; an engine refuses to run without one.
+- **Layout dimension** versus **view mode**: the dimension is whether the layout computes a z
+  coordinate (2 or 3); the view mode is how the camera draws it (2D, 3D, VR, AR). The design
+  keeps them separate (design 4.7); the shipped element derives the first from the second.
+- **Acceleration**: running a layout on the GPU through `@graphty/webgpu-graph-algorithms`
+  when it is installed. The policy is auto, off or required; the state is probing, active, idle,
+  unavailable, error or off (`graphty-element/src/acceleration/types.ts`).
+- **Size rating**: the catalogue's largest graph an arrangement is recommended for ("any", or
+  2,000 for Kamada-Kawai, Natural Grouping, No Crossings and Spread out Flat).
+
+## 1. The homes
+
+Every capability below lands in one of these places. The names are the object model's.
+
+| Home | What it is | Section of the object model |
+|---|---|---|
+| **Arrangement** | the section of the Dataset inspector (what "nothing selected" shows) that holds the layout: the Layout select, its gear, the transport row, the structural-input rows, the Pinned row | 4.1 |
+| **Gear popover** | the 240 px popover the Arrangement gear opens, holding the engine and the engine's options; no dialog | 0 (Popover), 4.1 |
+| **Layout chip** | the status-bar chip that mirrors the Arrangement transport while any other object is selected ("Spread out: settling 62%" with a pause glyph) | 1, 9 |
+| **Mode switch** | the [2D \| 3D \| VR \| AR] segmented control at the toolbar's right end | 3, 9 |
+| **Node inspector** | the report for one clicked node, with its Pin toggle and its overflow | 4.8 |
+| **Pinned** | the system Set that exists in the tree while any node is pinned | 2.4, 9 |
+| **Context menu** | the dark right-click menu of verbs on a node | 8 |
+| **Palette** | Ctrl+K, every command under its plain and technical name | 3, 8 |
+| **Settings** | the file menu's Settings sheet: not an everyday surface | 9 |
+| **Made by / Export** | the Dataset's record and export rows | 4.1 |
+| **Automatic** | done by the element with no control on screen | 9 (after a load) |
+
+Fit words: **natural** (the paradigm has an obvious place and the capability behaves like
+its neighbours there), **awkward** (it fits, but only with a rule or an exception explained in
+section 6), **does not fit** (the paradigm has no honest place for it; section 7).
+
+The last column answers three yes/no questions the task asks of every capability: does it
+change **precedence** (which Fill wins), **state** (an object's current / computing / stale /
+failed), or the **tree** (rows, nesting, order). Positions are not a channel, so no layout ever
+changes precedence; the column says so once per table and then lists only the exceptions.
+
+## 2. The arrangements, one row each
+
+Status is from the catalogue on 2026-09-25. "Input row" is the extra row the Arrangement
+section shows only while that arrangement is selected. Every arrangement is a row of the Layout
+select, whose rows show three things like every flyout in the model: the plain name, the
+technical name in secondary text, and at the right the size note ("any size", "slow above
+2,000, this graph has 10,400") or "needs a grouping" in secondary text when a structural
+input is missing. The recommended arrangement carries a "Recommended" mark whose tooltip is the
+element's reason (`recommendLayout`, `graphty-element/src/session/layout.ts`).
+
+| Arrangement (technical) | Status | Live / batch, dims | Input row in Arrangement | Fit | Element API and gaps | Precedence / state / tree |
+|---|---|---|---|---|---|---|
+| Spread out (force-directed; ngraph default, d3, ForceAtlas2, Spring, Kamada-Kawai alternates) | shipped | live, 3 (ForceAtlas2, Spring, Kamada-Kawai are batch) | none; Engine [ngraph v] in the gear popover, each engine with the catalogue's one-sentence reason as its secondary text | natural | `el.setLayout`, `catalog.layouts()`, `LayoutCatalogEntry.implementations`; gap: `session.layout.set(id, params)` by arrangement name (#144), since `setLayout` takes engine names today | none; the arrangement has a state (section 4) |
+| Spread out, flat (ARF) | shipped | batch, 2 | none | natural | as above | none |
+| Ring (circular) | shipped | batch, 3 | proposed: Order by [Load order v], the list being Load order plus every Measure in the tree | natural; the ordering input is a proposal (section 6.4) | gap: no layout takes an ordering today; `structuralInputs: "ordering"` exists in the type and nothing declares it | an Order-by row links the arrangement to a Measure (state, section 6.3) |
+| Concentric rings (shell) | shipped | batch, 2 | Group by [Communities v]: every Grouping in the tree; "Find groups first (G)" when none exists | awkward: depends on an object (section 6.3) | gap: `layout.set` must accept a partition as a result path (`results.<run>.group`) or a Grouping id, not an `nlist` of raw ids the app would have to build | links the arrangement to a Grouping: stale when it is re-run, frozen when it is deleted |
+| Spiral | shipped | batch, 2 | proposed Order by, as Ring | natural | as Ring | as Ring |
+| Natural grouping (spectral) | shipped | batch, 2, rated 2,000 | none | natural | none | none |
+| No crossings (planar) | shipped | batch, 2, rated 2,000; fails on a non-planar graph | none; on failure the transport reads "Failed: this graph cannot be drawn without crossings [Try Spread out]" | natural | gap: the failure must arrive as a `layout:changed` state "failed" with a reason (#144), not an exception inside the queue | state failed |
+| Scattered (random) | shipped | batch, 3 | none; Seed in the gear | natural; it is also the large-graph default (section 5) | none | none |
+| Tree (layered; BFS engine) | shipped | batch, 2 | Root [pick a node]: clicking the field arms a canvas pick like the Path tool ("Pick the root node" in the secondary bar); Direction [Down v] (vertical / horizontal, the engine's `align`) | natural | `start`, `align` options; gap: the pick needs the same pick event the tools use (object model section 11, marquee and pick) | none |
+| Two columns (bipartite) | shipped | batch, 2 | Group by [Grouping v] where the grouping must have two groups (the catalogue says "partition"; the engine takes one side's node list); a Best pairing (matching) run produces exactly this Grouping | awkward, as Concentric rings | gap: partition by result path | links to a Grouping |
+| Columns by group (multipartite) | shipped | batch, 2 | Group by [Grouping v]; column order is the Grouping's group order | awkward, as Concentric rings | gap: partition by result path | links to a Grouping |
+| Keep positions (fixed) | shipped | batch, 3 | none; the select row reads "Keep positions  from karate.gml (34 of 34 placed)" from `session.seededNodeCount`; absent from the select when the file placed nothing | natural; recommended automatically when every node arrived placed | `seededNodeCount`, `el.positionScale` (the scale is an Import option, not an Arrangement row) | none |
+| Rings from a node (radial) | declared, unserved (`UNSERVED_LAYOUT_IDS`); designloom `layout-radial` | batch, 2 | Root [pick a node]; Rings [5]; Ring spacing; the context menu's "Rings from here" | natural once it exists: the Tree row shape with a different picture; the ego-network variant ("only within N hops") is the Neighbours tool plus Focus plus this layout, not a layout option | gap: an engine (design 9.3 "ego-radial", a 2.0 implementation item) | none |
+| Grid | declared, unserved | batch | none | natural; also the "Quick grid (Performance mode)" state the app's chip already names | gap: an engine | none |
+| Sugiyama (layered with crossing reduction) | proposed (design 9.3; designloom `layout-hierarchical`) | batch, 2 | as Tree, plus Orientation [Top-down v] (four), Layer spacing, Node spacing; a caveat line "Contains cycles: 12 edges reversed" | natural for the layout; the reversed-edge set is section 6.5 | gap: an engine; a layout that reports a set | may create a Set (6.5) |
+| A plugin layout (`defineLayout`) | shipped | as declared | its declared structural inputs draw the same rows | natural: it appears in the Layout select from `catalog.layouts()` with no app change | `docs/guide/extending/custom-layouts.md` | none |
+
+## 3. Choosing, tuning and running
+
+| Capability | Status | Home | Fit | Element API and gaps | Precedence / state / tree |
+|---|---|---|---|---|---|
+| Choose a layout by name | shipped, but settable in three places with different defaults (design 4.7) | Arrangement: Layout [Spread out v]; also the palette ("Arrange: Ring") and the layout chip's caret menu (the same list, for when another object is selected) | natural | `el.setLayout`; gap: one setter by arrangement name (#144) | state: computing then settled |
+| Engine options (iterations, gravity, scaling ratio, jitter tolerance, k, alpha and decay, dissuade hubs, linlog, strong gravity, scale, center, align, cooling) | shipped, from each engine's Zod schema through `optionsFromZod` | the gear popover: one row per option descriptor, in declaration order, with the descriptor's label and tooltip; fields commit on Enter, Tab or blur; a change re-runs or marks stale by the cost rule (object model section 5) | natural | `LayoutDescriptor.options`; gap: bounds resolved for a scope (#336) | state |
+| `dim` and `scalingFactor` options | shipped; the app hides them from its form (`graphty/src/data/layoutMetadata.ts` `MODAL_OWNED_OPTIONS`) | not drawn: `dim` is the Dimensions row (section 5); `scalingFactor` is the element's world-space multiplier and stays a Settings > Defaults value | natural | none | none |
+| Recommend a layout, with a reason | shipped (`recommendLayout`) | automatic after a load (the app does nothing else unasked); the "Recommended" mark and its tooltip in the Layout select | natural | `recommendLayout(statistics, {placedNodes})`; gap: `session.layout.recommend()` on the session (#144) | none |
+| Use edge weights | shipped for ForceAtlas2 and Kamada-Kawai (`honoursWeights`) | the gear popover: Weights [switch], drawn only when the engine honours weights AND the data is weighted (`statistics.weighted`); the Dataset's Summary row "Weighted Yes" says why it is there | natural | `weighted` option, `LayoutDescriptor.honoursWeights` | state |
+| Seed | shipped for six engines (`type: "seed"` descriptors) | the gear popover: Seed [42] with a 24 px dice button (new random seed); Re-run keeps the seed; Made by records it | natural | gap: the element must report the seed it actually used when the option was null (as `run.caveats` does for algorithms), or a Re-run cannot reproduce the picture and the methods text cannot cite it | state |
+| Pace the simulation (`preSteps`, `stepMultiplier`, `minDelta`, `zoomStepInterval`) | shipped (`el.layoutBehavior.layout`) | Settings > Performance: "Steps before the first frame", "Steps per frame", "Stop when movement is below", "Re-frame every N steps"; not on the everyday screen | natural | `GraphBehavior.layout`; design lists them as `ConfigValues` keys | none |
+| Wait for settle / settled event | shipped (`waitForSettled`, `graph-settled`) | the transport row's state word ("Settled", "Settling 62%", "Stopped after 1,000 steps") and the layout chip | natural | gap: `layout:changed` with state and step (#144); today only `graph-settled` and `layout-initialized` exist | state |
+| Play, pause, step, stop | proposed #144 (the manager has `step()`, no public transport) | the transport row: [Pause or Play] [Step] [Re-run] as 24 px ghost icon buttons, then the state word; mirrored on the layout chip (pause glyph); palette: "Pause layout", "Resume layout", "Step layout", "Re-run layout" | natural | gap: `session.layout.play / pause / tick / stop / settle` (#144) | state |
+| Re-run (fresh) versus continue (warm start) | shipped in part: transitions warm-start; `start: "current" \| "fresh" \| "positions"` is design 4.7 | Re-run restarts from a fresh seeded start; Play after Pause continues; changing the arrangement warm-starts from the current positions by default, so the picture glides; a "Start from scratch" checkbox in the gear popover for a reader who wants the jump | natural | gap: `start` on `layout.set` (#144) | state |
+| Cancel a long batch layout | partial: the operation queue has cancel; nothing public | the transport row reads "Computing Kamada-Kawai 42% [Cancel]"; the chip reads the same; the Dataset tree row does NOT take the progress ring (a live layout would ring forever; the ring means a load) | natural | gap: `layout.settle()` as a cancellable `Run` (#144) | state computing |
+| Layout cost and the size rating | partial: `sizeRating` is published; there is no `session.estimate` for a layout command | the Layout select's right-hand note; over the rating the row is still enabled and the transport shows the estimate before the click, as flyouts do; no confirmation dialog, ever | natural | gap: `session.estimate({op: "layout.set"})` and `plan` for layouts (#337 lists `layout.set` as a command kind); calibration (#146, #159) | none |
+| Layout on load (`algorithmsOnLoad` has no layout equivalent) | shipped as behaviour: the element lays out on load with the configured layout | automatic: the recommendation runs, the camera fits once on the first settle | natural | none | state |
+| Animated transitions between layouts (`transitionMs`, `animate`, `duration`) | shipped for layout changes | automatic; Settings > Appearance: Reduce motion [switch] (sets every duration to zero, the designloom `animated-transitions` requirement); no per-change control | natural | `RunOptions.transitionMs`, `setLayout(..., {animate, duration})` | none |
+| Custom layout plugin | shipped | the Layout select, automatically | natural | `defineLayout` | none |
+| The layout chip's states | shipped in the app (`layoutStates.ts`): Positions from file; Quick grid (Performance mode); Random (seeded); stepping with Stop; settled; stopped after N steps; scoped "on 37 of 200"; computing with Cancel | the status bar; the chip's caret opens the Layout list, Re-run, Pause; its body click selects the Dataset row and scrolls the inspector to Arrangement (the one navigation the chip does) | natural; the five states are the Arrangement state vocabulary made small | gap: every one of these needs `layout:changed` (#144) | none |
+| Run Layout dialog, Style > Arrangement section, "Layout settings..." menu row | shipped in the app today | gone: the dialog is the gear popover, the Style section is the Arrangement section, the menu row is the chip's caret | natural: the model's "no tool opens a modal" rule | none | none |
+
+## 4. Pinning, dragging and positions
+
+| Capability | Status | Home | Fit | Element API and gaps | Precedence / state / tree |
+|---|---|---|---|---|---|
+| Drag a node | shipped (pointer; `node-drag-start/end`) | the Select tool: dragging a node moves it; a pin glyph appears on it at drop when pinning is on; Escape during the drag cancels (needs a drag-cancel call, app inventory section 5) | natural: Figma's move | gap: drag cancel | tree: the Pinned row appears at the first pin |
+| Drag pins by default (`pinOnDrag`) | shipped, on by default | Settings > Defaults: "Dragging a node pins it" [switch]; the node inspector's Pin toggle and the Pinned row make the consequence visible so the default is defensible | natural | `GraphBehavior.node.pinOnDrag` | none |
+| Pin / unpin one node | shipped (`el.pin`, `el.unpin`, `el.isPinned`) | the node inspector header's Pin toggle; the context menu "Pin" / "Unpin"; palette "Pin selected" / "Unpin selected" | natural | gap: `session.positions.pin / unpin / isPinned` on the session (#144); today they are element methods | tree: Pinned row |
+| Pin several nodes at once (designloom: "pinning multiple selected nodes") | shipped by API (`pin(ids)`) | the several-elements inspector (object model 4.9): a row "Pin these" / "Unpin these"; any Set's or Group's overflow: "Pin members" | natural | as above | tree: Pinned row |
+| See, select and release every pin | shipped (`el.pinnedNodes`) | the **Pinned** system Set: a tree row that exists while any node is pinned, with the Set inspector's Members section (Select, Focus, the member rows), an Unpin all action in place of Delete, and a Fill so pinned nodes can be marked (the default Fill is a small outline, so a pin is visible on the canvas); also Arrangement: "Pinned 2 [Unpin all]" | awkward: a set whose membership is a state, not a rule or a run (section 6.1) | gap: a scope kind `{kind: "pinned"}` so the set is live and a layer selector can match it; a `positions:changed` (or pin) event so the row's count updates | tree: one row, appears and disappears; precedence: it is a Set with a Fill, so it takes part like any other row |
+| A pin survives a layout change, a 2D/3D switch and a template | shipped | automatic; the Arrangement's Pinned row says "2 pinned nodes keep their place" beside Re-run | natural | none | none |
+| Layout over a scope ("lay out only the selection, the rest keeps its positions") | proposed #144 (`{scope}` on `layout.set`) | a Set's or Group's overflow: "Arrange only this..." which opens the Layout select scoped to the object; the transport and the chip then read "Spread out on 12 of 34" (the app's `layoutScopedLabel`); Made by records the scope | awkward: the arrangement is one thing, and now part of it was made one way and part another (section 6.2) | gap: `layout.set(id, params, {scope})` (#144) | none; not nested, not an object |
+| Read a node's position | partial: `session.positions` is the raw buffer; `el.getNode(id).position` | the node inspector: a secondary line "x 12.4  y -3.1  z 0.8" under the label, with the Pin toggle beside it; the data table dock: x, y, z columns behind the column menu (off by default) | natural | gap: `positions.get(id)` (#144) | none |
+| Set positions, snapshot, restore | proposed #144 | not on the everyday screen: Undo of a layout change restores the snapshot (design section on the journal: `layout.set`'s inverse stores `positions.snapshot()`); the project file (#301) carries positions; Views do not (section 6.6) | natural for undo; awkward for Views | gap: `positions.snapshot / restore / set` (#144) | none |
+| Positions from the file, and the position scale | shipped (`seededNodeCount`, `el.positionScale`) | Keep positions in the Layout select (section 2); "Position scale" is a row of the Import options dialog and of Dataset > Made by ("34 of 34 nodes placed by the file, scale 1.0") | natural | none | none |
+| Grab and drag in XR | shipped (`XRInputHandler`) | the same drag, in the headset; a drop pins under the same setting | natural | none | tree: Pinned row |
+| Layout change event | proposed #144 (`layout-initialized` only) | every home above reads it: the transport row, the chip, the Pinned count, the Made by record | natural | gap: `layout:changed {id, kind, state, step, progress}` (#144) | state |
+
+## 5. Dimensions, size and the GPU
+
+| Capability | Status | Home | Fit | Element API and gaps | Precedence / state / tree |
+|---|---|---|---|---|---|
+| View mode 2D / 3D / VR / AR | shipped (`el.viewMode`) | the mode switch at the toolbar's right end; key 5 toggles 2D and 3D (the app's binding today) | natural: Figma's mode-switch slot | none | none |
+| Layout dimension (whether z is computed) | shipped, derived from the view mode (`LayoutManager.updateLayoutDimension`); design 4.7 makes it session state | Arrangement: Dimensions [2D \| 3D] segmented, which the object model already draws. This file proposes it be read-only-by-default: it follows the mode switch, and only a flat-only arrangement (max dimensions 2) pins it to "2D, flat layout" with a note "Shown in 3D as a plane" when the mode is 3D | awkward: two controls for what a reader thinks is one thing (section 6.7) | `maxDimensions`, `dim` option; gap: `layout.dimensions` as session state (#144) | state: a change re-runs |
+| A 2D-only layout in a 3D view is flattened and says so | shipped | the note above, in Arrangement and in the chip's tooltip | natural | none | none |
+| Large graphs: the recommendation is Scattered above the large-graph threshold; render limits are published but not enforced (#302) | partial | automatic; the chip reads "Scattered (large graph)" and its tooltip carries the reason; the Layout select still offers Spread out with its cost note | natural | `DEFAULT_LIMITS.largeGraphThreshold`; gap: enforcement (#302), a measured threshold (#159) | none |
+| GPU layout (ForceAtlas2, Fruchterman-Reingold, spring-electrical on WebGPU when the accelerator package is installed) | shipped | automatic under the policy; the gear popover shows a read-only line under Engine: "Runs on the GPU (NVIDIA T4)" or "CPU: WebGPU unavailable, needs a secure context" from `capabilities.acceleration`; a small "GPU" glyph on the layout chip while active | natural: the reader sees where it ran and never chooses per layout | `session.config.acceleration.policy`, `.minNodes`, `session.capabilities.acceleration` | none |
+| Acceleration policy (auto / off / required) and `minNodes` | shipped | Settings > Performance: Acceleration [Auto v] (Auto, Off, Required) with the state line and reason; "Use the GPU above [0] nodes"; the app remembers the choice (the design says the element persists nothing) | natural | as above | none |
+| Never fall back silently: a GPU failure mid-run is an error | shipped by rule | the transport row's failed state: "Failed: GPU device lost [Retry] [Run on the CPU]"; the second button is the reader's explicit choice, which the rule permits; the chip goes red | natural | `state: "error"`, `E_DEVICE_LOST` | state failed |
+| Calibrate this machine (`session.calibrate`) | missing (#146, #159) | Settings > Performance: "Measure this machine" button with the last measurement's date; feeds the Layout select's cost notes | natural, off the everyday screen | gap: `session.calibrate()` | none |
+| Web Worker hosting of the layout | proposed (design 9.3) | invisible | natural | none | none |
+
+## 6. The awkward ones, with the rule that makes each one work
+
+### 6.1 Pinned is a Set whose members are a state
+
+Every other Set has a Definition the reader wrote or a run that made it. Pinned has neither:
+its members are whichever nodes carry the pin flag, which changes with every drag. Three things
+follow, and each is a small exception to a rule of the object model:
+
+- **It cannot be deleted, renamed or re-run.** Its overflow has "Unpin all" where Delete would
+  be, and its Definition section is one read-only row: "Nodes fixed in place. 2 nodes." It has
+  no Within row and no state glyph; it is always current.
+- **It appears and disappears on its own.** No other row does. It is inserted at the top of
+  the root scope on the first pin and removed on the last unpin, and it never nests. A reader
+  who pinned a node while Focus was on sees it at the root, not under the focused Set, because
+  a pin is not computed within anything.
+- **It has a Fill.** This is the reason to make it a row at all: a pinned node should look
+  pinned, and the only way to paint anything in this model is a layer on an object. The default
+  Fill is a 1 px outline. A reader who wants pins invisible clicks the eye; a reader who wants
+  them loud picks a colour. Because it is a row, it has a place in precedence like any other.
+
+The alternative was no row: "Pinned 2 [Unpin all] [Select]" in Arrangement only. It loses the
+Fill, the hover link (hover the row, the pinned nodes outline) and the Members section, all
+of which a reader with fifteen hand-placed nodes wants. The row wins, and the element needs a
+`{kind: "pinned"}` scope so the row is computed from the element's own pin mask rather than kept
+by the app (which the root `CLAUDE.md` forbids).
+
+### 6.2 A scoped layout breaks "one arrangement"
+
+"Arrange only this" (issue #144, `{scope}` on `layout.set`) lays out the members of one object
+and leaves the rest where they were. Afterwards the graph has no single arrangement: twelve
+nodes are in a Ring, the others are where Spread out left them. The Arrangement section can
+only say what happened last: Layout reads "Ring on 12 of 34" and the transport's Re-run
+re-runs that scoped layout. Choosing a new arrangement from the select applies it to everything
+and the note disappears.
+
+The rule that keeps this honest: **a scoped layout is a verb on an object, not a property of
+it.** It lives in the object's overflow, it does not nest anything, and it does not turn the
+object into a layout. Made by on the Dataset records "Ring on Group 2 (12 nodes), then Spread
+out settled" so the methods text is truthful. What the model does not offer is a per-object
+arrangement that stays in force (a Group that is "always a ring inside the force layout"): that
+is a compound layout the element does not have, and this file does not invent it.
+
+### 6.3 Three arrangements depend on an object in the tree
+
+Concentric rings, Two columns and Columns by group need a grouping. In this model a grouping is
+a Grouping object, so the Arrangement section grows a row "Group by [Communities v]" listing
+every Grouping in the tree (and, with the type role of issue #299, "By attribute: type"). That
+makes the arrangement the first non-object that references an object, and it inherits the
+object model's link rules (section 5 and 6.1 there):
+
+- re-running the Grouping (new groups) makes the arrangement **stale**: the Arrangement header
+  shows the amber dot and "Stale: Communities changed [Re-run]", the chip reads "Concentric
+  rings: stale"; the picture keeps the old positions, as a stale object keeps its old paint;
+- deleting the Grouping **freezes** the arrangement: positions are kept, Group by reads
+  "Communities (deleted)", and choosing any Grouping or any other arrangement clears it;
+- with no Grouping in the tree, the row reads "Find groups first (G)" and the Layout select's
+  row for the arrangement says "needs a grouping" in secondary text; selecting it anyway opens
+  the Groups flyout, so the reader is one click from the input.
+
+The element side is the real gap: `layout.set` must take the partition as a result path or a
+run id (`results.<run>.group`), the same term a layer selector uses, instead of the raw
+`nlist` / `subsetKey` / `nodes` arrays the engines take today. Otherwise the app would be
+resolving group membership into id lists itself, which the root `CLAUDE.md` forbids.
+
+### 6.4 Ring and Spiral want an ordering, and a Measure is the natural one
+
+Ring and Spiral place nodes in load order, which is arbitrary. The obvious improvement in this
+model is "Order by [Connections v]" listing every Measure in the tree, so a ring sorted by
+degree is two clicks after a Rank. It is proposed here, not in any issue: the `ordering`
+structural input exists in the catalogue type and no arrangement declares it. It brings the
+same link rules as 6.3 (stale on re-run of the Measure, frozen on delete). It is listed as
+awkward only because the dependency is new; the rows themselves are natural.
+
+### 6.5 A layout that produces a set
+
+The proposed Sugiyama arrangement (designloom `layout-hierarchical`) detects cycles and marks
+the edges it reversed. In this model a marked set of edges is a Set with a Fill. A layout
+producing an object is new: nothing else outside the tools makes a row. The placement that
+keeps the rules intact: the Arrangement section shows a caveat row "Contains cycles: 12 edges
+reversed [Make a set]", and the button creates a fixed Set "Reversed edges" at the top of the
+tree with a dashed-line Fill, exactly as a Measure's "Top N set..." creates a linked Set. The
+layout never paints anything itself (the styling rule), and the reader decides whether the set
+exists. Made by on the Set reads "From the Tree arrangement (Sugiyama), 2026-09-25".
+
+### 6.6 Views do not save positions
+
+A reader from Gephi or Cytoscape expects "Save view" to keep the arrangement. In this model a
+View is a camera, a mode and a mask (object model 4.7); positions are Dataset state, and a
+layout change updates every View's picture. The reason is cost and truth: a positions snapshot
+is the expensive half of the journal (design, the journal section), and two Views with two
+arrangements would make "the arrangement in force" a lie. Until `positions.snapshot / restore`
+exist (#144) and a project file (#301) has a place for them, the rule is stated in the View
+inspector's empty state: "A view saves where you stand. The arrangement is the dataset's." A
+later "Include positions" checkbox on Save view is the additive path; it is not in this
+proposal.
+
+### 6.7 Two controls that look like one: the mode switch and Dimensions
+
+The toolbar's [2D | 3D] and Arrangement's Dimensions [2D | 3D] are different things (camera
+projection versus whether z is computed), and the shipped element ties them together anyway.
+A reader will see two identical segmented controls and try both. The proposal: Dimensions
+follows the mode switch and is drawn as a read-only row ("Dimensions  3D, follows the view")
+except in the one case where it carries information: a flat-only arrangement in 3D reads
+"2D, flat layout" with the note "shown in 3D as a plane". The design's separation is kept in
+the element (`layout.dimensions` is session state), but the everyday screen has one control.
+A reader who wants a 3D arrangement viewed flat (rare, and today impossible) gets it in Settings
+> Defaults, not in Arrangement.
+
+## 7. What does not fit
+
+Two capabilities have no honest place in the object-first screen as the model stands. Both are
+recorded rather than forced.
+
+| Capability | Why it does not fit | What would make it fit |
+|---|---|---|
+| **Comparing two arrangements side by side** (the comparison-view workflow W24, and "copy positions A to B" / "same positions" from design 4.7) | one session has one positions buffer, and Compare mode (object model 4.7) is two cameras over one tree; a second arrangement is a second dataset state, which is a second root, and the model defers a second root to a later phase | a second root (two Datasets in one tree) with "Copy positions from [dataset v]" in each Arrangement; until then, the reader saves an image, changes the layout, saves another |
+| **A per-object arrangement that stays in force** (a Group "always a ring inside the force layout"; the designloom radial requirement "collapse nodes beyond the maximum ring into a peripheral indicator") | a compound layout that composes arrangements per set; the element has no layout that takes another layout's output as a constraint, and "Arrange only this" (6.2) is a one-off verb, not a standing rule | a compound layout engine, or a "layout constraint" the element applies inside the force simulation; neither is designed, and the object model should not pretend a Set row can hold an arrangement |
+
+Everything else in the two inventories under layouts fits, naturally or with one of the rules in
+section 6.
+
+## 8. The Arrangement section, row by row, as this file proposes it
+
+The object model's 4.1 lists the section in one line. Expanded, in order, with the conditions:
+
+| Row | Control | Drawn when |
+|---|---|---|
+| Layout | [Spread out v] with the gear; select rows as section 2 describes; "Recommended" mark | always |
+| Engine (in the gear popover) | [ngraph v]: every implementation, the default first, each with the catalogue's reason as secondary text; below it the read-only acceleration line | the arrangement has more than one engine, or an accelerated one |
+| Options (in the gear popover) | one row per option descriptor; Seed [42] [dice] where the engine takes one; Weights [switch] where it honours them and the data is weighted; "Start from scratch" [checkbox] | per descriptor |
+| Dimensions | read-only "3D, follows the view", or "2D, flat layout: shown in 3D as a plane" | always |
+| Transport | [Pause / Play] [Step] [Re-run] then the state word: "Settling 62%", "Settled", "Stopped after 1,000 steps", "Computing 42% [Cancel]", "Stale: Communities changed [Re-run]", "Failed: <reason> [Retry] [Run on the CPU]" | always; Pause and Step are disabled for a batch layout |
+| Group by | [Communities v] listing every Grouping in the tree, or "Find groups first (G)" | the arrangement declares a partition input |
+| Root | [pick a node] which arms a canvas pick; Direction [Down v] | the arrangement declares a node input |
+| Order by | [Load order v] plus every Measure (proposed) | Ring, Spiral |
+| Caveat | "Contains cycles: 12 edges reversed [Make a set]" (proposed, Sugiyama) | the layout reported one |
+| Scoped note | "Ring on 12 of 34 nodes (Group 2)" | the last layout was scoped |
+| Pinned | "Pinned 2 [Unpin all]" (the Pinned tree row is the fuller view) | any node is pinned |
+
+The layout chip in the status bar is the transport row in eleven characters: the plain name,
+a colon, the state word, and one glyph (pause, or the GPU mark). Its body click selects the
+Dataset row and scrolls to Arrangement; its caret opens the Layout list with Re-run and Pause
+below it. It is the only status-bar chip with a menu, because it is the only live process that
+runs while the reader is elsewhere.
+
+## 9. Element gaps this area needs, in one list
+
+All but two are issue #144 or already recorded; the two new ones are marked.
+
+| Gap | Needed by | Issue |
+|---|---|---|
+| `session.layout.set` by arrangement name, `play / pause / tick / stop / settle`, `state`, `step`, `dimensions`, `recommend()`; `layout:changed` | the Layout select, the transport, the chip, Dimensions | #144 |
+| `positions.get / pin / unpin / isPinned / pinnedMask / snapshot / restore`, on the session | the node inspector, Pinned, undo of a layout change | #144 |
+| `layout.set(..., {scope})` | "Arrange only this" | #144 |
+| a partition or ordering structural input given as a result path or a run id, not a raw id list | Group by, Order by | new |
+| a `{kind: "pinned"}` scope and a pin-change event | the Pinned system Set as a live row with a Fill | new |
+| the effective seed reported after a run with `seed: null` | Re-run reproducibility, methods text | new (small) |
+| `session.estimate` and `plan` for `layout.set` | the cost note on every Layout select row | #337 |
+| a layout failure delivered as a state with a reason (planar on a non-planar graph, GPU device loss) | the transport's failed state | #144 |
+| measured thresholds and `session.calibrate()` | the large-graph recommendation, Settings > Measure this machine | #146, #159, #302 |
+| radial and grid engines; Sugiyama | three Layout select rows | design 9.3 |
+| a drag-cancel call | Escape during a node drag | app inventory section 5 |
+
+Nothing in this area asks the app to compute a position, resolve a group into ids, decide a
+threshold, or keep a pin list of its own.

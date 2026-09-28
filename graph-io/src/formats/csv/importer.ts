@@ -24,9 +24,13 @@
  *   is a node followed by its neighbours, one edge per neighbour in row order. A neighbour cell
  *   `id:weight` carries the edge's weight when the text after its LAST colon is a number; a cell
  *   ending in a bare colon (`a:1:`) is the id before it with no weight; any other cell is the id
- *   as written (`http://x`). A row holding only its node adds an isolated node.
+ *   as written (`http://x`). A row holding only its node adds an isolated node. An empty adjacency
+ *   table is the empty graph. The delimiter sniff skips a candidate under which a closing quote is
+ *   followed by other text, since the field counts it otherwise relies on vary by row.
  * - A node table without an id column is refused unless `rowNumberIds` is set: then each data row's
- *   0-based number is its id, coerced by `ids` like any other id cell.
+ *   0-based number is its id, coerced by `ids` like any other id cell. The option applies to the
+ *   node table (the `nodes` input, or the input itself when nothing is paired with it), whose first
+ *   row it makes a header under `header: "auto"`; a paired edge table is read as without it.
  * - Per-row problems (wrong field count, blank endpoint, invalid weight, bad Type, refused id)
  *   are recorded and the row skipped; the import aborts with ImportError once `errorLimit` is
  *   exceeded, on a malformed or unterminated quoted field, on an empty input and on a header
@@ -109,7 +113,9 @@ export interface CsvImportOptions {
     nodes?: ImportInput | undefined;
     /**
      * A node table whose header has no id column gets its ids from the row numbers (0 for the first
-     * data row), coerced by `ids`, instead of failing with E_CSV_NO_ID_COLUMN. False by default.
+     * data row), coerced by `ids`, instead of failing with E_CSV_NO_ID_COLUMN. The node table is the
+     * `nodes` input when one is given (the edge table is then read as without this option), else
+     * the input itself; its first row is a header even under `header: "auto"`. False by default.
      */
     rowNumberIds?: boolean | undefined;
 }
@@ -502,6 +508,13 @@ class TableReader {
 
     private readonly kind: "edges" | "nodes" | "adjacency" | "auto";
 
+    /**
+     * Whether rowNumberIds applies to this table: a node table, or an "auto" table with no paired
+     * node table. Never the edge table of a paired import, which must still fail loudly when its
+     * header names no endpoints.
+     */
+    private readonly rowNumbers: boolean;
+
     private plan: EdgePlan | NodePlan | AdjacencyPlan | null = null;
 
     private writers: (InferredColumn | null)[] = [];
@@ -534,9 +547,12 @@ class TableReader {
     ) {
         this.state = state;
         this.kind = kind;
+        this.rowNumbers = state.csv.rowNumberIds && (kind === "nodes" || (kind === "auto" && state.csv.nodes === null));
         const readerOptions: CsvReaderOptions = {
             delimiter: state.csv.delimiter,
             comments: COMMENT_CHARS,
+            // field counts say nothing about an adjacency table, whose rows vary in width
+            skipQuoteErrors: kind === "adjacency",
             signal: state.common.signal,
             onProgress: progress ? state.common.onProgress : null,
             encoding: state.common.encoding,
@@ -563,6 +579,10 @@ class TableReader {
     private async readRows(iterator: AsyncGenerator<string[], void, undefined>): Promise<void> {
         const { report } = this.state;
         const first = await iterator.next();
+        if (first.done && this.kind === "adjacency") {
+            // an adjacency table has no header: an empty one is the empty graph
+            return;
+        }
         const firstRow: string[] = first.done
             ? report.fail(EMPTY_INPUT_CODE, "the input is empty: no header row and no records")
             : first.value;
@@ -570,8 +590,14 @@ class TableReader {
         const firstQuoted = this.reader.quoted.slice(0, firstRow.length);
         const pending: { row: string[]; quoted: readonly boolean[]; line: number }[] = [];
         let header: boolean;
-        // an adjacency table has no header unless the caller says so: its rows vary in width
-        const mode = this.kind === "adjacency" && this.state.csv.header === "auto" ? false : this.state.csv.header;
+        // an adjacency table has no header unless the caller says so: its rows vary in width; a
+        // table numbered by rowNumberIds has one, since a headerless table takes its ids from column 0
+        let mode = this.state.csv.header;
+        if (mode === "auto" && this.kind === "adjacency") {
+            mode = false;
+        } else if (mode === "auto" && this.rowNumbers) {
+            mode = true;
+        }
         if (mode === "auto") {
             const second = await iterator.next();
             const secondRow: string[] | null = second.done ? null : second.value;
@@ -675,7 +701,7 @@ class TableReader {
             );
         }
         const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : width >= 1;
-        if (this.kind === "auto" && csv.idColumn === null && !idResolves && !csv.rowNumberIds) {
+        if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
                 `no source / target columns and no id column in the header (${shown}); the input is neither an edge table nor a node table`,
@@ -786,7 +812,7 @@ class TableReader {
                 id = -1;
                 break;
             default:
-                if (idColumn < 0 && csv.rowNumberIds) {
+                if (idColumn < 0 && this.rowNumbers) {
                     id = -1;
                     break;
                 }

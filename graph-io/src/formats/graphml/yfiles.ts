@@ -6,7 +6,9 @@
  * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colours
  * are `#RRGGBB` in upper case (a `#RGB` is expanded, any other text is kept as written), numbers
  * are parsed with parseFloat, the position is `[x, y, 0]` and the shape is the yFiles shape type
- * as written.
+ * as written. One difference: a label whose text is a number (`<y:NodeLabel>0</y:NodeLabel>`) is
+ * kept as that text, where the element's parser turned it into a number and stored `""`, nothing
+ * or the number.
  *
  * The columns are views of the tree: the exporter writes the tree and never these columns, and
  * re-importing the tree gives them back. A value edited after import (a layout writing the
@@ -84,31 +86,39 @@ export function isGraphicsColumn(meta: {
 }
 
 /**
- * The rows of a mapped graphics column whose value is not the one its yFiles tree column (same
- * origin.id, in the same table) gives: every set row when the tree column is gone. These are the
- * values an export loses, since only the tree is written.
+ * The rows of a mapped graphics column whose value is not one its yFiles tree columns (in the
+ * same table) give: every set row when no tree column gives a value for the row. A file may
+ * declare several yFiles keys for one domain, and the mapped column holds the values of all of
+ * them, so a row is current when any tree's value matches. These are the values an export loses,
+ * since only the trees are written.
  * @param column - the mapped column (isGraphicsColumn())
  * @param table - the table it is in
  * @param domain - node or edge
- * @returns the number of rows that differ from the tree
+ * @returns the number of rows that differ from the trees
  */
 export function staleGraphicsRows(column: Column, table: Iterable<Column>, domain: "node" | "edge"): number {
-    const { name, origin } = column.meta;
-    const field = name.slice(YFILES_COLUMN_PREFIX.length);
-    let tree: JsonColumn | undefined;
+    const field = column.meta.name.slice(YFILES_COLUMN_PREFIX.length);
+    const trees: JsonColumn[] = [];
     for (const c of table) {
-        if (c.dtype === "json" && c.meta.origin?.namespace === "yfiles" && c.meta.origin.id === origin?.id) {
-            tree = c;
-            break;
+        if (c.dtype === "json" && c.meta.origin?.namespace === "yfiles") {
+            trees.push(c);
         }
     }
     let stale = 0;
     for (let r = 0; r < column.length; r++) {
-        const want =
-            tree === undefined ? undefined : graphicsValues(domain, tree.values[r]).find(([f]) => f === field)?.[1];
+        const wants = new Set<string>();
+        for (const tree of trees) {
+            const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
+            if (want !== undefined) {
+                wants.add(JSON.stringify(want[1]));
+            }
+        }
+        if (wants.size === 0) {
+            wants.add(JSON.stringify(undefined));
+        }
         const value = column.value(r);
         const have = column.meta.components > 1 && value !== undefined ? Array.from(value as ArrayLike<number>) : value;
-        if (JSON.stringify(have) !== JSON.stringify(want)) {
+        if (!wants.has(JSON.stringify(have))) {
             stale++;
         }
     }

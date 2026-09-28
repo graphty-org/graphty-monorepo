@@ -576,11 +576,17 @@ describe("csvExporter: adjacency tables", () => {
         const s = b.freeze();
         expect(csvExporter.check(s, ADJACENCY)).toEqual([]);
         const text = await csvExporter.exportToString(s, ADJACENCY);
-        expect(text).toBe(
-            '"New York",Boston:3,"Los Angeles:1"\nBoston,"Salt Lake City"\n"a;b","c\td"\n"c\td","e|f"\n',
-        );
+        expect(text).toBe('"New York",Boston:3,"Los Angeles:1"\nBoston,"Salt Lake City"\n"a;b","c\td"\n"c\td","e|f"\n');
         const again = await importCsv(text, ADJACENCY);
-        expect(again.ids.toArray()).toEqual(["New York", "Boston", "Los Angeles", "Salt Lake City", "a;b", "c\td", "e|f"]);
+        expect(again.ids.toArray()).toEqual([
+            "New York",
+            "Boston",
+            "Los Angeles",
+            "Salt Lake City",
+            "a;b",
+            "c\td",
+            "e|f",
+        ]);
         expectSameSnapshot(s, again, { allowExtraColumns: false });
     });
 
@@ -601,6 +607,14 @@ describe("csvExporter: adjacency tables", () => {
         const again = await importCsv(text, { ...ADJACENCY, defaultDirected: false }, false);
         expect(again.directed).toBe(false);
         expect(again.edgeCount).toBe(1);
+    });
+
+    it("round-trips the empty graph as an empty file", async () => {
+        const s = new GraphBuilder({ directed: true }).freeze();
+        expect(csvExporter.check(s, ADJACENCY)).toEqual([]);
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe("");
+        expectSameSnapshot(s, await importCsv(text, ADJACENCY), { allowExtraColumns: false });
     });
 
     it("refuses a header row", () => {

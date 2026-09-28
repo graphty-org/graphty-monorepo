@@ -103,6 +103,10 @@ export function maskToStringSet(ids: NodeIdMap, mask: NodeMask): Set<string> {
  * index order. Each entry gets its own copy of the predecessor Map over every node (null for the
  * source and the unreached), as legacy `dijkstra` does, so a caller that mutates one entry's Map
  * does not change the others. That copy is O(n) per reached node, the legacy cost.
+ *
+ * It matches only a legacy `dijkstra` call WITHOUT the `target` option. With `target`, legacy stops
+ * once the target is settled and reports tentative, not final, distances for the nodes it had not
+ * settled; the port has no early stop, so a facade must not route a `target` call through here.
  * @param s - The snapshot the search ran on
  * @param result - The port's result
  * @returns The legacy result
@@ -173,7 +177,9 @@ export function edgeScoresToPairMap(s: GraphSnapshot, scores: F64): Map<string, 
  * A legacy Map-of-Maps adjacency (`astar`, `edmondsKarp`, `stoerWagner`, `kargerMinCut` inputs) to
  * a DIRECTED snapshot: one arc per inner entry, weights kept exactly through the f64 shadow. Every
  * key is a node in key order, then each target not already a key as it is first met. Not memoised:
- * a Map has no mutation counter.
+ * a Map has no mutation counter. The snapshot's `weights` view is f32 like every snapshot's, so a
+ * port reads rounded weights (0.1 + 0.2 comes back as 0.30000000447) unless the facade passes
+ * `{ weights: exactArcWeights(s) }`.
  * @param adjacency - source id to (target id to weight)
  * @returns The frozen snapshot
  */

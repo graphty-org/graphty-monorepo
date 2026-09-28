@@ -869,7 +869,8 @@ class GmlImport {
             if (idTok < 0) {
                 throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
             }
-            // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap
+            // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
+            // "keep", where the integer 1 and the string "1" are different ids by design)
             const fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
             if (originalTok >= 0) {
                 sinkId = this.restoredId(originalTok);

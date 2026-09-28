@@ -316,6 +316,13 @@ describe("csvImporter: the malformed corpus", () => {
         expect(err.report.counts.edges).toBe(0);
     });
 
+    it("text after a closing quote aborts even when another delimiter would parse the file", async () => {
+        for (const input of ['"New York" ,Boston\n"LA" ,SF\n', '"a" ,"b"\n"c" ,"d"\n']) {
+            const err = await failure(input);
+            expect(err.report.issues[0], input).toMatchObject({ code: BAD_QUOTE_CODE, line: 1 });
+        }
+    });
+
     it("invalid UTF-8 is a fatal parse error", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         const bytes = new Uint8Array([...new TextEncoder().encode("source,target\na,"), 0xff, 0xfe, 10]);
@@ -1079,6 +1086,21 @@ describe("csvImporter: row-number ids", () => {
         const { snapshot } = await load("title,score\nA,1\n", { rowNumberIds: true });
         expect(snapshot.ids.toArray()).toEqual([0]);
         expect(column(snapshot, "nodes", "title")).toEqual(["A"]);
+    });
+
+    it("reads a one-column node table's first row as its header", async () => {
+        const alone = await load("title\nA\nB\n", { rowNumberIds: true, ids: "string" });
+        expect(alone.snapshot.ids.toArray()).toEqual(["0", "1"]);
+        expect(column(alone.snapshot, "nodes", "title")).toEqual(["A", "B"]);
+        const paired = await load("source,target\n0,1\n", { nodes: "title\nA\nB\n", rowNumberIds: true });
+        expect(paired.snapshot.ids.toArray()).toEqual([0, 1]);
+        expect(edgesOf(paired.snapshot)).toEqual(["0->1"]);
+        expect(paired.report.issues).toEqual([]);
+    });
+
+    it("does not turn a paired edge table without endpoint columns into a node table", async () => {
+        const err = await failure("u,v\n0,1\n1,2\n", { nodes: "title,score\nA,1\nB,2\nC,3\n", rowNumberIds: true });
+        expect(err.report.issues.at(-1)?.code).toBe(NO_ENDPOINT_COLUMNS_CODE);
     });
 
     it("leaves an id column in charge, and is opt-in", async () => {

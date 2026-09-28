@@ -95,7 +95,7 @@ missing-value words.
 ### 2.1 Where each error class surfaces
 
 graphty-element publishes each error's recovery class and verb (`element-needs.md`, "A recovery
-class and a chosen verb on every error"; door 87, Host names for reader text);
+class and a chosen verb on every error"; `decided-doors.md`, "Host names for reader text");
 which code yields which class is the element's (`src/errors/codes.ts` and that row's test). The app
 maps a class to a surface, which is chrome; the words are `content-design.md` 4. A failed row
 shows Failed, with the element's sentence and verb on its state line; out of sight it becomes an
@@ -144,7 +144,7 @@ Which mark wins on a row, and where each mark is drawn, are `glossary.md` 10.
 | Canvas | Canvas | Running | the drawing moving; the Layout row's progress and Stop | a drag pins the node | entries 6.3, 7.1; crosswalk 4.3, "Canvas content never animates" | adapt | E | implemented (`pinOnDrag`) | `State/Canvas/Running` |
 | Canvas | Canvas | Partial | over the node drawing limit, whole place: nothing drawn; the not-drawn line gives the count and concern and one action, Narrow the graph..., opening the filter chip's popover of offered steps; Find stays on the Graphs header | Narrow the graph...; Find; a found node's neighborhood or an offered step, each an undoable Filter to step | rule 4.2; crosswalk 4.1, "The canvas carries no chrome" | adapt | E>A | defect: the element refuses the load instead; the offered steps (needs, "Named filter steps offered past the drawing limit"); door 58, The legend and not-drawn notice | `State/Canvas/Partial` |
 | Canvas | Canvas | Partial | Hide on canvas: the hidden elements not drawn and not pickable; every count unchanged; a selected hidden element in the hollow selected-and-hidden form (`canvas-drawing.md` 6) | Show all on the not-drawn line, which counts them | entries 6.9; crosswalk 4.2, "Any layer can be hidden" | adapt | E | defect (needs, "Whether an element is drawn"); door 86, Whether an element is drawn | `State/Canvas/Hidden` |
-| Canvas | Canvas | Partial | a selection over the cap: one selection-banded hull and a count badge (`canvas-drawing.md` 6); every id held | everything a selection can do | entries 4.1; crosswalk 4.3, "Multi-selection: an outline per member" | adapt | E | defect (needs, "A selection over the cap holds every id"); door 39, Selection as element state, and the cap | `State/Canvas/OutlineCollapsed` |
+| Canvas | Canvas | Partial | a selection over the cap: one selection-banded hull and a count badge (`canvas-drawing.md` 6); every id held | everything a selection can do | entries 4.1; crosswalk 4.3, "Multi-selection: an outline per member" | adapt | E | defect (needs, "A selection over the cap holds every id"); `decided-doors.md`, "Selection over the cap" | `State/Canvas/OutlineCollapsed` |
 | Canvas | Canvas | Not current | the previous layout's positions; the Layout row marked | Run layout | entries 7.2; crosswalk 4.3, "An instance whose main component changed" | adapt | E>A | decided | `State/Canvas/NotCurrent` |
 | Canvas | Canvas | Error | rendering lost: a card on the canvas | Restart viewer, on the session held in memory | entries 8.1 | adopt | E>A | defect (needs, "Restart the renderer on the session held in memory") | `State/Canvas/Error` |
 | Canvas | Canvas | Unsupported | no WebGL: the reason in the canvas region; data still loads, its progress in the running notice; the table and inspector lead; a bare embed shows the element's own message | all but pointing at the drawing | patterns 3.7, entries 8.1; crosswalk 4.1, "An unsupported browser gets one message" | adapt | E | decided | `State/Canvas/Unsupported` |
@@ -659,7 +659,7 @@ classes and legend blocks test findability and flows, so they are `information-a
 
 ## 10. Doors and needs
 
-Open doors the cells cite (`one-way-doors.md`): 25, One kind of filter step or two; 39, Selection as element state, and the cap; 42, Cost bands and the cost gate's default; 58, The legend and not-drawn notice; 86, Whether an element is drawn; 87, Host names for reader text. Needs are rows of `element-needs.md`. The additive names
+Open doors the cells cite (`one-way-doors.md`): 25, One kind of filter step or two; 42, Cost bands and the cost gate's default; 58, The legend and not-drawn notice; 86, Whether an element is drawn. Decided doors the cells cite: `decided-doors.md`, "Selection over the cap"; `decided-doors.md`, "Host names for reader text". Needs are rows of `element-needs.md`. The additive names
 the cells rest on are recommended in `element-needs.md` 3.
 
 ## Sources
@@ -684,4 +684,4 @@ the cells rest on are recommended in `element-needs.md` 3.
   2.7, 4.4, 4.7 to 4.10, 4.15; `design/ui/figma/header-and-modes/README.md`
 - `design/designloom/workflows/` (fraud ring investigation, threat hunting, network evolution,
   condition comparison, findings communication, reproducible publication)
-- Open decisions cited (`one-way-doors.md`): 25, One kind of filter step or two; 39, Selection as element state, and the cap
+- Open decisions cited (`one-way-doors.md`): 25, One kind of filter step or two

@@ -641,7 +641,7 @@ itself, and each item is tested on a bare embed (`interaction-patterns.md`, "Val
 - states what it does not draw and why, and refuses what it cannot hold before loading;
 - keeps undo, the record of every run, and (when the host allows it) the autosave.
 
-**Theme and motion (recommended, door 48, How the element learns theme and motion, theme-following defaults and the default grays).**
+**Theme and motion (decided, `decided-doors.md`, "How the element learns theme and motion"; theme-following defaults and the default grays).**
 `colorScheme` takes `light`, `dark` or `auto` (default). On `auto` the element reads the host's
 computed `color-scheme` and resolves it: `dark` is dark; `light` or `normal` (an unthemed page) is
 light; `light dark` follows `prefers-color-scheme`. It re-reads on a `prefers-color-scheme` change

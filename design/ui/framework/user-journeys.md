@@ -139,7 +139,7 @@ gene-list workflow: "user can state how many genes matched and which did not."**
 | Save the starting point | lead | "Share it without our data" | tail | a recipe; a style file | Does the file hold only definitions? | a recipe or style file | 9 |
 | *Between people:* the file travels | both | "Here is our overlay" | -- | a recipe file; a link | -- | -- | -- |
 | Apply it | member | "Put it on my list" | bookend | a recipe, applied recipe first or data first; a style file; the binding step | How many matched, and which did not? What is left unbound, and what does that block? | an applied recipe, one undo entry | 8, 8.1 |
-| Make it the default | member | "Every new graph should open like this" | 1 | the element's default overview, which the graphty app sets from a reader preference (door 33, Choosing the overview recipe); for this project alone, the project's overview | Were readings under the old overview kept and marked? | a reader preference, or the project's overview | 2.1 |
+| Make it the default | member | "Every new graph should open like this" | 1 | the element's default overview, which the graphty app sets from a reader preference (`decided-doors.md`, "The overview recipe's three levels"; its option's name is door 33, Choosing the overview recipe); for this project alone, the project's overview | Were readings under the old overview kept and marked? | a reader preference, or the project's overview | 2.1 |
 
 ## Workflows and where they run
 

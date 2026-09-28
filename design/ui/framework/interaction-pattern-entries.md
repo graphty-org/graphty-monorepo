@@ -34,10 +34,9 @@ the `element-needs.md` row an entry waits on.
   so a reader who selects repeatedly never waits; whether 3D needs a short eased move to keep
   orientation is a study (`interaction-patterns.md` 10.3). Reduced motion always cuts.
 - **Undo:** not a step.
-- **Exceptions:** over the selection cap (`scale-levels.md`), the recommended behavior is that
-  the selection holds every id and is drawn as one mark around the whole with the count stated; it
-  is never truncated and never turned into an invented object. This is provisional on
-  `one-way-doors.md` 39. Over the drawing limit (`scale-levels.md`), selection works unchanged and
+- **Exceptions:** over the selection cap (`scale-levels.md`), the selection holds every id and is
+  drawn as one mark around the whole with the count stated; it is never truncated and never
+  turned into an invented object (`decided-doors.md`, "Selection over the cap"). Over the drawing limit (`scale-levels.md`), selection works unchanged and
   the table and Find lead, because the canvas does not draw everything.
 - **Owner:** element. **Outcome:** Selection.
 - **Grammar:** `interaction-patterns.md` 3.1.
@@ -61,7 +60,7 @@ the `element-needs.md` row an entry waits on.
 - **Behavior:** Enter replaces the selection with the object's members; Shift+Enter restores the
   object the analyst entered from, whether the object was selected on the canvas or from its row;
   with nothing to go back to it does nothing, and the polite region says why. Enter inside a walk selects the focused node instead (`interaction-patterns.md` 3.6; here, 9.2); the
-  first arrow press after entering starts the walk on the first member.
+  first press of a neighbor-walk key after entering starts the walk on the first member.
 - **Feedback:** the inspector switches between the object and the selection-count slot.
 - **Undo:** not a step.
 - **Exceptions:** members over the cap follow 4.1.
@@ -301,7 +300,7 @@ chart; where the two disagree, the chart wins and this table is corrected.
 | Temporary Hand | Space held with a drag; released with no drag, Space does its focused region's job (`interaction-patterns.md` 3.1) | cursor | releasing Space | -- | element |
 | Path tool | the path tool key | armed tool and its secondary bar | Run finishes, Esc, the select tool key | rung 2 | element; the app draws the bar |
 | Note tool | the note tool key | armed tool, cursor | Esc, the select tool key | rung 2 | element |
-| Canvas walk | an arrow press on the canvas, or Enter there with elements or nothing selected (9.2); never focus arriving, never a pointer | the focused node's focus ring; entry is announced with its exit key | Esc, Tab (which always leaves the canvas), a pointer click (which does not re-enter it), focus leaving the canvas | rung 2 | element |
+| Canvas walk | a neighbor-walk key on the canvas (Shift with an arrow), or Enter there with elements or nothing selected (9.2); never focus arriving, never a pointer | the focused node's focus ring; entry is announced with its exit key | Esc, Tab (which always leaves the canvas), a pointer click (which does not re-enter it), focus leaving the canvas | rung 2 | element |
 | Time-slider playback | Play | the Play control shows Pause | Pause, or Esc on the canvas or the time slider; the undo chord (back to the window before Play, nothing pushed) | pauses and commits where it lands, as Pause (`interaction-patterns.md` 3.6) | element |
 | Text edit, rename | double-click, the rename chord | an input in place | Enter commits | the field reverts | the component |
 | Version history, comparison | a menu or row command | the inspector is replaced; Done | Done | moves focus to Done | element, surfaced by the app |
@@ -867,20 +866,32 @@ any popover, and the toast never covers the focused row.
 The canvas holds a focus target with `role="application"`, as Figma's does. The walk's states and
 edges are 3.8's.
 
-- **Entry is always a deliberate key.** The first arrow press on the canvas starts the walk, and so
-  does Enter when the selection is elements or empty. Focus arriving never starts it, and a pointer
+- **The walk has its own keys; the plain arrows stay on the camera.** The **neighbor-walk keys** are
+  Shift with an arrow in the element's default keymap. The plain arrows keep orbiting (3D) and
+  panning (2D), as they did before the walk existed, so nothing a current reader knows changes (`decided-doors.md`, "The focused node and its event").
+  Shift with an arrow is reserved by no browser, operating system or screen reader in an
+  application region, where Alt with Left or Right is Back and Forward on Windows and Linux, Mod
+  with Left is Back on macOS, Ctrl with an arrow switches spaces on macOS, and letters and the
+  bracket keys belong to the tools, the camera and the member walk. It is not a single-character
+  key, so the setting that turns single-key shortcuts off (WCAG 2.1.4) leaves the walk working,
+  and it keeps the arrow as the direction a reader already tries. Its risk is that Shift with an
+  arrow extends the focus in a list and the selection in the table; the keyboard-only studies
+  test it (`research/study-schedule.md`, "Decisions the studies can reverse"). The camera ignores
+  an arrow while Shift is held, so one press never both walks and moves the view.
+- **Entry is always a deliberate key.** The first neighbor-walk key on the canvas starts the walk,
+  and so does Enter when the selection is elements or empty. Focus arriving never starts it, and a pointer
   never does, so a mouse user's Esc deselects in one press and Tab on arrival leaves the canvas.
   With a set, path or item selected, Enter goes to members first (`interaction-pattern-entries.md`
-  4.2), and the next arrow press starts the walk.
+  4.2), and the next neighbor-walk key starts the walk.
 - **The entry node** is the first selected element in the selection's own order (path order, rank
   order, otherwise lowest id), the first member for an object selection, the current Find hit, or,
   with nothing selected, the drawn node of highest degree, ties broken by lowest id. **With no
   node drawn** (past the drawing limit, the canvas unsupported, or everything hidden) the first
-  arrow press does not start the walk: the polite region says nothing is drawn and names Choose
+  neighbor-walk key does not start the walk: the polite region says nothing is drawn and names Choose
   what to draw, which Enter on the canvas opens. It is the
   **anchor**. Entry is announced, and the announcement names both exits, Tab and Esc, and the
   member-walk keys (WCAG 2.1.2).
-- **The arrow keys move focus to a neighbor of the focused node**, in the element's stable neighbor
+- **The neighbor-walk keys move focus to a neighbor of the focused node**, in the element's stable neighbor
   order, following the neighborhood direction convention (All by default; `graph-conventions.md`
   2), and the announcement says "out to" or "in from" on a directed graph. Screen direction changes
   with the 3D camera, so the order is not spatial. Each move fills the walk-position slot (position
@@ -891,14 +902,14 @@ edges are 3.8's.
   nodes. Nothing nudges: positions have no units, so moving a node by keyboard is Enter, then the
   inspector's Position row.
 - **Back and home.** The walk-back key returns to the previous node; the walk-home key returns to
-  the anchor. Both are roles in the element keymap (`one-way-doors.md` 65). The walk-back default
+  the anchor. Both are roles in the element keymap (`decided-doors.md`, "The default keymap and tools"). The walk-back default
   must be a chord the browser does not reserve, or be consumed only while the walk is active,
   because Alt+Left is Back in Chrome and Firefox on Windows and Linux and would leave the page.
   Backspace is never "back", because it is a delete key on macOS; Delete and Backspace keep their
   one meaning (`interaction-patterns.md` 3.6) during the walk. Studies of screen-reader navigation over data structures found
   people get lost without a known way back (Zong et al. 2022; the TADA study of node-link diagrams).
 - **The member-walk keys** (`]` and `[` in the element's default keymap, matched on the character
-  typed so AltGr layouts work, and `{` and `}` never bound apart; door 65) move the focused node
+  typed so AltGr layouts work, and `{` and `}` never bound apart) move the focused node
   through the current selection, in its own order (path, rank, order of addition, else lowest id),
   so a node Space toggled in is reachable and one toggled out is skipped; they never change the
   selection. **Tab always leaves the canvas** and ends the walk, as WAI-ARIA expects of a composite
@@ -910,13 +921,13 @@ edges are 3.8's.
 - **Delete during the walk** acts only when the focused node is in the selection
   (`interaction-patterns.md` 3.6).
 
-**Camera keys move off the arrows and off the tool keys.** The camera movement keys (the element
-keymap names them, `one-way-doors.md` 65) move and rotate the camera and act only while the canvas
-has focus, which keeps them inside WCAG 2.1.4's focus exception and stops them firing from the
-table. The arrows walk; the camera has no arrow binding.
+**Camera keys stay on the arrows and move off the tool keys.** The camera movement keys (the
+element keymap names them) move and rotate the camera and act only while the canvas has focus,
+which keeps them inside WCAG 2.1.4's focus exception and stops them firing from the table. The
+plain arrows move the camera; Shift with an arrow walks.
 
-**Element need:** `element-needs.md`, "The plain arrow keys moved from the camera to the walk",
-and door 40, The focused node and its event.
+**Element need:** `element-needs.md`, "The neighbor-walk keys, Shift with an arrow", and
+`decided-doors.md`, "The focused node and its event".
 
 ### 9.3 Keys: platform, ownership and dispatch
 
@@ -926,7 +937,7 @@ and door 40, The focused node and its event.
   3.6's table.
 - **Who owns a key.** graphty-element owns the canvas tools (Select, Lasso, Hand, Path, Note), the
   canvas walk, its Esc rungs and the commands it defines, and ships a **default element keymap**
-  for them that a host can rebind. The keymap is published behavior (`one-way-doors.md` 65, the default keymap and tools). `bindings.ts` holds only the app's own chords (regions,
+  for them that a host can rebind. The keymap is published behavior (`decided-doors.md`, "The default keymap and tools"). `bindings.ts` holds only the app's own chords (regions,
   panels, Quick actions) and the app's overrides of element keys.
 - **Dispatch stages.** A key goes to the first owner below that consumes it, and to no other. The
   stages are lettered, so "rung" keeps its one meaning, the Esc ladder of 3.6:
@@ -949,9 +960,8 @@ and door 40, The focused node and its event.
   one page and a host that owns its keys are never surprised. A bare embed therefore gets Esc,
   undo and the tools while the canvas has focus, and a host that wants them from its own panels
   reads the keymap.
-- **The walk takes the arrows only with the camera step controls.** The plain arrows move from the
-  camera to the walk in the same release that ships camera step controls, with a changelog note,
-  because orbiting with the arrows is current behavior (`one-way-doors.md` 40).
+- **The walk never takes the plain arrows.** They stay on the camera, where readers already use
+  them; the walk is on the neighbor-walk keys (9.2).
 - **Tool keys fire whenever focus is not in a text-entry control or a type-ahead list**, as Figma's
   fire anywhere outside a text field. Trees and listboxes use type-ahead, so letters go to their
   rows; the table grid does not, so a tool key pressed after selecting rows in the table arms the
@@ -997,4 +1007,4 @@ shown) but the camera does not animate.
 - `design/ui/figma/flows.md`; `research/figma.md`; the undo design
   (`.worktrees/element-undo/design/undo/undo-design.md`, branch `feat/element-undo`) sections 5.2, 5.3 and 8
 - graphty-element on master: `src/session/selection/SelectionApi.ts`, `src/session/planning.ts`
-- Open decisions cited (`one-way-doors.md`): 39, Selection as element state, and the cap
+- Decided doors cited: `decided-doors.md`, "Selection over the cap"; `decided-doors.md`, "The default keymap and tools"; `decided-doors.md`, "The focused node and its event"

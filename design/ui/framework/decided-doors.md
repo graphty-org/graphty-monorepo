@@ -22,6 +22,24 @@ Shipped in graphty-element 2.6.0; the current release is in the status line of
 | 11, one set definition | `SetDefinition` (fixed, rule, path), `EdgeReading`, `Scope` with `{ define }`, `RuleTree` with the `member`, `item` and `threshold` leaves, the `{ match: "member" }` selector, `SetCombine`, `session.sets` and `set:changed`; the old names deprecated | a rule stores no scope field (it reads the full graph wherever stored); the filter pipeline half moved to door 25 |
 | 18, deleted sets and Restore | references resolve through the kept record; `sets.restore` published | none |
 
+## Decided by the owner, 2026-09-28
+
+The doors of build slices 1 and 2. Each is still expensive to undo once a release publishes it;
+the owner has chosen, so the documents are written on the choice and no slice waits on it. Two
+halves stay open in `one-way-doors.md`: the overview option's published name (slice 7) and the
+selection of one object as a whole (slice 5).
+
+| Decision | Choice | Difference from the recommendation |
+|---|---|---|
+| The overview recipe's three levels | graphty-element ships General overview and runs it at load; a consumer configures the element's default, which the graphty app sets from a reader preference; a project names its own and embeds it (`files-and-recipes.md` 2) (formerly door 33, its load half) | none |
+| How the element learns theme and motion | `colorScheme: "light" \| "dark" \| "auto"` (default auto) and `reducedMotion: "auto" \| "reduce" \| "no-preference"`, CSS's own spellings; on auto the element reads the host's computed `color-scheme` and re-reads it as `element-contract.md` 15 states; an explicit `GraphStyle.background` wins; the element roles stay internal (formerly door 48) | none |
+| Host names for reader text | translation keys: each reader-text event and each `GraphtyError` publishes a message key, `graphty.<area>.<message>`, with its named parameters (the template's slots), so a host supplies its own wording per key; the recovery class, the chosen verb and the cause (its own key and parameters) are published values beside it; the English `text` ships as an unpublished default. The scheme is `message-catalog.md`, "Published keys" (formerly door 87) | the recommendation published kinds and slots per event with no key, and held keys back until a translation existed; the owner chose keys now, so a host rewords one message without switching on event kinds |
+| The canvas marks | one mark schema for nodes and edges, bands named dark and light by tone, each with a dash and never a width, ordered by the element against the canvas's luminance; the old `GraphStyle.selection` fields read by the tolerant reader and mapped; highlights feed the neutral highlight mark (`canvas-drawing.md` 6) (formerly door 47) | none |
+| The default keymap and tools | the canvas tools, the canvas walk and its Esc rungs in graphty-element, with a default keymap, Mod for Cmd or Ctrl, and a setting that turns single-key shortcuts off; published first only as the read-only list of default chords, rebinding added when a consumer asks (`interaction-pattern-entries.md` 9.3) (formerly door 65) | none |
+| Selection over the cap | the selection holds every id; above a configurable cap (`config.selectionCap`) the element draws one selection-banded hull with a count badge instead of a mark per element (`canvas-drawing.md` 6) (formerly door 39, its element half) | none |
+| The focused node and its event | a focused node on the canvas, distinct from the selection, with a change event, in graphty-element, neighbor order stable and not spatial; the plain arrow keys stay on the camera, and the walk moves on the neighbor-walk keys, Shift with an arrow in the default keymap (`interaction-pattern-entries.md` 9.2) (formerly door 40) | the recommendation moved the plain arrows from the camera to the walk; the owner kept orbiting with the arrows, so the walk takes other keys and nothing an existing reader knows changes |
+| The graph getter and Graph export | first the session's public shape is trimmed, so its internal plumbing (`store`, `ownedStore`, `readData`, `controller`, `planning`, `watchers`) is hidden and what is public is the nouns (data, runs, results, sets, selection, scope, visibility, styles) plus `status`, `config` and `capabilities`, beside the session's methods; then the `graph` getter and the `Graph` export are deprecated when the typed handle ships (slice 2), and removed in the next major (`element-needs.md`, "The session's public shape trimmed to its nouns") (formerly door 90) | the trim is added first, so the deprecation points callers at a session that no longer exposes the same internals under other names |
+
 ## Moved out of the list
 
 The proposals moved to `element-needs.md` as additive, by number, are listed in

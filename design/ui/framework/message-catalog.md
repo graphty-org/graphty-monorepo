@@ -19,6 +19,35 @@ level 4): out-of-sight, detached, outside-app, or field-closed; "--" for every o
 count are graph facts a third-party host would otherwise rewrite (`content-design.md` 1). IP is `interaction-patterns.md`, IPE
 `interaction-pattern-entries.md`. Plurals are ICU in code.
 
+## Published keys
+
+graphty-element publishes each message by key so a host can supply its own words
+(`decided-doors.md`, "Host names for reader text"). On every route in the Route column that the element owns, a
+message is a record `{ key, params, text }`: on each reader-text event record, on the text beside
+a state or on a call's result, and on `GraphtyError` as its reader headline, with its cause as a
+second record of the same shape.
+
+- **The key is `graphty.` plus the Key column**: `graphty.<area>.<message>`, the area being the
+  key's first segment (`graphty.load.reading`, `graphty.run.done`, `graphty.export.done`). A cause
+  is `graphty.cause.<code>[.<discriminator>]`, keeping the published error code's spelling
+  (`graphty.cause.E_FETCH_FAILED.remote`). Other segments are lowerCamelCase ASCII. The
+  `graphty.` namespace is the element's alone; the app's own keys (`start.empty`,
+  `feedback.sent`) are chrome, never published and carry no namespace.
+- **`params` are the template's slots by name**, without braces (`{file}` is `file`), holding raw
+  values: a count as a number, a name as a string, a nested cause as its own record. A bracketed
+  part left unfilled is a missing parameter, never an empty string. Formatting (`content-design.md`
+  5) is done for `text`; a host that rewords formats its own values.
+- **`text` is the element's English, an unpublished default** any release may reword. A host with
+  no wording of its own shows it.
+- **Stable.** A key is never renamed or reused. Rewording `text` keeps the key; adding an optional
+  parameter keeps it; removing or renaming a parameter, or changing what the message means, mints
+  a new key and retires the old one, which stays listed here as retired so no later message
+  takes it.
+- **Beside the key, as published values**: on an error, `details.recovery` (the recovery class),
+  the chosen verb, and the cause's own key and parameters (`content-design.md` 4, Errors).
+
+## Keys
+
 | Key | Template (example) | Type | Verb | Route | Fires at | Level 4 | Spoken | Also shown |
 |---|---|---|---|---|---|---|---|---|
 | `start.empty` | the start screen's title | empty surface | Open... (takes a dropped file); Connect to data source... (`principles.md`, the ledger) | app | no project (`principles.md` 5) | -- | -- | -- |

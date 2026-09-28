@@ -123,14 +123,15 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         const graphEdges = scopeEdges(input);
         const nodeIds = scopeNodeIds(input);
 
-        if (graphEdges.length === 0 || nodeIds.length === 0) {
+        // A flow needs two different nodes; a lone node has no source and sink to choose.
+        if (graphEdges.length === 0 || nodeIds.length < 2) {
             return null;
         }
 
         // Get source and sink from legacy options, schema options, or use defaults
         // Legacy configure() takes precedence for backward compatibility
-        // An id the caller named must be a node: the algorithms package answers an unknown id
-        // with a flow of 0, which would publish zeros as if they were a measurement.
+        // An id the caller named must be a node, and the two ends must differ: the flow is
+        // undefined otherwise, so the run says which option is wrong instead of measuring nothing.
         const sourceOption = this.legacyOptions?.source ?? this._schemaOptions.source;
         const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
         const source =
@@ -149,15 +150,30 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         const capacityColumn = graph.edges.typed(CAPACITY_COLUMN, "f64");
         const networkSrc = new Uint32Array(graphEdges.length);
         const networkDst = new Uint32Array(graphEdges.length);
-        const capacities = new Float64Array(graphEdges.length);
+        const n = graph.nodeCount;
+        // Parallel edges are one pipe: their capacities add up, a negative one included, and a pipe
+        // whose total is negative carries nothing. The pipe's capacity rides on its first edge.
+        const pairCapacity = new Map<number, number>();
+        const firstOfPair = new Map<number, number>();
         graphEdges.forEach(({ row }, k) => {
             networkSrc[k] = src[row];
             networkDst[k] = dst[row];
-            capacities[k] = capacityColumn === null ? 1 : capacityColumn.data[row];
+            const pair = networkSrc[k] * n + networkDst[k];
+            const capacity = capacityColumn === null ? 1 : capacityColumn.data[row];
+            pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + capacity);
+            if (!firstOfPair.has(pair)) {
+                firstOfPair.set(pair, k);
+            }
         });
+        const capacities = new Float64Array(graphEdges.length);
+        for (const [pair, k] of firstOfPair) {
+            const capacity = Math.max(pairCapacity.get(pair) ?? 0, 0);
+            pairCapacity.set(pair, capacity);
+            capacities[k] = capacity;
+        }
         const network = fromEdgeArrays({
             directed: true,
-            nodeCount: graph.nodeCount,
+            nodeCount: n,
             src: networkSrc,
             dst: networkDst,
         });
@@ -168,18 +184,13 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             weights: expandEdges(network, capacities),
         });
 
-        // Parallel edges are one arc of the network, carrying their capacities together, so each of
-        // them reports the pair's flow against the pair's capacity. A negative capacity counts as
-        // none, as it does in the flow itself. The net flow through a node is
-        // what arrives minus what leaves.
-        const n = graph.nodeCount;
+        // Each parallel edge reports its pipe's flow against its pipe's capacity. The net flow
+        // through a node is what arrives minus what leaves.
         const pairFlow = new Map<number, number>();
-        const pairCapacity = new Map<number, number>();
         const net = new Float64Array(n);
         for (let k = 0; k < graphEdges.length; k++) {
             const pair = networkSrc[k] * n + networkDst[k];
             pairFlow.set(pair, (pairFlow.get(pair) ?? 0) + result.flow[k]);
-            pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + Math.max(capacities[k], 0));
             net[networkSrc[k]] -= result.flow[k];
             net[networkDst[k]] += result.flow[k];
         }

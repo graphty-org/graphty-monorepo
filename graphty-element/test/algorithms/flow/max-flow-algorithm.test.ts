@@ -80,6 +80,12 @@ describe("MaxFlowAlgorithm", () => {
             assert.strictEqual(error.details.option, "sink");
         });
 
+        it("has nothing to measure on a single node with a self-loop", async () => {
+            const graph = await createMockGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "A" }] });
+
+            assert.isNull(await new MaxFlowAlgorithm(graph).compute(detachedRunContext()));
+        });
+
         it("says when the ends were chosen automatically and when no flow path exists", async () => {
             const graph = await createMockGraph(UNDIRECTED);
             const output = await new MaxFlowAlgorithm(graph).compute(detachedRunContext());
@@ -104,7 +110,7 @@ describe("MaxFlowAlgorithm", () => {
     });
 
     describe("Capacity", () => {
-        it("counts a negative capacity as none, so no parallel edge reports more flow than capacity", async () => {
+        it("adds up parallel capacities, a negative one included, before the flow runs", async () => {
             const graph = await createMockGraph({
                 nodes: [{ id: "s" }, { id: "t" }],
                 edges: [
@@ -115,10 +121,22 @@ describe("MaxFlowAlgorithm", () => {
             const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(detachedRunContext());
 
             assert.ok(output);
-            assert.strictEqual(output.graph?.maxFlow, 5);
+            assert.strictEqual(output.graph?.maxFlow, 2);
             for (const edge of output.edges ?? []) {
-                assert.deepStrictEqual(edge.values, { value: 5, capacity: 5, utilization: 1 });
+                assert.deepStrictEqual(edge.values, { value: 2, capacity: 2, utilization: 1 });
             }
+        });
+
+        it("counts a lone negative capacity as none", async () => {
+            const graph = await createMockGraph({
+                nodes: [{ id: "s" }, { id: "t" }],
+                edges: [{ srcId: "s", dstId: "t", capacity: -3 }],
+            });
+            const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(detachedRunContext());
+
+            assert.ok(output);
+            assert.strictEqual(output.graph?.maxFlow, 0);
+            assert.deepStrictEqual(output.edges?.[0].values, { value: 0, capacity: 0, utilization: 0 });
         });
     });
 });

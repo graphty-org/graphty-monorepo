@@ -18,7 +18,6 @@ layout/
 │   │   ├── specialized/      # Planar, Spectral
 │   │   └── basic/            # Random
 │   ├── algorithms/           # Supporting algorithms
-│   │   ├── planarity/        # Planarity testing (LR algorithm)
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
 │   ├── generators/           # Deprecated aliases of @graphty/graph-samples/generators (see below)
 │   ├── types/                # TypeScript interfaces

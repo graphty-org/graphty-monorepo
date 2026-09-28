@@ -2,14 +2,16 @@
  * Planar layout algorithm
  */
 
-import { checkPlanarity, combinatorialEmbeddingToPos } from "../../algorithms/planarity";
+import { rowsToPositionMap } from "../../indexed/common";
+import { planarRows } from "../../indexed/planar";
+import { toLayoutSnapshot } from "../../simulation/snapshot";
 import type { Graph, PositionMap } from "../../types";
-import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
+import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
-import { rescaleLayout } from "../../utils/rescale";
 
 /**
- * Position nodes without edge intersections (planar layout).
+ * Position nodes without edge intersections (planar layout). Each node's neighbours are visited in node order (the
+ * order of `G.nodes()`), not edge order.
  * @param G - Graph
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
@@ -34,33 +36,11 @@ export function planarLayout(
     if (Array.isArray(processed.G)) {
         throw new Error("Planar layout requires a Graph with edges, not just a list of nodes");
     }
-
-    const graph = processed.G;
-    ({ center } = processed);
-
-    const nodes = getNodesFromGraph(graph);
-    const edges = getEdgesFromGraph(graph);
-
-    if (nodes.length === 0) {
+    if (getNodesFromGraph(G).length === 0) {
         return {};
     }
 
-    // Check if graph is planar and get embedding
-    const { isPlanar, embedding } = checkPlanarity(graph, nodes, edges, seed);
-
-    if (!isPlanar) {
-        throw new Error("G is not planar.");
-    }
-
-    if (!embedding) {
-        throw new Error("Failed to generate planar embedding.");
-    }
-
-    // Convert embedding to positions
-    let pos = combinatorialEmbeddingToPos(embedding, nodes);
-
-    // Rescale the positions
-    pos = rescaleLayout(pos, scale, center) as PositionMap;
-
-    return pos;
+    const s = toLayoutSnapshot(G);
+    const ids = Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i));
+    return rowsToPositionMap(planarRows(s, scale, processed.center, seed), 2, ids);
 }

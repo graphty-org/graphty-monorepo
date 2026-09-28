@@ -41,11 +41,25 @@ export function shellLayout(
         return { [nodes[0]]: center };
     }
 
-    // a node the shells name but the graph does not is still placed, as it always was: give it a row of its own
+    const { rowIds, lists: shells } = nodeListsToRows(nodes, nlist ?? [nodes]);
+    return shellsToPositionMap(shellRows(rowIds.length, shells, scale, center), shells, rowIds);
+}
+
+/**
+ * Row indices for lists of node ids: node `i` of `nodes` is row `i`, and an id the lists name but `nodes` does not
+ * gets a row of its own after them, so the legacy layouts still place it, as they always did.
+ * @param nodes - the graph's nodes
+ * @param lists - lists of node ids
+ * @returns the id of every row, and the lists as row indices
+ */
+export function nodeListsToRows(
+    nodes: readonly Node[],
+    lists: readonly (readonly Node[])[],
+): { rowIds: Node[]; lists: number[][] } {
     const rowIds: Node[] = [...nodes];
     const rowOf = new Map<string, number>(nodes.map((node, i) => [String(node), i]));
-    const shells = (nlist ?? [nodes]).map((shell) =>
-        shell.map((node) => {
+    const rows = lists.map((list) =>
+        list.map((node) => {
             let row = rowOf.get(String(node));
             if (row === undefined) {
                 row = rowIds.push(node) - 1;
@@ -54,7 +68,7 @@ export function shellLayout(
             return row;
         }),
     );
-    return shellsToPositionMap(shellRows(rowIds.length, shells, scale, center), shells, rowIds);
+    return { rowIds, lists: rows };
 }
 
 /**

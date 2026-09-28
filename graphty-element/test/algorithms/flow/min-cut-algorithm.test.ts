@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
@@ -36,7 +35,6 @@ describe("MinCutAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "min-cut");
             assert.strictEqual(AlgClass, MinCutAlgorithm);
         });
-
     });
 
     describe("Configuration", () => {

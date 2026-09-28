@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
@@ -40,7 +39,6 @@ describe("MaxFlowAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "max-flow");
             assert.strictEqual(AlgClass, MaxFlowAlgorithm);
         });
-
     });
 
     describe("Configuration", () => {
@@ -95,9 +93,7 @@ describe("MaxFlowAlgorithm", () => {
 
         it("adds neither note when both ends are given and flow exists", async () => {
             const graph = await createMockGraph(UNDIRECTED);
-            const output = await new MaxFlowAlgorithm(graph, { source: "A", sink: "B" }).compute(
-                detachedRunContext(),
-            );
+            const output = await new MaxFlowAlgorithm(graph, { source: "A", sink: "B" }).compute(detachedRunContext());
 
             assert.ok(output);
             assert.strictEqual(output.graph?.maxFlow, 1);
@@ -116,9 +112,7 @@ describe("MaxFlowAlgorithm", () => {
                     { srcId: "s", dstId: "t", capacity: -3 },
                 ],
             });
-            const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(
-                detachedRunContext(),
-            );
+            const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(detachedRunContext());
 
             assert.ok(output);
             assert.strictEqual(output.graph?.maxFlow, 5);

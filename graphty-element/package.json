@@ -186,7 +186,6 @@
         "@types/hammerjs": "^2.0.46",
         "@types/jmespath": "^0.15.2",
         "@types/lodash": "^4.17.19",
-        "@types/papaparse": "^5.5.0",
         "@types/toposort": "^2.0.7",
         "@vitest/browser-playwright": "catalog:",
         "ai": "^5.0.104",
@@ -259,7 +258,6 @@
         "ngraph.forcelayout": "^3.3.1",
         "ngraph.graph": "^20.0.1",
         "p-queue": "^8.1.1",
-        "papaparse": "^5.5.3",
         "toposort": "^2.0.2",
         "zod": "^3.25.28"
     },

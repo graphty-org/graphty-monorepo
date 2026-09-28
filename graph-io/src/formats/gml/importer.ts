@@ -713,6 +713,9 @@ class GmlImport {
                           namespace: null,
                       }
                     : undefined,
+            // The header as written, so a reader can say which words set the direction and tell
+            // `directed 0` from a file that relies on the specification's default.
+            extra: this.directedToken >= 0 ? { gml: { directed: textOf(this.directedToken) } } : undefined,
         });
     }
 

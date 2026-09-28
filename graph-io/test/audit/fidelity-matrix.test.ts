@@ -232,7 +232,8 @@ const META_KEYS = [
 
 /**
  * Differences in graph meta (design 5.9). sourceVersion is exempt (an exporter writes its own
- * version); idType / mode / graphId may be added by an exporter that always writes a header value.
+ * version); idType / mode / graphId and gml's directed key may be added by an exporter that always
+ * writes a header value.
  */
 function metaDiffs(expected: GraphSnapshot, actual: GraphSnapshot): SnapshotDiff[] {
     const diffs: SnapshotDiff[] = [];
@@ -251,6 +252,11 @@ function metaDiffs(expected: GraphSnapshot, actual: GraphSnapshot): SnapshotDiff
                 if (egr.graphId === null && agr.graphId === "G") {
                     aa.graphml = { ...agr, graphId: null };
                 }
+            }
+            // the gml exporter always writes a directed key, so a source that relied on the
+            // default comes back with the key the exporter wrote for its direction
+            if (ee.gml === undefined && valuesEqual(aa.gml, { directed: expected.directed ? "1" : "0" }, 0)) {
+                delete aa.gml;
             }
             if (!valuesEqual(ee, aa, 0)) {
                 diffs.push({

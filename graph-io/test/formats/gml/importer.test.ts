@@ -322,6 +322,13 @@ describe("gmlImporter: structure and flags", () => {
         expect(bad.report.issues[0]).toMatchObject({ code: FLAG_TYPE_CODE, severity: "error", element: "directed" });
     });
 
+    it("records the directed key as the file wrote it in meta.extra.gml, and nothing when it is absent", async () => {
+        expect((await importGml("graph [ directed 1 ]")).snapshot.meta.extra).toEqual({ gml: { directed: "1" } });
+        expect((await importGml("graph [ directed 0 ]")).snapshot.meta.extra).toEqual({ gml: { directed: "0" } });
+        expect((await importGml('graph [ directed "yes" ]')).snapshot.meta.extra).toEqual({ gml: { directed: "yes" } });
+        expect((await importGml("graph [ ]")).snapshot.meta.extra).toEqual({});
+    });
+
     it("records the multigraph flag in meta.declaredMultigraph", async () => {
         expect((await importGml("graph [ multigraph 1 ]")).snapshot.meta.declaredMultigraph).toBe(true);
         expect((await importGml("graph [ multigraph 0 ]")).snapshot.meta.declaredMultigraph).toBe(false);

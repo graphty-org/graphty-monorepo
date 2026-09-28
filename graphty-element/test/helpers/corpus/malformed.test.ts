@@ -72,17 +72,24 @@ interface MalformedBehavior {
     description: string; // Human-readable description of expected behavior
 }
 
+/** What a reader built on graph-io says when it cannot read the file at all. */
+const PARSE_FAILED = /^Failed to parse/;
+
 // Define expected behaviors for specific malformed files
 const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
     dot: {
-        "empty-file.gv": { shouldRecover: true, description: "Empty file should return empty graph" },
-        "garbage-content.gv": { shouldRecover: true, description: "Garbage should be handled gracefully" },
-        "unclosed-brace.gv": { shouldRecover: true, description: "Unclosed brace should recover partial data" },
-        "unclosed-string.gv": { shouldRecover: true, description: "Unclosed string should recover partial data" },
+        "empty-file.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Empty file is not DOT" },
+        "garbage-content.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Garbage is not DOT" },
+        "unclosed-brace.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Unclosed brace fails" },
+        "unclosed-string.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Unclosed string fails" },
         "invalid-keyword.gv": { shouldRecover: true, description: "Invalid keywords should be skipped" },
         "missing-arrow.gv": { shouldRecover: true, description: "Missing arrow should create nodes only" },
-        "nested-unclosed.gv": { shouldRecover: true, description: "Nested unclosed should recover partial data" },
-        "invalid-attributes.gv": { shouldRecover: true, description: "Invalid attributes should be handled" },
+        "nested-unclosed.gv": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Nested unclosed fails" },
+        "invalid-attributes.gv": {
+            shouldThrow: true,
+            errorPattern: PARSE_FAILED,
+            description: "Attribute syntax fails",
+        },
     },
     graphml: {
         "empty-file.graphml": { shouldThrow: true, description: "Empty file should throw" },
@@ -97,8 +104,8 @@ const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
     gml: {
         "empty-file.gml": { shouldThrow: true, description: "Empty file throws missing graph element" },
         "garbage-content.gml": { shouldThrow: true, description: "Garbage throws missing graph element" },
-        "unclosed-bracket.gml": { shouldRecover: true, description: "Unclosed bracket should recover" },
-        "unclosed-string.gml": { shouldRecover: true, description: "Unclosed string should recover" },
+        "unclosed-bracket.gml": { shouldThrow: true, errorPattern: /line \d+/, description: "Unclosed bracket fails" },
+        "unclosed-string.gml": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Unclosed string fails" },
         "missing-id.gml": { shouldRecover: true, description: "Missing ID should skip node" },
         "missing-edge-target.gml": { shouldRecover: true, description: "Missing target should skip edge" },
         "invalid-value-type.gml": { shouldRecover: true, description: "Invalid value type should be handled" },
@@ -127,12 +134,12 @@ const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
         "binary-content.csv": { shouldRecover: true, description: "Binary content should be handled" },
     },
     pajek: {
-        "empty-file.net": { shouldRecover: true, description: "Empty file should return empty" },
-        "no-vertices-header.net": { shouldRecover: true, description: "No header should try to parse" },
+        "empty-file.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Empty file is not Pajek" },
+        "no-vertices-header.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "No header fails" },
         "wrong-vertex-count.net": { shouldRecover: true, description: "Wrong count should parse available" },
         "malformed-vertex.net": { shouldRecover: true, description: "Malformed vertex should skip line" },
         "malformed-edge.net": { shouldRecover: true, description: "Malformed edge should skip line" },
-        "garbage-content.net": { shouldRecover: true, description: "Garbage should return empty" },
+        "garbage-content.net": { shouldThrow: true, errorPattern: PARSE_FAILED, description: "Garbage is not Pajek" },
         "invalid-edge-reference.net": { shouldRecover: true, description: "Invalid refs should be kept" },
         "missing-edges-section.net": { shouldRecover: true, description: "Missing edges should return nodes only" },
     },

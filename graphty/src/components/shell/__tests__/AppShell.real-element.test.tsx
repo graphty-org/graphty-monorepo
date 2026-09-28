@@ -186,13 +186,13 @@ describe("AppShell with the real graphty-element", () => {
         async () => {
             const served = servedSample();
 
-            // The element parses this without an error and holds one node, so it is the
-            // count check, not the error event, that has to catch it (issue #503).
+            // The element refuses a GML file that ends inside an open list, so the load itself
+            // fails rather than holding the one node that parsed.
             serveBrokenFile(served.source.url, "graph [ node [ id 1 ");
 
             const failure = await failureOf(expectSampleLoads(served));
 
-            assert.include(failure.message, "the element's counts against the manifest's");
+            assert.include(failure.message, `the element rejected ${served.fileName}`);
         },
         LOAD_TEST_TIMEOUT_MS,
     );

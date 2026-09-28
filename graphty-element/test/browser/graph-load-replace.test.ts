@@ -5,6 +5,7 @@
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
+import type { DataLoadingErrorEvent } from "../../src/events.js";
 import type { Graph } from "../../src/Graph.js";
 
 const GOOD = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ src: "a", dst: "b" }] });
@@ -77,6 +78,31 @@ describe("loadFromFile with replace", () => {
         const error = await rejection(graph.loadFromFile(new File(['{"nodes": []}'], "empty.json")));
 
         assert.strictEqual((error as GraphtyError).code, "E_EMPTY_LOAD");
+        assert.deepStrictEqual(ids(graph), { nodes: ["a", "b"], edges: 1 });
+    });
+});
+
+describe("a GML file cut off inside an open list", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("fails with the line of the open bracket and leaves the previous graph", async () => {
+        const graph = await graphWith(GOOD);
+        const errors: DataLoadingErrorEvent[] = [];
+        graph.addListener("data-loading-error", (event) => {
+            errors.push(event);
+        });
+
+        // The node list opened on line 3 never closes, so the file ends inside it.
+        const truncated = "graph [\n  directed 0\n  node [\n    id 1\n";
+        const error = await rejection(graph.loadFromFile(new File([truncated], "cut.gml"), { replace: true }));
+
+        assert.strictEqual((error as GraphtyError).code, "E_PARSE_FAILED");
+        assert.lengthOf(errors, 1);
+        assert.strictEqual(errors[0].context, "parsing");
+        assert.strictEqual(errors[0].format, "gml");
+        assert.strictEqual(errors[0].line, 3);
         assert.deepStrictEqual(ids(graph), { nodes: ["a", "b"], edges: 1 });
     });
 });

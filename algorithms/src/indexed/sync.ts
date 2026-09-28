@@ -61,8 +61,8 @@ function distance(a: F64, i: number, b: F64, j: number, dim: number): number {
  * seed the labels and embeddings agree with it to rounding; the port draws from its own generator
  * instead of replacing `Math.random` for the duration of the call.
  *
- * Weights are ignored and a parallel arc pulls once per arc. Degree is `s.degree()` (in plus out
- * when directed).
+ * Weights are ignored and a parallel arc pulls once per arc. The seeding degree is legacy's: in plus
+ * out when directed, the stored arc count when undirected, so an undirected self-loop counts once.
  * @param s - The snapshot
  * @param options - {@link SyncClusteringOptions}
  * @returns Assignments, embeddings and convergence
@@ -89,7 +89,8 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
     const { rowPtr, colIdx } = s;
 
     const emb = new Float64Array(n * dim);
-    const degree = s.degree();
+    // Legacy's degree: an undirected self-loop counts once (its single stored arc), not twice.
+    const degree = s.directed ? s.degree() : s.outDegree();
     for (let u = 0; u < n; u++) {
         const normalized = degree[u] / Math.max(1, n - 1);
         for (let k = 0; k < dim; k++) {

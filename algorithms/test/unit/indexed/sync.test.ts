@@ -81,18 +81,50 @@ describe("indexed.syncClustering", () => {
         );
     });
 
+    it("equals legacy on an undirected graph with a self-loop, which counts once in the seeding degree", () => {
+        const g = new Graph({ directed: false });
+        for (let i = 0; i < 6; i++) {
+            g.addEdge(i, (i + 1) % 6);
+        }
+        g.addEdge(0, 0);
+        expectFacadeMatchesLegacy(
+            [{ name: "6-cycle with a self-loop", graph: g }],
+            (graph) => legacyShape(graph, { numClusters: 2 }),
+            (graph) => portShape(graph, { numClusters: 2 }),
+            { tolerance: 1e-9 },
+        );
+    });
+
+    it("reports the loss of the converging iteration, not the one before it", () => {
+        // Legacy reports the loss of the iteration before; the two differ by less than the tolerance.
+        const config = { numClusters: 2, tolerance: 1e-3 };
+        let converged = 0;
+        for (const { graph } of fixtures) {
+            const s = toSnapshot(graph);
+            const port = syncClustering(s, config);
+            if (port.converged && port.iterations > 1) {
+                converged++;
+                const before = syncClustering(s, { ...config, maxIterations: port.iterations - 1 });
+                expect(port.loss).not.toBe(before.loss);
+                expect(Math.abs(port.loss - before.loss)).toBeLessThan(config.tolerance);
+                expect(legacySync(graph, config).loss).toBe(before.loss);
+            }
+        }
+        expect(converged).toBeGreaterThan(0);
+    });
+
     it("reports the loss and the iteration count of the state it returns", () => {
         // Legacy returns the loss of the iteration BEFORE the converging one, and one iteration more
         // than it ran when it hits maxIterations. The port reports the last loss it computed and the
         // iterations it ran, so the two agree up to the convergence tolerance and that off-by-one.
         for (const { graph } of fixtures) {
-            for (const config of [{ numClusters: 2 }, { numClusters: 3, maxIterations: 3 }]) {
+            for (const config of [{ numClusters: 2, tolerance: 1e-3 }, { numClusters: 3, maxIterations: 3 }]) {
                 const legacy = legacySync(graph, config);
                 const port = syncClustering(toSnapshot(graph), config);
                 expect(port.converged).toBe(legacy.converged);
                 if (port.converged) {
                     expect(port.iterations).toBe(legacy.iterations);
-                    expect(Math.abs(port.loss - legacy.loss)).toBeLessThan(1e-6);
+                    expect(Math.abs(port.loss - legacy.loss)).toBeLessThan(config.tolerance ?? 1e-6);
                 } else {
                     expect(port.iterations).toBe(config.maxIterations ?? 100);
                     expect(legacy.iterations).toBe(port.iterations + 1);

@@ -68,7 +68,7 @@ visual-review/                       @graphty/visual-review, private, plain .mjs
   project.json                       "name": "visual-review"; Nx targets test, coverage (the CI
                                      shard runs it) and lint
   vitest.config.mjs
-  projects.json                      compact-mantine and graphty-element: Storybook artifact name,
+  projects.json                      compact-mantine, graphty-element and layout: Storybook artifact name,
                                      package directory, workers, stableFrame (wait for
                                      graphty-element), seedFromMaster. Modes are not listed here:
                                      they come from each story's parameters.chromatic.modes
@@ -471,6 +471,10 @@ has no remaining Chromatic review to do for these two projects.
    that renders each font family, an emoji and the time. Then one planned re-baseline of both
    seeded projects.
 3. algorithms and layout: measure two-run stability under `taskset -c 0-3`, fix or exclude, seed.
+   layout is in `projects.json` and the CI visual matrix with `canvas` true (its 3D stories draw
+   into WebGL) and `seedFromMaster` false: set it true once its two runs under `taskset -c 0-3`
+   with the pinned fonts match. Its 17 stories captured identically on two runs with no
+   stable-frame wait, before the fonts were pinned.
    The graphty app after its light mode (preview reads `theme`, the app sets `colorScheme`) and its
    eruda debug button (issue #204) are fixed.
 4. Pre-push: a blocking step before the gate's "No package is affected" exit, failing a push of a

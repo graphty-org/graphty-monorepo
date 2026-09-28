@@ -77,6 +77,38 @@ export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): Graph
     return snapshot;
 }
 
+const TOPOLOGY_CACHE = new WeakMap<Graph, { readonly mutationCount: number; readonly snapshot: GraphSnapshot }>();
+
+/**
+ * Freeze a legacy `Graph`'s nodes and edges without their weights, memoised on its `mutationCount`.
+ * For the facades whose port never reads a weight: a legacy graph accepts a NaN weight, which
+ * {@link toSnapshot} cannot freeze, and those functions have always ignored it. Not exported from
+ * the package.
+ * @param graph - The legacy graph to convert
+ * @returns A frozen, unweighted snapshot of the graph's current topology
+ */
+export function toTopologySnapshot(graph: Graph): GraphSnapshot {
+    const cached = TOPOLOGY_CACHE.get(graph);
+    if (cached?.mutationCount === graph.mutationCount) {
+        return cached.snapshot;
+    }
+    const builder = new GraphBuilder({
+        directed: graph.isDirected,
+        weighted: false,
+        expectedNodes: graph.nodeCount,
+        expectedEdges: graph.totalEdgeCount,
+    });
+    for (const node of graph.nodes()) {
+        builder.addNode(node.id);
+    }
+    for (const edge of graph.edges()) {
+        builder.addEdge(edge.source, edge.target);
+    }
+    const snapshot = builder.freeze({ label: "algorithms.toTopologySnapshot" });
+    TOPOLOGY_CACHE.set(graph, { mutationCount: graph.mutationCount, snapshot });
+    return snapshot;
+}
+
 /**
  * The order a legacy `Graph` hands out each node's neighbours in, as the `arcOrder` option of the
  * order-sensitive traversals (`depthFirstSearch`, `topologicalSort`, `stronglyConnectedComponents`,

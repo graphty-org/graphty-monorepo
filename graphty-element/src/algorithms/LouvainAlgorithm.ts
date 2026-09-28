@@ -1,4 +1,3 @@
-import { louvain } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -47,7 +46,8 @@ const louvainOptionsSchema = defineOptions({
         schema: z.boolean().default(true),
         meta: {
             label: "Use Optimized",
-            description: "Use optimized implementation for better performance on large graphs",
+            description:
+                "Only the optimized implementation remains; switched off, the run uses it anyway and says so in its caveats",
             advanced: true,
         },
     },
@@ -63,12 +63,13 @@ interface LouvainOptions extends Record<string, unknown> {
     maxIterations: number;
     /** Minimum modularity improvement to continue */
     tolerance: number;
-    /** Use optimized implementation for better performance on large graphs */
+    /** Only the optimized implementation remains; `false` runs it anyway and says so in the caveats */
     useOptimized: boolean;
 }
 
 /**
- *
+ * Louvain: communities found by moving nodes between groups while modularity improves, then
+ * merging each group into one node and repeating.
  */
 export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
     static namespace = "graphty";
@@ -110,7 +111,8 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
             type: "boolean",
             default: true,
             label: "Use Optimized",
-            description: "Use optimized implementation for better performance on large graphs",
+            description:
+                "Only the optimized implementation remains; switched off, the run uses it anyway and says so in its caveats",
             advanced: true,
         },
     };
@@ -134,27 +136,19 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
 
         const { resolution, maxIterations, tolerance, useOptimized } = this.schemaOptions;
 
-        // Undirected: modularity is defined over unordered pairs.
-        const graphData = this.algorithmGraph("undirected");
+        // Undirected: modularity is defined over unordered pairs;
+        // the element forwards no Louvain member to an accelerator, so this runs the index-based CPU port.
+        const { snapshot, run } = this.accelerated("louvain", "undirected");
 
         context.report({ phase: "Optimizing modularity", total: null });
-        const result = louvain(graphData, {
-            resolution,
-            maxIterations,
-            tolerance,
-            useOptimized,
-        });
+        const { value: result, precision } = await run((dispatch, s) =>
+            dispatch.louvain(s, { resolution, maxIterations, tolerance }),
+        );
 
-        const groupOf = new Map<number | string, number>();
-        for (let index = 0; index < result.communities.length; index++) {
-            for (const nodeId of result.communities[index]) {
-                groupOf.set(nodeId, index);
-            }
-        }
-
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: result.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {
@@ -166,7 +160,16 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
                 method: "louvain",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
-                notes: [`Resolution ${String(resolution)}.`],
+                precision,
+                notes: [
+                    `Resolution ${String(resolution)}.`,
+                    /* The option chose between two implementations, and only the optimized one runs
+                       over the snapshot. A saved document that switched it off keeps running, and
+                       the reader is told which implementation answered. */
+                    ...(useOptimized
+                        ? []
+                        : ["useOptimized is off, but only the optimized implementation remains, so it computed this."]),
+                ],
             }),
         };
     }

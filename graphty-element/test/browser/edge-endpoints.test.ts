@@ -1,14 +1,12 @@
 /**
  * @file Every registered format produces edges, in a real element, and says which keys it read.
  *
- * WHY THESE LOAD THROUGH AN ELEMENT AND NOT THROUGH A DATA SOURCE. The corpus test sums
- * `chunk.nodes.length` and `chunk.edges.length` straight off the parser and compares them with a
- * manifest, so it passes for a file that produces a graph with zero edges: it stops at the parser
- * boundary, and the defect was on the other side of it. `d3-format.json`, `karate-d3.json`,
- * `miserables.json`, `networkx-format.json` and `sigma-format.json` all passed that test while
- * producing no edges at all in a running element, because the element resolved its endpoints
- * against two configured paths that defaulted to `src` and `dst` while every one of its own guides
- * taught `source` and `target`.
+ * WHY THESE LOAD THROUGH AN ELEMENT AND NOT THROUGH A DATA SOURCE. Counting the nodes and edges
+ * a parser returns passes for a file that produces a graph with zero edges: it stops at the parser
+ * boundary, and the defect was on the other side of it. JSON files in the d3, NetworkX and Sigma
+ * shapes all parsed with the right counts while producing no edges at all in a running element,
+ * because the element resolved its endpoints against two configured paths that defaulted to `src`
+ * and `dst` while every one of its own guides taught `source` and `target`.
  *
  * The shipped symptom was the application's node inspector reporting "Expand 0 neighbors" for
  * every node of the Karate Club graph loaded from `karate.gml`, while the same node's result card

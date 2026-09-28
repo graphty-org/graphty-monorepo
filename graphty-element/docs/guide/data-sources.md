@@ -95,8 +95,9 @@ If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 
-Every format is detected with, and read through, an importer from `@graphty/graph-io`, a
-dependency of graphty-element; the last column names it.
+Every format is detected with the content check of its importer from `@graphty/graph-io`, a
+dependency of graphty-element; the last column names it. GEXF and GraphML files are also read by
+that importer. The other five formats are still read by graphty-element's own parsers.
 
 | Format  | Extensions                                    | Description                                              | graph-io importer                                                                                                |
 | ------- | --------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -112,9 +113,9 @@ dependency of graphty-element; the last column names it.
 
 `loadFromFile` and `loadFromUrl` pick the format from the file name first. When two formats claim
 the extension (`.xml` is GraphML or GEXF), or the name has no extension the element knows, the
-first bytes decide, using the content checks of the matching
-`@graphty/graph-io` importers. Any table whose first line is split by a comma, tab, semicolon or
-pipe is read as CSV, whatever its column names. A space-separated table is not detected: name the
+first bytes decide, using the content checks of the matching `@graphty/graph-io` importers. Any
+table whose first line is split by a comma, tab, semicolon or pipe is read as CSV, whatever its
+column names; leading comment lines that start with `#` or `%` are passed over. A space-separated table is not detected: name the
 format and pass `delimiter: " "`. When neither the name nor the bytes settle it, name the format
 explicitly.
 
@@ -132,15 +133,15 @@ Most graph formats state whether their edges point, and the importer reports wha
 A GML file with no `directed` key, a GEXF file with no `defaultedgetype`, is not silent: both
 formats define that omission as undirected, and so does graphty-element.
 
-| Format | Where it states direction | When it states nothing |
-| ------ | ------------------------- | ---------------------- |
-| GEXF | `defaultedgetype` on `<graph>`, and `type` per edge | An absent attribute means undirected, unless the edges themselves say otherwise |
-| GraphML | `edgedefault` on `<graph>`, and `directed` per edge | An absent attribute states nothing; GraphML requires it |
-| GML | the `directed` key, 1 or 0 | An absent key means undirected |
-| DOT | the opening `graph` or `digraph` keyword | -- |
-| Pajek | `*Arcs` are directed, `*Edges` are not | -- |
-| CSV | Gephi's `Type` column: `Directed` or `Undirected` | Every other dialect states nothing |
-| JSON | a top-level `"directed"` boolean, as node-link JSON writes it | Any document without that key states nothing |
+| Format  | Where it states direction                                     | When it states nothing                                                          |
+| ------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge           | An absent attribute means undirected, unless the edges themselves say otherwise |
+| GraphML | `edgedefault` on `<graph>`, and `directed` per edge           | An absent attribute states nothing; GraphML requires it                         |
+| GML     | the `directed` key, 1 or 0                                    | An absent key means undirected                                                  |
+| DOT     | the opening `graph` or `digraph` keyword                      | --                                                                              |
+| Pajek   | `*Arcs` are directed, `*Edges` are not                        | --                                                                              |
+| CSV     | Gephi's `Type` column: `Directed` or `Undirected`             | Every other dialect states nothing                                              |
+| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it | Any document without that key states nothing                                    |
 
 Read it back from the session:
 
@@ -152,7 +153,7 @@ graph.getSession().data.statistics().directedness; // "directed" | "undirected" 
 decide. Set it to a boolean and it settles the question: the file's own header is read, reported
 in the log, and does not overrule you.
 
-A format that can state direction per edge as well as per graph can describe a *mixed* graph, and
+A format that can state direction per edge as well as per graph can describe a _mixed_ graph, and
 one graph carries one direction. A graph-level statement the file actually wrote is what the
 element adopts: one `type` attribute must not decide how the other quarter of a million edges are
 read. Where no graph-level statement was written -- Pajek and Gephi CSV, which have none to write,
@@ -161,21 +162,42 @@ subject, and any directed edge among them makes the graph directed. That asymmet
 losing one direction of an undirected edge is countable, and counted, while reading a directed edge
 as undirected invents a reverse path the file denies.
 
-Either way each edge keeps its own direction on its record, and the element logs a warning naming
-how many edges it overrode. Direction is settled once per graph: a second file loaded into a graph
+Either way an edge whose own direction differs from the graph's keeps it on its record -- a GEXF
+edge as `type` (`"directed"`, `"undirected"`, or `"mutual"`, which is always kept), a GraphML edge
+as `directed` -- and the element logs a warning naming how many edges it overrode. An edge whose
+own `type` or `directed` agrees with the graph carries no such key: it is drawn like every other
+edge. GEXF keywords are read in any case, so `defaultedgetype="Directed"` is directed. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
+
+## GEXF and GraphML Records
+
+GEXF and GraphML files are read by `@graphty/graph-io`, and each node and edge record carries the
+attributes the file declared, under their titles (GEXF) or `attr.name` (GraphML), typed by their
+declared type:
+
+- a GEXF `liststring` (or GEXF 1.3 `list<...>`) attribute is an array of its items;
+- a GEXF `date` or `dateTime` attribute is its ISO text;
+- a GraphML key declared `for="all"` applies to nodes and edges alike;
+- a value that does not parse as its declared type -- `3.7` for an `int` key, a GraphML `<data>`
+  holding XML elements rather than text -- is left off the record and reported as a loading error;
+- a node id declared twice is one node, with the later declaration's values winning.
+
+The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
+`viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
+loads nothing and reports a loading error.
 
 ## Dynamic GEXF
 
 A GEXF file with `mode="dynamic"` keeps its time data on each node's and edge's data, as the
 strings the file wrote:
 
-| In the file | On the record |
-| ----------- | ------------- |
-| `start`, `end`, `timestamp` on a node or edge | `start`, `end`, `timestamp` |
-| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true` |
-| `<spells><spell .../></spells>` | `spells`: a list of `{ start, end }` |
-| several timed `<attvalue>`s for one attribute | that attribute as a list of `{ value, start, end }` slices |
+| In the file                                    | On the record                                                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `start`, `end`, `timestamp` on a node or edge  | `start`, `end`, `timestamp`                                                                                                |
+| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true`                                                                  |
+| `<spells><spell .../></spells>`                | `spells`: a list of `{ start, end }`, each with `startOpen` / `endOpen` for an open bound                                  |
+| several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices; an untimed `<attvalue>` among them comes first, as `{ value }` |
 
 An attribute with no timed `attvalue` keeps its plain value, so a static file reads as it always
 has. Timed `viz:*` elements (a position, colour or size that changes over time) are not read.
@@ -366,14 +388,14 @@ element.session.data.statistics().repeatedEdgeCount; // 1
 
 Choose something else with `data.knownFields.repeatedEdges`:
 
-| Policy | What a repeated pair does |
-| --- | --- |
-| `keep` (default) | becomes a second edge with its own id |
-| `first` | is discarded; the edge already present is untouched |
-| `last` | replaces the weight and attributes of the edge already present |
-| `sum` | adds its weight to the edge already present |
-| `min` / `max` | keeps the smaller / larger of the two weights |
-| `error` | throws `E_DUPLICATE_EDGE`, naming both endpoints |
+| Policy           | What a repeated pair does                                      |
+| ---------------- | -------------------------------------------------------------- |
+| `keep` (default) | becomes a second edge with its own id                          |
+| `first`          | is discarded; the edge already present is untouched            |
+| `last`           | replaces the weight and attributes of the edge already present |
+| `sum`            | adds its weight to the edge already present                    |
+| `min` / `max`    | keeps the smaller / larger of the two weights                  |
+| `error`          | throws `E_DUPLICATE_EDGE`, naming both endpoints               |
 
 Per call, `addEdges` takes the same choice as an option, which is what an incremental load wants:
 re-fetching a node's neighbourhood legitimately re-supplies edges the graph already holds.

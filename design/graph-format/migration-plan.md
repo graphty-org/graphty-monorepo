@@ -510,7 +510,10 @@ gets the derived `1 / sum` column of section 3 (parallel weights summed first). 
 the position array. Done when: no engine imports a positional layout function,
 `weighted-layouts.test.ts` passes without `pairWeights` (its "sums two parallel edges" case
 included, its oracle moved from `kamadaKawaiLayout` to `indexed.kamadaKawai`), a reload after
-adding nodes keeps existing coordinates, and the visual change is reviewed.
+adding nodes keeps existing coordinates, and the visual change is reviewed. The element stories
+this changed, and a fixed-layout story that sometimes keeps an earlier layout's coordinates, are
+recorded for the owner in `visual-changes/element-layout-stories/README.md`: visual-review's
+graphty-element capture does not see the element's canvas, so it cannot show them.
 
 ### Phase 6 -- parsing through graph-io
 

@@ -1,3 +1,5 @@
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -57,14 +59,27 @@ export class DegreeAlgorithm extends MetricAlgorithm {
      * @returns One count per node, unscaled.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        // Directed, so in-degree and out-degree are the directions the records declared.
-        const graphData = this.algorithmGraph("directed");
+        /* The declared snapshot, so in-degree and out-degree are the directions the records
+           declared, with each group of parallel edges counted once -- the same merge every run
+           takes. The two degree views are one pass over the row pointers each, cached on the
+           snapshot. */
+        const { snapshot } = this.input("declared").derived();
+        const { ids } = snapshot;
+        const inDegrees = snapshot.inDegree();
+        const outDegrees = snapshot.outDegree();
         const nodes: ResultElementValues[] = [];
 
         await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
-            const inDegree = graphData.inDegree(nodeId);
-            const outDegree = graphData.outDegree(nodeId);
+            const index = ids.indexOf(nodeId);
 
+            if (index === INVALID_INDEX) {
+                nodes.push({ id: nodeId, values: {} });
+
+                return;
+            }
+
+            const inDegree = inDegrees[index];
+            const outDegree = outDegrees[index];
             nodes.push({ id: nodeId, values: { value: inDegree + outDegree, inDegree, outDegree } });
         });
 

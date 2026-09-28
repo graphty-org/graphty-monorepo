@@ -477,7 +477,7 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * Below the point where the processor's own work exceeds the device's round trips, the device
  * cannot win however fast its arithmetic is.
  *
- * SO THREE OF THE FOUR FLOORS ARE ABOVE THE RENDER CEILING AND THOSE CAPABILITIES ARE NOT ROUTED
+ * SO THREE OF THE FOUR TRAVERSAL AND PAGERANK FLOORS ARE ABOVE THE RENDER CEILING AND THOSE CAPABILITIES ARE NOT ROUTED
  * TO THE DEVICE AT ALL TODAY. Their numbers are not from the sweep above -- it cannot reach them
  * -- but from the crossovers measured on `@graphty/webgpu-graph-algorithms` itself with the graph
  * resident, in `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`: 141,000 nodes for
@@ -486,6 +486,11 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * a few milliseconds of result publication to both, so the element's true crossing is at or above
  * each. Carrying them is what makes the element's behaviour and that record agree; raising the
  * render ceiling (issue #419) is what would let any of the three be measured here and sharpened.
+ *
+ * HITS AND KATZ CARRY THE KERNEL'S OWN CROSSOVER TOO, from the same record: 4,000 nodes for HITS
+ * and 6,600 for Katz, both inside what the element can hold, so both are routed to the device
+ * above their floor. Neither has been measured through the element; the fixed readback cost above
+ * applies to them as to the rest, so their element crossing is at or above the kernel's.
  *
  * A floor is the smallest measured size at which the device's median was at or below the CPU
  * port's IN EVERY RUN, so a size that won under one load and lost under another is below it. A
@@ -520,5 +525,10 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         pageRank: 50_000,
         // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
         connectedComponents: 132_000,
+        // Below the render ceiling, so routed: the kernel's resident crossover from the same
+        // record, not measured through the element. The element's own crossing is at or above it.
+        hits: 4_000,
+        // Likewise the kernel's resident crossover from the same record.
+        katzCentrality: 6_600,
     },
 );

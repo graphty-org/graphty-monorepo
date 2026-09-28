@@ -231,13 +231,17 @@ describe("metric results", () => {
             assert.isTrue(result.summary().caveats.converged);
         });
 
-        it("the other iterative metrics do not claim to have converged", async () => {
+        it("katz and hits say whether they converged and how many passes they took", async () => {
+            // The index-based ports report both, where the reference implementation reported
+            // neither. Not every run here converges within its default passes, and a reader could
+            // not tell that before.
             for (const make of [
                 (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g),
                 (g: Graph): MetricAlgorithm => new HITSAlgorithm(g),
             ]) {
-                const result = await runMetric(make);
-                assert.isUndefined(result.summary().caveats.converged);
+                const { caveats } = (await runMetric(make)).summary();
+                assert.isBoolean(caveats.converged);
+                assert.isAbove(caveats.iterations ?? 0, 0);
             }
         });
 

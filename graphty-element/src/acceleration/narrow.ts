@@ -35,11 +35,12 @@ const LAYOUT_MEMBERS = ["forceAtlas2", "fruchtermanReingold", "springElectrical"
 /**
  * The members of `AlgorithmAccelerator` the element forwards, in the order it copies them.
  *
- * These are exactly the six `accelerated()` dispatches today: a member it does not dispatch can
- * never be reached through the seam, and a member whose CPU port does not exist has nothing to
- * fall back to. When `@graphty/algorithms` adds a dispatcher method, add its name here -- until
- * then an accelerator that implements it is asked for the CPU port instead, which is the honest
- * answer rather than a silent half-route.
+ * These are the members an adapter routes to an accelerator today. A member not listed here is
+ * never handed to the dispatcher, so an accelerator that implements it is asked for the CPU port
+ * instead -- the honest answer rather than a silent half-route. Add a name only when its
+ * dispatcher method gives the port's answer on an accelerator and its floor is in
+ * `ACCELERATION_MIN_NODES_BY_CAPABILITY`. `kCoreDecomposition` and `louvain` are dispatched but
+ * deliberately absent: no shipped accelerator computes either, and neither has a measured floor.
  *
  * `release` is the one member of `AlgorithmAccelerator` deliberately left out, and the asymmetry
  * with the layout list is real. A simulation holds device buffers ACROSS frames and releases them
@@ -54,6 +55,8 @@ const ALGORITHM_MEMBERS = [
     "connectedComponents",
     "weaklyConnectedComponents",
     "minimumSpanningTree",
+    "hits",
+    "katzCentrality",
 ] as const;
 
 /**

@@ -249,6 +249,7 @@
     "dependencies": {
         "@graphty/algorithms": "workspace:^",
         "@graphty/graph-format": "workspace:^",
+        "@graphty/graph-io": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
         "colorjs.io": "^0.5.2",

@@ -162,6 +162,15 @@ describe("rescaleInPlace", () => {
             ],
             center: [1, 2],
         },
+        {
+            // every finite spread is zero, so every non-NaN component moves to the centre, the infinite axis too
+            name: "every node at one point on an infinite axis",
+            dim: 2,
+            rows: [
+                [Number.POSITIVE_INFINITY, 1],
+                [Number.POSITIVE_INFINITY, 1],
+            ],
+        },
         { name: "one node", dim: 3, rows: [[3, -1, 2]], scale: 4 },
         {
             // an f32 running sum of these loses whole units, which moves every rescaled row by more than 1e-6

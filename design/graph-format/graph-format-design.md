@@ -4389,7 +4389,7 @@ export function rescaleInPlace(positions: F32, dim: number, scale?: number, cent
 export function toLayoutSnapshot(
     G: LayoutGraph | LegacyDuck | NodeId[] | GraphSnapshot,
     weightAttr?: string | null,
-): GraphSnapshot; // undirected; legacy duck type walked once
+): GraphSnapshot; // undirected; a legacy duck type is walked on every call (only a directed snapshot's undirected view is cached)
 export declare class LayoutGraph {
     readonly snapshot: GraphSnapshot;
     nodes(): NodeId[];

@@ -24,7 +24,6 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../../src/algorithms/results";
 import { toAlgorithmGraph } from "../../../src/algorithms/utils/snapshotGraph";
-import { resolveEdgeCapacity } from "../../../src/data/ingest";
 import type { Graph } from "../../../src/Graph";
 import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
 
@@ -176,7 +175,10 @@ function legacyMaxFlow(graph: Graph, sourceOption?: string | number, sinkOption?
     for (const edge of graphEdges) {
         const [srcId, dstId] = [String(edge.source), String(edge.target)];
         const key = `${srcId}:${dstId}`;
-        const total = (capacityOf.get(key) ?? 0) + resolveEdgeCapacity(dm.edges.get(edge.id) ?? {});
+        // The old adapter's own capacity rule, written out so it does not share code with the port.
+        const record: Record<string, unknown> = dm.edges.get(edge.id) ?? {};
+        const raw = record.capacity ?? record.value ?? 1;
+        const total = (capacityOf.get(key) ?? 0) + (typeof raw === "number" ? raw : 1);
         capacityOf.set(key, total);
         capacityGraph.removeEdge(srcId, dstId);
         capacityGraph.addEdge(srcId, dstId, total);

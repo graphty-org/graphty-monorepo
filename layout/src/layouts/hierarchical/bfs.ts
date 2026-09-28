@@ -1,10 +1,15 @@
+import { bfsLayers } from "../../indexed/bfs";
+import { layeredRows, multipartitePlace } from "../../indexed/multipartite";
+import { toLayoutSnapshot } from "../../simulation/snapshot";
 import type { Graph, Node, PositionMap } from "../../types";
-import { getNeighbors,getNodesFromGraph } from "../../utils/graph";
+import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
-import { multipartiteLayout } from "./multipartite";
+import { shellsToPositionMap } from "../geometric/shell";
 
 /**
- * Position nodes according to breadth-first search algorithm.
+ * Position nodes according to breadth-first search algorithm: layer k holds the nodes k hops from `start`, laid out
+ * as `multipartiteLayout` lays out its layers. Each node's neighbours are visited in node order (the order of
+ * `G.nodes()`), not edge order.
  * @param G - Graph
  * @param start - Starting node for bfs
  * @param align - The alignment of layers: 'vertical' or 'horizontal'
@@ -25,56 +30,22 @@ export function bfsLayout(
     if (Array.isArray(processed.G)) {
         throw new Error("BFS layout requires a Graph with edges, not just a list of nodes");
     }
-
-    const graph = processed.G;
     ({ center } = processed);
-
-    const allNodes = getNodesFromGraph(graph);
-
-    if (allNodes.length === 0) {
+    if (getNodesFromGraph(G).length === 0) {
         return {};
     }
 
-    // Compute BFS layers
-    const layers: Record<number, Node[]> = {};
-    const visited = new Set<Node>();
-    let currentLayer = 0;
-
-    // Starting layer
-    layers[currentLayer] = [start];
-    visited.add(start);
-
-    // BFS traversal
-    while (Object.values(layers).flat().length < allNodes.length) {
-        const nextLayer: Node[] = [];
-        const currentNodes = layers[currentLayer];
-
-        for (const node of currentNodes) {
-            // Get neighbors - this is a simplified approach
-            // In a real implementation, we would get neighbors from the graph
-            const neighbors = getNeighbors(graph, node);
-
-            for (const neighbor of neighbors) {
-                if (!visited.has(neighbor)) {
-                    nextLayer.push(neighbor);
-                    visited.add(neighbor);
-                }
-            }
-        }
-
-        if (nextLayer.length === 0) {
-            // No more connected nodes
-            const unvisited: Node[] = allNodes.filter((node: Node) => !visited.has(node));
-            if (unvisited.length > 0) {
-                throw new Error("bfs_layout didn't include all nodes. Graph may be disconnected.");
-            }
-            break;
-        }
-
-        currentLayer++;
-        layers[currentLayer] = nextLayer;
+    const s = toLayoutSnapshot(G);
+    if (!s.ids.has(start)) {
+        throw new Error(`start node ${String(start)} is not in the graph`);
     }
-
-    // Use multipartite_layout to position the layers
-    return multipartiteLayout(graph, layers, align, scale, center);
+    const layers = bfsLayers(s, s.ids.indexOf(start));
+    const ids = Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i));
+    // multipartiteLayout rescales around the centre before it swaps x and y
+    const rescaleCenter = align === "horizontal" ? [center[1], center[0]] : center;
+    return shellsToPositionMap(
+        layeredRows(s.nodeCount, layers, multipartitePlace, align, scale, rescaleCenter),
+        layers,
+        ids,
+    );
 }

@@ -1,19 +1,26 @@
+import { type GraphSnapshot, isGraphSnapshot } from "@graphty/graph-format";
+
+import { groupsOfColumn, layeredRows, multipartitePlace } from "../../indexed/multipartite";
+import { toLayoutSnapshot } from "../../simulation/snapshot";
 import type { Graph, Node, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
-import { _processParams } from "../../utils/params";
-import { rescaleLayout } from "../../utils/rescale";
+import { nodeListsToRows, shellsToPositionMap } from "../geometric/shell";
 
 /**
  * Position nodes in layers of straight lines (multipartite layout).
- * @param G - Graph or list of nodes
- * @param subsetKey - Object mapping layers to node sets, or node attribute name
+ *
+ * With `horizontal` alignment the layout is rescaled around `center` before x and y are swapped, so it is centred
+ * on `[center[1], center[0]]`; `indexed.multipartite` centres on `center` itself.
+ * @param G - Graph, or a GraphSnapshot when `subsetKey` names a node column
+ * @param subsetKey - Object mapping layers to node sets, or the name of a `u32` or `dict` node column of a
+ * GraphSnapshot whose equal values form one layer, in ascending value order
  * @param align - The alignment of nodes: 'vertical' or 'horizontal'
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
- * @returns Positions dictionary keyed by node
+ * @returns Positions dictionary keyed by node; a node in no layer is left out
  */
 export function multipartiteLayout(
-    G: Graph,
+    G: Graph | GraphSnapshot,
     subsetKey: Record<number | string, Node | Node[]> | string = "subset",
     align: "vertical" | "horizontal" = "vertical",
     scale: number = 1,
@@ -22,66 +29,35 @@ export function multipartiteLayout(
     if (align !== "vertical" && align !== "horizontal") {
         throw new Error("align must be either vertical or horizontal");
     }
-
-    const processed = _processParams(G, center || [0, 0], 2);
-    const graph = processed.G;
-    ({ center } = processed);
-
-    const allNodes = getNodesFromGraph(graph);
-
-    if (allNodes.length === 0) {
+    center ??= [0, 0];
+    if (center.length !== 2) {
+        throw new Error("length of center coordinates must match dimension of layout");
+    }
+    const s = toLayoutSnapshot(G);
+    const nodes = isGraphSnapshot(G)
+        ? Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i))
+        : getNodesFromGraph(G);
+    if (nodes.length === 0) {
         return {};
     }
 
-    // Convert subsetKey to a layer mapping if it's a string
-    let layers: Record<number | string, Node[]> = {};
+    let rowIds: readonly Node[] = nodes;
+    let layers: number[][];
     if (typeof subsetKey === "string") {
-        // In JS we don't have access to node attributes directly
-        // This is a simplification - in a real implementation we would need
-        // to access node attributes from the graph
-        console.warn("Using string subsetKey requires node attributes, using default partitioning");
-        // Create a simple partitioning as fallback
-        layers = { 0: allNodes };
+        if (!isGraphSnapshot(G)) {
+            throw new Error(
+                `subsetKey "${subsetKey}" names a node column, and only a GraphSnapshot has node columns; pass the layers instead`,
+            );
+        }
+        layers = groupsOfColumn(G, subsetKey, "subset");
     } else {
-        // subsetKey is already a mapping of layers to nodes
-        // Convert single nodes to arrays
-        for (const [key, value] of Object.entries(subsetKey)) {
-            if (Array.isArray(value)) {
-                layers[key] = value;
-            } else {
-                layers[key] = [value];
-            }
-        }
+        const lists = Object.values(subsetKey).map((value) => (Array.isArray(value) ? value : [value]));
+        ({ rowIds, lists: layers } = nodeListsToRows(nodes, lists));
     }
-
-    const layerCount = Object.keys(layers).length;
-    let pos: PositionMap = {};
-
-    // Process each layer
-    Object.entries(layers).forEach(([_layer, nodes], layerIdx) => {
-        const layerNodes = Array.isArray(nodes) ? nodes : [nodes];
-        const layerSize = layerNodes.length;
-
-        layerNodes.forEach((node, nodeIdx) => {
-            // Place nodes in a grid: layerIdx determines x-coordinate (column)
-            // nodeIdx determines y-coordinate (row position within column)
-            const x = layerIdx - (layerCount - 1) / 2;
-            const y = nodeIdx - (layerSize - 1) / 2;
-            pos[node] = [x, y];
-        });
-    });
-
-    // Rescale positions
-    pos = rescaleLayout(pos, scale, center) as PositionMap;
-
-    // Handle horizontal alignment
-    if (align === "horizontal") {
-        for (const node in pos) {
-            const temp = pos[node][0];
-            pos[node][0] = pos[node][1];
-            pos[node][1] = temp;
-        }
-    }
-
-    return pos;
+    const rescaleCenter = align === "horizontal" ? [center[1], center[0]] : center;
+    return shellsToPositionMap(
+        layeredRows(rowIds.length, layers, multipartitePlace, align, scale, rescaleCenter),
+        layers,
+        rowIds,
+    );
 }

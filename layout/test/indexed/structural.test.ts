@@ -1,7 +1,7 @@
 import assert from "node:assert";
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
-import { describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 
 import {
     bfsLayout,
@@ -331,5 +331,60 @@ describe("indexed.spectral", () => {
         const r = indexed.spectral(graph(2, [[0, 1]]), { scale: 2, center: [1, 1] });
         assert.deepEqual(row(r, 0), [-1, -1]);
         assert.deepEqual(row(r, 1), [3, 3]);
+    });
+});
+
+describe("legacy wrappers over the indexed layouts", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it("multipartiteLayout reads a string subsetKey as a node column of a snapshot, with no console output", () => {
+        const spies = (["log", "info", "warn", "error", "debug"] as const).map((method) =>
+            vi.spyOn(console, method).mockImplementation(() => undefined),
+        );
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 5,
+            src: Uint32Array.of(0, 1),
+            dst: Uint32Array.of(2, 3),
+            nodeColumns: { layer: Uint32Array.of(1, 1, 0, 0, 0) },
+        });
+        const pos = multipartiteLayout(s, "layer", "vertical", 2);
+        matchesLegacy(pos, multipartiteLayout(duck(s), [[2, 3, 4], [0, 1]], "vertical", 2));
+        // layer 0 (nodes 2, 3, 4) left of layer 1
+        assert.ok(pos[2][0] < pos[0][0]);
+        for (const spy of spies) {
+            assert.equal(spy.mock.calls.length, 0);
+        }
+    });
+
+    it("multipartiteLayout rejects a string subsetKey for a graph with no node columns", () => {
+        assert.throws(() => multipartiteLayout(completeGraph(3)), /only a GraphSnapshot has node columns/);
+    });
+
+    it("bfsLayout rejects a start node that is not in the graph", () => {
+        assert.throws(() => bfsLayout(completeGraph(3), 7), /start node 7 is not in the graph/);
+    });
+
+    it("keep their key order: layer by layer for the layered layouts, node order for the others", () => {
+        const g: Graph = {
+            nodes: () => ["c", "b", "a"],
+            edges: () => [
+                ["c", "a"],
+                ["a", "b"],
+            ],
+        };
+        assert.deepEqual(Object.keys(multipartiteLayout(g, [["a"], ["c", "b"]])), ["a", "c", "b"]);
+        assert.deepEqual(Object.keys(bipartiteLayout(g, ["b"])), ["b", "c", "a"]);
+        assert.deepEqual(Object.keys(bfsLayout(g, "b")), ["b", "a", "c"]);
+        assert.deepEqual(Object.keys(spectralLayout(g, 1, null, 2, 1)), ["c", "b", "a"]);
+        assert.deepEqual(Object.keys(planarLayout(g, 1, null, 2, 1)), ["c", "b", "a"]);
+    });
+
+    it("multipartiteLayout and bipartiteLayout still place a node the lists name but the graph does not", () => {
+        const g: Graph = { nodes: () => ["a", "b"], edges: () => [] };
+        assert.deepEqual(Object.keys(multipartiteLayout(g, [["a"], ["z"]])), ["a", "z"]);
+        assert.deepEqual(Object.keys(bipartiteLayout(g, ["z"])), ["z", "a", "b"]);
     });
 });

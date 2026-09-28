@@ -8,12 +8,11 @@
 import { describe, expect, it } from "vitest";
 
 import { girvanNewman } from "../../../src/algorithms/community/girvan-newman.js";
-import { girvanNewman as legacyGirvanNewman } from "../../../src/algorithms/community/girvan-newman-legacy.js";
 import { getKCore, kCoreDecomposition } from "../../../src/clustering/k-core.js";
-import { kCoreDecomposition as legacyKCoreDecomposition } from "../../../src/clustering/k-core-legacy.js";
 import { Graph } from "../../../src/core/graph.js";
 import type { GirvanNewmanOptions } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -103,24 +102,12 @@ describe("kCoreDecomposition facade", () => {
                 ]),
             },
         ];
-        expectFacadeMatchesLegacy([...undirected, ...directed], legacyKCoreDecomposition, kCoreDecomposition);
+        expectFacadeMatchesLegacy([...undirected, ...directed], kCoreDecomposition);
     });
 
     it("gives getKCore the old member set for every k", () => {
         for (const k of [-1, 0, 1, 2, 3, 4, 5, 1.5, Infinity]) {
-            expectFacadeMatchesLegacy(
-                undirected,
-                (g) => {
-                    const out = new Set<string>();
-                    for (const [node, core] of legacyKCoreDecomposition(g).coreness) {
-                        if (core >= k) {
-                            out.add(node);
-                        }
-                    }
-                    return out;
-                },
-                (g) => getKCore(g, k),
-            );
+            expectFacadeMatchesLegacy(undirected, (g) => getKCore(g, k));
         }
     });
 
@@ -135,14 +122,9 @@ describe("kCoreDecomposition facade", () => {
 
 describe("girvanNewman facade", () => {
     it("returns the old dendrogram on every fixture", () => {
-        expectFacadeMatchesLegacy(
-            undirected,
-            (g) => legacyGirvanNewman(g),
-            (g) => girvanNewman(g),
-            {
-                tolerance: 1e-9,
-            },
-        );
+        expectFacadeMatchesLegacy(undirected, (g) => girvanNewman(g), {
+            tolerance: 1e-9,
+        });
     });
 
     it("stops where the old code did for every stopping option", () => {
@@ -161,12 +143,7 @@ describe("girvanNewman facade", () => {
             { maxIterations: NaN },
         ];
         for (const option of options) {
-            expectFacadeMatchesLegacy(
-                small,
-                (g) => legacyGirvanNewman(g, option),
-                (g) => girvanNewman(g, option),
-                { tolerance: 1e-9 },
-            );
+            expectFacadeMatchesLegacy(small, (g) => girvanNewman(g, option), { tolerance: 1e-9 });
         }
     });
 
@@ -193,7 +170,7 @@ describe("girvanNewman facade", () => {
 
     it("throws on a directed graph, as the old code did", () => {
         const g = directedFixtures()[0].graph;
-        expect(() => legacyGirvanNewman(g)).toThrow("requires an undirected graph");
+        expect(() => legacyResult<CommunityResult[]>()).toThrow("requires an undirected graph");
         expect(() => girvanNewman(g)).toThrow("requires an undirected graph");
     });
 });

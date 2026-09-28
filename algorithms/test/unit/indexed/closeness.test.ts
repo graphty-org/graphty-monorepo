@@ -1,14 +1,10 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    closenessCentrality as legacyCloseness,
-    nodeClosenessCentrality as legacyNodeCloseness,
-    weightedClosenessCentrality as legacyWeightedCloseness,
-} from "../../../src/algorithms/centrality/closeness.js";
 import { Graph } from "../../../src/core/graph.js";
 import { closenessCentrality, nodeClosenessCentrality } from "../../../src/indexed/closeness.js";
 import { exactArcWeights } from "../../../src/indexed/facade.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
@@ -107,7 +103,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true }).scores,
-                    legacyWeightedCloseness(g, options),
+                    legacyResult<Record<string, number>>(),
                 );
             }
         }
@@ -145,7 +141,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true }).scores,
-                    legacyWeightedCloseness(g, options),
+                    legacyResult<Record<string, number>>(),
                 );
             }
         }
@@ -167,7 +163,7 @@ describe("indexed.closenessCentrality", () => {
             expectMatches(
                 s,
                 closenessCentrality(s, { ...options, weighted: true }).scores,
-                legacyWeightedCloseness(g, options),
+                legacyResult<Record<string, number>>(),
             );
         }
     });
@@ -185,13 +181,13 @@ describe("indexed.closenessCentrality", () => {
             const s = checksummedSnapshot(graph);
             const weights = exactArcWeights(s);
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1, normalized: true }]) {
-                expectMatches(s, closenessCentrality(s, options).scores, legacyCloseness(graph, options));
+                expectMatches(s, closenessCentrality(s, options).scores, legacyResult<Record<string, number>>());
             }
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1.5, harmonic: true }]) {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true, weights }).scores,
-                    legacyWeightedCloseness(graph, options),
+                    legacyResult<Record<string, number>>(),
                 );
             }
             s.validate({ checksum: true });
@@ -207,19 +203,19 @@ describe("indexed.closenessCentrality", () => {
             expectMatches(
                 s,
                 closenessCentrality(s, { ...options, weighted: true, weights }).scores,
-                legacyWeightedCloseness(g, options),
+                legacyResult<Record<string, number>>(),
             );
         }
         s.validate({ checksum: true });
     });
 
-    for (const { name, snapshot, legacy } of multigraphFixtures()) {
+    for (const { name, snapshot } of multigraphFixtures()) {
         it(`equals legacy on the merged graph for the ${name}`, () => {
             for (const options of [...OPTION_SETS, { cutoff: 1 }]) {
                 expectMatches(
                     snapshot,
                     closenessCentrality(snapshot, options).scores,
-                    legacyCloseness(legacy, options),
+                    legacyResult<Record<string, number>>(),
                 );
             }
             snapshot.validate({ checksum: true });
@@ -238,7 +234,7 @@ describe("indexed.nodeClosenessCentrality", () => {
                 expect(nodeClosenessCentrality(s, v, options)).toBe(all[v]);
             }
         }
-        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyNodeCloseness(g, "b"));
+        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyResult<number>());
         s.validate({ checksum: true });
     });
 

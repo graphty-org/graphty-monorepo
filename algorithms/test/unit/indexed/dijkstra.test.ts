@@ -1,10 +1,10 @@
 import { expandEdges, GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { dijkstra as legacyDijkstra } from "../../../src/algorithms/shortest-path/dijkstra.js";
 import { Graph } from "../../../src/core/graph.js";
 import { PathWalkError } from "../../../src/errors.js";
 import { dijkstra, walkPredArcs, walkPredEdges } from "../../../src/indexed/dijkstra.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 // a = 0, b = 1, c = 2, d = 3 (insertion order, invariant I14); z = 4 when isolated.
@@ -104,7 +104,7 @@ describe("indexed.dijkstra", () => {
             graph.addEdge("c", "b", 2);
             const s = checksummedSnapshot(graph);
             const r = dijkstra(s, 0);
-            const legacy = legacyDijkstra(graph, "a");
+            const legacy = legacyResult<Map<NodeId, ShortestPathResult>>();
             for (let i = 0; i < s.nodeCount; i++) {
                 const expected = legacy.get(s.ids.idOf(i))?.distance;
                 if (expected === undefined || !Number.isFinite(expected)) {

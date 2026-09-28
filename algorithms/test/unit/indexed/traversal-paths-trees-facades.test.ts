@@ -33,23 +33,7 @@ import { depthFirstSearch, hasCycleDFS, topologicalSort } from "../../../src/alg
 import { Graph } from "../../../src/core/graph.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
-import {
-    legacyBreadthFirstSearch,
-    legacyCondensationGraph,
-    legacyConnectedComponents,
-    legacyDepthFirstSearch,
-    legacyGetConnectedComponent,
-    legacyHasCycleDFS,
-    legacyHasNegativeCycle,
-    legacyIsBipartite,
-    legacyKruskalMST,
-    legacyShortestPathBFS,
-    legacySingleSourceShortestPath,
-    legacySingleSourceShortestPathBFS,
-    legacyStronglyConnectedComponents,
-    legacyTopologicalSort,
-    legacyWeaklyConnectedComponents,
-} from "../../helpers/legacy-traversal-paths-trees.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { gnm, offGridWeights } from "./port-fixtures.js";
 import { directedTraversalFixtures, undirectedTraversalFixtures } from "./traversal-fixtures.js";
 
@@ -108,34 +92,34 @@ describe("breadth-first search facades", () => {
     it("breadthFirstSearch gives legacy's order, visited set, tree and callbacks", () => {
         const run = (bfs: typeof breadthFirstSearch) =>
             fromEachStart((g, start) => withVisits((visitCallback) => bfs(g, start, { visitCallback })));
-        expectFacadeMatchesLegacy(all, run(legacyBreadthFirstSearch), run(breadthFirstSearch));
+        expectFacadeMatchesLegacy(all, run(breadthFirstSearch));
     });
 
     it("breadthFirstSearch stops at a target where legacy does, and ignores one not in the graph", () => {
         const run = (bfs: typeof breadthFirstSearch) =>
             fromEachStart((g, start) => {
-                const targetNode = middleOf(legacyBreadthFirstSearch(g, start).order);
+                const targetNode = middleOf(legacyResult<TraversalResult>().order);
                 return [
                     withVisits((visitCallback) => bfs(g, start, { targetNode, visitCallback })),
                     bfs(g, start, { targetNode: "no such node" }),
                 ];
             });
-        expectFacadeMatchesLegacy(all, run(legacyBreadthFirstSearch), run(breadthFirstSearch));
+        expectFacadeMatchesLegacy(all, run(breadthFirstSearch));
     });
 
     it("shortestPathBFS gives legacy's path, distance and predecessor map, or null", () => {
         const run = (sp: typeof shortestPathBFS) => (g: Graph) =>
             fromEachStart((graph, source) => ids(graph).map((target) => sp(graph, source, target)))(g);
-        expectFacadeMatchesLegacy(all, run(legacyShortestPathBFS), run(shortestPathBFS));
+        expectFacadeMatchesLegacy(all, run(shortestPathBFS));
     });
 
     it("singleSourceShortestPathBFS gives legacy's entries in legacy order", () => {
         const run = (sp: typeof singleSourceShortestPathBFS) => fromEachStart((g, source) => sp(g, source));
-        expectFacadeMatchesLegacy(all, run(legacySingleSourceShortestPathBFS), run(singleSourceShortestPathBFS));
+        expectFacadeMatchesLegacy(all, run(singleSourceShortestPathBFS));
     });
 
     it("isBipartite agrees with legacy on every undirected fixture", () => {
-        expectFacadeMatchesLegacy(undirected, legacyIsBipartite, isBipartite);
+        expectFacadeMatchesLegacy(undirected, isBipartite);
     });
 
     it("gives a graph above 10,000 nodes the same answer as a small one", () => {
@@ -143,21 +127,16 @@ describe("breadth-first search facades", () => {
         // and callbacks differed from the standard walk and which ignored targetNode.
         const big = [{ name: "random 10,050 nodes, 20,000 edges", graph: gnm(10_050, 20_000, false, 777) }];
         const target = "n42";
-        expectFacadeMatchesLegacy(
-            big,
-            (g) => [legacyBreadthFirstSearch(g, "n0", { targetNode: target }), legacyShortestPathBFS(g, "n0", target)],
-            (g) => [breadthFirstSearch(g, "n0", { targetNode: target }), shortestPathBFS(g, "n0", target)],
-        );
+        expectFacadeMatchesLegacy(big, (g) => [
+            breadthFirstSearch(g, "n0", { targetNode: target }),
+            shortestPathBFS(g, "n0", target),
+        ]);
         // Every entry shares one 10,000-entry predecessor map: compare it once, and the rest per entry.
         const flat = (r: ReturnType<typeof singleSourceShortestPathBFS>): unknown => [
             r.get("n1")?.predecessor,
             Array.from(r, ([id, { distance, path }]) => [id, distance, path]),
         ];
-        expectFacadeMatchesLegacy(
-            big,
-            (g) => flat(legacySingleSourceShortestPathBFS(g, "n1")),
-            (g) => flat(singleSourceShortestPathBFS(g, "n1")),
-        );
+        expectFacadeMatchesLegacy(big, (g) => flat(singleSourceShortestPathBFS(g, "n1")));
     });
 });
 
@@ -171,75 +150,49 @@ describe("depth-first search facades", () => {
                     withVisits((visitCallback) => dfs(g, start, { ...options, visitCallback })),
                 ),
             );
-        expectFacadeMatchesLegacy(all, run(legacyDepthFirstSearch), run(depthFirstSearch));
+        expectFacadeMatchesLegacy(all, run(depthFirstSearch));
     });
 
     it("depthFirstSearch stops at a target where legacy does, in every mode", () => {
         const run = (dfs: typeof depthFirstSearch) =>
             fromEachStart((g, start) => {
-                const targetNode = middleOf(legacyDepthFirstSearch(g, start).order);
+                const targetNode = middleOf(legacyResult<TraversalResult>().order);
                 return optionSets.map((options) =>
                     withVisits((visitCallback) => dfs(g, start, { ...options, targetNode, visitCallback })),
                 );
             });
-        expectFacadeMatchesLegacy(all, run(legacyDepthFirstSearch), run(depthFirstSearch));
+        expectFacadeMatchesLegacy(all, run(depthFirstSearch));
     });
 
     it("hasCycleDFS agrees with legacy", () => {
-        expectFacadeMatchesLegacy(all, legacyHasCycleDFS, hasCycleDFS);
+        expectFacadeMatchesLegacy(all, hasCycleDFS);
     });
 
     it("topologicalSort gives legacy's order, or null", () => {
-        expectFacadeMatchesLegacy(directed, legacyTopologicalSort, topologicalSort);
+        expectFacadeMatchesLegacy(directed, topologicalSort);
     });
 });
 
 describe("component facades", () => {
     it("connectedComponents and the functions built on it give legacy's groups in legacy order", () => {
-        expectFacadeMatchesLegacy(
-            undirected,
-            (g) => {
-                const groups = legacyConnectedComponents(g);
-                const largest = groups.reduce<NodeId[]>((a, b) => (b.length > a.length ? b : a), []);
-                return [groups, groups.length, groups.length <= 1, largest];
-            },
-            (g) => [
-                connectedComponents(g),
-                numberOfConnectedComponents(g),
-                isConnected(g),
-                largestConnectedComponent(g),
-            ],
-        );
+        expectFacadeMatchesLegacy(undirected, (g) => [
+            connectedComponents(g),
+            numberOfConnectedComponents(g),
+            isConnected(g),
+            largestConnectedComponent(g),
+        ]);
     });
 
     it("getConnectedComponent gives legacy's members in legacy order from every node", () => {
-        expectFacadeMatchesLegacy(
-            undirected,
-            (g) => ids(g).map((id) => legacyGetConnectedComponent(g, id)),
-            (g) => ids(g).map((id) => getConnectedComponent(g, id)),
-        );
+        expectFacadeMatchesLegacy(undirected, (g) => ids(g).map((id) => getConnectedComponent(g, id)));
     });
 
     it("weaklyConnectedComponents gives legacy's groups", () => {
-        expectFacadeMatchesLegacy(
-            directed,
-            (g) => {
-                const groups = legacyWeaklyConnectedComponents(g);
-                return [groups, groups.length <= 1];
-            },
-            (g) => [weaklyConnectedComponents(g), isWeaklyConnected(g)],
-        );
+        expectFacadeMatchesLegacy(directed, (g) => [weaklyConnectedComponents(g), isWeaklyConnected(g)]);
     });
 
     it("stronglyConnectedComponents gives legacy's components and members in legacy order", () => {
-        expectFacadeMatchesLegacy(
-            directed,
-            (g) => {
-                const groups = legacyStronglyConnectedComponents(g);
-                return [groups, groups.length <= 1];
-            },
-            (g) => [stronglyConnectedComponents(g), isStronglyConnected(g)],
-        );
+        expectFacadeMatchesLegacy(directed, (g) => [stronglyConnectedComponents(g), isStronglyConnected(g)]);
     });
 
     it("condensationGraph gives legacy's component map, components and condensed edges", () => {
@@ -249,11 +202,7 @@ describe("component facades", () => {
             nodes: ids(r.condensedGraph),
             edges: Array.from(r.condensedGraph.edges(), (e) => [e.source, e.target, e.weight]),
         });
-        expectFacadeMatchesLegacy(
-            directed,
-            (g) => shape(legacyCondensationGraph(g)),
-            (g) => shape(condensationGraph(g)),
-        );
+        expectFacadeMatchesLegacy(directed, (g) => shape(condensationGraph(g)));
     });
 });
 
@@ -294,22 +243,17 @@ describe("shortest path facades", () => {
         for (const cutoff of [undefined, 0, 1, 2.5, -1]) {
             expectFacadeMatchesLegacy(
                 fixtures,
-                fromEachStart((g, s) => legacySingleSourceShortestPath(g, s, cutoff)),
                 fromEachStart((g, s) => singleSourceShortestPath(g, s, cutoff)),
             );
         }
     });
 
     it("allPairsShortestPath gives repeated legacy singleSourceShortestPath", () => {
-        expectFacadeMatchesLegacy(
-            [...weighted, ...negativeWeights()],
-            (g) => new Map(ids(g).map((id) => [id, legacySingleSourceShortestPath(g, id)])),
-            allPairsShortestPath,
-        );
+        expectFacadeMatchesLegacy([...weighted, ...negativeWeights()], allPairsShortestPath);
     });
 
     it("hasNegativeCycle agrees with legacy", () => {
-        expectFacadeMatchesLegacy([...weighted, ...negativeWeights()], legacyHasNegativeCycle, hasNegativeCycle);
+        expectFacadeMatchesLegacy([...weighted, ...negativeWeights()], hasNegativeCycle);
     });
 });
 
@@ -327,8 +271,8 @@ describe("minimum spanning tree facades", () => {
 
     it("kruskalMST gives legacy's edges (the graph's own objects), order and total, or its error", () => {
         const fixtures = [...offGrid(undirected.slice(0, -1)), ...undirected];
-        expectFacadeMatchesLegacy(fixtures, outcome(legacyKruskalMST), outcome(kruskalMST));
-        expectFacadeMatchesLegacy(fixtures, outcome(legacyKruskalMST), outcome(minimumSpanningTree));
+        expectFacadeMatchesLegacy(fixtures, outcome(kruskalMST));
+        expectFacadeMatchesLegacy(fixtures, outcome(minimumSpanningTree));
     });
 
     it("gives legacy's result where two edges' ids spell the same key", () => {
@@ -348,7 +292,7 @@ describe("minimum spanning tree facades", () => {
             { name: '0 and "0"', graph: collide },
             { name: '1-2 and "1"-"2"', graph: disconnects },
         ];
-        expectFacadeMatchesLegacy(fixtures, outcome(legacyKruskalMST), outcome(kruskalMST));
+        expectFacadeMatchesLegacy(fixtures, outcome(kruskalMST));
     });
 
     it("returns the graph's own edge objects, as legacy did", () => {

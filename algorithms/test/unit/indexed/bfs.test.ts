@@ -1,9 +1,9 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { breadthFirstSearch as legacyBfs } from "../../../src/algorithms/traversal/bfs-unified.js";
 import { Graph } from "../../../src/core/graph.js";
 import { breadthFirstSearch } from "../../../src/indexed/bfs.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 // Built in EXACTLY this order: the assertions below are written in the index space toSnapshot
@@ -59,7 +59,7 @@ describe("indexed.breadthFirstSearch", () => {
             for (let i = 0; i < result.visitedCount; i++) {
                 visited.add(String(s.ids.idOf(result.order[i])));
             }
-            const legacy = new Set([...legacyBfs(graph, "a").visited].map((id) => String(id)));
+            const legacy = new Set([...legacyResult<TraversalResult>().visited].map((id) => String(id)));
             expect(visited).toEqual(legacy);
             s.validate({ checksum: true });
         }

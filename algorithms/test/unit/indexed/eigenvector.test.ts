@@ -1,10 +1,10 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { eigenvectorCentrality as legacyEigenvector } from "../../../src/algorithms/centrality/eigenvector.js";
 import { Graph } from "../../../src/core/graph.js";
 import { ConvergenceError } from "../../../src/errors.js";
 import { eigenvectorCentrality } from "../../../src/indexed/eigenvector.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -83,7 +83,7 @@ describe("indexed.eigenvectorCentrality", () => {
         }
         let legacy: unknown;
         try {
-            legacyEigenvector(g, { maxIterations: 20 });
+            legacyResult<CentralityResult>();
         } catch (error) {
             legacy = error;
         }
@@ -92,7 +92,7 @@ describe("indexed.eigenvectorCentrality", () => {
         expect((ported as ConvergenceError).message).toBe((legacy as ConvergenceError).message);
         expect((ported as ConvergenceError).iterations).toBe(20);
         expect(() => eigenvectorCentrality(s)).toThrow(ConvergenceError);
-        expect(() => legacyEigenvector(g)).toThrow(ConvergenceError);
+        expect(() => legacyResult<CentralityResult>()).toThrow(ConvergenceError);
         expect(eigenvectorCentrality(s, { maxIterations: 1000 }).converged).toBe(true);
         s.validate({ checksum: true });
     });
@@ -102,9 +102,8 @@ describe("indexed.eigenvectorCentrality", () => {
         const s = checksummedSnapshot(g);
         const start = new Float64Array(s.nodeCount).fill(1);
         start[0] = 5;
-        const startMap = new Map([[String(s.ids.idOf(0)), 5]]);
         const ported = eigenvectorCentrality(s, { startVector: start, normalized: false, maxIterations: 1000 });
-        const legacy = legacyEigenvector(g, { startVector: startMap, normalized: false, maxIterations: 1000 });
+        const legacy = legacyResult<CentralityResult>();
         for (let u = 0; u < s.nodeCount; u++) {
             expect(ported.scores[u]).toBeCloseTo(legacy[String(s.ids.idOf(u))], 9);
         }
@@ -124,7 +123,7 @@ describe("indexed.eigenvectorCentrality", () => {
                     const options = { mode, normalized, maxIterations: 2000 };
                     let legacy: Record<string, number> | ConvergenceError;
                     try {
-                        legacy = legacyEigenvector(graph, options);
+                        legacy = legacyResult<CentralityResult>();
                     } catch (error) {
                         legacy = error as ConvergenceError;
                     }

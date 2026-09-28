@@ -4,37 +4,12 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { teraHAC } from "../../../src/indexed/terahac.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { type ClusterNode, teraHAC as legacyTeraHAC, type TeraHACConfig } from "../../../src/research/terahac.js";
+import { type ClusterNode, type TeraHACConfig } from "../../../src/research/terahac.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
-
-/**
- * The same graph with every node renamed to its insertion index. Legacy `teraHAC` looks cluster
- * members up in its distance matrix by `parseInt(String(id))`, so it computes the right distances
- * only when the ids ARE the indices; on these graphs it is a correct oracle.
- */
-function numbered(g: Graph): Graph {
-    const index = new Map<NodeId, number>();
-    for (const node of g.nodes()) {
-        index.set(node.id, index.size);
-    }
-    const out = new Graph({ directed: g.isDirected });
-    for (const i of index.values()) {
-        out.addNode(i);
-    }
-    for (const e of g.edges()) {
-        out.addEdge(index.get(e.source) ?? -1, index.get(e.target) ?? -1, e.weight);
-    }
-    return out;
-}
-
-/** The legacy dendrogram and merge distances, the parts of the result the port reproduces exactly. */
-function legacyShape(g: Graph, config: TeraHACConfig): { dendrogram: ClusterNode; distances: number[] } {
-    const { dendrogram, distances } = legacyTeraHAC(numbered(g), config);
-    return { dendrogram, distances };
-}
 
 /** The port's dendrogram in the legacy shape, with node indices as ids (what `numbered` gives legacy). */
 function portShape(g: Graph, config: TeraHACConfig): { dendrogram: ClusterNode; distances: number[] } {
@@ -137,10 +112,8 @@ describe("indexed.teraHAC", () => {
             [0, 1, 2, 3],
             [4, 5],
         ]);
-        expectFacadeMatchesLegacy(
-            [{ name: "two triangles and a bridge, string ids", graph: g }],
-            (graph) => legacyShape(graph, { numClusters: 2 }),
-            (graph) => portShape(graph, { numClusters: 2 }),
+        expectFacadeMatchesLegacy([{ name: "two triangles and a bridge, string ids", graph: g }], (graph) =>
+            portShape(graph, { numClusters: 2 }),
         );
         // The same graph with ids 1..6: legacy reads row id, one past the node's own row.
         const shifted = new Graph({ directed: false });
@@ -156,14 +129,10 @@ describe("indexed.teraHAC", () => {
         for (const useGraphDistance of [true, false]) {
             it(`equals legacy on every fixture: ${linkage} linkage, useGraphDistance ${String(useGraphDistance)}`, () => {
                 const config = { linkage, useGraphDistance, onWarning: () => undefined };
-                expectFacadeMatchesLegacy(
-                    fixtures,
-                    (g) => legacyShape(g, config),
-                    (g) => portShape(g, config),
-                );
+                expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, config));
                 for (const { graph } of fixtures) {
                     expectSamePartition(
-                        legacyTeraHAC(numbered(graph), config).clusters,
+                        legacyResult<TeraHACResult>().clusters,
                         teraHAC(toSnapshot(graph), config).labels,
                     );
                 }
@@ -178,16 +147,9 @@ describe("indexed.teraHAC", () => {
             { distanceThreshold: 1.5 },
             { distanceThreshold: 2, linkage: "single" as const },
         ]) {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => legacyShape(g, config),
-                (g) => portShape(g, config),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, config));
             for (const { graph } of fixtures) {
-                expectSamePartition(
-                    legacyTeraHAC(numbered(graph), config).clusters,
-                    teraHAC(toSnapshot(graph), config).labels,
-                );
+                expectSamePartition(legacyResult<TeraHACResult>().clusters, teraHAC(toSnapshot(graph), config).labels);
             }
         }
     });

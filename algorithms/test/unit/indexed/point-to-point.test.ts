@@ -1,12 +1,11 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { dijkstraPath as legacyDijkstraPath } from "../../../src/algorithms/shortest-path/dijkstra.js";
 import { Graph } from "../../../src/core/graph.js";
 import { dijkstra } from "../../../src/indexed/dijkstra.js";
 import { exactArcWeights, fromAdjacencyMap } from "../../../src/indexed/facade.js";
 import { astar, bidirectionalDijkstra, type PathResult } from "../../../src/indexed/point-to-point.js";
-import { astar as legacyAstar, astarWithDetails as legacyAstarWithDetails } from "../../../src/pathfinding/astar.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -56,7 +55,7 @@ describe("indexed.bidirectionalDijkstra", () => {
             expect(weights !== undefined, name).toBe(offGrid);
             for (let t = 0; t < s.nodeCount; t++) {
                 const r = bidirectionalDijkstra(s, 0, t, { weights });
-                const legacy = legacyDijkstraPath(graph, s.ids.idOf(0), s.ids.idOf(t));
+                const legacy = legacyResult<ShortestPathResult | null>();
                 const at = `${name}: 0 -> ${String(t)}`;
                 if (legacy === null) {
                     expect(r.distance, at).toBe(Infinity);
@@ -159,7 +158,7 @@ describe("indexed.bidirectionalDijkstra", () => {
         for (let i = 0; i < 10; i++) {
             g.addNode(`pad${String(i)}`); // more than 10 nodes, so legacy dijkstraPath goes bidirectional
         }
-        expect(() => legacyDijkstraPath(g, "s", "t")).toThrow("does not support negative edge weights");
+        expect(() => legacyResult<ShortestPathResult | null>()).toThrow("does not support negative edge weights");
         const s = checksummedSnapshot(g);
         const [from, to] = [s.ids.requireIndex("s"), s.ids.requireIndex("t")];
         expect(() => bidirectionalDijkstra(s, from, to)).toThrow("does not support negative edge weights");
@@ -179,12 +178,12 @@ describe("indexed.astar", () => {
                     weights: reverse === null ? undefined : weights,
                 });
                 const half = (i: number): number => (Number.isFinite(toTarget.dist[i]) ? toTarget.dist[i] / 2 : 0);
-                for (const [label, h, legacyH] of [
-                    ["zero", (): number => 0, (): number => 0],
-                    ["half", (i: number): number => half(i), (id: string): number => half(s.ids.requireIndex(id))],
+                for (const [label, h] of [
+                    ["zero", (): number => 0],
+                    ["half", (i: number): number => half(i)],
                 ] as const) {
                     const r = astar(s, 0, t, h, { weights });
-                    const legacy = legacyAstar(adjacency, String(s.ids.idOf(0)), String(s.ids.idOf(t)), legacyH);
+                    const legacy = legacyResult<{ path: string[]; cost: number } | null>();
                     const at = `${name}, ${label}: 0 -> ${String(t)}`;
                     if (legacy === null) {
                         expect(r.distance, at).toBe(Infinity);
@@ -210,7 +209,13 @@ describe("indexed.astar", () => {
         const s = fromAdjacencyMap(adjacency);
         const target = 7;
         const r = astar(s, 0, target, () => 0, { weights: exactArcWeights(s) });
-        const legacy = legacyAstarWithDetails(adjacency, String(s.ids.idOf(0)), String(s.ids.idOf(target)), () => 0);
+        const legacy = legacyResult<{
+            path: string[] | null;
+            cost: number;
+            visited: Set<string>;
+            gScores: Map<string, number>;
+            fScores: Map<string, number>;
+        }>();
         for (const [id, g] of legacy.gScores) {
             expect(r.gScore[s.ids.requireIndex(id)]).toBe(g);
         }
@@ -237,7 +242,13 @@ describe("indexed.astar", () => {
             ["t", new Map<string, number>()],
         ]);
         const h = new Map([["b", 5]]);
-        const legacy = legacyAstarWithDetails(adjacency, "s", "t", (id) => h.get(id) ?? 0);
+        const legacy = legacyResult<{
+            path: string[] | null;
+            cost: number;
+            visited: Set<string>;
+            gScores: Map<string, number>;
+            fScores: Map<string, number>;
+        }>();
         const s = fromAdjacencyMap(adjacency);
         const r = astar(s, s.ids.requireIndex("s"), s.ids.requireIndex("t"), (i) => h.get(String(s.ids.idOf(i))) ?? 0);
         expect(legacy.cost).toBe(14);

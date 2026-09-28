@@ -1,8 +1,8 @@
 /**
  * Common-neighbour link prediction over a legacy `Graph`. Every function here delegates to its
  * `indexed.*` port over an unweighted snapshot of the graph (the scores never read a weight) and
- * keeps its signature and result shape; the results equal the pre-migration implementation in
- * `common-neighbors-legacy.ts` exactly.
+ * keeps its signature and result shape; the results equal the pre-migration implementation's
+ * exactly (recorded in `test/golden/unit/indexed/link-prediction-facade.json.gz`).
  *
  * A node argument is looked up by the id itself, never by its spelling, as `graph.hasNode` does: a
  * node that is not in the graph scores 0 and has no candidates.
@@ -23,9 +23,18 @@ import {
 } from "../indexed/link-prediction.js";
 import { toTopologySnapshot } from "../indexed/to-snapshot.js";
 import type { NodeId } from "../types/index.js";
-import type { LinkPredictionOptions, LinkPredictionScore } from "./common-neighbors-legacy.js";
 
-export type { LinkPredictionOptions, LinkPredictionScore } from "./common-neighbors-legacy.js";
+export interface LinkPredictionScore {
+    source: NodeId;
+    target: NodeId;
+    score: number;
+}
+
+export interface LinkPredictionOptions {
+    directed?: boolean; // Consider direction (default: false)
+    includeExisting?: boolean; // Include existing edges (default: false)
+    topK?: number; // Return only top K predictions
+}
 
 /**
  * Id pairs to index pairs; an id not in the graph becomes `INVALID_INDEX`, which scores 0.

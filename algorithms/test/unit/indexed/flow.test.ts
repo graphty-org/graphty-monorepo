@@ -2,16 +2,11 @@ import { expandEdges, GraphBuilder, type GraphSnapshot, maskTest } from "@grapht
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
-import {
-    createBipartiteFlowNetwork,
-    edmondsKarp as legacyEdmondsKarp,
-    fordFulkerson as legacyFordFulkerson,
-    type MaxFlowResult as LegacyMaxFlowResult,
-} from "../../../src/flow/ford-fulkerson.js";
-import { minSTCut as legacyMinSTCut } from "../../../src/flow/min-cut.js";
+import { type MaxFlowResult as LegacyMaxFlowResult } from "../../../src/flow/ford-fulkerson.js";
 import { resolveNode } from "../../../src/indexed/facade.js";
 import { bipartiteFlowNetwork, maxFlow, type MaxFlowResult, minSTCut } from "../../../src/indexed/flow.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { gnm } from "./port-fixtures.js";
 
 interface FlowFixture {
@@ -203,16 +198,13 @@ function capacities(s: GraphSnapshot): Float64Array {
 }
 
 describe("indexed.maxFlow against legacy", () => {
-    for (const [algorithm, legacy] of [
-        ["edmonds-karp", legacyEdmondsKarp],
-        ["ford-fulkerson", legacyFordFulkerson],
-    ] as const) {
+    for (const algorithm of ["edmonds-karp", "ford-fulkerson"] as const) {
         for (const fixture of fixtures()) {
             it(`${algorithm}: ${fixture.name}`, () => {
                 const s = toSnapshot(fixture.graph, { checksum: true });
                 const weights = exactWeights(s);
                 for (const [sourceId, sinkId] of fixture.pairs) {
-                    const expected = legacy(fixture.graph, sourceId, sinkId);
+                    const expected = legacyResult<LegacyMaxFlowResult>();
                     const source = resolveNode(s.ids, sourceId);
                     const sink = resolveNode(s.ids, sinkId);
                     const r = maxFlow(s, source, sink, { algorithm, weights });
@@ -243,7 +235,7 @@ describe("indexed.maxFlow against legacy", () => {
         g.addEdge("b", "t", 3);
         const s = toSnapshot(g, { checksum: true });
         for (const algorithm of ["edmonds-karp", "ford-fulkerson"] as const) {
-            const legacy = (algorithm === "edmonds-karp" ? legacyEdmondsKarp : legacyFordFulkerson)(g, "s", "t");
+            const legacy = legacyResult<LegacyMaxFlowResult>();
             const source = s.ids.indexOf("s");
             const sink = s.ids.indexOf("t");
             const r = maxFlow(s, source, sink, { algorithm });
@@ -350,7 +342,7 @@ describe("indexed.minSTCut against legacy", () => {
             const s = toSnapshot(fixture.graph, { checksum: true });
             const weights = exactWeights(s);
             for (const [sourceId, sinkId] of fixture.pairs) {
-                const expected = legacyMinSTCut(fixture.graph, sourceId, sinkId);
+                const expected = legacyResult<MinCutResult>();
                 const r = minSTCut(s, resolveNode(s.ids, sourceId), resolveNode(s.ids, sinkId), { weights });
                 const at = `${sourceId} -> ${sinkId}`;
                 expect(r.cutValue, at).toBe(expected.cutValue);
@@ -411,7 +403,7 @@ describe("indexed.minSTCut against legacy", () => {
             const source = String(id(0));
             const sink = String(id(n - 1));
             const r = minSTCut(s, resolveNode(s.ids, source), resolveNode(s.ids, sink), { weights });
-            expect(r.cutValue, `trial ${trial}`).toBe(legacyMinSTCut(g, source, sink).cutValue);
+            expect(r.cutValue, `trial ${trial}`).toBe(legacyResult<MinCutResult>().cutValue);
             compared++;
         }
         expect(compared).toBe(60);
@@ -446,8 +438,7 @@ describe("indexed.bipartiteFlowNetwork", () => {
     });
 
     it("gives the same flow as legacy edmondsKarp over createBipartiteFlowNetwork", () => {
-        const legacyNetwork = createBipartiteFlowNetwork(left, right, edges);
-        const expected = legacyEdmondsKarp(legacyNetwork.graph, legacyNetwork.source, legacyNetwork.sink);
+        const expected = legacyResult<LegacyMaxFlowResult>();
         const { snapshot, source, sink } = bipartiteFlowNetwork(left, right, edges);
         const r = maxFlow(snapshot, source, sink);
         expect(r.maxFlow).toBe(expected.maxFlow);

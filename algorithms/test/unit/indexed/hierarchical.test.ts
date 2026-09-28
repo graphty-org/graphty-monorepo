@@ -1,14 +1,10 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    type ClusterNode,
-    cutDendrogram,
-    hierarchicalClustering as legacyHierarchical,
-    type LinkageMethod,
-} from "../../../src/clustering/hierarchical-legacy.js";
+import { type ClusterNode, type LinkageMethod } from "../../../src/clustering/hierarchical-legacy.js";
 import { Graph } from "../../../src/core/graph.js";
 import { hierarchicalClustering, type HierarchicalResult } from "../../../src/indexed/hierarchical.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -114,7 +110,7 @@ describe("indexed.hierarchicalClustering", () => {
         it(`builds the legacy dendrogram exactly with ${linkage} linkage on every fixture`, () => {
             for (const { name, graph } of [...undirectedFixtures(), ...directedFixtures()]) {
                 const s = checksummedSnapshot(graph);
-                const legacy = legacyHierarchical(graph, linkage);
+                const legacy = legacyResult<HierarchicalClusteringResult<string>>();
                 const port = hierarchicalClustering(s, { linkage });
                 expect(plainPort(s, port), name).toEqual(plainLegacy(legacy.root));
                 // One dendrogram entry per leaf and merge, plus the legacy forest node.
@@ -127,7 +123,7 @@ describe("indexed.hierarchicalClustering", () => {
                 const trees = legacy.root.trees ?? [legacy.root];
                 for (let h = 0; h <= legacy.root.height; h++) {
                     const cut = port.cut(h).map((c) => Array.from(c, (i) => String(s.ids.idOf(i))));
-                    const expected = trees.flatMap((t) => cutDendrogram(t, h)).map((set) => [...set]);
+                    const expected = trees.flatMap(() => legacyResult<Set<string>[]>()).map((set) => [...set]);
                     expect(cut, `${name} at height ${h}`).toEqual(expected);
                     if (trees.length === 1) {
                         expect(expected, `${name} at height ${h}`).toEqual(
@@ -165,7 +161,7 @@ describe("indexed.hierarchicalClustering", () => {
             for (const linkage of LINKAGES) {
                 const port = hierarchicalClustering(s, { linkage });
                 expect(plainPort(s, port), `trial ${trial} ${linkage}`).toEqual(
-                    plainLegacy(legacyHierarchical(g, linkage).root),
+                    plainLegacy(legacyResult<HierarchicalClusteringResult<string>>().root),
                 );
             }
         }

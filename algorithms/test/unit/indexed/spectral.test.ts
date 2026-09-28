@@ -1,10 +1,10 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { spectralClustering as legacySpectral } from "../../../src/clustering/spectral.js";
 import { Graph } from "../../../src/core/graph.js";
 import { exactArcWeights } from "../../../src/indexed/facade.js";
 import { type LaplacianType, spectralClustering } from "../../../src/indexed/spectral.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -236,10 +236,7 @@ describe("indexed.spectralClustering", () => {
                     );
                     expect(port, name).not.toBeNull();
                     for (let seed = 1; seed <= 5; seed++) {
-                        const legacy = ritzTrace(
-                            l,
-                            legacySpectral(graph, { k, laplacianType: type, seed }).eigenvectors ?? [],
-                        );
+                        const legacy = ritzTrace(l, legacyResult<SpectralClusteringResult>().eigenvectors ?? []);
                         if (legacy !== null) {
                             expect(port as number, `${name} ${type} k=${k} seed ${seed}`).toBeLessThanOrEqual(
                                 legacy + 1e-9,
@@ -267,7 +264,7 @@ describe("indexed.spectralClustering", () => {
                     );
                     let sum = 0;
                     for (let seed = 1; seed <= 10; seed++) {
-                        const legacy = legacySpectral(graph, { k, laplacianType: type, seed });
+                        const legacy = legacyResult<SpectralClusteringResult>();
                         sum += normalisedCut(graph, s, legacyLabels(s, legacy.communities));
                     }
                     expect(port, `${name} ${type} k=${k}`).toBeLessThanOrEqual(sum / 10 + 1e-9);

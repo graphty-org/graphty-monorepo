@@ -8,7 +8,6 @@
 
 import { describe, expect, it } from "vitest";
 
-import { singleSourceShortestPath } from "../../../src/algorithms/shortest-path/dijkstra.js";
 import {
     floydWarshall,
     floydWarshallPath,
@@ -17,6 +16,7 @@ import {
 import { Graph } from "../../../src/core/graph.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 /** Numeric ids with f64 weights that f32 would round, plus an isolated node. */
@@ -53,7 +53,7 @@ const ids = (g: Graph): NodeId[] => Array.from(g.nodes(), (n) => n.id);
 function dijkstraMatrix(g: Graph): Map<NodeId, Map<NodeId, number>> {
     return new Map(
         ids(g).map((i) => {
-            const reached = singleSourceShortestPath(g, i);
+            const reached = legacyResult<Map<NodeId, number>>();
             return [i, new Map(ids(g).map((j) => [j, reached.get(j) ?? Infinity]))];
         }),
     );
@@ -72,7 +72,7 @@ describe("floydWarshall facade", () => {
     it("gives repeated legacy Dijkstra's distances on every fixture", () => {
         // Floyd-Warshall adds d[i][k] + d[k][j] where Dijkstra extends a path one edge at a time, so
         // on f64 weights the two may round the same sum differently in the last bit.
-        expectFacadeMatchesLegacy(fixtures, dijkstraMatrix, (g) => floydWarshall(g).distances, { tolerance: 1e-12 });
+        expectFacadeMatchesLegacy(fixtures, (g) => floydWarshall(g).distances, { tolerance: 1e-12 });
     });
 
     it("gives each reached pair a predecessor that closes its distance, and null elsewhere", () => {
@@ -215,11 +215,7 @@ describe("floydWarshallPath facade", () => {
 
 describe("transitiveClosure facade", () => {
     it("gives the nodes repeated legacy Dijkstra reaches, in node order", () => {
-        expectFacadeMatchesLegacy(
-            fixtures,
-            (g) => new Map(ids(g).map((i) => [i, new Set(singleSourceShortestPath(g, i).keys())])),
-            transitiveClosure,
-        );
+        expectFacadeMatchesLegacy(fixtures, transitiveClosure);
     });
 
     it("reads reachability, not distance: a sum that overflows to Infinity still reaches", () => {

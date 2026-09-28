@@ -1,12 +1,12 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { kruskalMST as legacyKruskalMST } from "../../../src/algorithms/mst/kruskal.js";
 import { primMST as legacyPrimMST } from "../../../src/algorithms/mst/prim.js";
 import { Graph } from "../../../src/core/graph.js";
 import { exactArcWeights } from "../../../src/indexed/facade.js";
 import { kruskalMST, primMST, type PrimResult } from "../../../src/indexed/mst.js";
 import type { Edge } from "../../../src/types/index.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -74,7 +74,7 @@ describe("indexed.kruskalMST", () => {
         g.addEdge("e", "f", 0.05);
         g.addEdge("d", "f", 2.2);
         const s = checksummedSnapshot(g);
-        const legacy = legacyKruskalMST(g);
+        const legacy = legacyResult<MSTResult>();
         // The default path sums the f32 arc weights, so it agrees with the legacy f64 sum only to
         // about 1e-7 on these values. The f64 shadow column toSnapshot keeps (weightDtype: "f64")
         // reaches the port through the per-arc override, and that is what agrees to 1e-12.
@@ -145,7 +145,7 @@ describe("indexed.primMST", () => {
             expect(weights !== undefined, name).toBe(offGrid);
             let legacy: ReturnType<typeof legacyPrimMST> | null = null;
             try {
-                legacy = legacyPrimMST(graph);
+                legacy = legacyResult<MSTResult>();
             } catch (e) {
                 expect((e as Error).message, name).toBe("Graph is not connected");
             }
@@ -183,7 +183,7 @@ describe("indexed.primMST", () => {
                         sub.addEdge(e.source, e.target, e.weight);
                     }
                 }
-                const part = legacyPrimMST(sub);
+                const part = legacyResult<MSTResult>();
                 expected.push(...part.edges);
                 total += part.totalWeight;
             }
@@ -221,7 +221,7 @@ describe("indexed.primMST", () => {
         const s = checksummedSnapshot(g);
         const weights = exactArcWeights(s);
         const r = primMST(s, { weights, start: 9 });
-        const legacy = legacyPrimMST(g, s.ids.idOf(9));
+        const legacy = legacyResult<MSTResult>();
         expect(portKeys(s, r, weights ?? null)).toEqual(legacyKeys(legacy.edges));
         expect(r.totalWeight).toBe(legacy.totalWeight);
     });

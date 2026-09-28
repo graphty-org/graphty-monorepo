@@ -596,20 +596,6 @@ describe("AccelerationController: the built-in floor of a traversal", () => {
         set.dispose();
     });
 
-    it("runs an unrouted capability on the CPU with a reason, even when the accelerator implements it", async () => {
-        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()), minNodes: 0 });
-        await controller.start();
-
-        const decision = controller.plan({ capability: "forceAtlas2", nodeCount: 10_000, forwarded: false });
-
-        assert.isFalse(decision.accelerated);
-        assert.strictEqual(
-            decision.accelerated ? "" : decision.reason,
-            'the element does not route "forceAtlas2" to an accelerator',
-        );
-        controller.dispose();
-    });
-
     it("reports a missing member as missing, not as too small", async () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
         await controller.start();
@@ -677,26 +663,6 @@ describe("AccelerationController: acceleration=required", () => {
         assert.instanceOf(refusal, Error);
         assert.include(refusal.message, 'does not implement "pageRank"');
         assert.notInclude(refusal.message, "no accelerator is attached");
-        controller.dispose();
-    });
-
-    it("refuses a capability the element does not route, even when the accelerator implements it", async () => {
-        const controller = new AccelerationController({
-            policy: "required",
-            registry: registryWith(fakeAccelerator()),
-        });
-        await controller.ready();
-        const work = vi.fn(() => "gpu");
-
-        const refusal = await controller
-            .run({ capability: "forceAtlas2", nodeCount: 10_000, forwarded: false }, work)
-            .catch((error: unknown) => error);
-        assert.isTrue(isGraphtyError(refusal));
-        if (isGraphtyError(refusal)) {
-            assert.strictEqual(refusal.code, "E_NO_ACCELERATOR");
-            assert.include(refusal.message, 'the element does not route "forceAtlas2" to an accelerator');
-        }
-        assert.strictEqual(work.mock.calls.length, 0);
         controller.dispose();
     });
 

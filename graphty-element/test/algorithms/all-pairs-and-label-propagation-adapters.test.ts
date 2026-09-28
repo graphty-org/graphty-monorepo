@@ -9,6 +9,8 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AccelerationController } from "../../src/acceleration/AccelerationController";
+import { AcceleratorRegistry } from "../../src/acceleration/registry";
 import { FloydWarshallAlgorithm } from "../../src/algorithms/FloydWarshallAlgorithm";
 import { LabelPropagationAlgorithm } from "../../src/algorithms/LabelPropagationAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
@@ -79,6 +81,7 @@ function nodeValues(output: AlgorithmOutput): Map<unknown, Record<string, unknow
  */
 async function withImplementingAccelerator(
     opts: MockGraphOpts,
+    policy: "auto" | "required" = "auto",
 ): Promise<{ graph: Graph; calls: { allPairsShortestPath: number; labelPropagation: number } }> {
     const calls = { allPairsShortestPath: 0, labelPropagation: 0 };
     const fake = createFakeAccelerator({
@@ -94,6 +97,12 @@ async function withImplementingAccelerator(
         },
     });
     const graph = await createMockGraph(opts);
+    if (policy === "required") {
+        (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
+            policy,
+            registry: new AcceleratorRegistry(),
+        });
+    }
     graph.acceleration.setAccelerator(fake);
     return { graph, calls };
 }
@@ -248,5 +257,21 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
         assert.strictEqual(calls.labelPropagation, 0);
         assert.strictEqual(output.caveats.precision, "f64");
         assert.strictEqual(new Set([...nodeValues(output).values()].map((value) => value.group)).size, 3);
+    });
+});
+
+describe("not routed to an accelerator, so acceleration=required does not refuse them", () => {
+    it("runs both on the CPU port under required with an accelerator that implements the members", async () => {
+        const path = await withImplementingAccelerator(PATH, "required");
+        const allPairs = await computed(new FloydWarshallAlgorithm(path.graph));
+        assert.strictEqual(path.calls.allPairsShortestPath, 0);
+        assert.strictEqual(allPairs.caveats.precision, "f64");
+        assert.strictEqual(allPairs.graph?.diameter, 6);
+
+        const triangles = await withImplementingAccelerator(TWO_TRIANGLES, "required");
+        const groups = await computed(new LabelPropagationAlgorithm(triangles.graph));
+        assert.strictEqual(triangles.calls.labelPropagation, 0);
+        assert.strictEqual(groups.caveats.precision, "f64");
+        assert.strictEqual(new Set([...nodeValues(groups).values()].map((value) => value.group)).size, 3);
     });
 });

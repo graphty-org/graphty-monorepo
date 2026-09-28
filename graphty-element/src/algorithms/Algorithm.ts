@@ -412,6 +412,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @param mode - The shape this algorithm needs; see {@link AlgorithmGraphMode}. `"undirected"`
      *   takes the snapshot's undirected view, which is what collapses a reciprocal pair into one
      *   edge.
+     * @param options - What the decision needs to know about this run.
+     * @param options.accelerable - False when the options of this run are ones no accelerator
+     *   answers, such as a walk that stops at a target, so the decision is the CPU port's (and
+     *   `E_NO_ACCELERATOR` under `acceleration="required"`). A capability the element does not
+     *   forward to an accelerator is never accelerable, whatever this says.
      * @returns The snapshot, the edge map onto it, and the runner.
      * @example
      * ```ts
@@ -420,7 +425,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * const group = value.labels[snapshot.ids.indexOf(nodeId)];
      * ```
      */
-    protected accelerated(capability: string, mode: AlgorithmGraphMode): AcceleratedAlgorithmRun {
+    protected accelerated(
+        capability: string,
+        mode: AlgorithmGraphMode,
+        options?: { accelerable?: boolean },
+    ): AcceleratedAlgorithmRun {
         /* The input accessor derives the snapshot: the declared one or the store's cached
            undirected view, over the run's scope when the class declares one. It leaves the NODE
            space of the whole graph alone -- so a node result indexes the declared snapshot's nodes
@@ -440,7 +449,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            edges and leave its twin unpainted, which reads as a rendering glitch. */
         const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
         const controller = this.graph.acceleration;
-        const work = { capability, nodeCount: snapshot.nodeCount };
+        const work = {
+            capability,
+            nodeCount: snapshot.nodeCount,
+            forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
+        };
 
         return {
             snapshot,

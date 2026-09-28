@@ -4,7 +4,9 @@
  * replaces (design/graph-format/migration-plan.md, section 7).
  *
  * Rules, each reported as `<file> <rule> <name>`:
- *   legacy-import                 imports a legacy name from @graphty/algorithms or @graphty/layout:
+ *   legacy-import                 imports or re-exports a legacy name from @graphty/algorithms
+ *                                 or @graphty/layout (named, `export *`, or a member of a namespace
+ *                                 or dynamic import):
  *                                 anything tagged @deprecated, and every export declared outside the
  *                                 replacement code (algorithms: indexed/, data-structures/, types/,
  *                                 utils/ except graph-converters.ts, errors.ts; layout: everything but
@@ -12,11 +14,12 @@
  *   legacy-graph-bridge           calls toAlgorithmGraph or algorithmGraph
  *   legacy-graph-construction     constructs the legacy Graph class of @graphty/algorithms
  *   positional-layout-call        calls a positional layout function of @graphty/layout
- *   data-source-without-graph-io  a *DataSource.ts in graphty-element/src/data imports nothing
- *                                 from graph-io (the package or one of its format subpaths)
+ *   data-source-without-graph-io  a *DataSource.ts in graphty-element/src/data imports no value
+ *                                 from graph-io (the package or one of its format subpaths); a
+ *                                 type-only or side-effect-only import does not count
  *   parser-dependency             graphty-element src imports papaparse or fast-xml-parser
  *   hand-written-parser           graphty-element/src/data holds csv-variant-detection.ts, parsePajek
- *                                 or a tokeniser (tokenize, tokenizeLine, ...)
+ *                                 or a tokeniser (tokenize, tokenizeLine, a *Tokenizer or *Lexer, ...)
  *
  * The legacy names are read from the algorithms and layout sources with the TypeScript compiler,
  * so a name that gains @deprecated is caught without editing this file.
@@ -41,7 +44,7 @@ const ALGORITHMS = "@graphty/algorithms";
 const LAYOUT = "@graphty/layout";
 const PARSER_DEPENDENCIES = new Set(["papaparse", "fast-xml-parser"]);
 const BRIDGE_CALLS = new Set(["toAlgorithmGraph", "algorithmGraph"]);
-const PARSER_NAME = /^(parsePajek|tokeni[sz]e\w*)$/;
+const PARSER_NAME = /^(parsePajek|tokeni[sz]e\w*|\w*(Tokeni[sz]er|Lexer))$/;
 const DATA_DIR = "graphty-element/src/data/";
 
 /**
@@ -157,10 +160,8 @@ function checkFile(file, text, legacy) {
     const namespaces = new Map();
     let importsGraphIo = false;
 
+    const isGraphIo = (spec) => spec === "@graphty/graph-io" || spec.startsWith("@graphty/graph-io/");
     const specifierUse = (spec) => {
-        if (spec === "@graphty/graph-io" || spec.startsWith("@graphty/graph-io/")) {
-            importsGraphIo = true;
-        }
         if (inElement && PARSER_DEPENDENCIES.has(spec)) {
             report("parser-dependency", spec);
         }
@@ -168,20 +169,49 @@ function checkFile(file, text, legacy) {
     const namedLegacy = (spec, elements) => {
         const names = legacy.get(spec);
         for (const el of names === undefined ? [] : elements) {
-            const name = (el.propertyName ?? el.name).text;
-            const info = names.get(name);
+            const imported = el.propertyName ?? el.name;
+            if (!ts.isIdentifier(imported) || !ts.isIdentifier(el.name)) {
+                continue;
+            }
+            const info = names.get(imported.text);
             if (info !== undefined) {
-                report("legacy-import", name);
+                report("legacy-import", imported.text);
                 locals.set(el.name.text, info);
             }
         }
+    };
+    // `await import("x")` or `import("x")` -> "x"
+    const dynamicSpecifier = (expr) => {
+        let e = expr;
+        while (e !== undefined && (ts.isAwaitExpression(e) || ts.isParenthesizedExpression(e))) {
+            e = e.expression;
+        }
+        return e !== undefined &&
+            ts.isCallExpression(e) &&
+            e.expression.kind === ts.SyntaxKind.ImportKeyword &&
+            e.arguments[0] !== undefined &&
+            ts.isStringLiteral(e.arguments[0])
+            ? e.arguments[0].text
+            : undefined;
     };
 
     const visit = (node) => {
         if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
             const spec = node.moduleSpecifier.text;
             specifierUse(spec);
-            const bindings = node.importClause?.namedBindings;
+            const clause = node.importClause;
+            if (
+                isGraphIo(spec) &&
+                clause !== undefined &&
+                !clause.isTypeOnly &&
+                (clause.name !== undefined ||
+                    (clause.namedBindings !== undefined &&
+                        (!ts.isNamedImports(clause.namedBindings) ||
+                            clause.namedBindings.elements.some((el) => !el.isTypeOnly))))
+            ) {
+                importsGraphIo = true;
+            }
+            const bindings = clause?.namedBindings;
             if (bindings !== undefined && ts.isNamedImports(bindings)) {
                 namedLegacy(spec, bindings.elements);
             } else if (bindings !== undefined && legacy.has(spec)) {
@@ -191,11 +221,25 @@ function checkFile(file, text, legacy) {
             specifierUse(node.moduleSpecifier.text);
             if (node.exportClause !== undefined && ts.isNamedExports(node.exportClause)) {
                 namedLegacy(node.moduleSpecifier.text, node.exportClause.elements);
+            } else if (legacy.has(node.moduleSpecifier.text) && legacy.get(node.moduleSpecifier.text).size > 0) {
+                // `export * from` and `export * as ns from` pass every legacy name on
+                report("legacy-import", "*");
             }
         } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
             const [arg] = node.arguments;
             if (arg !== undefined && ts.isStringLiteral(arg)) {
                 specifierUse(arg.text);
+                if (isGraphIo(arg.text)) {
+                    importsGraphIo = true;
+                }
+            }
+        } else if (ts.isVariableDeclaration(node) && legacy.has(dynamicSpecifier(node.initializer))) {
+            // `const { circularLayout } = await import(...)` or `const L = await import(...)`
+            const spec = dynamicSpecifier(node.initializer);
+            if (ts.isObjectBindingPattern(node.name)) {
+                namedLegacy(spec, node.name.elements);
+            } else if (ts.isIdentifier(node.name)) {
+                namespaces.set(node.name.text, legacy.get(spec));
             }
         } else if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
             const name = calleeName(node.expression);
@@ -214,9 +258,21 @@ function checkFile(file, text, legacy) {
                 report("legacy-graph-construction", name);
             }
         }
+        // `ns.dijkstra` or the type `ns.Graph` on a namespace import of a legacy package
+        const member = ts.isPropertyAccessExpression(node)
+            ? [node.expression, node.name]
+            : ts.isQualifiedName(node)
+              ? [node.left, node.right]
+              : undefined;
+        if (member !== undefined && ts.isIdentifier(member[0]) && namespaces.get(member[0].text)?.has(member[1].text)) {
+            report("legacy-import", member[1].text);
+        }
         if (
             inData &&
             (ts.isFunctionDeclaration(node) ||
+                ts.isClassDeclaration(node) ||
+                ts.isPropertyAssignment(node) ||
+                ts.isShorthandPropertyAssignment(node) ||
                 ts.isMethodDeclaration(node) ||
                 ts.isPropertyDeclaration(node) ||
                 ts.isVariableDeclaration(node)) &&
@@ -343,6 +399,9 @@ function selfTest() {
                 "indexed.dijkstra(toSnapshot());",
                 "layouts.circular();",
                 "createSimulation();",
+                // the parser dependencies are only barred from graphty-element
+                'import Papa from "papaparse";',
+                'await import("fast-xml-parser");',
             ].join("\n"),
         );
         write(
@@ -356,6 +415,37 @@ function selfTest() {
                 "this.algorithmGraph();",
                 "toAlgorithmGraph();",
             ].join("\n"),
+        );
+        write(
+            "app/src/namespaces.ts",
+            [
+                'import * as A from "@graphty/algorithms";',
+                'import type * as T from "@graphty/algorithms";',
+                "A.dijkstra();",
+                "A.indexed.dijkstra();",
+                "let g: T.Graph;",
+            ].join("\n"),
+        );
+        write(
+            "app/src/dynamic.ts",
+            [
+                'const { circularLayout } = await import("@graphty/layout");',
+                'const m = await import("@graphty/algorithms");',
+                "circularLayout();",
+                "new m.Graph();",
+            ].join("\n"),
+        );
+        write(
+            "app/src/reexports.ts",
+            'export * from "@graphty/algorithms";\nexport * as lay from "@graphty/layout";\nexport * from "@graphty/graph-io";\n',
+        );
+        write(
+            "graphty-element/src/data/TypesOnlyDataSource.ts",
+            'import type { ImportResult } from "@graphty/graph-io";\nimport { type X } from "@graphty/graph-io/csv";\n',
+        );
+        write(
+            "graphty-element/src/data/DOTDataSource.ts",
+            'import { importDot } from "@graphty/graph-io/dot";\nconst p = { tokenize: (s) => s };\nclass DotLexer {}\n',
         );
         write(
             "graphty-element/src/data/CSVDataSource.ts",
@@ -377,7 +467,20 @@ function selfTest() {
             "app/src/uses.ts legacy-graph-bridge toAlgorithmGraph",
             "app/src/uses.ts legacy-graph-construction G",
             "app/src/uses.ts legacy-import Graph",
+            "app/src/uses.ts legacy-import circularLayout",
             "app/src/uses.ts legacy-import dijkstra",
+            "app/src/namespaces.ts legacy-import dijkstra",
+            "app/src/namespaces.ts legacy-import Graph",
+            "app/src/dynamic.ts legacy-import circularLayout",
+            "app/src/dynamic.ts positional-layout-call circularLayout",
+            "app/src/dynamic.ts legacy-import Graph",
+            "app/src/dynamic.ts legacy-graph-construction Graph",
+            "app/src/reexports.ts legacy-import *",
+            "app/src/reexports.ts legacy-import *",
+            "graphty-element/src/data/TypesOnlyDataSource.ts data-source-without-graph-io @graphty/graph-io",
+            "graphty-element/src/data/PajekDataSource.ts data-source-without-graph-io @graphty/graph-io",
+            "graphty-element/src/data/DOTDataSource.ts hand-written-parser tokenize",
+            "graphty-element/src/data/DOTDataSource.ts hand-written-parser DotLexer",
             "app/src/uses.ts legacy-import graphToMap",
             "app/src/uses.ts legacy-import oldQueue",
             "app/src/uses.ts positional-layout-call circularLayout",
@@ -403,7 +506,7 @@ function selfTest() {
         if (compare(found, baseline).added.length !== 1) {
             throw new Error("self-test: a use missing from the baseline was not reported");
         }
-        if (compare([], countKeys(found)).stale.length !== expected.length) {
+        if (compare([], countKeys(found)).stale.length !== new Set(expected).size) {
             throw new Error("self-test: removed uses were not listed as stale");
         }
         console.log(`check-legacy-use self-test: passed (${expected.length} seeded uses, 7 rules)`);

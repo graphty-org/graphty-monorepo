@@ -1,4 +1,7 @@
 import type { Graph } from "../../core/graph.js";
+import { scoresToRecord } from "../../indexed/facade.js";
+import { katzCentrality as indexedKatz } from "../../indexed/katz.js";
+import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -29,6 +32,32 @@ export interface KatzCentralityOptions extends CentralityOptions {
  * @returns Object mapping node IDs to their Katz centrality scores
  */
 export function katzCentrality(graph: Graph, options: KatzCentralityOptions = {}): CentralityResult {
+    const { alpha = 0.1, beta = 1.0 } = options;
+    // A negative alpha or beta can leave every score negative, and the legacy rescale measures the
+    // maximum from 0 rather than from the largest score.
+    if (alpha < 0 || beta < 0) {
+        return legacyKatzCentrality(graph, options);
+    }
+    const s = toSnapshot(graph);
+    const r = indexedKatz(s, {
+        alpha,
+        beta,
+        maxIterations: options.maxIterations,
+        tolerance: options.tolerance,
+        normalized: options.normalized,
+    });
+    return scoresToRecord(s.ids, r.scores);
+}
+
+/**
+ * The implementation {@link katzCentrality} delegates away from, kept as its differential-test
+ * oracle and for a negative `alpha` or `beta`. Deleted at the removal release.
+ * @param graph - The graph to compute Katz centrality on
+ * @param options - Configuration options for the computation
+ * @returns Object mapping node IDs to their Katz centrality scores
+ * @internal
+ */
+export function legacyKatzCentrality(graph: Graph, options: KatzCentralityOptions = {}): CentralityResult {
     const { alpha = 0.1, beta = 1.0, maxIterations = 100, tolerance = 1e-6, normalized = true } = options;
 
     const centrality: CentralityResult = {};

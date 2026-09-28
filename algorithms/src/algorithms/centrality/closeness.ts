@@ -1,4 +1,13 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import type { Graph } from "../../core/graph.js";
+import {
+    closenessCentrality as indexedCloseness,
+    type ClosenessOptions,
+    nodeClosenessCentrality as indexedNodeCloseness,
+} from "../../indexed/closeness.js";
+import { exactArcWeights, scoresToRecord } from "../../indexed/facade.js";
+import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { bfsDistancesOnly, bfsWeightedDistances } from "../traversal/bfs-variants.js";
 
@@ -112,14 +121,37 @@ function calculateClosenessFromDistances(
  * Space Complexity: O(V)
  */
 export function closenessCentrality(graph: Graph, options: ClosenessCentralityOptions = {}): Record<string, number> {
-    const nodes = Array.from(graph.nodes()).map((node) => node.id);
-    const centrality: Record<string, number> = {};
+    const s = toSnapshot(graph);
+    return scoresToRecord(s.ids, indexedCloseness(s, portOptions(options)).scores);
+}
 
-    for (const sourceNode of nodes) {
-        centrality[String(sourceNode)] = nodeClosenessCentrality(graph, sourceNode, options);
-    }
+/**
+ * The port's options for a legacy call; `optimized` picked a legacy search engine and has no
+ * counterpart.
+ * @param options - The legacy options
+ * @param s - Given only for a weighted call, which then reads this snapshot's exact f64 weights
+ * @returns The port's options
+ */
+function portOptions(options: ClosenessCentralityOptions, s?: GraphSnapshot): ClosenessOptions {
+    return {
+        normalized: options.normalized,
+        harmonic: options.harmonic,
+        cutoff: options.cutoff,
+        weighted: s !== undefined,
+        weights: s === undefined ? undefined : exactArcWeights(s),
+    };
+}
 
-    return centrality;
+/**
+ * Whether a weighted search must stay on the legacy code: with a negative weight the distance a
+ * node keeps depends on the order equal keys leave the priority queue, which the port does not
+ * reproduce.
+ * @param s - The snapshot
+ * @returns True when some weight is negative
+ */
+function hasNegativeWeight(s: GraphSnapshot): boolean {
+    const weights = exactArcWeights(s) ?? s.weights;
+    return weights?.some((w) => w < 0) ?? false;
 }
 
 /**
@@ -130,6 +162,27 @@ export function closenessCentrality(graph: Graph, options: ClosenessCentralityOp
  * @returns The closeness centrality score for the node
  */
 export function nodeClosenessCentrality(graph: Graph, node: NodeId, options: ClosenessCentralityOptions = {}): number {
+    if (!graph.hasNode(node)) {
+        throw new Error(`Node ${String(node)} not found in graph`);
+    }
+    const s = toSnapshot(graph);
+    return indexedNodeCloseness(s, s.ids.indexOf(node), portOptions(options));
+}
+
+/**
+ * The implementation {@link nodeClosenessCentrality} delegates away from, kept as its
+ * differential-test oracle. Deleted at the removal release.
+ * @param graph - The input graph to analyze
+ * @param node - The node to calculate centrality for
+ * @param options - Algorithm configuration options
+ * @returns The closeness centrality score for the node
+ * @internal
+ */
+export function legacyNodeClosenessCentrality(
+    graph: Graph,
+    node: NodeId,
+    options: ClosenessCentralityOptions = {},
+): number {
     if (!graph.hasNode(node)) {
         throw new Error(`Node ${String(node)} not found in graph`);
     }
@@ -156,14 +209,15 @@ export function weightedClosenessCentrality(
     graph: Graph,
     options: ClosenessCentralityOptions = {},
 ): Record<string, number> {
-    const nodes = Array.from(graph.nodes()).map((node) => node.id);
-    const centrality: Record<string, number> = {};
-
-    for (const sourceNode of nodes) {
-        centrality[String(sourceNode)] = nodeWeightedClosenessCentrality(graph, sourceNode, options);
+    const s = toSnapshot(graph);
+    if (hasNegativeWeight(s)) {
+        const centrality: Record<string, number> = {};
+        for (const node of graph.nodes()) {
+            centrality[String(node.id)] = legacyNodeWeightedClosenessCentrality(graph, node.id, options);
+        }
+        return centrality;
     }
-
-    return centrality;
+    return scoresToRecord(s.ids, indexedCloseness(s, portOptions(options, s)).scores);
 }
 
 /**
@@ -174,6 +228,30 @@ export function weightedClosenessCentrality(
  * @returns The weighted closeness centrality score for the node
  */
 export function nodeWeightedClosenessCentrality(
+    graph: Graph,
+    node: NodeId,
+    options: ClosenessCentralityOptions = {},
+): number {
+    if (!graph.hasNode(node)) {
+        throw new Error(`Node ${String(node)} not found in graph`);
+    }
+    const s = toSnapshot(graph);
+    if (hasNegativeWeight(s)) {
+        return legacyNodeWeightedClosenessCentrality(graph, node, options);
+    }
+    return indexedNodeCloseness(s, s.ids.indexOf(node), portOptions(options, s));
+}
+
+/**
+ * The implementation {@link nodeWeightedClosenessCentrality} delegates away from, kept as its
+ * differential-test oracle and for a graph with a negative weight. Deleted at the removal release.
+ * @param graph - The input graph to analyze
+ * @param node - The node to calculate centrality for
+ * @param options - Algorithm configuration options
+ * @returns The weighted closeness centrality score for the node
+ * @internal
+ */
+export function legacyNodeWeightedClosenessCentrality(
     graph: Graph,
     node: NodeId,
     options: ClosenessCentralityOptions = {},

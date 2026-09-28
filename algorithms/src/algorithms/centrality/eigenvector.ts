@@ -1,5 +1,8 @@
 import type { Graph } from "../../core/graph.js";
 import { ConvergenceError } from "../../errors.js";
+import { eigenvectorCentrality as indexedEigenvector } from "../../indexed/eigenvector.js";
+import { scoresToRecord } from "../../indexed/facade.js";
+import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -41,6 +44,34 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
  *   raises `PowerIterationFailedConvergence`. Raise `maxIterations` or `tolerance` and call again.
  */
 export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
+    const s = toSnapshot(graph);
+    const { startVector } = options;
+    const r = indexedEigenvector(s, {
+        maxIterations: options.maxIterations,
+        tolerance: options.tolerance,
+        normalized: options.normalized,
+        mode: options.mode,
+        startVector:
+            startVector === undefined
+                ? undefined
+                : Float64Array.from({ length: s.nodeCount }, (_, i) => startVector.get(String(s.ids.idOf(i))) ?? 1),
+    });
+    return scoresToRecord(s.ids, r.scores);
+}
+
+/**
+ * The implementation {@link eigenvectorCentrality} delegates away from, kept as its
+ * differential-test oracle. Deleted at the removal release.
+ * @param graph - The graph to compute eigenvector centrality on
+ * @param options - Configuration options for the computation
+ * @returns Object mapping node IDs to their eigenvector centrality scores
+ * @throws {ConvergenceError} When `maxIterations` passes do not meet `tolerance`
+ * @internal
+ */
+export function legacyEigenvectorCentrality(
+    graph: Graph,
+    options: EigenvectorCentralityOptions = {},
+): CentralityResult {
     const { maxIterations = 100, tolerance = 1e-6, normalized = true, startVector, mode = "in" } = options;
 
     const nodeIds = Array.from(graph.nodes(), (node) => node.id);

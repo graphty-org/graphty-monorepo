@@ -1,4 +1,9 @@
+import { type F64, INVALID_INDEX } from "@graphty/graph-format";
+
 import type { Graph } from "../../core/graph.js";
+import { deltaPageRank } from "../../indexed/delta-pagerank.js";
+import { exactArcWeights, scoresToRecord } from "../../indexed/facade.js";
+import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { SimpleDeltaPageRank } from "./delta-pagerank-simple.js";
 
@@ -66,21 +71,55 @@ export interface PageRankResult {
 /**
  * Calculate PageRank for all nodes in the graph
  *
- * Uses delta-based optimization by default for improved performance on larger graphs.
- * Automatically falls back to standard algorithm for very small graphs.
- *
- * The delta-based approach provides significant speedup for:
- * - Incremental updates after graph modifications
- * - Graphs with localized changes
- * - Early convergence detection per vertex
- *
- * For initial computation on small-medium graphs, standard algorithm may be faster
- * due to lower overhead.
+ * Power iteration with the dangling mass spread over every node and an L-infinity stopping rule.
+ * `useDelta` picks between two legacy engines that compute the same iteration, so it no longer
+ * changes the answer or the cost.
  * @param graph - The directed input graph to analyze
  * @param options - Algorithm configuration options
  * @returns PageRank result containing ranks, iteration count, and convergence status
  */
 export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankResult {
+    const s = toSnapshot(graph);
+    const { personalization, initialRanks, weight } = options;
+    // The legacy code normalises the personalization over every entry of the Map, so an id the
+    // graph lacks takes a share; the port sees only the graph's nodes.
+    if (
+        personalization !== undefined &&
+        [...personalization.keys()].some((id) => s.ids.indexOf(id) === INVALID_INDEX)
+    ) {
+        return legacyPageRank(graph, options);
+    }
+    const perNode = (map: Map<NodeId, number> | undefined, fill: number): F64 | undefined => {
+        if (map === undefined) {
+            return undefined;
+        }
+        const out = new Float64Array(s.nodeCount);
+        for (let i = 0; i < out.length; i++) {
+            out[i] = map.get(s.ids.idOf(i)) ?? fill;
+        }
+        return out;
+    };
+    const r = deltaPageRank(s, {
+        dampingFactor: options.dampingFactor,
+        maxIterations: options.maxIterations,
+        tolerance: options.tolerance,
+        weighted: Boolean(weight),
+        weights: weight ? exactArcWeights(s) : undefined,
+        initialRanks: perNode(initialRanks, 1 / s.nodeCount),
+        personalization: perNode(personalization, 0),
+    });
+    return { ranks: scoresToRecord(s.ids, r.scores), iterations: r.iterations, converged: r.converged };
+}
+
+/**
+ * The implementation {@link pageRank} delegates away from, kept as its differential-test oracle and
+ * for a personalization naming a node the graph lacks. Deleted at the removal release.
+ * @param graph - The directed input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns PageRank result containing ranks, iteration count, and convergence status
+ * @internal
+ */
+export function legacyPageRank(graph: Graph, options: PageRankOptions = {}): PageRankResult {
     const {
         dampingFactor = 0.85,
         maxIterations = 100,

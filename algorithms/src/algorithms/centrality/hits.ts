@@ -1,4 +1,7 @@
 import type { Graph } from "../../core/graph.js";
+import { scoresToRecord } from "../../indexed/facade.js";
+import { hits as indexedHits } from "../../indexed/hits.js";
+import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions } from "../../types/index.js";
 
 /**
@@ -32,6 +35,24 @@ export interface HITSOptions extends CentralityOptions {
  * @returns Object containing hub and authority scores for all nodes
  */
 export function hits(graph: Graph, options: HITSOptions = {}): HITSResult {
+    const s = toSnapshot(graph);
+    const r = indexedHits(s, {
+        maxIterations: options.maxIterations,
+        tolerance: options.tolerance,
+        normalized: options.normalized,
+    });
+    return { hubs: scoresToRecord(s.ids, r.hubs), authorities: scoresToRecord(s.ids, r.authorities) };
+}
+
+/**
+ * The implementation {@link hits} delegates away from, kept as its differential-test oracle.
+ * Deleted at the removal release.
+ * @param graph - The graph to compute HITS scores on
+ * @param options - Configuration options for the computation
+ * @returns Object containing hub and authority scores for all nodes
+ * @internal
+ */
+export function legacyHits(graph: Graph, options: HITSOptions = {}): HITSResult {
     const { maxIterations = 100, tolerance = 1e-6, normalized = true } = options;
 
     const hubs: Record<string, number> = {};

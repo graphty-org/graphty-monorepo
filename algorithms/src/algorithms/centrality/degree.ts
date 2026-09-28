@@ -1,4 +1,7 @@
 import type { Graph } from "../../core/graph.js";
+import { degreeCentrality as indexedDegree } from "../../indexed/degree.js";
+import { scoresToRecord } from "../../indexed/facade.js";
+import { toSnapshot } from "../../indexed/to-snapshot.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -15,6 +18,19 @@ import type { CentralityOptions, CentralityResult } from "../../types/index.js";
  * @returns Centrality scores for each node keyed by node ID
  */
 export function degreeCentrality(graph: Graph, options: CentralityOptions = {}): CentralityResult {
+    const s = toSnapshot(graph);
+    return scoresToRecord(s.ids, indexedDegree(s, { mode: options.mode, normalized: options.normalized }));
+}
+
+/**
+ * The implementation {@link degreeCentrality} delegates away from, kept as its differential-test
+ * oracle. Deleted at the removal release.
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Centrality scores for each node keyed by node ID
+ * @internal
+ */
+export function legacyDegreeCentrality(graph: Graph, options: CentralityOptions = {}): CentralityResult {
     const centrality: CentralityResult = {};
     const { nodeCount } = graph;
 

@@ -405,6 +405,15 @@ describe("graphmlImporter keys and data", () => {
         expect(snapshot.nodes.names()).toEqual(["b"]);
     });
 
+    it("reads one key id declared once for the graph and once for nodes, as igraph writes it", async () => {
+        const keys = `<key id="name" for="graph" attr.name="name" attr.type="string"/>\n<key id="name" for="node" attr.name="name" attr.type="string"/>\n`;
+        const body = `<data key="name">club</data><node id="a"><data key="name">Mr Hi</data></node>`;
+        const { snapshot, report } = await load(doc(body, "undirected", keys));
+        expect(codes(report)).toEqual([]);
+        expect(column(snapshot, "nodes", "name")).toEqual(["Mr Hi"]);
+        expect(snapshot.graph.value("name", 0)).toBe("club");
+    });
+
     it("renames a key that collides with an XML-derived or earlier column and records the rename", async () => {
         const keys = `<key id="d0" for="node" attr.name="label" attr.type="string"/>\n<key id="d1" for="node" attr.name="label" attr.type="int"/>\n<key id="d2" for="edge" attr.name="id" attr.type="string"/>\n<key id="d3" for="node" attr.name="parent" attr.type="string"/>\n`;
         const body = `<node id="a"><data key="d0">A</data><data key="d1">1</data><data key="d3">p</data></node><edge id="e1" source="a" target="a"><data key="d2">inner</data></edge>`;

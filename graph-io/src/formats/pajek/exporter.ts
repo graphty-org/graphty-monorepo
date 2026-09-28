@@ -106,6 +106,7 @@ const CHECKED_ROLES: ReadonlySet<string> = new Set([
     "parent",
     "parents",
     "open",
+    "spellsOpen",
 ]);
 
 /** Roles the generic checker lets through under temporal "spells" that Pajek cannot write. */

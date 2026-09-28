@@ -85,11 +85,17 @@ import {
 import { XmlTreeBuilder } from "./tree.js";
 import { graphicsDecl, graphicsValues } from "./yfiles.js";
 
-
 /** The XML attributes the importer reads on `<graph>`, `<node>` and `<edge>`; any other is reported. */
 const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
 const NODE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
-const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "source", "target", "directed", "sourceport", "targetport"]);
+const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "id",
+    "source",
+    "target",
+    "directed",
+    "sourceport",
+    "targetport",
+]);
 
 /** The format-specific options of the GraphML importer. */
 export interface GraphmlImportOptions {
@@ -318,7 +324,8 @@ class GraphmlReader implements XmlHandler {
 
     private readonly ctx: Ctx[] = [];
 
-    private readonly keys = new Map<string, KeyEntry>();
+    /** Keys by id; one id may be declared once per domain (igraph writes `name` for graph and node). */
+    private readonly keys = new Map<string, KeyEntry[]>();
 
     private readonly graphs: GraphState[] = [];
 
@@ -1029,11 +1036,12 @@ class GraphmlReader implements XmlHandler {
             this.report.error("validation-error", GRAPHML_ISSUE.KEY_MISSING_ID, "<key> without an id", where);
             return;
         }
-        if (this.keys.has(key.id)) {
+        const declared = this.keys.get(key.id) ?? [];
+        if (declared.some((entry) => entry.domains.some((domain) => key.domains.includes(domain)))) {
             this.report.error(
                 "validation-error",
                 GRAPHML_ISSUE.DUPLICATE_KEY,
-                `key "${key.id}" is declared twice`,
+                `key "${key.id}" is declared twice for the same kind of element`,
                 where,
             );
             return;
@@ -1084,18 +1092,21 @@ class GraphmlReader implements XmlHandler {
                 this.report.recordError(err, where);
             }
         }
-        this.keys.set(key.id, {
-            id: key.id,
-            name,
-            node,
-            edge,
-            graph,
-            weight,
-            originalId,
-            yfiles,
-            skipped,
-            domains: key.domains,
-        });
+        this.keys.set(key.id, [
+            ...declared,
+            {
+                id: key.id,
+                name,
+                node,
+                edge,
+                graph,
+                weight,
+                originalId,
+                yfiles,
+                skipped,
+                domains: key.domains,
+            },
+        ]);
     }
 
     /**
@@ -1247,7 +1258,8 @@ class GraphmlReader implements XmlHandler {
                 line,
             });
         } else {
-            const key = this.keys.get(keyId);
+            const entries = this.keys.get(keyId);
+            const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
             if (key === undefined) {
                 this.report.error(
                     "validation-error",

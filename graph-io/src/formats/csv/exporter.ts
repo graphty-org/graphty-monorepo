@@ -145,6 +145,7 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
     "timestamps",
     "spells",
     "open",
+    "spellsOpen",
 ]);
 
 /** The CSV options with defaults applied. */

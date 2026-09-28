@@ -150,6 +150,7 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
     "timestamps",
     "spells",
     "open",
+    "spellsOpen",
 ]);
 
 /** Notes about relationships only, dropped when only nodes are written. */

@@ -787,7 +787,9 @@ GEXF:
   renamed `<title>#<id>` (`W_COLUMN_RENAMED`), whether or not the file uses the XML field.
 - `viz:color` is an f32 x4 rgba column in 0..1, `viz:position` an f32 x3 column with `extra`
   `{ units: "file", sourceDims }`, `viz:size` / `viz:thickness` f32 scalars, `viz:shape` a dict.
-- Graph-level `start` / `end` / `timestamp` are kept as raw text in `meta.extra.gexf`.
+- Graph-level `defaultedgetype`, `start`, `end` and `timestamp` are kept as raw text in
+  `meta.extra.gexf`, so a reader can tell a written `defaultedgetype` from the schema's default;
+  the exporter writes a `mutual` default back when the snapshot is directed.
 - The edge attribute titled `weightFrom` is never a column: its static value overrides the XML
   weight attribute, its timed values go to `temporal:edge:weight`; under `weightFrom: null` the XML
   weight is ignored with one `W_WEIGHT_IGNORED`.
@@ -797,7 +799,10 @@ GEXF:
   (`W_TIMED_VALUE_ON_STATIC`); `<attvalue for>` naming an undeclared attribute is a warning once
   per id. 1.2 `startopen` / `endopen` are XSD time values: on a node or edge they set the bound
   and the `open` bit (declaring both `start` and `startopen` is `W_GEXF_OPEN_BOUND_CONFLICT`); on a
-  spell the bound is read and the openness dropped (`W_GEXF_SPELL_OPEN_DROPPED`).
+  spell the bound is read and its open bits go to the `spells.open` list column (role
+  `spellsOpen`, one u8 per spell, declared only when a spell has an open bound), which the 1.2
+  exporter writes back and 1.3 reports as `W_OPEN_INTERVAL`. `W_GEXF_SPELL_OPEN_DROPPED` is no
+  longer recorded.
 - `restoreMangledIds`, `nodeIdFrom` and `hyperedges` have no use in GEXF and are reported
   (`W_OPTION_IGNORED`). `GEXF_1_2_CAPABILITIES` is exported for `version: "1.2"`. Node ids whose
   text reads back as the other type under the canonical rule (a non-integer number, a string of

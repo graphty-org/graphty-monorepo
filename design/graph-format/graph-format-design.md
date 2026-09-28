@@ -988,8 +988,10 @@ json`. Inference never yields `f32` (f32 silently corrupts `0.1` and
   `itemComponents: 2`, role `spells`. GEXF 1.3 `timestamps="<[t1, t2]>"`
   (a list of instants per element) is a `list` of `f64`, role
   `timestamps`. GEXF 1.2 `startopen` / `endopen` are a `u8` column with
-  role `open` (bit 0 = start open, bit 1 = end open); an exporter for a
-  format without open intervals reports `W_OPEN_INTERVAL` in `check()`.
+  role `open` (bit 0 = start open, bit 1 = end open); an open bound on a
+  spell is a `list` of `u8` with role `spellsOpen`, one entry per spell
+  with the same bits. An exporter for a format without open intervals
+  reports `W_OPEN_INTERVAL` in `check()`.
 
 ### 5.2 Multi-component (stride) columns
 
@@ -1125,7 +1127,7 @@ section 14.4). Known roles
 `capacity`, `position` (f32 x3), `color` (f32 x4 rgba 0..1 or u8 x4),
 `size`, `shape`, `thickness`, `parent` (u32, refersTo node), `parents`
 (list of u32, refersTo node), `kind`, `labels`, `classes`, `start`, `end`,
-`timestamp`, `timestamps`, `spells`, `open`, `timeText`, `key`,
+`timestamp`, `timestamps`, `spells`, `open`, `spellsOpen`, `timeText`, `key`,
 `directed`, `pair` (u32, refersTo edge), `mutual`, `originalId`,
 `sourcePort`, `targetPort`, `idSpace`, `fixed`, `mass`, `subset`,
 `hidden`, `component`, `community`, `rank`.

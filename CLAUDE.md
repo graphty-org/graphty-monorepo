@@ -369,7 +369,7 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (21 parallel jobs), dead links (the `Links` job) |
+| `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
@@ -404,7 +404,7 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### CI Test Shards
 
-The CI runs 21 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -413,6 +413,7 @@ The CI runs 21 parallel test jobs on a push to master or a manual dispatch:
 - `layout`
 - `graphty`
 - `remote-logger`
+- `visual-review`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
@@ -580,6 +581,37 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Visual regression via Chromatic
 - Ports come from servherd (see "Starting Servers"); graphty's Storybook requires HTTPS
 - GitHub Pages: https://graphty.app/storybook/
+
+### Visual review
+
+CI screenshots every story of compact-mantine and graphty-element; the owner compares them with
+the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
+machine (`visual-review/`, design in `design/visual-testing/design.md`). Start the page through
+servherd; its log prints the URL with the session token at every start:
+
+```jsonc
+servherd_start({ name: "visual-review", cwd: "<repo>", protocol: "https",
+  command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} node visual-review/trusted/cli.mjs serve",
+  env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
+```
+
+Add `--master-run <run id>` to the command to review a master run for seeding, or `--results <dir>
+--branch <name>` to serve local captures offline.
+
+- Only the owner approves visual changes. Agents never press Accept or Finish, never call the
+  page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
+  behalf.
+- Never make a failing visual check pass by changing what is captured or how it is compared: do
+  not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
+  `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the
+  gate step in ci.yml or `visual-review/trusted/gate.mjs`, unless the owner asked for that change.
+  A story excluded that way while it has a baseline shows up as `removed` anyway; a raised
+  threshold does not, which is why it is forbidden.
+- The owner's guide to the page (URL, keys, decisions, Finish, seeding) is `visual-review/README.md`.
+- A merge conflict under `visual-baselines/`: take master's side for every file there and let CI
+  recapture; the owner reviews again what still differs.
+- After an accept commit lands on a pull request branch, update that branch from master by merge,
+  never by rebase, so the accept commit and its record stay as the owner made them.
 
 ### GitHub Pages URLs
 

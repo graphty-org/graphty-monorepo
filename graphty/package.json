@@ -18,7 +18,7 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint --max-warnings 0 && tsc --noEmit",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty",
         "typecheck": "tsc --noEmit",
         "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} ${HOST:+--host $HOST} --no-open --https --ssl-cert ${HTTPS_CERT_PATH:?graphty Storybook needs HTTPS: set HTTPS_CERT_PATH, servherd passes httpsCert} --ssl-key ${HTTPS_KEY_PATH:?graphty Storybook needs HTTPS: set HTTPS_KEY_PATH, servherd passes httpsKey}",
         "build-storybook": "storybook build",

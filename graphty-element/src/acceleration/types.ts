@@ -520,5 +520,8 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         pageRank: 50_000,
         // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
         connectedComponents: 132_000,
+        // The kernel's resident crossover from the same record ("minimum of N"). Unlike the three
+        // above it is inside the render ceiling, so a graph this large does reach the device.
+        eigenvectorCentrality: 6_600,
     },
 );

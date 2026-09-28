@@ -1,7 +1,7 @@
 import { accelerated, type AcceleratedAlgorithms, type Graph as AlgorithmGraph } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { narrowAlgorithms } from "../acceleration/narrow";
+import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
@@ -444,12 +444,27 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {
-                const outcome = await controller.run(work, (accelerator) =>
-                    fn(accelerated(narrowAlgorithms(accelerator)), snapshot),
-                );
+                // A capability the element does not route to the device is not the controller's
+                // question: asking would label a CPU answer with the device's precision, and under
+                // "required" refuse work the element never meant to send there.
+                if (forwardsAlgorithm(capability)) {
+                    // The dispatcher may still answer on the CPU port (an option or a graph the
+                    // device cannot answer), so the precision follows whether a member was reached.
+                    let reached = false;
+                    const outcome = await controller.run(work, (accelerator) =>
+                        fn(
+                            accelerated(
+                                narrowAlgorithms(accelerator, () => {
+                                    reached = true;
+                                }),
+                            ),
+                            snapshot,
+                        ),
+                    );
 
-                if (outcome.accelerated) {
-                    return { value: outcome.value, precision: outcome.precision };
+                    if (outcome.accelerated) {
+                        return { value: outcome.value, precision: reached ? outcome.precision : CPU_PRECISION };
+                    }
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one

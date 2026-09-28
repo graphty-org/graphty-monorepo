@@ -403,6 +403,18 @@ describe("BFS Variants", () => {
             expect(distances.has(6)).toBe(false); // Beyond cutoff
         });
 
+        it("returns distances past 65,535 in CSR-optimized bfsDistancesOnly", () => {
+            const n = 70000;
+            const graph = new Graph();
+            for (let i = 1; i < n; i++) {
+                graph.addEdge(i - 1, i);
+            }
+            const distances = bfsDistancesOnly(graph, 0, undefined, { optimized: true });
+
+            expect(distances.size).toBe(n);
+            expect(distances.get(n - 1)).toBe(n - 1);
+        });
+
         it("should use CSR optimization for bfsWeightedDistances on large graphs", () => {
             const graph = createLargeGraph(15000);
             const distances = bfsWeightedDistances(graph, 0, undefined, { optimized: true });

@@ -28,6 +28,12 @@ interface BFSResult<TNodeId> {
  *
  * Based on: Beamer, S., Asanović, K., & Patterson, D. (2012).
  * "Direction-optimizing breadth-first search." SC'12.
+ *
+ * The snapshot replacement is `indexed.directionOptimizedBfs`, which gives the same distances,
+ * and the same parents when the snapshot numbers nodes in this class's CSR order. This class
+ * keeps its own code rather than delegating: it runs on a `CSRGraph`, not a `Graph`;
+ * `searchMultiple` has no single-call equivalent; and a second `search` without `reset` keeps
+ * the previous search's nodes, where the replacement starts every call afresh.
  */
 export class DirectionOptimizedBFS<TNodeId = NodeId> {
     private graph: CSRGraph<TNodeId>;

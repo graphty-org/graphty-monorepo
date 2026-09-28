@@ -17,7 +17,7 @@ layout/
 │   ├── algorithms/
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
 │   ├── types/                # Node, Edge, Graph (the duck type toLayoutSnapshot reads), PositionMap
-│   └── utils/                # NumPy-like helpers, the seeded generator, rescaleLayout
+│   └── utils/                # NumPy-like helpers, the seeded generator, the deprecated rescaleLayout (use rescaleInPlace)
 ├── test/                     # Vitest tests; test/layouts/ per layout family, test/types/ compile-only
 └── stories/                  # Storybook stories, one per layout
 ```

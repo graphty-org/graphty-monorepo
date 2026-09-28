@@ -35,7 +35,7 @@ const LAYOUT_MEMBERS = ["forceAtlas2", "fruchtermanReingold", "springElectrical"
 /**
  * The members of `AlgorithmAccelerator` the element forwards, in the order it copies them.
  *
- * These are exactly the six `accelerated()` dispatches today: a member it does not dispatch can
+ * These are the six dispatcher members an accelerator is handed today: a member it does not dispatch can
  * never be reached through the seam, and a member whose CPU port does not exist has nothing to
  * fall back to. When `@graphty/algorithms` adds a dispatcher method, add its name here -- until
  * then an accelerator that implements it is asked for the CPU port instead, which is the honest
@@ -85,6 +85,21 @@ export function narrowLayout(accelerator: GraphAccelerator): LayoutAccelerator {
     }
 
     return narrowed;
+}
+
+/**
+ * Whether the element hands this algorithm member to an accelerator at all.
+ *
+ * The controller feature-tests the accelerator it holds, which may implement more than the element
+ * forwards -- the WebGPU accelerator has a `bellmanFord`, for one. Without this the controller
+ * would answer "accelerated" for a member {@link narrowAlgorithms} then drops, the CPU port would
+ * run, and the run would publish single precision and satisfy `acceleration="required"` for work
+ * no accelerator did.
+ * @param capability - The member's name, such as `"pageRank"`.
+ * @returns True when an accelerator that implements it is asked to run it.
+ */
+export function forwardsAlgorithm(capability: string): boolean {
+    return (ALGORITHM_MEMBERS as readonly string[]).includes(capability);
 }
 
 /**

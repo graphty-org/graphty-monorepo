@@ -54,6 +54,14 @@ export interface AcceleratedWork {
     readonly capability: string;
     /** How many nodes this work is over. Compared against `acceleration.minNodes`. */
     readonly nodeCount: number;
+    /**
+     * False when this piece of work never goes to an accelerator, whatever the accelerator
+     * implements: the element does not forward the member, or the run asks for something no
+     * accelerator does, such as a walk that stops at a target. The decision is then the one for
+     * an accelerator without the capability -- the CPU path, or `E_NO_ACCELERATOR` under
+     * `"required"`. Absent means true.
+     */
+    readonly forwarded?: boolean;
 }
 
 /**
@@ -546,14 +554,17 @@ export class AccelerationController {
             };
         }
 
-        if (typeof accelerator[work.capability] !== "function") {
+        if (work.forwarded === false || typeof accelerator[work.capability] !== "function") {
             if (required) {
                 throw this.#noAcceleratorError(work);
             }
 
             return {
                 accelerated: false,
-                reason: `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
+                reason:
+                    work.forwarded === false
+                        ? `this "${work.capability}" run is not one an accelerator answers`
+                        : `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
             };
         }
 

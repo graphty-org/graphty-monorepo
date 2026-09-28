@@ -58,50 +58,84 @@ export interface LinkPredictionMetrics {
 type PairScore = (u: number, v: number) => number;
 
 /**
- * The number of distinct entries of each row of a sorted adjacency, added into `into`.
- * @param view - The adjacency
- * @param into - One count per node
+ * Adamic-Adar weights are multiples of 2^-36, so any sum of them below 2^16 is exact and the same in
+ * whatever order it is added: two pairs whose common neighbours have the same degrees score
+ * bit-identically, and a ranking never splits them by rounding. The snap moves a weight by at most
+ * 2^-37, far inside the 1e-9 relative tolerance of a score.
  */
-function addDistinctDegrees(view: AdjacencyView, into: F64): void {
-    for (let z = 0; z < into.length; z++) {
-        const end = view.rowPtr[z + 1];
-        for (let a = view.rowPtr[z]; a < end; a++) {
-            if (a === view.rowPtr[z] || view.colIdx[a] !== view.colIdx[a - 1]) {
-                into[z]++;
-            }
-        }
+const WEIGHT_GRID = 2 ** 36;
+
+/**
+ * The Adamic-Adar weight of a common neighbour of the given degree: 1 / ln(degree) snapped to the
+ * weight grid, 1 for degree 1 (ln 1 is 0) and 0 for degree 0. Shared with the legacy
+ * `adamicAdarScore` so both add the same weights.
+ * @param degree - The neighbour's degree
+ * @returns The weight
+ */
+export function adamicAdarWeight(degree: number): number {
+    // ponytail: exact only while a pair's score stays below 2^16 (tens of thousands of hub neighbours);
+    // a coarser grid chosen from the graph's largest row sum lifts that ceiling if it is ever reached.
+    if (degree > 1) {
+        return Math.round(WEIGHT_GRID / Math.log(degree)) / WEIGHT_GRID;
     }
+    return degree === 1 ? 1 : 0;
 }
 
 /**
- * The Adamic-Adar weight of each node as a common neighbour: 1 / ln(degree), and 1 for degree 1
- * (ln 1 is 0). The degree counts distinct neighbours: out-neighbours for `{ directed: true }` or an
- * undirected snapshot, else out- plus in-neighbours, a self-loop in both.
- * @param s - The snapshot
- * @param directed - The `directed` option
- * @returns One weight per node
+ * The number of distinct entries of one row of a sorted adjacency.
+ * @param view - The adjacency
+ * @param z - The row
+ * @returns The count
  */
-function adamicAdarWeights(s: GraphSnapshot, directed: boolean): F64 {
-    const w = new Float64Array(s.nodeCount);
-    addDistinctDegrees(s, w);
-    if (s.directed && !directed) {
-        addDistinctDegrees(s.reverse(), w);
-    }
-    for (let z = 0; z < w.length; z++) {
-        // ln 1 is 0, so a degree-1 neighbour weighs 1; a degree above 1 weighs 1 / ln(degree).
-        if (w[z] > 1) {
-            w[z] = 1 / Math.log(w[z]);
+function distinctRowLength(view: AdjacencyView, z: number): number {
+    const start = view.rowPtr[z];
+    const end = view.rowPtr[z + 1];
+    let count = 0;
+    for (let a = start; a < end; a++) {
+        if (a === start || view.colIdx[a] !== view.colIdx[a - 1]) {
+            count++;
         }
     }
-    return w;
+    return count;
 }
 
-function scorer(s: GraphSnapshot, o: CommonNeighborsOptions, adamicAdar: boolean): PairScore {
-    const directed = o.directed === true;
-    const bwd = directed ? s.reverse() : s;
-    const weight = adamicAdar ? adamicAdarWeights(s, directed) : undefined;
+/**
+ * The Adamic-Adar weight of a node as a common neighbour, from its degree in distinct neighbours:
+ * out-neighbours for `{ directed: true }` or an undirected snapshot, else out- plus in-neighbours,
+ * a self-loop in both. Costs the node's degree, so one pair costs the degrees of its common
+ * neighbours, not the whole graph.
+ * @param s - The snapshot
+ * @param directed - The `directed` option
+ * @returns The weight of node z
+ */
+function adamicAdarWeightOf(s: GraphSnapshot, directed: boolean): (z: number) => number {
+    const rev = s.directed && !directed ? s.reverse() : undefined;
+    return (z) => adamicAdarWeight(distinctRowLength(s, z) + (rev === undefined ? 0 : distinctRowLength(rev, z)));
+}
+
+/**
+ * The pair score: a count of common neighbours, or their weight sum when `weight` is given.
+ * @param s - The snapshot
+ * @param o - Options
+ * @param weight - Optional weight of a common neighbour
+ * @returns The score of (u, v); 0 when either is absent
+ */
+function scorer(s: GraphSnapshot, o: CommonNeighborsOptions, weight?: (z: number) => number): PairScore {
+    const bwd = o.directed === true ? s.reverse() : s;
     const n = s.nodeCount;
     return (u, v) => (u < n && v < n ? sortedRowMerge(s, bwd, u, v, weight) : 0);
+}
+
+/**
+ * The Adamic-Adar pair score for many pairs: every node's weight computed once, up front.
+ * @param s - The snapshot
+ * @param o - Options
+ * @returns The score of (u, v)
+ */
+function adamicAdarScorer(s: GraphSnapshot, o: CommonNeighborsOptions): PairScore {
+    const weightOf = adamicAdarWeightOf(s, o.directed === true);
+    const w = Float64Array.from({ length: s.nodeCount }, (_, z) => weightOf(z));
+    return scorer(s, o, (z) => w[z]);
 }
 
 /**
@@ -223,7 +257,7 @@ function rankingMetrics(edges: F64, nonEdges: F64): LinkPredictionMetrics {
  * @public
  */
 export function commonNeighborsPrediction(s: GraphSnapshot, o: LinkPredictionOptions = {}): LinkPredictionResult {
-    return predict(s, o, scorer(s, o, false));
+    return predict(s, o, scorer(s, o));
 }
 
 /**
@@ -235,7 +269,7 @@ export function commonNeighborsPrediction(s: GraphSnapshot, o: LinkPredictionOpt
  * @public
  */
 export function commonNeighborsForPairs(s: GraphSnapshot, pairs: NodePairs, o: CommonNeighborsOptions = {}): F64 {
-    return forPairs(pairs, scorer(s, o, false));
+    return forPairs(pairs, scorer(s, o));
 }
 
 /**
@@ -247,7 +281,7 @@ export function commonNeighborsForPairs(s: GraphSnapshot, pairs: NodePairs, o: C
  * @public
  */
 export function getTopCandidatesForNode(s: GraphSnapshot, u: number, o: CandidateOptions = {}): LinkPredictionResult {
-    return candidatesOf(s, u, o, scorer(s, o, false));
+    return candidatesOf(s, u, o, scorer(s, o));
 }
 
 /**
@@ -265,7 +299,7 @@ export function evaluateCommonNeighbors(
     nonEdges: NodePairs,
     o: CommonNeighborsOptions = {},
 ): LinkPredictionMetrics {
-    const score = scorer(s, o, false);
+    const score = scorer(s, o);
     return rankingMetrics(forPairs(edges, score), forPairs(nonEdges, score));
 }
 
@@ -279,7 +313,7 @@ export function evaluateCommonNeighbors(
  * @public
  */
 export function adamicAdarScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {
-    return scorer(s, o, true)(u, v);
+    return scorer(s, o, adamicAdarWeightOf(s, o.directed === true))(u, v);
 }
 
 /**
@@ -290,7 +324,7 @@ export function adamicAdarScore(s: GraphSnapshot, u: number, v: number, o: Commo
  * @public
  */
 export function adamicAdarPrediction(s: GraphSnapshot, o: LinkPredictionOptions = {}): LinkPredictionResult {
-    return predict(s, o, scorer(s, o, true));
+    return predict(s, o, adamicAdarScorer(s, o));
 }
 
 /**
@@ -302,7 +336,7 @@ export function adamicAdarPrediction(s: GraphSnapshot, o: LinkPredictionOptions 
  * @public
  */
 export function adamicAdarForPairs(s: GraphSnapshot, pairs: NodePairs, o: CommonNeighborsOptions = {}): F64 {
-    return forPairs(pairs, scorer(s, o, true));
+    return forPairs(pairs, adamicAdarScorer(s, o));
 }
 
 /**
@@ -318,7 +352,7 @@ export function getTopAdamicAdarCandidatesForNode(
     u: number,
     o: CandidateOptions = {},
 ): LinkPredictionResult {
-    return candidatesOf(s, u, o, scorer(s, o, true));
+    return candidatesOf(s, u, o, adamicAdarScorer(s, o));
 }
 
 /**
@@ -336,7 +370,7 @@ export function evaluateAdamicAdar(
     nonEdges: NodePairs,
     o: CommonNeighborsOptions = {},
 ): LinkPredictionMetrics {
-    const score = scorer(s, o, true);
+    const score = adamicAdarScorer(s, o);
     return rankingMetrics(forPairs(edges, score), forPairs(nonEdges, score));
 }
 

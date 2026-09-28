@@ -1,4 +1,5 @@
 import type { Graph } from "../core/graph.js";
+import { adamicAdarWeight } from "../indexed/link-prediction.js";
 import type { NodeId } from "../types/index.js";
 import { getCommonNeighbors, getIntermediateNodes } from "../utils/graph-utilities.js";
 import type { LinkPredictionOptions, LinkPredictionScore } from "./common-neighbors.js";
@@ -50,12 +51,7 @@ export function adamicAdarScore(
             ? graph.outDegree(neighbor) // Use out-degree for directed graphs
             : graph.degree(neighbor); // Use total degree for undirected graphs
 
-        if (degree > 1) {
-            score += 1 / Math.log(degree);
-        } else if (degree === 1) {
-            // For degree 1, we can't use log(1) = 0, so use a small constant
-            score += 1; // or some other reasonable value
-        }
+        score += adamicAdarWeight(degree);
     }
 
     return score;

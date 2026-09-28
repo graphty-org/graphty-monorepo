@@ -1,4 +1,4 @@
-import type { AdjacencyView, F64, GraphSnapshot } from "@graphty/graph-format";
+import type { AdjacencyView, GraphSnapshot } from "@graphty/graph-format";
 
 /** Options of the index-based common-neighbour score. @public */
 export interface CommonNeighborsOptions {
@@ -8,16 +8,22 @@ export interface CommonNeighborsOptions {
 
 /**
  * Merge row u of `fwd` with row v of `bwd` (both sorted) and add up each DISTINCT common neighbour
- * once: 1 per neighbour, or `weight[z]` when a weight array is given. The adjacent-skip after a
+ * once: 1 per neighbour, or `weight(z)` when a weight function is given. The adjacent-skip after a
  * match is what gives simple-graph semantics on a multigraph.
  * @param fwd - The view whose row u is read
  * @param bwd - The view whose row v is read
  * @param u - A node index
  * @param v - A node index
- * @param weight - Optional per-node weight of a common neighbour
+ * @param weight - Optional weight of a common neighbour
  * @returns The count, or the weight sum, over distinct common neighbours
  */
-export function sortedRowMerge(fwd: AdjacencyView, bwd: AdjacencyView, u: number, v: number, weight?: F64): number {
+export function sortedRowMerge(
+    fwd: AdjacencyView,
+    bwd: AdjacencyView,
+    u: number,
+    v: number,
+    weight?: (z: number) => number,
+): number {
     let i = fwd.rowPtr[u];
     const iEnd = fwd.rowPtr[u + 1];
     let j = bwd.rowPtr[v];
@@ -27,7 +33,7 @@ export function sortedRowMerge(fwd: AdjacencyView, bwd: AdjacencyView, u: number
         const a = fwd.colIdx[i];
         const b = bwd.colIdx[j];
         if (a === b) {
-            sum += weight === undefined ? 1 : weight[a];
+            sum += weight === undefined ? 1 : weight(a);
             i++;
             j++;
             while (i < iEnd && fwd.colIdx[i] === a) {

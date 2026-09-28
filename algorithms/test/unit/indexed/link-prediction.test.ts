@@ -103,30 +103,6 @@ function expectScoresMatch(actual: LinkPredictionScore[], expected: LinkPredicti
     });
 }
 
-/**
- * The Adamic-Adar ordering, which cannot be compared exactly: legacy adds a pair's terms in the
- * order its neighbours were inserted and the port in index order, so two pairs with the same
- * terms can differ in the last bit and swap places. Asserted instead: the same score at every rank,
- * every listed pair carrying its own legacy score, and -- when nothing was cut off -- the same pairs.
- */
-function expectRankingMatches(
-    actual: LinkPredictionScore[],
-    expected: LinkPredictionScore[],
-    legacyScore: (source: NodeId, target: NodeId) => number,
-    complete: boolean,
-    at: string,
-): void {
-    expect(actual.length, `${at} length`).toBe(expected.length);
-    expected.forEach((x, k) => {
-        expectClose(actual[k].score, x.score, `${at} rank ${String(k)}`);
-        expectClose(actual[k].score, legacyScore(actual[k].source, actual[k].target), `${at} pair ${String(k)}`);
-    });
-    if (complete) {
-        const key = (x: LinkPredictionScore): string => `${String(x.source)}|${String(x.target)}`;
-        expect(actual.map(key).sort(), `${at} pairs`).toEqual(expected.map(key).sort());
-    }
-}
-
 function expectMetricsMatch(actual: object, expected: object, at: string): void {
     const a = actual as Record<string, number>;
     const e = expected as Record<string, number>;
@@ -191,18 +167,17 @@ describe("indexed link prediction, against legacy", () => {
             const s = c.snapshot;
 
             it("predictions: same pairs, same order, same scores", () => {
-                for (const o of OPTIONS) {
+                // A topK that is not positive keeps every pair.
+                for (const o of [...OPTIONS, { topK: 0 }, { topK: -2 }]) {
                     const at = `${c.name} ${JSON.stringify(o)}`;
                     expectScoresMatch(
                         toLegacy(s, commonNeighborsPrediction(s, o)),
                         legacy.commonNeighborsPrediction(c.graph, o),
                         `common neighbours ${at}`,
                     );
-                    expectRankingMatches(
+                    expectScoresMatch(
                         toLegacy(s, adamicAdarPrediction(s, o)),
                         legacy.adamicAdarPrediction(c.graph, o),
-                        (u, v) => legacy.adamicAdarScore(c.graph, u, v, o),
-                        !("topK" in o),
                         `Adamic-Adar ${at}`,
                     );
                 }
@@ -245,11 +220,9 @@ describe("indexed link prediction, against legacy", () => {
                             legacy.getTopCandidatesForNode(c.graph, id, o),
                             `common neighbours ${at}`,
                         );
-                        expectRankingMatches(
+                        expectScoresMatch(
                             toLegacy(s, getTopAdamicAdarCandidatesForNode(s, u, { ...o, candidates })),
                             legacy.getTopAdamicAdarCandidatesForNode(c.graph, id, { ...o, candidates: candidateIds }),
-                            (a, b) => legacy.adamicAdarScore(c.graph, a, b, o),
-                            false,
                             `Adamic-Adar ${at}`,
                         );
                     }
@@ -304,7 +277,7 @@ describe("indexed link prediction", () => {
     it("weights each common neighbour by one over the log of its degree", () => {
         // b and d share a and c, each of degree 3.
         const s = square();
-        expect(adamicAdarScore(s, 1, 3)).toBeCloseTo(2 / Math.log(3), 12);
+        expect(adamicAdarScore(s, 1, 3)).toBeCloseTo(2 / Math.log(3), 10);
         s.validate({ checksum: true });
     });
 
@@ -331,6 +304,93 @@ describe("indexed link prediction", () => {
         expect(m.auc).toBe(0.5);
         expect(m.precision).toBe(1);
         expect(m.recall).toBe(1);
+        s.validate({ checksum: true });
+    });
+
+    it("scores two pairs with the same common-neighbour degrees identically, whatever the order", () => {
+        // 1 and s2 both have the common neighbours 3 (degree 3), s4 (degree 5, a self-loop counted
+        // once) and 1 or s2 itself (degree 3), reached in a different order. Summed unsnapped, the
+        // two scores differ in the last bit, and the stable edges-first ranking splits the tie.
+        const graph = new Graph({ directed: false, allowSelfLoops: true });
+        const b = new GraphBuilder({ directed: false });
+        for (const id of ["s2", "s4", "s0", 1, 3]) {
+            graph.addNode(id);
+            b.addNode(id);
+        }
+        const edges: [NodeId, NodeId][] = [
+            ["s2", "s4"],
+            ["s4", "s4"],
+            ["s0", "s2"],
+            [1, "s4"],
+            [1, 3],
+            [1, "s0"],
+            [3, "s4"],
+            [3, "s2"],
+        ];
+        for (const [u, v] of edges) {
+            graph.addEdge(u, v);
+            b.addEdge(u, v);
+        }
+        const s = b.freeze({ label: "tie", checksum: true });
+        const test: [NodeId, NodeId][] = [
+            [1, 1],
+            ["s2", "s2"],
+        ];
+        const non: [NodeId, NodeId][] = [
+            ["s2", 1],
+            [1, "s2"],
+        ];
+        const indexed = (pairs: [NodeId, NodeId][]): { sources: number[]; targets: number[] } => ({
+            sources: pairs.map(([u]) => s.ids.indexOf(u)),
+            targets: pairs.map(([, v]) => s.ids.indexOf(v)),
+        });
+        const o = { includeExisting: true };
+        const scores = adamicAdarForPairs(s, indexed([...test, ...non]), o);
+        expect(new Set(scores).size).toBe(1);
+        const metrics = evaluateAdamicAdar(s, indexed(test), indexed(non), o);
+        expect(metrics).toEqual(legacy.evaluateAdamicAdar(graph, test, non, o));
+        expect(metrics.auc).toBe(1);
+        s.validate({ checksum: true });
+    });
+
+    it("scores one pair from its own neighbourhood, not the whole graph", () => {
+        // A path 0-1-2-...-999: the pair (0, 2) has the one common neighbour 1.
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < 1000; i++) {
+            b.addNode(i);
+        }
+        for (let i = 0; i + 1 < 1000; i++) {
+            b.addEdge(i, i + 1);
+        }
+        const s = b.freeze({ label: "path", checksum: true });
+        let rowReads = 0;
+        const counted = new Proxy(s, {
+            get(target, key): unknown {
+                if (key === "rowPtr") {
+                    rowReads++;
+                }
+                const value: unknown = Reflect.get(target, key, target);
+                return typeof value === "function" ? (value as () => unknown).bind(target) : value;
+            },
+        });
+        expect(adamicAdarScore(counted, 0, 2)).toBe(adamicAdarScore(s, 0, 2));
+        expect(adamicAdarScore(counted, 0, 2)).toBeCloseTo(1 / Math.log(2), 10);
+        expect(rowReads).toBeLessThan(40);
+        s.validate({ checksum: true });
+    });
+
+    it("keeps the first threshold when two give the same best F1", () => {
+        // Ranked: edge b-d (2), non-edge a-c (2), non-edge a-b (1), then an edge to an absent node
+        // (0). F1 is 2/3 after the first pair and 2/3 again after all four; the first one is kept.
+        const s = square();
+        const m = evaluateCommonNeighbors(
+            s,
+            { sources: [1, 0], targets: [3, INVALID_INDEX] },
+            { sources: [0, 0], targets: [2, 1] },
+        );
+        expect(m.precision).toBe(1);
+        expect(m.recall).toBe(0.5);
+        expect(m.f1Score).toBeCloseTo(2 / 3, 12);
         s.validate({ checksum: true });
     });
 });

@@ -30,18 +30,18 @@ measurements), `feature-analysis.md` (every candidate feature with its tier), `r
 
 ## 1. Summary
 
-| Part               | Choice                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Code               | A new private workspace package, `@graphty/visual-review` in `visual-review/`, written as plain `.mjs` with no build step. `trusted/` holds verify, audit, sign, serve, compare and the review page, using only node built-ins, `git`, `gh`, `ssh-keygen` and a vendored copy of pixelmatch, under a line budget the owner can read. `capture/` adds Playwright. It absorbs `tools/diff-stories.mjs` and `tools/pixel-diff.mjs`. |
-| Capture            | Runs in `visual.yml`, a workflow that runs master's code after a new `storybooks.yml` workflow has built the pull request's Storybooks, never the pull request's code. Playwright and Chromium with SwiftShader open each story at 1200 x 900, with `&chromatic=true` and a frozen clock. The pull request's JavaScript runs only inside Chromium.                                                                               |
-| Compare            | SHA-256 of the PNG first; pixelmatch only on files whose bytes differ. Every differing story is captured a second time in a fresh browser context, which separates real changes, unstable stories and one-off flakes.                                                                                                                                                                                                            |
-| Baselines          | PNG files in plain git (not Git LFS), in a root `visual-baselines/<project>/` directory that belongs to no Nx project, with one settings file per story that is the source of truth for its capture settings. About 16 MB for the first two projects; WebP or LFS may be needed within the first year (section 7).                                                                                                               |
-| Approval           | Today: an unsigned record marked "unproven", written from the review page on the development server. This week: `visual-review sign` on the owner's own computer, from a pinned commit, shows every before and after image and signs the record with `ssh-keygen -Y sign` and an `ed25519-sk` security key (touch and PIN). Rejects are never signed.                                                                            |
-| Records            | One JSON file per review session in `visual-baselines/reviews/`, covering every project reviewed in it, committed with the images, and recording the capture environment.                                                                                                                                                                                                                                                        |
-| Pull request check | A "Visual review" status posted by `visual.yml`. Advisory at first; required once enforcement starts.                                                                                                                                                                                                                                                                                                                            |
-| Audit              | `visual-review audit` flags every baseline or protected-file change on master that no valid signature covers. The owner runs it from a root commit they recorded outside the repository; `visual-audit.yml`, which `release.yml` waits for, runs it on every master push together with a drift capture.                                                                                                                          |
-| Pre-push           | Blocks on a baseline change without a valid signature (seconds). A capture comparison is opt-in until measured.                                                                                                                                                                                                                                                                                                                  |
-| Cost               | $0 a month. Two FIDO2 security keys (about $25 to $60 each, once) are needed before signing starts.                                                                                                                                                                                                                                                                                                                              |
+| Part               | Choice                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Code               | A new private workspace package, `@graphty/visual-review` in `visual-review/`, written as plain `.mjs` with no build step. `trusted/` holds verify, audit, sign, serve, compare and the review page, using only node built-ins, `git`, `gh`, `ssh-keygen` and a vendored copy of pixelmatch, under a line budget the owner can read. `capture/` adds Playwright. It absorbs `tools/diff-stories.mjs` and `tools/pixel-diff.mjs`.                                       |
+| Capture            | Runs in `visual.yml`, a workflow that runs master's code after a new `storybooks.yml` workflow has built the pull request's Storybooks, never the pull request's code. Playwright and Chromium with SwiftShader open each story at 1200 x 900, with `&chromatic=true` and a frozen clock. The pull request's JavaScript runs only inside Chromium.                                                                                                                     |
+| Compare            | SHA-256 of the PNG first; pixelmatch only on files whose bytes differ. Every differing story is captured a second time in a fresh browser context, which separates real changes, unstable stories and one-off flakes.                                                                                                                                                                                                                                                  |
+| Baselines          | PNG files in Git LFS from the first baseline, in a root `visual-baselines/<project>/` directory that belongs to no Nx project, with one settings file per story that is the source of truth for its capture settings; review records and settings files stay plain git. About 16 MB for the first two projects (section 7). Seeding is per story: a story is accepted when it looks right, and until then it blocks only a pull request that changes it (section 11a). |
+| Approval           | Today: an unsigned record marked "unproven", written from the review page on the development server. This week: `visual-review sign` on the owner's own computer, from a pinned commit, shows every before and after image and signs the record with `ssh-keygen -Y sign` and an `ed25519-sk` security key (touch and PIN). Rejects are never signed.                                                                                                                  |
+| Records            | One JSON file per review session in `visual-baselines/reviews/`, covering every project reviewed in it, committed with the images, and recording the capture environment.                                                                                                                                                                                                                                                                                              |
+| Pull request check | A "Visual review" status posted by `visual.yml`. Advisory at first; required once enforcement starts.                                                                                                                                                                                                                                                                                                                                                                  |
+| Audit              | `visual-review audit` flags every baseline or protected-file change on master that no valid signature covers. The owner runs it from a root commit they recorded outside the repository; `visual-audit.yml`, which `release.yml` waits for, runs it on every master push together with a drift capture.                                                                                                                                                                |
+| Pre-push           | Blocks on a baseline change without a valid signature (seconds). A capture comparison is opt-in until measured.                                                                                                                                                                                                                                                                                                                                                        |
+| Cost               | $0 a month. Two FIDO2 security keys (about $25 to $60 each, once) are needed before signing starts.                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## 1a. Milestone 1 as built
 
@@ -56,7 +56,8 @@ for this milestone", gives the reason for each.
 - **The merge gate blocks.** On pull requests the "All Checks Pass" job runs
   `visual-review/trusted/gate.mjs`. For every project that has baseline PNGs on the base branch it
   reads the newest attempt's `results.json` of this CI run, and fails when that capture holds any
-  item other than `unchanged` or `excluded`, or is missing or unfinished. Both the list of
+  item other than `unchanged`, `excluded` or `unseeded` (no baseline yet, and the pull request
+  does not change it; section 11a), or is missing or unfinished. Both the list of
   projects and "seeded" are read from the base branch (the directories under `visual-baselines/`
   holding a PNG), so neither deleting a project's baselines nor editing
   `visual-review/projects.json` in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
@@ -95,6 +96,22 @@ for this milestone", gives the reason for each.
   timeout is 45 minutes until the first CI runs are measured.
 - **The gate is inactive until the first baselines are on master.** No `visual-baselines/`
   directory exists yet, so no project is seeded and nothing is blocked.
+- **Baselines are Git LFS objects from the start** (`.gitattributes`:
+  `visual-baselines/**/*.png filter=lfs diff=lfs merge=lfs -text`), decided before any baseline was
+  committed; section 7 gives the reasons and the bandwidth estimate. Only the `visual` job fetches
+  images, and only its own project's (`git lfs pull --include`), with the objects cached in the
+  Actions cache; every other job, the gate included, sees pointer files. Capture and `compare`
+  stop with "baseline is an LFS pointer; run git lfs pull" rather than report every image changed.
+  `serve` refuses to start without a working git-lfs, and Finish refuses a commit whose PNG is not
+  a pointer and uploads the objects with `git lfs push` before `git push` (it runs with hooks off).
+  The gate, and the pre-push record check when it comes, read an image's hash from its pointer's
+  `oid sha256:` line, which equals the PNG's SHA-256 that records name, so they never download an
+  image. `.husky/pre-push` runs `tools/lfs-pre-push.sh` first, because `git lfs install` cannot add
+  its own hook beside husky's.
+- **Seeding is per story** (section 11a). On pull requests the `visual` job downloads master's
+  newest complete capture (`visual-review reference`, with `actions: read`), and a story with no
+  baseline whose capture matches master's is `unseeded` instead of `new`. Master's rejects become
+  one issue with the machine-readable block, since master has no pull request to comment on.
 - **`trusted/` has one dependency**, `pngjs`, for decoding PNGs in the comparison. The
   dependency-free rule matters once `trusted/` verifies signatures (milestone 3).
 - **No pinned fonts.** Captures use the CI runner's system fonts. The clock starts at a fixed
@@ -177,38 +194,38 @@ systems (Argos, Percy, Happo, Applitools, reg-cli, Playwright, BackstopJS, Visua
 Tracker, GitHub) are analysed row by row in `feature-analysis.md`. This table is the result, with
 the changes from the owner's tiers explained.
 
-| Feature                                                                                                                                           | Owner             | Recommended                                                | When                                                                                                                 | Why the change, if any                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Web diff UI                                                                                                                                       | P0                | P0                                                         | today                                                                                                                |                                                                                                                              |
-| Accept and reject in the UI, with a reason                                                                                                        | P0                | P0                                                         | today                                                                                                                | The reason is the history's "why"                                                                                            |
-| Baselines committed to git                                                                                                                        | P0 (probably LFS) | P0, plain git                                              | today                                                                                                                | See section 7: LFS adds failure modes and is not needed at seed size; revisit within the year                                |
-| Run in CI                                                                                                                                         | P0                | P0                                                         | today (blocks unreviewed merges, proves nothing about who), this week (signed and required)                          |                                                                                                                              |
-| Pre-push hook                                                                                                                                     | P0                | P0: signature check blocks; capture comparison opt-in      | within days; today there is no pre-push visual step                                                                  | A local capture can only block once it matches CI byte for byte, which needs the pinned fonts                                |
-| Multiple projects                                                                                                                                 | P0                | P0                                                         | compact-mantine today, graphty-element once its harness fix merges, the rest within days                             |                                                                                                                              |
-| History tied to git hashes                                                                                                                        | P0                | P0 as records today; a per-story history panel P1          | today, panel within days                                                                                             | The records hold the data; the panel only reads them                                                                         |
-| ...and dirty state                                                                                                                                | P0 (question)     | answered by a rule                                         | today                                                                                                                | Only CI captures of a pushed commit can be accepted (section 9)                                                              |
-| No hosted server                                                                                                                                  | P0                | P0                                                         | today                                                                                                                | Review runs on the development server today and on the owner's computer from this week; nothing is hosted                    |
-| Affected-only runs                                                                                                                                | P1                | P1                                                         | within days                                                                                                          | Planned by master's rules, not the pull request's Nx settings (section 12); both projects cost a few free minutes until then |
-| Flashing                                                                                                                                          | P1                | **P0**                                                     | today                                                                                                                | A few lines; graphty-element's canvas changes are often a few pixels                                                         |
-| Pixel highlighting                                                                                                                                | P1                | **P0**                                                     | today                                                                                                                | Same reason                                                                                                                  |
-| Zoom to the change, keyboard review                                                                                                               | --                | **P0**                                                     | today                                                                                                                | A few lines each; few-pixel changes are invisible without zoom                                                               |
-| Exclude a flaky story with a reason                                                                                                               | --                | **P0**                                                     | today                                                                                                                | One flaky story among about 1,000 would otherwise block the seed                                                             |
-| Links to baseline and new live Storybooks                                                                                                         | P1                | P1                                                         | within days                                                                                                          |                                                                                                                              |
-| Comments Claude can pick up                                                                                                                       | P2                | P2                                                         | later                                                                                                                | Reject reasons cover much of it, as untrusted data (section 8)                                                               |
-| Optimise time, CPU, storage                                                                                                                       | P2                | P2, except hash-before-pixels at P0                        | today (hashing)                                                                                                      | Hashing all 1,198 captures takes 30 ms                                                                                       |
-| MCP server                                                                                                                                        | P2                | P2; the machine-readable `results.json` it reads is **P0** | later                                                                                                                | Everything reads that file: the UI, CI, pre-push                                                                             |
-| Other browsers                                                                                                                                    | P2                | P2                                                         | later                                                                                                                | Start with compact-mantine on WebKit, which has no canvas                                                                    |
-| Owner-only approval an agent cannot forge (no vendor has this)                                                                                    | --                | **P0**                                                     | unproven records today, signed and enforced this week                                                                | Agents here hold the owner's GitHub token and signing key                                                                    |
-| Accept a whole project at once, progress count                                                                                                    | --                | P0                                                         | today                                                                                                                | The seed is about 1,000 images                                                                                               |
-| Light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd` (Chromatic parameters in use) | --                | P0                                                         | today                                                                                                                | Five story parameters are the whole story-level surface we use                                                               |
-| The `isChromatic()` signal                                                                                                                        | --                | P0                                                         | today                                                                                                                | Physics layouts pre-step and a label animation stops; `&chromatic=true` in the URL keeps it working                          |
-| Settings changes are review items                                                                                                                 | --                | P0                                                         | today for a newly excluded story or a dropped mode; within days for thresholds, anti-aliasing and delay (section 1a) | A raised threshold or a new `disableSnapshot` changes what is checked                                                        |
-| Retrospective audit from a pinned root                                                                                                            | --                | P0                                                         | this week                                                                                                            | The only check an agent cannot rewrite (section 8)                                                                           |
-| Modes grouped per story, pull request context on the review screens                                                                               | --                | P1                                                         | within days                                                                                                          | Halves the key presses on compact-mantine; shows whether a diff is intended                                                  |
-| Recapture of failed and unstable stories, re-apply after a rebase                                                                                 | --                | P1                                                         | within days                                                                                                          | Without them one timeout blocks a clean pull request                                                                         |
-| Compare any two built Storybooks (for example the last 1.x release against master)                                                                | --                | P1                                                         | week two                                                                                                             | A real past need (issue #518); `diff-stories.mjs` already does it                                                            |
-| Hosted review site, group identical changes, mask regions, full history page, WebP baselines, alignment-aware diff, agent review summary          | --                | P2                                                         | later                                                                                                                |                                                                                                                              |
-| Auto-approve, multiple reviewers, perceptual diffing, agent approval                                                                              | --                | never                                                      | --                                                                                                                   | Conflict with owner-only acceptance or hide real changes                                                                     |
+| Feature                                                                                                                                           | Owner             | Recommended                                                | When                                                                                                                 | Why the change, if any                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Web diff UI                                                                                                                                       | P0                | P0                                                         | today                                                                                                                |                                                                                                                                    |
+| Accept and reject in the UI, with a reason                                                                                                        | P0                | P0                                                         | today                                                                                                                | The reason is the history's "why"                                                                                                  |
+| Baselines committed to git                                                                                                                        | P0 (probably LFS) | P0, Git LFS                                                | today                                                                                                                | The owner's decision before the first baseline: plain-git image history is permanent and a later move rewrites history (section 7) |
+| Run in CI                                                                                                                                         | P0                | P0                                                         | today (blocks unreviewed merges, proves nothing about who), this week (signed and required)                          |                                                                                                                                    |
+| Pre-push hook                                                                                                                                     | P0                | P0: signature check blocks; capture comparison opt-in      | within days; today there is no pre-push visual step                                                                  | A local capture can only block once it matches CI byte for byte, which needs the pinned fonts                                      |
+| Multiple projects                                                                                                                                 | P0                | P0                                                         | compact-mantine today, graphty-element once its harness fix merges, the rest within days                             |                                                                                                                                    |
+| History tied to git hashes                                                                                                                        | P0                | P0 as records today; a per-story history panel P1          | today, panel within days                                                                                             | The records hold the data; the panel only reads them                                                                               |
+| ...and dirty state                                                                                                                                | P0 (question)     | answered by a rule                                         | today                                                                                                                | Only CI captures of a pushed commit can be accepted (section 9)                                                                    |
+| No hosted server                                                                                                                                  | P0                | P0                                                         | today                                                                                                                | Review runs on the development server today and on the owner's computer from this week; nothing is hosted                          |
+| Affected-only runs                                                                                                                                | P1                | P1                                                         | within days                                                                                                          | Planned by master's rules, not the pull request's Nx settings (section 12); both projects cost a few free minutes until then       |
+| Flashing                                                                                                                                          | P1                | **P0**                                                     | today                                                                                                                | A few lines; graphty-element's canvas changes are often a few pixels                                                               |
+| Pixel highlighting                                                                                                                                | P1                | **P0**                                                     | today                                                                                                                | Same reason                                                                                                                        |
+| Zoom to the change, keyboard review                                                                                                               | --                | **P0**                                                     | today                                                                                                                | A few lines each; few-pixel changes are invisible without zoom                                                                     |
+| Exclude a flaky story with a reason                                                                                                               | --                | **P0**                                                     | today                                                                                                                | One flaky story among about 1,000 would otherwise block the seed                                                                   |
+| Links to baseline and new live Storybooks                                                                                                         | P1                | P1                                                         | within days                                                                                                          |                                                                                                                                    |
+| Comments Claude can pick up                                                                                                                       | P2                | P2                                                         | later                                                                                                                | Reject reasons cover much of it, as untrusted data (section 8)                                                                     |
+| Optimise time, CPU, storage                                                                                                                       | P2                | P2, except hash-before-pixels at P0                        | today (hashing)                                                                                                      | Hashing all 1,198 captures takes 30 ms                                                                                             |
+| MCP server                                                                                                                                        | P2                | P2; the machine-readable `results.json` it reads is **P0** | later                                                                                                                | Everything reads that file: the UI, CI, pre-push                                                                                   |
+| Other browsers                                                                                                                                    | P2                | P2                                                         | later                                                                                                                | Start with compact-mantine on WebKit, which has no canvas                                                                          |
+| Owner-only approval an agent cannot forge (no vendor has this)                                                                                    | --                | **P0**                                                     | unproven records today, signed and enforced this week                                                                | Agents here hold the owner's GitHub token and signing key                                                                          |
+| Accept a whole project at once, progress count                                                                                                    | --                | P0                                                         | today                                                                                                                | The seed is about 1,000 images                                                                                                     |
+| Light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd` (Chromatic parameters in use) | --                | P0                                                         | today                                                                                                                | Five story parameters are the whole story-level surface we use                                                                     |
+| The `isChromatic()` signal                                                                                                                        | --                | P0                                                         | today                                                                                                                | Physics layouts pre-step and a label animation stops; `&chromatic=true` in the URL keeps it working                                |
+| Settings changes are review items                                                                                                                 | --                | P0                                                         | today for a newly excluded story or a dropped mode; within days for thresholds, anti-aliasing and delay (section 1a) | A raised threshold or a new `disableSnapshot` changes what is checked                                                              |
+| Retrospective audit from a pinned root                                                                                                            | --                | P0                                                         | this week                                                                                                            | The only check an agent cannot rewrite (section 8)                                                                                 |
+| Modes grouped per story, pull request context on the review screens                                                                               | --                | P1                                                         | within days                                                                                                          | Halves the key presses on compact-mantine; shows whether a diff is intended                                                        |
+| Recapture of failed and unstable stories, re-apply after a rebase                                                                                 | --                | P1                                                         | within days                                                                                                          | Without them one timeout blocks a clean pull request                                                                               |
+| Compare any two built Storybooks (for example the last 1.x release against master)                                                                | --                | P1                                                         | week two                                                                                                             | A real past need (issue #518); `diff-stories.mjs` already does it                                                                  |
+| Hosted review site, group identical changes, mask regions, full history page, WebP baselines, alignment-aware diff, agent review summary          | --                | P2                                                         | later                                                                                                                |                                                                                                                                    |
+| Auto-approve, multiple reviewers, perceptual diffing, agent approval                                                                              | --                | never                                                      | --                                                                                                                   | Conflict with owner-only acceptance or hide real changes                                                                           |
 
 ## 4. Architecture
 
@@ -275,7 +292,7 @@ visual-review/                        @graphty/visual-review, "private": true, b
   test/                               unit tests, signature test vectors, a fixture Storybook
 
 visual-baselines/                     root directory; in .nxignore and .prettierignore
-  <project>/<story-id>[.<mode>].png
+  <project>/<story-id>[.<mode>].png   a Git LFS object (section 7)
   <project>/<story-id>.json           that story's settings: disableSnapshot (with a reason),
                                       diffThreshold, diffIncludeAntiAliasing, delay, modes
   reviews/<utc-time>-<id>.json        one accept record per session, any number of projects
@@ -452,7 +469,7 @@ Two more measurements run in parallel and never block a seed:
 
 | What                       | Where                                                  | Size                                                                                                                                                                                                                          | Retention                            |
 | -------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Baselines                  | monorepo, plain git                                    | graphty-element 7.4 MB (171 images) and compact-mantine 8.9 MB (828), measured: about 16 MB. algorithms, layout and graphty (75 stories, light and dark, full height) are not yet measured; estimate 22 to 26 MB for all five | forever                              |
+| Baselines                  | monorepo, Git LFS                                      | graphty-element 7.4 MB (171 images) and compact-mantine 8.9 MB (828), measured: about 16 MB. algorithms, layout and graphty (75 stories, light and dark, full height) are not yet measured; estimate 22 to 26 MB for all five | forever                              |
 | Review records             | monorepo                                               | about 1 to 2 KB a session; a seed manifest about 250 KB                                                                                                                                                                       | forever                              |
 | `visual-results-<project>` | Actions artifact, `results.json` only                  | a few KB                                                                                                                                                                                                                      | 90 days                              |
 | `visual-<project>`         | Actions artifact, PNGs of differing and new items only | small                                                                                                                                                                                                                         | 30 days                              |
@@ -462,25 +479,53 @@ Two more measurements run in parallel and never block a seed:
 is not how these baselines change: a canvas re-render or a Chromium bump changes whole frames, and
 deltas help little. The estimate is therefore (full re-baselines a year x the full size of all five
 projects) plus feature accepts: about 4 to 6 re-baselines x 22 to 26 MB, plus 20 to 50 MB of
-feature work, or **about 110 to 210 MB in the first year**. That reaches the 300 MB trigger below
-within one to two years, so WebP or LFS may be needed in year one, not "later". Churn is kept down
-by bumping `playwright-core` quarterly, not with every lockfile change. The weekly run measures a
-real full-frame re-capture's packed size and replaces this estimate.
+feature work, or **about 110 to 210 MB in the first year**, before a second browser multiplies it.
+In plain git that would reach a 300 MB trigger within one to two years and then need a history
+rewrite; that is why the baselines are in Git LFS from the start (below). Churn is kept down by
+bumping `playwright-core` quarterly, not with every lockfile change. The weekly run measures a
+real full-frame re-capture's size and replaces this estimate.
 
-**CI transfer.** The repository packs to about 90 MB today, and most CI checkouts use
-`fetch-depth: 0`, so every job would download every baseline PNG in history. Jobs that need
-history only for Nx affected and `git diff --name-only` switch to `filter: blob:none`; only the
-capture and verify jobs fetch images, and only `visual-baselines/<project>/` for the projects they
-handle, through sparse checkout. The weekly run reports the packed size of `visual-baselines/`
-history, the clone size and a build job's checkout time, and opens an issue above 300 MB of
-baseline history. That is the trigger to move to WebP or LFS.
+**Git LFS from the start (the owner's decision, 2026-09-27, before any baseline was committed).**
+In plain git every baseline version stays in history forever: every clone and every
+`fetch-depth: 0` CI checkout (most of ci.yml's) would carry the 110 to 210 MB estimated above for
+year one alone, before more browsers multiply it. Moving later means `git lfs migrate import`,
+which rewrites every commit since the first baseline: every open branch and worktree must be
+rebuilt, and commit hashes that records, reject comments and milestone 3's recorded root commit
+name stop existing. With LFS, git holds a 130-byte pointer per image, and only a job that needs
+the images downloads them, only for the current tree. The earlier objections are answered in the
+tooling: git-lfs is now installed on the development server; a missed `git lfs pull` stops capture
+with "baseline is an LFS pointer; run git lfs pull" instead of looking like "every image changed";
+`serve` refuses to start without git-lfs, so an accept cannot commit raw PNGs.
 
-**Not Git LFS yet.** GitHub's current documentation gives the Team plan, which this organisation
-is on, 250 GiB of LFS storage and 250 GiB of bandwidth a month (the 10 GiB figure is for Free and
-Pro), so LFS would fit. It is not worth it at seed size: `git lfs` is not installed on the
-development server; a missed `git lfs pull` looks like "every image changed"; the organisation's $0
-LFS budget would turn an exhausted allowance into failing CI; and GitHub's pull request image diff
-works on plain PNGs. Moving later is a `git lfs migrate` over `visual-baselines/`.
+**Who fetches what.** `actions/checkout` fetches no LFS objects unless asked (it sets
+`GIT_LFS_SKIP_SMUDGE` when `lfs` is false), so every job sees pointer files. Only the `visual` job
+fetches images: `git lfs pull --include "visual-baselines/<project>/**"`, for its own project. It
+first restores `.git/lfs/objects` from the Actions cache, keyed by the hash of that project's
+pointer files (in effect the list of object ids), falling back to the newest cache for the
+project, so a run downloads from LFS only images accepted since that cache was saved. The gate's
+record check reads the image hash from each pointer and downloads nothing. The review page
+downloads nothing from LFS either: the baselines a capture was compared with travel in the
+capture artifact.
+
+**LFS storage and bandwidth, against the Team plan's 250 GiB of each a month.** GitHub's current
+documentation gives the Team plan, which this organisation is on, 250 GiB of LFS storage and 250
+GiB of bandwidth a month (Free and Pro get 10 GiB); Actions downloads count against bandwidth. The
+organisation's $0 LFS budget blocks LFS for the rest of the month rather than billing, so the
+failure mode is blocked downloads, never a bill.
+
+| Item                         | Estimate                                                                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Storage                      | Every version ever pushed: about 16 MB at seed (24 MB for all five projects), 110 to 210 MB after year one. Under 0.1 % of 250 GiB                                                                                                                                       |
+| Bandwidth, CI, cache working | The images accepted in a month (about 10 to 20 MB) downloaded by the few runs that start before a cache holding them is saved, plus a full project download (7 to 9 MB) whenever a cache is evicted. About 1 to 5 GiB a month                                            |
+| Bandwidth, CI, no cache hit  | The worst case: every `visual` job downloads its whole project. About 4,500 runs a month (about 50 merges and 100 pull request pushes a day) x 16 MB = about 70 GiB a month, about 100 GiB with all five projects. Still under 250 GiB; a second browser would double it |
+| Bandwidth, people            | A fresh clone or `git lfs pull` of the current baselines is 16 to 24 MB; the development server's worktrees share one LFS object store, so each image is downloaded there once                                                                                           |
+
+The weekly run planned in section 11 is to report the month's LFS bandwidth from the organisation's billing
+usage and opens an issue above 100 GiB, well before the block at 250 GiB.
+
+**GitHub's own image diff.** Whether the pull request Files tab renders an LFS image side by side
+has not been checked; the review page, which shows baseline and capture from the artifact, is the
+image diff the review relies on.
 
 ## 8. Accept, reject, and approval integrity
 
@@ -846,7 +891,8 @@ zoom, Shift+A accept the project.
   `PORT={{port}}`; the owner opens the servherd host name in their own browser. It lists pull
   requests with `gh`, downloads artifacts, checks images against `results.json`, and serves pull
   request Storybooks from a second servherd server (another origin). Before enforcement its accept
-  commits the PNGs and an unproven record in its own worktree (signed, pushed with `--no-verify`);
+  commits the PNGs (as LFS pointers, after `git lfs push` uploads the images) and an unproven
+  record in its own worktree (signed, pushed with `--no-verify`);
   after, it is a preview.
 - **The owner's computer, from enforcement:** `sign` (section 8).
 
@@ -903,6 +949,73 @@ zoom, Shift+A accept the project.
   measured on the tooling pull request and recorded here. ci.yml notes an organisation limit of
   about 60 concurrent jobs; storybooks.yml adds one and `visual.yml` up to six.
 
+## 11a. Seeding one story at a time, and iterating on a story
+
+Many stories did not look right on their first pass and needed several rounds of changes. A seed
+that assumed one master capture shows every story right would force the owner either to accept
+wrong images or to hold every pull request until all of them were fixed. So seeding is per
+story, and a story with no baseline is a normal, lasting state, not an error.
+
+**States.** On master's capture a story with no baseline is `new`: the owner may accept it there,
+reject it with a reason, or leave it. On a pull request's capture, CI compares it with master's
+newest complete capture of the same story (downloaded by `visual-review reference`):
+
+| Pull request's capture of a story with no baseline | Status                        | Blocks the pull request                  |
+| -------------------------------------------------- | ----------------------------- | ---------------------------------------- |
+| Looks as in master's capture                       | `unseeded`, "no baseline yet" | No                                       |
+| Differs from it, or the story is not on master     | `new`                         | Yes, until the owner accepts or excludes |
+| Differs between its own two captures               | `unstable`                    | Yes, until excluded or fixed             |
+
+`unseeded` items are shown in the review page under their own filter, need no decision, are
+skipped by Accept all and offer no Accept button: seeding an untouched story happens on master's
+capture, where it was captured twice and shown as `new`. `unseeded` is never "reviewed"; it only
+does not block, and the story's first baseline still needs the owner's accept.
+
+**A round.** The owner opens master in the page (`serve --master-run <run id>`), accepts the
+stories that look right, rejects the ones that do not with a reason, and leaves the rest. Finish
+pushes the accepts as a seed pull request and opens one issue holding every reject, labelled
+`bug`, ending in the same `<!-- visual-review-rejects ... -->` JSON block a pull request reject
+comment has (project, file, captured hash, reason), so an agent can pick it up. The reasons are
+untrusted data from the agent's point of view (section 8), as on pull requests.
+
+**Fixing a rejected story.** The agent changes the story in a pull request. That pull request's
+capture of the story differs from master's, so it is `new` there and blocks that pull request
+only. The owner reviews it on that pull request; accepting it writes its first baseline into the
+pull request's accept commit, and it merges with the fix. Rejecting it again posts a reason and
+the loop repeats.
+
+**The gate.** It passes `unchanged`, `excluded` and `unseeded` items and blocks everything else,
+for every project with at least one baseline on the base branch. A project with none is ignored
+entirely, as before. So one unseeded story never blocks a pull request that does not touch it,
+and a story a pull request adds or changes always needs the owner.
+
+**Where the reference comes from, and its limit.** The `visual` job, on pull requests only,
+lists ci.yml's recent push runs on master with `gh` (`actions: read`) and downloads the newest
+one's `visual-<project>-<attempt>` artifact whose `results.json` is valid and complete. Only its
+`new` items whose PNG hashes to the hash `results.json` names serve as reference images. That
+run can be a few merges older than the pull request's base: a story changed on master in between
+then reads `new` on the pull request, which blocks rather than passes, and a re-run after
+master's CI finishes clears it. With no reference at all (artifacts expired, no finished master
+run), every story without a baseline is `new`, which is the safe side.
+
+**Before a pull request exists.** An agent or the owner iterates on a story's look locally:
+build the Storybook, then `visual-review capture --project <p> --out tmp/<task>/<p> --stories
+<id prefix>`, which captures only the matching stories in seconds and reports no baseline as
+removed; open the PNG, or serve the directory with `serve --results tmp/<task> --branch <b>`. A
+local capture records `local` (describe and diff hash), and the page offers only Reject on it and
+the API refuses Accept and Exclude: its fonts and graphics stack are not CI's, so a preview can
+never become a baseline.
+
+**How captures and baselines move.** CI uploads each capture as an artifact. The review server
+lists open pull requests and their newest CI runs with `gh` and downloads the artifacts with `gh
+run download` into `tmp/visual-review/`; the baselines a capture was compared with are inside the
+artifact, so the server never fetches images from Git LFS. Finish commits the accepted PNGs as LFS
+pointers and a record in a throwaway worktree at the captured head, uploads the images with `git
+lfs push`, and pushes to the pull request's branch. CI then captures again on the new head and
+compares with the baselines that branch now holds: accepted items read `unchanged`, rejected ones
+still differ, and only what is undecided or changed since is left. Nothing restarts from scratch,
+and decisions not yet finished are kept for every image whose hash did not change.
+
 ## 12. Multiple projects and affected-only runs
 
 `visual-review/projects.json` is the registry. Each entry names the project id, the package
@@ -946,14 +1059,23 @@ story almost free.
 
 ## 13. The pre-push hook
 
-Two steps in `tools/prepush.sh`:
+**Built: the Git LFS upload.** `.husky/pre-push` first runs `tools/lfs-pre-push.sh`, which hands
+git's ref lines to `git lfs pre-push`, so the images a push points at reach GitHub before the
+commits do. `git lfs install` cannot add that hook itself, because the repository's hooks path is
+husky's. Without git-lfs the script lets a push through only when no commit it sends touches an
+LFS-tracked path, and otherwise fails with the install steps. git-lfs's post-checkout, post-commit
+and post-merge hooks only serve LFS file locking, which is not used, so they are not called.
+
+Planned: two steps in `tools/prepush.sh`:
 
 1. **"Visual baselines are signed" (blocking, seconds, no browser).** `node
 visual-review/trusted/cli.mjs verify --local` over `merge-base..HEAD`, run whenever that diff
    touches `visual-baselines/` or a protected path. It sits before the gate's "No package is
    affected" early exit, because a baselines-only push affects no Nx project. It catches an agent
    that copies PNGs into `visual-baselines/` by hand; it is a convenience, because `--no-verify`
-   exists.
+   exists. Baseline PNGs are LFS pointers in git, so it reads each image's hash from the pointer's
+   `oid sha256:` line (the gate's `contentHash`), which equals the hash a record names; it never
+   needs the images.
 2. **"Visual capture" (warning, opt-in with `PREPUSH_VISUAL=1`).** It builds the Storybook
    (Nx-cached, but minutes on a miss) and captures. It is only meaningful if local captures match
    CI (section 6), and becomes on by default only if a typical run stays under about a minute.
@@ -966,8 +1088,9 @@ visual-review/trusted/cli.mjs verify --local` over `merge-base..HEAD`, run whene
    which caps spend whatever the plan does. Chromatic already runs only on pull requests labelled
    `chromatic`. Finish or abandon the open Chromatic reviews on #364, #365, #409, #463, #490 and
    #511.
-2. **Seed** from a dispatched capture of master (section 15). Everything is "new"; the owner
-   reviews thumbnail grids and accepts per project, excluding flaky stories with a reason.
+2. **Seed** from master's capture, one story at a time (section 11a): the owner accepts the
+   stories that look right, rejects the ones that do not with a reason, excludes unstable ones,
+   and leaves the rest for a later round; none of it has to be done in one pass.
 3. **Spot-check, best effort.** For a doubtful seed image, `tools/chromatic-capture.mjs` fetches
    Chromatic's last accepted image to flash against the new capture. Chromatic rendered with its
    own browser and fonts, so this can find a regression but cannot prove a seed image right.
@@ -1009,12 +1132,14 @@ next starts; if the day runs out, what is cut is step 4's extras, never steps 1 
    after the merge.
 4. Extras if time allows: the per-story settings proposals, the flaky status.
 
-**The seed, compact-mantine (owner, about 20 to 30 minutes):** merge the tooling pull request;
-dispatch `visual.yml` for master; an agent starts `visual-review serve` through servherd; the
-owner reviews the grid, accepts, and excludes any flaky story with a reason. The server commits
-the baselines and unproven record to a seed pull request; merge it once its capture shows every
-remaining item `unchanged`. Then update each blocked pull request from master and review its
-differences.
+**The seed, compact-mantine (owner, about 20 to 30 minutes for a first round):** merge the
+tooling pull request; an agent starts `visual-review serve --master-run <run id>` through
+servherd; the owner reviews the grid, accepts what looks right, rejects what does not with a
+reason, and excludes any flaky story with a reason. The server commits the baselines and unproven
+record to a seed pull request, and files the rejects as one issue; merge the seed pull request
+once its capture shows the accepted items `unchanged`. Stories left without a baseline block
+nothing until a pull request changes them (section 11a). Then update each blocked pull request
+from master and review its differences.
 
 **graphty-element is seeded only after `test/storybook-harness-stability` merges** and its
 contention measurement passes, the same day if possible (about 10 to 20 minutes of review).
@@ -1081,9 +1206,10 @@ commit they sign from, they take it from the pinned audit's output.
 | Item                                                   | Cost                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Actions minutes on standard runners, public repository | $0                                                                                                                                                                                                                                                                                                                                                            |
-| Baselines and records in plain git                     | $0                                                                                                                                                                                                                                                                                                                                                            |
+| Records and settings files in plain git                | $0                                                                                                                                                                                                                                                                                                                                                            |
 | Actions artifacts and cache                            | $0 expected, not confirmed. GitHub's billing page says Actions minutes are free for public repositories but states artifact storage quotas only for private ones. The organisation's $0 budget blocks rather than bills. Results are kept 90 days, images 30, Storybooks 7 on pull requests; check the organisation's storage in billing after the first week |
-| Git LFS, hosted review site                            | not used                                                                                                                                                                                                                                                                                                                                                      |
+| Git LFS                                                | $0: about 0.2 GiB stored and 1 to 5 GiB (at worst about 100 GiB) downloaded a month, against the Team plan's 250 GiB of each; the $0 budget blocks rather than bills (section 7)                                                                                                                                                                              |
+| Hosted review site                                     | not used                                                                                                                                                                                                                                                                                                                                                      |
 | FIDO2 security key and backup                          | $0 a month; about $25 to $60 each, once                                                                                                                                                                                                                                                                                                                       |
 | Chromatic until removal                                | $0 on the Free plan, once its stop-at-limit behaviour is confirmed and the payment method removed                                                                                                                                                                                                                                                             |
 | **Total**                                              | **$0 a month**                                                                                                                                                                                                                                                                                                                                                |
@@ -1094,25 +1220,30 @@ a month at opt-in volume, fed by the same capture directory.
 
 ## 17. Risks
 
-| Risk                                                                  | Mitigation                                                                                                                                                      |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| graphty-element captures before it settles                            | Capture waits on `waitForStableFrame()` and fails, never pictures, on a timeout; every project measured under contention before its seed                        |
-| A timeout or flaky story blocks a clean pull request                  | Second capture separates `flaky` (passes, counted) from `unstable`; recapture overlays; Exclude with reason                                                     |
-| A new story is flaky and gets accepted                                | New items are captured twice and cannot be accepted when unstable                                                                                               |
-| CI runners differ by CPU model                                        | Environment recorded in every signed record; measured over up to 10 runs; threshold or the Playwright container, as a planned re-baseline                       |
-| The runner image, fonts or clock drift and everything changes at once | Pinned runner label, fonts, `playwright-core` and clock; a renderer change plans every project; drift needs two agreeing captures and blocks releases, never CI |
-| A pull request's Storybook hides a change from its capture            | Not prevented; master's drift capture catches it after the merge; code review                                                                                   |
-| Two green pull requests combine into an unreviewed change             | Not prevented; drift capture; the baselines-changed pending guard                                                                                               |
-| Pull request code fakes the capture, the plan or the status           | Plan, capture and verify run master's code; only master's `visual.yml` runs count; no agent can push a workflow                                                 |
-| The release job pushes baselines with the deploy key                  | Split release: the key meets no repository code and pushes only version files                                                                                   |
-| The page the owner reviews shows one image and signs another          | The tool, not the page, builds the record from bytes it re-hashed; the page is small source the owner has read                                                  |
-| An agent runs code on the owner's computer through the tool           | The tool runs from a pinned, read commit, with no install and no repository hooks                                                                               |
-| An agent with the admin token routes around the check                 | The pinned audit detects it; the owner settings prevent it                                                                                                      |
-| Signed work expires with its artifacts                                | The current capture reproducing `to` also counts; results kept 90 days                                                                                          |
-| Losing the only key                                                   | A registered backup key; a lost key only stops new approvals                                                                                                    |
-| The seed is a large review, twice                                     | Grids, modes grouped, accept all per project; the second pass lists changed images first                                                                        |
-| Baseline history slows every CI clone                                 | Blob-filtered checkouts; the weekly run reports size and time; WebP or LFS at 300 MB                                                                            |
-| The package is ours to maintain                                       | Upkeep cadence in section 15, instead of a vendor with no spending cap                                                                                          |
+| Risk                                                                   | Mitigation                                                                                                                                                                |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| graphty-element captures before it settles                             | Capture waits on `waitForStableFrame()` and fails, never pictures, on a timeout; every project measured under contention before its seed                                  |
+| A timeout or flaky story blocks a clean pull request                   | Second capture separates `flaky` (passes, counted) from `unstable`; recapture overlays; Exclude with reason                                                               |
+| A new story is flaky and gets accepted                                 | New items are captured twice and cannot be accepted when unstable                                                                                                         |
+| CI runners differ by CPU model                                         | Environment recorded in every signed record; measured over up to 10 runs; threshold or the Playwright container, as a planned re-baseline                                 |
+| The runner image, fonts or clock drift and everything changes at once  | Pinned runner label, fonts, `playwright-core` and clock; a renderer change plans every project; drift needs two agreeing captures and blocks releases, never CI           |
+| A pull request's Storybook hides a change from its capture             | Not prevented; master's drift capture catches it after the merge; code review                                                                                             |
+| Two green pull requests combine into an unreviewed change              | Not prevented; drift capture; the baselines-changed pending guard                                                                                                         |
+| Pull request code fakes the capture, the plan or the status            | Plan, capture and verify run master's code; only master's `visual.yml` runs count; no agent can push a workflow                                                           |
+| The release job pushes baselines with the deploy key                   | Split release: the key meets no repository code and pushes only version files                                                                                             |
+| The page the owner reviews shows one image and signs another           | The tool, not the page, builds the record from bytes it re-hashed; the page is small source the owner has read                                                            |
+| An agent runs code on the owner's computer through the tool            | The tool runs from a pinned, read commit, with no install and no repository hooks                                                                                         |
+| An agent with the admin token routes around the check                  | The pinned audit detects it; the owner settings prevent it                                                                                                                |
+| Signed work expires with its artifacts                                 | The current capture reproducing `to` also counts; results kept 90 days                                                                                                    |
+| Losing the only key                                                    | A registered backup key; a lost key only stops new approvals                                                                                                              |
+| The seed is a large review, twice                                      | Grids, modes grouped, accept all per project; the second pass lists changed images first                                                                                  |
+| Baseline history slows every CI clone                                  | Git LFS: clones and ordinary checkouts carry only pointers; only the `visual` job fetches images, for its project, through the Actions cache                              |
+| A checkout without the LFS images compares pointers                    | Capture and `compare` stop with "baseline is an LFS pointer; run git lfs pull"; they never report every image changed                                                     |
+| An accept commits raw PNGs instead of LFS pointers                     | `serve` refuses to start without git-lfs and its filter; Finish refuses a commit whose PNG is not a pointer                                                               |
+| A push sends pointers without their images                             | `.husky/pre-push` runs `tools/lfs-pre-push.sh`; Finish runs `git lfs push` itself; a missing image fails the next capture's `git lfs pull`, which blocks the pull request |
+| The LFS bandwidth allowance runs out and downloads are blocked         | The Actions cache keeps CI near 1 to 5 GiB of 250 GiB a month; worst case about 100 GiB; the planned weekly check warns at 100 GiB                                        |
+| An unseeded story looks the same as master only because both are wrong | "No baseline yet" never passes as reviewed: it only does not block; its first baseline still needs the owner's accept                                                     |
+| The package is ours to maintain                                        | Upkeep cadence in section 15, instead of a vendor with no spending cap                                                                                                    |
 
 ## 18. Alternatives rejected
 
@@ -1141,12 +1272,16 @@ a month at opt-in volume, fed by the same capture directory.
 - **"Require branches to be up to date" and the merge queue.** At about 50 merges a day either
   serialises merges below today's pace; the merge queue would also need a `merge_group` branch in
   every workflow. Drift detection covers the combined-change gap after the fact.
-- **Git LFS for baselines now.** Fits the Team plan's allowance, but adds failure modes at seed size
-  (section 7); revisited at the 300 MB trigger.
+- **Plain git for baselines, moving to LFS later.** Image history in plain git is permanent: 110 to
+  210 MB in year one before more browsers, in every clone. Moving later is `git lfs migrate
+import`, a history rewrite that breaks every branch, worktree and recorded commit hash (section 7).
 - **Baselines inside each package.** Every accept would rerun the package's and its dependants'
   whole CI (section 5).
-- **Baselines in a separate repository.** Loses GitHub's image diff on the Files tab, needs a second
-  fetch in every CI job, and makes every accept a two-repository write.
+- **Baselines in a separate repository, or in a git submodule.** Every accept becomes a
+  two-repository write (commit and push the baselines, then move the pointer in the monorepo);
+  two pull requests that both accept conflict on the submodule pointer even when their images do
+  not; the pull request shows a submodule commit hash instead of the images; and every CI job
+  needs a second fetch.
 - **Platform passkeys as trusted keys.** Their user verification can come from a typed PIN.
 - **A second GitHub account as the only approver of a deployment environment.** Needs a paid
   account, GitHub does not re-authenticate before an approval, and an administrator token can

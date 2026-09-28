@@ -9,7 +9,7 @@ Chromatic billed about $3,750 in half a month with no spending cap, so it is now
 except on pull requests labelled `chromatic`, and visual changes are waiting for review.
 
 The replacement captures screenshots with Playwright in our own GitHub Actions jobs (free for a
-public repository), keeps the baselines as PNG files in git, and reviews them in a small web page
+public repository), keeps the baselines as PNG files in Git LFS, and reviews them in a small web page
 served from the development server. Nothing is hosted and nothing is billed: the target is $0 a
 month against a $200 ceiling.
 
@@ -29,7 +29,7 @@ from the owner's tier, the reason is given.
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Web diff UI                                                                                                                                                                            | P0               | P0                                         | 1                                                      |                                                                                                                                                                      |
 | Accept and reject in the UI, with a reason                                                                                                                                             | P0               | P0                                         | 1                                                      |                                                                                                                                                                      |
-| Baselines committed to git                                                                                                                                                             | P0, probably LFS | P0, plain git                              | 1                                                      | See "Storage" below                                                                                                                                                  |
+| Baselines committed to git                                                                                                                                                             | P0, probably LFS | P0, Git LFS                                | 1                                                      | See "Storage" below: decided before the first baseline, because a later move rewrites history                                                                        |
 | Run in CI                                                                                                                                                                              | P0               | P0                                         | 1 blocks unreviewed merges, 3 requires a signed review |                                                                                                                                                                      |
 | Run in the pre-push hook                                                                                                                                                               | P0               | P0                                         | 2; milestone 1 has no pre-push visual check            | The blocking step checks review records, which are only worth checking once they are signed; the local capture needs the pinned fonts first, or it disagrees with CI |
 | Multiple projects                                                                                                                                                                      | P0               | P0                                         | 1 (two), 2 (all five)                                  |                                                                                                                                                                      |
@@ -41,6 +41,7 @@ from the owner's tier, the reason is given.
 | Pixel-level highlighting                                                                                                                                                               | P1               | **P0**                                     | 1                                                      | Same reason                                                                                                                                                          |
 | Zoom, keyboard review, accept a whole project                                                                                                                                          | --               | **P0**                                     | 1                                                      | The first review is about 1,000 images                                                                                                                               |
 | Capture twice; an unstable story cannot be accepted, only excluded with a reason                                                                                                       | --               | **P0**                                     | 1                                                      | One unstable graphty-element story is already known; accepting it makes every later run fail                                                                         |
+| Seed one story at a time: accept what looks right, reject the rest with a reason, and a story with no baseline blocks only a pull request that changes it                              | --               | **P0**                                     | 1                                                      | Many stories did not look right on their first pass and needed several rounds                                                                                        |
 | Chromatic story parameters in use: light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd`, and the `isChromatic()` signal | --               | P0                                         | 1                                                      | This is the whole Chromatic surface the stories use                                                                                                                  |
 | Links to the baseline and new live Storybooks                                                                                                                                          | P1               | P1                                         | 2                                                      |                                                                                                                                                                      |
 | Per-story history panel, "previously rejected"                                                                                                                                         | --               | P1                                         | 2                                                      | Records hold the data from milestone 1                                                                                                                               |
@@ -53,20 +54,38 @@ from the owner's tier, the reason is given.
 | Other browsers                                                                                                                                                                         | P2               | P2                                         | 5                                                      | compact-mantine on WebKit first; it has no canvas                                                                                                                    |
 | Auto-approve, several reviewers, perceptual or AI diffing                                                                                                                              | --               | never                                      | --                                                     | Conflict with owner-only approval, or hide few-pixel changes                                                                                                         |
 
-## Storage: plain git, not Git LFS (for now)
+## Storage: Git LFS from the first baseline
 
-Measured: about 16 MB of PNGs for compact-mantine (828 images, light and dark) and graphty-element
-(171 images); about 22 MB for all five projects. GitHub's current documentation gives the Team
-plan, which the graphty-org organisation is on (checked with `gh api orgs/graphty-org`), 250 GiB of
-LFS storage and 250 GiB of LFS bandwidth a month; Free and Pro get 10 GiB. Actions downloads count
-against bandwidth, and with the organisation's $0 budget an exhausted allowance blocks LFS for the
-rest of the month rather than billing. So LFS would fit and cannot cost money.
+Baseline PNGs are Git LFS objects (`.gitattributes`); review records and story settings files stay
+plain git. The owner decided this before any baseline was committed, because both halves of the
+choice are one-way later:
 
-It is still not worth it at this size: `git lfs` is not installed on the development server, a
-missed `git lfs pull` looks like "every image changed", and GitHub's image diff on a pull request's
-Files tab works on plain PNGs. A weekly check reports the packed size of the baseline history;
-above 300 MB (estimated one to two years out) the baselines move to WebP or to LFS with
-`git lfs migrate`, which is a mechanical change.
+- **Plain-git image history is permanent.** Measured: about 16 MB of PNGs for compact-mantine (828
+  images, light and dark) and graphty-element (171 images), about 22 MB for all five projects.
+  Canvas re-renders and Chromium bumps replace whole frames, so the history grows by about 110 to
+  210 MB in year one, before more browsers, and every clone and full-history CI checkout carries it.
+- **Moving later rewrites history.** `git lfs migrate import` rewrites every commit since the first
+  baseline: every branch and worktree must be rebuilt, and the commit hashes that review records,
+  reject comments and milestone 3's recorded root commit name stop existing.
+
+**Cost.** GitHub's current documentation gives the Team plan, which the graphty-org organisation is
+on (checked with `gh api orgs/graphty-org`), 250 GiB of LFS storage and 250 GiB of LFS bandwidth a
+month; Free and Pro get 10 GiB. Actions downloads count against bandwidth, and with the
+organisation's $0 budget an exhausted allowance blocks LFS for the rest of the month rather than
+billing. Estimated: storage about 0.2 GiB after year one; bandwidth about 1 to 5 GiB a month,
+because only the capture job fetches images, only for its own project, and caches them in the
+Actions cache; about 100 GiB a month in the worst case where every run misses the cache.
+`design.md` section 7 has the working.
+
+**Failure modes, and what the tooling does about them.** A checkout without the images makes
+capture stop with "baseline is an LFS pointer; run git lfs pull" instead of reporting every image
+changed. The review server refuses to start without git-lfs, so an accept cannot commit raw PNGs.
+The pre-push hook uploads the images a push points at (`tools/lfs-pre-push.sh`, since husky owns
+the hooks), and without git-lfs refuses a push that holds baseline images.
+
+**Rejected:** a separate repository or a git submodule for the baselines. Every accept becomes a
+two-repository write, concurrent accepts conflict on the submodule pointer, and the pull request
+shows a commit hash instead of images.
 
 ## What approval proves
 
@@ -92,7 +111,8 @@ rejects them; accepts land in git.
 
 **Delivers.** P0: web diff UI with side by side, flash, pixel highlight and zoom; accept, reject
 with a reason, accept a whole project, exclude an unstable story with a reason; baselines as PNGs in
-git under `visual-baselines/<project>/`; a capture job in CI on every pull request and master push
+Git LFS under `visual-baselines/<project>/`; seeding one story at a time, where a story with no
+baseline yet blocks only a pull request that changes it; a capture job in CI on every pull request and master push
 (a tool crash never fails the run; on pull requests "All Checks Pass" fails while a seeded project
 has unreviewed items, which blocks unreviewed merges but does not prove who reviewed); two
 projects; a review record per accept session in `visual-baselines/reviews/`, tied
@@ -117,8 +137,10 @@ the pull request's branch, commits and pushes; rejects become one pull request c
 
 **Exit criteria.**
 
-1. compact-mantine is seeded: every story's baseline is committed on master, accepted by the owner
-   in the review page, with unstable stories excluded with a reason. graphty-element is seeded by
+1. compact-mantine is seeded far enough to protect it: the stories that look right have baselines
+   on master, accepted by the owner in the review page; unstable stories are excluded with a
+   reason; the rest are rejected with a reason (an issue an agent works from) or left for a later
+   round. Seeding is per story, so this does not wait for every story to look right. graphty-element is seeded by
    the owner's review of its harness pull request (#519) once that merges, not from master, so its
    baselines come from the stable harness and are reviewed once.
 2. On master, the next CI capture of each seeded project shows every item `unchanged`.
@@ -143,7 +165,9 @@ capture for compact-mantine and the graphty app once measured stable; a per-stor
 the source of truth for thresholds and exclusions.
 
 **The pre-push hook.** `tools/prepush.sh` gains a blocking step, a few seconds with no browser: a
-baseline PNG pushed without a review record that names its hash fails the push. A local capture
+baseline PNG pushed without a review record that names its hash fails the push. The hash is read
+from the PNG's Git LFS pointer, which names it, so the check downloads no image. (The hook's Git
+LFS upload, `tools/lfs-pre-push.sh`, exists from milestone 1.) A local capture
 step is opt-in (`PREPUSH_VISUAL=1`) and becomes default only if local captures match CI byte for
 byte and a typical run stays under about a minute. That depends on the pinned fonts: the capture
 uses a committed font set through `FONTCONFIG_FILE`, so the development server and the CI runner
@@ -204,20 +228,21 @@ after it, reverting the removal commit.
   `get_notes`, over the same `results.json` and records. Deliberately no accept tool.
 - **Other browsers:** a browser field in the capture key; compact-mantine on WebKit first.
 - **Speed and size:** group identical changes across stories, mask regions, a full history page,
-  WebP or LFS when the 300 MB trigger fires.
+  WebP baselines if LFS storage or bandwidth ever matters.
 - **A read-only review site on GitHub Pages**, only if reviewing away from both computers is ever
   needed.
 
 ## Cost
 
-| Item                                                    | Cost a month                                                                                                                         |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Actions minutes on standard runners (public repository) | $0                                                                                                                                   |
-| Baselines and records in plain git                      | $0                                                                                                                                   |
-| Actions artifacts (results 30 days, Storybooks 1 day)   | $0 expected; the organisation's $0 budget blocks rather than bills. Check the organisation's storage in billing after the first week |
-| Git LFS, hosted review site                             | not used                                                                                                                             |
-| Chromatic on the Free plan with no payment method       | $0                                                                                                                                   |
-| **Total**                                               | **$0**, plus two security keys once, before milestone 3                                                                              |
+| Item                                                    | Cost a month                                                                                                                                                           |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Actions minutes on standard runners (public repository) | $0                                                                                                                                                                     |
+| Records and settings files in plain git                 | $0                                                                                                                                                                     |
+| Actions artifacts (results 30 days, Storybooks 1 day)   | $0 expected; the organisation's $0 budget blocks rather than bills. Check the organisation's storage in billing after the first week                                   |
+| Git LFS for baseline images                             | $0: about 0.2 GiB stored after year one, about 1 to 5 GiB a month downloaded (at worst about 100 GiB), against 250 GiB of each; the $0 budget blocks rather than bills |
+| Hosted review site                                      | not used                                                                                                                                                               |
+| Chromatic on the Free plan with no payment method       | $0                                                                                                                                                                     |
+| **Total**                                               | **$0**, plus two security keys once, before milestone 3                                                                                                                |
 
 The only path past $200 a month is turning a paid Chromatic plan back on. If this system ever
 proves too thin, the fallback is Argos Pro with its spend pause on, about $100 a month, fed by the

@@ -1,3 +1,18 @@
+## 1.10.4 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.6
+- Updated graph-format to 1.1.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.10.3 (2026-09-28)
 
 ### 🧱 Updated Dependencies

@@ -901,6 +901,8 @@ jobs:
         runs-on: ubuntu-24.04
         permissions:
             contents: read
+            # To download master's newest capture (the reference step below).
+            actions: read
         continue-on-error: true
         timeout-minutes: 45
         strategy:
@@ -912,7 +914,23 @@ jobs:
                     - project: graphty-element
                       artifact: build-storybook-element
         steps:
+            # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
+            # LFS objects by default); this job alone fetches them, and only its own project's. The objects
+            # are cached in the Actions cache keyed by the pointer files' hash (which is the list of object
+            # ids), so a run downloads from LFS only the images accepted since the cache was saved, and the
+            # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
+            # stays near zero. design/visual-testing/design.md section 7 has the estimate.
             - uses: actions/checkout@v4
+
+            - name: Restore this project's baseline images
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project)) }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
 
             - uses: pnpm/action-setup@v4
 
@@ -948,8 +966,19 @@ jobs:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.project }}/storybook-static/
 
+            # Seeding is per story: a story with no baseline that looks as it does in master's newest capture is
+            # "unseeded" and does not block this pull request; one that differs, or is new, blocks until the
+            # owner accepts it. Without a reference (none downloaded) every story with no baseline is "new".
+            - name: Download master's newest capture
+              id: reference
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: echo "dir=$(node visual-review/trusted/cli.mjs reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+
             - name: Capture
-              run: node visual-review/trusted/cli.mjs capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual"
+              run: node visual-review/trusted/cli.mjs capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
 
             # Kept even when capture crashed, so the owner sees the partial results.json.
             - name: Upload captures
@@ -967,7 +996,7 @@ jobs:
                   {
                       echo "### Visual review (${{ matrix.project }})"
                       if [[ -f "$f" ]]; then
-                          jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items",
+                          jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items, master reference run: \(.reference)",
                               "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
                       else
@@ -1022,8 +1051,9 @@ jobs:
 
             # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
             # with baselines on the base branch fails here when its newest capture (the highest attempt
-            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
-            # excluded items, or when that capture is missing, unfinished or invalid. It also fails when
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged,
+            # excluded or unseeded items (unseeded: no baseline yet, and this pull request does not
+            # change it), or when that capture is missing, unfinished or invalid. It also fails when
             # a baseline PNG or an excluding settings file differs from the base without a review record
             # added in the pull request that names its new hash. So it shows the captures match the pull
             # request's baselines and that each baseline change is named (path and new hash) in a record;
@@ -1031,7 +1061,8 @@ jobs:
             # (visual-review/README.md, "What this does and does not guarantee"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
             # (standard library only). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
-            # the pull request was merged onto; blobs are fetched only for the changed baselines.
+            # the pull request was merged onto; blobs are fetched only for the changed baselines, which are
+            # Git LFS pointer files naming the image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
               if: github.event_name == 'pull_request'
               uses: actions/checkout@v4

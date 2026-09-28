@@ -352,7 +352,7 @@ graph-io source: `formats/graphml/importer.ts` and `constants.ts`.
 
 | Case | graph-io today | Right behaviour |
 |---|---|---|
-| Classic yFiles (ShapeNode Geometry, Fill, NodeLabel, PolyLineEdge); yFiles 3 (`y:attr.uri`) | A json column plus a `W_GRAPHML_YFILES_JSON` loss note | Better: map `Geometry` x/y to position and `NodeLabel` to label, since users expect a yEd layout to survive. Test both dialects. |
+| Classic yFiles (ShapeNode Geometry, Fill, NodeLabel, PolyLineEdge); yFiles 3 (`y:attr.uri`) | A json column plus a `W_GRAPHML_YFILES_JSON` loss note; classic ShapeNode / PolyLineEdge also read into `yfiles.*` columns (position, size, colours, label, shape, arrows) | Better: map `Geometry` x/y to position and `NodeLabel` to label, since users expect a yEd layout to survive. Test both dialects. |
 | `.graphmlz` (gzip) | Not handled | Optional: decompress with `DecompressionStream`. |
 
 ---

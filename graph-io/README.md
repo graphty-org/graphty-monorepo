@@ -173,8 +173,14 @@ losses and format rules, in addition to the table:
   its dictionary (`W_OPTIONS_GAINED`); text with a character XML 1.0 forbids is refused
   (`E_XML_ILLEGAL_CHAR`, `export()` throws).
 - **GraphML**: parsed by the shared streaming XML tokenizer (no whole-document tree). `key for="all"`
-  is declared in the node, edge and graph tables; yFiles trees are kept as `json` columns (structure
-  preserved, not byte-exact); any other `json` column is written as JSON text and reads back as
+  is declared in the node, edge and graph tables; a key's `name` / `type` are read when `attr.name`
+  / `attr.type` are absent; yFiles trees are kept as `json` columns (structure preserved, not
+  byte-exact), and a `y:ShapeNode` / `y:PolyLineEdge` in them is also read into `yfiles.*` columns
+  (node `yfiles.position` with the position role, `yfiles.width`, `yfiles.height`, `yfiles.color`,
+  `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` with the label role, `yfiles.shape`;
+  edge `yfiles.color`, `yfiles.width`, `yfiles.directed` (the target arrow, not topology),
+  `yfiles.targetArrow`, `yfiles.sourceArrow`), which the exporter never writes because the tree
+  holds them; any other `json` column is written as JSON text and reads back as
   string (`W_JSON_UNSUPPORTED`). Ids outside NMTOKEN need `sanitizeIds: "mangle"` (restored on
   re-import). A label role column is written as the key titled `label` (the importer's label slot;
   `W_COLUMN_NAME_CHANGED` when it was named otherwise); edge ids and ports are the XML attributes
@@ -184,8 +190,9 @@ losses and format rules, in addition to the table:
 - **GML**: NetworkX conventions (`_networkx_list_start`, `#` comments, `+INF` / `-INF` / `NAN`);
   `real` columns are written with a decimal point so the dtype survives; `graphics [ x y z ]` maps
   to the position role; records map to `json` and `check()` reports `W_GML_RECORD_NUMBER_TYPE` for
-  numbers inside them (GML cannot keep int versus real inside a record). Node ids must be integers
-  (`sanitizeIds: "mangle"` renumbers and keeps the original in `graphty_originalId`); column names
+  numbers inside them (GML cannot keep int versus real inside a record). The spec's node ids are
+  integers; a string id is imported under the `ids` rule with one `W_GML_STRING_ID` per file, and
+  the exporter writes integers only (`sanitizeIds: "mangle"` renumbers and keeps the original in `graphty_originalId`); column names
   outside `[A-Za-z][0-9A-Za-z_]*` are refused or mangled (`sanitizeKeys`).
 - **DOT**: a Graphviz-faithful parser (grammar violations are fatal, as in Graphviz); clusters are
   container nodes with the `parent` role; ports are kept; HTML strings keep their brackets; `pos`

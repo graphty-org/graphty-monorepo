@@ -56,6 +56,7 @@ import {
     YFILES_NAMESPACE,
 } from "./constants.js";
 import { treeProblem, writeXmlTree } from "./tree.js";
+import { isGraphicsColumn } from "./yfiles.js";
 
 /** The format-specific options of the GraphML exporter. */
 export interface GraphmlExportOptions {
@@ -294,11 +295,15 @@ function graphmlMetaOf(snapshot: GraphSnapshot): GraphmlMeta | null {
  * @returns the plan
  */
 function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, format: FormatOptions): Plan {
-    // the generic json note is replaced by planTable()'s (yfiles trees are kept, other json is text)
+    // the generic json note is replaced by planTable()'s (yfiles trees are kept, other json is
+    // text); columns mapped from a yfiles tree lose nothing, the tree they came from is written
+    const graphics = new Set(
+        [...snapshot.nodes, ...snapshot.edges].filter((c) => isGraphicsColumn(c.meta)).map((c) => c.meta.name),
+    );
     const notes = checkCapabilities(snapshot, CAPABILITIES, options, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
-    }).filter((n) => n.code !== LOSS.JSON);
+    }).filter((n) => n.code !== LOSS.JSON && (n.column === null || !graphics.has(n.column)));
     const note: NoteFn = (code, message, column = null, count = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));
     };
@@ -649,6 +654,9 @@ function planTable(table: Iterable<Column>, domain: Domain, notes: LossNote[], n
     for (const column of columns) {
         const { meta } = column;
         const { role, name } = meta;
+        if (isGraphicsColumn(meta)) {
+            continue;
+        }
         if (role === "parents") {
             note(
                 GRAPHML_LOSS.PARENTS_DROPPED,

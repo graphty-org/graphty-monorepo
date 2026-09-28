@@ -104,10 +104,12 @@ describe("undo on a real graph at the largest graph it draws", () => {
         session.history.clear();
     }, TIMEOUT_MS);
 
+    // Disposing a graph this size tears down every node's render objects, which takes as long as
+    // the replacing import below reports (issue #543), well past the default hook timeout.
     afterAll(() => {
         graph.dispose();
         container.remove();
-    });
+    }, TIMEOUT_MS);
 
     it(
         "undoing the removal of 1,000 nodes costs a small part of the load",

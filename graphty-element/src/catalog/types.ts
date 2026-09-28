@@ -679,6 +679,16 @@ export interface PaletteDescriptor {
 }
 
 /**
+ * What `registerPalette` accepts: a {@link PaletteDescriptor} whose derived and optional members
+ * may be left off. `capacity` is derived from the kind and the colours, and a missing
+ * `colorblindSafe` is no claim.
+ */
+export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorblindSafe"> & {
+    capacity?: number | null;
+    colorblindSafe?: PaletteDescriptor["colorblindSafe"];
+};
+
+/**
  * One camera view: a named way of deciding where the viewer stands and what they look at.
  *
  * `modes` is how a view says where it can be used. The five built-in views used to express that

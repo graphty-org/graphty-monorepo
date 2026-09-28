@@ -121,16 +121,16 @@ workarounds available to them and no way to know they are not alone.
 
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.1.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.3.7 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.10 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.5 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/algorithms` | `algorithms/` | 2.1.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
-| `@graphty/layout` | `layout/` | 1.10.3 | Graph layout algorithms (NetworkX TypeScript port) |
-| `@graphty/graphty-element` | `graphty-element/` | 2.6.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.8.16 | React wrapper application (private, Mantine UI) |
-| `@graphty/remote-logger` | `remote-logger/` | 1.3.9 | Remote logging client and server for browser debugging |
-| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.9 | Compact size variants for Mantine UI components, for dense UIs |
+| `@graphty/graph-format` | `graph-format/` | 1.1.1 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | 0.3.8 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.11 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | 0.1.6 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
+| `@graphty/algorithms` | `algorithms/` | 2.1.1 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
+| `@graphty/layout` | `layout/` | 1.10.4 | Graph layout algorithms (NetworkX TypeScript port) |
+| `@graphty/graphty-element` | `graphty-element/` | 2.6.1 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
+| `@graphty/graphty` | `graphty/` | 0.8.17 | React wrapper application (private, Mantine UI) |
+| `@graphty/remote-logger` | `remote-logger/` | 1.3.10 | Remote logging client and server for browser debugging |
+| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.10 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.0 | Visual review of Storybook stories: capture in CI, compare with baselines in git, accept in a local page (private) |
 
 ## Monorepo Structure

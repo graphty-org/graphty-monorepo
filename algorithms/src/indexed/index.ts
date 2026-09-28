@@ -63,6 +63,12 @@ export {
     type Linkage,
 } from "./hierarchical.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
+export {
+    findAllIsomorphisms,
+    isGraphIsomorphic,
+    type IsomorphismOptions,
+    type IsomorphismResult,
+} from "./isomorphism.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export {
@@ -93,6 +99,12 @@ export {
 } from "./link-prediction.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { markovClustering, type MarkovOptions, type MarkovResult } from "./markov.js";
+export {
+    type BipartiteMatchingOptions,
+    type BipartiteMatchingResult,
+    greedyBipartiteMatching,
+    maximumBipartiteMatching,
+} from "./matching.js";
 export { kargerMinCut, type KargerOptions, stoerWagner, type StoerWagnerOptions } from "./min-cut.js";
 export { modularity, type ModularityOptions } from "./modularity.js";
 export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions, type PrimResult } from "./mst.js";

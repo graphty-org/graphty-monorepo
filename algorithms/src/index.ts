@@ -103,6 +103,16 @@ export type { DegreeCentralityOptions } from "./indexed/degree.js";
 export type { DeltaPageRankComputeOptions, DeltaPageRankEngineOptions } from "./indexed/delta-pagerank.js";
 export type { DfsOptions, DfsResult } from "./indexed/dfs.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
+// Aliased: the flat IsomorphismOptions / IsomorphismResult and BipartiteMatchingOptions /
+// BipartiteMatchingResult name the legacy matching functions' types.
+export type {
+    IsomorphismOptions as IndexedIsomorphismOptions,
+    IsomorphismResult as IndexedIsomorphismResult,
+} from "./indexed/isomorphism.js";
+export type {
+    BipartiteMatchingOptions as IndexedBipartiteMatchingOptions,
+    BipartiteMatchingResult as IndexedBipartiteMatchingResult,
+} from "./indexed/matching.js";
 // Aliased: the flat MaxFlowResult and MinCutResult name the legacy flow functions' types.
 export type {
     BipartiteFlowNetwork as IndexedBipartiteFlowNetwork,

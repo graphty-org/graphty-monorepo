@@ -661,6 +661,27 @@ Each changes a published contract that the design never specified.
       delegate only where results are equal today (`edmondsKarp` and `fordFulkerson` keep legacy code
       because of the opposite-edge case) and leave the rest on legacy code until the removal release.
 
+5. **Whether the legacy matching and isomorphism functions delegate to their ports** (blocks the
+   matching part of `facades-community-flow-matching`). `maximumBipartiteMatching` sizes, and
+   isomorphism counts equal legacy without predicates and with a node predicate on any graph, and
+   with an edge predicate on undirected graphs without self-loops. The ports differ on purpose in
+   three cases:
+    - `greedyBipartiteMatching` when legacy infers the sides: legacy visits left nodes in its
+      colouring BFS order and neighbours in insertion order; the port visits both in index order,
+      because a snapshot's rows are sorted and keep no insertion order. The size can differ. Given
+      the same visiting order the two choose the same pairs.
+    - Arc direction in the matchings: the port ignores it by default (`arcs: "both"`); legacy
+      follows out-arcs of left nodes only. `arcs: "out"` gives the legacy behaviour.
+    - `edgeMatch` on a directed graph or a self-loop: legacy offers it only the out-arcs of each
+      newly mapped node to earlier ones, so an arc into that node from an earlier one, and every
+      self-loop, is never compared. The port offers every arc and every self-loop once. Counts
+      under a weight-comparing `edgeMatch` can therefore be lower than legacy's.
+   Options: (a) approve all three and delegate the four functions, listing the changes in section
+   4.3 (recommended: the legacy results in the second and third cases are wrong for a matching and
+   an isomorphism, and the first is an order-dependent heuristic); (b) delegate only
+   `maximumBipartiteMatching` and `isGraphIsomorphic` / `findAllIsomorphisms` without `edgeMatch`,
+   and leave the rest on legacy code until the removal release.
+
 ## 7. How completion is verified
 
 1. **A workspace check under `tools/`, run in CI**, fails when any package's src imports a removed

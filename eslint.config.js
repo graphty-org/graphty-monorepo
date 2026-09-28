@@ -263,6 +263,39 @@ export default tseslint.config(
     },
 
     // ============================================
+    // LEGACY CODE SCHEDULED FOR DELETION
+    // ============================================
+    // Every legacy entry point of algorithms (the object `Graph`, its algorithm functions and
+    // `optimized/*`) and of layout (the positional layouts and the PositionMap rescalers) is
+    // tagged @deprecated with its snapshot replacement. The legacy code calls itself, so
+    // no-deprecated is off inside the directories algorithms 3.0.0 and layout 2.0.0 delete, and
+    // in the files that go with them: the package barrels, which must keep re-exporting the
+    // deprecated names until then; `toSnapshot`, the bridge from the legacy `Graph`; and the
+    // legacy benchmark, which the removal release migrates. It stays an error everywhere else,
+    // including the `indexed` code, so nothing new is built on a deprecated name.
+    {
+        files: [
+            "algorithms/src/algorithms/**/*.ts",
+            "algorithms/src/clustering/**/*.ts",
+            "algorithms/src/core/**/*.ts",
+            "algorithms/src/flow/**/*.ts",
+            "algorithms/src/link-prediction/**/*.ts",
+            "algorithms/src/optimized/**/*.ts",
+            "algorithms/src/pathfinding/**/*.ts",
+            "algorithms/src/research/**/*.ts",
+            "algorithms/src/utils/**/*.ts",
+            "algorithms/src/index.ts",
+            "algorithms/src/indexed/to-snapshot.ts",
+            "algorithms/src/benchmark-all-algorithms.ts",
+            "layout/src/layouts/**/*.ts",
+            "layout/src/index.ts",
+        ],
+        rules: {
+            "@typescript-eslint/no-deprecated": "off",
+        },
+    },
+
+    // ============================================
     // RELAXED JSDOC FOR STORIES
     // ============================================
     // These rules were unreachable until 2026-09-21. The story glob sat in the global

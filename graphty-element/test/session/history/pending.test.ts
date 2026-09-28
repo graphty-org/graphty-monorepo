@@ -100,6 +100,19 @@ describe("undo while work is pending", () => {
         assert.deepEqual(labels(dispatcher.history.steps), ["Styled colour", "Ran betweenness"]);
     });
 
+    it("keeps an edit that would coalesce into the top step out of it once work was queued after that step", async () => {
+        const { dispatcher } = setup();
+        await dispatcher.dispatch({ op: "fake.config", key: "filter", value: "1" });
+        const run = outcome(dispatcher.dispatch({ op: "fake.run", id: "slow" }));
+        await dispatcher.dispatch({ op: "fake.config", key: "filter", value: "2" });
+        assert.deepEqual(labels(dispatcher.history.steps), ["Set filter", "Set filter"], "a step of its own");
+
+        assert.strictEqual((await dispatcher.undo()).kind, "undone", "the edit after the run goes first");
+        assert.deepEqual(labels(dispatcher.pending), ["Ran slow"], "and the run survives it");
+        assert.strictEqual((await dispatcher.undo()).kind, "cancelled", "then the run");
+        assert.isTrue(isAbort((await run).error, "undo"));
+    });
+
     it("records late work on top after an undo, discarding the redo tail", async () => {
         const { dispatcher, queue } = setup();
         const run = outcome(dispatcher.dispatch({ op: "fake.run", id: "slow", gate: "s" }));

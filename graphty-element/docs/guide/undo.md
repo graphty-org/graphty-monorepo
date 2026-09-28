@@ -85,7 +85,9 @@ await session.history.restoreTo(session.history.steps[1].id); // jump; null jump
 
 **Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
 dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a
-time in a loop. The whole drag is one step.
+time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
+merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
+queued work.
 
 ## Transactions
 

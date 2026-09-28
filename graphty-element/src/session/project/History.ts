@@ -82,6 +82,12 @@ interface RecordInput<P> {
     readonly patch: P;
     /** Steps with equal keys recorded within the coalescing window become one step. */
     readonly key?: string | null;
+    /**
+     * True when undoable work was dispatched after the top step was recorded and is still
+     * pending: the patch then starts a step of its own whatever its key, so that step never
+     * reaches back across that work (design section 5.2).
+     */
+    readonly pendingSinceTop?: boolean;
     /** The ops of the commands in the patch, in the order they ran. */
     readonly ops?: readonly string[];
     readonly slices?: readonly string[];
@@ -277,6 +283,7 @@ export class History<P> {
 
         if (
             key !== null &&
+            input.pendingSinceTop !== true &&
             this.mergeable &&
             top?.key === key &&
             this.cursor === this.entries.length &&

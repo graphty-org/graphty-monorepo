@@ -891,8 +891,17 @@ transaction<T>(label: string,
 ### 5.2 Coalescing
 
 A definition may return a coalesce key. A new step merges into the top step when the keys are
-equal, no other step was recorded and no undo happened in between, and less than `coalesceMs`
-(1000 ms) passed since the top step's last merge. A merged step keeps the first patch's prior
+equal, no other step was recorded and no undo happened in between, no undoable work dispatched
+after the top step is still pending, and less than `coalesceMs` (1000 ms) passed since the top
+step's last merge.
+
+The pending-work condition keeps section 6.1's order well defined. Undo decides between a step and
+pending work by which came later, and a merge would make the top step both older than the work
+(its first edit) and newer (its last). So an edit that would coalesce into a step does not extend
+it across work queued after it: queued work starts a new step. Change a filter, start a slow run,
+change the filter again within the window, and history holds two filter steps; the first undo
+undoes the second filter change and leaves the run going, the next cancels the run. An edit that
+changes nothing records nothing and extends nothing, so there the first undo cancels the run. A merged step keeps the first patch's prior
 values, takes the last patch's written values, and concatenates op-logs. Commands with equal keys
 also collapse while still queued (section 4.4, step 5).
 

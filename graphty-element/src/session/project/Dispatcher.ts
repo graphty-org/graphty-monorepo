@@ -2037,7 +2037,14 @@ export class Dispatcher {
                     ...group.provenance,
                     ...(group.after === null ? {} : { after: group.after }),
                 };
-                id = this.history.record({ ...input, provenance });
+                // Work dispatched after the top step and still pending keeps a coalescing edit
+                // out of that step: merged, the step would be newer than the work and older at
+                // once (design section 5.2).
+                const top = this.adjacent("undo");
+                const since = top === undefined ? undefined : this.steps.get(top.id)?.recorded;
+                const pendingSinceTop =
+                    since !== undefined && [...this.open].some((other) => other !== group && other.seq > since);
+                id = this.history.record({ ...input, provenance, pendingSinceTop });
             }
 
             const meta = this.steps.get(id);

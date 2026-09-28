@@ -1,4 +1,4 @@
-import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { type AdjacencyView, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 /** Result of the index-based BFS (graph-format design 14.2 Port 1). @public */
 export interface BfsResult {
@@ -16,6 +16,12 @@ export interface BfsResult {
 export interface BfsOptions {
     /** Stop expanding at this depth; unbounded when omitted. */
     readonly maxDepth?: number | undefined;
+    /**
+     * Stop when this node index is taken off the queue, before its neighbours are expanded. Every
+     * node discovered by then stays in `order`; the target's own position in `order` ends the
+     * prefix of nodes that were expanded.
+     */
+    readonly target?: number | undefined;
 }
 
 /**
@@ -33,12 +39,16 @@ export function breadthFirstSearch(g: AdjacencyView, start: number, options: Bfs
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const order = new Uint32Array(nodeCount);
     const maxDepth = options.maxDepth ?? INVALID_INDEX;
+    const target = options.target ?? INVALID_INDEX;
     let head = 0;
     let tail = 0;
     order[tail++] = start;
     depth[start] = 0;
     while (head < tail) {
         const u = order[head++];
+        if (u === target) {
+            break;
+        }
         const d = depth[u];
         if (d >= maxDepth) {
             continue;
@@ -52,6 +62,100 @@ export function breadthFirstSearch(g: AdjacencyView, start: number, options: Bfs
                 order[tail++] = v;
             }
         }
+    }
+    return { order: order.subarray(0, tail), parent, depth, visitedCount: tail };
+}
+
+/** Options of {@link directionOptimizedBfs}. @public */
+export interface DirectionOptimizedBfsOptions {
+    /**
+     * Switch from top-down to bottom-up once the frontier's out-arcs exceed the unvisited nodes'
+     * out-arcs divided by `alpha`. Default 15.
+     */
+    readonly alpha?: number | undefined;
+    /** Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes. Default 18. */
+    readonly beta?: number | undefined;
+}
+
+/**
+ * Direction-optimising breadth-first search (Beamer, Asanovic and Patterson, SC'12): a top-down
+ * step expands the frontier's out-arcs, a bottom-up step has every unvisited node look for a
+ * frontier node among its in-neighbours over `s.reverse()`, and the search switches between the two
+ * by frontier size. Both steps give a node the LOWEST-index frontier node that reaches it as its
+ * parent, so the result does not depend on which steps ran: `depth` equals `breadthFirstSearch`'s,
+ * and `order` lists the visited nodes level by level, ascending within a level.
+ * @param s - The snapshot to traverse
+ * @param source - The node index to start from
+ * @param options - The switching thresholds
+ * @returns The visit order, the parent array, the depth array and the visited count
+ * @public
+ */
+export function directionOptimizedBfs(
+    s: GraphSnapshot,
+    source: number,
+    options: DirectionOptimizedBfsOptions = {},
+): BfsResult {
+    const { nodeCount, rowPtr, colIdx } = s;
+    const alpha = options.alpha ?? 15;
+    const beta = options.beta ?? 18;
+    const reverse = s.reverse();
+    const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
+    const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
+    // order[levelStart, tail) is the current frontier, sorted ascending.
+    const order = new Uint32Array(nodeCount);
+    order[0] = source;
+    depth[source] = 0;
+    let levelStart = 0;
+    let tail = 1;
+    let unexploredArcs = s.arcCount - (rowPtr[source + 1] - rowPtr[source]);
+    let bottomUp = false;
+    for (let d = 0; levelStart < tail; d++) {
+        const frontierSize = tail - levelStart;
+        if (bottomUp) {
+            bottomUp = frontierSize >= nodeCount / beta;
+        } else {
+            let frontierArcs = 0;
+            for (let i = levelStart; i < tail; i++) {
+                frontierArcs += rowPtr[order[i] + 1] - rowPtr[order[i]];
+            }
+            bottomUp = frontierArcs > unexploredArcs / alpha;
+        }
+        const levelEnd = tail;
+        if (bottomUp) {
+            for (let v = 0; v < nodeCount; v++) {
+                if (depth[v] !== INVALID_INDEX) {
+                    continue;
+                }
+                const end = reverse.rowPtr[v + 1];
+                for (let a = reverse.rowPtr[v]; a < end; a++) {
+                    const u = reverse.colIdx[a];
+                    if (depth[u] === d) {
+                        parent[v] = u;
+                        depth[v] = d + 1;
+                        order[tail++] = v;
+                        break;
+                    }
+                }
+            }
+        } else {
+            for (let i = levelStart; i < levelEnd; i++) {
+                const u = order[i];
+                const end = rowPtr[u + 1];
+                for (let a = rowPtr[u]; a < end; a++) {
+                    const v = colIdx[a];
+                    if (depth[v] === INVALID_INDEX) {
+                        parent[v] = u;
+                        depth[v] = d + 1;
+                        order[tail++] = v;
+                    }
+                }
+            }
+            order.subarray(levelEnd, tail).sort();
+        }
+        for (let i = levelEnd; i < tail; i++) {
+            unexploredArcs -= rowPtr[order[i] + 1] - rowPtr[order[i]];
+        }
+        levelStart = levelEnd;
     }
     return { order: order.subarray(0, tail), parent, depth, visitedCount: tail };
 }

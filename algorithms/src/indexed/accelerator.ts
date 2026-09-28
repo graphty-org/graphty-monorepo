@@ -179,6 +179,9 @@ export interface BetweennessAcceleratorOptions {
  * `indexed.labelPropagation` directly for those. webgpu-graph-algorithms does not implement
  * `labelPropagation` yet, so with its accelerator this method runs the CPU port.
  *
+ * `breadthFirstSearch` with a `target` runs the CPU port: a GPU BFS expands whole levels and has
+ * no early stop, so it would visit a different set of nodes.
+ *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
  * answers the port's question -- no options that change the result, at most the port's default
@@ -261,7 +264,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.sssp(s, source, options).then((like) => decorateSssp(s, source, like))
                 : Promise.resolve(indexed.dijkstra(s, source, options)),
         breadthFirstSearch: (s, source, options) =>
-            acc?.breadthFirstSearch !== undefined
+            acc?.breadthFirstSearch !== undefined && options?.target === undefined
                 ? acc.breadthFirstSearch(s, source, options)
                 : Promise.resolve(indexed.breadthFirstSearch(s, source, options)),
         connectedComponents: (s) =>

@@ -37,13 +37,11 @@ const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), 
  */
 const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string }[] = [
     { subpath: ".", source: "index.ts", output: "graphty" },
-    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map(
-        (name) => ({
-            subpath: `./${name}`,
-            source: `${name}.ts`,
-            output: name,
-        }),
-    ),
+    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map((name) => ({
+        subpath: `./${name}`,
+        source: `${name}.ts`,
+        output: name,
+    })),
 ];
 
 /**
@@ -149,7 +147,7 @@ function viteEntries(): Record<string, string> {
                 continue;
             }
 
-            const { initializer } = declaration;
+            const {initializer} = declaration;
             if (initializer === undefined || !ts.isObjectLiteralExpression(initializer)) {
                 continue;
             }
@@ -166,18 +164,15 @@ function viteEntries(): Record<string, string> {
 }
 
 describe("the exports map", () => {
-    it.each(MODULE_ENTRIES)(
-        "$subpath is a real entry point with a source file behind it",
-        ({ subpath, source, output }) => {
-            const conditions = manifest.exports[subpath];
+    it.each(MODULE_ENTRIES)("$subpath is a real entry point with a source file behind it", ({ subpath, source, output }) => {
+        const conditions = manifest.exports[subpath];
 
-            assert.deepEqual(conditions, {
-                types: `./dist/${output === "graphty" ? "index" : output}.d.ts`,
-                import: `./dist/${output}.js`,
-            });
-            assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
-        },
-    );
+        assert.deepEqual(
+            conditions,
+            { types: `./dist/${output === "graphty" ? "index" : output}.d.ts`, import: `./dist/${output}.js` },
+        );
+        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
+    });
 
     it("publishes ./bundle as one self-contained file, for a page with no installer", () => {
         // The UMD build is gone, and ./bundle is what replaced it. A consumer pasting a script
@@ -274,10 +269,7 @@ describe("the sibling packages", () => {
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {
-        assert.deepEqual(
-            namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)),
-            [],
-        );
+        assert.deepEqual(namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)), []);
     });
 });
 

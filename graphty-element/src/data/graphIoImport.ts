@@ -3,9 +3,9 @@
  *
  * The importer fills a scratch builder, the builder is frozen, and the snapshot is turned back
  * into plain node and edge records -- the shape every data source has always yielded and the
- * DataManager has always consumed. The importer's report goes to the source's `ErrorAggregator`
- * and the direction the file stated goes to `declareDirection`, so a load cannot tell which path
- * its records came by.
+ * DataManager has always consumed. The importer's errors go to the source's `ErrorAggregator`,
+ * and the direction comes back in the shape the source hands to `declareDirection`, so a load
+ * cannot tell which path its records came by.
  *
  * The records keep the file's own names: every attribute column under its name, the node id under
  * `id`, the endpoints under `source` and `target`, and the weight under the attribute the file
@@ -32,11 +32,15 @@ export interface RecordMapping {
     /** Rewrite an edge record; `index` is the edge's row in `snapshot`. */
     edge?: (record: ImportRecord, index: number, snapshot: GraphSnapshot) => ImportRecord;
     /**
-     * What the file said about its direction, or null when it said nothing. By default the
-     * snapshot's direction, stated by the file, with every edge the importer had to expand
-     * counted as a conflict.
+     * Who stated the file's direction, in the words a direction conflict is reported with, or null
+     * when the file said nothing about it. The importer seeds a direction even for a silent file,
+     * so only the format knows which it was; without this hook no direction is declared. When it
+     * names someone, the snapshot's direction is declared with every edge the importer had to
+     * expand counted as a conflict.
      */
-    direction?: (snapshot: GraphSnapshot, report: ImportReport) => DeclaredDirection | null;
+    statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
+    /** Also yield a record for each node only an edge named, as the CSV and JSON readers did. */
+    endpointNodes?: boolean;
 }
 
 /** What {@link importRecords} read. */
@@ -47,7 +51,7 @@ interface ImportedRecords {
 }
 
 /** Options handed to the importer: the common ones and the format's own. */
-export type ImporterOptions = CommonImportOptions & Record<string, unknown>;
+type ImporterOptions = CommonImportOptions & Record<string, unknown>;
 
 /** The prefix graph-format reserves for the columns that carry structure rather than data. */
 const RESERVED_PREFIX = "graphty.";
@@ -77,6 +81,23 @@ class DeclaringBuilder extends GraphBuilder {
 }
 
 /**
+ * The shortest decimal that reads back as the same f32, so a value the file wrote as 88.3 comes
+ * back as 88.3 rather than as the f32 nearest to it, 88.30000305175781.
+ * @param value - a value read out of an f32 array
+ * @returns the decimal the file most likely wrote
+ */
+function f32Decimal(value: number): number {
+    for (let digits = 1; digits <= 9; digits++) {
+        const decimal = Number(value.toPrecision(digits));
+        if (Math.fround(decimal) === value) {
+            return decimal;
+        }
+    }
+
+    return value;
+}
+
+/**
  * Copy one row of an attribute table into a record, skipping unset cells and reserved columns.
  * @param table - the node or edge table
  * @param row - the row
@@ -85,7 +106,7 @@ class DeclaringBuilder extends GraphBuilder {
  */
 function copyRow(table: AttributeTable, row: number, record: ImportRecord, weightKey: string | null): void {
     for (const column of table) {
-        const { name, role } = column.meta;
+        const { name, role, dtype } = column.meta;
         let key = name;
         if (weightKey !== null && role === "weight") {
             key = weightKey;
@@ -99,7 +120,12 @@ function copyRow(table: AttributeTable, row: number, record: ImportRecord, weigh
         }
 
         // A multi-component cell is a view into the column; a record owns its values.
-        record[key] = ArrayBuffer.isView(value) ? Array.from(value as Float64Array) : value;
+        let copy: unknown = ArrayBuffer.isView(value) ? Array.from(value as Float64Array) : value;
+        if (dtype === "f32") {
+            copy = Array.isArray(copy) ? copy.map(f32Decimal) : f32Decimal(copy as number);
+        }
+
+        record[key] = copy;
     }
 }
 
@@ -128,7 +154,7 @@ function aggregate(report: ImportReport, aggregator: ErrorAggregator): void {
  * @param aggregator - receives the importer's errors
  * @param options - importer options; `errorLimit` defaults to the aggregator's
  * @param mapping - the format's differences from the default records
- * @returns the node and edge records and the direction the file stated
+ * @returns the node and edge records, and the direction to declare or null
  * @throws A `GraphtyError` with `E_PARSE_FAILED` when the importer gave up on the file.
  */
 export async function importRecords(
@@ -139,9 +165,10 @@ export async function importRecords(
     mapping: RecordMapping = {},
 ): Promise<ImportedRecords> {
     // The same seed graph-io's own importGraph() uses: directed until the file says otherwise.
+    const weightDtype = options.weightDtype ?? "f64";
     const builder = new DeclaringBuilder({
         directed: true,
-        weightDtype: options.weightDtype ?? "f64",
+        weightDtype,
         addMissingNodes: options.addMissingNodes ?? true,
         duplicateEdges: options.duplicateEdges ?? "keep",
         selfLoops: options.selfLoops ?? "keep",
@@ -149,7 +176,10 @@ export async function importRecords(
 
     let report: ImportReport;
     try {
-        report = await importer.import(input, builder, { errorLimit: aggregator.getErrorLimit(), ...options });
+        report = await importer.import(input, builder, {
+            ...options,
+            errorLimit: options.errorLimit ?? aggregator.getErrorLimit(),
+        });
     } catch (error) {
         if (!(error instanceof ImportError)) {
             throw error;
@@ -172,7 +202,7 @@ export async function importRecords(
 
     const nodes: ImportRecord[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        if (!builder.declared.has(i)) {
+        if (!mapping.endpointNodes && !builder.declared.has(i)) {
             continue;
         }
 
@@ -184,23 +214,28 @@ export async function importRecords(
 
     const origin = snapshot.meta.weightOrigin;
     const weightKey = origin?.title ?? origin?.id ?? "weight";
-    const { src, dst } = snapshot.edgeList();
+    const { src, dst, weights } = snapshot.edgeList();
+    // graph-format keeps a weight column only when a weight needs f64 or some edge had none; the
+    // rest of the time the weights live in the CSR arrays alone.
+    const arcWeights = [...snapshot.edges].some((column) => column.meta.role === "weight") ? null : weights;
     const edges: ImportRecord[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
         const record: ImportRecord = {};
         copyRow(snapshot.edges, e, record, weightKey);
+        if (arcWeights !== null) {
+            record[weightKey] = weightDtype === "f32" ? f32Decimal(arcWeights[e]) : arcWeights[e];
+        }
+
         record.source = ids.idOf(src[e]);
         record.target = ids.idOf(dst[e]);
         edges.push(mapping.edge ? mapping.edge(record, e, snapshot) : record);
     }
 
-    const direction = mapping.direction
-        ? mapping.direction(snapshot, report)
-        : {
-              directed: snapshot.directed,
-              statedBy: `the ${importer.format} file`,
-              conflictingEdges: report.counts.expandedMixed,
-          };
+    const statedBy = mapping.statedBy?.(snapshot, report) ?? null;
+    const direction =
+        statedBy === null
+            ? null
+            : { directed: snapshot.directed, statedBy, conflictingEdges: report.counts.expandedMixed };
 
     return { nodes: nodes as AdHocData[], edges: edges as AdHocData[], direction };
 }

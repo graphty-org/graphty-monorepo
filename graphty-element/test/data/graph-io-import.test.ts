@@ -23,7 +23,7 @@ import { assert, describe, it } from "vitest";
 
 import type { AdHocData } from "../../src/config";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "../../src/data/DataSource";
-import type { RecordMapping } from "../../src/data/graphIoImport";
+import { importRecords, type RecordMapping } from "../../src/data/graphIoImport";
 import { isGraphtyError } from "../../src/errors";
 
 /** What the recording importer was handed on its one call. */
@@ -32,18 +32,26 @@ interface ImporterCall {
     options: CommonImportOptions | undefined;
 }
 
-/** How the recording importer should end its run. */
-type Ending = "finish" | "abort";
+/** How the recording importer's run differs from its default one. */
+interface Variant {
+    /** "abort" throws the importer's error-limit failure instead of returning. */
+    ending?: "finish" | "abort";
+    /** The two edges' weights; by default two that f32 cannot hold exactly. */
+    weights?: [number, number];
+    /** How many undirected edges the importer reports it expanded into a directed graph. */
+    expandedMixed?: number;
+}
 
 /**
  * An importer that writes down its arguments and pushes one fixed graph: an undirected file with
- * two declared nodes, a third node named only by an edge, a label column, two weighted edges,
- * one error and one warning.
+ * two declared nodes, a third node named only by an edge, a label column, two weighted edges
+ * with an f32 score, one error and one warning.
  * @param calls - receives each call's arguments
- * @param ending - "abort" throws the importer's error-limit failure instead of returning
+ * @param variant - how this run differs from the default one
  * @returns the importer
  */
-function recordingImporter(calls: ImporterCall[], ending: Ending = "finish"): GraphImporter {
+function recordingImporter(calls: ImporterCall[], variant: Variant = {}): GraphImporter {
+    const { ending = "finish", weights = [0.1, 16777217], expandedMixed = 0 } = variant;
     return {
         format: "recording",
         extensions: [".rec"],
@@ -62,9 +70,11 @@ function recordingImporter(calls: ImporterCall[], ending: Ending = "finish"): Gr
             sink.setNodeValue(position, sink.addNode("b"), [1, 2, 3]);
             report.counts.nodes += 2;
 
-            sink.addEdge("a", "b", 0.1);
-            sink.addEdge("b", "c", 16777217);
+            const score = sink.declareEdgeColumn({ name: "score", dtype: "f32", nullable: true });
+            sink.setEdgeValue(score, sink.addEdge("a", "b", weights[0]), 88.3);
+            sink.addEdge("b", "c", weights[1]);
             report.counts.edges += 2;
+            report.counts.expandedMixed += expandedMixed;
 
             report.warning("coercion", "W_WIDENED", "column label widened", { line: 3 });
             report.error("missing-value", "E_MISSING_ID", "a node on line 7 has no id", { line: 7, element: "node" });
@@ -85,7 +95,7 @@ interface ProbeConfig extends BaseDataSourceConfig {
     mapping?: RecordMapping;
 }
 
-/** A data source that reads its input through whatever importer it is given. */
+/** A data source that reads its input through whatever importer it is given, as a built-in reader does. */
 class ProbeDataSource extends DataSource {
     static readonly type = "probe";
 
@@ -97,8 +107,15 @@ class ProbeDataSource extends DataSource {
         return this.config;
     }
 
-    sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        return this.importThrough(this.config.importer, this.config.options, this.config.mapping);
+    async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const { importer, options, mapping } = this.config;
+        const imported = await importRecords(importer, await this.getContent(), this.errorAggregator, options, mapping);
+        if (imported.direction) {
+            const { directed, statedBy, conflictingEdges } = imported.direction;
+            this.declareDirection(directed, statedBy, conflictingEdges);
+        }
+
+        yield* this.chunkData(imported.nodes, imported.edges);
     }
 }
 
@@ -136,6 +153,20 @@ describe("a data source reading through a graph-io importer", () => {
         assert.strictEqual(calls[0].options?.ids, "string");
     });
 
+    it("keeps the source's error limit when the options name none", async () => {
+        const calls: ImporterCall[] = [];
+        const source = new ProbeDataSource({
+            data: "",
+            errorLimit: 5,
+            importer: recordingImporter(calls),
+            options: { errorLimit: undefined },
+        });
+
+        await drain(source);
+
+        assert.strictEqual(calls[0].options?.errorLimit, 5);
+    });
+
     it("yields one record per declared node and one per edge", async () => {
         const source = new ProbeDataSource({ data: "", importer: recordingImporter([]) });
 
@@ -148,9 +179,32 @@ describe("a data source reading through a graph-io importer", () => {
             { position: [1, 2, 3], id: "b" },
         ] as unknown as AdHocData[]);
         assert.deepEqual(edges, [
-            { value: 0.1, source: "a", target: "b" },
+            { value: 0.1, score: 88.3, source: "a", target: "b" },
             { value: 16777217, source: "b", target: "c" },
         ] as unknown as AdHocData[]);
+    });
+
+    it("yields a record for a node only an edge named, when the format's reader always did", async () => {
+        const source = new ProbeDataSource({ data: "", importer: recordingImporter([]), mapping: { endpointNodes: true } });
+
+        const { nodes } = await drain(source);
+
+        assert.deepEqual(
+            nodes.map((node) => node.id),
+            ["a", "b", "c"],
+        );
+    });
+
+    it("keeps the weights when f32 holds every one of them exactly", async () => {
+        // graph-format keeps no weight column for these: the weights are in the CSR arrays only.
+        const source = new ProbeDataSource({ data: "", importer: recordingImporter([], { weights: [2, 0.5] }) });
+
+        const { edges } = await drain(source);
+
+        assert.deepEqual(
+            edges.map((edge) => (edge as unknown as Record<string, unknown>).value),
+            [2, 0.5],
+        );
     });
 
     it("names the weight after the file's own attribute, and 'weight' when the file names none", async () => {
@@ -207,8 +261,12 @@ describe("a data source reading through a graph-io importer", () => {
         assert.deepEqual(errors, [{ message: "a node on line 7 has no id", category: "missing-value", line: 7 }]);
     });
 
-    it("declares the direction the file stated before the first chunk reaches the DataManager", async () => {
-        const source = new ProbeDataSource({ data: "", importer: recordingImporter([]) });
+    it("declares the direction the file stated, with every expanded edge a conflict, before the first chunk", async () => {
+        const source = new ProbeDataSource({
+            data: "",
+            importer: recordingImporter([], { expandedMixed: 2 }),
+            mapping: { statedBy: () => "the recording file" },
+        });
 
         const iterator = source.getData()[Symbol.asyncIterator]();
         await iterator.next();
@@ -216,16 +274,12 @@ describe("a data source reading through a graph-io importer", () => {
         assert.deepEqual(source.declaredDirection, {
             directed: false,
             statedBy: "the recording file",
-            conflictingEdges: 0,
+            conflictingEdges: 2,
         });
     });
 
-    it("lets a format say the file was silent about direction", async () => {
-        const source = new ProbeDataSource({
-            data: "",
-            importer: recordingImporter([]),
-            mapping: { direction: () => null },
-        });
+    it("declares no direction unless the format says the file stated one", async () => {
+        const source = new ProbeDataSource({ data: "", importer: recordingImporter([]) });
 
         await drain(source);
 
@@ -233,7 +287,7 @@ describe("a data source reading through a graph-io importer", () => {
     });
 
     it("turns an importer that gave up into a parse failure naming the line, with the errors aggregated", async () => {
-        const source = new ProbeDataSource({ data: "", importer: recordingImporter([], "abort") });
+        const source = new ProbeDataSource({ data: "", importer: recordingImporter([], { ending: "abort" }) });
 
         let thrown: unknown;
         try {

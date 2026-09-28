@@ -46,7 +46,8 @@ HITS, Katz, eigenvector centrality, degree centrality, closeness centrality, bet
 edge betweenness centrality, common neighbours, k-core, Louvain, label propagation, all-pairs
 shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum cuts, the bipartite
 flow network, Adamic-Adar link prediction, hierarchical, Markov and spectral clustering, modularity,
-and the research clusterings teraHAC, SynC and GRSBM. Each lands beside its legacy function; tests
+the research clusterings teraHAC, SynC and GRSBM, maximum and greedy bipartite matching, and
+VF2 graph isomorphism. Each lands beside its legacy function; tests
 live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS,
 Louvain, label propagation) against their legacy functions. Some legacy functions now delegate to
 their port and keep only their signature and result shape: `floydWarshall`, `floydWarshallPath`,

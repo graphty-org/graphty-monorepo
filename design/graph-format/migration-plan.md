@@ -314,7 +314,12 @@ visual change is reviewed.
 **element-adapters-on-shipped-ports.** Move `HITSAlgorithm`, `KatzCentralityAlgorithm`,
 `KCoreAlgorithm`, `LouvainAlgorithm` and `DegreeAlgorithm` onto the dispatcher: the first four
 through `this.accelerated(...)` with every schema option mapped (an option the port lacks is
-implemented or refused, never dropped); Degree from the input snapshot's degree views. Forward
+implemented or refused, never dropped -- except an option that only chose between two
+implementations of the same answer, such as Louvain's `useOptimized`: it stays accepted, the one
+remaining implementation runs, and a caveat note says so when the option asked for the other);
+Degree from the input snapshot, counting each edge's source and target from its edge list (the
+degree views give every node its full degree as both in- and out-degree on a graph loaded
+undirected, which would double the total). Forward
 `hits` and `katzCentrality` in `graphty-element/src/acceleration/narrow.ts` with their floors in
 `acceleration/types.ts` (section 3); k-core and Louvain stay on the CPU port. Done when: all five
 are on the dispatcher, adapter tests match the legacy route on the existing fixtures (scores within

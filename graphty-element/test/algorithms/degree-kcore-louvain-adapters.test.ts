@@ -2,7 +2,9 @@
  * @file Degree, k-core and Louvain over the graph snapshot, against the route they replaced.
  *
  * The three used to copy the snapshot into an `@graphty/algorithms` object graph and call the
- * reference implementation on it. Degree now reads the input snapshot's degree views, and k-core
+ * reference implementation on it. Degree now counts each node's in- and out-edges from the input
+ * snapshot's edge list (not its degree views, which on a graph loaded undirected would give every
+ * node its full degree as both in- and out-degree and so double the total), and k-core
  * and Louvain run the index-based ports through the dispatcher. The element forwards neither of
  * those two to an accelerator, so they stay on the CPU port under every policy. What is checked
  * here is that a reader sees the same numbers as before -- identical degrees and core numbers,
@@ -200,6 +202,29 @@ describe("degree, k-core and louvain give the numbers the reference route gave",
         const low = await computed(new LouvainAlgorithm(graph, { resolution: 0.2 }));
         const high = await computed(new LouvainAlgorithm(graph, { resolution: 3 }));
         assert.isBelow(count(low), count(high));
+    });
+
+    it("louvain passes maxIterations and tolerance through: each one stops the merging early", async () => {
+        /* A ring of 1200 eight-node cliques, each joined to the next by one edge. Every level merges
+           neighbouring groups: 1200 cliques, then 600, 300 and finally 150 groups. The third level
+           gains under 0.01 modularity, so the largest tolerance stops there, at 300; one level
+           stops at the cliques. */
+        const nodes: { id: string }[] = [];
+        const edges: { srcId: string; dstId: string }[] = [];
+        for (let clique = 0; clique < 1200; clique++) {
+            for (let i = 0; i < 8; i++) {
+                nodes.push({ id: `${String(clique)}.${String(i)}` });
+                for (let j = i + 1; j < 8; j++) {
+                    edges.push({ srcId: `${String(clique)}.${String(i)}`, dstId: `${String(clique)}.${String(j)}` });
+                }
+            }
+            edges.push({ srcId: `${String(clique)}.0`, dstId: `${String((clique + 1) % 1200)}.1` });
+        }
+        const graph = await createMockGraph({ nodes, edges, directed: false });
+        const count = (output: AlgorithmOutput): number => new Set(output.nodes?.map((n) => n.values.group)).size;
+        assert.strictEqual(count(await computed(new LouvainAlgorithm(graph))), 150);
+        assert.strictEqual(count(await computed(new LouvainAlgorithm(graph, { maxIterations: 1 }))), 1200);
+        assert.strictEqual(count(await computed(new LouvainAlgorithm(graph, { tolerance: 0.01 }))), 300);
     });
 
     it("louvain runs useOptimized off on the one implementation there is, and says so", async () => {

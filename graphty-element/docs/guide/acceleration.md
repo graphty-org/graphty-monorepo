@@ -131,16 +131,16 @@ That is the label to show beside a value a reader might compare against a saved 
 | `pagerank`                             | Yes, with one exception | The CPU implementation                           |
 | `connected-components`                 | Yes                     | The CPU implementation                           |
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
-| `eigenvector`                          | Yes, with exceptions    | The CPU implementation                           |
+| `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
 
 The last row is routed but not accelerated: it asks the accelerator for a member it does not
 implement yet, and takes the CPU path with `caveats.precision` reading `"f64"`. It gains the
 hardware the day the member exists, with no change to your page.
 
-An algorithm is accelerated only above a measured node count: `eigenvector` from 6,600 nodes,
-`pagerank` from 50,000, `dijkstra` from 107,000, `connected-components` from 132,000 and `bfs`
-from 141,000. An algorithm
+An algorithm is accelerated only above a measured node count: `hits` from 15,000 nodes, `katz`
+and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
+`connected-components` from 132,000 and `bfs` from 141,000. An algorithm
 is one call, and on the device that call costs several round trips whatever the size, so below
 those counts the CPU has finished before the device has started -- and a traversal, which is one
 round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
@@ -149,13 +149,15 @@ card (see `acceleration-min-nodes` below for how to replace them with your own),
 `acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
 purpose.
 
-Three of those five floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
+Three of those floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
 `connected-components` and `bfs` take the CPU path at every size the element will hold today. That
 is the measurement, not caution: through the element an accelerated call never returned in under
 about 12 milliseconds, because every level of a traversal and every convergence test is a readback
 worth roughly 2 milliseconds of round trip, and on a graph of 50,000 nodes and 100,000 edges the
-CPU implementations of all three finish well inside that. Eigenvector centrality crosses early,
-and PageRank crosses at the top of what the element can hold. Raising the renderer's ceiling is what would put
+CPU implementations of all three finish well inside that. PageRank crosses at the top of what the
+element can hold, and `hits`, `katz` and `eigenvector` cross below it; their floors come from timing
+the GPU package against the CPU implementations rather than from a run through the element, so the
+element's own crossing may sit somewhat higher. Raising the renderer's ceiling is what would put
 the others in reach; until then, `acceleration="required"` or your own
 `acceleration-min-nodes` is how to put them on the device deliberately.
 
@@ -165,15 +167,15 @@ those three change what the numbers mean rather than how fast they are computed,
 reference implementation defines them. Such a run reports `caveats.precision` as `"f64"` and says
 in its caveats which of the three sent it there.
 
-Eigenvector centrality has exceptions of the same kind. A run over a directed graph (`mode` of
-`in` or `out`) and one over a graph with a bipartite piece take the CPU implementation, because
-the device's kernel is not defined to give the same answer there. They report `caveats.precision`
-as `"f64"`.
+`hits`, `katz` and `eigenvector` have exceptions of the same kind. A `katz` run with `normalized`
+switched off, or over a graph where every node has the same number of neighbours, takes the CPU
+implementation, and so does an `eigenvector` run that follows edge direction or runs over a graph
+with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
+single precision: the same scale, the same weighting, the same order. Under
+`acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 
-These exceptions hold under `acceleration="required"` too: `"required"` refuses to fall back when
-the accelerator is missing or the work would otherwise have gone to it, but a run whose options or
-graph the device cannot answer, and an algorithm the element does not route to the device at all
-(`betweenness` and `closeness` today), run on the CPU and say `"f64"` rather than throwing.
+An algorithm the element does not route to the device at all (`betweenness` and `closeness`
+today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

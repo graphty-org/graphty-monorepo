@@ -35,12 +35,13 @@ const LAYOUT_MEMBERS = ["forceAtlas2", "fruchtermanReingold", "springElectrical"
 /**
  * The members of `AlgorithmAccelerator` the element forwards, in the order it copies them.
  *
- * These are the members the element routes to the device. A member the dispatcher has but this
- * list lacks -- betweenness and closeness, whose device answer pays only under conditions no
- * rule states yet -- is never offered to the accelerator: `Algorithm.accelerated` runs the CPU
- * port for it without asking the controller, which is the honest answer rather than a silent
- * half-route. Add a name here once its crossover is known, with its floor in
- * `ACCELERATION_MIN_NODES_BY_CAPABILITY`.
+ * These are the dispatcher members an adapter routes through `accelerated()` AND whose device
+ * crossover is known, each with its floor in `ACCELERATION_MIN_NODES_BY_CAPABILITY`. A member the
+ * dispatcher has but this list lacks -- betweenness, closeness, label propagation and all-pairs
+ * shortest paths among them (issue #558) -- is never offered to the accelerator:
+ * `Algorithm.accelerated` runs the CPU port for it without asking the controller, which is the
+ * honest answer rather than a silent half-route. Add a name here once its crossover is measured,
+ * with its floor beside it.
  *
  * `release` is the one member of `AlgorithmAccelerator` deliberately left out, and the asymmetry
  * with the layout list is real. A simulation holds device buffers ACROSS frames and releases them
@@ -55,6 +56,8 @@ const ALGORITHM_MEMBERS = [
     "connectedComponents",
     "weaklyConnectedComponents",
     "minimumSpanningTree",
+    "hits",
+    "katzCentrality",
     "eigenvectorCentrality",
 ] as const;
 
@@ -123,9 +126,9 @@ export function narrowAlgorithms(accelerator: GraphAccelerator, onCall?: () => v
     for (const member of ALGORITHM_MEMBERS) {
         const value = accelerator[member];
         if (typeof value === "function") {
+            const bound = (value as SeamMember).bind(accelerator);
             // `never` is the one type assignable to every member of the union the index produces;
             // the feature test above is what makes the assignment sound.
-            const bound = (value as SeamMember).bind(accelerator);
             narrowed[member] = (
                 onCall === undefined
                     ? bound

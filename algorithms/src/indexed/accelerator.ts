@@ -124,7 +124,7 @@ export interface AlgorithmAccelerator {
     ): Promise<PageRankResultLike>;
     hits?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<HitsResultLike>;
     eigenvectorCentrality?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<ScoresResultLike>;
-    katzCentrality?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<ScoresResultLike>;
+    katzCentrality?(s: GraphSnapshot, options?: KatzOptionsLike): Promise<ScoresResultLike>;
     connectedComponents?(s: GraphSnapshot): Promise<LabelResultLike>;
     weaklyConnectedComponents?(s: GraphSnapshot): Promise<LabelResultLike>;
     // Only maxDepth: a GPU BFS expands whole levels in index order, so it can neither stop early at a
@@ -166,6 +166,16 @@ export interface HitsOptionsLike {
 }
 
 /**
+ * Katz options as the accelerator sees them: the power-iteration trio plus the two coefficients
+ * that define the recurrence `x = alpha * A^T x + beta`.
+ * @public
+ */
+export interface KatzOptionsLike extends HitsOptionsLike {
+    readonly alpha?: number | undefined;
+    readonly beta?: number | undefined;
+}
+
+/**
  * PageRank options as the accelerator sees them: the port's `PageRankOptions` without
  * `initialRanks` and `convergenceNorm`, which the dispatcher keeps on the CPU port.
  * @public
@@ -198,11 +208,21 @@ export interface BetweennessAcceleratorOptions {
  *
  * The list GROWS with the A2 ports -- each port PR adds its method (plan departure DEP-8A-E).
  *
- * The four newest methods take their port's own option type, which is WIDER than the
- * `HitsOptionsLike` the accelerator side still declares: an accelerator therefore never sees Katz's
- * `alpha` / `beta` or Louvain's `resolution`, and one that is handed them would answer a different
- * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
- * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
+ * `louvain` and `kCoreDecomposition` pass their port's options through unchanged; Louvain's
+ * `resolution` is wider than the `HitsOptionsLike` the accelerator side declares, and narrowing that
+ * member belongs to the pull request that lands a GPU Louvain.
+ *
+ * `katzCentrality` and `hits` hand the accelerator only what it reads -- `{ alpha, beta,
+ * maxIterations, tolerance, weighted }` and `{ maxIterations, tolerance, weighted }` -- with
+ * `weighted` resolved to the port's default (false), since an accelerator may default it the
+ * other way, and give its result the port's scale: an accelerator may end its iterate on any
+ * positive scale (webgpu-graph-algorithms divides Katz by its L2 norm and HITS by its sum), so
+ * Katz is min-max rescaled to [0, 1] as the port rescales its own, and each HITS vector is
+ * rescaled to unit length, or to a largest entry of 1 under `normalized: false`, as the port does.
+ * Katz runs the CPU port under `normalized: false` (the raw sums cannot be recovered from a
+ * rescaled vector), with `alpha` 0, and when every node has the same in-degree (or in-weight):
+ * there every score is equal, and the port leaves an equal vector unscaled. The iteration counts
+ * of the two paths differ.
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
@@ -477,6 +497,101 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
 }
 
 /**
+ * Whether the accelerator's Katz member answers the port's question: the min-max rescaled score
+ * of a vector that is not constant. Raw sums (`normalized: false`) are lost to the accelerator's
+ * own rescaling, and a constant vector -- `alpha` 0, or the same in-degree (in-weight) everywhere
+ * -- is one the port leaves unscaled.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns True when the call may go to the accelerator
+ */
+function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined): boolean {
+    if (options?.normalized === false || options?.alpha === 0) {
+        return false;
+    }
+    const rev = s.reverse();
+    const weights = options?.weighted === true ? rev.weights : null;
+    let first: number | undefined;
+    for (let v = 0; v < s.nodeCount; v++) {
+        let inWeight = 0;
+        for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
+            inWeight += weights === null ? 1 : weights[a];
+        }
+        first ??= inWeight;
+        if (inWeight !== first) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Rescale a vector in place to [0, 1] by min-max, leaving a constant vector alone -- the Katz
+ * port's own rescaling.
+ * @param x - The vector
+ */
+function katzRescale(x: F64): void {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const value of x) {
+        min = Math.min(min, value);
+        max = Math.max(max, value);
+    }
+    const range = max - min;
+    if (range > 0) {
+        for (let v = 0; v < x.length; v++) {
+            x[v] = (x[v] - min) / range;
+        }
+    }
+}
+
+/**
+ * Give an accelerator's Katz result the port's scale: min-max rescaled to [0, 1], into a new vector.
+ * @param like - The accelerator's result
+ * @returns The rescaled result
+ */
+function finishKatz(like: ScoresResultLike): ScoresResultLike {
+    const scores = Float64Array.from(like.scores);
+    katzRescale(scores);
+    return { scores, iterations: like.iterations, converged: like.converged };
+}
+
+/**
+ * Rescale a vector in place to unit L2 length, or to a largest entry of 1; a vector with no
+ * positive scale is left alone, as the port leaves it.
+ * @param x - The vector
+ * @param norm - Which scale the port gives it
+ */
+function hitsRescale(x: F64, norm: "l2" | "max"): void {
+    let scale = 0;
+    for (const value of x) {
+        scale = norm === "l2" ? scale + value * value : Math.max(scale, value);
+    }
+    scale = norm === "l2" ? Math.sqrt(scale) : scale;
+    if (scale > 0) {
+        for (let v = 0; v < x.length; v++) {
+            x[v] /= scale;
+        }
+    }
+}
+
+/**
+ * Give an accelerator's HITS result the port's scale: each vector at unit length, or at a largest
+ * entry of 1 under `normalized: false`, into new vectors.
+ * @param like - The accelerator's result
+ * @param options - The caller's port options
+ * @returns The rescaled result
+ */
+function finishHits(like: HitsResultLike, options: HitsOptions | undefined): HitsResultLike {
+    const norm = options?.normalized === false ? "max" : "l2";
+    const hubs = Float64Array.from(like.hubs);
+    const authorities = Float64Array.from(like.authorities);
+    hitsRescale(hubs, norm);
+    hitsRescale(authorities, norm);
+    return { hubs, authorities, iterations: like.iterations, converged: like.converged };
+}
+
+/**
  * Attach `pathTo` / `pathEdges` to an accelerator's bare `{ dist, predArc }`, so both paths return
  * the design's `SsspResult` and the element keeps ONE result-writing loop. The GPU package cannot
  * attach them itself: it must not depend on the CPU package at runtime (design 9.2 line 2971, D3).
@@ -558,11 +673,27 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.kCoreDecomposition(s)
                 : Promise.resolve(indexed.kCoreDecomposition(s)),
         katzCentrality: (s, options) =>
-            acc?.katzCentrality !== undefined
-                ? acc.katzCentrality(s, options)
+            acc?.katzCentrality !== undefined && acceleratorAnswersKatz(s, options)
+                ? acc
+                      .katzCentrality(s, {
+                          alpha: options?.alpha,
+                          beta: options?.beta,
+                          maxIterations: options?.maxIterations,
+                          tolerance: options?.tolerance,
+                          weighted: options?.weighted === true,
+                      })
+                      .then(finishKatz)
                 : Promise.resolve(indexed.katzCentrality(s, options)),
         hits: (s, options) =>
-            acc?.hits !== undefined ? acc.hits(s, options) : Promise.resolve(indexed.hits(s, options)),
+            acc?.hits !== undefined
+                ? acc
+                      .hits(s, {
+                          maxIterations: options?.maxIterations,
+                          tolerance: options?.tolerance,
+                          weighted: options?.weighted === true,
+                      })
+                      .then((like) => finishHits(like, options))
+                : Promise.resolve(indexed.hits(s, options)),
         louvain: (s, options) =>
             acc?.louvain !== undefined ? acc.louvain(s, options) : Promise.resolve(indexed.louvain(s, options)),
         allPairsShortestPath: (s, options) =>

@@ -12,7 +12,7 @@
  * small random graphs without self-loops and no lower on average, and it is the modularity of the
  * partition it published.
  *
- * Then the routing: eigenvector goes to the accelerator at 6,600 nodes and above and stays on the
+ * Then the routing: eigenvector goes to the accelerator at its floor (28,000 nodes) and above and stays on the
  * processor below, and a run the dispatcher answers on the processor says `f64` even when an
  * accelerator was attached.
  */
@@ -451,15 +451,15 @@ describe("centrality and community adapters on the index-based ports", () => {
     describe("routing", () => {
         const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY.eigenvectorCentrality;
 
-        it("eigenvector carries a 6,600-node floor and is forwarded to the accelerator", () => {
-            assert.strictEqual(floor, 6_600);
+        it("eigenvector carries a 28,000-node floor and is forwarded to the accelerator", () => {
+            assert.strictEqual(floor, 28_000);
             const { fake } = eigenvectorFake();
             assert.isFunction(narrowAlgorithms(fake).eigenvectorCentrality);
         });
 
         it("eigenvector at the floor runs on the accelerator and says f32", async () => {
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(6_601), fake, true);
+            const graph = await graphWith(oddRing(floor + 1), fake, true);
             const { values, precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 1);
             assert.strictEqual(precision, "f32");
@@ -469,7 +469,7 @@ describe("centrality and community adapters on the index-based ports", () => {
 
         it("eigenvector below the floor runs on the processor and says f64", async () => {
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(6_599), fake, true);
+            const graph = await graphWith(oddRing(floor - 1), fake, true);
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 0);
             assert.strictEqual(precision, "f64");
@@ -478,7 +478,7 @@ describe("centrality and community adapters on the index-based ports", () => {
         it("eigenvector above the floor on a graph the accelerator cannot answer says f64", async () => {
             // An even ring is bipartite, which the dispatcher keeps on the processor.
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(6_601 + 1), fake, true);
+            const graph = await graphWith(oddRing(floor + 2), fake, true);
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 0);
             assert.strictEqual(precision, "f64");
@@ -491,7 +491,7 @@ describe("centrality and community adapters on the index-based ports", () => {
                         Promise.resolve({ scores: new Float32Array(s.nodeCount), iterations: 1000, converged: false }),
                 },
             });
-            const graph = await graphWith(oddRing(6_601), fake, true);
+            const graph = await graphWith(oddRing(floor + 1), fake, true);
             let thrown: unknown;
             try {
                 await new EigenvectorCentralityAlgorithm(graph).publishResult(detachedRunContext(), "eigen_gpu");

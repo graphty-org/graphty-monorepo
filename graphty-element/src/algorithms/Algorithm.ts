@@ -452,8 +452,9 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                 // question: asking would label a CPU answer with the device's precision, and under
                 // "required" refuse work the element never meant to send there.
                 if (forwardsAlgorithm(capability)) {
-                    // The dispatcher may still answer on the CPU port (an option or a graph the
-                    // device cannot answer), so the precision follows whether a member was reached.
+                    // The dispatcher may still answer on the CPU port with an accelerator attached --
+                    // eigenvector centrality over a graph whose iteration the device kernel cannot
+                    // match, say -- so the precision follows whether a member was actually reached.
                     let reached = false;
                     const outcome = await controller.run(work, (accelerator) =>
                         fn(
@@ -467,7 +468,24 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     );
 
                     if (outcome.accelerated) {
-                        return { value: outcome.value, precision: reached ? outcome.precision : CPU_PRECISION };
+                        if (reached) {
+                            return { value: outcome.value, precision: outcome.precision };
+                        }
+
+                        // Under "required" an answer the device did not compute is the absence that
+                        // policy exists to make loud, however it came about.
+                        if (controller.policy === "required") {
+                            throw new GraphtyError({
+                                code: "E_NO_ACCELERATOR",
+                                message:
+                                    `acceleration is required, but the accelerator does not answer this ` +
+                                    `"${capability}" run as asked, so it ran on the CPU`,
+                                source: "acceleration",
+                                details: { policy: "required", capability, nodeCount: snapshot.nodeCount },
+                            });
+                        }
+
+                        return { value: outcome.value, precision: CPU_PRECISION };
                     }
                 }
 

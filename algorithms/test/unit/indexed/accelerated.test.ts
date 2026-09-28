@@ -20,6 +20,13 @@ import {
 } from "../../../src/index.js";
 import { gnm } from "./port-fixtures.js";
 
+function pathGraph(): Graph {
+    const g = new Graph({ directed: true });
+    g.addEdge("a", "b");
+    g.addEdge("b", "c");
+    return g;
+}
+
 // No vi.fn anywhere: algorithms has no mock-injection convention (plan decision PD-13) and a plain
 // literal with a closed-over call log proves everything the design asks for.
 function cycle(): GraphSnapshot {
@@ -289,9 +296,11 @@ describe("accelerated(acc)", () => {
             },
         };
         const dispatcher = accelerated(fake);
+        // A path, not the cycle: every node of a cycle has the same in-degree, and Katz keeps that on the port.
+        const path = toSnapshot(pathGraph());
         expect((await dispatcher.kCoreDecomposition(undirected)).coreness[0]).toBe(9);
-        expect((await dispatcher.katzCentrality(s)).scores).toBeInstanceOf(Float32Array);
-        expect((await dispatcher.hits(s)).hubs).toBeInstanceOf(Float32Array);
+        expect([...(await dispatcher.katzCentrality(path)).scores]).toEqual([1, 1, 1]);
+        expect([...(await dispatcher.hits(s)).hubs]).toEqual([1, 0, 0]);
         expect((await dispatcher.louvain(undirected)).count).toBe(1);
         expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
     });
@@ -993,5 +1002,148 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
         it("turns a port's throw into a rejection", async () => {
             await expect(d.maxFlow(directed, 0, 0)).rejects.toThrow(RangeError);
         });
+    });
+});
+
+describe("accelerated(acc) routing for Katz and HITS", () => {
+    /** A directed graph whose in-degrees differ, so Katz scores are not all equal. */
+    function uneven(weighted = false): GraphSnapshot {
+        const b = new GraphBuilder({ directed: true, weighted });
+        const edges: [string, string, number][] = [
+            ["a", "b", 2],
+            ["a", "c", 1],
+            ["b", "c", 3],
+            ["c", "d", 1],
+            ["d", "a", 5],
+            ["b", "d", 1],
+        ];
+        for (const [u, v, w] of edges) {
+            if (weighted) {
+                b.addEdge(u, v, w);
+            } else {
+                b.addEdge(u, v);
+            }
+        }
+        return b.freeze();
+    }
+
+    /**
+     * An accelerator that answers like webgpu-graph-algorithms: the port's own unweighted iterate
+     * on a different positive scale -- Katz by its L2 norm, HITS by its sum -- and a weighted one
+     * unless told `weighted: false`.
+     */
+    function deviceLike(calls: unknown[][]): AlgorithmAccelerator {
+        const scaled = (x: ArrayLike<number>, norm: "l2" | "sum"): Float32Array => {
+            let acc = 0;
+            for (let i = 0; i < x.length; i++) {
+                acc += norm === "l2" ? x[i] * x[i] : Math.abs(x[i]);
+            }
+            const scale = norm === "l2" ? Math.sqrt(acc) : acc;
+            return Float32Array.from(x, (v) => (scale > 0 ? v / scale : v));
+        };
+        return {
+            kind: "fake",
+            katzCentrality: (s, o) => {
+                calls.push(["katzCentrality", o]);
+                const raw = indexed.katzCentrality(s, { ...o, weighted: o?.weighted !== false, normalized: false });
+                return Promise.resolve({ ...raw, scores: scaled(raw.scores, "l2") });
+            },
+            hits: (s, o) => {
+                calls.push(["hits", o]);
+                const raw = indexed.hits(s, { ...o, weighted: o?.weighted !== false });
+                return Promise.resolve({
+                    ...raw,
+                    hubs: scaled(raw.hubs, "sum"),
+                    authorities: scaled(raw.authorities, "sum"),
+                });
+            },
+        };
+    }
+
+    function expectClose(actual: ArrayLike<number>, expected: ArrayLike<number>): void {
+        expect(actual.length).toBe(expected.length);
+        for (let i = 0; i < expected.length; i++) {
+            expect(actual[i]).toBeCloseTo(expected[i], 5); // the accelerator answers in f32
+        }
+    }
+
+    it("hands Katz the coefficients unweighted and min-max rescales the answer like the port", async () => {
+        const calls: unknown[][] = [];
+        const s = uneven(true);
+        const options = { alpha: 0.05, beta: 2, maxIterations: 200, tolerance: 1e-9 };
+        const r = await accelerated(deviceLike(calls)).katzCentrality(s, options);
+        expect(calls).toEqual([["katzCentrality", { ...options, weighted: false }]]);
+        expectClose(r.scores, indexed.katzCentrality(s, options).scores);
+        expect(Math.min(...r.scores)).toBe(0);
+        expect(Math.max(...r.scores)).toBe(1);
+    });
+
+    it("hands Katz weighted: true through when the caller asks for it", async () => {
+        const calls: unknown[][] = [];
+        const s = uneven(true);
+        const r = await accelerated(deviceLike(calls)).katzCentrality(s, { weighted: true, alpha: 0.05 });
+        expect(calls[0][1]).toMatchObject({ weighted: true });
+        expectClose(r.scores, indexed.katzCentrality(s, { weighted: true, alpha: 0.05 }).scores);
+    });
+
+    it("keeps Katz on the port for raw sums, alpha 0 and a graph whose in-degrees are all equal", async () => {
+        const calls: unknown[][] = [];
+        const dispatcher = accelerated(deviceLike(calls));
+        const s = uneven();
+        const raw = await dispatcher.katzCentrality(s, { normalized: false });
+        expect([...raw.scores]).toEqual([...indexed.katzCentrality(s, { normalized: false }).scores]);
+        const flat = await dispatcher.katzCentrality(s, { alpha: 0 });
+        expect([...flat.scores]).toEqual([1, 1, 1, 1]);
+        const regular = await dispatcher.katzCentrality(cycle());
+        expect([...regular.scores]).toEqual([...indexed.katzCentrality(cycle()).scores]);
+        expect(calls).toEqual([]);
+    });
+
+    it("sends Katz to the accelerator when only the in-WEIGHTS differ", async () => {
+        const calls: unknown[][] = [];
+        const b = new GraphBuilder({ directed: true, weighted: true });
+        b.addEdge("a", "b", 1);
+        b.addEdge("b", "c", 2);
+        b.addEdge("c", "a", 3);
+        const s = b.freeze();
+        const dispatcher = accelerated(deviceLike(calls));
+        await dispatcher.katzCentrality(s); // unweighted: every in-degree is 1
+        expect(calls).toEqual([]);
+        const r = await dispatcher.katzCentrality(s, { weighted: true });
+        expect(calls).toHaveLength(1);
+        expectClose(r.scores, indexed.katzCentrality(s, { weighted: true }).scores);
+    });
+
+    it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {
+        const calls: unknown[][] = [];
+        const s = uneven(true);
+        const r = await accelerated(deviceLike(calls)).hits(s, { maxIterations: 300, tolerance: 1e-10 });
+        expect(calls).toEqual([["hits", { maxIterations: 300, tolerance: 1e-10, weighted: false }]]);
+        const port = indexed.hits(s, { maxIterations: 300, tolerance: 1e-10 });
+        expectClose(r.hubs, port.hubs);
+        expectClose(r.authorities, port.authorities);
+    });
+
+    it("rescales HITS to a largest entry of 1 under normalized: false, like the port", async () => {
+        const s = uneven();
+        const r = await accelerated(deviceLike([])).hits(s, {
+            normalized: false,
+            tolerance: 1e-10,
+            maxIterations: 300,
+        });
+        const port = indexed.hits(s, { normalized: false, tolerance: 1e-10, maxIterations: 300 });
+        expectClose(r.hubs, port.hubs);
+        expectClose(r.authorities, port.authorities);
+        expect(Math.max(...r.hubs)).toBeCloseTo(1, 12);
+    });
+
+    it("leaves an accelerator's all-zero HITS vectors at zero, as the port does", async () => {
+        const b = new GraphBuilder({ directed: true, weighted: false });
+        b.addNode("a");
+        b.addNode("b");
+        const edgeless = b.freeze();
+        const r = await accelerated(deviceLike([])).hits(edgeless);
+        expect([...r.hubs]).toEqual([...indexed.hits(edgeless).hubs]);
+        expect([...r.authorities]).toEqual([0, 0]);
     });
 });

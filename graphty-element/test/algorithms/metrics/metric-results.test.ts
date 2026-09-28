@@ -231,14 +231,18 @@ describe("metric results", () => {
             assert.isTrue(result.summary().caveats.converged);
         });
 
-        it("the other iterative metrics do not claim to have converged", async () => {
-            for (const make of [
-                (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g),
-                (g: Graph): MetricAlgorithm => new HITSAlgorithm(g),
-            ]) {
-                const result = await runMetric(make);
-                assert.isUndefined(result.summary().caveats.converged);
-            }
+        it("katz and hits report whether they converged, and in how many passes", async () => {
+            // HITS settles on this graph well inside its cap.
+            const hitsCaveats = (await runMetric((g) => new HITSAlgorithm(g))).summary().caveats;
+            assert.isTrue(hitsCaveats.converged);
+            assert.isBelow(hitsCaveats.iterations ?? Infinity, 100);
+
+            // Katz at its default alpha of 0.1 does NOT: the graph's largest eigenvalue is at least
+            // 10, so the attenuated sums grow every pass. The run says so rather than saying nothing.
+            const katzCaveats = (await runMetric((g) => new KatzCentralityAlgorithm(g))).summary().caveats;
+            assert.isFalse(katzCaveats.converged);
+            assert.strictEqual(katzCaveats.iterations, 100);
+            assert.isTrue(katzCaveats.notes.some((note) => note.includes("without reaching the tolerance")));
         });
 
         it("every metric names its method, its direction and its precision", async () => {

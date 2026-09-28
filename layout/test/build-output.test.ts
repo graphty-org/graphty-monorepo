@@ -66,4 +66,11 @@ describe("Build Output Tests", () => {
         expect(existsSync(resolve("./dist/src/generators/bipartite.js"))).toBe(true);
         expect(existsSync(resolve("./dist/src/generators/scale-free.js"))).toBe(true);
     });
+
+    const typesExist = existsSync(resolve("./dist/layout.d.ts"));
+
+    it.skipIf(!typesExist)("declares everything the bundle's entry exports", () => {
+        // the bundle is built from src/index.ts, so its declarations must be those of src/index and not a subset
+        expect(readFileSync(resolve("./dist/layout.d.ts"), "utf-8")).toContain("export * from './src/index';");
+    });
 });

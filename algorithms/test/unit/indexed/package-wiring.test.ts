@@ -14,6 +14,8 @@ import type {
     ClosenessOptions,
     CondensationResult,
     DegreeCentralityOptions,
+    DeltaPageRankComputeOptions,
+    DeltaPageRankEngineOptions,
     DfsOptions,
     DfsResult,
     DirectionOptimizedBfsOptions,
@@ -166,5 +168,28 @@ describe("indexed path centrality exports", () => {
         expect(pkg.indexed.nodeClosenessCentrality(s, 1, closeness)).toBe(1 / 2);
         const degree: DegreeCentralityOptions = { normalized: true };
         expect(Array.from(pkg.indexed.degreeCentrality(s, degree))).toEqual([0.5, 1, 0.5]);
+    });
+});
+
+describe("indexed delta PageRank exports", () => {
+    it("reaches the two delta engines and their flat types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: true });
+        b.addEdge(0, 1);
+        b.addEdge(1, 0);
+        const s = b.freeze();
+        // The legacy pageRank facade's exact power iteration is internal, not a second public PageRank.
+        expect("deltaPageRank" in pkg.indexed).toBe(false);
+        const engineOptions: DeltaPageRankEngineOptions = {};
+        const computeOptions: DeltaPageRankComputeOptions = { dampingFactor: 0.85 };
+        // The engines drop deltas below their threshold, so the symmetric pair lands near, not on, 0.5.
+        const delta = new pkg.indexed.DeltaPageRank(s, engineOptions).compute(computeOptions);
+        const priority = new pkg.indexed.PriorityDeltaPageRank(s, engineOptions).computeWithPriority(computeOptions);
+        for (const scores of [delta, priority]) {
+            expect(scores.length).toBe(2);
+            expect(scores[0]).toBeCloseTo(0.5, 6);
+            expect(scores[1]).toBeCloseTo(0.5, 6);
+        }
     });
 });

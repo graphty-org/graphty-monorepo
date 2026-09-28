@@ -38,11 +38,13 @@ algorithms/
 ```
 
 `src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
-`indexed` namespace: BFS, direction-optimized BFS, DFS, cycle detection, topological sort,
-bipartite check, strongly connected components and condensation, Dijkstra, Bellman-Ford,
-bidirectional Dijkstra, A*, connected components, Kruskal and Prim MST, PageRank, HITS, Katz,
-common neighbours, k-core, Louvain, label propagation, all-pairs shortest paths, and degree,
-closeness, betweenness and edge betweenness centrality. Each lands
+`indexed` namespace. Ported so far: BFS, direction-optimized BFS, DFS, cycle detection,
+topological sort, bipartite check, strongly connected components, condensation, Dijkstra,
+Bellman-Ford, bidirectional Dijkstra, A*, connected components, Kruskal MST, Prim MST, PageRank,
+personalized PageRank, the delta PageRank engines (`deltaPageRank`, `DeltaPageRank`,
+`PriorityDeltaPageRank`), HITS, Katz, eigenvector centrality, degree centrality, closeness
+centrality, betweenness centrality, edge betweenness centrality, common neighbours, k-core,
+Louvain, label propagation, all-pairs shortest paths. Each lands
 beside its legacy function; tests live in `test/unit/indexed/` and before/after timings in
 `benchmarks/port-bench.ts`. Some legacy functions now delegate to their port and keep only their
 signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and

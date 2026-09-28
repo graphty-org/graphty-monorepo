@@ -36,6 +36,12 @@ export { closenessCentrality, type ClosenessOptions, nodeClosenessCentrality } f
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
 export { degreeCentrality, type DegreeCentralityOptions } from "./degree.js";
+export {
+    DeltaPageRank,
+    type DeltaPageRankComputeOptions,
+    type DeltaPageRankEngineOptions,
+    PriorityDeltaPageRank,
+} from "./delta-pagerank.js";
 export { depthFirstSearch, type DfsOptions, type DfsResult, hasCycle, topologicalSort } from "./dfs.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 export { eigenvectorCentrality, type EigenvectorOptions, type EigenvectorResult } from "./eigenvector.js";

@@ -11,10 +11,24 @@ import type { RegisterOptions } from "./common";
 
 /** The built-in palette ids. Reserved: no registration may take one. */
 export declare const KNOWN_PALETTE_IDS: readonly [
-    "viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges",
-    "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon",
-    "purple-green", "blue-orange", "red-blue",
-    "blue-highlight", "green-highlight", "orange-highlight",
+    "viridis",
+    "ylorbr",
+    "plasma",
+    "inferno",
+    "blues",
+    "greens",
+    "oranges",
+    "okabe-ito",
+    "tol-vibrant",
+    "tol-muted",
+    "pastel",
+    "carbon",
+    "purple-green",
+    "blue-orange",
+    "red-blue",
+    "blue-highlight",
+    "green-highlight",
+    "orange-highlight",
 ];
 
 /** A palette id: a built-in name or a registered one. OPEN UNION. */

@@ -28,27 +28,27 @@ changes in section 7 below); the design studio's gap workflows (`design/designlo
 
 ## 2. Data model
 
-| Type | Kind |
-| --- | --- |
-| `AlgorithmDescriptor`, the statics (`type`, `namespace`, `descriptor`, `scopeInput`, `parallelEdges`, and the `AlgorithmStatics` members `version`, `cost`, `costUnits`), `compute`, `AlgorithmOutput` (as a return value) | implemented by extensions |
-| `AlgorithmRunContext`, `ScopedInput`, `RunProgressReport`, `Caveats`, the helpers (`metricField`, `nodeMetricFields`, the field-spec builders, `declaredCaveats`, `forEachChunked`, `checkShapeContract`), `schemaOptions`, `nodeIndex` | called by extensions |
-| `GraphSnapshot`, `NodeMask`, `EdgeMask` | graph-format types, re-exported by `./extend` |
+| Type                                                                                                                                                                                                                                    | Kind                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `AlgorithmDescriptor`, the statics (`type`, `namespace`, `descriptor`, `scopeInput`, `parallelEdges`, and the `AlgorithmStatics` members `version`, `cost`, `costUnits`), `compute`, `AlgorithmOutput` (as a return value)              | implemented by extensions                     |
+| `AlgorithmRunContext`, `ScopedInput`, `RunProgressReport`, `Caveats`, the helpers (`metricField`, `nodeMetricFields`, the field-spec builders, `declaredCaveats`, `forEachChunked`, `checkShapeContract`), `schemaOptions`, `nodeIndex` | called by extensions                          |
+| `GraphSnapshot`, `NodeMask`, `EdgeMask`                                                                                                                                                                                                 | graph-format types, re-exported by `./extend` |
 
 ### 2.1 Descriptor rules
 
-| Member | Rule |
-| --- | --- |
-| `key` | Non-empty; MUST equal `static type`; not a built-in key; permanent (it is recorded in run records, and every run id the element derives is computed from it, README section 4.4) |
-| `plainName`, `technicalName`, `description` | `plainName` non-empty |
-| `category` | One of the published categories, or a new string (open union) |
-| `shape` | One of the published result shapes |
-| `fields` | MUST satisfy `checkShapeContract(shape, fields)`; no field named `runs`; SHOULD be built with the helpers so `path` is derived |
-| `options` | README section 7 |
-| `costClass` | One of the five cost classes |
-| `complexity` | A big-O string for a reader |
-| `approximable`, `requires` | Optional; `requires` states preconditions the element checks before a run (directed, weighted, accelerator, connected). It is NOT the proposed host-compatibility range, which is `requiresApi` on every point (README section 6.4) |
-| `scopeInput` | MUST be omitted; derived from the static. A descriptor that states one different from the static is refused |
-| `cost` | MUST be omitted; a function is not plain JSON. Declare `static cost` or `static costUnits` instead |
+| Member                                      | Rule                                                                                                                                                                                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`                                       | Non-empty; MUST equal `static type`; not a built-in key; permanent (it is recorded in run records, and every run id the element derives is computed from it, README section 4.4)                                                    |
+| `plainName`, `technicalName`, `description` | `plainName` non-empty                                                                                                                                                                                                               |
+| `category`                                  | One of the published categories, or a new string (open union)                                                                                                                                                                       |
+| `shape`                                     | One of the published result shapes                                                                                                                                                                                                  |
+| `fields`                                    | MUST satisfy `checkShapeContract(shape, fields)`; no field named `runs`; SHOULD be built with the helpers so `path` is derived                                                                                                      |
+| `options`                                   | README section 7                                                                                                                                                                                                                    |
+| `costClass`                                 | One of the five cost classes                                                                                                                                                                                                        |
+| `complexity`                                | A big-O string for a reader                                                                                                                                                                                                         |
+| `approximable`, `requires`                  | Optional; `requires` states preconditions the element checks before a run (directed, weighted, accelerator, connected). It is NOT the proposed host-compatibility range, which is `requiresApi` on every point (README section 6.4) |
+| `scopeInput`                                | MUST be omitted; derived from the static. A descriptor that states one different from the static is refused                                                                                                                         |
+| `cost`                                      | MUST be omitted; a function is not plain JSON. Declare `static cost` or `static costUnits` instead                                                                                                                                  |
 
 ### 2.2 The result
 
@@ -103,19 +103,19 @@ which is normative for it; field types are as there (`integer`, `number`, `boole
 the values the element cannot derive (item 6: rankings, percentiles, ranges, group and level
 sizes, counts are derived).
 
-| Shape | Node fields | Edge fields | Graph fields | Style layer |
-| --- | --- | --- | --- | --- |
-| `node-metric` | `value`, `rank`, `percentile` | -- | `min`, `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin` | encoding |
-| `edge-metric` | -- | `value`, `rank`, `percentile` | as `node-metric` | encoding |
-| `community` | `group` (integer or string), `groupSize` | -- | `groupCount`, `sizes`; optional `modularity` | encoding |
-| `layered-grouping` | `level`, `levelSize` | -- | `levelCount`, `sizes` | encoding |
-| `category-table` | `category`, `score`, `rank` | -- | `categories` (table) | encoding |
-| `path` | `onPath`, `order` | `onPath` | `length`, `cost`, `hops` | highlight |
-| `node-set` | `in` | -- | `count`, plus one graph scalar of the algorithm's own | highlight |
-| `edge-set` | -- | `in` | `count`, plus one graph scalar of the algorithm's own | highlight |
-| `pair-list` | -- | -- | `pairs` (table) | none |
-| `temporal` | -- | -- | `steps`, `series`, `rates` (tables), `changeThreshold` | none |
-| `fact` | -- | -- | the algorithm's own scalars | none |
+| Shape              | Node fields                              | Edge fields                   | Graph fields                                                             | Style layer |
+| ------------------ | ---------------------------------------- | ----------------------------- | ------------------------------------------------------------------------ | ----------- |
+| `node-metric`      | `value`, `rank`, `percentile`            | --                            | `min`, `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin` | encoding    |
+| `edge-metric`      | --                                       | `value`, `rank`, `percentile` | as `node-metric`                                                         | encoding    |
+| `community`        | `group` (integer or string), `groupSize` | --                            | `groupCount`, `sizes`; optional `modularity`                             | encoding    |
+| `layered-grouping` | `level`, `levelSize`                     | --                            | `levelCount`, `sizes`                                                    | encoding    |
+| `category-table`   | `category`, `score`, `rank`              | --                            | `categories` (table)                                                     | encoding    |
+| `path`             | `onPath`, `order`                        | `onPath`                      | `length`, `cost`, `hops`                                                 | highlight   |
+| `node-set`         | `in`                                     | --                            | `count`, plus one graph scalar of the algorithm's own                    | highlight   |
+| `edge-set`         | --                                       | `in`                          | `count`, plus one graph scalar of the algorithm's own                    | highlight   |
+| `pair-list`        | --                                       | --                            | `pairs` (table)                                                          | none        |
+| `temporal`         | --                                       | --                            | `steps`, `series`, `rates` (tables), `changeThreshold`                   | none        |
+| `fact`             | --                                       | --                            | the algorithm's own scalars                                              | none        |
 
 `nodeMetricFields` builds the `node-metric` set; for every other shape an author writes the
 fields with `metricField`. A field-builder per shape is a convenience the element SHOULD add
@@ -374,28 +374,28 @@ is not assignable to one from another. Therefore:
 
 "Pinned by" names the test in `graphty-element/test/browser/extensions/algorithm-extension.test.ts`.
 
-| Capability | Route | Pinned by |
-| --- | --- | --- |
-| Listed in the catalogue | `session.catalog.algorithms()` | "is listed in the catalogue..." |
-| Offered as a metric for this graph with a cost | `session.catalog.metrics()` | "is offered as a metric for this graph..." |
-| Estimated before running | `session.estimate(...)` from `costUnits`, `cost` or `costClass` | "can be asked what it would cost..." |
-| Run by name | `graph.run(key, params)`, `session.runs.start(key, params, { as, onProgress })` | "runs when the element is asked for it by name..." |
-| Run by the legacy address | `namespace:type` | "runs through the element's older namespace and type address..." |
-| Progress | `context.report`, `forEachChunked` | "reports progress while it works", "walks its elements in the element's own chunks..." |
-| Cancellation | `context.signal` | "stops when the run is cancelled" |
-| One member of a batch with one progress stream and one cancel | batch runs | "can be one member of a batch..." |
-| Parameters declared once, validated before work, refused when undeclared | `descriptor.options`, `schemaOptions` | the four parameter tests |
-| Coded failures, and uncoded throws given a code | run rejection | "has a failure of its own reported...", "has an uncoded mistake inside it given a code..." |
-| Ranking, distribution, summary and plain-language reading derived | `session.results` | "gets the ranking, distribution and summary...", "gets a plain-language reading..." |
-| Readings name nodes by the reader's label attribute | results reading | "names nodes by the label attribute..." |
-| Caveats carried to the reader | run record | "carries its own caveats through..." |
-| A style layer derived from the shape, painting only measured elements | styles | "paints the graph from its result...", "paints only the nodes it measured" |
-| Values selectable by a reader's own layer | result paths | "publishes its values where a reader's own style layer can select on them" |
-| Re-runnable in place, keeping layers and references | re-run | "is re-runnable in place..." |
-| Edge results by `Edge.id`, with a derived picture | `edges` | the three edge tests -- whose plugin reads ids through `this.graph.getSession()`, which section 3.1 rule 1 forbids; NOT at parity for a conforming plugin (section 3.1 item 4) |
-| Computes over the scope when declared, or whole-graph with a caveat | `static scopeInput` | the two scope tests |
-| Runs on an attached accelerator, on the CPU port otherwise, and fails early when acceleration is required and impossible | protected `accelerated(...)` | NOT at parity: the "an algorithm written outside this package, on an accelerator" block pins only the element-internal route, which a plugin may not use (section 5.1 item 4) |
-| Plain catalogue, safe to post to a worker | descriptor | "leaves the catalogue plain enough to post to a worker" |
+| Capability                                                                                                               | Route                                                                           | Pinned by                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Listed in the catalogue                                                                                                  | `session.catalog.algorithms()`                                                  | "is listed in the catalogue..."                                                                                                                                                |
+| Offered as a metric for this graph with a cost                                                                           | `session.catalog.metrics()`                                                     | "is offered as a metric for this graph..."                                                                                                                                     |
+| Estimated before running                                                                                                 | `session.estimate(...)` from `costUnits`, `cost` or `costClass`                 | "can be asked what it would cost..."                                                                                                                                           |
+| Run by name                                                                                                              | `graph.run(key, params)`, `session.runs.start(key, params, { as, onProgress })` | "runs when the element is asked for it by name..."                                                                                                                             |
+| Run by the legacy address                                                                                                | `namespace:type`                                                                | "runs through the element's older namespace and type address..."                                                                                                               |
+| Progress                                                                                                                 | `context.report`, `forEachChunked`                                              | "reports progress while it works", "walks its elements in the element's own chunks..."                                                                                         |
+| Cancellation                                                                                                             | `context.signal`                                                                | "stops when the run is cancelled"                                                                                                                                              |
+| One member of a batch with one progress stream and one cancel                                                            | batch runs                                                                      | "can be one member of a batch..."                                                                                                                                              |
+| Parameters declared once, validated before work, refused when undeclared                                                 | `descriptor.options`, `schemaOptions`                                           | the four parameter tests                                                                                                                                                       |
+| Coded failures, and uncoded throws given a code                                                                          | run rejection                                                                   | "has a failure of its own reported...", "has an uncoded mistake inside it given a code..."                                                                                     |
+| Ranking, distribution, summary and plain-language reading derived                                                        | `session.results`                                                               | "gets the ranking, distribution and summary...", "gets a plain-language reading..."                                                                                            |
+| Readings name nodes by the reader's label attribute                                                                      | results reading                                                                 | "names nodes by the label attribute..."                                                                                                                                        |
+| Caveats carried to the reader                                                                                            | run record                                                                      | "carries its own caveats through..."                                                                                                                                           |
+| A style layer derived from the shape, painting only measured elements                                                    | styles                                                                          | "paints the graph from its result...", "paints only the nodes it measured"                                                                                                     |
+| Values selectable by a reader's own layer                                                                                | result paths                                                                    | "publishes its values where a reader's own style layer can select on them"                                                                                                     |
+| Re-runnable in place, keeping layers and references                                                                      | re-run                                                                          | "is re-runnable in place..."                                                                                                                                                   |
+| Edge results by `Edge.id`, with a derived picture                                                                        | `edges`                                                                         | the three edge tests -- whose plugin reads ids through `this.graph.getSession()`, which section 3.1 rule 1 forbids; NOT at parity for a conforming plugin (section 3.1 item 4) |
+| Computes over the scope when declared, or whole-graph with a caveat                                                      | `static scopeInput`                                                             | the two scope tests                                                                                                                                                            |
+| Runs on an attached accelerator, on the CPU port otherwise, and fails early when acceleration is required and impossible | protected `accelerated(...)`                                                    | NOT at parity: the "an algorithm written outside this package, on an accelerator" block pins only the element-internal route, which a plugin may not use (section 5.1 item 4)  |
+| Plain catalogue, safe to post to a worker                                                                                | descriptor                                                                      | "leaves the catalogue plain enough to post to a worker"                                                                                                                        |
 
 ### 5.1 Parity statements
 
@@ -414,48 +414,48 @@ is not assignable to one from another. Therefore:
    declare its own `"seed"` option and record the seed in `caveats.seed`. Reproducible stochastic
    methods (MCL, Node2Vec) need forwarding (`design/designloom/workflows/W25.yaml`). The run option
    `scopeAs` is reserved and refused with `E_BAD_COMMAND`.
-   - **(not yet met)** A run MUST NOT record a run option that did not reach `compute`: until
-     forwarding lands, the element MUST refuse `seed`, `exact`, `sample` and `timeBox` with
-     `E_UNSUPPORTED` for an algorithm that does not receive them, rather than accept them, drop
-     them and write them into the run record, where a methods section would cite a seed that had
-     no effect.
-   - The forwarding proposal (open decision 16): `AlgorithmRunContext.parameters`
-     (`AlgorithmRunParameters` in `algorithm.d.ts`). One rule for the seed: the run's `seed` fills
-     the algorithm's declared `"seed"` option; passing both with DIFFERENT values is
-     `E_BAD_COMMAND`, and passing the same value in both is accepted, so a run record replays as
-     recorded. When the algorithm declares a `"seed"` option and the caller passes none, the
-     element supplies one and records it in the run record and in `caveats.seed`, so no
-     stochastic run is ever unseeded. Whether the supplied seed is DRAWN per run or a FIXED
-     default is not settled: the migration plan keeps a fixed element default of 42 for label
-     propagation, and routes every call that carries a `randomSeed` to the CPU port, so under a
-     drawn-seed rule no label propagation run would reach the GPU. Open decision 16 must pick one
-     rule for both documents, and a run MUST record which route (CPU or accelerator) it took.
-     The same proposal passes the resolved options to the cost model
-     (`cost(n, m, options)`), so an option that multiplies the work (iterations, samples, depth)
-     cannot slip under the cost cap, and requires every such numeric option to declare `max`.
+    - **(not yet met)** A run MUST NOT record a run option that did not reach `compute`: until
+      forwarding lands, the element MUST refuse `seed`, `exact`, `sample` and `timeBox` with
+      `E_UNSUPPORTED` for an algorithm that does not receive them, rather than accept them, drop
+      them and write them into the run record, where a methods section would cite a seed that had
+      no effect.
+    - The forwarding proposal (open decision 16): `AlgorithmRunContext.parameters`
+      (`AlgorithmRunParameters` in `algorithm.d.ts`). One rule for the seed: the run's `seed` fills
+      the algorithm's declared `"seed"` option; passing both with DIFFERENT values is
+      `E_BAD_COMMAND`, and passing the same value in both is accepted, so a run record replays as
+      recorded. When the algorithm declares a `"seed"` option and the caller passes none, the
+      element supplies one and records it in the run record and in `caveats.seed`, so no
+      stochastic run is ever unseeded. Whether the supplied seed is DRAWN per run or a FIXED
+      default is not settled: the migration plan keeps a fixed element default of 42 for label
+      propagation, and routes every call that carries a `randomSeed` to the CPU port, so under a
+      drawn-seed rule no label propagation run would reach the GPU. Open decision 16 must pick one
+      rule for both documents, and a run MUST record which route (CPU or accelerator) it took.
+      The same proposal passes the resolved options to the cost model
+      (`cost(n, m, options)`), so an option that multiplies the work (iterations, samples, depth)
+      cannot slip under the cost cap, and requires every such numeric option to declare `max`.
 4. **Acceleration is not at parity.** The protected `accelerated(capability, mode)` route is used by
    built-ins and exercised by a test, but `algorithm.d.ts` does not declare it: its return type is
    internal, its dispatcher type comes from `@graphty/algorithms`, and no list of capability names
    is published. A plugin therefore cannot call it without a cast, which breaks parity clause 6.
    Until the element declares `accelerated`, its result type and its capability names on
    `./extend`, a plugin MUST NOT use it. Three consequences:
-   - a plugin descriptor MUST NOT declare `requires.accelerator: true`, which would make the
-     element refuse the run on a machine with no GPU (`E_NO_ACCELERATOR`) while the plugin is
-     forbidden to use the GPU on a machine that has one. **(not yet met)** 2.6.1 accepts it; it
-     SHOULD be refused at registration with `E_UNSUPPORTED` until `accelerated` is declared;
-   - a plugin MUST NOT construct its own WebGPU device (for example through its own import of
-     `@graphty/webgpu-graph-algorithms`): the element owns detection, construction and device
-     loss (root `CLAUDE.md`, "WebGPU");
-   - under the acceleration policy `require`, a run of an algorithm that cannot use the
-     accelerator -- every plugin, until `accelerated` is declared -- MUST be refused with
-     `E_NO_ACCELERATOR` (details naming the key), never run on the CPU, because a GPU-against-GPU
-     benchmark would otherwise compare a GPU run with a silent CPU one (root `CLAUDE.md`, "WebGPU":
-     no silent degradation). Under `auto` it runs on the CPU and the run records the route.
-     **(not yet met:** 2.6.1 does not refuse it, and records no route.**)**
-   - a plugin cannot read whether an accelerator is attached or at what precision, so it cannot
-     fill `caveats.precision` truthfully for a GPU pass. A read-only verdict on the run context
-     (`AlgorithmRunContextAcceleration` in `algorithm.d.ts`) is part of open decision 16; when
-     `accelerated` is declared, the element SHOULD fill `caveats.precision` itself.
+    - a plugin descriptor MUST NOT declare `requires.accelerator: true`, which would make the
+      element refuse the run on a machine with no GPU (`E_NO_ACCELERATOR`) while the plugin is
+      forbidden to use the GPU on a machine that has one. **(not yet met)** 2.6.1 accepts it; it
+      SHOULD be refused at registration with `E_UNSUPPORTED` until `accelerated` is declared;
+    - a plugin MUST NOT construct its own WebGPU device (for example through its own import of
+      `@graphty/webgpu-graph-algorithms`): the element owns detection, construction and device
+      loss (root `CLAUDE.md`, "WebGPU");
+    - under the acceleration policy `require`, a run of an algorithm that cannot use the
+      accelerator -- every plugin, until `accelerated` is declared -- MUST be refused with
+      `E_NO_ACCELERATOR` (details naming the key), never run on the CPU, because a GPU-against-GPU
+      benchmark would otherwise compare a GPU run with a silent CPU one (root `CLAUDE.md`, "WebGPU":
+      no silent degradation). Under `auto` it runs on the CPU and the run records the route.
+      **(not yet met:** 2.6.1 does not refuse it, and records no route.**)**
+    - a plugin cannot read whether an accelerator is attached or at what precision, so it cannot
+      fill `caveats.precision` truthfully for a GPU pass. A read-only verdict on the run context
+      (`AlgorithmRunContextAcceleration` in `algorithm.d.ts`) is part of open decision 16; when
+      `accelerated` is declared, the element SHOULD fill `caveats.precision` itself.
 5. **Headless testing is NOT at parity.** `Algorithm`'s constructor takes the renderer-backed
    graph, so a plugin cannot be unit-tested in Node against real element code. Section 10 proposes
    a headless host.
@@ -493,18 +493,18 @@ is not assignable to one from another. Therefore:
 
 ## 7. Errors
 
-| Code | When |
-| --- | --- |
-| `E_BAD_COMMAND` | malformed registration; the reserved run option `scopeAs` |
-| `E_DUPLICATE_PLUGIN` | a built-in key |
-| `E_UNKNOWN_ALGORITHM` | a run names nothing registered |
-| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | parameter validation |
-| `E_SCOPE_EMPTY` | the scope resolves to nothing |
-| `E_CAP_EXCEEDED` | the estimate is over the cost cap (a smaller scope or an approximate method may pass) |
-| `E_TOO_LARGE` | the graph is beyond what the algorithm can ever handle |
-| `E_NOT_CONVERGED` | an iterative algorithm did not converge within its own limits (a caller-set time box or cap is section 2.2 item 9 instead) |
-| `E_NO_ACCELERATOR` | acceleration was required and is unavailable |
-| `E_SUPERSEDED` | the run was replaced by a newer run of the same name |
+| Code                                 | When                                                                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `E_BAD_COMMAND`                      | malformed registration; the reserved run option `scopeAs`                                                                  |
+| `E_DUPLICATE_PLUGIN`                 | a built-in key                                                                                                             |
+| `E_UNKNOWN_ALGORITHM`                | a run names nothing registered                                                                                             |
+| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | parameter validation                                                                                                       |
+| `E_SCOPE_EMPTY`                      | the scope resolves to nothing                                                                                              |
+| `E_CAP_EXCEEDED`                     | the estimate is over the cost cap (a smaller scope or an approximate method may pass)                                      |
+| `E_TOO_LARGE`                        | the graph is beyond what the algorithm can ever handle                                                                     |
+| `E_NOT_CONVERGED`                    | an iterative algorithm did not converge within its own limits (a caller-set time box or cap is section 2.2 item 9 instead) |
+| `E_NO_ACCELERATOR`                   | acceleration was required and is unavailable                                                                               |
+| `E_SUPERSEDED`                       | the run was replaced by a newer run of the same name                                                                       |
 
 1. `compute` SHOULD throw a `GraphtyError` with `source: "run"` and one of the codes above.
 2. A non-`GraphtyError` throw is wrapped by the element (`E_INTERNAL`, `source: "run"`, original as
@@ -576,31 +576,31 @@ edge-scoped or held-out run can be tested headless.
 Run by `checkAlgorithm(Class, { graphs, params })` in the proposed kit. The Node checks need the
 headless host (section 10); until it exists they run in the browser configuration.
 
-| Check | Passes when |
-| --- | --- |
-| registers | `DeclaredAlgorithm.register` accepts it; the catalogue and `session.catalog.metrics()` list it |
-| descriptor is valid | validates against `#/$defs/AlgorithmDescriptor`; `checkShapeContract` returns nothing |
-| key is not reserved | not a built-in key, and `namespace:type` is not a built-in address |
-| is plain data | the published descriptor survives `structuredClone` |
-| output matches the shape | on every standard graph, `shape` equals the descriptor's, every `fields` entry is declared, every value is JSON |
-| publishes by id | every `nodes[].id` is a node id of the input graph; every `edges[].id` is an element edge id; every `pairs` row names two node ids of the input graph |
-| pair-list rows validate | for a `pair-list` algorithm, every row has `source`, `target` and a finite `score` (section 2.2.2) |
-| measures only what it measured | on a graph with an isolated node, the node is absent from `nodes` unless the algorithm defines a value for it (a warning, with the node, for an author to confirm) |
-| caveats are complete | `method` and `direction` are set; a declared `approximable` or `"seed"` option is reflected in `exact`, `sampleSize` and `seed` |
-| options validate | an undeclared parameter raises `E_UNKNOWN_OPTION` and an out-of-range one `E_OPTION_RANGE` before `compute` is called |
-| reports progress | on the 500-node graph, `report` is called at least once with `completed` and `total` |
-| cancels | aborting after the first progress report rejects the run with the abort reason and publishes nothing |
-| yields | on the 500-node graph, the plugin crosses a chunk boundary -- a `yieldNow` await, or a `forEachChunked` boundary of `PROGRESS_CHUNK` (1,024) items whether or not the element's 16 ms budget made it yield -- at least once per 1,024 nodes or edges processed, counted structurally by the kit, so the result does not depend on the machine's clock (README section 11.2 item 7); the longest uninterrupted stretch is reported as a measurement, never as a failure; skipped when the plugin declares its work runs in a worker |
-| makes no network request | with the network APIs of README section 9.4 item 2 trapped, a run makes no call (mistake detection only) |
-| is deterministic with a seed | with a declared `"seed"` option, two runs with the same seed give identical output |
-| undeclared nondeterminism | with NO `"seed"` option declared, two runs with identical input and options give identical output; a plugin whose output differs fails (it draws randomness it does not declare, and its run record would look reproducible) |
-| empty result is published | a search whose kit graph contains no match returns an empty result of its shape, not `null`, and gets a run record (section 2.2) |
-| does not depend on record order | the same graph with its records loaded in a permuted order, with the same seed, gives the same values per id, and for a `pair-list` the same rows (a warning, with the ids or rows that moved: an algorithm that breaks ties by row SHOULD sort by id first) |
-| values are finite | every published number is finite (section 2.2 item 8) |
-| cost is honest | on the kit's degree-skewed graphs (two hubs joined to many leaves; a clique beside a long path), the work the kit counts -- `forEachChunked` items, plus units reported through the work channel of open decision 16 once it exists -- stays within a factor of the declared `costUnits` (a warning with both numbers). Until the work channel exists this check cannot see work done inside one step and under-counts a plugin like the worked example, so it stays a warning |
-| replays from its record | a run record, handed back to the run API, is accepted and gives the same output (fails until open decision 26 is met) |
-| scope is honoured | with `scopeInput = "subgraph"`, every published id is inside the scope |
-| failures are coded | an invalid input the author supplies fails with a `GraphtyError` |
+| Check                           | Passes when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| registers                       | `DeclaredAlgorithm.register` accepts it; the catalogue and `session.catalog.metrics()` list it                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| descriptor is valid             | validates against `#/$defs/AlgorithmDescriptor`; `checkShapeContract` returns nothing                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| key is not reserved             | not a built-in key, and `namespace:type` is not a built-in address                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| is plain data                   | the published descriptor survives `structuredClone`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| output matches the shape        | on every standard graph, `shape` equals the descriptor's, every `fields` entry is declared, every value is JSON                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| publishes by id                 | every `nodes[].id` is a node id of the input graph; every `edges[].id` is an element edge id; every `pairs` row names two node ids of the input graph                                                                                                                                                                                                                                                                                                                                                                              |
+| pair-list rows validate         | for a `pair-list` algorithm, every row has `source`, `target` and a finite `score` (section 2.2.2)                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| measures only what it measured  | on a graph with an isolated node, the node is absent from `nodes` unless the algorithm defines a value for it (a warning, with the node, for an author to confirm)                                                                                                                                                                                                                                                                                                                                                                 |
+| caveats are complete            | `method` and `direction` are set; a declared `approximable` or `"seed"` option is reflected in `exact`, `sampleSize` and `seed`                                                                                                                                                                                                                                                                                                                                                                                                    |
+| options validate                | an undeclared parameter raises `E_UNKNOWN_OPTION` and an out-of-range one `E_OPTION_RANGE` before `compute` is called                                                                                                                                                                                                                                                                                                                                                                                                              |
+| reports progress                | on the 500-node graph, `report` is called at least once with `completed` and `total`                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| cancels                         | aborting after the first progress report rejects the run with the abort reason and publishes nothing                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| yields                          | on the 500-node graph, the plugin crosses a chunk boundary -- a `yieldNow` await, or a `forEachChunked` boundary of `PROGRESS_CHUNK` (1,024) items whether or not the element's 16 ms budget made it yield -- at least once per 1,024 nodes or edges processed, counted structurally by the kit, so the result does not depend on the machine's clock (README section 11.2 item 7); the longest uninterrupted stretch is reported as a measurement, never as a failure; skipped when the plugin declares its work runs in a worker |
+| makes no network request        | with the network APIs of README section 9.4 item 2 trapped, a run makes no call (mistake detection only)                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| is deterministic with a seed    | with a declared `"seed"` option, two runs with the same seed give identical output                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| undeclared nondeterminism       | with NO `"seed"` option declared, two runs with identical input and options give identical output; a plugin whose output differs fails (it draws randomness it does not declare, and its run record would look reproducible)                                                                                                                                                                                                                                                                                                       |
+| empty result is published       | a search whose kit graph contains no match returns an empty result of its shape, not `null`, and gets a run record (section 2.2)                                                                                                                                                                                                                                                                                                                                                                                                   |
+| does not depend on record order | the same graph with its records loaded in a permuted order, with the same seed, gives the same values per id, and for a `pair-list` the same rows (a warning, with the ids or rows that moved: an algorithm that breaks ties by row SHOULD sort by id first)                                                                                                                                                                                                                                                                       |
+| values are finite               | every published number is finite (section 2.2 item 8)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| cost is honest                  | on the kit's degree-skewed graphs (two hubs joined to many leaves; a clique beside a long path), the work the kit counts -- `forEachChunked` items, plus units reported through the work channel of open decision 16 once it exists -- stays within a factor of the declared `costUnits` (a warning with both numbers). Until the work channel exists this check cannot see work done inside one step and under-counts a plugin like the worked example, so it stays a warning                                                     |
+| replays from its record         | a run record, handed back to the run API, is accepted and gives the same output (fails until open decision 26 is met)                                                                                                                                                                                                                                                                                                                                                                                                              |
+| scope is honoured               | with `scopeInput = "subgraph"`, every published id is inside the scope                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| failures are coded              | an invalid input the author supplies fails with a `GraphtyError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## 12. Worked example
 
@@ -618,8 +618,15 @@ item 6) until it exists:
 
 ```ts
 import {
-    DeclaredAlgorithm, declaredCaveats, forEachChunked, metricFieldSpecs, nodeMetricFields,
-    type AlgorithmDescriptor, type AlgorithmOutput, type AlgorithmRunContext, type ResultElementValues,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+    metricFieldSpecs,
+    nodeMetricFields,
+    type AlgorithmDescriptor,
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    type ResultElementValues,
 } from "@graphty/graphty-element/extend";
 
 const DESCRIPTOR: AlgorithmDescriptor = {
@@ -640,7 +647,7 @@ class NeighbourhoodDensity extends DeclaredAlgorithm<{ epsilon: number }> {
     static override type = "acmehub-neighbourhood-density";
     static override descriptor = DESCRIPTOR;
     static override scopeInput = "subgraph" as const;
-    static version = "1.0.0";                          // read by register; no `override` (section 8 item 3)
+    static version = "1.0.0"; // read by register; no `override` (section 8 item 3)
     // Sum of squared degrees <= 2m * maxDegree <= 2m * min(n, 2m): the worst case, element visits.
     static costUnits = (n: number, m: number): number => n + 2 * m * Math.min(n, 2 * m);
 
@@ -655,8 +662,8 @@ class NeighbourhoodDensity extends DeclaredAlgorithm<{ epsilon: number }> {
         const measured: ResultElementValues[] = [];
         await forEachChunked(context, "Measuring neighbourhoods", rows, (row) => {
             const neighbours = new Set(neighboursOf(row));
-            neighbours.delete(row);                             // a self-loop is not a neighbour
-            if (neighbours.size < 2) return;                    // nothing to say: no row
+            neighbours.delete(row); // a self-loop is not a neighbour
+            if (neighbours.size < 2) return; // nothing to say: no row
             let inner = 0;
             for (const u of neighbours) for (const v of neighboursOf(u)) if (v !== u && neighbours.has(v)) inner++;
             const links = inner / 2;
@@ -723,22 +730,22 @@ const run = session.runs.start("acmehub-neighbourhood-density", { epsilon: 1.7 }
 Rows marked "not yet" name a need the contract cannot meet until the named open decision is
 taken.
 
-| Need | Source | Served |
-| --- | --- | --- |
-| MCL and MCODE clustering, as the Cytoscape and stringApp protocols run them (weighted by the STRING score) | `design/designloom/workflows/W21.yaml` | partly: the STRING score reaches `graph.weights` when it is the configured weight key, but the contract does not yet promise what the weights mean (section 3.1 item 5; decision 17) |
-| MCODE with overlapping membership, and cluster scores | `design/designloom/workflows/W21.yaml` | not yet: decision 18 |
-| Per-cluster enrichment (top terms per cluster, with FDR) | `design/designloom/workflows/W21.yaml` | not yet: a per-group table (decision 18) and gene-set input (decision 22) |
-| Per-cluster profiles (mean of a data column, dominant annotation) | `design/designloom/workflows/W21.yaml` | not yet: decision 17 |
-| Building an enrichment map from gene-set overlap | `design/designloom/workflows/W22.yaml` | not yet, but the route is shorter than a dataset option: a GMT reader yielding a bipartite gene-set-to-gene graph conforms today, Jaccard between gene-set nodes is a `pair-list` plugin, and what blocks it is joining the enrichment table onto the gene-set nodes (decision 19) and the element-owned "apply as edges" operation (`candidates.md` section 18) |
-| Hub rankings (MCC, DMNC) | `design/designloom/workflows/W23.yaml` | yes |
-| Combined hub scores from several runs | `design/designloom/workflows/W23.yaml` | not yet: decision 17 |
-| Link prediction as scored pair lists | `design/designloom/workflows/W16.yaml`, `design/designloom/personas/ml-engineer-recsys.yaml` | partly: small, whole-graph pair lists only; no candidate set, per-source top-N, row schema, table export or columnar form (section 2.2.2) |
-| Per-edge scores (one value per interaction or event) | `design/designloom/workflows/W16.yaml`, `W07.yaml` | not yet: no edge identity accessor (decision 5) |
-| Significance against a null model (rewired graphs) | `design/designloom/workflows/W03.yaml` | not yet: no snapshot builder or composition (decision 9) |
-| Anomaly scores over edge attributes and time (bytes per connection, logon hour, first seen) | `design/designloom/workflows/W12.yaml` | not yet: edge columns, per-column merge policies and typed timestamps (decisions 17 and 20) |
-| Differential networks (a disease against a healthy network) | `design/designloom/workflows/W24.yaml` | not yet: an algorithm receives one graph; an edge column as a condition partition or a second-network option (decisions 17 and 22) |
-| Embeddings | same | not yet: decision 18 |
-| Risk scoring | `design/designloom/workflows/W06.yaml` | yes, over topology; attribute-driven needs decision 17 |
-| What-if removal | `design/designloom/workflows/W11.yaml` | not yet: decision 23 |
-| Pattern search for threat hunting | `design/designloom/workflows/W07.yaml` | not yet: a list of matched subgraphs has no shape (decision 18) |
-| Parameters and seeds recorded for a methods section | `design/designloom/workflows/W25.yaml` | not yet: decisions 16 and 26 |
+| Need                                                                                                       | Source                                                                                       | Served                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MCL and MCODE clustering, as the Cytoscape and stringApp protocols run them (weighted by the STRING score) | `design/designloom/workflows/W21.yaml`                                                       | partly: the STRING score reaches `graph.weights` when it is the configured weight key, but the contract does not yet promise what the weights mean (section 3.1 item 5; decision 17)                                                                                                                                                                             |
+| MCODE with overlapping membership, and cluster scores                                                      | `design/designloom/workflows/W21.yaml`                                                       | not yet: decision 18                                                                                                                                                                                                                                                                                                                                             |
+| Per-cluster enrichment (top terms per cluster, with FDR)                                                   | `design/designloom/workflows/W21.yaml`                                                       | not yet: a per-group table (decision 18) and gene-set input (decision 22)                                                                                                                                                                                                                                                                                        |
+| Per-cluster profiles (mean of a data column, dominant annotation)                                          | `design/designloom/workflows/W21.yaml`                                                       | not yet: decision 17                                                                                                                                                                                                                                                                                                                                             |
+| Building an enrichment map from gene-set overlap                                                           | `design/designloom/workflows/W22.yaml`                                                       | not yet, but the route is shorter than a dataset option: a GMT reader yielding a bipartite gene-set-to-gene graph conforms today, Jaccard between gene-set nodes is a `pair-list` plugin, and what blocks it is joining the enrichment table onto the gene-set nodes (decision 19) and the element-owned "apply as edges" operation (`candidates.md` section 18) |
+| Hub rankings (MCC, DMNC)                                                                                   | `design/designloom/workflows/W23.yaml`                                                       | yes                                                                                                                                                                                                                                                                                                                                                              |
+| Combined hub scores from several runs                                                                      | `design/designloom/workflows/W23.yaml`                                                       | not yet: decision 17                                                                                                                                                                                                                                                                                                                                             |
+| Link prediction as scored pair lists                                                                       | `design/designloom/workflows/W16.yaml`, `design/designloom/personas/ml-engineer-recsys.yaml` | partly: small, whole-graph pair lists only; no candidate set, per-source top-N, row schema, table export or columnar form (section 2.2.2)                                                                                                                                                                                                                        |
+| Per-edge scores (one value per interaction or event)                                                       | `design/designloom/workflows/W16.yaml`, `W07.yaml`                                           | not yet: no edge identity accessor (decision 5)                                                                                                                                                                                                                                                                                                                  |
+| Significance against a null model (rewired graphs)                                                         | `design/designloom/workflows/W03.yaml`                                                       | not yet: no snapshot builder or composition (decision 9)                                                                                                                                                                                                                                                                                                         |
+| Anomaly scores over edge attributes and time (bytes per connection, logon hour, first seen)                | `design/designloom/workflows/W12.yaml`                                                       | not yet: edge columns, per-column merge policies and typed timestamps (decisions 17 and 20)                                                                                                                                                                                                                                                                      |
+| Differential networks (a disease against a healthy network)                                                | `design/designloom/workflows/W24.yaml`                                                       | not yet: an algorithm receives one graph; an edge column as a condition partition or a second-network option (decisions 17 and 22)                                                                                                                                                                                                                               |
+| Embeddings                                                                                                 | same                                                                                         | not yet: decision 18                                                                                                                                                                                                                                                                                                                                             |
+| Risk scoring                                                                                               | `design/designloom/workflows/W06.yaml`                                                       | yes, over topology; attribute-driven needs decision 17                                                                                                                                                                                                                                                                                                           |
+| What-if removal                                                                                            | `design/designloom/workflows/W11.yaml`                                                       | not yet: decision 23                                                                                                                                                                                                                                                                                                                                             |
+| Pattern search for threat hunting                                                                          | `design/designloom/workflows/W07.yaml`                                                       | not yet: a list of matched subgraphs has no shape (decision 18)                                                                                                                                                                                                                                                                                                  |
+| Parameters and seeds recorded for a methods section                                                        | `design/designloom/workflows/W25.yaml`                                                       | not yet: decisions 16 and 26                                                                                                                                                                                                                                                                                                                                     |

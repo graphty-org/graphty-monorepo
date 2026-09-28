@@ -38,7 +38,12 @@ export type GraphSnapshotContract = Pick<GraphSnapshot, keyof GraphSnapshot>;
 export declare function snapshotFromEdgeList(input: {
     readonly directed: boolean;
     readonly nodes: readonly (string | number)[];
-    readonly edges: readonly { readonly source: string | number; readonly target: string | number; readonly id?: string; readonly weight?: number }[];
+    readonly edges: readonly {
+        readonly source: string | number;
+        readonly target: string | number;
+        readonly id?: string;
+        readonly weight?: number;
+    }[];
 }): GraphSnapshot;
 
 /**
@@ -46,6 +51,8 @@ export declare function snapshotFromEdgeList(input: {
  * the inverse in the worker, both bound to the element's graph-format copy. structuredClone of a
  * GraphSnapshot yields a plain object with no methods.
  */
-export declare function toTransferable(snapshot: GraphSnapshot): { readonly message: unknown; readonly transfer: readonly Transferable[] };
+export declare function toTransferable(snapshot: GraphSnapshot): {
+    readonly message: unknown;
+    readonly transfer: readonly Transferable[];
+};
 export declare function fromTransferable(message: unknown): GraphSnapshot;
-

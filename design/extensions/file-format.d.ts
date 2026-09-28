@@ -249,7 +249,12 @@ export interface ImportReport {
         readonly edgeRecords: number;
         readonly rejected: number;
     };
-    readonly repeated: { readonly seen: number; readonly kept: number; readonly dropped: number; readonly merged: number };
+    readonly repeated: {
+        readonly seen: number;
+        readonly kept: number;
+        readonly dropped: number;
+        readonly merged: number;
+    };
     readonly policy: "keep" | "error" | "first" | "last" | "sum" | "min" | "max";
     readonly weights: { readonly resolvedFrom: "path" | "legacy" | "none"; readonly attribute: string | null };
     readonly edgeIdentity: { readonly idPath: string | null; readonly byId: number; readonly byPosition: number };

@@ -27,24 +27,24 @@ section 12.4).
 
 ## 2. Data model
 
-| Type | Kind | Defined in |
-| --- | --- | --- |
-| `FormatDescriptor` | implemented by extensions | `file-format.d.ts` |
-| `DataSource` statics (`type`, `descriptor`, `detect`) and abstract members (`sourceFetchData`, `getConfig`) | implemented by extensions | `file-format.d.ts` |
-| `DataSource` protected helpers (`getContent`, `resolveOptions`, `chunkData`, `declareDirection`, `errorAggregator`), `DataSource.toRecord(s)` | called by extensions | `file-format.d.ts` |
-| `DataSourceChunk`, `AdHocData`, `BaseDataSourceConfig`, `DeclaredDirection`, `DetectionInput` | called by extensions | `file-format.d.ts` |
+| Type                                                                                                                                          | Kind                      | Defined in         |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------ |
+| `FormatDescriptor`                                                                                                                            | implemented by extensions | `file-format.d.ts` |
+| `DataSource` statics (`type`, `descriptor`, `detect`) and abstract members (`sourceFetchData`, `getConfig`)                                   | implemented by extensions | `file-format.d.ts` |
+| `DataSource` protected helpers (`getContent`, `resolveOptions`, `chunkData`, `declareDirection`, `errorAggregator`), `DataSource.toRecord(s)` | called by extensions      | `file-format.d.ts` |
+| `DataSourceChunk`, `AdHocData`, `BaseDataSourceConfig`, `DeclaredDirection`, `DetectionInput`                                                 | called by extensions      | `file-format.d.ts` |
 
 ### 2.1 FormatDescriptor rules
 
-| Member | Rule |
-| --- | --- |
-| `id` | Non-empty; MUST equal the class's `static type`; not in `KNOWN_FORMAT_IDS` |
-| `plainName` | Non-empty |
+| Member       | Rule                                                                                                                                                                                                                                                                                                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`         | Non-empty; MUST equal the class's `static type`; not in `KNOWN_FORMAT_IDS`                                                                                                                                                                                                                                                                                       |
+| `plainName`  | Non-empty                                                                                                                                                                                                                                                                                                                                                        |
 | `extensions` | At least one; each MUST begin with `.`, MUST be lower case and MUST contain no further `.` (detection compares only the last segment of a file name, so `.nt.gz` could never match; refused with `E_BAD_COMMAND`, `field: "descriptor.extensions"`, until compound extensions land with open decision 20) **(not yet met:** 2.6.1 accepts `.nt.gz` silently**)** |
-| `mimeTypes` | At least one; each a `type/subtype` media type. A format with no registered type (SIF, GMT) can only list a generic one; whether `mimeTypes` may be empty or entries marked generic is part of open decision 2 |
-| `canImport` | MUST be `true` for a registered reader |
-| `canExport` | MUST be `false` in 2.6.1 |
-| `options` | The reader's options (README section 7); MAY be empty |
+| `mimeTypes`  | At least one; each a `type/subtype` media type. A format with no registered type (SIF, GMT) can only list a generic one; whether `mimeTypes` may be empty or entries marked generic is part of open decision 2                                                                                                                                                   |
+| `canImport`  | MUST be `true` for a registered reader                                                                                                                                                                                                                                                                                                                           |
+| `canExport`  | MUST be `false` in 2.6.1                                                                                                                                                                                                                                                                                                                                         |
+| `options`    | The reader's options (README section 7); MAY be empty                                                                                                                                                                                                                                                                                                            |
 
 ### 2.2 Records
 
@@ -52,22 +52,22 @@ A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource
 
 1. A node record MUST carry `id` (string or number). Every other member is an attribute, EXCEPT the
    members the element reads with a meaning of its own (`DataSource.toRecord`):
-   - `position` on a node record seeds its coordinates in file units, as `{ x, y, z }`, `[x, y]` or
-     `[x, y, z]`, so a file that arrives laid out stays laid out. A reader whose format carries
-     coordinates (CX2's cartesian layout, GraphML with positions) SHOULD emit them here, not as
-     `x` and `y` attributes, which the element would treat as plain data and re-lay out;
-   - the configured weight key on an edge record (`weight` unless `data.knownFields.edgeWeightPath`
-     says otherwise; a `value` member is read as a legacy fallback) is the weight algorithms and
-     styles read. A reader whose format has a strength or distance column SHOULD emit it there, and
-     say in its documentation which it is;
-   - the edge endpoint spellings below, and `id` on an edge.
-   - every key beginning with `graphty.`, the prefix of the element's internal columns
-     (`algorithm.md` section 3.1 item 6), so a file exported by another tool cannot re-import one
-     of them with the element's meaning.
-   These are the reserved record keys. A reader MUST NOT emit any of them with another meaning; an
-   attribute of the source format that would compact to one of them (`dcterms:source`, a `from`
-   column on a record that also has `source` and `target`) MUST be renamed by the reader, because
-   the element reads the reserved meaning first.
+    - `position` on a node record seeds its coordinates in file units, as `{ x, y, z }`, `[x, y]` or
+      `[x, y, z]`, so a file that arrives laid out stays laid out. A reader whose format carries
+      coordinates (CX2's cartesian layout, GraphML with positions) SHOULD emit them here, not as
+      `x` and `y` attributes, which the element would treat as plain data and re-lay out;
+    - the configured weight key on an edge record (`weight` unless `data.knownFields.edgeWeightPath`
+      says otherwise; a `value` member is read as a legacy fallback) is the weight algorithms and
+      styles read. A reader whose format has a strength or distance column SHOULD emit it there, and
+      say in its documentation which it is;
+    - the edge endpoint spellings below, and `id` on an edge.
+    - every key beginning with `graphty.`, the prefix of the element's internal columns
+      (`algorithm.md` section 3.1 item 6), so a file exported by another tool cannot re-import one
+      of them with the element's meaning.
+      These are the reserved record keys. A reader MUST NOT emit any of them with another meaning; an
+      attribute of the source format that would compact to one of them (`dcterms:source`, a `from`
+      column on a record that also has `source` and `target`) MUST be renamed by the reader, because
+      the element reads the reserved meaning first.
 2. An edge record MUST carry its endpoints as `source` and `target`. The element also accepts
    `src`/`dst` and `from`/`to`, in that order of preference, but a reader SHOULD emit
    `source`/`target`: that is what every built-in emits and what `session.data.edge(id)` returns.
@@ -107,33 +107,33 @@ A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource
    reader SHOULD emit keys without `.` (for example a local name, `schema_name`) and document the
    mapping back to the source key.
 8. **Within one load and across loads**, as built in 2.6.1 (`DataManager`):
-   - node ids are compared by value AND type: the string `"1"` and the number `1` are two nodes;
-   - a node id that arrives a second time -- in the same load or a later added load -- is
-     IGNORED, attributes included: the first record wins and nothing reports the later one. (Open
-     decision 19 must decide whether that stays; see there);
-   - repeated edges follow the element's repeated-edge policy (`data.knownFields.repeatedEdges`,
-     graph-format's `DuplicatePolicy`: `keep` by default, or `error`, `first`, `last`, `sum`,
-     `min`, `max`). Under `keep`, every repeated record for an ordered pair becomes an edge of its
-     own, and a reciprocal pair (A-B and B-A, which STRING emits for every interaction) is two
-     edges even in an undirected load. `ImportReport.repeated` counts what the policy did. A
-     reader MUST NOT merge repeats itself; the policy is the consumer's;
-   - an edge naming a node no record declared creates that node (item 4);
-   - the element applies the consumer's field mapping (`nodeIdPath`, `edgeSource`, `edgeTarget`,
-     from the load options or `data.knownFields`) to the records of EVERY reader, built-in or
-     plugin (`Graph.ts`, the load path). A plugin reader therefore emits its records in the
-     source's own terms and leaves the mapping to the element; `resolveOptions` skipping those keys
-     (section 6 item 2) is what lets it. **(not yet met)** `loadFromUrl` and `loadFromFile` put the
-     mapping into the reader's options as `edgeSource` and `edgeTarget`, but
-     `ELEMENT_OWNED_OPTIONS` (`DataSource.ts`) lists `edgeSrcIdPath` and `edgeDstIdPath` instead,
-     so a conforming plugin reader's `resolveOptions` refuses `edgeSource` with
-     `E_UNKNOWN_OPTION` whenever a consumer maps edges -- while a built-in, which skips
-     `resolveOptions`, loads the same call. The fix adds `edgeSource` and `edgeTarget` to that set,
-     and the parity suite loads a plugin format by URL and by `File` with an edge mapping;
-   - ids are document-local in many formats (an RDF blank node `_:b0`, a GraphML id, an
-     auto-numbered row) but the element matches them globally, so two files that both use `_:b0`
-     for unrelated things merge them into one node under the default add. A reader SHOULD
-     qualify such ids with something unique to the file until open decision 19 gives it a
-     per-load token.
+    - node ids are compared by value AND type: the string `"1"` and the number `1` are two nodes;
+    - a node id that arrives a second time -- in the same load or a later added load -- is
+      IGNORED, attributes included: the first record wins and nothing reports the later one. (Open
+      decision 19 must decide whether that stays; see there);
+    - repeated edges follow the element's repeated-edge policy (`data.knownFields.repeatedEdges`,
+      graph-format's `DuplicatePolicy`: `keep` by default, or `error`, `first`, `last`, `sum`,
+      `min`, `max`). Under `keep`, every repeated record for an ordered pair becomes an edge of its
+      own, and a reciprocal pair (A-B and B-A, which STRING emits for every interaction) is two
+      edges even in an undirected load. `ImportReport.repeated` counts what the policy did. A
+      reader MUST NOT merge repeats itself; the policy is the consumer's;
+    - an edge naming a node no record declared creates that node (item 4);
+    - the element applies the consumer's field mapping (`nodeIdPath`, `edgeSource`, `edgeTarget`,
+      from the load options or `data.knownFields`) to the records of EVERY reader, built-in or
+      plugin (`Graph.ts`, the load path). A plugin reader therefore emits its records in the
+      source's own terms and leaves the mapping to the element; `resolveOptions` skipping those keys
+      (section 6 item 2) is what lets it. **(not yet met)** `loadFromUrl` and `loadFromFile` put the
+      mapping into the reader's options as `edgeSource` and `edgeTarget`, but
+      `ELEMENT_OWNED_OPTIONS` (`DataSource.ts`) lists `edgeSrcIdPath` and `edgeDstIdPath` instead,
+      so a conforming plugin reader's `resolveOptions` refuses `edgeSource` with
+      `E_UNKNOWN_OPTION` whenever a consumer maps edges -- while a built-in, which skips
+      `resolveOptions`, loads the same call. The fix adds `edgeSource` and `edgeTarget` to that set,
+      and the parity suite loads a plugin format by URL and by `File` with an edge mapping;
+    - ids are document-local in many formats (an RDF blank node `_:b0`, a GraphML id, an
+      auto-numbered row) but the element matches them globally, so two files that both use `_:b0`
+      for unrelated things merge them into one node under the default add. A reader SHOULD
+      qualify such ids with something unique to the file until open decision 19 gives it a
+      per-load token.
 9. **Ids as the source spells them.** A reader SHOULD emit node ids and edge endpoints exactly as
    the source spells them, as strings, unless the format itself types them (GML integers) or the
    caller declares an id type. Leading zeros are significant in employee numbers, ZIP codes and
@@ -226,21 +226,21 @@ confidence model is part of open decision 2.
 "Pinned by" names the `describe` block of
 `graphty-element/test/browser/extensions/format-extension.test.ts` that holds the element to it.
 
-| Capability | Route | Pinned by |
-| --- | --- | --- |
-| Loaded from a string | `graph.addDataFromSource("<id>", { data })` | "a third party's file format" |
-| Loaded from a `File`, named or detected | `graph.loadFromFile(file, { format })`, `graph.loadFromFile(file)` | same |
-| Loaded from a URL, with three attempts and exponential backoff | `graph.loadFromUrl(url)` | same. **(not yet met)** only when the format is named or recognised by extension: a URL whose extension is unknown is first fetched ONCE with a bare `fetch` for sniffing, with no retry, and a failure there is an uncoded `Error`, not `E_FETCH_FAILED` (`Graph.ts`, `loadFromUrl`) |
-| Listed beside built-ins with its plain name | `session.catalog.formats()` | "...in the catalogue a picker is built from" |
-| Found by the id a saved document records | catalogue lookup by id | "is found by the name a saved document records" |
-| Found from a file name before the file is read | `detectFormats({ filename })` | "is found from a file name's extension..." |
-| Recognised from content | `detectFormats({ sample })` | "...being recognised from a file" |
-| Options published for an import dialog, defaulted and validated | `descriptor.options`, `resolveOptions` | "...being configured" |
-| Coded failure for unreadable content and for an unreachable URL | `data-loading-error` event carrying `E_PARSE_FAILED` or `E_FETCH_FAILED` | "...failing" |
-| Declaring what the file says about direction | `declareDirection` | "...declaring what its file says" |
-| Per-record errors aggregated up to a limit | `errorAggregator`, `errorLimit` | inherited |
-| Progress while loading | chunked ingestion | inherited |
-| Added to the loaded graph by default, or replacing it with `{ replace: true }` | `addDataFromSource`, `loadFromFile`, `loadFromUrl` options | inherited |
+| Capability                                                                     | Route                                                                    | Pinned by                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loaded from a string                                                           | `graph.addDataFromSource("<id>", { data })`                              | "a third party's file format"                                                                                                                                                                                                                                                         |
+| Loaded from a `File`, named or detected                                        | `graph.loadFromFile(file, { format })`, `graph.loadFromFile(file)`       | same                                                                                                                                                                                                                                                                                  |
+| Loaded from a URL, with three attempts and exponential backoff                 | `graph.loadFromUrl(url)`                                                 | same. **(not yet met)** only when the format is named or recognised by extension: a URL whose extension is unknown is first fetched ONCE with a bare `fetch` for sniffing, with no retry, and a failure there is an uncoded `Error`, not `E_FETCH_FAILED` (`Graph.ts`, `loadFromUrl`) |
+| Listed beside built-ins with its plain name                                    | `session.catalog.formats()`                                              | "...in the catalogue a picker is built from"                                                                                                                                                                                                                                          |
+| Found by the id a saved document records                                       | catalogue lookup by id                                                   | "is found by the name a saved document records"                                                                                                                                                                                                                                       |
+| Found from a file name before the file is read                                 | `detectFormats({ filename })`                                            | "is found from a file name's extension..."                                                                                                                                                                                                                                            |
+| Recognised from content                                                        | `detectFormats({ sample })`                                              | "...being recognised from a file"                                                                                                                                                                                                                                                     |
+| Options published for an import dialog, defaulted and validated                | `descriptor.options`, `resolveOptions`                                   | "...being configured"                                                                                                                                                                                                                                                                 |
+| Coded failure for unreadable content and for an unreachable URL                | `data-loading-error` event carrying `E_PARSE_FAILED` or `E_FETCH_FAILED` | "...failing"                                                                                                                                                                                                                                                                          |
+| Declaring what the file says about direction                                   | `declareDirection`                                                       | "...declaring what its file says"                                                                                                                                                                                                                                                     |
+| Per-record errors aggregated up to a limit                                     | `errorAggregator`, `errorLimit`                                          | inherited                                                                                                                                                                                                                                                                             |
+| Progress while loading                                                         | chunked ingestion                                                        | inherited                                                                                                                                                                                                                                                                             |
+| Added to the loaded graph by default, or replacing it with `{ replace: true }` | `addDataFromSource`, `loadFromFile`, `loadFromUrl` options               | inherited                                                                                                                                                                                                                                                                             |
 
 Parity statements:
 
@@ -287,16 +287,16 @@ Parity statements:
 
 ## 7. Errors
 
-| Code | When | `details` |
-| --- | --- | --- |
-| `E_BAD_COMMAND` | malformed registration | `kind: "format"`, `field` |
-| `E_DUPLICATE_PLUGIN` | built-in id; different class under a taken id with `strict` | `kind`, `name`, `builtIn` |
-| `E_UNKNOWN_FORMAT` | a load names a format nothing registered | `available`: every format and its directions |
-| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | host options fail validation | option name, nearest name |
-| `E_PARSE_FAILED` | the content cannot be read | MUST carry `format`; SHOULD carry `line` (1-based) |
-| `E_FETCH_FAILED` | the URL could not be fetched after the retries | `url` with its query string and user information removed, and the same redacted form in `message` **(not yet met:** 2.6.1 records the full URL in `details` and builds the message as "Failed to fetch from <url> ..." (`DataSource.ts`), so a token in a query string reaches every log destination whatever `details` holds; README section 9.2 item 7**)**, `attempts`; `recoverable: true` |
-| `E_EDGE_ENDPOINTS_UNRESOLVED` | no endpoint spelling answers in a batch of edge records (section 2.2 item 4) | the keys the records carry |
-| `E_EMPTY_LOAD` | the load produced no nodes | as built-ins |
+| Code                                 | When                                                                         | `details`                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_BAD_COMMAND`                      | malformed registration                                                       | `kind: "format"`, `field`                                                                                                                                                                                                                                                                                                                                                                      |
+| `E_DUPLICATE_PLUGIN`                 | built-in id; different class under a taken id with `strict`                  | `kind`, `name`, `builtIn`                                                                                                                                                                                                                                                                                                                                                                      |
+| `E_UNKNOWN_FORMAT`                   | a load names a format nothing registered                                     | `available`: every format and its directions                                                                                                                                                                                                                                                                                                                                                   |
+| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | host options fail validation                                                 | option name, nearest name                                                                                                                                                                                                                                                                                                                                                                      |
+| `E_PARSE_FAILED`                     | the content cannot be read                                                   | MUST carry `format`; SHOULD carry `line` (1-based)                                                                                                                                                                                                                                                                                                                                             |
+| `E_FETCH_FAILED`                     | the URL could not be fetched after the retries                               | `url` with its query string and user information removed, and the same redacted form in `message` **(not yet met:** 2.6.1 records the full URL in `details` and builds the message as "Failed to fetch from <url> ..." (`DataSource.ts`), so a token in a query string reaches every log destination whatever `details` holds; README section 9.2 item 7**)**, `attempts`; `recoverable: true` |
+| `E_EDGE_ENDPOINTS_UNRESOLVED`        | no endpoint spelling answers in a batch of edge records (section 2.2 item 4) | the keys the records carry                                                                                                                                                                                                                                                                                                                                                                     |
+| `E_EMPTY_LOAD`                       | the load produced no nodes                                                   | as built-ins                                                                                                                                                                                                                                                                                                                                                                                   |
 
 1. A reader SHOULD throw `GraphtyError` with `source: "data"`. A non-`GraphtyError` thrown from
    `sourceFetchData` MUST be wrapped by the element as `E_PARSE_FAILED` with the original as
@@ -412,16 +412,16 @@ Two further rules for any writer:
 
 This is README open decision 1. The three options, and what each means for a third party:
 
-| | (A) Element wraps a graph-io exporter (recommended) | (B) graph-io registry directly | (C) Writer on the DataSource class |
-| --- | --- | --- | --- |
-| What the author writes | a graph-io `GraphExporter` plus a `FormatDescriptor` | a graph-io `GraphExporter` | a static writer method on the reader class |
-| Registration | `registerFormatWriter({ descriptor, exporter })` on `./extend` | `FormatRegistry.registerExporter(exporter)` in graph-io | `DataSource.register` (unchanged) |
-| In `session.catalog.formats()` with `canExport: true` | yes | only if the element polls graph-io | yes |
-| Built-in ids reserved, `strict`, one warning | yes | no: graph-io replaces any name silently | yes |
-| Options as `OptionDescriptor[]` | yes (`writerOptions`) | no: TypeScript generics only | yes |
-| Failures as `GraphtyError` | yes, mapped by the element | no: graph-io `GraphFormatError` | yes |
-| A writer without a reader | yes | yes | no |
-| Consistent with the migration's direction (graph-io owns parsing and writing) | yes | yes | no |
+|                                                                               | (A) Element wraps a graph-io exporter (recommended)            | (B) graph-io registry directly                          | (C) Writer on the DataSource class         |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| What the author writes                                                        | a graph-io `GraphExporter` plus a `FormatDescriptor`           | a graph-io `GraphExporter`                              | a static writer method on the reader class |
+| Registration                                                                  | `registerFormatWriter({ descriptor, exporter })` on `./extend` | `FormatRegistry.registerExporter(exporter)` in graph-io | `DataSource.register` (unchanged)          |
+| In `session.catalog.formats()` with `canExport: true`                         | yes                                                            | only if the element polls graph-io                      | yes                                        |
+| Built-in ids reserved, `strict`, one warning                                  | yes                                                            | no: graph-io replaces any name silently                 | yes                                        |
+| Options as `OptionDescriptor[]`                                               | yes (`writerOptions`)                                          | no: TypeScript generics only                            | yes                                        |
+| Failures as `GraphtyError`                                                    | yes, mapped by the element                                     | no: graph-io `GraphFormatError`                         | yes                                        |
+| A writer without a reader                                                     | yes                                                            | yes                                                     | no                                         |
+| Consistent with the migration's direction (graph-io owns parsing and writing) | yes                                                            | yes                                                     | no                                         |
 
 Option B fails four parity clauses and makes the consumer wire graph-io to the element, which the
 architectural principles forbid (a consumer must never write the integration). Option C ties a
@@ -536,27 +536,27 @@ Until that is decided, a third party writes a `DataSource` subclass as specified
 Run by `checkFormat(ReaderClass, { samples, invalidSamples })` in the proposed kit (README section
 11.2). All run in Node except the last, which needs the browser configuration.
 
-| Check | Passes when |
-| --- | --- |
-| registers | `DataSource.register` accepts the class and `registeredFormatDescriptors()` contains its descriptor |
-| descriptor is valid | the descriptor validates against `#/$defs/FormatDescriptor` |
-| id is not reserved | the id is not in `KNOWN_FORMAT_IDS` |
-| extension detection | `detectFormat({ filename: "x" + ext })` returns the id for every declared extension no built-in also claims, and `detectFormats` includes it otherwise |
-| content detection | for every sample marked `detectable`, `detectFormat({ sample })` RETURNS the id; a sample a built-in also claims is reported as "recognised by extension only" (a warning naming the built-in), not as a pass |
-| does not steal built-in files | for each file in the kit's built-in corpus, `detect` either returns false or the built-in id ranks first |
-| sniffer is safe | `detect` returns a boolean for empty, binary-looking and 4 KiB inputs and for the kit's backtracking-probe corpus; the time it took is reported as a measurement |
-| makes no network request | with the network APIs of README section 9.4 item 2 trapped, loading a sample from `data` makes no call (mistake detection only) |
-| reads the samples | each sample yields, after INGESTION (not records yielded: repeated node ids, repeated edges under the policy and created endpoints all change the counts, section 2.2 item 8), the expected node and edge counts; every node has `id`, every edge has `source` and `target`. The Node run needs the headless session of open decision 9 to run the element's ingestion; until then the Node check counts records and the browser check counts the graph |
-| duplicates are the element's | a sample with a repeated node line and a repeated edge gives the counts section 2.2 item 8 predicts, and the reader merged nothing itself |
-| document-local ids stay local | loading the same sample with document-local ids twice (added) gives disjoint nodes (fails until open decision 19 gives a per-load token, unless the reader qualifies its ids) |
-| reserved keys are used as reserved | a sample with coordinates yields `position`, and one with a strength column yields the configured weight key (skipped when the format has neither) |
-| edge ids are stable | the same sample with its edges in another order, loaded with `edgeIdPath: "id"`, gives every edge the same id (skipped when the format has no natural edge name) |
-| generated ids are injective | a sample whose node names contain the reader's own separator and ordinal text yields no two edges with one id |
-| ids keep their spelling | a sample with leading-zero and mixed-width ids (`00123`, `0123`, `123`) yields three distinct node ids, spelled as in the file |
-| options default and validate | each declared option's default is applied when omitted; an undeclared name raises `E_UNKNOWN_OPTION`; a value outside `min`/`max`/`values` raises `E_OPTION_RANGE` |
-| invalid input fails coded | each invalid sample fails with `E_PARSE_FAILED`, `details.format` equal to the id |
-| records are JSON | every record survives `JSON.parse(JSON.stringify(record))` unchanged |
-| loads through every route | the sample loads through a string, a `File` and a URL served by the kit, with equal counts (browser) |
+| Check                              | Passes when                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| registers                          | `DataSource.register` accepts the class and `registeredFormatDescriptors()` contains its descriptor                                                                                                                                                                                                                                                                                                                                                     |
+| descriptor is valid                | the descriptor validates against `#/$defs/FormatDescriptor`                                                                                                                                                                                                                                                                                                                                                                                             |
+| id is not reserved                 | the id is not in `KNOWN_FORMAT_IDS`                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| extension detection                | `detectFormat({ filename: "x" + ext })` returns the id for every declared extension no built-in also claims, and `detectFormats` includes it otherwise                                                                                                                                                                                                                                                                                                  |
+| content detection                  | for every sample marked `detectable`, `detectFormat({ sample })` RETURNS the id; a sample a built-in also claims is reported as "recognised by extension only" (a warning naming the built-in), not as a pass                                                                                                                                                                                                                                           |
+| does not steal built-in files      | for each file in the kit's built-in corpus, `detect` either returns false or the built-in id ranks first                                                                                                                                                                                                                                                                                                                                                |
+| sniffer is safe                    | `detect` returns a boolean for empty, binary-looking and 4 KiB inputs and for the kit's backtracking-probe corpus; the time it took is reported as a measurement                                                                                                                                                                                                                                                                                        |
+| makes no network request           | with the network APIs of README section 9.4 item 2 trapped, loading a sample from `data` makes no call (mistake detection only)                                                                                                                                                                                                                                                                                                                         |
+| reads the samples                  | each sample yields, after INGESTION (not records yielded: repeated node ids, repeated edges under the policy and created endpoints all change the counts, section 2.2 item 8), the expected node and edge counts; every node has `id`, every edge has `source` and `target`. The Node run needs the headless session of open decision 9 to run the element's ingestion; until then the Node check counts records and the browser check counts the graph |
+| duplicates are the element's       | a sample with a repeated node line and a repeated edge gives the counts section 2.2 item 8 predicts, and the reader merged nothing itself                                                                                                                                                                                                                                                                                                               |
+| document-local ids stay local      | loading the same sample with document-local ids twice (added) gives disjoint nodes (fails until open decision 19 gives a per-load token, unless the reader qualifies its ids)                                                                                                                                                                                                                                                                           |
+| reserved keys are used as reserved | a sample with coordinates yields `position`, and one with a strength column yields the configured weight key (skipped when the format has neither)                                                                                                                                                                                                                                                                                                      |
+| edge ids are stable                | the same sample with its edges in another order, loaded with `edgeIdPath: "id"`, gives every edge the same id (skipped when the format has no natural edge name)                                                                                                                                                                                                                                                                                        |
+| generated ids are injective        | a sample whose node names contain the reader's own separator and ordinal text yields no two edges with one id                                                                                                                                                                                                                                                                                                                                           |
+| ids keep their spelling            | a sample with leading-zero and mixed-width ids (`00123`, `0123`, `123`) yields three distinct node ids, spelled as in the file                                                                                                                                                                                                                                                                                                                          |
+| options default and validate       | each declared option's default is applied when omitted; an undeclared name raises `E_UNKNOWN_OPTION`; a value outside `min`/`max`/`values` raises `E_OPTION_RANGE`                                                                                                                                                                                                                                                                                      |
+| invalid input fails coded          | each invalid sample fails with `E_PARSE_FAILED`, `details.format` equal to the id                                                                                                                                                                                                                                                                                                                                                                       |
+| records are JSON                   | every record survives `JSON.parse(JSON.stringify(record))` unchanged                                                                                                                                                                                                                                                                                                                                                                                    |
+| loads through every route          | the sample loads through a string, a `File` and a URL served by the kit, with equal counts (browser)                                                                                                                                                                                                                                                                                                                                                    |
 
 A writer (when one exists) adds: "round trips" (every sample the reader reads, the writer writes and
 the reader reads back with equal counts, ids and the attributes the capabilities claim), "loss
@@ -574,10 +574,17 @@ A reader for SIF (Simple Interaction Format, used by Cytoscape and the need in
 built-in id until it is removed:
 
 ```ts
-import { DataSource, GraphtyError, type BaseDataSourceConfig, type DataSourceChunk, type FormatDescriptor }
-    from "@graphty/graphty-element/extend";
+import {
+    DataSource,
+    GraphtyError,
+    type BaseDataSourceConfig,
+    type DataSourceChunk,
+    type FormatDescriptor,
+} from "@graphty/graphty-element/extend";
 
-interface SifConfig extends BaseDataSourceConfig { directed?: boolean }
+interface SifConfig extends BaseDataSourceConfig {
+    directed?: boolean;
+}
 
 class SifDataSource extends DataSource {
     static override type = "acme-sif";
@@ -585,7 +592,7 @@ class SifDataSource extends DataSource {
         id: "acme-sif",
         plainName: "Simple Interaction Format",
         extensions: [".sif"],
-        mimeTypes: ["text/plain"],                        // generic: SIF has no registered type (section 4 item 9)
+        mimeTypes: ["text/plain"], // generic: SIF has no registered type (section 4 item 9)
         canImport: true,
         canExport: false,
         options: [{ name: "directed", plainName: "Directed interactions", type: "boolean", default: false }],
@@ -594,7 +601,10 @@ class SifDataSource extends DataSource {
     // short relation token rather than a URL, so a GMT gene-set file ("NAME<tab>http://...<tab>GENE")
     // is not claimed.
     static override detect = (sample: string): boolean => {
-        const lines = sample.split(/\r?\n/).filter((line) => line.trim() !== "").slice(0, 5);
+        const lines = sample
+            .split(/\r?\n/)
+            .filter((line) => line.trim() !== "")
+            .slice(0, 5);
         return lines.length >= 2 && lines.every((line) => /^[^\t]+\t[A-Za-z][\w-]{0,15}\t[^\t]+/.test(line));
     };
 
@@ -607,24 +617,29 @@ class SifDataSource extends DataSource {
         this.#directed = this.resolveOptions(opts).directed === true;
     }
 
-    protected getConfig(): BaseDataSourceConfig { return this.#config; }
+    protected getConfig(): BaseDataSourceConfig {
+        return this.#config;
+    }
 
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
         const text = await this.getContent();
         const ids = new Set<string>();
         const edges = [];
-        const emitted = new Set<string>();               // every edge id so far, so ids stay injective
+        const emitted = new Set<string>(); // every edge id so far, so ids stay injective
         for (const [index, line] of text.split(/\r?\n/).entries()) {
             if (line.trim() === "") continue;
             const [source, relation, ...targets] = line.split(line.includes("\t") ? "\t" : /\s+/);
             if (relation === undefined) {
-                ids.add(source);                         // a lone node
+                ids.add(source); // a lone node
                 continue;
             }
             if (targets.length === 0) {
-                throw new GraphtyError({ code: "E_PARSE_FAILED", source: "data",
+                throw new GraphtyError({
+                    code: "E_PARSE_FAILED",
+                    source: "data",
                     message: `line ${index + 1} names a relationship with no target`,
-                    details: { format: "acme-sif", line: index + 1 } });
+                    details: { format: "acme-sif", line: index + 1 },
+                });
             }
             ids.add(source);
             for (const target of targets) {
@@ -640,13 +655,16 @@ class SifDataSource extends DataSource {
             }
         }
         this.declareDirection(this.#directed, "the directed option");
-        yield* this.chunkData([...ids].map((id) => DataSource.toRecord({ id })), edges);
+        yield* this.chunkData(
+            [...ids].map((id) => DataSource.toRecord({ id })),
+            edges,
+        );
     }
 }
 
 DataSource.register(SifDataSource);
-await graph.loadFromFile(droppedFile);            // recognised by ".sif"; by content alone, the CSV
-                                                  // sniffer claims tab-separated text first (section 4)
+await graph.loadFromFile(droppedFile); // recognised by ".sif"; by content alone, the CSV
+// sniffer claims tab-separated text first (section 4)
 ```
 
 ## 14. Known gaps
@@ -689,18 +707,18 @@ await graph.loadFromFile(droppedFile);            // recognised by ".sif"; by co
 
 ## 15. Who this serves
 
-| Need | Source | Served |
-| --- | --- | --- |
-| Import CSV, JSON, GraphML, GEXF, GML with detection | `design/designloom/workflows/W18.yaml`, `W01.yaml` | yes |
-| A validation and quality report, a preview, field mapping for a plugin format | `design/designloom/workflows/W18.yaml` | not yet: open decision 19 |
-| STRING and BioGRID edge-list FILES | `design/designloom/workflows/W20.yaml` | yes; compressed releases need open decision 20 |
-| A STRING or BioGRID QUERY from a gene list | `design/designloom/workflows/W20.yaml`, `W08.yaml` | not yet: a service is a data source (open decision 15) |
-| A gene list joined to an attribute table, with a match report | `design/designloom/workflows/W20.yaml` | not yet: open decision 19 |
-| GMT gene sets and identifier lists | `design/designloom/workflows/W22.yaml` | partly: a GMT reader that yields a bipartite gene-set-to-gene graph conforms today; joining the enrichment table onto the gene-set nodes needs open decision 19, and an enrichment map needs the "apply as edges" operation (`candidates.md` section 18); a gene set as a run input is open decision 22 |
-| GraphML and CX for collaborators, upload to NDEx, tables as CSV | `design/designloom/workflows/W25.yaml`, `W21.yaml`, `W23.yaml`, `W24.yaml` | not yet: no writer seam (open decision 1); upload is a data-source publish direction (open decision 15) |
-| RDF and OWL files | `design/designloom/personas/knowledge-engineer.yaml` | partly: a reader loads them, but predicate IRIs cannot be bound (open decision 29), blank nodes merge across files (open decision 19), and types, languages, labels and prefixes need open decision 20 |
-| Refreshing one of several integrated sources | `design/designloom/workflows/W13.yaml` | not yet: no load keeps its source, so none can be replaced alone (open decision 19) |
-| Two conditions side by side (tumor and normal logFC) | `design/designloom/workflows/W24.yaml` | not yet: a second load of the same genes is ignored, and a join has no column-collision policy (open decision 19) |
-| Scored pairs, clusters and enrichment tables as CSV | `design/designloom/workflows/W16.yaml`, `W21.yaml`, `W22.yaml`, `W23.yaml` | not yet: no table export (section 8.1; open decision 24) |
-| Many source systems, SPARQL endpoints and databases | `design/designloom/workflows/W13.yaml` | not yet: open decisions 15 and 19 |
-| Features exported to ML pipelines | `design/designloom/workflows/W16.yaml` | not yet: no writer seam; binary and streamed output need open decision 24 |
+| Need                                                                          | Source                                                                     | Served                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import CSV, JSON, GraphML, GEXF, GML with detection                           | `design/designloom/workflows/W18.yaml`, `W01.yaml`                         | yes                                                                                                                                                                                                                                                                                                     |
+| A validation and quality report, a preview, field mapping for a plugin format | `design/designloom/workflows/W18.yaml`                                     | not yet: open decision 19                                                                                                                                                                                                                                                                               |
+| STRING and BioGRID edge-list FILES                                            | `design/designloom/workflows/W20.yaml`                                     | yes; compressed releases need open decision 20                                                                                                                                                                                                                                                          |
+| A STRING or BioGRID QUERY from a gene list                                    | `design/designloom/workflows/W20.yaml`, `W08.yaml`                         | not yet: a service is a data source (open decision 15)                                                                                                                                                                                                                                                  |
+| A gene list joined to an attribute table, with a match report                 | `design/designloom/workflows/W20.yaml`                                     | not yet: open decision 19                                                                                                                                                                                                                                                                               |
+| GMT gene sets and identifier lists                                            | `design/designloom/workflows/W22.yaml`                                     | partly: a GMT reader that yields a bipartite gene-set-to-gene graph conforms today; joining the enrichment table onto the gene-set nodes needs open decision 19, and an enrichment map needs the "apply as edges" operation (`candidates.md` section 18); a gene set as a run input is open decision 22 |
+| GraphML and CX for collaborators, upload to NDEx, tables as CSV               | `design/designloom/workflows/W25.yaml`, `W21.yaml`, `W23.yaml`, `W24.yaml` | not yet: no writer seam (open decision 1); upload is a data-source publish direction (open decision 15)                                                                                                                                                                                                 |
+| RDF and OWL files                                                             | `design/designloom/personas/knowledge-engineer.yaml`                       | partly: a reader loads them, but predicate IRIs cannot be bound (open decision 29), blank nodes merge across files (open decision 19), and types, languages, labels and prefixes need open decision 20                                                                                                  |
+| Refreshing one of several integrated sources                                  | `design/designloom/workflows/W13.yaml`                                     | not yet: no load keeps its source, so none can be replaced alone (open decision 19)                                                                                                                                                                                                                     |
+| Two conditions side by side (tumor and normal logFC)                          | `design/designloom/workflows/W24.yaml`                                     | not yet: a second load of the same genes is ignored, and a join has no column-collision policy (open decision 19)                                                                                                                                                                                       |
+| Scored pairs, clusters and enrichment tables as CSV                           | `design/designloom/workflows/W16.yaml`, `W21.yaml`, `W22.yaml`, `W23.yaml` | not yet: no table export (section 8.1; open decision 24)                                                                                                                                                                                                                                                |
+| Many source systems, SPARQL endpoints and databases                           | `design/designloom/workflows/W13.yaml`                                     | not yet: open decisions 15 and 19                                                                                                                                                                                                                                                                       |
+| Features exported to ML pipelines                                             | `design/designloom/workflows/W16.yaml`                                     | not yet: no writer seam; binary and streamed output need open decision 24                                                                                                                                                                                                                               |

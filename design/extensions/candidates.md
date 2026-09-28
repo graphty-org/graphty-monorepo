@@ -25,31 +25,31 @@ below is therefore a recommendation to the owner, not a decision.
 
 ## Summary
 
-| Candidate | Seam today | Verdict |
-| --- | --- | --- |
+| Candidate                                                                    | Seam today                                                                             | Verdict                                                                                                     |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Parameterised, service and live data sources, and publishing to a repository | `layoutBehavior.fetchNodes` callbacks; element API design's lazy data source (unbuilt) | Promote (as a seventh point, or as a second half of File format), before the file-format contract is frozen |
-| Identifier mappers and enrichment providers | element API design 4.14 (unbuilt) | Later, folded into data sources |
-| Format writers | none; `canExport: true` refused | Part of File format; see `file-format.md` section 8 |
-| Snapshot-based layouts | none | Part of Layout; see `layout.md` section 7 |
-| Scales | `ScaleRegistry.register` (internal, unreachable from outside) | Later |
-| Node mesh shapes | `NodeMesh.registerShapeCreator` (internal; shape name is a closed enum) | Keep internal; fix the trap |
-| Edge line patterns and arrowheads | closed tables | Keep internal |
-| Themes and "Looks" | `CatalogApi.themes()` (deprecated, unimplemented) | Not an extension point: a style file |
-| Expression functions | `CatalogApi.functions()` (deprecated, unimplemented) | Later |
-| GPU and other accelerators | `registerAccelerator` on `./extend` (documented internal) | Keep internal |
-| Camera controllers | internal classes with Babylon.js types | Keep internal |
-| Natural-language commands and AI tools | `./ai` exports | Keep internal |
-| Image, vector and video exporters | built-in screenshot | Not an extension point: the element ships them |
-| Set kinds, rule leaves, scope keywords | reserved in the design framework | Later |
-| Attribute value types | closed | Keep closed |
-| Annotations and views as extensions | none | Not an extension point: configuration files |
-| Lifecycle managers | internal | Keep internal |
-| Entity resolution (merging duplicate nodes) | none | Not an extension point: the element ships a merge operation |
-| Background layers and basemaps | none | Not an extension point for the drawing; a tile SOURCE is a data source |
-| Derived networks (projection, enrichment maps) | none | Not an extension point: an element operation over a pair-list result |
-| Network collections (a parent network and its subnetworks) | none | Not an extension point: an element capability, decided with the record formats |
-| Edge geometry (waypoints, arcs, great circles, bundling) | none | Undecided: layout-supplied or element-owned |
-| Data-driven node charts (pie and donut glyphs) | none | Not an extension point: the element ships it as a style channel |
+| Identifier mappers and enrichment providers                                  | element API design 4.14 (unbuilt)                                                      | Later, folded into data sources                                                                             |
+| Format writers                                                               | none; `canExport: true` refused                                                        | Part of File format; see `file-format.md` section 8                                                         |
+| Snapshot-based layouts                                                       | none                                                                                   | Part of Layout; see `layout.md` section 7                                                                   |
+| Scales                                                                       | `ScaleRegistry.register` (internal, unreachable from outside)                          | Later                                                                                                       |
+| Node mesh shapes                                                             | `NodeMesh.registerShapeCreator` (internal; shape name is a closed enum)                | Keep internal; fix the trap                                                                                 |
+| Edge line patterns and arrowheads                                            | closed tables                                                                          | Keep internal                                                                                               |
+| Themes and "Looks"                                                           | `CatalogApi.themes()` (deprecated, unimplemented)                                      | Not an extension point: a style file                                                                        |
+| Expression functions                                                         | `CatalogApi.functions()` (deprecated, unimplemented)                                   | Later                                                                                                       |
+| GPU and other accelerators                                                   | `registerAccelerator` on `./extend` (documented internal)                              | Keep internal                                                                                               |
+| Camera controllers                                                           | internal classes with Babylon.js types                                                 | Keep internal                                                                                               |
+| Natural-language commands and AI tools                                       | `./ai` exports                                                                         | Keep internal                                                                                               |
+| Image, vector and video exporters                                            | built-in screenshot                                                                    | Not an extension point: the element ships them                                                              |
+| Set kinds, rule leaves, scope keywords                                       | reserved in the design framework                                                       | Later                                                                                                       |
+| Attribute value types                                                        | closed                                                                                 | Keep closed                                                                                                 |
+| Annotations and views as extensions                                          | none                                                                                   | Not an extension point: configuration files                                                                 |
+| Lifecycle managers                                                           | internal                                                                               | Keep internal                                                                                               |
+| Entity resolution (merging duplicate nodes)                                  | none                                                                                   | Not an extension point: the element ships a merge operation                                                 |
+| Background layers and basemaps                                               | none                                                                                   | Not an extension point for the drawing; a tile SOURCE is a data source                                      |
+| Derived networks (projection, enrichment maps)                               | none                                                                                   | Not an extension point: an element operation over a pair-list result                                        |
+| Network collections (a parent network and its subnetworks)                   | none                                                                                   | Not an extension point: an element capability, decided with the record formats                              |
+| Edge geometry (waypoints, arcs, great circles, bundling)                     | none                                                                                   | Undecided: layout-supplied or element-owned                                                                 |
+| Data-driven node charts (pie and donut glyphs)                               | none                                                                                   | Not an extension point: the element ships it as a style channel                                             |
 
 ## 1. Parameterised, service and live data sources
 

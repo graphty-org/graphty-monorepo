@@ -127,11 +127,29 @@ export declare function resolveOptionValues(
  */
 export type GraphtyErrorCode =
     | ExtensionErrorCode
-    | "E_BAD_FORMULA" | "E_BAD_LAYER" | "E_BAD_QUERY" | "E_BAD_SELECTOR" | "E_DEVICE_INCORRECT"
-    | "E_DEVICE_LOST" | "E_DISPOSED" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_ID" | "E_ID_MISSING"
-    | "E_NO_ADAPTER" | "E_NO_WEBGL" | "E_NO_WEBGPU" | "E_OUT_OF_MEMORY" | "E_READONLY"
-    | "E_SELECTOR_EMPTY" | "E_SOFTWARE_ONLY" | "E_UNKNOWN_ATTRIBUTE" | "E_UNKNOWN_CHANNEL"
-    | "E_UNKNOWN_LAYER" | "E_UNKNOWN_RUN" | "E_UNKNOWN_SCALE" | "E_UNSCOPED_RUN_ENCODING"
+    | "E_BAD_FORMULA"
+    | "E_BAD_LAYER"
+    | "E_BAD_QUERY"
+    | "E_BAD_SELECTOR"
+    | "E_DEVICE_INCORRECT"
+    | "E_DEVICE_LOST"
+    | "E_DISPOSED"
+    | "E_DUPLICATE_EDGE"
+    | "E_DUPLICATE_ID"
+    | "E_ID_MISSING"
+    | "E_NO_ADAPTER"
+    | "E_NO_WEBGL"
+    | "E_NO_WEBGPU"
+    | "E_OUT_OF_MEMORY"
+    | "E_READONLY"
+    | "E_SELECTOR_EMPTY"
+    | "E_SOFTWARE_ONLY"
+    | "E_UNKNOWN_ATTRIBUTE"
+    | "E_UNKNOWN_CHANNEL"
+    | "E_UNKNOWN_LAYER"
+    | "E_UNKNOWN_RUN"
+    | "E_UNKNOWN_SCALE"
+    | "E_UNSCOPED_RUN_ENCODING"
     | "E_UNSTABLE_RUN_ID";
 
 /**

@@ -21,10 +21,10 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 
 ## 2. Data model
 
-| Type | Kind |
-| --- | --- |
-| `AuthoredLayoutDescriptor`, the statics (`type`, `maxDimensions`, `honoursWeights`, `scoped`, `descriptor`), the abstract members of `LayoutEngine`, `SimpleLayoutEngine.doLayout` | implemented by extensions |
-| `Node`, `Edge` (type-only), `Position`, `EdgePosition`, the protected helpers (`isHeld`, `writeNodePosition`), `holdMask`, `SimpleLayoutEngine.positions`, `_nodes`, `_edges`, `scalingFactor` | called by extensions |
+| Type                                                                                                                                                                                           | Kind                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `AuthoredLayoutDescriptor`, the statics (`type`, `maxDimensions`, `honoursWeights`, `scoped`, `descriptor`), the abstract members of `LayoutEngine`, `SimpleLayoutEngine.doLayout`             | implemented by extensions |
+| `Node`, `Edge` (type-only), `Position`, `EdgePosition`, the protected helpers (`isHeld`, `writeNodePosition`), `holdMask`, `SimpleLayoutEngine.positions`, `_nodes`, `_edges`, `scalingFactor` | called by extensions      |
 
 `Node` and `Edge` are published as type-only re-exports so that a plugin can type its members
 without importing the renderer. They are the element's FULL render classes, not a three-member
@@ -56,16 +56,16 @@ configured weight key and its handling of parallel edges.
 
 `AuthoredLayoutDescriptor` rules:
 
-| Member | Rule |
-| --- | --- |
-| `id` | Non-empty; MUST equal `static type`; not a built-in arrangement id (`KNOWN_LAYOUT_IDS`) or built-in engine name |
-| `plainName`, `technicalName`, `description`, `family` | Strings; `plainName` non-empty |
-| `kind` | `"live"` or `"batch"`; MUST match the base class (`SimpleLayoutEngine` is batch) (not yet enforced at registration) |
-| `maxDimensions` | 2 or 3; MUST equal `static maxDimensions` (not yet enforced at registration) |
-| `sizeRating` | `"any"`, 10000, 2000 or 500: the largest node count the author considers comfortable. Advisory: nothing refuses a larger graph (open decision 27), and the four values cannot say "comfortable at 50,000, not at 500,000" |
-| `structuralInputs` | Which of `"node"`, `"partition"`, `"ordering"` its options read |
-| `options` | README section 7 |
-| `engine` | For a plugin, its own `type` |
+| Member                                                | Rule                                                                                                                                                                                                                      |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                                  | Non-empty; MUST equal `static type`; not a built-in arrangement id (`KNOWN_LAYOUT_IDS`) or built-in engine name                                                                                                           |
+| `plainName`, `technicalName`, `description`, `family` | Strings; `plainName` non-empty                                                                                                                                                                                            |
+| `kind`                                                | `"live"` or `"batch"`; MUST match the base class (`SimpleLayoutEngine` is batch) (not yet enforced at registration)                                                                                                       |
+| `maxDimensions`                                       | 2 or 3; MUST equal `static maxDimensions` (not yet enforced at registration)                                                                                                                                              |
+| `sizeRating`                                          | `"any"`, 10000, 2000 or 500: the largest node count the author considers comfortable. Advisory: nothing refuses a larger graph (open decision 27), and the four values cannot say "comfortable at 50,000, not at 500,000" |
+| `structuralInputs`                                    | Which of `"node"`, `"partition"`, `"ordering"` its options read                                                                                                                                                           |
+| `options`                                             | README section 7                                                                                                                                                                                                          |
+| `engine`                                              | For a plugin, its own `type`                                                                                                                                                                                              |
 
 `honoursWeights` and `scoped` are declared ONCE, as statics, and `register` copies them into the
 published descriptor. An author MUST NOT write them in the descriptor.
@@ -161,24 +161,24 @@ Obligations:
 
 "Pinned by" names the test in `graphty-element/test/browser/extensions/layout-extension.test.ts`.
 
-| Capability | Route | Pinned by |
-| --- | --- | --- |
-| Chosen by name | `graph.setLayout("<id>", options)` | "is the engine the element lays the graph out with..." |
-| Places every node; the element draws each where the engine put it | position array | "places every node..." |
-| Coordinates reach the element's position array | `publishPositions` | "publishes its coordinates into the element's own position array" |
-| Edges drawn between the reported ends | `getEdgePosition` | "draws every edge between the two ends..." |
-| Built with the consumer's options; defaults applied; unknown and out-of-range refused | `descriptor.options` | "the options a consumer configures it with" block |
-| Stepping stops and the consumer is told when settled | `isSettled`, settled event | "stops the element stepping, and is announced..." |
-| Given nodes and edges that arrive later; told about removals | `addNode`, `removeNode`, ... | "is given nodes and edges that arrive after..." and the two "is told when..." tests |
-| Pinned nodes stay; released nodes move again | `pin`, `unpin` | "leaves a pinned node exactly where it is..." |
-| Dragged nodes stay where dropped | `setNodePosition` | "is told where the reader dropped a node..." |
-| Disposed on switch | `dispose` | "is disposed when the consumer switches..." |
-| Told 2D or 3D; options kept across a switch | `static getOptionsForDimension` (section 3 step 1) | "is told whether the element is drawing in two dimensions or three", "keeps the consumer's options..." |
-| Batch placement in one pass, scaled | `SimpleLayoutEngine`, `scalingFactor` | "a static engine built on SimpleLayoutEngine" block |
-| Listed in the catalogue, found by name, answers which arrangement it is | `session.catalog.layouts()`, `layoutIdForEngine` | "being offerable, and not only reachable" block |
-| Says whether it reads weights | `static honoursWeights` | "has the catalogue answer whether it reads weights..." |
-| Lays out a scope, holding everything else still | `static scoped`, `setLayout(id, opts, { scope })` | "a scope" block |
-| Coded failures from construction and `init`; previous layout kept | `setLayout` rejection | "how a failure reaches the consumer" block |
+| Capability                                                                            | Route                                              | Pinned by                                                                                              |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Chosen by name                                                                        | `graph.setLayout("<id>", options)`                 | "is the engine the element lays the graph out with..."                                                 |
+| Places every node; the element draws each where the engine put it                     | position array                                     | "places every node..."                                                                                 |
+| Coordinates reach the element's position array                                        | `publishPositions`                                 | "publishes its coordinates into the element's own position array"                                      |
+| Edges drawn between the reported ends                                                 | `getEdgePosition`                                  | "draws every edge between the two ends..."                                                             |
+| Built with the consumer's options; defaults applied; unknown and out-of-range refused | `descriptor.options`                               | "the options a consumer configures it with" block                                                      |
+| Stepping stops and the consumer is told when settled                                  | `isSettled`, settled event                         | "stops the element stepping, and is announced..."                                                      |
+| Given nodes and edges that arrive later; told about removals                          | `addNode`, `removeNode`, ...                       | "is given nodes and edges that arrive after..." and the two "is told when..." tests                    |
+| Pinned nodes stay; released nodes move again                                          | `pin`, `unpin`                                     | "leaves a pinned node exactly where it is..."                                                          |
+| Dragged nodes stay where dropped                                                      | `setNodePosition`                                  | "is told where the reader dropped a node..."                                                           |
+| Disposed on switch                                                                    | `dispose`                                          | "is disposed when the consumer switches..."                                                            |
+| Told 2D or 3D; options kept across a switch                                           | `static getOptionsForDimension` (section 3 step 1) | "is told whether the element is drawing in two dimensions or three", "keeps the consumer's options..." |
+| Batch placement in one pass, scaled                                                   | `SimpleLayoutEngine`, `scalingFactor`              | "a static engine built on SimpleLayoutEngine" block                                                    |
+| Listed in the catalogue, found by name, answers which arrangement it is               | `session.catalog.layouts()`, `layoutIdForEngine`   | "being offerable, and not only reachable" block                                                        |
+| Says whether it reads weights                                                         | `static honoursWeights`                            | "has the catalogue answer whether it reads weights..."                                                 |
+| Lays out a scope, holding everything else still                                       | `static scoped`, `setLayout(id, opts, { scope })`  | "a scope" block                                                                                        |
+| Coded failures from construction and `init`; previous layout kept                     | `setLayout` rejection                              | "how a failure reaches the consumer" block                                                             |
 
 ### 4.1 Parity statements
 
@@ -247,13 +247,13 @@ Obligations:
 
 ## 6. Errors
 
-| Code | When |
-| --- | --- |
-| `E_BAD_COMMAND` | registration without `static type` (`field: "type"`), without a descriptor (`"descriptor"`), or with `descriptor.id !== type` (`"descriptor.id"`) |
-| `E_DUPLICATE_PLUGIN` | a built-in arrangement id or engine name |
-| `E_UNKNOWN_LAYOUT` | `setLayout` names nothing registered; `details.available` lists the names |
-| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | option validation |
-| `E_UNSUPPORTED` | a scope passed to an engine without `static scoped` |
+| Code                                 | When                                                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_BAD_COMMAND`                      | registration without `static type` (`field: "type"`), without a descriptor (`"descriptor"`), or with `descriptor.id !== type` (`"descriptor.id"`) |
+| `E_DUPLICATE_PLUGIN`                 | a built-in arrangement id or engine name                                                                                                          |
+| `E_UNKNOWN_LAYOUT`                   | `setLayout` names nothing registered; `details.available` lists the names                                                                         |
+| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | option validation                                                                                                                                 |
+| `E_UNSUPPORTED`                      | a scope passed to an engine without `static scoped`                                                                                               |
 
 A `GraphtyError` thrown from the constructor or `init` MUST reach the consumer with its code
 unchanged; anything else MUST be wrapped as `E_INTERNAL`, `source: "layout"`, with the original as
@@ -314,24 +314,24 @@ because the published `Node` is the full render class (section 2). With it, ever
 Vitest without a browser. Until it ships, the checks after the first four need the browser
 configuration.
 
-| Check | Passes when |
-| --- | --- |
-| registers | `LayoutEngine.register` accepts it; `session.catalog.layouts()` lists it with `honoursWeights` and `scoped` equal to the statics |
-| descriptor is valid | validates against `#/$defs/AuthoredLayoutDescriptor`; `kind` matches the base class; `maxDimensions` matches the static |
-| id is not reserved | not a built-in arrangement id or engine name |
-| is plain data | the published descriptor survives `structuredClone` |
-| places every node | on every standard graph, every node has a finite position; in 2D every z is 0 |
-| settles | a live engine reports `isSettled` within the step budget the kit allows (a warning, with the step count, when not) |
-| makes no network request | with the network APIs of README section 9.4 item 2 trapped, a full lifecycle makes no call (mistake detection only) |
-| is deterministic with a seed | when a `"seed"` option is declared, two runs with the same seed give identical positions |
-| honours pins and drags | a pinned node does not move across 100 steps; a node set with `setNodePosition` stays there |
-| honours a hold | when `scoped`, no held row moves and the scoped rows do |
-| forgets removed elements | after `removeNode`, `nodes` no longer yields it |
-| does not depend on record order | with a `"seed"` option, the same graph loaded in two record orders gives identical positions (a warning, with the moved nodes, when not) |
-| survives awkward ids | on a graph whose node ids include `__proto__`, `constructor` and `toString`, every node gets its own position (README section 9.2 item 6) |
-| leaves unreadable nodes apart | on a graph where the layout's `"attribute"` option names a column some nodes lack, those nodes are either unplaced or placed apart, never at a data-valued position (a warning) |
-| disposes cleanly | after `dispose`, no timer, animation frame or worker created by the engine is alive |
-| failures are coded | a throw from the constructor or `init` reaches `setLayout`'s rejection as a `GraphtyError` |
+| Check                           | Passes when                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| registers                       | `LayoutEngine.register` accepts it; `session.catalog.layouts()` lists it with `honoursWeights` and `scoped` equal to the statics                                                |
+| descriptor is valid             | validates against `#/$defs/AuthoredLayoutDescriptor`; `kind` matches the base class; `maxDimensions` matches the static                                                         |
+| id is not reserved              | not a built-in arrangement id or engine name                                                                                                                                    |
+| is plain data                   | the published descriptor survives `structuredClone`                                                                                                                             |
+| places every node               | on every standard graph, every node has a finite position; in 2D every z is 0                                                                                                   |
+| settles                         | a live engine reports `isSettled` within the step budget the kit allows (a warning, with the step count, when not)                                                              |
+| makes no network request        | with the network APIs of README section 9.4 item 2 trapped, a full lifecycle makes no call (mistake detection only)                                                             |
+| is deterministic with a seed    | when a `"seed"` option is declared, two runs with the same seed give identical positions                                                                                        |
+| honours pins and drags          | a pinned node does not move across 100 steps; a node set with `setNodePosition` stays there                                                                                     |
+| honours a hold                  | when `scoped`, no held row moves and the scoped rows do                                                                                                                         |
+| forgets removed elements        | after `removeNode`, `nodes` no longer yields it                                                                                                                                 |
+| does not depend on record order | with a `"seed"` option, the same graph loaded in two record orders gives identical positions (a warning, with the moved nodes, when not)                                        |
+| survives awkward ids            | on a graph whose node ids include `__proto__`, `constructor` and `toString`, every node gets its own position (README section 9.2 item 6)                                       |
+| leaves unreadable nodes apart   | on a graph where the layout's `"attribute"` option names a column some nodes lack, those nodes are either unplaced or placed apart, never at a data-valued position (a warning) |
+| disposes cleanly                | after `dispose`, no timer, animation frame or worker created by the engine is alive                                                                                             |
+| failures are coded              | a throw from the constructor or `init` reaches `setLayout`'s rejection as a `GraphtyError`                                                                                      |
 
 ## 10. Worked example
 
@@ -343,14 +343,17 @@ its own row below the customers, not into tier 0, and the description says so (s
 decision 17).
 
 ```ts
-import { LayoutEngine, SimpleLayoutEngine, type AuthoredLayoutDescriptor }
-    from "@graphty/graphty-element/extend";
+import { LayoutEngine, SimpleLayoutEngine, type AuthoredLayoutDescriptor } from "@graphty/graphty-element/extend";
 
 // Not `extends SimpleLayoutOpts`: that type carries an index signature, and a constructor taking
 // it does not fit the `new (opts: object) => LayoutEngine` bound LayoutEngine.register publishes.
-interface TiersOpts { spacing?: number; tierAttribute?: string; scalingFactor?: number }
+interface TiersOpts {
+    spacing?: number;
+    tierAttribute?: string;
+    scalingFactor?: number;
+}
 
-const UNTIERED_ROW = -1;                              // below tier 0, apart from real customers
+const UNTIERED_ROW = -1; // below tier 0, apart from real customers
 
 class TiersLayout extends SimpleLayoutEngine {
     static override type = "acmechain-tiers";
@@ -359,14 +362,21 @@ class TiersLayout extends SimpleLayoutEngine {
         id: "acmechain-tiers",
         plainName: "Supply tiers",
         technicalName: "Layered placement by tier",
-        description: "Suppliers in rows by tier, customers at the bottom; nodes with no tier value in a separate row beneath.",
+        description:
+            "Suppliers in rows by tier, customers at the bottom; nodes with no tier value in a separate row beneath.",
         family: "hierarchical",
         kind: "batch",
         maxDimensions: 2,
         sizeRating: 10000,
         structuralInputs: [],
         options: [
-            { name: "tierAttribute", plainName: "Tier column", type: "attribute", attributeType: "integer", default: "tier" },
+            {
+                name: "tierAttribute",
+                plainName: "Tier column",
+                type: "attribute",
+                attributeType: "integer",
+                default: "tier",
+            },
             { name: "spacing", plainName: "Spacing", type: "number", default: 1, min: 0.1, max: 10 },
             // Declared so a consumer may set it (section 5 item 7).
             { name: "scalingFactor", plainName: "Scale", type: "number", default: 100, min: 1, max: 10000 },
@@ -376,14 +386,15 @@ class TiersLayout extends SimpleLayoutEngine {
 
     readonly #spacing: number;
     readonly #tierAttribute: string;
-    constructor(opts: TiersOpts = {}) {                 // options arrive validated and defaulted
+    constructor(opts: TiersOpts = {}) {
+        // options arrive validated and defaulted
         super({ scalingFactor: opts.scalingFactor });
         this.#spacing = opts.spacing ?? 1;
         this.#tierAttribute = opts.tierAttribute ?? "tier";
     }
 
     doLayout(): void {
-        const rows = new Map<number, number>();         // tier -> next column
+        const rows = new Map<number, number>(); // tier -> next column
         for (const node of this._nodes) {
             const value = node.data[this.#tierAttribute];
             const tier = typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : UNTIERED_ROW;
@@ -444,13 +455,13 @@ await graph.setLayout("acmechain-tiers", { tierAttribute: "supplier_tier", spaci
 
 ## 12. Who this serves
 
-| Need | Source | Served |
-| --- | --- | --- |
-| Hierarchical tiers from a loaded tier column | `design/designloom/workflows/W11.yaml`, `design/designloom/personas/supply-chain-analyst.yaml` | yes (section 10) |
-| Tiers computed by an algorithm (hop distance upstream) | `design/designloom/workflows/W11.yaml` | not yet: a layout cannot read results (open decision 17) |
-| What-if views compared at the same positions | `design/designloom/workflows/W11.yaml` | not yet: no warm start (open decision 27) and no "compute without" scope (open decision 23) |
-| Radial layout around a hub | `design/designloom/workflows/W17.yaml` | yes, with a `"node-id"` option |
-| Layout per cluster, instead of by hand | `design/designloom/workflows/W21.yaml` | not yet: the clusters are a result, which a layout cannot read (open decision 17) |
-| The same positions across two conditions | `design/designloom/workflows/W24.yaml` | not served by this point: a seed cannot align two different graphs; needs network collections and a shared-positions rule, outside the six points |
-| Geographic placement | `design/designloom/personas/supply-chain-analyst.yaml`, `design/designloom/personas/intelligence-analyst.yaml` | partly: coordinates from loaded attributes; unplaced nodes and a scene convention need open decision 27, and a joined location table needs open decision 19 |
-| Seeded, reproducible figures | `design/designloom/workflows/W25.yaml` | partly: only for plugins that declare a seed; a layout choice is not restored from a saved document (open decision 8) |
+| Need                                                   | Source                                                                                                         | Served                                                                                                                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hierarchical tiers from a loaded tier column           | `design/designloom/workflows/W11.yaml`, `design/designloom/personas/supply-chain-analyst.yaml`                 | yes (section 10)                                                                                                                                            |
+| Tiers computed by an algorithm (hop distance upstream) | `design/designloom/workflows/W11.yaml`                                                                         | not yet: a layout cannot read results (open decision 17)                                                                                                    |
+| What-if views compared at the same positions           | `design/designloom/workflows/W11.yaml`                                                                         | not yet: no warm start (open decision 27) and no "compute without" scope (open decision 23)                                                                 |
+| Radial layout around a hub                             | `design/designloom/workflows/W17.yaml`                                                                         | yes, with a `"node-id"` option                                                                                                                              |
+| Layout per cluster, instead of by hand                 | `design/designloom/workflows/W21.yaml`                                                                         | not yet: the clusters are a result, which a layout cannot read (open decision 17)                                                                           |
+| The same positions across two conditions               | `design/designloom/workflows/W24.yaml`                                                                         | not served by this point: a seed cannot align two different graphs; needs network collections and a shared-positions rule, outside the six points           |
+| Geographic placement                                   | `design/designloom/personas/supply-chain-analyst.yaml`, `design/designloom/personas/intelligence-analyst.yaml` | partly: coordinates from loaded attributes; unplaced nodes and a scene convention need open decision 27, and a joined location table needs open decision 19 |
+| Seeded, reproducible figures                           | `design/designloom/workflows/W25.yaml`                                                                         | partly: only for plugins that declare a seed; a layout choice is not restored from a saved document (open decision 8)                                       |

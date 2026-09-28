@@ -26,20 +26,20 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 
 ## 2. Data model
 
-| Type | Kind |
-| --- | --- |
+| Type                                                                                             | Kind                      |
+| ------------------------------------------------------------------------------------------------ | ------------------------- |
 | `CameraDescriptor`, `CameraViewRegistration`, the `compute` function, the returned `CameraState` | implemented by extensions |
-| `CameraViewInput`, `GraphBounds`, `Vec3` | called by extensions |
+| `CameraViewInput`, `GraphBounds`, `Vec3`                                                         | called by extensions      |
 
 `CameraDescriptor` rules:
 
-| Member | Rule |
-| --- | --- |
-| `id` | Non-empty; not in `KNOWN_CAMERA_IDS`; permanent |
-| `plainName` | Non-empty |
-| `description` | A sentence a menu may show; MAY be empty |
-| `modes` | Non-empty array of `"2d"` and/or `"3d"`, no duplicates |
-| `options` | An array (MAY be empty); README section 7 |
+| Member        | Rule                                                   |
+| ------------- | ------------------------------------------------------ |
+| `id`          | Non-empty; not in `KNOWN_CAMERA_IDS`; permanent        |
+| `plainName`   | Non-empty                                              |
+| `description` | A sentence a menu may show; MAY be empty               |
+| `modes`       | Non-empty array of `"2d"` and/or `"3d"`, no duplicates |
+| `options`     | An array (MAY be empty); README section 7              |
 
 ## 3. The compute function
 
@@ -76,21 +76,21 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 
 "Pinned by" names the test in `graphty-element/test/browser/extensions/camera-extension.test.ts`.
 
-| Capability | Route | Pinned by |
-| --- | --- | --- |
-| Listed beside the built-ins | `session.catalog.cameras()` | "is listed in the element's catalogue..." |
-| Listed by the preset lookup | `graph.getCameraPresets()` | "is one of the names loadCameraPreset will answer to..." |
-| Found by the name a consumer types | `graph.resolveCameraPreset(id)` | "is found by the name a consumer types..." |
-| Offered only in its declared modes | descriptor `modes` | "is offered only in the drawing modes it declares..." |
-| Applied by name | `graph.applyCameraView(id, { params })` | "moves the camera to the state it computed..." |
-| Reached by every route a built-in is | `loadCameraPreset(id)`, `setCameraState({ preset: id })`, `captureScreenshot({ camera: { preset: id } })`, the `setCameraPosition` command | "is reached by every route a built-in view is..." |
-| Emits the camera state-change event | camera event | "tells anyone listening what state the camera moved to" |
-| One registration, different result per mode | `input.mode` | "computes a different view in two dimensions than in three..." |
-| Frames a subset | `applyCameraView(id, { scope })`; the box covers only the scope | "frames a named subset..." |
-| Options defaulted, validated, and refused when unknown or out of range | `params` | "being configured" block |
-| Animated, and settles when cancelled | `CameraAnimationOptions` | "being animated to" block |
-| Frames a screenshot and restores the camera afterwards | `captureScreenshot` | "can be the view a screenshot is framed from..." |
-| Its name cannot be taken by a saved camera snapshot | `saveCameraPreset` | "cannot have its name taken..." |
+| Capability                                                             | Route                                                                                                                                      | Pinned by                                                      |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Listed beside the built-ins                                            | `session.catalog.cameras()`                                                                                                                | "is listed in the element's catalogue..."                      |
+| Listed by the preset lookup                                            | `graph.getCameraPresets()`                                                                                                                 | "is one of the names loadCameraPreset will answer to..."       |
+| Found by the name a consumer types                                     | `graph.resolveCameraPreset(id)`                                                                                                            | "is found by the name a consumer types..."                     |
+| Offered only in its declared modes                                     | descriptor `modes`                                                                                                                         | "is offered only in the drawing modes it declares..."          |
+| Applied by name                                                        | `graph.applyCameraView(id, { params })`                                                                                                    | "moves the camera to the state it computed..."                 |
+| Reached by every route a built-in is                                   | `loadCameraPreset(id)`, `setCameraState({ preset: id })`, `captureScreenshot({ camera: { preset: id } })`, the `setCameraPosition` command | "is reached by every route a built-in view is..."              |
+| Emits the camera state-change event                                    | camera event                                                                                                                               | "tells anyone listening what state the camera moved to"        |
+| One registration, different result per mode                            | `input.mode`                                                                                                                               | "computes a different view in two dimensions than in three..." |
+| Frames a subset                                                        | `applyCameraView(id, { scope })`; the box covers only the scope                                                                            | "frames a named subset..."                                     |
+| Options defaulted, validated, and refused when unknown or out of range | `params`                                                                                                                                   | "being configured" block                                       |
+| Animated, and settles when cancelled                                   | `CameraAnimationOptions`                                                                                                                   | "being animated to" block                                      |
+| Frames a screenshot and restores the camera afterwards                 | `captureScreenshot`                                                                                                                        | "can be the view a screenshot is framed from..."               |
+| Its name cannot be taken by a saved camera snapshot                    | `saveCameraPreset`                                                                                                                         | "cannot have its name taken..."                                |
 
 ### 4.1 Parity statements
 
@@ -134,14 +134,14 @@ it SHOULD treat a zero extent as a small positive one.
 
 ## 5. Errors
 
-| Code | When | `details` |
-| --- | --- | --- |
-| `E_BAD_COMMAND` | malformed registration | `kind: "camera"`, `name`, `field` (`descriptor`, `id`, `modes`, `options`, `compute`) |
-| `E_DUPLICATE_PLUGIN` | built-in id; different `compute` under a taken id with `strict` | `kind`, `name`, `builtIn` |
-| `E_UNKNOWN_CAMERA` | a route names a view nothing registered | `available`: registered view ids |
-| `E_UNSUPPORTED` | the view does not declare the current drawing mode; raised before `compute` is called | the mode, the declared modes |
-| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | `params` fail validation | option name, nearest name, range |
-| `E_PROTECTED` | `saveCameraPreset` names a registered view | the name |
+| Code                                 | When                                                                                  | `details`                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `E_BAD_COMMAND`                      | malformed registration                                                                | `kind: "camera"`, `name`, `field` (`descriptor`, `id`, `modes`, `options`, `compute`) |
+| `E_DUPLICATE_PLUGIN`                 | built-in id; different `compute` under a taken id with `strict`                       | `kind`, `name`, `builtIn`                                                             |
+| `E_UNKNOWN_CAMERA`                   | a route names a view nothing registered                                               | `available`: registered view ids                                                      |
+| `E_UNSUPPORTED`                      | the view does not declare the current drawing mode; raised before `compute` is called | the mode, the declared modes                                                          |
+| `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | `params` fail validation                                                              | option name, nearest name, range                                                      |
+| `E_PROTECTED`                        | `saveCameraPreset` names a registered view                                            | the name                                                                              |
 
 A throw from `compute` MUST reject the call that asked for the view with a `GraphtyError`
 (`E_INTERNAL`, `source: "view"`, the original as `cause`, when it is not already one) and MUST NOT
@@ -195,18 +195,18 @@ code extension.
 
 Run by `checkCameraView(registration)` in the proposed kit. All run in Node except the last two.
 
-| Check | Passes when |
-| --- | --- |
-| registers | `registerCameraView` accepts it and the catalogue lists the descriptor |
-| descriptor is valid | validates against `#/$defs/CameraDescriptor` |
-| id is not reserved | not in `KNOWN_CAMERA_IDS` |
-| computes in every declared mode | for each mode, on the kit's standard boxes (unit cube, flat slab, single point, far-off-origin box), `compute` returns a state with only finite numbers |
-| is pure | two calls with deep-equal input return deep-equal output, `input` is unchanged, and no DOM, timer or fetch access occurs (the kit runs `compute` with those globals trapped) |
-| frames what it is given | for a 3D view, `target` lies within the box expanded by its largest dimension; for a 2D view, `pan` lies within the box (a warning, not a failure: a view may frame off-centre on purpose) |
-| options default and validate | declared defaults reach `input.options`; an undeclared or out-of-range option is refused before `compute` is called |
-| is applied by every route | `applyCameraView`, `loadCameraPreset`, `setCameraState({ preset })` and `captureScreenshot({ camera: { preset } })` each move the camera to the computed state (browser) |
-| is refused in an undeclared mode | in a mode not in `modes`, the route rejects with `E_UNSUPPORTED` and `compute` is not called (browser) |
-| frames a screenshot on a subset | `captureScreenshot({ camera: { preset, params, scope } })` frames the scope with the options (browser; fails until section 4.1 item 3 is met) |
+| Check                            | Passes when                                                                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| registers                        | `registerCameraView` accepts it and the catalogue lists the descriptor                                                                                                                     |
+| descriptor is valid              | validates against `#/$defs/CameraDescriptor`                                                                                                                                               |
+| id is not reserved               | not in `KNOWN_CAMERA_IDS`                                                                                                                                                                  |
+| computes in every declared mode  | for each mode, on the kit's standard boxes (unit cube, flat slab, single point, far-off-origin box), `compute` returns a state with only finite numbers                                    |
+| is pure                          | two calls with deep-equal input return deep-equal output, `input` is unchanged, and no DOM, timer or fetch access occurs (the kit runs `compute` with those globals trapped)               |
+| frames what it is given          | for a 3D view, `target` lies within the box expanded by its largest dimension; for a 2D view, `pan` lies within the box (a warning, not a failure: a view may frame off-centre on purpose) |
+| options default and validate     | declared defaults reach `input.options`; an undeclared or out-of-range option is refused before `compute` is called                                                                        |
+| is applied by every route        | `applyCameraView`, `loadCameraPreset`, `setCameraState({ preset })` and `captureScreenshot({ camera: { preset } })` each move the camera to the computed state (browser)                   |
+| is refused in an undeclared mode | in a mode not in `modes`, the route rejects with `E_UNSUPPORTED` and `compute` is not called (browser)                                                                                     |
+| frames a screenshot on a subset  | `captureScreenshot({ camera: { preset, params, scope } })` frames the scope with the options (browser; fails until section 4.1 item 3 is met)                                              |
 
 ## 10. Worked example
 
@@ -264,8 +264,8 @@ await graph.applyCameraView("acmegeo-map", { scope: { set: "port-cities" }, para
 
 ## 12. Who this serves
 
-| Need | Source |
-| --- | --- |
-| Overview to detail, bookmarks, saved views | `design/designloom/workflows/W02.yaml` |
+| Need                                                   | Source                                                                                         |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Overview to detail, bookmarks, saved views             | `design/designloom/workflows/W02.yaml`                                                         |
 | Geographic overlays and tiered views for supply chains | `design/designloom/workflows/W11.yaml`, `design/designloom/personas/supply-chain-analyst.yaml` |
-| Reproducible figures from a saved session | `design/designloom/workflows/W25.yaml` |
+| Reproducible figures from a saved session              | `design/designloom/workflows/W25.yaml`                                                         |

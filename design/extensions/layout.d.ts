@@ -19,8 +19,18 @@ import type { GraphSnapshot, NodeMask } from "./extend-snapshot";
  * built-in arrangements (README section 5 item 4); adding them is an additive fix.
  */
 export declare const KNOWN_LAYOUT_IDS: readonly [
-    "force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell",
-    "spectral", "bipartite", "layers", "fixed", "random",
+    "force",
+    "force-2d",
+    "circular",
+    "radial",
+    "hierarchical",
+    "grid",
+    "shell",
+    "spectral",
+    "bipartite",
+    "layers",
+    "fixed",
+    "random",
 ];
 
 /** A layout id: a built-in name or a registered one. OPEN UNION. */
@@ -237,7 +247,6 @@ export declare function clearRegisteredLayoutsForTesting(): void;
 // =============================================================================================
 // Proposed (NOT built) -- open decision "A snapshot-based layout contract" (README.md 12, item 14)
 // =============================================================================================
-
 
 /**
  * PROPOSED -- additive. Structural node and edge types published on ./extend, with LayoutEngine's

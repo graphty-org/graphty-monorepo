@@ -1,828 +1,712 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://graphty.app/schemas/extensions/descriptors-1.json",
-  "title": "graphty-element extension descriptors",
-  "x-format-version": { "major": 1, "minor": 0 },
-  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table), each marked \"x-open-union\": true, are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken. x-format-version is the two-part version of the container this schema validates (README section 6.3 item 6).",
-  "$defs": {
-    "OptionBound": {
-      "type": "object",
-      "required": [
-        "from"
-      ],
-      "properties": {
-        "from": {
-          "type": "string",
-          "description": "graph.nodeCount, graph.edgeCount, graph.maxDegree, graph.maxCore, graph.componentCount; open union"
-        }
-      }
-    },
-    "OptionChoice": {
-      "type": "object",
-      "required": [
-        "value",
-        "label"
-      ],
-      "properties": {
-        "value": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      }
-    },
-    "OptionDescriptor": {
-      "type": "object",
-      "required": [
-        "name",
-        "plainName",
-        "type"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-          "not": {
-            "enum": [
-              "__proto__",
-              "constructor",
-              "prototype",
-              "toString",
-              "toLocaleString",
-              "valueOf",
-              "hasOwnProperty",
-              "isPrototypeOf",
-              "propertyIsEnumerable",
-              "__defineGetter__",
-              "__defineSetter__",
-              "__lookupGetter__",
-              "__lookupSetter__"
-            ]
-          },
-          "description": "Unique within one descriptor. Never a key that is special on a plain object, nor any member of Object.prototype (README section 7 item 3 and section 9.2 item 6)."
-        },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "technicalName": {
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "number",
-            "integer",
-            "boolean",
-            "string",
-            "enum",
-            "seed",
-            "node-id",
-            "node-set",
-            "attribute",
-            "partition",
-            "ordering",
-            "unknown"
-          ],
-          "x-open-union": true
-        },
-        "default": {},
-        "min": {
-          "oneOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "$ref": "#/$defs/OptionBound"
-            }
-          ]
-        },
-        "max": {
-          "oneOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "$ref": "#/$defs/OptionBound"
-            }
-          ]
-        },
-        "step": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "values": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/OptionChoice"
-          }
-        },
-        "attributeType": {
-          "enum": [
-            "string",
-            "number",
-            "integer",
-            "boolean",
-            "time",
-            "category",
-            "mixed"
-          ],
-          "x-open-union": true
-        },
-        "group": {
-          "type": "string"
-        },
-        "advanced": {
-          "type": "boolean"
-        },
-        "internal": {
-          "type": "boolean"
-        },
-        "description": {
-          "type": "string"
-        },
-        "unsupportedReason": {
-          "type": "string"
-        }
-      },
-      "allOf": [
-        {
-          "if": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schemas/extensions/descriptors-1.json",
+    "title": "graphty-element extension descriptors",
+    "x-format-version": { "major": 1, "minor": 0 },
+    "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table), each marked \"x-open-union\": true, are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken. x-format-version is the two-part version of the container this schema validates (README section 6.3 item 6).",
+    "$defs": {
+        "OptionBound": {
+            "type": "object",
+            "required": ["from"],
             "properties": {
-              "type": {
-                "const": "enum"
-              }
+                "from": {
+                    "type": "string",
+                    "description": "graph.nodeCount, graph.edgeCount, graph.maxDegree, graph.maxCore, graph.componentCount; open union"
+                }
             }
-          },
-          "then": {
-            "required": [
-              "values"
+        },
+        "OptionChoice": {
+            "type": "object",
+            "required": ["value", "label"],
+            "properties": {
+                "value": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
+        "OptionDescriptor": {
+            "type": "object",
+            "required": ["name", "plainName", "type"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "not": {
+                        "enum": [
+                            "__proto__",
+                            "constructor",
+                            "prototype",
+                            "toString",
+                            "toLocaleString",
+                            "valueOf",
+                            "hasOwnProperty",
+                            "isPrototypeOf",
+                            "propertyIsEnumerable",
+                            "__defineGetter__",
+                            "__defineSetter__",
+                            "__lookupGetter__",
+                            "__lookupSetter__"
+                        ]
+                    },
+                    "description": "Unique within one descriptor. Never a key that is special on a plain object, nor any member of Object.prototype (README section 7 item 3 and section 9.2 item 6)."
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "technicalName": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "number",
+                        "integer",
+                        "boolean",
+                        "string",
+                        "enum",
+                        "seed",
+                        "node-id",
+                        "node-set",
+                        "attribute",
+                        "partition",
+                        "ordering",
+                        "unknown"
+                    ],
+                    "x-open-union": true
+                },
+                "default": {},
+                "min": {
+                    "oneOf": [
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "$ref": "#/$defs/OptionBound"
+                        }
+                    ]
+                },
+                "max": {
+                    "oneOf": [
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "$ref": "#/$defs/OptionBound"
+                        }
+                    ]
+                },
+                "step": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/OptionChoice"
+                    }
+                },
+                "attributeType": {
+                    "enum": ["string", "number", "integer", "boolean", "time", "category", "mixed"],
+                    "x-open-union": true
+                },
+                "group": {
+                    "type": "string"
+                },
+                "advanced": {
+                    "type": "boolean"
+                },
+                "internal": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "unsupportedReason": {
+                    "type": "string"
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "enum"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": ["values"],
+                        "properties": {
+                            "values": {
+                                "minItems": 1
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "unknown"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": ["unsupportedReason"]
+                    },
+                    "else": {
+                        "not": {
+                            "required": ["unsupportedReason"]
+                        }
+                    }
+                }
+            ]
+        },
+        "Options": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/OptionDescriptor"
+            }
+        },
+        "PaletteDescriptor": {
+            "type": "object",
+            "required": ["id", "plainName", "kind", "colors"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "kind": {
+                    "enum": ["sequential", "diverging", "categorical"]
+                },
+                "colors": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "As authored: any CSS colour. As published: six-digit hex; registered palettes are normalised to upper case, built-in palettes use both cases today. Compare case-insensitively."
+                },
+                "capacity": {
+                    "type": ["integer", "null"],
+                    "description": "Derived: colors.length for categorical, null otherwise. A written value that disagrees is refused."
+                },
+                "colorblindSafe": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "enum": ["deuteranopia", "protanopia", "tritanopia"]
+                    }
+                },
+                "requiresApi": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+                },
+                "package": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+                },
+                "mustUnderstand": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "categorical"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "capacity": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "capacity": {
+                                "type": "null"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        "PublishedPaletteDescriptor": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/PaletteDescriptor"
+                },
+                {
+                    "required": ["capacity", "colorblindSafe"],
+                    "properties": {
+                        "colors": {
+                            "items": {
+                                "pattern": "^#[0-9A-Fa-f]{6}$"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        "FormatDescriptor": {
+            "type": "object",
+            "required": ["id", "plainName", "extensions", "mimeTypes", "canImport", "canExport", "options"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "extensions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "pattern": "^\\.[^A-Z.]+$",
+                        "description": "Lower case, one leading dot and no other: detection compares only the last segment of a file name (file-format.md section 2.1)."
+                    }
+                },
+                "mimeTypes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"
+                    }
+                },
+                "canImport": {
+                    "type": "boolean"
+                },
+                "canExport": {
+                    "type": "boolean"
+                },
+                "options": {
+                    "$ref": "#/$defs/Options"
+                },
+                "requiresApi": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+                },
+                "package": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+                },
+                "mustUnderstand": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+                },
+                "writerOptions": {
+                    "$ref": "#/$defs/Options",
+                    "description": "PROPOSED, open decision 24: the writer's options, so an export dialog can be built from the catalogue. Present only when canExport is true."
+                },
+                "serves": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 25: deprecated, unserved built-in ids this reader answers."
+                }
+            }
+        },
+        "CameraDescriptor": {
+            "type": "object",
+            "required": ["id", "plainName", "description", "modes", "options"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "description": {
+                    "type": "string"
+                },
+                "modes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                        "enum": ["2d", "3d"],
+                        "x-open-union": true
+                    }
+                },
+                "options": {
+                    "$ref": "#/$defs/Options"
+                },
+                "requiresApi": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+                },
+                "package": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+                },
+                "mustUnderstand": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+                }
+            }
+        },
+        "LayoutDescriptor": {
+            "type": "object",
+            "required": ["honoursWeights", "scoped"],
+            "properties": {
+                "honoursWeights": {
+                    "type": "boolean",
+                    "description": "Derived from the class's static honoursWeights."
+                },
+                "scoped": {
+                    "type": "boolean",
+                    "description": "Derived from the class's static scoped."
+                }
+            },
+            "allOf": [
+                {
+                    "$ref": "#/$defs/LayoutDescriptorBase"
+                }
+            ]
+        },
+        "AuthoredLayoutDescriptor": {
+            "description": "What a layout class writes: LayoutDescriptor without honoursWeights and scoped, which register derives from the class statics.",
+            "allOf": [
+                {
+                    "$ref": "#/$defs/LayoutDescriptorBase"
+                }
             ],
-            "properties": {
-              "values": {
-                "minItems": 1
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "unknown"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "unsupportedReason"
-            ]
-          },
-          "else": {
             "not": {
-              "required": [
-                "unsupportedReason"
-              ]
+                "anyOf": [
+                    {
+                        "required": ["honoursWeights"]
+                    },
+                    {
+                        "required": ["scoped"]
+                    }
+                ]
             }
-          }
-        }
-      ]
-    },
-    "Options": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/OptionDescriptor"
-      }
-    },
-    "PaletteDescriptor": {
-      "type": "object",
-      "required": [
-        "id",
-        "plainName",
-        "kind",
-        "colors"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
         },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "kind": {
-          "enum": [
-            "sequential",
-            "diverging",
-            "categorical"
-          ]
-        },
-        "colors": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string"
-          },
-          "description": "As authored: any CSS colour. As published: six-digit hex; registered palettes are normalised to upper case, built-in palettes use both cases today. Compare case-insensitively."
-        },
-        "capacity": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "description": "Derived: colors.length for categorical, null otherwise. A written value that disagrees is refused."
-        },
-        "colorblindSafe": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "deuteranopia",
-              "protanopia",
-              "tritanopia"
-            ]
-          }
-        },
-        "requiresApi": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
-        },
-        "version": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
-        },
-        "package": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
-        },
-        "mustUnderstand": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
-        }
-      },
-      "allOf": [
-        {
-          "if": {
+        "FieldDescriptor": {
+            "type": "object",
+            "required": ["name", "plainName", "technicalName", "kind", "type", "path"],
             "properties": {
-              "kind": {
-                "const": "categorical"
-              }
+                "name": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string"
+                },
+                "technicalName": {
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": ["node", "edge", "graph"]
+                },
+                "type": {
+                    "enum": ["number", "integer", "boolean", "string", "table"],
+                    "x-open-union": true
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "normalization": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string",
+                    "minLength": 1
+                }
             }
-          },
-          "then": {
-            "properties": {
-              "capacity": {
-                "type": "integer"
-              }
-            }
-          },
-          "else": {
-            "properties": {
-              "capacity": {
-                "type": "null"
-              }
-            }
-          }
-        }
-      ]
-    },
-    "PublishedPaletteDescriptor": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/PaletteDescriptor"
         },
-        {
-          "required": [
-            "capacity",
-            "colorblindSafe"
-          ],
-          "properties": {
-            "colors": {
-              "items": {
-                "pattern": "^#[0-9A-Fa-f]{6}$"
-              }
-            }
-          }
-        }
-      ]
-    },
-    "FormatDescriptor": {
-      "type": "object",
-      "required": [
-        "id",
-        "plainName",
-        "extensions",
-        "mimeTypes",
-        "canImport",
-        "canExport",
-        "options"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "extensions": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "pattern": "^\\.[^A-Z.]+$",
-            "description": "Lower case, one leading dot and no other: detection compares only the last segment of a file name (file-format.md section 2.1)."
-          }
-        },
-        "mimeTypes": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"
-          }
-        },
-        "canImport": {
-          "type": "boolean"
-        },
-        "canExport": {
-          "type": "boolean"
-        },
-        "options": {
-          "$ref": "#/$defs/Options"
-        },
-        "requiresApi": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
-        },
-        "version": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
-        },
-        "package": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
-        },
-        "mustUnderstand": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
-        },
-        "writerOptions": {
-          "$ref": "#/$defs/Options",
-          "description": "PROPOSED, open decision 24: the writer's options, so an export dialog can be built from the catalogue. Present only when canExport is true."
-        },
-        "serves": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 25: deprecated, unserved built-in ids this reader answers."
-        }
-      }
-    },
-    "CameraDescriptor": {
-      "type": "object",
-      "required": [
-        "id",
-        "plainName",
-        "description",
-        "modes",
-        "options"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "description": {
-          "type": "string"
-        },
-        "modes": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "2d",
-              "3d"
-            ],
-            "x-open-union": true
-          }
-        },
-        "options": {
-          "$ref": "#/$defs/Options"
-        },
-        "requiresApi": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
-        },
-        "version": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
-        },
-        "package": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
-        },
-        "mustUnderstand": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
-        }
-      }
-    },
-    "LayoutDescriptor": {
-      "type": "object",
-      "required": [
-        "honoursWeights",
-        "scoped"
-      ],
-      "properties": {
-        "honoursWeights": {
-          "type": "boolean",
-          "description": "Derived from the class's static honoursWeights."
-        },
-        "scoped": {
-          "type": "boolean",
-          "description": "Derived from the class's static scoped."
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/LayoutDescriptorBase"
-        }
-      ]
-    },
-    "AuthoredLayoutDescriptor": {
-      "description": "What a layout class writes: LayoutDescriptor without honoursWeights and scoped, which register derives from the class statics.",
-      "allOf": [
-        {
-          "$ref": "#/$defs/LayoutDescriptorBase"
-        }
-      ],
-      "not": {
-        "anyOf": [
-          {
+        "AlgorithmDescriptor": {
+            "type": "object",
             "required": [
-              "honoursWeights"
-            ]
-          },
-          {
-            "required": [
-              "scoped"
-            ]
-          }
-        ]
-      }
-    },
-    "FieldDescriptor": {
-      "type": "object",
-      "required": [
-        "name",
-        "plainName",
-        "technicalName",
-        "kind",
-        "type",
-        "path"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plainName": {
-          "type": "string"
-        },
-        "technicalName": {
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "node",
-            "edge",
-            "graph"
-          ]
-        },
-        "type": {
-          "enum": [
-            "number",
-            "integer",
-            "boolean",
-            "string",
-            "table"
-          ],
-          "x-open-union": true
-        },
-        "unit": {
-          "type": "string"
-        },
-        "normalization": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "AlgorithmDescriptor": {
-      "type": "object",
-      "required": [
-        "key",
-        "plainName",
-        "technicalName",
-        "description",
-        "category",
-        "shape",
-        "fields",
-        "options",
-        "costClass",
-        "complexity"
-      ],
-      "properties": {
-        "key": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "technicalName": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "category": {
-          "type": "string",
-          "description": "centrality, community, path, flow, structure, prediction; open union"
-        },
-        "shape": {
-          "type": "string",
-          "description": "node-metric, edge-metric, community, layered-grouping, category-table, path, node-set, edge-set, pair-list, temporal, fact; open union for readers"
-        },
-        "fields": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/FieldDescriptor"
-          }
-        },
-        "options": {
-          "$ref": "#/$defs/Options"
-        },
-        "costClass": {
-          "enum": [
-            "instant",
-            "iterative",
-            "heavy",
-            "cubic",
-            "unbounded"
-          ],
-          "x-open-union": true
-        },
-        "complexity": {
-          "type": "string"
-        },
-        "approximable": {
-          "type": "object",
-          "required": [
-            "method",
-            "plainName",
-            "defaultSample",
-            "seeded"
-          ],
-          "properties": {
-            "method": {
-              "type": "string"
-            },
-            "plainName": {
-              "type": "string"
-            },
-            "defaultSample": {
-              "type": "number"
-            },
-            "seeded": {
-              "type": "boolean"
-            }
-          }
-        },
-        "scopeInput": {
-          "type": "string",
-          "description": "Derived from the class's static scopeInput: none or subgraph; open union (mask reserved), unknown reads as none."
-        },
-        "requiresApi": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
-        },
-        "version": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
-        },
-        "package": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
-        },
-        "mustUnderstand": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
-        },
-        "requires": {
-          "type": "object",
-          "properties": {
-            "directed": {
-              "type": "boolean"
-            },
-            "weighted": {
-              "type": "boolean"
-            },
-            "accelerator": {
-              "type": "boolean"
-            },
-            "connected": {
-              "type": "boolean"
-            }
-          },
-          "description": "Preconditions of the algorithm (directed, weighted, accelerator, connected). NOT the host-compatibility range, which is requiresApi on every point."
-        }
-      },
-      "not": {
-        "required": [
-          "cost"
-        ]
-      }
-    },
-    "LogSinkDescriptor": {
-      "type": "object",
-      "required": [
-        "id",
-        "plainName",
-        "description",
-        "options"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "description": {
-          "type": "string"
-        },
-        "options": {
-          "$ref": "#/$defs/Options"
-        },
-        "destinations": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 13: origins the destination may send records to."
-        },
-        "forwardsData": {
-          "type": "boolean",
-          "description": "PROPOSED, open decision 13: whether LogRecord.data leaves the page."
-        },
-        "requiresApi": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
-        },
-        "version": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
-        },
-        "package": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
-        },
-        "mustUnderstand": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
-        }
-      }
-    },
-    "LayoutDescriptorBase": {
-      "description": "The members every layout descriptor has.",
-      "type": "object",
-      "required": [
-        "id",
-        "plainName",
-        "technicalName",
-        "description",
-        "family",
-        "kind",
-        "maxDimensions",
-        "sizeRating",
-        "structuralInputs",
-        "options",
-        "engine"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plainName": {
-          "type": "string",
-          "minLength": 1
-        },
-        "technicalName": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "family": {
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "live",
-            "batch"
-          ]
-        },
-        "maxDimensions": {
-          "enum": [
-            2,
-            3
-          ]
-        },
-        "sizeRating": {
-          "enum": [
-            "any",
-            10000,
-            2000,
-            500
-          ],
-          "x-open-union": true
-        },
-        "structuralInputs": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "node",
-              "partition",
-              "ordering"
+                "key",
+                "plainName",
+                "technicalName",
+                "description",
+                "category",
+                "shape",
+                "fields",
+                "options",
+                "costClass",
+                "complexity"
             ],
-            "x-open-union": true
-          }
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "technicalName": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "centrality, community, path, flow, structure, prediction; open union"
+                },
+                "shape": {
+                    "type": "string",
+                    "description": "node-metric, edge-metric, community, layered-grouping, category-table, path, node-set, edge-set, pair-list, temporal, fact; open union for readers"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/FieldDescriptor"
+                    }
+                },
+                "options": {
+                    "$ref": "#/$defs/Options"
+                },
+                "costClass": {
+                    "enum": ["instant", "iterative", "heavy", "cubic", "unbounded"],
+                    "x-open-union": true
+                },
+                "complexity": {
+                    "type": "string"
+                },
+                "approximable": {
+                    "type": "object",
+                    "required": ["method", "plainName", "defaultSample", "seeded"],
+                    "properties": {
+                        "method": {
+                            "type": "string"
+                        },
+                        "plainName": {
+                            "type": "string"
+                        },
+                        "defaultSample": {
+                            "type": "number"
+                        },
+                        "seeded": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "scopeInput": {
+                    "type": "string",
+                    "description": "Derived from the class's static scopeInput: none or subgraph; open union (mask reserved), unknown reads as none."
+                },
+                "requiresApi": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+                },
+                "package": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+                },
+                "mustUnderstand": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+                },
+                "requires": {
+                    "type": "object",
+                    "properties": {
+                        "directed": {
+                            "type": "boolean"
+                        },
+                        "weighted": {
+                            "type": "boolean"
+                        },
+                        "accelerator": {
+                            "type": "boolean"
+                        },
+                        "connected": {
+                            "type": "boolean"
+                        }
+                    },
+                    "description": "Preconditions of the algorithm (directed, weighted, accelerator, connected). NOT the host-compatibility range, which is requiresApi on every point."
+                }
+            },
+            "not": {
+                "required": ["cost"]
+            }
         },
-        "options": {
-          "$ref": "#/$defs/Options"
+        "LogSinkDescriptor": {
+            "type": "object",
+            "required": ["id", "plainName", "description", "options"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "description": {
+                    "type": "string"
+                },
+                "options": {
+                    "$ref": "#/$defs/Options"
+                },
+                "destinations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 13: origins the destination may send records to."
+                },
+                "forwardsData": {
+                    "type": "boolean",
+                    "description": "PROPOSED, open decision 13: whether LogRecord.data leaves the page."
+                },
+                "requiresApi": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+                },
+                "package": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+                },
+                "mustUnderstand": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+                }
+            }
         },
-        "engine": {
-          "type": "string"
-        },
-        "requiresApi": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
-        },
-        "version": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
-        },
-        "package": {
-          "type": "string",
-          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
-        },
-        "mustUnderstand": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+        "LayoutDescriptorBase": {
+            "description": "The members every layout descriptor has.",
+            "type": "object",
+            "required": [
+                "id",
+                "plainName",
+                "technicalName",
+                "description",
+                "family",
+                "kind",
+                "maxDimensions",
+                "sizeRating",
+                "structuralInputs",
+                "options",
+                "engine"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "plainName": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "technicalName": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "family": {
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": ["live", "batch"]
+                },
+                "maxDimensions": {
+                    "enum": [2, 3]
+                },
+                "sizeRating": {
+                    "enum": ["any", 10000, 2000, 500],
+                    "x-open-union": true
+                },
+                "structuralInputs": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "enum": ["node", "partition", "ordering"],
+                        "x-open-union": true
+                    }
+                },
+                "options": {
+                    "$ref": "#/$defs/Options"
+                },
+                "engine": {
+                    "type": "string"
+                },
+                "requiresApi": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+                },
+                "package": {
+                    "type": "string",
+                    "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+                },
+                "mustUnderstand": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+                }
+            }
         }
-      }
     }
-  }
 }

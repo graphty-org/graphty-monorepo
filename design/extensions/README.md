@@ -10,18 +10,18 @@ standalone web component that renders graphs. It is the formal counterpart of th
 `design/graphty-element/extension-points.md`. Where those documents and this one disagree, this one
 is normative and the disagreement is listed under "Corrections this specification makes" below.
 
-| Document | What it specifies |
-| --- | --- |
-| `README.md` (this file) | The model every extension point shares: packaging, registration, discovery, versioning, options, parity, lifecycle, isolation, errors, testing |
-| `common.d.ts` | The shared TypeScript vocabulary (normative for shapes) |
-| `descriptors.schema.json` | JSON Schema for every catalogue descriptor (normative for the serialised form) |
-| `palette.md`, `palette.d.ts` | A named set of colours a style layer ramps through |
-| `file-format.md`, `file-format.d.ts` | A reader, and a proposed writer, for a graph file format |
-| `camera.md`, `camera.d.ts` | A named camera view computed from a bounding box |
-| `layout.md`, `layout.d.ts` | An engine that places nodes, live or in one pass |
-| `algorithm.md`, `algorithm.d.ts` | A computation over the graph that publishes a result |
-| `logging.md`, `logging.d.ts` | A destination the element's log records are delivered to |
-| `candidates.md` | Seams that are NOT official extension points, with a recommendation for each |
+| Document                             | What it specifies                                                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `README.md` (this file)              | The model every extension point shares: packaging, registration, discovery, versioning, options, parity, lifecycle, isolation, errors, testing |
+| `common.d.ts`                        | The shared TypeScript vocabulary (normative for shapes)                                                                                        |
+| `descriptors.schema.json`            | JSON Schema for every catalogue descriptor (normative for the serialised form)                                                                 |
+| `palette.md`, `palette.d.ts`         | A named set of colours a style layer ramps through                                                                                             |
+| `file-format.md`, `file-format.d.ts` | A reader, and a proposed writer, for a graph file format                                                                                       |
+| `camera.md`, `camera.d.ts`           | A named camera view computed from a bounding box                                                                                               |
+| `layout.md`, `layout.d.ts`           | An engine that places nodes, live or in one pass                                                                                               |
+| `algorithm.md`, `algorithm.d.ts`     | A computation over the graph that publishes a result                                                                                           |
+| `logging.md`, `logging.d.ts`         | A destination the element's log records are delivered to                                                                                       |
+| `candidates.md`                      | Seams that are NOT official extension points, with a recommendation for each                                                                   |
 
 ## 1. Conventions
 
@@ -81,14 +81,14 @@ The owner of graphty-element fixed the supported extension points on 2026-09-21:
 That statement is recorded in `graphty-element/CLAUDE.md` ("Extension Points") and in the header
 of `graphty-element/extend.ts`. This specification keeps it.
 
-| Point | What a third party brings | Registration | Specification |
-| --- | --- | --- | --- |
-| Palette | A named set of colour anchors | `registerPalette(descriptor)` | `palette.md` |
-| File format | A reader for a graph file format (a writer is proposed, not built) | `DataSource.register(Class)` | `file-format.md` |
-| Camera | A named view: where the viewer stands and what it looks at | `registerCameraView({ descriptor, compute })` | `camera.md` |
-| Layout | An engine that decides where nodes sit | `LayoutEngine.register(Class)` | `layout.md` |
-| Algorithm | A computation over the graph that publishes a result | `Algorithm.register(Class)` on a `DeclaredAlgorithm` subclass | `algorithm.md` |
-| Logging | A destination for log records | `registerLogSink({ descriptor, create })` | `logging.md` |
+| Point       | What a third party brings                                          | Registration                                                  | Specification    |
+| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------- | ---------------- |
+| Palette     | A named set of colour anchors                                      | `registerPalette(descriptor)`                                 | `palette.md`     |
+| File format | A reader for a graph file format (a writer is proposed, not built) | `DataSource.register(Class)`                                  | `file-format.md` |
+| Camera      | A named view: where the viewer stands and what it looks at         | `registerCameraView({ descriptor, compute })`                 | `camera.md`      |
+| Layout      | An engine that decides where nodes sit                             | `LayoutEngine.register(Class)`                                | `layout.md`      |
+| Algorithm   | A computation over the graph that publishes a result               | `Algorithm.register(Class)` on a `DeclaredAlgorithm` subclass | `algorithm.md`   |
+| Logging     | A destination for log records                                      | `registerLogSink({ descriptor, create })`                     | `logging.md`     |
 
 **The list is closed.** An element release MUST NOT make any other registration seam a supported
 extension point without an explicit owner decision; promoting one is a one-way door. Seams that
@@ -133,23 +133,22 @@ register writers is open (section 12). That section needs to be corrected to mat
    then exist and answer different questions: the peer range says which element PACKAGE versions
    the plugin installs beside; `requiresApi` (section 6.4, proposed) says which version of its
    POINT's contract it needs. They must not be allowed to disagree:
-   - Until the element enforces `requiresApi` -- in 2.6.1 and every release before the first one
-     that does (section 6.4 item 3) -- the peer range is the ONLY guard, and a plugin SHOULD declare
-     a range covering only the majors it was built and tested against. A `requiresApi` or
-     `mustUnderstand` a plugin declares is an unknown member to those elements and is ignored.
-   - Once the element enforces `requiresApi`, a plugin SHOULD declare a broad peer range (for
-     example `>=2`) and let `requiresApi` be the gate. An element major usually breaks one or two
-     points; a narrow peer range would make npm refuse (`ERESOLVE`) every palette or camera plugin
-     at install time when only the algorithm contract changed.
-   Every plugin extends or calls something on `./extend`, so no plugin can depend on
-   `@graphty/graph-format` alone.
+    - Until the element enforces `requiresApi` -- in 2.6.1 and every release before the first one
+      that does (section 6.4 item 3) -- the peer range is the ONLY guard, and a plugin SHOULD declare
+      a range covering only the majors it was built and tested against. A `requiresApi` or
+      `mustUnderstand` a plugin declares is an unknown member to those elements and is ignored.
+    - Once the element enforces `requiresApi`, a plugin SHOULD declare a broad peer range (for
+      example `>=2`) and let `requiresApi` be the gate. An element major usually breaks one or two
+      points; a narrow peer range would make npm refuse (`ERESOLVE`) every palette or camera plugin
+      at install time when only the algorithm contract changed.
+      Every plugin extends or calls something on `./extend`, so no plugin can depend on
+      `@graphty/graph-format` alone.
 4. A plugin package SHOULD NOT have install scripts (`preinstall`, `install`, `postinstall`). A
    plugin is code that runs with the page's full privileges (section 9); an install script widens
    that to the developer's machine and has been the vector of real npm compromises.
 5. The `./extend` and `./logging` entry points are Node-safe: they MUST NOT pull in Babylon.js, Lit
    or a DOM global. `graphty-element/test/packaging/node-safe-entries.test.ts` enforces this. A
-   plugin can therefore be written, type-checked and unit-tested (where its point allows, section
-   11) without a browser.
+   plugin can therefore be written, type-checked and unit-tested (where its point allows, section 11) without a browser.
 6. Two copies of the element on one page (the self-contained `./bundle` beside an `./extend`
    import, two installed versions) share one registry per point: every registry keeps its state on
    `globalThis` under `Symbol.for("graphty.registry.v1.<kind>")`. A registration through any copy
@@ -301,7 +300,7 @@ meaning (`graphty-element/src/session/runs/runId.ts`):
    `<slug>_<digest>` (`runId.ts`, `deriveResultId`): the slug is the algorithm key lower-cased
    (`algorithmSlug`), and the digest (`stableDigest`) is taken over exactly four inputs -- the
    algorithm key; the caller's `exact` option AS GIVEN (`true`, `false` or absent, so `{ exact:
-   true }` and no `exact` give DIFFERENT ids although both runs are exact); the requested sample
+true }` and no `exact` give DIFFERENT ids although both runs are exact); the requested sample
    SIZE (`sample`, or null), so a run sampled at 100 and one sampled at 200 get different ids; and
    the scope SPECIFICATION (with the live keywords `"visible"` and `"selection"` replaced by the
    definition in force). The parameters and the seed are NOT part of it, and neither is the
@@ -329,14 +328,14 @@ meaning (`graphty-element/src/session/runs/runId.ts`):
 
 Every registered extension MUST be discoverable exactly as its built-in peers are:
 
-| Point | Catalogue read | Registry read (Node-safe) |
-| --- | --- | --- |
-| Palette | `session.catalog.palettes()` | `registeredPaletteDescriptors()` |
-| File format | `session.catalog.formats()` | `registeredFormatDescriptors()` |
-| Camera | `session.catalog.cameras()` | `registeredCameraDescriptors()` |
-| Layout | `session.catalog.layouts()` | `registeredLayoutDescriptors()` |
-| Algorithm | `session.catalog.algorithms()`, `session.catalog.metrics()` | `registeredAlgorithmDescriptors()` |
-| Logging | `session.catalog.logSinks()` | `registeredLogSinkDescriptors()` |
+| Point       | Catalogue read                                              | Registry read (Node-safe)          |
+| ----------- | ----------------------------------------------------------- | ---------------------------------- |
+| Palette     | `session.catalog.palettes()`                                | `registeredPaletteDescriptors()`   |
+| File format | `session.catalog.formats()`                                 | `registeredFormatDescriptors()`    |
+| Camera      | `session.catalog.cameras()`                                 | `registeredCameraDescriptors()`    |
+| Layout      | `session.catalog.layouts()`                                 | `registeredLayoutDescriptors()`    |
+| Algorithm   | `session.catalog.algorithms()`, `session.catalog.metrics()` | `registeredAlgorithmDescriptors()` |
+| Logging     | `session.catalog.logSinks()`                                | `registeredLogSinkDescriptors()`   |
 
 1. A descriptor MUST be plain JSON: it MUST survive `JSON.stringify` and `structuredClone`
    unchanged. Function-valued members are not descriptors; where a point needs a function (an
@@ -443,29 +442,29 @@ never acted on); a union MIRRORED from graph-format (`ImportReport.policy`, grap
 `DuplicatePolicy`) is always open for readers, because graph-format is a regular dependency whose
 minor releases can extend it without an element major.
 
-| Union | Open or closed | A reader meeting an unknown value |
-| --- | --- | --- |
-| `AlgorithmKey`, `LayoutId`, `FormatId`, `PaletteId`, `CameraId`, `LogSinkId` | open | treats it as an id nothing registered (`E_UNKNOWN_*` when used) |
-| `OptionType` | open | renders the option as `"unknown"` |
-| `OptionBound.from` | open | at registration, refused with `E_UNSUPPORTED` naming the value (an unknown bound fails closed, never "no bound"); a reader shows it as "a bound this version cannot check" |
-| `AlgorithmDescriptor.category` | open | an ungrouped category |
-| `AlgorithmDescriptor.scopeInput` | open | "unknown: may compute on the scope" (never read as `"none"`, which would understate what the extension does) |
-| `ResultShape` | open | a `fact`: shows its graph values as a table and derives no layer |
-| `CostClass` | open | `"unbounded"` |
-| `LayoutDescriptor.sizeRating` | open | `500`, the most restrictive known value, shown as "unrated" (never `"any"`, which would offer the layout for every graph) |
-| `LayoutDescriptor.structuralInputs` entries | open | ignored |
-| `AttributeType` | open | `"mixed"` |
-| `FieldDescriptor.type`, `ResultFieldSpec.type` | open | `"table"` (shown, never ranked or encoded) |
-| `SimplifyPolicy` | open | refused with `E_UNSUPPORTED` naming the value |
-| `FieldDescriptor.kind`, `WeightMeaning.meaning`, `Caveats.componentScope`, the input orientation, `ImportReport.policy`, `ImportReport.weights.resolvedFrom`, `LogRedaction` | open for readers | "not understood": shown as text, never acted on |
-| `PaletteDescriptor.kind` | closed | -- |
-| `ColorVisionDeficiency` | closed | -- |
-| `DrawingMode` (`CameraDescriptor.modes`) | closed for writers, open for readers | an unknown entry in `modes` is ignored; the view is listed for the modes the reader knows (the schema marks it `x-open-union`) |
-| `LayoutDescriptor.kind`, `maxDimensions` | closed | -- |
-| `Caveats.precision`, `RunDirection` | closed | -- |
-| `LogLevel` | closed | -- |
-| `GraphtyErrorSource` | closed | -- |
-| `ExtensionErrorCode` (`GraphtyErrorCode`) | open for readers, closed for writers | a generic failure |
+| Union                                                                                                                                                                        | Open or closed                       | A reader meeting an unknown value                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AlgorithmKey`, `LayoutId`, `FormatId`, `PaletteId`, `CameraId`, `LogSinkId`                                                                                                 | open                                 | treats it as an id nothing registered (`E_UNKNOWN_*` when used)                                                                                                            |
+| `OptionType`                                                                                                                                                                 | open                                 | renders the option as `"unknown"`                                                                                                                                          |
+| `OptionBound.from`                                                                                                                                                           | open                                 | at registration, refused with `E_UNSUPPORTED` naming the value (an unknown bound fails closed, never "no bound"); a reader shows it as "a bound this version cannot check" |
+| `AlgorithmDescriptor.category`                                                                                                                                               | open                                 | an ungrouped category                                                                                                                                                      |
+| `AlgorithmDescriptor.scopeInput`                                                                                                                                             | open                                 | "unknown: may compute on the scope" (never read as `"none"`, which would understate what the extension does)                                                               |
+| `ResultShape`                                                                                                                                                                | open                                 | a `fact`: shows its graph values as a table and derives no layer                                                                                                           |
+| `CostClass`                                                                                                                                                                  | open                                 | `"unbounded"`                                                                                                                                                              |
+| `LayoutDescriptor.sizeRating`                                                                                                                                                | open                                 | `500`, the most restrictive known value, shown as "unrated" (never `"any"`, which would offer the layout for every graph)                                                  |
+| `LayoutDescriptor.structuralInputs` entries                                                                                                                                  | open                                 | ignored                                                                                                                                                                    |
+| `AttributeType`                                                                                                                                                              | open                                 | `"mixed"`                                                                                                                                                                  |
+| `FieldDescriptor.type`, `ResultFieldSpec.type`                                                                                                                               | open                                 | `"table"` (shown, never ranked or encoded)                                                                                                                                 |
+| `SimplifyPolicy`                                                                                                                                                             | open                                 | refused with `E_UNSUPPORTED` naming the value                                                                                                                              |
+| `FieldDescriptor.kind`, `WeightMeaning.meaning`, `Caveats.componentScope`, the input orientation, `ImportReport.policy`, `ImportReport.weights.resolvedFrom`, `LogRedaction` | open for readers                     | "not understood": shown as text, never acted on                                                                                                                            |
+| `PaletteDescriptor.kind`                                                                                                                                                     | closed                               | --                                                                                                                                                                         |
+| `ColorVisionDeficiency`                                                                                                                                                      | closed                               | --                                                                                                                                                                         |
+| `DrawingMode` (`CameraDescriptor.modes`)                                                                                                                                     | closed for writers, open for readers | an unknown entry in `modes` is ignored; the view is listed for the modes the reader knows (the schema marks it `x-open-union`)                                             |
+| `LayoutDescriptor.kind`, `maxDimensions`                                                                                                                                     | closed                               | --                                                                                                                                                                         |
+| `Caveats.precision`, `RunDirection`                                                                                                                                          | closed                               | --                                                                                                                                                                         |
+| `LogLevel`                                                                                                                                                                   | closed                               | --                                                                                                                                                                         |
+| `GraphtyErrorSource`                                                                                                                                                         | closed                               | --                                                                                                                                                                         |
+| `ExtensionErrorCode` (`GraphtyErrorCode`)                                                                                                                                    | open for readers, closed for writers | a generic failure                                                                                                                                                          |
 
 1. **Open unions for readers.** A reader (a consumer or an extension) MUST handle an unknown value
    of an open union without throwing, using the value in the table. The serialised schema
@@ -509,28 +508,28 @@ minor releases can extend it without an element major.
    layout record, every configuration file that names an extension -- carries a format version
    of two parts, a major and a minor. A descriptor is persisted only inside such a versioned
    container, never bare. The rules:
-   - a reader reads a newer MINOR with unknown members ignored;
-   - a reader refuses a newer MAJOR with a coded error naming both versions;
-   - a reader MUST read every earlier major the element has shipped, migrating it on read, or
-     refuse it with a coded error that names a migration path; a new major never orphans the files
-     already saved.
-   A `StyleDocument` today carries one integer, accepts only exactly `version: 1`
-   (`StylesApi.ts`, `checkDocument`) and has no member for extension provenance, so the first
-   additive change would have to be a major and would refuse every saved document. None of the
-   proposed records (`RunRecord`, `LoadReport`, `CameraViewReference`) has a version member yet,
-   and `graphty-catalog.json` has none. The rule and the members are part of open decision 26;
-   the conformance kit then ships a v1 file for a newer reader and a v1.1 file for a v1.0
-   reader. Two more rules for every persisted file:
-   - a WRITER MUST stamp the lowest format version that can represent the content it writes, so
-     a document that uses no new member or value stays readable by older readers;
-   - for every CLOSED union that appears in a persisted file (a palette `kind`, a
-     `ColorVisionDeficiency`), an older reader that meets an unknown value refuses the containing
-     object with a coded error naming the value and the version that introduced it, and reads the
-     rest of the file; the kit ships a fixture for it.
-   `descriptors.schema.json` has a one-part `$id` (`descriptors-1.json`), so it also carries the
-   two-part version of the container it validates (`x-format-version`), and a reader
-   validates a newer minor against its own schema with the open-union and unknown-member
-   exemptions of items 1 and 3.
+    - a reader reads a newer MINOR with unknown members ignored;
+    - a reader refuses a newer MAJOR with a coded error naming both versions;
+    - a reader MUST read every earlier major the element has shipped, migrating it on read, or
+      refuse it with a coded error that names a migration path; a new major never orphans the files
+      already saved.
+      A `StyleDocument` today carries one integer, accepts only exactly `version: 1`
+      (`StylesApi.ts`, `checkDocument`) and has no member for extension provenance, so the first
+      additive change would have to be a major and would refuse every saved document. None of the
+      proposed records (`RunRecord`, `LoadReport`, `CameraViewReference`) has a version member yet,
+      and `graphty-catalog.json` has none. The rule and the members are part of open decision 26;
+      the conformance kit then ships a v1 file for a newer reader and a v1.1 file for a v1.0
+      reader. Two more rules for every persisted file:
+    - a WRITER MUST stamp the lowest format version that can represent the content it writes, so
+      a document that uses no new member or value stays readable by older readers;
+    - for every CLOSED union that appears in a persisted file (a palette `kind`, a
+      `ColorVisionDeficiency`), an older reader that meets an unknown value refuses the containing
+      object with a coded error naming the value and the version that introduced it, and reads the
+      rest of the file; the kit ships a fixture for it.
+      `descriptors.schema.json` has a one-part `$id` (`descriptors-1.json`), so it also carries the
+      two-part version of the container it validates (`x-format-version`), and a reader
+      validates a newer minor against its own schema with the open-union and unknown-member
+      exemptions of items 1 and 3.
 7. **Values an extension RETURNS** (a `CameraState` from `compute`, an `AlgorithmOutput`, a layout
    report) follow item 3 for unknown members: the element ignores an unknown member only when it
    is advisory. A returned member that changes the outcome (a camera `up` vector) MUST be paired
@@ -549,36 +548,36 @@ design, which is open decision 3 (`ExtensionCompatibility` in `common.d.ts`):
    `"1.0.0"`; node-semver refuses a two-part version such as `"1.0"`), each versioned
    independently of the package. One version per point, so a break in one contract does not
    refuse plugins of the other five. The bump rules:
-   - **Minor.** Every additive change an extension of the point can use -- a member, a union value
-     it may write, an error code the point lists -- bumps the point's MINOR. An extension's
-     `requiresApi` lower bound MUST be at least the minor that introduced every member and value
-     it writes; otherwise an older element passes the range check and then refuses the value,
-     which is the failure the range exists to predict. So that the MUST can be checked, the
-     element SHOULD publish, beside `EXTENSION_API_VERSIONS`, a per-point "introduced in" table
-     (member path or union value to contract version, generated from `@since` tags in the
-     declarations), and the conformance kit computes the minimum range from the registered
-     descriptor and fails a `requiresApi` whose lower bound is below it.
-   - **Major.** Only a change that can break an EXISTING extension of that point: removing or
-     retyping a member an extension calls, adding a required member an extension implements, or
-     delivering a value an existing extension could not have been written to handle. A value the
-     element delivers only to extensions that declared it is NOT such a change: adding a
-     `DrawingMode` is a camera MINOR, because a view that did not declare the new mode is never
-     called in it (`camera.md` section 7). Adding a value to a closed union that only READERS see
-     (a new palette `kind` in the catalogue) is versioned on the catalogue and document formats
-     (section 6.3 item 6), not on `requiresApi`.
-   - **Deprecation before removal.** A contract major MAY only remove what an earlier minor marked
-     `@deprecated` with its replacement named. A new REQUIRED member (the planned `static version`
-     of open decision 26, `package` of open decision 4) is introduced the same way: first optional,
-     with a development warning when absent, for at least one full minor, and required only at the
-     following major.
-   - **No declaring a major in advance.** A major can also add a required member or deliver a
-     value an existing extension was not written for, so a plugin cannot know it is compatible
-     with a major that has not shipped. A `requiresApi` MUST NOT name a major that had not been
-     released when the plugin was published, and the conformance kit refuses such a range. A
-     plugin that followed a deprecation widens its range after testing against the new major.
-   - **The shared vocabulary.** `common.d.ts` (`OptionType`, `OptionDescriptor`,
-     `GraphtyErrorCode`) is used by every point, so a change to it bumps EVERY point's version, by
-     the same rules.
+    - **Minor.** Every additive change an extension of the point can use -- a member, a union value
+      it may write, an error code the point lists -- bumps the point's MINOR. An extension's
+      `requiresApi` lower bound MUST be at least the minor that introduced every member and value
+      it writes; otherwise an older element passes the range check and then refuses the value,
+      which is the failure the range exists to predict. So that the MUST can be checked, the
+      element SHOULD publish, beside `EXTENSION_API_VERSIONS`, a per-point "introduced in" table
+      (member path or union value to contract version, generated from `@since` tags in the
+      declarations), and the conformance kit computes the minimum range from the registered
+      descriptor and fails a `requiresApi` whose lower bound is below it.
+    - **Major.** Only a change that can break an EXISTING extension of that point: removing or
+      retyping a member an extension calls, adding a required member an extension implements, or
+      delivering a value an existing extension could not have been written to handle. A value the
+      element delivers only to extensions that declared it is NOT such a change: adding a
+      `DrawingMode` is a camera MINOR, because a view that did not declare the new mode is never
+      called in it (`camera.md` section 7). Adding a value to a closed union that only READERS see
+      (a new palette `kind` in the catalogue) is versioned on the catalogue and document formats
+      (section 6.3 item 6), not on `requiresApi`.
+    - **Deprecation before removal.** A contract major MAY only remove what an earlier minor marked
+      `@deprecated` with its replacement named. A new REQUIRED member (the planned `static version`
+      of open decision 26, `package` of open decision 4) is introduced the same way: first optional,
+      with a development warning when absent, for at least one full minor, and required only at the
+      following major.
+    - **No declaring a major in advance.** A major can also add a required member or deliver a
+      value an existing extension was not written for, so a plugin cannot know it is compatible
+      with a major that has not shipped. A `requiresApi` MUST NOT name a major that had not been
+      released when the plugin was published, and the conformance kit refuses such a range. A
+      plugin that followed a deprecation widens its range after testing against the new major.
+    - **The shared vocabulary.** `common.d.ts` (`OptionType`, `OptionDescriptor`,
+      `GraphtyErrorCode`) is used by every point, so a change to it bumps EVERY point's version, by
+      the same rules.
 2. Every descriptor MAY carry `requiresApi` (a node-semver range over its point's version, never
    `*` or empty), `version` (the extension's own version, which MUST be valid semver when present),
    `package` (the npm package that ships it) and `mustUnderstand`. A class-shaped extension
@@ -676,14 +675,14 @@ descriptor (`common.d.ts`, `descriptors.schema.json#/$defs/OptionDescriptor`).
    as a whole. Aliases for renamed options, deprecation marks, and reading an unknown stored
    option as unresolved instead of failing are open decision 22.
 10. **No secrets in options.** Options are plain JSON that is published, stored in configurations
-   and recipes, and replayed; an API token or credential passed as an option is written into all
-   of them. An extension MUST NOT ask for a secret as an option. A `secret` option type that the
-   element resolves but never serialises is open decision 22.
+    and recipes, and replayed; an API token or credential passed as an option is written into all
+    of them. An extension MUST NOT ask for a secret as an option. A `secret` option type that the
+    element resolves but never serialises is open decision 22.
 11. **An `"attribute"` option is checked as a string only (not yet met).** A misspelt column, or a
-   column loaded as text where `attributeType` says `"integer"`, is accepted, and the extension
-   computes a wrong answer with no error. The element SHOULD refuse a column that no element
-   carries with `E_OPTION_RANGE` listing the nearest column names, and report a column whose type
-   does not match; part of open decision 22.
+    column loaded as text where `attributeType` says `"integer"`, is accepted, and the extension
+    computes a wrong answer with no error. The element SHOULD refuse a column that no element
+    carries with `E_OPTION_RANGE` listing the nearest column names, and report a column whose type
+    does not match; part of open decision 22.
 
 **(not yet met)** The element's own readers do not route through `resolveOptionValues`, and
 `CSVDataSource` accepts options its descriptor does not declare. A plugin reader is held to a
@@ -723,14 +722,14 @@ exclusion.
 
 ### 9.1 Lifecycle
 
-| Point | Constructed | Lives | Disposed |
-| --- | --- | --- | --- |
-| Palette | never (data) | from registration for the page's life | never |
-| Camera view | never (pure function) | from registration for the page's life | never |
-| Log destination | `create(options)` when a configuration names it | until removed or replaced | `dispose()` on removal or replacement |
-| File format reader | once per load | for one load | garbage-collected after the load ends |
-| Layout engine | once per `setLayout` | until the next `setLayout` or the element is disconnected | `dispose()` |
-| Algorithm | once per run | for one run | garbage-collected after the run settles |
+| Point              | Constructed                                     | Lives                                                     | Disposed                                |
+| ------------------ | ----------------------------------------------- | --------------------------------------------------------- | --------------------------------------- |
+| Palette            | never (data)                                    | from registration for the page's life                     | never                                   |
+| Camera view        | never (pure function)                           | from registration for the page's life                     | never                                   |
+| Log destination    | `create(options)` when a configuration names it | until removed or replaced                                 | `dispose()` on removal or replacement   |
+| File format reader | once per load                                   | for one load                                              | garbage-collected after the load ends   |
+| Layout engine      | once per `setLayout`                            | until the next `setLayout` or the element is disconnected | `dispose()`                             |
+| Algorithm          | once per run                                    | for one run                                               | garbage-collected after the run settles |
 
 An extension MUST NOT keep references to element internals (a node, an edge, a snapshot, a
 session) beyond the lifetime in this table. A snapshot handed to an algorithm is immutable and MAY
@@ -811,15 +810,15 @@ Consequences:
 
 What the element does when an extension misbehaves at use time, per point:
 
-| Point | Extension throws or rejects | Element's obligation |
-| --- | --- | --- |
-| Palette | cannot (data) | n/a |
-| Format `detect` | treated as "does not claim this file" | MUST NOT fail the detection or the load |
-| Format reader | the load fails | MUST emit the load failure the built-ins emit; a non-`GraphtyError` MUST be wrapped as `E_PARSE_FAILED` (or `E_FETCH_FAILED` when fetching failed) with the original as `cause`. A load with `replace: true` MUST leave the previous graph as it was. A default (adding) load that fails part-way keeps, unmarked, the rows that arrived before the failure, for built-ins too; that is a DEFECT, not a parity promise, and open decision 20 recommends staged loads committed only on success (`file-format.md` section 7 item 3) |
-| Camera `compute` | the view fails | MUST reject the call that asked for the view with a `GraphtyError` (`E_INTERNAL`, `source: "view"`, when it is not already one); MUST NOT leave the camera partly moved **(not yet met:** 2.6.1 returns `compute(input)` unguarded, so the caller receives the plain error**)** |
-| Layout engine | the layout fails | MUST report it once as a `GraphtyError` (wrapping as `E_INTERNAL` with `source: "layout"` when needed); MUST stop stepping that engine; nodes keep their last published positions. **(not yet met:** `LayoutManager.step()` calls `step()` and `publishPositions()` unguarded; the throw reaches the render loop's catch, which skips drawing that frame, emits an uncoded error in category `"other"`, and leaves the engine running, so it repeats every frame. The fix wraps both calls in `LayoutManager`, sets the engine stopped and emits one coded error.**)** |
-| Algorithm | the run fails | MUST settle the run as failed with the error's code (wrapping as `E_INTERNAL` with `source: "run"` when needed); MUST NOT publish anything from a FAILED run; other runs continue. A run that stops at a limit the caller set MAY publish a partial result marked as such (`algorithm.md` section 2.2 item 9) |
-| Log destination `write` | swallowed | MUST catch it, MUST still deliver the record to every other destination, and MUST NOT recurse (a failure while reporting a destination's failure is dropped) |
+| Point                   | Extension throws or rejects           | Element's obligation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Palette                 | cannot (data)                         | n/a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Format `detect`         | treated as "does not claim this file" | MUST NOT fail the detection or the load                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Format reader           | the load fails                        | MUST emit the load failure the built-ins emit; a non-`GraphtyError` MUST be wrapped as `E_PARSE_FAILED` (or `E_FETCH_FAILED` when fetching failed) with the original as `cause`. A load with `replace: true` MUST leave the previous graph as it was. A default (adding) load that fails part-way keeps, unmarked, the rows that arrived before the failure, for built-ins too; that is a DEFECT, not a parity promise, and open decision 20 recommends staged loads committed only on success (`file-format.md` section 7 item 3)                                     |
+| Camera `compute`        | the view fails                        | MUST reject the call that asked for the view with a `GraphtyError` (`E_INTERNAL`, `source: "view"`, when it is not already one); MUST NOT leave the camera partly moved **(not yet met:** 2.6.1 returns `compute(input)` unguarded, so the caller receives the plain error**)**                                                                                                                                                                                                                                                                                        |
+| Layout engine           | the layout fails                      | MUST report it once as a `GraphtyError` (wrapping as `E_INTERNAL` with `source: "layout"` when needed); MUST stop stepping that engine; nodes keep their last published positions. **(not yet met:** `LayoutManager.step()` calls `step()` and `publishPositions()` unguarded; the throw reaches the render loop's catch, which skips drawing that frame, emits an uncoded error in category `"other"`, and leaves the engine running, so it repeats every frame. The fix wraps both calls in `LayoutManager`, sets the engine stopped and emits one coded error.**)** |
+| Algorithm               | the run fails                         | MUST settle the run as failed with the error's code (wrapping as `E_INTERNAL` with `source: "run"` when needed); MUST NOT publish anything from a FAILED run; other runs continue. A run that stops at a limit the caller set MAY publish a partial result marked as such (`algorithm.md` section 2.2 item 9)                                                                                                                                                                                                                                                          |
+| Log destination `write` | swallowed                             | MUST catch it, MUST still deliver the record to every other destination, and MUST NOT recurse (a failure while reporting a destination's failure is dropped)                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 In every row, a failure in one extension MUST NOT prevent the use of any other extension or
 built-in, and MUST NOT affect a session that never uses the failing extension.
@@ -979,8 +978,14 @@ their extension. The recommended harness, open decision 9, is a published entry 
 `@graphty/graphty-element/conformance`, modelled on ESLint's `RuleTester`:
 
 ```ts
-import { checkPalette, checkFormat, checkCameraView, checkLayout, checkAlgorithm, checkLogSink }
-    from "@graphty/graphty-element/conformance";
+import {
+    checkPalette,
+    checkFormat,
+    checkCameraView,
+    checkLayout,
+    checkAlgorithm,
+    checkLogSink,
+} from "@graphty/graphty-element/conformance";
 
 // Each returns a report; each also has a `describe*` form that emits one test per check into
 // the caller's Vitest, Jest or Mocha run.
@@ -1056,7 +1061,7 @@ carries a recommendation.
 2. **Which reader contract a third party implements after the migration, and how detection
    ranks.** Options: (A) keep the element's `DataSource` subclass yielding records as the only
    third-party reader contract, and add an element adapter `DataSource.fromImporter(importer,
-   descriptor)` so an author who already has a graph-io `GraphImporter` registers it without
+descriptor)` so an author who already has a graph-io `GraphImporter` registers it without
    rewriting; (B) make graph-io's `GraphImporter` the contract and wrap it. **Recommended: A**,
    because it keeps every existing plugin working and gives both authors one registration verb.
    Detection is part of the same decision: today a plugin sniffer can never outrank a built-in, so
@@ -1135,7 +1140,7 @@ carries a recommendation.
    in no saved document that the element reads back in 2.6.1, for built-ins and plugins alike, so
    the "addressable from a saved document" parity clause is vacuous for these two points. The open
    graphty-element 3.0 pull request (section 14) already persists a `LayoutChoice { id, engine,
-   options, dimension, scope }` in the project, with no extension version, which pre-empts this
+options, dimension, scope }` in the project, with no extension version, which pre-empts this
    decision. **Recommended, and to settle before that pull request merges:** a layout record
    `{ id, package, version, options, seed, scope }` plus the resolved positions (or a pointer to the
    positions saved with the data), and a view record `CameraViewReference` (`camera.d.ts`) with
@@ -1172,26 +1177,26 @@ carries a recommendation.
    structural contract, an edge scope and an exclusion; and a `context.run(key, snapshot, params)`
    so a plugin can compute a null model with the element's own algorithms instead of
    reimplementing them. Found in review, all part of the same decision:
-   - the headless host returns the DERIVED result -- values, `rank`, `percentile`, the summary,
-     caveats and the result paths it would publish, computed by the same statistics module the
-     session uses (or a Node-safe `deriveResult(output)` on `./extend` that the element itself
-     uses) -- because otherwise a Node pipeline must reimplement the tie and percentile rules, the
-     disagreement `algorithm.md` section 2 exists to prevent;
-   - `snapshotFromEdgeList`, or a sibling builder, accepts named node and edge columns with their
-     `AttributeType`, so an attribute- or partition-driven plugin can be tested headless;
-   - a module-specifier form of registration for algorithms (for example
-     `registerAlgorithmModule({ descriptor, module: new URL("./score.js", import.meta.url) })`),
-     without which neither worker isolation (section 9.4 item 3) nor an OBSERVED module identity
-     (item 21) can be built;
-   - a `context.worker(url | Worker)` helper that forwards the abort signal, relays progress into
-     `report` and counts work units the worker reports, so a worker-based plugin neither rebuilds
-     that protocol nor fails the kit's "yields" check (`algorithm.md` section 5.1 item 6);
-   - a `forEachChunked` overload taking a count (`step(index)`) or any `ArrayLike`, so a plugin
-     over tens of millions of rows does not first allocate an array of row numbers;
-   - whether a plugin may call `@graphty/algorithms`' snapshot functions on the element's
-     snapshot: recommended, the algorithms package accepts the structural
-     `GraphSnapshotContract` rather than the class, so any copy's snapshot is accepted without a
-     cast, while `context.run(key, snapshot, params)` covers registered algorithms.
+    - the headless host returns the DERIVED result -- values, `rank`, `percentile`, the summary,
+      caveats and the result paths it would publish, computed by the same statistics module the
+      session uses (or a Node-safe `deriveResult(output)` on `./extend` that the element itself
+      uses) -- because otherwise a Node pipeline must reimplement the tie and percentile rules, the
+      disagreement `algorithm.md` section 2 exists to prevent;
+    - `snapshotFromEdgeList`, or a sibling builder, accepts named node and edge columns with their
+      `AttributeType`, so an attribute- or partition-driven plugin can be tested headless;
+    - a module-specifier form of registration for algorithms (for example
+      `registerAlgorithmModule({ descriptor, module: new URL("./score.js", import.meta.url) })`),
+      without which neither worker isolation (section 9.4 item 3) nor an OBSERVED module identity
+      (item 21) can be built;
+    - a `context.worker(url | Worker)` helper that forwards the abort signal, relays progress into
+      `report` and counts work units the worker reports, so a worker-based plugin neither rebuilds
+      that protocol nor fails the kit's "yields" check (`algorithm.md` section 5.1 item 6);
+    - a `forEachChunked` overload taking a count (`step(index)`) or any `ArrayLike`, so a plugin
+      over tens of millions of rows does not first allocate an array of row numbers;
+    - whether a plugin may call `@graphty/algorithms`' snapshot functions on the element's
+      snapshot: recommended, the algorithms package accepts the structural
+      `GraphSnapshotContract` rather than the class, so any copy's snapshot is accepted without a
+      cast, while `context.run(key, snapshot, params)` covers registered algorithms.
 10. **Palettes carried by a style document.** Today a document that carries a palette descriptor
     is refused unless that palette was registered first. The owner wants communities to share
     style and recipe files without sharing data, which argues for self-contained documents. But
@@ -1434,7 +1439,7 @@ carries a recommendation.
       event and returned by the load call, for built-in and plugin readers alike and for a FAILED
       load too. The element keeps it as the load record beside the run records, and a run record
       names the loads it computed over.
-    Found in review, all part of the same decision and all recorded in load records:
+      Found in review, all part of the same decision and all recorded in load records:
     - **The join.** `{ tableKey, nodeKey, casePolicy, typePolicy, missingValues }`, where
       `nodeKey` is an attribute PATH (default the node id): a STRING network keyed by protein id
       carries the gene symbol in an attribute, so a join matched against ids matches nothing. The
@@ -1660,7 +1665,7 @@ carries a recommendation.
       row order (by id), or a plugin's output SHOULD NOT depend on row order (the kits check it);
     - every persisted file and record carries a two-part format version with the rules of section
       6.3 item 6, and a member for extension provenance.
-    Found in review, part of the same decision:
+      Found in review, part of the same decision:
     - **Route and precision.** A replay on a different route (CPU against accelerator) or precision
       (f32 against f64) reads as "different computation", named in the replay report, never
       accepted silently; `RunRecord` gains `accelerator: { package, version }` when the route is
@@ -1773,29 +1778,29 @@ carries a recommendation.
 These documents state something false or superseded. Each needs the edit named; none is a one-way
 door.
 
-| Document | Statement | Correction |
-| --- | --- | --- |
-| `graphty-element/docs/guide/extending/index.md` | a registered log destination "starts receiving records immediately" | It does not: registration files a factory; records flow only once a configuration names it (`GraphtyLogger.configure({ sinks: [{ use }] })`) or a live sink is added with `addSink` |
-| same | "pass `{ strict: true }`" for every point | True for four points; see open decision 6 |
-| `graphty-element/docs/guide/extending/custom-algorithms.md` | reads input through `this.algorithmGraph("undirected")` | Rewrite around `context.input(...)`; mark `algorithmGraph` deprecated |
-| `graphty-element/docs/guide/extending/custom-data-sources.md` and `design/graphty-element/extension-points.md` | "when writing exists the same class will carry it" | Writer registration is undecided (open decision 1) |
-| `design/graphty-element/extension-points.md`, "Still open" | `scope` does not reach `compute` | It does, through `context.input`; `seed`, `exact`, `sample` and `timeBox` do not |
-| same, Algorithm section | an `edgeResultId(source, target)` helper is published | It was withdrawn: a pair cannot name one of two parallel edges |
-| `design/element-api/element-api-design.md` section 4.14 and its `./extend` row | one `use()` verb, `createRegistry()`, ten plugin kinds | Superseded by `design/graphty-element/extension-points.md` and this directory; the unbuilt kinds are evaluated in `candidates.md` |
-| root `CLAUDE.md`, "Plugin System" | `LayoutRegistry.register`, `DataSourceRegistry.register`, `AlgorithmRegistry.register` | None exists; the verbs are the six in section 2 |
-| `design/ui/framework/conceptual-model.md` section 9 (uncommitted) | data source is an extension point; the log destination is internal; exporters are not offered | See section 2 |
-| `design/graph-format/migration-plan.md` section 6 (branch `feat/graph-format-migration`) | the plugin seam, the dependency declaration and the export contents are open owner decisions | Decided on 2026-09-28; see `design/decisions/2026-09-28-graph-format-migration-owner-decisions.md` |
-| same, item "element-plugin-seam" | the accessor is "the scoped input's snapshot plus the edge remap" | Differs from this specification's `edgeId(row)`; open decision 5 picks one |
-| same, the static-layout item | `SimpleLayoutEngine` moves onto the snapshot | Must keep the plugin members working or ship the successor first (section 10 item 2) |
-| `design/designloom/workflows/W25.yaml`, adoption note | the share menu exports CX2 | No built-in serves `cx2` and no writer seam exists; the note is wrong until open decision 1 is taken and a CX2 writer ships |
-| `design/graph-format/migration-plan.md`, item "element-export-api" | builds the export snapshot from "the data bags and current positions" | Must also carry algorithm results, derived fields and style where the format has a place for them, and a route for graph-level result tables (section 10 item 6; `file-format.md` section 8.1) |
-| same, the label propagation seed | a fixed element default of 42, and a `randomSeed` routing every call to the CPU port | One seed rule for both documents, with the route recorded (section 10 item 4; open decision 16) |
-| same, the static-layout item | deletes `LayoutEngine.pairWeights` and `pairWeightKey` in the dual-API window | A protected helper a plugin can call; keep it through an adapter until the next major (section 10 item 7) |
-| `graphty-element/docs/guide/extending/custom-algorithms.md` | edge results through the `edgeIdsByPair` helper, which reads `this.graph.getSession()` | That breaks the snapshot-only rule and cannot name a parallel edge; the guide must say plainly that no conforming edge-shaped plugin exists until the edge identity accessor ships, and what the snapshot's weights hold and that attribute columns do not reach a plugin (`algorithm.md` section 3.1) |
-| `design/graph-format/migration-plan.md`, item "element-plugin-seam" | delete `toAlgorithmGraph` and its file when nothing internal calls it; nothing in `src` constructs a legacy `Graph` | `algorithmGraph()` is implemented by `toAlgorithmGraph`, and `./extend` exports its types from that file; in 3.x keep all three behind `@deprecated` and move the deletion to the 4.0 removal item (section 10 item 8) |
-| same, item "element-export-api" | exports through graph-io's CSV writer | That writer neutralises no formula cell; add the rule to graph-io's shared cell writer and to the item's "Done when" check (section 10 item 9) |
-| `design/extensions/candidates.md`, section 8 (earlier draft) | a registered accelerator implements `AlgorithmAccelerator` | It returns the element's own `GraphAccelerator`, narrowed internally; corrected there |
-| `graphty-element/test/browser/extensions/layout-extension.test.ts`, the live engine's `getEdgePosition` | reads `e.srcNode` and `e.dstNode` | Outside the layout contract's member list; look endpoints up by `srcId` and `dstId`, so the reference engine conforms (`layout.md` section 2) |
+| Document                                                                                                       | Statement                                                                                                           | Correction                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `graphty-element/docs/guide/extending/index.md`                                                                | a registered log destination "starts receiving records immediately"                                                 | It does not: registration files a factory; records flow only once a configuration names it (`GraphtyLogger.configure({ sinks: [{ use }] })`) or a live sink is added with `addSink`                                                                                                                    |
+| same                                                                                                           | "pass `{ strict: true }`" for every point                                                                           | True for four points; see open decision 6                                                                                                                                                                                                                                                              |
+| `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | reads input through `this.algorithmGraph("undirected")`                                                             | Rewrite around `context.input(...)`; mark `algorithmGraph` deprecated                                                                                                                                                                                                                                  |
+| `graphty-element/docs/guide/extending/custom-data-sources.md` and `design/graphty-element/extension-points.md` | "when writing exists the same class will carry it"                                                                  | Writer registration is undecided (open decision 1)                                                                                                                                                                                                                                                     |
+| `design/graphty-element/extension-points.md`, "Still open"                                                     | `scope` does not reach `compute`                                                                                    | It does, through `context.input`; `seed`, `exact`, `sample` and `timeBox` do not                                                                                                                                                                                                                       |
+| same, Algorithm section                                                                                        | an `edgeResultId(source, target)` helper is published                                                               | It was withdrawn: a pair cannot name one of two parallel edges                                                                                                                                                                                                                                         |
+| `design/element-api/element-api-design.md` section 4.14 and its `./extend` row                                 | one `use()` verb, `createRegistry()`, ten plugin kinds                                                              | Superseded by `design/graphty-element/extension-points.md` and this directory; the unbuilt kinds are evaluated in `candidates.md`                                                                                                                                                                      |
+| root `CLAUDE.md`, "Plugin System"                                                                              | `LayoutRegistry.register`, `DataSourceRegistry.register`, `AlgorithmRegistry.register`                              | None exists; the verbs are the six in section 2                                                                                                                                                                                                                                                        |
+| `design/ui/framework/conceptual-model.md` section 9 (uncommitted)                                              | data source is an extension point; the log destination is internal; exporters are not offered                       | See section 2                                                                                                                                                                                                                                                                                          |
+| `design/graph-format/migration-plan.md` section 6 (branch `feat/graph-format-migration`)                       | the plugin seam, the dependency declaration and the export contents are open owner decisions                        | Decided on 2026-09-28; see `design/decisions/2026-09-28-graph-format-migration-owner-decisions.md`                                                                                                                                                                                                     |
+| same, item "element-plugin-seam"                                                                               | the accessor is "the scoped input's snapshot plus the edge remap"                                                   | Differs from this specification's `edgeId(row)`; open decision 5 picks one                                                                                                                                                                                                                             |
+| same, the static-layout item                                                                                   | `SimpleLayoutEngine` moves onto the snapshot                                                                        | Must keep the plugin members working or ship the successor first (section 10 item 2)                                                                                                                                                                                                                   |
+| `design/designloom/workflows/W25.yaml`, adoption note                                                          | the share menu exports CX2                                                                                          | No built-in serves `cx2` and no writer seam exists; the note is wrong until open decision 1 is taken and a CX2 writer ships                                                                                                                                                                            |
+| `design/graph-format/migration-plan.md`, item "element-export-api"                                             | builds the export snapshot from "the data bags and current positions"                                               | Must also carry algorithm results, derived fields and style where the format has a place for them, and a route for graph-level result tables (section 10 item 6; `file-format.md` section 8.1)                                                                                                         |
+| same, the label propagation seed                                                                               | a fixed element default of 42, and a `randomSeed` routing every call to the CPU port                                | One seed rule for both documents, with the route recorded (section 10 item 4; open decision 16)                                                                                                                                                                                                        |
+| same, the static-layout item                                                                                   | deletes `LayoutEngine.pairWeights` and `pairWeightKey` in the dual-API window                                       | A protected helper a plugin can call; keep it through an adapter until the next major (section 10 item 7)                                                                                                                                                                                              |
+| `graphty-element/docs/guide/extending/custom-algorithms.md`                                                    | edge results through the `edgeIdsByPair` helper, which reads `this.graph.getSession()`                              | That breaks the snapshot-only rule and cannot name a parallel edge; the guide must say plainly that no conforming edge-shaped plugin exists until the edge identity accessor ships, and what the snapshot's weights hold and that attribute columns do not reach a plugin (`algorithm.md` section 3.1) |
+| `design/graph-format/migration-plan.md`, item "element-plugin-seam"                                            | delete `toAlgorithmGraph` and its file when nothing internal calls it; nothing in `src` constructs a legacy `Graph` | `algorithmGraph()` is implemented by `toAlgorithmGraph`, and `./extend` exports its types from that file; in 3.x keep all three behind `@deprecated` and move the deletion to the 4.0 removal item (section 10 item 8)                                                                                 |
+| same, item "element-export-api"                                                                                | exports through graph-io's CSV writer                                                                               | That writer neutralises no formula cell; add the rule to graph-io's shared cell writer and to the item's "Done when" check (section 10 item 9)                                                                                                                                                         |
+| `design/extensions/candidates.md`, section 8 (earlier draft)                                                   | a registered accelerator implements `AlgorithmAccelerator`                                                          | It returns the element's own `GraphAccelerator`, narrowed internally; corrected there                                                                                                                                                                                                                  |
+| `graphty-element/test/browser/extensions/layout-extension.test.ts`, the live engine's `getEdgePosition`        | reads `e.srcNode` and `e.dstNode`                                                                                   | Outside the layout contract's member list; look endpoints up by `srcId` and `dstId`, so the reference engine conforms (`layout.md` section 2)                                                                                                                                                          |
 
 ## 14. What graphty-element 3.0 changes (open pull request)
 
@@ -1819,30 +1824,29 @@ describes 2.6.1 and is updated when 3.0 is released.
 
 Points raised in review and not adopted, with the reason.
 
-| Raised | Why it was not adopted |
-| --- | --- |
-| The deprecated built-in ids `sif` and `cx2` claim `.sif` and `.cx2` in detection, so a dropped `.sif` file resolves to the unserved built-in | They claim nothing: they are listed in `UNSERVED_FORMAT_IDS`, not in the descriptor table detection reads, so `.sif` resolves to a registered reader. The related point, that a document naming `cx2` fails even with a CX2 reader installed, was adopted as open decision 25 |
-| Add a `"keep"` value to `simplify` so a subgraph keeps parallel edges | `simplify: "none"` already keeps every parallel edge as its own row; `algorithm.md` section 3.1 now says so |
-| Reserve every unhyphenated id for built-ins, so a hyphen means a vendor id | Built-ins already use hyphenated ids (`okabe-ito`, `force-2d`, `tol-vibrant`), so the rule cannot hold. Open decision 4 recommends a `graphty-` prefix for future built-ins instead |
-| Rebase the whole specification on the 3.0 surface | 3.0 is an unmerged pull request; the specification describes the released element and section 14 lists what 3.0 changes, to be folded in when it ships |
-| Treat a load as always replacing the graph | 2.6.1 adds by default and replaces only with `{ replace: true }`; the specification now says so and open decision 19 covers how loads combine |
-| Declare a scope type in `common.d.ts` | The element already publishes one scope type, `ScopeInput`; section 5.1 names it rather than duplicating it |
-| Narrow the built-in CSV sniffer so it no longer claims tab-separated text | Narrowing a built-in sniffer changes which format existing files are read as. The confidence model (open decision 2) solves the plugin case without that |
-| Unknown values in an extension's descriptor should degrade (an unknown option type read as `"unknown"`) | Degrading hides the mismatch until use time. Section 6.3 item 2 refuses with `E_UNSUPPORTED` at registration, and `requiresApi` makes the refusal predictable |
-| Add `override` to the algorithm example's `static version` and `static costUnits`, which fail under `noImplicitOverride` | The base class declares neither: `register` reads `version`, `cost` and `costUnits` from the class as `AlgorithmStatics`, so `override` there is itself an error. Checked by type-checking the example against 2.6.1's `./extend` with `noImplicitOverride`. The error came from `algorithm.d.ts`, which wrongly declared them on the class; the declaration file is corrected and `algorithm.md` section 8 item 3 says to declare them without `override` |
-| Implement now, as a bug fix, the rule that a run refuses `seed`, `exact`, `sample` and `timeBox` rather than record options that never reached `compute` | Already a normative requirement, marked not yet met, in `algorithm.md` section 5.1 item 3; nothing to add but the seed-rule conflict with the migration plan, which is now section 10 item 4 and part of open decision 16 |
-| Make an id namespace per load the DEFAULT whenever a second source is added, so unrelated ids from two systems never merge | Two sources that name the same genes, suppliers or hosts must match, which is the point of the joins in `design/designloom/workflows/W20.yaml` and `W24.yaml`. Open decision 19 keeps a per-load namespace as an option, adds document-local ids, per-endpoint namespaces and a per-load token, and leaves matching as the default |
-| Type every reader-open union in the declaration files with a `(string & {})` tail | The same types are what an extension WRITES, which must stay closed; a tail would let a writer put an unknown value in without a type error. Section 6.3 item 1 instead forbids an exhaustive switch over an open union, and the schema marks open unions with `x-open-union` |
-| Tie each point's contract major to the element's package major | That would refuse every palette and camera plugin whenever only the algorithm contract changes. Section 3 item 3 instead recommends a broad peer range once `requiresApi` is enforced, and says the peer range is the only guard before then |
-| Publish the removal of `algorithmGraph` as a separate capability flag instead of a contract major | Section 6.4 item 1 requires a deprecation before any removal. An earlier draft also let a plugin declare the next major in advance; that was withdrawn, because a major can add a required member as well as remove a deprecated one, so a plugin widens its range after testing against the released major |
-| Restrict a contract major to removals of deprecated members, so pre-declaring the next major stays safe | The planned majors (a required `static version`, a required `package`, refusing a descriptor-less class) are not removals, and forbidding them would freeze the contracts. Section 6.4 item 1 instead phases each new required member in through an optional minor and forbids naming an unreleased major |
-| Make comparison by canonical string form the default for EVERY id match across loads | It silently merges two nodes an existing document keeps apart (`"1"` and `1` loaded on purpose from two sources). Open decision 19 recommends it as the default for join keys only, keeps exact matching for added loads with a warning whenever ids differ only in type, and asks readers to emit ids as strings |
-| Decide now that a STRING or BioGRID query from a gene list is served, before the file-format contract is frozen | Open decision 15 already recommends a data-source point with a pinned release, recorded query parameters and an identifier report with an ambiguous category, to be taken before the file-format contract is frozen; the review adds nothing to decide beyond it |
-| Type `CameraViewReference.scope` as the element's `ScopeInput` in `camera.d.ts` | `ScopeInput` is declared in the element, not in these files, and the reference is proposed; the declaration now states the serialisation rule (a live keyword replaced by its definition or members when saved), and open decision 8 carries it |
-| Rewrite the worked hub-score example to chunk over neighbour pairs, so a hub cannot freeze the page inside one step | Chunking inside a step needs the work channel proposed in open decision 16; without it the rewrite would hand-roll yielding and lose the kit's counting. The example now states the limit, and the "yields" and "cost is honest" checks are defined structurally so they do not pass it by accident |
-| Let a reader declare which records are duplicates, or merge reciprocal pairs when a load declares the graph undirected | What happens to repeated edges is the CONSUMER's choice, through the element's repeated-edge policy (`keep` by default); a reader that merged would override it. `file-format.md` section 2.2 item 8 now documents the policy and forbids a reader to merge, and `ImportReport.repeated` already counts what the policy did |
-| Replace `SimpleLayoutEngine.positions` with a `Map` now, because a node id `__proto__` corrupts it | `positions` is a published member plugins write; changing its type breaks every batch plugin. It is recorded as a known gap (`layout.md` section 11) and the rule of section 9.2 item 6, to be fixed with the snapshot layout contract or the next major |
-| `KNOWN_LAYOUT_IDS` in `layout.d.ts` should list `spiral` and `planar` | The Published section describes the constant as 2.6.1 builds it, which omits them. The omission is recorded as not yet met (section 5 item 4) and the fix belongs in the element; the declaration file notes it |
-| Loosen `LayoutEngine.register`'s bound so the tiers example compiles | The example is changed instead (its options interface no longer extends the index-signature `SimpleLayoutOpts`), and it now compiles against 2.6.1's `./extend`; the published bound needs no change for a plugin to be written without a cast |
-| Recommend that an export write run provenance only when the caller opts in | Reproducibility (`design/designloom/workflows/W25.yaml`) wants provenance by default and operational security (`design/designloom/workflows/W07.yaml`) wants it off; which default wins is the owner's reading of his own export decision. Open decision 24 records the conflict and recommends an explicit export option whose default he sets |
-
+| Raised                                                                                                                                                   | Why it was not adopted                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The deprecated built-in ids `sif` and `cx2` claim `.sif` and `.cx2` in detection, so a dropped `.sif` file resolves to the unserved built-in             | They claim nothing: they are listed in `UNSERVED_FORMAT_IDS`, not in the descriptor table detection reads, so `.sif` resolves to a registered reader. The related point, that a document naming `cx2` fails even with a CX2 reader installed, was adopted as open decision 25                                                                                                                                                                              |
+| Add a `"keep"` value to `simplify` so a subgraph keeps parallel edges                                                                                    | `simplify: "none"` already keeps every parallel edge as its own row; `algorithm.md` section 3.1 now says so                                                                                                                                                                                                                                                                                                                                                |
+| Reserve every unhyphenated id for built-ins, so a hyphen means a vendor id                                                                               | Built-ins already use hyphenated ids (`okabe-ito`, `force-2d`, `tol-vibrant`), so the rule cannot hold. Open decision 4 recommends a `graphty-` prefix for future built-ins instead                                                                                                                                                                                                                                                                        |
+| Rebase the whole specification on the 3.0 surface                                                                                                        | 3.0 is an unmerged pull request; the specification describes the released element and section 14 lists what 3.0 changes, to be folded in when it ships                                                                                                                                                                                                                                                                                                     |
+| Treat a load as always replacing the graph                                                                                                               | 2.6.1 adds by default and replaces only with `{ replace: true }`; the specification now says so and open decision 19 covers how loads combine                                                                                                                                                                                                                                                                                                              |
+| Declare a scope type in `common.d.ts`                                                                                                                    | The element already publishes one scope type, `ScopeInput`; section 5.1 names it rather than duplicating it                                                                                                                                                                                                                                                                                                                                                |
+| Narrow the built-in CSV sniffer so it no longer claims tab-separated text                                                                                | Narrowing a built-in sniffer changes which format existing files are read as. The confidence model (open decision 2) solves the plugin case without that                                                                                                                                                                                                                                                                                                   |
+| Unknown values in an extension's descriptor should degrade (an unknown option type read as `"unknown"`)                                                  | Degrading hides the mismatch until use time. Section 6.3 item 2 refuses with `E_UNSUPPORTED` at registration, and `requiresApi` makes the refusal predictable                                                                                                                                                                                                                                                                                              |
+| Add `override` to the algorithm example's `static version` and `static costUnits`, which fail under `noImplicitOverride`                                 | The base class declares neither: `register` reads `version`, `cost` and `costUnits` from the class as `AlgorithmStatics`, so `override` there is itself an error. Checked by type-checking the example against 2.6.1's `./extend` with `noImplicitOverride`. The error came from `algorithm.d.ts`, which wrongly declared them on the class; the declaration file is corrected and `algorithm.md` section 8 item 3 says to declare them without `override` |
+| Implement now, as a bug fix, the rule that a run refuses `seed`, `exact`, `sample` and `timeBox` rather than record options that never reached `compute` | Already a normative requirement, marked not yet met, in `algorithm.md` section 5.1 item 3; nothing to add but the seed-rule conflict with the migration plan, which is now section 10 item 4 and part of open decision 16                                                                                                                                                                                                                                  |
+| Make an id namespace per load the DEFAULT whenever a second source is added, so unrelated ids from two systems never merge                               | Two sources that name the same genes, suppliers or hosts must match, which is the point of the joins in `design/designloom/workflows/W20.yaml` and `W24.yaml`. Open decision 19 keeps a per-load namespace as an option, adds document-local ids, per-endpoint namespaces and a per-load token, and leaves matching as the default                                                                                                                         |
+| Type every reader-open union in the declaration files with a `(string & {})` tail                                                                        | The same types are what an extension WRITES, which must stay closed; a tail would let a writer put an unknown value in without a type error. Section 6.3 item 1 instead forbids an exhaustive switch over an open union, and the schema marks open unions with `x-open-union`                                                                                                                                                                              |
+| Tie each point's contract major to the element's package major                                                                                           | That would refuse every palette and camera plugin whenever only the algorithm contract changes. Section 3 item 3 instead recommends a broad peer range once `requiresApi` is enforced, and says the peer range is the only guard before then                                                                                                                                                                                                               |
+| Publish the removal of `algorithmGraph` as a separate capability flag instead of a contract major                                                        | Section 6.4 item 1 requires a deprecation before any removal. An earlier draft also let a plugin declare the next major in advance; that was withdrawn, because a major can add a required member as well as remove a deprecated one, so a plugin widens its range after testing against the released major                                                                                                                                                |
+| Restrict a contract major to removals of deprecated members, so pre-declaring the next major stays safe                                                  | The planned majors (a required `static version`, a required `package`, refusing a descriptor-less class) are not removals, and forbidding them would freeze the contracts. Section 6.4 item 1 instead phases each new required member in through an optional minor and forbids naming an unreleased major                                                                                                                                                  |
+| Make comparison by canonical string form the default for EVERY id match across loads                                                                     | It silently merges two nodes an existing document keeps apart (`"1"` and `1` loaded on purpose from two sources). Open decision 19 recommends it as the default for join keys only, keeps exact matching for added loads with a warning whenever ids differ only in type, and asks readers to emit ids as strings                                                                                                                                          |
+| Decide now that a STRING or BioGRID query from a gene list is served, before the file-format contract is frozen                                          | Open decision 15 already recommends a data-source point with a pinned release, recorded query parameters and an identifier report with an ambiguous category, to be taken before the file-format contract is frozen; the review adds nothing to decide beyond it                                                                                                                                                                                           |
+| Type `CameraViewReference.scope` as the element's `ScopeInput` in `camera.d.ts`                                                                          | `ScopeInput` is declared in the element, not in these files, and the reference is proposed; the declaration now states the serialisation rule (a live keyword replaced by its definition or members when saved), and open decision 8 carries it                                                                                                                                                                                                            |
+| Rewrite the worked hub-score example to chunk over neighbour pairs, so a hub cannot freeze the page inside one step                                      | Chunking inside a step needs the work channel proposed in open decision 16; without it the rewrite would hand-roll yielding and lose the kit's counting. The example now states the limit, and the "yields" and "cost is honest" checks are defined structurally so they do not pass it by accident                                                                                                                                                        |
+| Let a reader declare which records are duplicates, or merge reciprocal pairs when a load declares the graph undirected                                   | What happens to repeated edges is the CONSUMER's choice, through the element's repeated-edge policy (`keep` by default); a reader that merged would override it. `file-format.md` section 2.2 item 8 now documents the policy and forbids a reader to merge, and `ImportReport.repeated` already counts what the policy did                                                                                                                                |
+| Replace `SimpleLayoutEngine.positions` with a `Map` now, because a node id `__proto__` corrupts it                                                       | `positions` is a published member plugins write; changing its type breaks every batch plugin. It is recorded as a known gap (`layout.md` section 11) and the rule of section 9.2 item 6, to be fixed with the snapshot layout contract or the next major                                                                                                                                                                                                   |
+| `KNOWN_LAYOUT_IDS` in `layout.d.ts` should list `spiral` and `planar`                                                                                    | The Published section describes the constant as 2.6.1 builds it, which omits them. The omission is recorded as not yet met (section 5 item 4) and the fix belongs in the element; the declaration file notes it                                                                                                                                                                                                                                            |
+| Loosen `LayoutEngine.register`'s bound so the tiers example compiles                                                                                     | The example is changed instead (its options interface no longer extends the index-signature `SimpleLayoutOpts`), and it now compiles against 2.6.1's `./extend`; the published bound needs no change for a plugin to be written without a cast                                                                                                                                                                                                             |
+| Recommend that an export write run provenance only when the caller opts in                                                                               | Reproducibility (`design/designloom/workflows/W25.yaml`) wants provenance by default and operational security (`design/designloom/workflows/W07.yaml`) wants it off; which default wins is the owner's reading of his own export decision. Open decision 24 records the conflict and recommends an explicit export option whose default he sets                                                                                                            |

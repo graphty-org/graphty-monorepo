@@ -15,8 +15,17 @@ export type AlgorithmKey = string;
 
 /** The result shapes. OPEN UNION for readers; CLOSED for writers (use one the element publishes). */
 export type ResultShape =
-    | "node-metric" | "edge-metric" | "community" | "layered-grouping" | "category-table"
-    | "path" | "node-set" | "edge-set" | "pair-list" | "temporal" | "fact";
+    | "node-metric"
+    | "edge-metric"
+    | "community"
+    | "layered-grouping"
+    | "category-table"
+    | "path"
+    | "node-set"
+    | "edge-set"
+    | "pair-list"
+    | "temporal"
+    | "fact";
 
 /** NOT EXPORTED BY NAME. OPEN (README 6.3). */
 export type CostClass = "instant" | "iterative" | "heavy" | "cubic" | "unbounded";
@@ -221,7 +230,10 @@ export declare function nodeMetricFields(value: {
 }): readonly FieldDescriptor[];
 
 /** The ResultFieldSpec list a node-metric or edge-metric run fills. */
-export declare function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "integer"): readonly ResultFieldSpec[];
+export declare function metricFieldSpecs(
+    kind: "node" | "edge",
+    valueType?: "number" | "integer",
+): readonly ResultFieldSpec[];
 
 /** Fill the caveats every exact double-precision run shares. */
 export declare function declaredCaveats(init: Partial<Caveats> & { method: string; direction: RunDirection }): Caveats;

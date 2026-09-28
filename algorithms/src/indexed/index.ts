@@ -62,6 +62,12 @@ export {
     type Linkage,
 } from "./hierarchical.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
+export {
+    findAllIsomorphisms,
+    isGraphIsomorphic,
+    type IsomorphismOptions,
+    type IsomorphismResult,
+} from "./isomorphism.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";

@@ -374,7 +374,8 @@ export class GraphOps {
 
     /**
      * Strict: throw when the builder of the store last written was mutated outside the graph
-     * primitives. The dispatcher asks at each dispatch and each commit.
+     * primitives, or its resident snapshot's arrays were written in place. The dispatcher asks at
+     * each dispatch and each commit.
      */
     checkStore(): void {
         const drift = this.store?.isDisposed === false ? this.store.mutationDrift : 0;
@@ -382,7 +383,7 @@ export class GraphOps {
             throw builderDrift(drift);
         }
 
-        verifyRetainedArrays([this.store]);
+        verifyRetainedArrays([this.store?.sealedResident ?? null]);
     }
 
     /**

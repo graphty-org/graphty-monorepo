@@ -260,6 +260,11 @@ export class GraphStore {
         edge: [],
     };
     private rebuilds = 0;
+    /**
+     * Strict: the resident snapshot last sealed. Each dispatch checks its arrays; a snapshot no
+     * longer resident is checked by the sweep after each test.
+     */
+    sealedResident: GraphSnapshot | null = null;
     private readonly counter: EdgeCounter;
     private nodeHashColumn: ColumnHandle;
     private edgeHashColumn: ColumnHandle;
@@ -958,7 +963,7 @@ export class GraphStore {
         // and unlike the cached snapshot this one still carries the seed column.
         const kept = { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction };
         // History holds it until the step is evicted: nothing may write it meanwhile.
-        seal(kept.snapshot, "a kept graph's snapshot", this);
+        seal(kept.snapshot, "a kept graph's snapshot");
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
         return kept;
     }
@@ -1426,7 +1431,8 @@ export class GraphStore {
         });
         // The resident snapshot is complete: from here its column set is fixed, and a consumer
         // that tries to attach, remove or rename a column gets E_FROZEN.
-        seal(snapshot, "the resident snapshot", this);
+        seal(snapshot, "the resident snapshot");
+        this.sealedResident = snapshot;
         this.pendingPositions = null;
     }
 
@@ -1818,9 +1824,8 @@ const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", PINNED_COLUMN]);
  * its columns hold, the lane columns excepted, so a write to one in place is found (design/undo/undo-design.md 12.1).
  * @param snapshot - The snapshot.
  * @param what - What holds it, for the message.
- * @param holder - The store, whose dispatcher checks the arrays at each dispatch.
  */
-function seal(snapshot: GraphSnapshot, what: string, holder: object): void {
+function seal(snapshot: GraphSnapshot, what: string): void {
     snapshot.seal();
     for (const [name, data] of [
         ["rowPtr", snapshot.rowPtr],
@@ -1828,7 +1833,7 @@ function seal(snapshot: GraphSnapshot, what: string, holder: object): void {
         ["weights", snapshot.weights],
     ] as const) {
         if (data !== null) {
-            retainArray(data, `the graph slice's ${what} ${name}`, holder);
+            retainArray(data, `the graph slice's ${what} ${name}`, snapshot);
         }
     }
     for (const [domain, table] of [
@@ -1838,7 +1843,7 @@ function seal(snapshot: GraphSnapshot, what: string, holder: object): void {
         for (const column of table) {
             const data = "data" in column ? column.data : null;
             if (!LANE_COLUMNS.has(column.meta.name) && ArrayBuffer.isView(data)) {
-                retainArray(data, `the graph slice's ${what} ${domain} column "${column.meta.name}"`, holder);
+                retainArray(data, `the graph slice's ${what} ${domain} column "${column.meta.name}"`, snapshot);
             }
         }
     }

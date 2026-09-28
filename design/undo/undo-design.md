@@ -2028,9 +2028,10 @@ session. On top of the freezing that production already does, strict state:
 
 - checksums each typed array state retains (snapshot columns, captures, run result columns and
   their ranking caches, mask copies) once, when it is first retained, and at each dispatch
-  verifies the arrays its own session's state retains (its store's snapshots and its arrangement's
-  captures), so a dispatch costs the same however many other sessions a test file has left alive;
-  a full sweep of every retained array runs in `afterEach`. The lane-backed `position` and `graphty.pinned` columns are excluded,
+  verifies the arrays its own session's current state retains (its store's resident snapshot and
+  its arrangement's captures), so a dispatch costs the same however many other sessions a test
+  file has left alive and however many snapshots its history keeps; a full sweep of every retained
+  array, the snapshots history keeps included, runs in `afterEach`. The lane-backed `position` and `graphty.pinned` columns are excluded,
   because a running layout writes them every frame; the captures cover coordinates. The live
   `ElementMask` pair is excluded, because it is derived and rewritten in place;
 - compares `builder.mutationCount` at each commit with the count the last primitive left;

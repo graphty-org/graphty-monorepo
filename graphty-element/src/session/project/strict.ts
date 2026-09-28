@@ -89,7 +89,10 @@ const retained = {
 const SHARED = {};
 
 /**
- * A checksum of an array's bytes (FNV-1a), or -1 for one whose buffer was detached.
+ * A checksum of an array's bytes (FNV-1a over 32-bit words where the view is aligned to them,
+ * over bytes where it is not), or -1 for one whose buffer was detached. Every dispatch sums every
+ * array its state keeps, several megabytes at the render ceiling, so it reads a word at a time.
+ * Each step is a bijection of the running sum, so a change to any one word always changes it.
  * @param array - The array.
  * @returns The checksum.
  */
@@ -98,10 +101,14 @@ function checksum(array: ArrayBufferView): number {
         return -1;
     }
 
-    const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
+    const { buffer, byteOffset, byteLength } = array;
+    const units =
+        byteOffset % 4 === 0 && byteLength % 4 === 0
+            ? new Int32Array(buffer, byteOffset, byteLength / 4)
+            : new Uint8Array(buffer, byteOffset, byteLength);
     let sum = 0x811c9dc5;
-    for (const byte of bytes) {
-        sum = Math.imul(sum ^ byte, 0x01000193);
+    for (let at = 0; at < units.length; at++) {
+        sum = Math.imul(sum ^ (units[at] ?? 0), 0x01000193);
     }
 
     return sum >>> 0;

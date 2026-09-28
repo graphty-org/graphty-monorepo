@@ -3,66 +3,66 @@ name: Graph Library Author Porting a Plugin
 role: Open-Source Graph Library Author Porting a Layout or Algorithm at Scale
 quote: I've written this ForceAtlas variant for graphology. Show me the hot loop, the memory layout, and how to stay off the main thread.
 bio: >-
-  Ines Duarte maintains a popular open-source layout package for graphology and has contributed extensions to
-  Cytoscape.js. She is a performance-minded TypeScript developer who thinks in typed arrays, cache lines, Web Workers
-  and GPU buffers, and who benchmarks every change. She wants to port her layout, and later a community-detection
-  algorithm, to graphty-element so it runs on graphs of 100,000 to 1,000,000 nodes. She reads the specification and
-  the source, not the guide, and she will judge the extension contract by whether it lets her plugin do everything a
-  built-in layout does: run incrementally, report progress, be cancelled, run in a worker, read the graph without
-  copying it, and use WebGPU when it is there. She is the author most likely to publish a plugin package that other
-  people install.
+    Ines Duarte maintains a popular open-source layout package for graphology and has contributed extensions to
+    Cytoscape.js. She is a performance-minded TypeScript developer who thinks in typed arrays, cache lines, Web Workers
+    and GPU buffers, and who benchmarks every change. She wants to port her layout, and later a community-detection
+    algorithm, to graphty-element so it runs on graphs of 100,000 to 1,000,000 nodes. She reads the specification and
+    the source, not the guide, and she will judge the extension contract by whether it lets her plugin do everything a
+    built-in layout does: run incrementally, report progress, be cancelled, run in a worker, read the graph without
+    copying it, and use WebGPU when it is there. She is the author most likely to publish a plugin package that other
+    people install.
 characteristics:
-  expertise: expert
-  time_pressure: low
-  graph_literacy: advanced
-  domain_knowledge: advanced
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
 motivations:
-  - Reach a new audience for her layout with a port that is as fast as the built-ins
-  - Publish a plugin package that keeps working across graphty-element versions
-  - Avoid maintaining a separate code path per host library
-  - Prove performance claims with reproducible benchmarks
+    - Reach a new audience for her layout with a port that is as fast as the built-ins
+    - Publish a plugin package that keeps working across graphty-element versions
+    - Avoid maintaining a separate code path per host library
+    - Prove performance claims with reproducible benchmarks
 behaviors:
-  - Reads the extension specification, the declaration files and the built-in layouts' source before writing code
-  - Compares the contract with graphology's and Cytoscape.js's extension APIs point by point
-  - Profiles the first port on a 100k-node graph and looks for per-node allocations, copies and main-thread work
-  - Writes a benchmark harness and a parity test against her original implementation
-  - Opens detailed issues and pull requests when the contract blocks something a built-in can do
+    - Reads the extension specification, the declaration files and the built-in layouts' source before writing code
+    - Compares the contract with graphology's and Cytoscape.js's extension APIs point by point
+    - Profiles the first port on a 100k-node graph and looks for per-node allocations, copies and main-thread work
+    - Writes a benchmark harness and a parity test against her original implementation
+    - Opens detailed issues and pull requests when the contract blocks something a built-in can do
 goals:
-  - Read the graph as flat typed arrays without a per-node object copy
-  - Run incrementally with progress, cancellation and a time budget per frame
-  - Run the heavy loop in a Web Worker or on WebGPU through the element's own device
-  - Declare options once and get validation, defaults and documentation from that one declaration
-  - A clear version contract so her package states which element versions it supports
+    - Read the graph as flat typed arrays without a per-node object copy
+    - Run incrementally with progress, cancellation and a time budget per frame
+    - Run the heavy loop in a Web Worker or on WebGPU through the element's own device
+    - Declare options once and get validation, defaults and documentation from that one declaration
+    - A clear version contract so her package states which element versions it supports
 frustrations:
-  - Contracts that hand the plugin arrays of node objects, forcing allocation at 100k+ nodes
-  - Built-ins that use private seams a plugin cannot reach, so a plugin can never match their speed
-  - No way to share the element's GPU device or worker pool
-  - Breaking changes to the contract in a minor version
-  - Registration metadata and ceremony that exist for the element's convenience, not the plugin's
+    - Contracts that hand the plugin arrays of node objects, forcing allocation at 100k+ nodes
+    - Built-ins that use private seams a plugin cannot reach, so a plugin can never match their speed
+    - No way to share the element's GPU device or worker pool
+    - Breaking changes to the contract in a minor version
+    - Registration metadata and ceremony that exist for the element's convenience, not the plugin's
 knows:
-  - Graph algorithms and layout algorithms, including their asymptotic and constant-factor costs
-  - TypeScript, typed arrays, Web Workers, WebGPU and profiling tools
-  - The graphology and Cytoscape.js plugin models in depth
+    - Graph algorithms and layout algorithms, including their asymptotic and constant-factor costs
+    - TypeScript, typed arrays, Web Workers, WebGPU and profiling tools
+    - The graphology and Cytoscape.js plugin models in depth
 refuses_to_learn:
-  - Rendering internals (Babylon.js meshes and materials) that a layout should never touch
-  - A second, element-specific graph data model when a flat snapshot would do
-  - Workarounds for contract gaps that the built-ins do not need
+    - Rendering internals (Babylon.js meshes and materials) that a layout should never touch
+    - A second, element-specific graph data model when a flat snapshot would do
+    - Workarounds for contract gaps that the built-ins do not need
 first_plugin: >-
-  A port of her graphology ForceAtlas2 variant as a live, incremental layout that reads the graph snapshot's typed
-  arrays, runs in a worker, and reports progress, followed by a Leiden community-detection algorithm.
+    A port of her graphology ForceAtlas2 variant as a live, incremental layout that reads the graph snapshot's typed
+    arrays, runs in a worker, and reports progress, followed by a Leiden community-detection algorithm.
 context:
-  frequency: weekly
-  devices:
-    - desktop
-  voluntary: true
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: true
 workflows: []
 sources:
-  - title: graphology - Standard library and plugins
-    url: https://graphology.github.io/standard-library/
-    summary: The plugin model this persona already knows; layouts like ForceAtlas2 ship as separate packages with worker variants
-  - title: Cytoscape.js - Extensions
-    url: https://js.cytoscape.org/#extensions
-    summary: The registration-based extension API for layouts and algorithms this persona compares against
-  - title: ForceAtlas2, a continuous graph layout algorithm (PLOS ONE)
-    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0098679
-    summary: The iterative layout family whose incremental, cancellable execution a layout contract must support at scale
+    - title: graphology - Standard library and plugins
+      url: https://graphology.github.io/standard-library/
+      summary: The plugin model this persona already knows; layouts like ForceAtlas2 ship as separate packages with worker variants
+    - title: Cytoscape.js - Extensions
+      url: https://js.cytoscape.org/#extensions
+      summary: The registration-based extension API for layouts and algorithms this persona compares against
+    - title: ForceAtlas2, a continuous graph layout algorithm (PLOS ONE)
+      url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0098679
+      summary: The iterative layout family whose incremental, cancellable execution a layout contract must support at scale

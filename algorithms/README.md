@@ -328,6 +328,31 @@ const result = hasNegativeCycle(graph);
 // Returns: BellmanFordResult with hasNegativeCycle boolean
 ```
 
+##### Index-based Bellman-Ford and point-to-point paths
+
+```typescript
+import { accelerated, indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const a = s.ids.requireIndex("a");
+const c = s.ids.requireIndex("c");
+
+const bf = indexed.bellmanFord(s, a); // or: await accelerated(acc).bellmanFord(s, a)
+// { dist, predArc, hasNegativeCycle, pathTo(i), pathEdges(i) } -- node and edge indices
+
+const shortest = indexed.bidirectionalDijkstra(s, a, c);
+const guided = indexed.astar(s, a, c, (i, goal) => estimate(i, goal)); // heuristic over node indices
+// { distance, path, edges }; distance is Infinity and both arrays empty when c is unreachable
+```
+
+Bellman-Ford relaxes an undirected edge both ways, so one negative undirected edge is a negative
+cycle. Every path records the edge it took, so of two parallel edges the path names the one used.
+Each takes a per-arc `weights` override for weights other than the snapshot's own.
+
+Where two paths cost the same, a port may take a different one from the legacy function (whose
+choice follows its map and queue order, and changes with graph size in `dijkstraPath`), and a
+distance summed from decimal weights may then differ from legacy's in the last bit.
+
 #### Floyd-Warshall Algorithm
 
 ```typescript
@@ -666,6 +691,11 @@ import { primMST } from '@graphty/algorithms';
 const mst = primMST(graph, startNode?);
 // Returns: { edges: Edge[], weight: number }
 ```
+
+Over a snapshot, `indexed.primMST(s, { start, forest })` returns `{ edges, totalWeight, predArc }`:
+logical edge indices in the order they joined the tree, and the arc that reached each node. With
+`forest: true` it grows a tree in every component instead of throwing on a disconnected graph.
+Where edge weights tie, it may pick a different tree of the same weight from legacy `primMST`.
 
 ### Community Detection Algorithms
 

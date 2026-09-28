@@ -1,4 +1,4 @@
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { expandEdges, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
@@ -7,6 +7,7 @@ import {
     type AcceleratedAlgorithms,
     type AlgorithmAccelerator,
     type ApspResultLike,
+    type BellmanFordResultLike,
     type BfsResultLike,
     indexed,
     type LabelResultLike,
@@ -415,11 +416,92 @@ describe("accelerated(acc)", () => {
         });
     });
 
-    it("carries exactly the twelve methods whose ports exist", () => {
+    describe("bellmanFord", () => {
+        // a -> b (4), a -> c (1), b -> d (-3), c -> d (2): d is cheapest through the negative arc.
+        function negativeArc(): GraphSnapshot {
+            const g = new Graph({ directed: true });
+            g.addEdge("a", "b", 4);
+            g.addEdge("a", "c", 1);
+            g.addEdge("b", "d", -3);
+            g.addEdge("c", "d", 2);
+            return toSnapshot(g);
+        }
+
+        it("runs the CPU port with no accelerator", async () => {
+            const s = negativeArc();
+            const r = await accelerated(null).bellmanFord(s, 0);
+            const direct = indexed.bellmanFord(s, 0);
+            expect(r.dist).toEqual(direct.dist);
+            expect(r.predArc).toEqual(direct.predArc);
+            expect(r.hasNegativeCycle).toBe(false);
+            expect(Array.from(r.pathTo(3))).toEqual([0, 1, 3]);
+        });
+
+        it("runs the CPU port for an accelerator without the member", async () => {
+            const r = await accelerated({ kind: "fake" }).bellmanFord(negativeArc(), 0);
+            expect(r.dist).toBeInstanceOf(Float64Array);
+            expect(r.dist[3]).toBe(1);
+        });
+
+        it("delegates to the accelerator and decorates its bare result with the path accessors", async () => {
+            const s = negativeArc();
+            const cpu = indexed.bellmanFord(s, 0);
+            const calls: unknown[][] = [];
+            const answer: BellmanFordResultLike = {
+                dist: Float32Array.from(cpu.dist),
+                predArc: cpu.predArc,
+                hasNegativeCycle: false,
+            };
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                bellmanFord: (...a) => (calls.push(a), Promise.resolve(answer)),
+            };
+            const options = { cutoff: 10, weights: expandEdges(s, Float32Array.of(4, 1, -3, 2)) };
+            const r = await accelerated(fake).bellmanFord(s, 0, options);
+            expect(calls).toEqual([[s, 0, options]]);
+            expect(r.dist).toBe(answer.dist);
+            expect(r.predArc).toBe(answer.predArc);
+            expect(r.hasNegativeCycle).toBe(false);
+            expect(Array.from(r.pathTo(3))).toEqual(Array.from(cpu.pathTo(3)));
+            expect(Array.from(r.pathEdges(3))).toEqual(Array.from(cpu.pathEdges(3)));
+        });
+
+        it("passes the accelerator's negative-cycle flag through", async () => {
+            const s = negativeArc();
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                bellmanFord: () =>
+                    Promise.resolve({ dist: new Float32Array(4), predArc: new Uint32Array(4), hasNegativeCycle: true }),
+            };
+            expect((await accelerated(fake).bellmanFord(s, 0)).hasNegativeCycle).toBe(true);
+        });
+
+        it("runs the CPU port for an f64 weights override, which the accelerator would round to f32", async () => {
+            const s = negativeArc();
+            const calls: unknown[][] = [];
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                bellmanFord: (...a) => (calls.push(a), Promise.reject(new Error("not expected"))),
+            };
+            const weights = expandEdges(s, Float64Array.of(4, 0.1, -3, 0.2));
+            const r = await accelerated(fake).bellmanFord(s, 0, { weights });
+            expect(calls).toEqual([]);
+            expect(r.dist[3]).toBe(0.1 + 0.2);
+        });
+
+        it("lets a throwing accelerator reject unchanged", async () => {
+            const boom = new Error("E_DEVICE_LOST");
+            const fake: AlgorithmAccelerator = { kind: "fake", bellmanFord: () => Promise.reject(boom) };
+            await expect(accelerated(fake).bellmanFord(negativeArc(), 0)).rejects.toBe(boom);
+        });
+    });
+
+    it("carries exactly the thirteen methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
             "allPairsShortestPath",
+            "bellmanFord",
             "breadthFirstSearch",
             "connectedComponents",
             "hits",

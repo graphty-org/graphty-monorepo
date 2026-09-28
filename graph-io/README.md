@@ -238,7 +238,11 @@ losses and format rules, in addition to the table:
   node-link. The bare `NaN`, `Infinity` and `-Infinity` that Python's json module writes are read as
   numbers (`W_JSON_NONSTANDARD_NUMBER`), and an integer literal beyond 2^53 keeps its exact digits as
   a string (`W_JSON_BIG_INTEGER`), so two large ids never round to one; the exporter writes an
-  integral number that large in exponent form (`1e+20`) so it re-imports as a number.
+  integral number that large in exponent form (`1e+20`) so it re-imports as a number. `nodesPath`
+  and `edgesPath` point at node and edge arrays nested anywhere in the document as dotted key paths
+  (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`) for the node-link, d3, vis and
+  graphology dialects; the object holding the nodes supplies the graph flags, and a path that names
+  nothing is an `E_MISSING_SECTION` issue, not an abort.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
   THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored

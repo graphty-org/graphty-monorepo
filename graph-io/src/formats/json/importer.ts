@@ -114,6 +114,20 @@ export interface JsonImportOptions {
     indexLinks?: boolean | "auto" | undefined;
     /** jgf: which graph of a `graphs` array to read; 0 by default. */
     graphIndex?: number | undefined;
+    /**
+     * node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys
+     * from the document root (`"data.nodes"`); the object holding it is read as the graph record
+     * (its `directed`, `multigraph`, `graph` and edge keys). "nodes" by default. A path that names
+     * nothing is an E_MISSING_SECTION issue and the graph has no node records.
+     */
+    nodesPath?: string | undefined;
+    /**
+     * node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys
+     * from the document root (`"data.links"`); by default the edges or links key of the object
+     * holding the nodes. A path that names nothing is an E_MISSING_SECTION issue and the graph has
+     * no edge records.
+     */
+    edgesPath?: string | undefined;
 }
 
 /**
@@ -254,6 +268,14 @@ interface EdgeIdColumn {
     readonly seen: Set<string> | null;
 }
 
+/** The dialects whose node and edge arrays nodesPath and edgesPath can point at. */
+const PATH_DIALECTS: ReadonlySet<JsonImportDialect> = new Set<JsonImportDialect>([
+    "node-link",
+    "d3",
+    "vis",
+    "graphology",
+]);
+
 /** The resolved format-specific options. */
 interface ResolvedJsonOptions {
     readonly dialect: JsonImportDialect | "auto";
@@ -263,6 +285,10 @@ interface ResolvedJsonOptions {
     readonly targetKey: string | null;
     readonly indexLinks: boolean | "auto";
     readonly graphIndex: number;
+    /** The dotted path segments of the node array, or null for the root's own nodes key. */
+    readonly nodesPath: readonly string[] | null;
+    /** The dotted path segments of the edge array, or null for the edges / links key beside the nodes. */
+    readonly edgesPath: readonly string[] | null;
     /** Set by importAll(): every graph of a `graphs` array is read, so none is reported as skipped. */
     readonly all?: boolean;
 }
@@ -286,6 +312,11 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
     if (!Number.isInteger(graphIndex) || graphIndex < 0) {
         throw unsupportedOption("graphIndex", graphIndex, ["a non-negative integer"]);
     }
+    const nodesPath = pathOption("nodesPath", o.nodesPath);
+    const edgesPath = pathOption("edgesPath", o.edgesPath);
+    if ((nodesPath !== null || edgesPath !== null) && dialect !== "auto" && !PATH_DIALECTS.has(dialect)) {
+        throw unsupportedOption(nodesPath === null ? "edgesPath" : "nodesPath", dialect, [...PATH_DIALECTS]);
+    }
     return {
         dialect,
         nodeIdKey: keyOption("nodeIdKey", o.nodeIdKey),
@@ -294,7 +325,131 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
         targetKey: keyOption("targetKey", o.targetKey),
         indexLinks,
         graphIndex,
+        nodesPath,
+        edgesPath,
     };
+}
+
+/**
+ * Check a dotted path option: object keys joined by dots, none of them empty.
+ * @param name - the option name
+ * @param value - the caller's value
+ * @returns the segments, or null when absent
+ */
+function pathOption(name: string, value: unknown): readonly string[] | null {
+    if (value === undefined) {
+        return null;
+    }
+    const segments = typeof value === "string" ? value.split(".") : [];
+    if (segments.length === 0 || segments.some((segment) => segment.length === 0)) {
+        throw unsupportedOption(name, value, ["a dotted path of non-empty keys"]);
+    }
+    return segments;
+}
+
+/**
+ * The value at a path of object keys, or undefined when a step is missing or not an object.
+ * @param root - the document
+ * @param segments - the keys
+ * @returns the value
+ */
+function valueAt(root: unknown, segments: readonly string[]): unknown {
+    let value = root;
+    for (const segment of segments) {
+        if (!isJsonObject(value) || !hasKey(value, segment)) {
+            return undefined;
+        }
+        value = value[segment];
+    }
+    return value;
+}
+
+/**
+ * The graph record nodesPath and edgesPath describe: the object holding the node array (the
+ * document itself by default) with its nodes key and its edges / links key replaced by the arrays
+ * the paths name. A path that names nothing is recorded as E_MISSING_SECTION and stands for an
+ * empty array, so the import goes on.
+ * @param root - the parsed document
+ * @param json - the resolved options
+ * @param report - the report
+ * @returns the document unchanged when no path is given, else the graph record
+ */
+function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportReportBuilder): unknown {
+    const { nodesPath, edgesPath } = json;
+    if (nodesPath === null && edgesPath === null) {
+        return root;
+    }
+    const lookup = (option: string, segments: readonly string[]): unknown => {
+        const value = valueAt(root, segments);
+        if (value === undefined) {
+            const path = segments.join(".");
+            report.error(
+                "missing-value",
+                JSON_ISSUE.MISSING_SECTION,
+                `${option} ${JSON.stringify(path)} names nothing in the document`,
+                { element: path },
+            );
+            return [];
+        }
+        return value;
+    };
+    const holder = nodesPath === null ? root : valueAt(root, nodesPath.slice(0, -1));
+    // the keys the paths replace: the nodes key, and every edge key when edgesPath names the edges
+    const replaced = new Set<string>();
+    if (nodesPath !== null) {
+        replaced.add(nodesPath[nodesPath.length - 1]);
+    }
+    const edgesLast = edgesPath === null ? null : edgesPath[edgesPath.length - 1];
+    if (edgesLast !== null) {
+        for (const key of [edgesLast, "edges", "links"]) {
+            replaced.add(key);
+        }
+    }
+    const record: JsonRecord = Object.fromEntries(
+        Object.entries(isJsonObject(holder) ? holder : {}).filter(([key]) => !replaced.has(key)),
+    );
+    if (nodesPath !== null) {
+        record.nodes = lookup("nodesPath", nodesPath);
+    }
+    if (edgesPath !== null && edgesLast !== null) {
+        record[json.edgesKey ?? (edgesLast === "links" ? "links" : "edges")] = lookup("edgesPath", edgesPath);
+    }
+    return record;
+}
+
+/**
+ * The dialect of a graph record built from nodesPath / edgesPath: the forced one, else the shape
+ * rule over the record, else node-link.
+ * @param record - the graph record
+ * @param forced - the caller's dialect option
+ * @returns the dialect
+ */
+function pathDialect(record: unknown, forced: JsonImportDialect | "auto"): JsonImportDialect {
+    if (forced !== "auto") {
+        return forced;
+    }
+    const sniffed = sniffJsonDialect(record);
+    return sniffed !== null && PATH_DIALECTS.has(sniffed) ? sniffed : "node-link";
+}
+
+/**
+ * The document to read and its dialect: the graph record of nodesPath / edgesPath when either is
+ * given, the document itself otherwise.
+ * @param parsed - the parsed document
+ * @param json - the resolved options
+ * @param report - the report
+ * @returns the root and its dialect
+ */
+function documentOf(
+    parsed: unknown,
+    json: ResolvedJsonOptions,
+    report: ImportReportBuilder,
+): { readonly root: unknown; readonly dialect: JsonImportDialect } {
+    if (json.nodesPath === null && json.edgesPath === null) {
+        return { root: parsed, dialect: detectDialect(parsed, json.dialect, report) };
+    }
+    const root = applyPaths(parsed, json, report);
+    return { root, dialect: pathDialect(root, json.dialect) };
 }
 
 /**
@@ -2641,8 +2796,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
         const text = await readText(input, report, resolved);
-        const root = parseDocument(text, report);
-        const dialect = detectDialect(root, json.dialect, report);
+        const { root, dialect } = documentOf(parseDocument(text, report), json, report);
         readGraph(root, dialect, sink, report, resolved, json, options);
         return report.finish();
     },
@@ -2664,8 +2818,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const json = resolveJsonOptions(options);
         const first = new ImportReportBuilder("json", resolved.errorLimit);
         const text = await readText(input, first, resolved);
-        const root = parseDocument(text, first);
-        const dialect = detectDialect(root, json.dialect, first);
+        const { root, dialect } = documentOf(parseDocument(text, first), json, first);
         const graphs =
             dialect === "jgf" && isJsonObject(root) && !isJsonObject(root.graph) && Array.isArray(root.graphs)
                 ? root.graphs.length

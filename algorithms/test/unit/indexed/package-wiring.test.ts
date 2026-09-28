@@ -4,8 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type {
+    DeltaPageRankComputeOptions,
+    DeltaPageRankEngineOptions,
     IndexedApspOptions,
     IndexedApspResult,
+    IndexedDeltaPageRankOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
 } from "../../../src/index.js";
@@ -55,5 +58,28 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed delta PageRank exports", () => {
+    it("reaches the three delta engines and their flat types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: true });
+        b.addEdge(0, 1);
+        b.addEdge(1, 0);
+        const s = b.freeze();
+        const options: IndexedDeltaPageRankOptions = { tolerance: 1e-12 };
+        expect(Array.from(pkg.indexed.deltaPageRank(s, options).scores)).toEqual([0.5, 0.5]);
+        const engineOptions: DeltaPageRankEngineOptions = {};
+        const computeOptions: DeltaPageRankComputeOptions = { dampingFactor: 0.85 };
+        // The engines drop deltas below their threshold, so the symmetric pair lands near, not on, 0.5.
+        const delta = new pkg.indexed.DeltaPageRank(s, engineOptions).compute(computeOptions);
+        const priority = new pkg.indexed.PriorityDeltaPageRank(s, engineOptions).computeWithPriority(computeOptions);
+        for (const scores of [delta, priority]) {
+            expect(scores.length).toBe(2);
+            expect(scores[0]).toBeCloseTo(0.5, 6);
+            expect(scores[1]).toBeCloseTo(0.5, 6);
+        }
     });
 });

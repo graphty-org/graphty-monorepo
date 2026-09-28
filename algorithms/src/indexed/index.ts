@@ -17,6 +17,14 @@ export { allPairsShortestPath, type ApspOptions, type ApspResult } from "./all-p
 export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
+export {
+    DeltaPageRank,
+    deltaPageRank,
+    type DeltaPageRankComputeOptions,
+    type DeltaPageRankEngineOptions,
+    type DeltaPageRankOptions,
+    PriorityDeltaPageRank,
+} from "./delta-pagerank.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";

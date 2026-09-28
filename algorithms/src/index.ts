@@ -54,7 +54,8 @@ export * from "./optimized/index.js";
 
 // Index-based implementations over @graphty/graph-format snapshots (graph-format design 14.1 rule 2).
 // A NAMESPACE, not a flat re-export: indexed.pageRank, indexed.dijkstra, indexed.breadthFirstSearch,
-// indexed.connectedComponents and indexed.kruskalMST all collide by name with the legacy functions above.
+// indexed.connectedComponents, indexed.kruskalMST, indexed.DeltaPageRank and
+// indexed.PriorityDeltaPageRank all collide by name with the legacy exports above.
 export * as indexed from "./indexed/index.js";
 
 // The graph-format bridge (graph-format design 14.6 row A1).
@@ -87,6 +88,12 @@ export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult
 export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";
+// Aliased: the flat DeltaPageRankOptions names the legacy DeltaPageRank's options.
+export type {
+    DeltaPageRankComputeOptions,
+    DeltaPageRankEngineOptions,
+    DeltaPageRankOptions as IndexedDeltaPageRankOptions,
+} from "./indexed/delta-pagerank.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two

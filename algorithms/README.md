@@ -469,6 +469,13 @@ const centralities = pageRankCentrality(graph, options);
 // Returns: CentralityResult (Record<string, number>)
 ```
 
+Over a `@graphty/graph-format` snapshot, `indexed.deltaPageRank(s, { dampingFactor, maxIterations,
+tolerance, weighted, weights, initialRanks, personalization })` gives `pageRank`'s answer (scores per
+node index, `iterations`, `converged`), with `initialRanks` and `personalization` as per-index
+vectors. `new indexed.DeltaPageRank(s)` and `new indexed.PriorityDeltaPageRank(s)` are the snapshot
+counterparts of `DeltaPageRank` and `PriorityDeltaPageRank`, with the same results and the same
+state kept between calls; `update()` takes node indices.
+
 #### Eigenvector Centrality
 
 ```typescript

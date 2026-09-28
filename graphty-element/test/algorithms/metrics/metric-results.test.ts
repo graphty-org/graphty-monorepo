@@ -180,10 +180,9 @@ describe("metric results", () => {
             assert.isNumber(caveats.iterations);
         });
 
-        it("pagerank reports the convergence the delta method measured", async () => {
-            // A personalization vector is what keeps this run on the reference implementation,
-            // which is the only place the delta method lives: no index-based port takes one, so a
-            // run that asks for one is answered by the implementation that does.
+        it("a personalized pagerank over a large graph reports the convergence it measured", async () => {
+            // Over 100 nodes, where the reference implementation once switched to its delta
+            // method. Every route now runs one power iteration, and says so.
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
             const graph = await createMockGraph({ nodes, edges });
@@ -195,7 +194,7 @@ describe("metric results", () => {
             assert.isDefined(result);
 
             const { caveats } = result.summary();
-            assert.strictEqual(caveats.method, "delta-pagerank");
+            assert.strictEqual(caveats.method, "power-iteration");
             assert.isTrue(caveats.converged);
             assert.isNumber(caveats.iterations);
             assert.isBelow(caveats.iterations ?? Infinity, 100);
@@ -289,7 +288,11 @@ describe("metric results", () => {
             assert.isDefined(record);
             assert.isNumber(record.hub);
             assert.isNumber(record.authority);
-            assert.approximately(record.value as number, ((record.hub as number) + (record.authority as number)) / 2, 1e-12);
+            assert.approximately(
+                record.value as number,
+                ((record.hub as number) + (record.authority as number)) / 2,
+                1e-12,
+            );
         });
 
         it("degree publishes the two directions beside their total", async () => {
@@ -339,7 +342,11 @@ describe("what the top-ranked elements are called", () => {
             ["n3", { id: "n3", data: { name: "Tiny" } }],
         ]);
         const graph = await createMockGraph({
-            nodes: [{ id: "n1", name: "Mr Whiskers" }, { id: "n2", name: "Chonky Boy" }, { id: "n3", name: "Tiny" }],
+            nodes: [
+                { id: "n1", name: "Mr Whiskers" },
+                { id: "n2", name: "Chonky Boy" },
+                { id: "n3", name: "Tiny" },
+            ],
             edges: [
                 { srcId: "n1", dstId: "n2" },
                 { srcId: "n2", dstId: "n3" },

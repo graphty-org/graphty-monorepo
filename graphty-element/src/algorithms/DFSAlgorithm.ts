@@ -1,4 +1,5 @@
-import { depthFirstSearch } from "@graphty/algorithms";
+import { indexed } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -14,6 +15,7 @@ import {
     metricFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { declarationArcOrder } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for DFS algorithm
@@ -38,7 +40,8 @@ const dfsOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Recursive",
-            description: "Use recursive implementation instead of iterative (may cause stack overflow on large graphs)",
+            description:
+                "Accepted and ignored: the walk is iterative, and a recursive one visits the same nodes in the same order",
             advanced: true,
         },
     },
@@ -60,7 +63,7 @@ interface DFSOptions extends Record<string, unknown> {
     source: number | string | null;
     /** Target node for early termination (optional) */
     targetNode: number | string | null;
-    /** Use recursive implementation vs iterative */
+    /** Accepted and ignored; see the option's description. */
     recursive: boolean;
     /** Use pre-order traversal (visit before children) vs post-order */
     preOrder: boolean;
@@ -103,7 +106,8 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
             type: "boolean",
             default: false,
             label: "Recursive",
-            description: "Use recursive implementation instead of iterative (may cause stack overflow on large graphs)",
+            description:
+                "Accepted and ignored: the walk is iterative, and a recursive one visits the same nodes in the same order",
             advanced: true,
         },
         preOrder: {
@@ -153,30 +157,38 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         // Get source from legacy options, schema options, or use first node as default
         // Legacy configure() takes precedence for backward compatibility
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
-        const { targetNode, recursive, preOrder } = this._schemaOptions;
+        const { targetNode, preOrder } = this._schemaOptions;
 
-        if (!nodeIds.includes(source)) {
-            return null;
-        }
+        // Undirected: the traversal follows an edge in either direction. No accelerator walks
+        // depth first, so this is the CPU port's decision, made the same way as every other.
+        const { snapshot, run } = this.accelerated("depthFirstSearch", "undirected");
+        const sourceIndex = this.nodeIndex(snapshot, "source", source);
+        const targetIndex = targetNode === null ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
-        // Undirected: the traversal follows an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
-
+        /* Each node's neighbours are tried in the order their edges were declared, as the element's
+           walks always have: the order IS the result here. A post-order walk runs to the end, since
+           a node's place is known only once everything below it is done, so a target stops only a
+           pre-order walk and a post-order one reaches everything it can. */
         context.report({ phase: "Walking deep", total: null });
-        const result = depthFirstSearch(graphData, source, {
-            targetNode: targetNode ?? undefined,
-            recursive,
-            preOrder,
-        });
+        const { value, precision } = await run((_dispatch, s) =>
+            Promise.resolve(
+                indexed.depthFirstSearch(s, sourceIndex, {
+                    arcOrder: declarationArcOrder(s),
+                    order: preOrder ? "pre" : "post",
+                    target: preOrder ? targetIndex : undefined,
+                }),
+            ),
+        );
 
-        const positionOf = new Map<number | string, number>();
-        result.order.forEach((nodeId, position) => positionOf.set(nodeId, position));
+        const positionOf = new Map<number, number>();
+        value.order.subarray(0, value.visitedCount).forEach((index, position) => positionOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Recording the order", nodeIds, (nodeId) => {
-            const position = positionOf.get(nodeId);
+            const index = snapshot.ids.indexOf(nodeId);
+            const reached = index !== INVALID_INDEX && value.depth[index] !== INVALID_INDEX;
 
-            nodes.push({ id: nodeId, values: { value: position, visited: result.visited.has(nodeId) } });
+            nodes.push({ id: nodeId, values: { value: positionOf.get(index), visited: reached } });
         });
 
         return {
@@ -187,6 +199,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
                 method: "dfs",
                 direction: "undirected",
                 weight: null,
+                precision,
                 notes: [
                     `Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`,
                 ],

@@ -1,5 +1,7 @@
 import type { F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
+import { IndexedMinHeap } from "./structures/min-heap.js";
+
 /** The default `maxNodes`: the GPU kernel's ceiling at WebGPU's 128 MiB storage binding, floor(sqrt(2^27 / 4)). */
 const DEFAULT_MAX_NODES = 5792;
 
@@ -150,6 +152,98 @@ function negativeCycleFromWeights(s: GraphSnapshot, w: NumericVector): boolean {
 }
 
 /**
+ * One breadth-first search per source, hop counts written straight into row `src` of `d`. One
+ * queue of n entries serves every source.
+ * @param s - The snapshot
+ * @param d - The n x n output, overwritten
+ */
+function bfsRows(s: GraphSnapshot, d: F64): void {
+    const { nodeCount: n, rowPtr, colIdx } = s;
+    const queue = new Uint32Array(n);
+    d.fill(Infinity);
+    for (let src = 0; src < n; src++) {
+        const row = d.subarray(src * n, src * n + n);
+        row[src] = 0;
+        queue[0] = src;
+        let tail = 1;
+        for (let head = 0; head < tail; head++) {
+            const u = queue[head];
+            const next = row[u] + 1;
+            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+                const v = colIdx[a];
+                if (row[v] === Infinity) {
+                    row[v] = next;
+                    queue[tail++] = v;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One Dijkstra per source, relaxing straight into row `src` of `d`. One heap serves every source:
+ * a drained heap is empty again. Not `indexed.dijkstra` per source, which would allocate two O(n)
+ * arrays, a heap and two closures per source and then copy the row (design section 4).
+ * @param s - The snapshot
+ * @param w - The weights in use, all non-negative
+ * @param d - The n x n output, overwritten
+ */
+function dijkstraRows(s: GraphSnapshot, w: NumericVector, d: F64): void {
+    const { nodeCount: n, rowPtr, colIdx } = s;
+    const heap = new IndexedMinHeap(n);
+    d.fill(Infinity);
+    for (let src = 0; src < n; src++) {
+        const row = d.subarray(src * n, src * n + n);
+        row[src] = 0;
+        heap.push(src, 0);
+        while (!heap.isEmpty()) {
+            const u = heap.pop();
+            const du = row[u];
+            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+                const v = colIdx[a];
+                const dv = du + w[a];
+                if (dv < row[v]) {
+                    row[v] = dv;
+                    heap.pushOrDecrease(v, dv);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The strategy rule of design section 4.
+ * @param s - The snapshot
+ * @param w - The weights in use, or `null` for 1 per arc
+ * @param negative - Whether some weight is negative
+ * @param method - The caller's override
+ * @returns The strategy to run
+ */
+function pickStrategy(
+    s: GraphSnapshot,
+    w: NumericVector | null,
+    negative: boolean,
+    method: ApspOptions["method"],
+): ApspResult["method"] {
+    if (method === "floyd-warshall") {
+        return "floyd-warshall";
+    }
+    if (w === null) {
+        return "bfs";
+    }
+    if (negative) {
+        if (method === "per-source") {
+            throw new Error(
+                'allPairsShortestPath: method "per-source" runs Dijkstra, which is incorrect with a negative weight; use "auto" or "floyd-warshall"',
+            );
+        }
+        return "floyd-warshall";
+    }
+    const n = s.nodeCount;
+    return method === "per-source" || s.arcCount < (n * n) / 4 ? "dijkstra" : "floyd-warshall";
+}
+
+/**
  * All-pairs shortest paths over a snapshot.
  * @param s - The snapshot
  * @param options - Weights, strategy, paths and the size bound
@@ -166,9 +260,17 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         );
     }
     const { w, negative } = weightsInUse(s, options);
+    const method = pickStrategy(s, w, negative, options.method);
     const dist = new Float64Array(n * n);
-    const hasNegativeCycle =
-        (negative && w !== null && negativeCycleFromWeights(s, w)) || floydWarshall(s, w, negative, dist);
+    let hasNegativeCycle = false;
+    if (method === "bfs") {
+        bfsRows(s, dist);
+    } else if (method === "dijkstra" && w !== null) {
+        dijkstraRows(s, w, dist);
+    } else {
+        hasNegativeCycle =
+            (negative && w !== null && negativeCycleFromWeights(s, w)) || floydWarshall(s, w, negative, dist);
+    }
     if (hasNegativeCycle) {
         dist.fill(NaN);
     }
@@ -177,7 +279,7 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         dist,
         n,
         hasNegativeCycle,
-        method: "floyd-warshall",
+        method,
         predArc: null,
         pathTo: () => empty,
         pathEdges: () => empty,

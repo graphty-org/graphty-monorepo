@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { Graph } from "../../../src/core/graph.js";
 import { allPairsShortestPath } from "../../../src/indexed/all-pairs.js";
-import { expectMatrixTriangleInequality, expectSymmetric, floydWarshallOracle } from "../../helpers/all-pairs-oracle.js";
+import {
+    apspRowsOracle,
+    expectMatrixTriangleInequality,
+    expectSymmetric,
+    floydWarshallOracle,
+} from "../../helpers/all-pairs-oracle.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -253,5 +258,146 @@ describe("indexed.allPairsShortestPath -- negative weights", () => {
             const s = checksummedSnapshot(graph);
             expect(allPairsShortestPath(s).hasNegativeCycle, name).toBe(false);
         }
+    });
+});
+
+function isUnit(w: NumericVector | null): boolean {
+    return w === null || Array.from(w).every((x) => x === 1);
+}
+
+function allTwos(s: GraphSnapshot): Float64Array {
+    return new Float64Array(s.arcCount).fill(2);
+}
+
+/** A directed graph on 20 nodes with exactly `arcs` arcs, no self-loop, no parallel edge. */
+function directed20(arcs: number): GraphSnapshot {
+    const b = new GraphBuilder({ directed: true });
+    for (let i = 0; i < 20; i++) {
+        b.addNode(`n${i}`);
+    }
+    let added = 0;
+    for (let i = 0; i < 20 && added < arcs; i++) {
+        for (let j = 0; j < 20 && added < arcs; j++) {
+            if (i !== j) {
+                b.addEdge(`n${i}`, `n${(i + j) % 20}`, 2);
+                added++;
+            }
+        }
+    }
+    return b.freeze({ checksum: true });
+}
+
+function square(weight: number): GraphSnapshot {
+    // a-b-d and a-c-d: two routes of equal length from a to d
+    const b = new GraphBuilder({ directed: false });
+    b.addEdge("a", "b", weight);
+    b.addEdge("a", "c", weight);
+    b.addEdge("b", "d", weight);
+    b.addEdge("c", "d", weight);
+    return b.freeze({ checksum: true });
+}
+
+describe("indexed.allPairsShortestPath -- per-source strategies and the rule", () => {
+    it("per-source equals the reference on every fixture, own weights and all-2", () => {
+        for (const { name, graph } of allFixtures()) {
+            const s = checksummedSnapshot(graph);
+            const own = allPairsShortestPath(s, { method: "per-source" });
+            expect(own.method, name).toBe(isUnit(s.weights) ? "bfs" : "dijkstra");
+            expect(own.dist, name).toEqual(floydWarshallOracle(s, s.weights));
+            const twos = allTwos(s);
+            const viaTwos = allPairsShortestPath(s, { method: "per-source", weights: twos });
+            expect(viaTwos.method, name).toBe("dijkstra");
+            expect(viaTwos.dist, name).toEqual(floydWarshallOracle(s, twos));
+            expectMatrixTriangleInequality(viaTwos.dist, s, twos);
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("auto equals the reference on every fixture, and BFS rows on unit weights", () => {
+        for (const { name, graph } of allFixtures()) {
+            const s = checksummedSnapshot(graph);
+            const r = allPairsShortestPath(s);
+            expect(r.dist, name).toEqual(floydWarshallOracle(s, s.weights));
+            if (isUnit(s.weights)) {
+                expect(r.method, name).toBe("bfs");
+                expect(r.dist, name).toEqual(apspRowsOracle(s));
+            } else {
+                const hops = allPairsShortestPath(s, { weighted: false });
+                expect(hops.method, name).toBe("bfs");
+                expect(hops.dist, name).toEqual(apspRowsOracle(s));
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("switches from Dijkstra to Floyd-Warshall at arcCount n^2 / 4", () => {
+        const below = directed20(99);
+        expect(below.arcCount).toBe(99);
+        expect(allPairsShortestPath(below).method).toBe("dijkstra");
+        const at = directed20(100);
+        expect(at.arcCount).toBe(100);
+        expect(allPairsShortestPath(at).method).toBe("floyd-warshall");
+        below.validate({ checksum: true });
+        at.validate({ checksum: true });
+    });
+
+    it("keeps Dijkstra rows within 1e-12 of the reference on real weights", () => {
+        const random = ((): (() => number) => {
+            let state = 97;
+            return () => {
+                state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+                return state / 4294967296;
+            };
+        })();
+        const b = new GraphBuilder({ directed: true });
+        for (let i = 0; i < 30; i++) {
+            b.addNode(`n${i}`);
+        }
+        for (let e = 0; e < 90; e++) {
+            const u = Math.floor(random() * 30);
+            const v = Math.floor(random() * 30);
+            if (u !== v) {
+                b.addEdge(`n${u}`, `n${v}`, 0.1 + Math.floor(random() * 9) / 10);
+            }
+        }
+        const s = b.freeze({ checksum: true });
+        const w = Float64Array.from({ length: s.arcCount }, (_, a) => 0.1 + (a % 9) / 10);
+        const r = allPairsShortestPath(s, { method: "per-source", weights: w });
+        expect(r.method).toBe("dijkstra");
+        const ref = floydWarshallOracle(s, w);
+        for (let c = 0; c < ref.length; c++) {
+            if (ref[c] === Infinity) {
+                expect(r.dist[c]).toBe(Infinity);
+            } else {
+                expect(Math.abs(r.dist[c] - ref[c])).toBeLessThanOrEqual(1e-12 * ref[c]);
+            }
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("gives the same matrix from every strategy on a square of equal routes", () => {
+        const s2 = square(2);
+        expect(allPairsShortestPath(s2, { method: "per-source" }).dist).toEqual(
+            allPairsShortestPath(s2, { method: "floyd-warshall" }).dist,
+        );
+        const s1 = square(1);
+        const bfs = allPairsShortestPath(s1, { method: "per-source" });
+        expect(bfs.method).toBe("bfs");
+        expect(bfs.dist).toEqual(allPairsShortestPath(s1, { method: "floyd-warshall" }).dist);
+        s2.validate({ checksum: true });
+        s1.validate({ checksum: true });
+    });
+
+    it("refuses per-source on a negative weight and sweeps it under auto", () => {
+        const s = checksummedSnapshot(
+            directed([
+                ["a", "b", 4],
+                ["a", "c", 2],
+                ["c", "b", -1],
+            ]),
+        );
+        expect(() => allPairsShortestPath(s, { method: "per-source" })).toThrow(/negative/);
+        expect(allPairsShortestPath(s).method).toBe("floyd-warshall");
+        s.validate({ checksum: true });
     });
 });

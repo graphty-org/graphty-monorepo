@@ -10,7 +10,9 @@
  * - tie-heavy: a 100,000-node path, where the shipped function runs to its cap;
  * - structured: a planted partition of 100 groups of 1,000 nodes, average degree about 10.
  *
- * Run from algorithms/ with: npx tsx benchmarks/label-propagation-bench.ts */
+ * Run from algorithms/ with: npx tsx benchmarks/label-propagation-bench.ts [sizes]
+ * The shipped function's times on the path and the planted partition swing by up to 4.6x between
+ * processes while the port's barely move, so quote those rows as a range over fresh processes. */
 import { execSync } from "node:child_process";
 
 import { type SampleGraph } from "@graphty/graph-samples";
@@ -124,7 +126,8 @@ console.log("defaults on both sides: maxIterations 100, randomSeed 42, weighted"
 console.log(
     "columns: pairs | shipped median, min, iterations, converged | port median, min, iterations, converged | ratio of medians",
 );
-for (const n of [1000, 10000, 100000, 1000000]) {
+// Optional first argument: the ladder sizes, comma separated (default 1000,10000,100000,1000000).
+for (const n of (process.argv[2] ?? "1000,10000,100000,1000000").split(",").map(Number)) {
     let pairs = 1;
     if (n <= 10000) {
         pairs = 7;

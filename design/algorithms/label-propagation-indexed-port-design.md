@@ -146,7 +146,13 @@ PR #550 prepares (`webgpu-graph-algorithms/src/algorithms/simple-symmetric.ts` o
   results and can create ties at a hub (Subelj review section 1.1.1) -- and skipping keeps the CPU
   and GPU on the same graph.
 - **Weights.** `weighted` defaults to `true`. With `s.weights === null` every arc weighs 1. F32 arc
-  weights are accumulated in F64. A weight that is negative, NaN or infinite throws a `RangeError`
+  weights are accumulated in F64. When the snapshot keeps an f64 role-"weight" edge column --
+  graph-format keeps one whenever some weight is not f32-exact, as `toSnapshot` does for a legacy
+  graph -- the votes use those exact values, gathered per arc through `arcToEdge` into a
+  `Float64Array(arcCount)` (and one more for the reverse view on a directed snapshot). Voting on the
+  f32 arc array instead turns 1 and 1 + 1e-9 into a tie that the shipped function and NetworkX never
+  see, stores a finite 1e39 as Infinity and a positive 1e-50 as 0. The gather costs one pass and 8
+  bytes per arc, and only on a snapshot that carries such a column. A weight that is negative, NaN or infinite throws a `RangeError`
   before any work (igraph rejects negative and NaN weights, `label_propagation.c#L570-L654`). With
   `weighted: false` each distinct neighbour votes once, whatever the multiplicity or direction of
   the arcs joining them -- the GPU's unweighted rule.
@@ -201,8 +207,11 @@ flip a node between two dominant labels. The port therefore caps the work at `ma
 node visits (default `maxIterations` 100, as shipped), the same cap shape as the indexed Louvain's
 `maxVisitsPerNode` (`algorithms/src/indexed/louvain.ts:139-214`).
 
-- `converged` is `true` exactly when every label is dominant at return. With a positive cap that is
-  exactly when the queue emptied.
+- `converged` is `true` when the queue emptied before the cap, and then every label is dominant.
+  `false` says only that the cap was reached with nodes still queued: a node queued after its
+  neighbour moved may already hold a dominant label, so the labels can all be dominant at a
+  `false`. Checking dominance at the cap would cost one more pass over the arcs for an answer the
+  caller can raise the cap to get.
 - `iterations` is `ceil(visits / n)`, the number of full-sweep equivalents, so the figure stays
   comparable with the shipped function's sweep count. It is 0 when `n` is 0.
 - `maxIterations: 0` returns the identity labelling (every node its own community), matching the
@@ -243,15 +252,15 @@ Everywhere else both functions are randomised heuristics and the comparison is b
 
 All scratch space is allocated once per call; nothing is allocated per node or per arc.
 
-| Array     | Type, length                                   | Role                                                                              |
-| --------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
-| `label`   | `Uint32Array(n)`                               | Current label per node, starts as the identity                                    |
-| `acc`     | `Float64Array(n)`                              | Summed weight per label for the node being visited                                |
-| `stamp`   | `Float64Array(n)`, filled with -1              | Visit number that last wrote `acc[c]`; replaces a clearing pass                   |
-| `touched` | `Uint32Array(n)`                               | Labels written during the current visit                                           |
-| `seen`    | `Float64Array(n)`, only when `weighted: false` | Visit number that last counted neighbour v, so each distinct neighbour votes once |
-| `queue`   | `Uint32Array(n + 1)` ring                      | Nodes waiting; `queued` keeps a node in it at most once, so n + 1 slots suffice   |
-| `queued`  | `Uint8Array(n)`                                | In-queue flag                                                                     |
+| Array     | Type, length                                 | Role                                                                            |
+| --------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
+| `label`   | `Uint32Array(n)`                             | Current label per node, starts as the identity                                  |
+| `acc`     | `Float64Array(n)`                            | Summed weight per label for the node being visited                              |
+| `stamp`   | `Int32Array(n)`, filled with -1              | Epoch that last wrote `acc[c]`; replaces a clearing pass                        |
+| `touched` | `Uint32Array(n)`                             | Labels written during the current visit                                         |
+| `seen`    | `Int32Array(n)`, only when `weighted: false` | Epoch that last counted neighbour v, so each distinct neighbour votes once      |
+| `queue`   | `Uint32Array(n + 1)` ring                    | Nodes waiting; `queued` keeps a node in it at most once, so n + 1 slots suffice |
+| `queued`  | `Uint8Array(n)`                              | In-queue flag                                                                   |
 
 This is the stamp / accumulator / touched-list idiom of the indexed Louvain's local move
 (`algorithms/src/indexed/louvain.ts:139-214`), igraph's dense `label_weights` with its
@@ -259,14 +268,16 @@ This is the stamp / accumulator / touched-list idiom of the indexed Louvain's lo
 a key list plus a full-size value array (`rak.hxx#L118-L139`, reported 15.8x faster than a map in
 Sahu 2023 section 4.1). A label is a node index, so `acc` is indexed directly with no hashing.
 
-The stamp is a `Float64Array` initialised to -1 and the visit counter starts at 0, so label 0 is an
+The stamp is an `Int32Array` initialised to -1 and the epoch starts at 0, so label 0 is an
 ordinary label. GVE-LPA uses community id 0 as "none" (`if (c && c != d)`, `rak.hxx` line 298),
 which means no vertex can ever adopt vertex 0's label; the port must not copy that.
 
-The visit counter is bounded by the cap `maxIterations * n` (at most 2^53 - 1, section 2.5), and a
-`Float64Array` stamp holds every such count exactly, so the stamp never wraps and never needs a
-reset. An `Int32Array` would halve the stamp's memory but would cap the default run at about 21
-million nodes, a limit the algorithm does not have.
+The visit counter is bounded by the cap `maxIterations * n` (at most 2^53 - 1, section 2.5), but
+the stamps hold an epoch that restarts at 0 after 2^31 - 1 visits, with `stamp` and `seen` refilled
+with -1 at that moment: an O(n) pass once per two billion visits, so the size of the graph is not
+capped. The stamps were first `Float64Array`, which needs no reset; halving their bytes measured 8%
+of a converged run and 13% of one sweep at 1M nodes, where the stamp array no longer fits in the
+cache, and nothing at 100k and below (section 11.4).
 
 The result is `renumberPartition(label)` from `@graphty/graph-format`
 (`graph-format/src/snapshot/derived.ts:1155`) wrapped by `withGroups` from
@@ -358,7 +369,7 @@ export interface LabelPropagationOptions {
 export interface LabelPropagationResult extends LabelResult {
     /** Node visits divided by the node count, rounded up. */
     readonly iterations: number;
-    /** True when every node's label is dominant among its neighbours. */
+    /** True when the work queue emptied before the visit cap (then every label is dominant). */
     readonly converged: boolean;
 }
 
@@ -388,8 +399,9 @@ accelerator reads (`maxIterations`, `weighted`), so the dispatcher can pass it t
 the Katz and Louvain methods pass their wider option types today (accelerator.ts:163-170).
 Narrowing the seam would change the interface the GPU package implements and would break PR #550's
 conformance type test (`webgpu-graph-algorithms/test/types/conformance.test-d.ts:131` on that
-branch); it belongs to whichever change needs it. An accelerator ignores `randomSeed` -- the GPU
-kernel is deterministic -- and the dispatcher's doc comment says so.
+branch); it belongs to whichever change needs it. A deterministic kernel such as PR #550's has no
+use for `randomSeed`. webgpu-graph-algorithms implements no `labelPropagation` on master, so with
+its accelerator the dispatcher runs the CPU port; the dispatcher's doc comment says both.
 
 ## 8. Testing
 
@@ -538,42 +550,57 @@ Two measurements, because they answer different questions.
 - Tie-rule test: an exact match against a reference FLPA, with the retention and double-count
   variants shown to differ, rather than a frequency test over many seeds. It is exact where a
   frequency test is statistical, and it also pins the requeue rule and stream consumption.
-- Visit stamps are `Float64Array`, rather than an `Int32Array` reset when the counter nears 2^31. It
-  removes the size limit with no reset branch, which no test could reach without 2^31 visits.
+- Visit stamps are an `Int32Array` epoch reset every 2^31 - 1 visits, rather than a `Float64Array`
+  that never needs a reset. The reset is a branch no test reaches without 2^31 visits, but the
+  smaller array is 8-13% faster at 1M nodes (section 11.4).
 - `randomSeed` is validated as a finite integer, rather than coerced silently, so a fractional or
   NaN seed is reported instead of quietly aliasing seed 0.
 
 ## 11. Results (2026-09-27)
 
 Measured on the shared development machine (Intel i9-14900) against the shipped implementation on
-this branch. Both runs are kept under `tmp/label-propagation-port/` in the worktree.
+this branch, with the port's `Int32Array` stamps and exact-weight votes. The logs are kept under
+`tmp/label-propagation-port/` in the worktree.
 
 ### 11.1 Shipped against the port, interleaved
 
-`npx tsx benchmarks/label-propagation-bench.ts` from `algorithms/`. Both sides at their defaults
-(`maxIterations` 100, `randomSeed` 42, weighted). Runs alternate shipped, port; medians and minima
-in milliseconds unless marked; "sweeps" is each side's `iterations`. Load average (1 / 5 / 15 min)
-7.31 / 6.73 / 6.45 at the start and 8.37 / 10.78 / 8.50 at the end; it peaked at 19 during the 1M
-row, which ran one pair.
+`npx tsx benchmarks/label-propagation-bench.ts 1000,10000,100000` from `algorithms/`, run twice, each
+in a fresh process. Both sides at their defaults (`maxIterations` 100, `randomSeed` 42, weighted).
+Runs alternate shipped, port; medians and minima in milliseconds unless marked; "sweeps" is each
+side's `iterations`. Where the two processes differ, the cell gives both. Load average (1 min) 4.7
+at the start, 8.4 between the runs and 5.4 at the end.
 
-| graph                                  | pairs | shipped median | shipped min | shipped sweeps, converged | port median | port min | port sweeps, converged | ratio of medians |
-| -------------------------------------- | ----- | -------------- | ----------- | ------------------------- | ----------- | -------- | ---------------------- | ---------------- |
-| random 1k, 10k edges                   | 7     | 7.7            | 6.7         | 4, true                   | 0.6         | 0.5      | 3, true                | 13.4x            |
-| random 10k, 100k edges                 | 7     | 217.8          | 213.7       | 8, true                   | 11.1        | 10.8     | 6, true                | 19.6x            |
-| random 100k, 1M edges                  | 3     | 9,878          | 8,614       | 18, true                  | 363.6       | 360.9    | 13, true               | 27.2x            |
-| random 1M, 10M edges                   | 1     | 519.9 s        | 519.9 s     | 35, true                  | 22.2 s      | 22.2 s   | 24, true               | 23.4x            |
-| path of 100k (tie-heavy)               | 3     | 18.5 s         | 15.1 s      | 100, false                | 12.1        | 10.4     | 2, true                | 1,522x           |
-| planted partition 100 x 1k, degree ~10 | 3     | 30.2 s         | 27.9 s      | 100, false                | 106.6       | 101.1    | 8, true                | 284x             |
+| graph                                  | pairs | shipped median  | shipped min     | shipped sweeps, converged | port median | port min  | port sweeps, converged | ratio of medians |
+| -------------------------------------- | ----- | --------------- | --------------- | ------------------------- | ----------- | --------- | ---------------------- | ---------------- |
+| random 1k, 10k edges                   | 7     | 7.8 / 12.6      | 6.7 / 9.2       | 4, true                   | 0.8 / 0.9   | 0.5 / 0.6 | 3, true                | 9.5x / 14.6x     |
+| random 10k, 100k edges                 | 7     | 176 / 315       | 166 / 187       | 8, true                   | 10.7 / 11.5 | 10.4      | 6, true                | 16.5x / 27.5x    |
+| random 100k, 1M edges                  | 3     | 8,163 / 8,315   | 8,053           | 18, true                  | 339 / 336   | 318 / 330 | 13, true               | 24.1x / 24.8x    |
+| random 1M, 10M edges                   | 1 / 7 | 519.9 s         | 519.9 s         | 35, true                  | 15.9 s      | 15.7 s    | 24, true               | about 33x        |
+| path of 100k (tie-heavy)               | 3     | 6,250 / 7,032   | 5,916 / 6,514   | 100, false                | 9.8         | 9.4 / 9.8 | 2, true                | 636x / 716x      |
+| planted partition 100 x 1k, degree ~10 | 3     | 23.6 s / 20.9 s | 20.7 s / 19.7 s | 100, false                | 108 / 105   | 105 / 104 | 8, true                | 219x / 199x      |
+
+The 1M row is not interleaved: the shipped side is one earlier run at a load that peaked at 19,
+and the port side is the minimum and median of 7 runs from `tmp/label-propagation-port/ab-bench.ts`
+at load 7. Its ratio is indicative only.
+
+The shipped function's time on the path and the planted partition is the least stable number here.
+Across four processes on this machine it took 5.8 s to 26.7 s on the same path while the port's
+time moved by about 10%; the longest runs came after a 1M graph had been built in the same process
+(heap 2.65 GB) and while the load rose to 17, and the two effects were not separated. An earlier
+version of this table quoted 1,522x and 284x from such a run. Quote those two rows as the range
+above, measured in fresh processes.
 
 What it shows:
 
 - **Per-arc cost.** On the unweighted random ladder both sides converge, and the port also runs
-  fewer sweep-equivalents (the queue skips settled nodes), so 13-27x is typed arrays plus the queue.
-  Per sweep the port is about 10-20x faster up to 100k. At 1M a port sweep costs about 0.9 s
-  against 28 ms at 100k: the label reads become cache misses once the arrays outgrow the cache.
+  fewer sweep-equivalents (the queue skips settled nodes), so 10-30x is typed arrays plus the queue.
+  Per sweep the port is about 10-20x faster up to 100k. At 1M a port sweep costs about 0.8-0.9 s
+  (one-sweep minimum 815 ms, median 907 ms) against 37 ms at 100k: per arc that is about 14 ns at
+  10k, 18 ns at 100k and 40 ns at 1M, because the label and stamp reads become cache misses once
+  the arrays outgrow the cache.
 - **Stop rule.** On the path and the planted partition the shipped function runs to its cap
   without converging while the port settles in 2 and 8 sweep-equivalents. That, not the per-arc
-  cost, is where the 284x and 1,522x come from.
+  cost, is where the 200x and 600x come from.
 - **Quality.** On planted partitions of 4 groups of 50 (`pIn` 0.3, `pOut` 0.01, seeds 1..10) the
   port's mean adjusted Rand index against the planted groups is 0.971 and the shipped function's
   1.000 (the unit test's bar is >= 0.9 and within 0.05 of the shipped mean). FLPA occasionally
@@ -581,19 +608,37 @@ What it shows:
 
 ### 11.2 `port-bench.ts` rows
 
-Minimum of 3 runs up to 10k, 1 at 100k, consecutive (not interleaved); load average 11.57 / 7.13 /
-6.54 at the start and 7.31 / 6.73 / 6.45 at the end.
+Minimum of 3 runs up to 10k, 1 at 100k, consecutive (not interleaved). At 1k both sides first run
+20 untimed calls: without them the 1k rows measure JIT warm-up (the first three converged calls in
+a fresh process took 7.6-11.1 ms against 0.8 ms warm), which earlier made the 1k port look three
+times slower than it is. Load average 6.4 at the start and at the end.
 
 | n    | port, converged | shipped | ratio | port, one sweep (`maxIterations: 1`) |
 | ---- | --------------- | ------- | ----- | ------------------------------------ |
-| 1k   | 2.3 ms          | 9.4 ms  | 4.0x  | 0.8 ms                               |
-| 10k  | 10.8 ms         | 193 ms  | 17.8x | 3.6 ms                               |
-| 100k | 372 ms          | 11.5 s  | 30.9x | 38.3 ms                              |
+| 1k   | 0.5 ms          | 7.1 ms  | 13.1x | 0.3 ms                               |
+| 10k  | 11.3 ms         | 182 ms  | 16.1x | 2.8 ms                               |
+| 100k | 405 ms          | 9.6 s   | 23.7x | 36.5 ms                              |
 
 ### 11.3 The cost record's row
 
-100 times the one-sweep minimum -- 80 ms, 360 ms and 3,830 ms at 1k, 10k and 100k -- replaces the
-estimated port (6 x PageRank-100) in the appendix B script, with 1M scaled from the old estimate by
-the 100k ratio (1.89x). The re-derived row is in
+100 times the one-sweep minimum -- 30 ms, 280 ms and 3,650 ms at 1k, 10k and 100k from section
+11.2, and 81.5 s at 1M from the 815 ms minimum of section 11.4 -- replaces the estimated port (6 x
+PageRank-100) in the appendix B script. The re-derived row is in
 `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md` under "Re-derived against the
-measured ports".
+measured ports", with the time-to-answer comparison that the per-pass figure leaves out.
+
+### 11.4 Stamp width
+
+`tmp/label-propagation-port/ab-bench.ts` runs the port with `Float64Array` stamps (the first
+version) against the current `Int32Array` stamps on the same snapshot, interleaved, 7 runs after 3
+warm-up rounds; both give the same partition and sweep count. Load average 7.1 at the start and 7.0
+at the end. Milliseconds, median / minimum:
+
+| n    | Float64, converged | Int32, converged | Float64, one sweep | Int32, one sweep |
+| ---- | ------------------ | ---------------- | ------------------ | ---------------- |
+| 10k  | 11.0 / 10.6        | 10.8 / 10.6      | 2.75 / 2.69        | 2.73 / 2.69      |
+| 100k | 397 / 366          | 412 / 342        | 41.7 / 35.8        | 40.1 / 33.5      |
+| 1M   | 17,298 / 16,800    | 15,874 / 15,746  | 1,037 / 984        | 907 / 815        |
+
+At 1M the smaller stamp saves 8% of a converged run and 13% of a sweep; at 100k and below the
+difference is inside the noise.

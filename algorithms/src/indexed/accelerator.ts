@@ -169,10 +169,10 @@ export interface BetweennessAcceleratorOptions {
  * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
  * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
  *
- * `labelPropagation` passes its options through the same way. An accelerator reads
- * `maxIterations` and `weighted` and ignores `randomSeed` -- the GPU kernel is deterministic -- and
- * its result carries no `iterations` or `converged`; call `indexed.labelPropagation` directly for
- * those.
+ * `labelPropagation` passes its options through the same way. An accelerator's result carries no
+ * `iterations` or `converged`, and a deterministic kernel has no use for `randomSeed`; call
+ * `indexed.labelPropagation` directly for those. webgpu-graph-algorithms does not implement
+ * `labelPropagation` yet, so with its accelerator this method runs the CPU port.
  * @public
  */
 export interface AcceleratedAlgorithms {

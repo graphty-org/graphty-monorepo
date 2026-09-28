@@ -218,6 +218,14 @@ describe("indexed.labelPropagation: options and trivial results", () => {
         expect(r.converged).toBe(true);
         expect(r.count).toBe(3);
         zero.validate({ checksum: true });
+
+        // a self-loop does not vote, so loops alone leave the identity dominant
+        const loops = new GraphBuilder({ directed: false });
+        loops.addEdge("a", "a", 5);
+        loops.addEdge("b", "b", 5);
+        const looped = loops.freeze({ checksum: true });
+        expect(labelPropagation(looped, { maxIterations: 0 }).converged).toBe(true);
+        looped.validate({ checksum: true });
     });
 
     it("rejects a maxIterations that is negative, fractional or NaN, or a cap above 2^53 - 1 visits", () => {
@@ -297,6 +305,30 @@ describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", ()
         expect([...r.labels]).toEqual(KARATE_SEED_42);
         expect(KARATE_SEED_42).toEqual(referenceFlpa(s, 42, true, "uniform"));
         s.validate({ checksum: true });
+    });
+
+    it("defaults randomSeed to 42", () => {
+        const s = fixture("Zachary's karate club");
+        expect([...labelPropagation(s).labels]).toEqual(KARATE_SEED_42);
+        s.validate({ checksum: true });
+    });
+
+    it("reports iterations as node visits over the node count, rounded up", () => {
+        // A run capped at k sweeps replays the uncapped run while k * n >= its visits, so the
+        // smallest cap that still converges is ceil(visits / n).
+        for (const name of REFERENCE_FIXTURES) {
+            const s = fixture(name);
+            for (const seed of SEEDS_10) {
+                const r = labelPropagation(s, { randomSeed: seed });
+                expect(r.converged).toBe(true);
+                let k = 0;
+                while (!labelPropagation(s, { randomSeed: seed, maxIterations: k }).converged) {
+                    k++;
+                }
+                expect(r.iterations, `${name}, seed ${seed}`).toBe(k);
+            }
+            s.validate({ checksum: true });
+        }
     });
 
     it("leaves a single node and an edgeless graph as singletons after one sweep", () => {
@@ -523,6 +555,56 @@ describe("indexed.labelPropagation: self-loops, parallel edges and weights", () 
             withB ||= r.labels[index("x")] === r.labels[index("b0")];
         }
         expect(withB).toBe(true);
+        s.validate({ checksum: true });
+    });
+});
+
+describe("indexed.labelPropagation: weights that are not f32-exact", () => {
+    // toSnapshot keeps the legacy graph's f64 weights in the snapshot's role-"weight" edge column
+    // whenever the f32 arc array rounds one of them; the votes must use those.
+
+    it("breaks a tie that exists only after rounding: 1 + 1e-9 outvotes 1", () => {
+        for (const directed of [false, true]) {
+            const g = new Graph({ directed });
+            // directed: x reads both arcs as in-arcs, through the reverse view
+            g.addEdge(directed ? "a" : "x", directed ? "x" : "a", 1);
+            g.addEdge(directed ? "b" : "x", directed ? "x" : "b", 1 + 1e-9);
+            g.addEdge("a", "c", 5);
+            g.addEdge("b", "d", 5);
+            const s = checksummedSnapshot(g);
+            const index = (id: string): number => s.ids.indexOf(id);
+            for (const seed of SEEDS_10) {
+                const r = labelPropagation(s, { randomSeed: seed });
+                expect(r.converged).toBe(true);
+                expect(r.labels[index("x")], `directed ${directed}, seed ${seed}`).toBe(r.labels[index("b")]);
+                expect(r.labels[index("x")]).not.toBe(r.labels[index("a")]);
+            }
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("accepts a finite weight above the f32 range and joins its ends", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b", 1e39);
+        const s = checksummedSnapshot(g);
+        const r = labelPropagation(s);
+        expect(r.count).toBe(1);
+        expect(r.converged).toBe(true);
+        s.validate({ checksum: true });
+
+        const b = new GraphBuilder({ directed: false, weightDtype: "f64" });
+        b.addEdge("a", "b", 1e39);
+        expect(labelPropagation(b.freeze()).count).toBe(1);
+    });
+
+    it("counts a positive weight below the f32 range as a vote", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b", 1e-50);
+        const s = checksummedSnapshot(g);
+        const r = labelPropagation(s);
+        expect(r.count).toBe(1);
+        expect(r.converged).toBe(true);
+        expect(labelPropagation(s, { maxIterations: 0 }).converged).toBe(false);
         s.validate({ checksum: true });
     });
 });

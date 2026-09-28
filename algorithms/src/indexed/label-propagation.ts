@@ -1,4 +1,4 @@
-import { type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
+import { type AdjacencyView, type GraphSnapshot, type NumericVector, renumberPartition } from "@graphty/graph-format";
 
 import { type LabelResult, withGroups } from "./components.js";
 
@@ -16,9 +16,16 @@ export interface LabelPropagationOptions {
 export interface LabelPropagationResult extends LabelResult {
     /** Node visits divided by the node count, rounded up. */
     readonly iterations: number;
-    /** True when every node's label is dominant among its neighbours. */
+    /**
+     * True when the work queue emptied before the visit cap, which leaves every node's label
+     * dominant among its neighbours. False only says the cap was reached with nodes still queued:
+     * the labels may already be dominant.
+     */
     readonly converged: boolean;
 }
+
+/** Epochs run 0 .. EPOCH_LIMIT - 1 between resets of the Int32 stamp arrays. */
+const EPOCH_LIMIT = 0x7fffffff;
 
 /**
  * mulberry32: 32-bit state, output in [0, 1). The exact sequence is part of the result contract
@@ -43,7 +50,7 @@ function mulberry32(seed: number): () => number {
  * @param weights - The arc weights in use, or null when every arc votes 1
  * @returns True when some node has a positive-weight neighbour
  */
-function hasVotingArc(s: GraphSnapshot, weights: Float32Array | null): boolean {
+function hasVotingArc(s: GraphSnapshot, weights: NumericVector | null): boolean {
     for (let u = 0; u < s.nodeCount; u++) {
         const end = s.rowPtr[u + 1];
         for (let a = s.rowPtr[u]; a < end; a++) {
@@ -56,6 +63,26 @@ function hasVotingArc(s: GraphSnapshot, weights: Float32Array | null): boolean {
 }
 
 /**
+ * The per-arc weights of `view` that the votes use: the snapshot's exact f64 weights when it keeps
+ * them (graph-format keeps a role-"weight" f64 edge column whenever some weight is not f32-exact),
+ * gathered through arcToEdge; otherwise the view's own f32 arc array. Voting on the f32 values would
+ * turn 1 and 1 + 1e-9 into a tie, 1e39 into Infinity and 1e-50 into 0.
+ * @param view - The forward snapshot or its reverse view
+ * @param exact - The exact per-edge weights, or null when the f32 arc array is exact
+ * @returns The arc weights, or null when every arc weighs 1
+ */
+function arcWeightsOf(view: AdjacencyView, exact: Float64Array | null): NumericVector | null {
+    if (exact === null) {
+        return view.weights;
+    }
+    const out = new Float64Array(view.arcCount);
+    for (let a = 0; a < out.length; a++) {
+        out[a] = exact[view.arcToEdge[a]];
+    }
+    return out;
+}
+
+/**
  * Community detection by fast label propagation (FLPA; Traag and Subelj, Sci. Rep. 13:2701, 2023,
  * Algorithm 3), the queue-driven form of Raghavan, Albert and Kumara's asynchronous label
  * propagation.
@@ -65,18 +92,21 @@ function hasVotingArc(s: GraphSnapshot, weights: Float32Array | null): boolean {
  * its neighbours, drawing uniformly at random among tied labels (its current label included, with
  * no priority). When its label changes, every neighbour holding a different label is queued again.
  * The run ends when the queue empties -- then every node's label is dominant among its neighbours
- * -- or after `maxIterations * nodeCount` node visits.
+ * and `converged` is true -- or after `maxIterations * nodeCount` node visits.
  *
  * Conventions: self-loops are skipped; parallel arcs are summed; on a directed snapshot a node's
  * neighbours are its out-arcs AND its in-arcs, so a reciprocal pair counts twice. With
  * `weighted: false` each distinct neighbour votes once. A negative, NaN or infinite weight throws.
+ * Votes use the exact f64 weights when the snapshot keeps them (as `toSnapshot` does for a legacy
+ * graph whose weights are not all f32-exact), so a weight rounded in the f32 arc array never
+ * decides a vote.
  *
  * One `randomSeed` gives one result, bit for bit. The partitions differ from the legacy
  * `labelPropagation` for the same seed: the random stream and the stop rule are different
  * (design `design/algorithms/label-propagation-indexed-port-design.md`, section 3).
  * @param s - Any snapshot
  * @param options - Work cap, seed and weighting
- * @returns The partition, the full-sweep equivalents run, and whether every label is dominant
+ * @returns The partition, the full-sweep equivalents run, and whether the work queue emptied
  * @public
  */
 export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOptions = {}): LabelPropagationResult {
@@ -93,7 +123,9 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
     if (maxIterations * n > Number.MAX_SAFE_INTEGER) {
         throw new RangeError(`maxIterations * nodeCount (${maxIterations} * ${n}) exceeds Number.MAX_SAFE_INTEGER`);
     }
-    const weights = weighted ? s.weights : null;
+    const shadow = weighted ? s.edges.byRole("weight") : null;
+    const exact = shadow !== null && shadow.dtype === "f64" ? shadow.data : null;
+    const weights = weighted ? arcWeightsOf(s, exact) : null;
     if (weights !== null) {
         for (let a = 0; a < weights.length; a++) {
             const w = weights[a];
@@ -118,16 +150,18 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
     const sides = rev === null ? 1 : 2;
     const rowPtrs = [s.rowPtr, rev === null ? s.rowPtr : rev.rowPtr];
     const colIdxs = [s.colIdx, rev === null ? s.colIdx : rev.colIdx];
-    const arcWeights = [weights, weights === null || rev === null ? weights : rev.weights];
+    const arcWeights = [weights, weights === null || rev === null ? weights : arcWeightsOf(rev, exact)];
     const rand = mulberry32(randomSeed);
     const acc = new Float64Array(n);
-    // Visit number that last wrote acc[c]. Float64 and started at -1, so label 0 is an ordinary
-    // label and the stamp never wraps below the 2^53 - 1 visit cap (design section 4).
-    const stamp = new Float64Array(n).fill(-1);
+    // Epoch (visit number modulo the reset below) that last wrote acc[c]. Int32 rather than Float64:
+    // half the bytes per label, which is 7-25% of the run once the array outgrows the cache at 1M
+    // nodes (design section 4). Started at -1, so label 0 is an ordinary label.
+    const stamp = new Int32Array(n).fill(-1);
     const touched = new Uint32Array(n);
-    // weighted: false -- visit number that last counted neighbour v, so each distinct neighbour
-    // votes once however many arcs join it.
-    const seen = weighted ? null : new Float64Array(n).fill(-1);
+    // weighted: false -- epoch that last counted neighbour v, so each distinct neighbour votes once
+    // however many arcs join it.
+    const seen = weighted ? null : new Int32Array(n).fill(-1);
+    let epoch = -1;
     // A ring of n + 1 slots: `queued` keeps a node in it at most once.
     const capacity = n + 1;
     const queue = new Uint32Array(capacity);
@@ -151,7 +185,14 @@ export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOpti
         head = head + 1 === capacity ? 0 : head + 1;
         size--;
         queued[u] = 0;
-        const visit = visits++;
+        visits++;
+        if (++epoch === EPOCH_LIMIT) {
+            // Reset before the epoch leaves the Int32 range: O(n) once per 2^31 - 1 visits.
+            stamp.fill(-1);
+            seen?.fill(-1);
+            epoch = 0;
+        }
+        const visit = epoch;
         let count = 0;
         for (let side = 0; side < sides; side++) {
             const rowPtr = rowPtrs[side];

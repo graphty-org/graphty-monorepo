@@ -91,6 +91,15 @@ for (const n of sizes) {
         ["LP, one sweep", null, () => void labelPropagation(su, { maxIterations: 1 })],
     ];
     for (const [name, legacy, ported] of pairs) {
+        // At 1k the first calls are mostly JIT warm-up (a converged label propagation took 7.6-11.1 ms
+        // cold against 0.8 ms warm), so both sides run 20 untimed calls first. From 10k up the
+        // difference is inside load noise.
+        if (n === 1000) {
+            for (let i = 0; i < 20; i++) {
+                ported();
+                legacy?.();
+            }
+        }
         const portedMs = best(reps, ported);
         let legacyMs: number | null = null;
         if (legacy !== null) {

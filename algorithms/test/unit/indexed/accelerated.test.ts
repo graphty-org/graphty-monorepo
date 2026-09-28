@@ -673,10 +673,12 @@ describe("accelerated(acc)", () => {
             "leiden",
             "louvain",
             "maxFlow",
+            "maximumBipartiteMatching",
             "minSTCut",
             "minimumSpanningTree",
             "pageRank",
             "personalizedPageRank",
+            "primMST",
             "sssp",
             "stoerWagner",
             "stronglyConnectedComponents",
@@ -999,8 +1001,45 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
             expect(aa).toEqual(indexed.adamicAdarPrediction(undirected, { topK: 5 }));
         });
 
+        it("primMST equals the port, including an exact f64 weight override", async () => {
+            const weights = expandEdges(
+                undirected,
+                Float64Array.from({ length: undirected.edgeCount }, (_, i) => 0.1 * (i + 1)),
+            );
+            const options = { start: 3, forest: true, weights };
+            const got = await d.primMST(undirected, options);
+            const want = indexed.primMST(undirected, options);
+            expect([...got.edges]).toEqual([...want.edges]);
+            expect([...got.predArc]).toEqual([...want.predArc]);
+            expect(got.totalWeight).toBe(want.totalWeight);
+            expect(got.edges.length).toBeGreaterThan(1);
+        });
+
+        it("maximumBipartiteMatching equals the port", async () => {
+            // Left a, b, c; right x, y, z. A perfect matching exists: a-x, b-y, c-z.
+            const g = new Graph({ directed: false });
+            for (const [u, v] of [
+                ["a", "x"],
+                ["a", "y"],
+                ["b", "x"],
+                ["b", "y"],
+                ["c", "y"],
+                ["c", "z"],
+            ]) {
+                g.addEdge(u, v);
+            }
+            const s = toSnapshot(g);
+            const got = await d.maximumBipartiteMatching(s);
+            const want = indexed.maximumBipartiteMatching(s);
+            expect(got.size).toBe(3);
+            expect(got.size).toBe(want.size);
+            expect([...got.matching]).toEqual([...want.matching]);
+        });
+
         it("turns a port's throw into a rejection", async () => {
             await expect(d.maxFlow(directed, 0, 0)).rejects.toThrow(RangeError);
+            await expect(d.primMST(directed)).rejects.toThrow("requires an undirected graph");
+            await expect(d.maximumBipartiteMatching(cycle())).rejects.toThrow("Graph is not bipartite");
         });
     });
 });

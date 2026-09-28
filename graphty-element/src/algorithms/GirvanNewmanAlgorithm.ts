@@ -1,4 +1,4 @@
-import { girvanNewman } from "@graphty/algorithms";
+import { indexed } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -116,69 +116,65 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         const { maxCommunities, minCommunitySize, maxIterations } = this.schemaOptions;
 
         // Undirected: the edge betweenness this splits on is defined over unordered pairs.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot } = this.input("undirected").derived();
 
         context.report({ phase: "Cutting bridges", total: null });
 
         // maxCommunities is only passed on when it was set: 0 means "find the best split".
-        const dendrogram = girvanNewman(graphData, {
+        const dendrogram = indexed.girvanNewman(snapshot, {
             maxCommunities: maxCommunities > 0 ? maxCommunities : undefined,
             minCommunitySize,
             maxIterations,
         });
 
-        // A CUT CAN OVERSHOOT THE CAP. `girvanNewman` removes every edge tied for the highest
+        // A CUT CAN OVERSHOOT THE CAP. Girvan-Newman removes every edge tied for the highest
         // betweenness in one step, so the step that reaches `maxCommunities` can pass it -- two
         // tied bridges go together and a graph asked for two communities falls into three. The
         // dendrogram is right to record that, because it is what the cuts produced, but this
         // option reads "stop when this many communities reached", and publishing more communities
         // than the caller asked for would make that a false promise. So the published cut is
-        // chosen among the levels that honour the cap.
-        const within =
-            maxCommunities > 0 ? dendrogram.filter((level) => level.communities.length <= maxCommunities) : dendrogram;
+        // chosen among the levels that honour the cap, counting only communities of at least
+        // `minCommunitySize` nodes, as the option says.
+        const counted = (labels: Uint32Array): number => {
+            const sizes = new Map<number, number>();
+            for (const label of labels) {
+                sizes.set(label, (sizes.get(label) ?? 0) + 1);
+            }
+            return [...sizes.values()].filter((size) => size >= minCommunitySize).length;
+        };
+        const levels = dendrogram.levels.map((labels, index) => ({ labels, modularity: dendrogram.modularity[index] }));
+        const within = maxCommunities > 0 ? levels.filter((level) => counted(level.labels) <= maxCommunities) : levels;
 
         // Nothing honours the cap when the graph arrived in more pieces than the cap allows,
         // before a single edge was cut. The first level is then the closest thing to an answer,
         // and it is the graph's own shape rather than anything this chose.
-        const choices = within.length > 0 ? within : dendrogram.slice(0, 1);
+        const choices = within.length > 0 ? within : levels.slice(0, 1);
 
-        const best = choices.reduce<(typeof dendrogram)[number] | undefined>(
-            (winner, candidate) =>
-                winner === undefined || candidate.modularity > winner.modularity ? candidate : winner,
-            undefined,
+        // The port always records the uncut graph first, so there is at least one level.
+        const best = choices.reduce((winner, candidate) =>
+            candidate.modularity > winner.modularity ? candidate : winner,
         );
 
-        const groupOf = new Map<number | string, number>();
-        if (best !== undefined) {
-            for (let index = 0; index < best.communities.length; index++) {
-                for (const nodeId of best.communities[index]) {
-                    groupOf.set(nodeId, index);
-                }
-            }
-        } else {
-            // No cut was possible, which is what a graph with no edges looks like: every node
-            // stands alone, and a partition of singletons scores nothing.
-            nodeIds.forEach((nodeId, index) => groupOf.set(nodeId, index));
-        }
-
+        // Every node keeps the community its level put it in, a small one included: a community
+        // below `minCommunitySize` only stops counting towards the cap.
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: best.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {
             shape: "community",
             fields: communityFieldSpecs(true),
             nodes,
-            graph: { modularity: best?.modularity ?? 0 },
+            graph: { modularity: best.modularity },
             caveats: declaredCaveats({
                 method: "girvan-newman",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
                 notes:
-                    best === undefined
+                    levels.length === 1
                         ? ["No edge could be cut, so every node is its own community."]
-                        : [`Kept the best of ${String(dendrogram.length)} successive cuts.`],
+                        : [`Kept the best of ${String(levels.length)} successive cuts.`],
             }),
         };
     }

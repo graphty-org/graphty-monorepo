@@ -1,4 +1,4 @@
-import { leiden } from "@graphty/algorithms";
+import { indexed } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -136,15 +136,13 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
 
         const { resolution, randomSeed, maxIterations, threshold } = this.schemaOptions;
 
-        // Undirected: modularity is defined over unordered pairs.
-        const graphData = this.algorithmGraph("undirected");
+        // Undirected: modularity is defined over unordered pairs. The dispatcher has no Leiden
+        // member, so the index-based port runs over the run's input directly.
+        const { snapshot } = this.input("undirected").derived();
 
         context.report({ phase: "Refining communities", total: null });
 
-        // `randomSeed` is forwarded because it is offered: it is declared in both schemas and
-        // shown as a control, and the library does take one. It was not passed, so turning the
-        // knob changed nothing at all and every run was the library's own default seed.
-        const result = leiden(graphData, {
+        const result = indexed.leiden(snapshot, {
             resolution,
             randomSeed,
             maxIterations,
@@ -153,7 +151,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: result.communities.get(String(nodeId)) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: result.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {

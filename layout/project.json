@@ -35,6 +35,14 @@
                 "cwd": "layout"
             }
         },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run build-storybook",
+                "cwd": "layout"
+            },
+            "dependsOn": ["build"]
+        },
         "lint": {
             "executor": "nx:run-commands",
             "options": {

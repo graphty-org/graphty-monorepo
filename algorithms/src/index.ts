@@ -142,7 +142,14 @@ export type {
 export type {
     LabelPropagationOptions as IndexedLabelPropagationOptions,
     LabelPropagationResult as IndexedLabelPropagationResult,
+    SynchronousLabelPropagationOptions as IndexedSynchronousLabelPropagationOptions,
 } from "./indexed/label-propagation.js";
+// Aliased: the flat LeidenOptions / LeidenResult and GirvanNewmanOptions name the legacy functions' types.
+export type {
+    GirvanNewmanOptions as IndexedGirvanNewmanOptions,
+    GirvanNewmanResult as IndexedGirvanNewmanResult,
+} from "./indexed/girvan-newman.js";
+export type { LeidenOptions as IndexedLeidenOptions, LeidenResult as IndexedLeidenResult } from "./indexed/leiden.js";
 export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,

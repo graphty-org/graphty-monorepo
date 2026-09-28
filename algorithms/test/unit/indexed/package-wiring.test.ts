@@ -28,17 +28,22 @@ import type {
     IndexedBipartiteFlowNetwork,
     IndexedEigenvectorOptions,
     IndexedEigenvectorResult,
+    IndexedGirvanNewmanOptions,
+    IndexedGirvanNewmanResult,
     IndexedGrsbmOptions,
     IndexedGrsbmResult,
     IndexedKargerOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    IndexedLeidenOptions,
+    IndexedLeidenResult,
     IndexedMaxFlowOptions,
     IndexedMaxFlowResult,
     IndexedMinCutResult,
     IndexedStoerWagnerOptions,
     IndexedSyncClusteringOptions,
     IndexedSyncClusteringResult,
+    IndexedSynchronousLabelPropagationOptions,
     IndexedTeraHacOptions,
     IndexedTeraHacResult,
     LabelResult,
@@ -260,5 +265,27 @@ describe("indexed research clustering exports", () => {
         const bisect: IndexedGrsbmOptions = { weighted: false };
         const bisectResult: IndexedGrsbmResult = pkg.indexed.grsbm(s, bisect);
         expect(bisectResult.count).toBe(1);
+    });
+});
+
+describe("indexed community family exports", () => {
+    it("reaches indexed.leiden, indexed.girvanNewman and the two label propagation variants through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        const leidenOptions: IndexedLeidenOptions = { randomSeed: 3 };
+        const communities: IndexedLeidenResult = pkg.indexed.leiden(s, leidenOptions);
+        expect(communities.labels.length).toBe(3);
+        const gnOptions: IndexedGirvanNewmanOptions = { maxCommunities: 2 };
+        const dendrogram: IndexedGirvanNewmanResult = pkg.indexed.girvanNewman(s, gnOptions);
+        expect(dendrogram.levels.length).toBe(dendrogram.modularity.length);
+        const seeds = new Uint32Array(3).fill(format.INVALID_INDEX);
+        seeds[0] = 0;
+        expect(pkg.indexed.labelPropagationSemiSupervised(s, seeds).labels.length).toBe(3);
+        const sync: IndexedSynchronousLabelPropagationOptions = { weighted: false };
+        expect(pkg.indexed.labelPropagationSynchronous(s, sync).converged).toBe(true);
     });
 });

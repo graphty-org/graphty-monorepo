@@ -54,6 +54,7 @@ export {
     type MinCutResult,
     minSTCut,
 } from "./flow.js";
+export { girvanNewman, type GirvanNewmanOptions, type GirvanNewmanResult } from "./girvan-newman.js";
 export { grsbm, type GrsbmCluster, type GrsbmOptions, type GrsbmResult, type GrsbmSplit } from "./grsbm.js";
 export {
     hierarchicalClustering,
@@ -64,7 +65,15 @@ export {
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
-export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
+export {
+    labelPropagation,
+    type LabelPropagationOptions,
+    type LabelPropagationResult,
+    labelPropagationSemiSupervised,
+    labelPropagationSynchronous,
+    type SynchronousLabelPropagationOptions,
+} from "./label-propagation.js";
+export { leiden, type LeidenOptions, type LeidenResult } from "./leiden.js";
 export {
     adamicAdarForPairs,
     adamicAdarPrediction,

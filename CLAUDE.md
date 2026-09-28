@@ -145,6 +145,9 @@ graphty-monorepo/
 ├── layout/               # @graphty/layout package (depends on graph-format, graph-samples)
 ├── graphty-element/      # @graphty/graphty-element package
 ├── graphty/              # @graphty/graphty React app
+|-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
+|-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
+|-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
 ├── tools/                # Build scripts
 │   ├── merge-coverage.sh # Coverage report merging
 │   ├── run-tests.sh      # Runs one CI test shard locally, with CI's command

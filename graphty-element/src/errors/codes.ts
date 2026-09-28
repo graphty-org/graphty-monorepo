@@ -310,6 +310,13 @@ export type GraphtyErrorCode =
      */
     | "E_DISPOSED"
     /**
+     * An extension's own code threw: a function in a simple-tier definition (an algorithm's
+     * `node`, a layout's `place`), called by the element. `details.extension` is the extension's
+     * id, `details.member` the function, and `cause` the original error. The extension's author
+     * fixes their code; this is not a defect in graphty-element, which is what `E_INTERNAL` means.
+     */
+    | "E_EXTENSION_FAILED"
+    /**
      * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
@@ -369,6 +376,7 @@ const CODE_TABLE = {
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
+    E_EXTENSION_FAILED: "E_EXTENSION_FAILED",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

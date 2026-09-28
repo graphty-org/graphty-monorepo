@@ -39,8 +39,8 @@ const { order, parent, depth } = indexed.directionOptimizedBfs(s, s.ids.requireI
 
 ### Learn More
 
-- 📖 [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
-- 💾 [Memory Optimization](docs/guide/performance.md#memory-optimization) - Making the right choices
+- [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
+- [Memory](docs/guide/performance.md#memory) - What a snapshot costs
 
 ## Installation
 
@@ -50,33 +50,37 @@ npm install @graphty/algorithms
 
 ## Quick Start
 
+Algorithms run over a frozen graph snapshot from [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format)
+and are reached through the `indexed` namespace. Each takes the snapshot first and an options object last, works on
+node indices, and returns typed arrays indexed by node:
+
+<!-- doc-check -->
+
 ```typescript
-import { Graph, breadthFirstSearch, dijkstra } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-// Create a new graph
-const graph = new Graph();
+// Build and freeze a graph; nodes are added on first mention, indices in that order
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("A", "B", 1); // source, target, weight
+builder.addEdge("B", "C", 2);
+const graph = builder.freeze();
 
-// Add nodes and edges
-graph.addNode("A");
-graph.addNode("B");
-graph.addNode("C");
-graph.addEdge("A", "B", 1); // source, target, weight
-graph.addEdge("B", "C", 2);
-
-// Basic graph operations
 console.log(graph.nodeCount); // 3
-console.log(graph.totalEdgeCount); // 2
-console.log(graph.hasEdge("A", "B")); // true
+console.log(graph.edgeCount); // 2
 
-// Run algorithms
-const traversal = breadthFirstSearch(graph, "A");
-console.log(traversal.order); // ['A', 'B', 'C']
+// Run algorithms; ids map to indices and back only at the boundary
+const start = graph.ids.requireIndex("A");
+const traversal = indexed.breadthFirstSearch(graph, start);
+console.log(Array.from(traversal.order.subarray(0, traversal.visitedCount), (i) => graph.ids.idOf(i))); // ["A", "B", "C"]
 
-const shortestPaths = dijkstra(graph, "A");
-// Get distance to C
-const pathToC = shortestPaths.get("C");
-console.log(pathToC?.distance); // 3
+const shortestPaths = indexed.dijkstra(graph, start);
+console.log(shortestPaths.dist[graph.ids.requireIndex("C")]); // 3
 ```
+
+The id-keyed API documented below (the `Graph` class and functions such as `breadthFirstSearch(graph, "A")`) is the
+previous API. It stays available until the next major version; `toSnapshot(graph)` converts one of its graphs to a
+snapshot.
 
 ## API Reference
 

@@ -239,7 +239,12 @@ Use `assert`, not `expect`, as everywhere else in the package.
 3. Pin its signature in `test/types/exports.test-d.ts`
 4. Add tests in `test/layouts/`
 5. Add a story in `stories/`
-6. Update the README
+6. Add a checked example to `README.md` (see below)
+
+## README Samples
+
+`test/docs/readme-samples.test.ts` type-checks and runs every ```typescript block of `README.md`, and fails when a
+block is not marked `<!-- doc-check -->` just before it. Keep each block self-contained, with its own imports.
 
 ## Distribution
 

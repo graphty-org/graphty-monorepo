@@ -118,31 +118,28 @@ npm run docs:build       # Build documentation
 
 ## Algorithm Implementation Pattern
 
-All algorithms follow a consistent interface:
+Algorithms take a frozen `@graphty/graph-format` snapshot first and an options object last, and return typed arrays
+plus scalars:
 
 ```typescript
-export function algorithmName<TNodeId = unknown>(
-    graph: ReadonlyGraph<TNodeId>,
-    options?: AlgorithmOptions,
-): AlgorithmResult<TNodeId> {
-    // Implementation
+export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
+    // Implementation over node indices 0..nodeCount-1 and the snapshot's CSR arrays
 }
 ```
 
 Key principles:
 
-- Generic `TNodeId` type for flexible node identification
-- Read-only graph interface for safety
+- Concrete `NodeId` (`string | number`) and node indices, not a generic id type: ids appear only at the boundary
+  (`snapshot.ids.requireIndex(id)` in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` out)
+- A required per-call input, such as a source node index, sits between the snapshot and the options
+  (`dijkstra(snapshot, source, options?)`)
+- Traversals and paths accept any `AdjacencyView` (a snapshot, or a view such as `snapshot.reverse()`)
 - Optional configuration with sensible defaults
-- Automatic optimization based on graph size
+- Results are typed arrays indexed by node (or edge) index, never id-keyed maps
 
 ## Testing Guidelines
 
 - **Test projects**: `default` (happy-dom) and `browser` (Playwright)
-- The Map-based Floyd-Warshall sweep that used to live in
-  `src/algorithms/shortest-path/floyd-warshall.ts` hung vitest when its coverage was raised. It is
-  gone: that file now delegates to `indexed.allPairsShortestPath` (`src/indexed/all-pairs.ts`), and
-  both are tested normally
 - Performance regression tests track algorithm speed over time
 - Use `npm run test:performance:update` to update baselines after intentional changes
 
@@ -159,7 +156,7 @@ graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, ca
 
 ## Design Philosophy
 
-- **Zero configuration**: every function takes a Graph and needs no setup
+- **Zero configuration**: every function takes a snapshot and needs no other setup
 - **Browser-first**: All implementations work in browser environments
 - **Type safety**: Full TypeScript with strict mode
 - **Performance**: Optimized for graphs up to millions of nodes
@@ -168,12 +165,19 @@ graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, ca
 
 ### Adding a New Algorithm
 
-1. Create implementation in appropriate `src/algorithms/` subdirectory
-2. Export from the category's `index.ts`
-3. Add to main `src/index.ts` exports
-4. Write comprehensive tests in `test/unit/`
-5. Add examples in `examples/`
-6. Update documentation
+1. Create the implementation in `src/indexed/`, following the pattern above
+2. Export it from `src/indexed/index.ts`
+3. Write tests in `test/unit/indexed/`; when a legacy function computes the same thing, add a differential test
+   against it
+4. Add examples in `examples/`
+5. Update documentation; code samples in `docs/guide/getting-started.md` and the README's marked blocks are
+   type-checked and run by `test/unit/docs/guide-samples.test.ts` (see below)
+
+### Documentation Samples
+
+`test/unit/docs/guide-samples.test.ts` type-checks and runs every ```typescript block of
+`docs/guide/getting-started.md`, which must all be marked `<!-- doc-check -->` just before them, and every
+block of `README.md` so marked. Keep each marked block self-contained, with its own imports.
 
 ### Running Examples
 

@@ -160,3 +160,39 @@ export function legacyArcOrder(graph: Graph, s: GraphSnapshot): U32 {
     }
     return order;
 }
+
+const LEGACY_ONLY_CACHE = new WeakMap<Graph, { readonly mutationCount: number; readonly value: boolean }>();
+
+/**
+ * Whether a facade must run its legacy code on this graph because a snapshot cannot stand in for it:
+ * - an edge weight is NaN, which the graph-format builder rejects, so `toSnapshot` would throw where
+ *   the legacy code returns a result (the unweighted functions never even read the weight);
+ * - two node ids share a spelling (the number 1 and the string "1"), so a result keyed by
+ *   `String(id)` holds one entry for both, and which value it holds depends on how the legacy code
+ *   wrote it (betweenness adds the two, others keep the last).
+ * Memoised on the graph's `mutationCount`, like {@link toSnapshot}.
+ * @param graph - The legacy graph
+ * @returns True when the facade must call its legacy implementation
+ */
+export function needsLegacyCode(graph: Graph): boolean {
+    const cached = LEGACY_ONLY_CACHE.get(graph);
+    if (cached?.mutationCount === graph.mutationCount) {
+        return cached.value;
+    }
+    let value = false;
+    for (const edge of graph.edges()) {
+        if (Number.isNaN(edge.weight)) {
+            value = true;
+            break;
+        }
+    }
+    if (!value) {
+        const spellings = new Set<string>();
+        for (const node of graph.nodes()) {
+            spellings.add(String(node.id));
+        }
+        value = spellings.size !== graph.nodeCount;
+    }
+    LEGACY_ONLY_CACHE.set(graph, { mutationCount: graph.mutationCount, value });
+    return value;
+}

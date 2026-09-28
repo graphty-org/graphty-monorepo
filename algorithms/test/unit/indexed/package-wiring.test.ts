@@ -106,6 +106,11 @@ describe("indexed all-pairs shortest path exports", () => {
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
     });
+
+    it("reaches the node bound a caller checks before it runs one", async () => {
+        const pkg = await import("../../../src/index.js");
+        expect(pkg.indexed.APSP_DEFAULT_MAX_NODES).toBe(5792);
+    });
 });
 
 describe("indexed eigenvector and personalized PageRank exports", () => {

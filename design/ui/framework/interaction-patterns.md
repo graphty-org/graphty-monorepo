@@ -70,7 +70,7 @@ own a graph capability.
 |---|---|---|---|---|
 | **Command** | project state: data, sets, results, layers, filter steps including the time window, notes, views, positions, the layout's dimension (2D or 3D) | graphty-element, dispatched as one command | one labeled step | recolor a layer, add a filter step, move the time window, drop a dragged node, switch to 3D |
 | **Selection** | what is selected | graphty-element, published transient state | never a step | click, box, Enter to members, Find, a graph's remembered selection returning with it |
-| **View** | how the project is looked at, without changing it: the camera, which graph is shown, an old data version shown read-only, the walk's focused node (`one-way-doors.md` 40), a layout settling, playback, an immersive session (VR, AR), overlay toggles such as Note markers | graphty-element, transient state | never a step | orbit, Zoom to selection, a graph row click, Enter VR |
+| **View** | how the project is looked at, without changing it: the camera, which graph is shown, an old data version shown read-only, the walk's focused node (`decided-doors.md`, "The focused node and its event"), a layout settling, playback, an immersive session (VR, AR), overlay toggles such as Note markers | graphty-element, transient state | never a step | orbit, Zoom to selection, a graph row click, Enter VR |
 | **Chrome** | app state only: which panel is open, row focus, dock height | the app | never | open a panel, focus a row, Minimize UI |
 
 **Toggles.** A toggle that changes what a saved view or an export shows (labels on canvas, arrows,
@@ -294,7 +294,7 @@ Every entry inherits one or more of these. Each is stated once, here.
   first clears the focus down to one row (3.6). This departs from Figma,
   where a multi-row click is the selection (`figma-crosswalk.md` 4.2): a set is a definition whose
   members are canvas elements, and two selected sets would need an inspector of Mixed rules, which
-  have no meaning (`one-way-doors.md` 39).
+  have no meaning (`one-way-doors.md` 39, Selection of one object as a whole).
 - **Linked views.** The canvas and the table share one selection, and hover links them in both
   directions (brushing and linking; Becker and Cleveland). This is how an analyst looks at a node
   in the context of its neighbors and at its raw attributes at the same time: the two surfaces are
@@ -711,8 +711,8 @@ chrome chords through the dispatcher (`interaction-pattern-entries.md` 9.3; door
 | a row of the comparison's difference list | rung 1, never leaving the surface (Done is the exit) | select the element on both sides | next stop | move row focus | -- | nothing | the project's |
 | the rail | rungs 2, 3 | open that panel | next stop | move among buttons | open that panel | nothing | the project's |
 | the time slider | playing: pause and commit; else rungs 2 and 3, by command | Play or Pause | next stop | step the window; consecutive steps are one undo step (3.2) | Play or Pause | nothing | playing: pause without committing, back to the window before Play, nothing pushed; else the project's |
-| the canvas, no walk | a pointer gesture ends; playing: pause; else rungs 2, 3; a popover open elsewhere stays open | elements or nothing selected: start the walk (`interaction-pattern-entries.md` 9.2); a set, path or item: members (`interaction-pattern-entries.md` 4.2) | leave the canvas | the first press starts the walk | held with a drag: the temporary Hand; released with no drag: nothing | elements: Remove the selection; a set or path: delete the definition, keep the members, empty the selection, with a notice only under 3.5 level 4 (section 2, [i]); an item: nothing, and the polite region says why | the project's |
-| the canvas walk | playing: pause; else rung 2: leave the walk | select the focused node | leave the canvas and the walk (the member-walk keys step through the selection, `interaction-pattern-entries.md` 9.2) | move to a neighbor | released with no drag: toggle the focused node in the selection; the walk goes on | the focused node in the selection: Remove the selection and announce the count; outside it: nothing, and the polite region names the key that selects the focused node | the project's |
+| the canvas, no walk | a pointer gesture ends; playing: pause; else rungs 2, 3; a popover open elsewhere stays open | elements or nothing selected: start the walk (`interaction-pattern-entries.md` 9.2); a set, path or item: members (`interaction-pattern-entries.md` 4.2) | leave the canvas | the camera; Shift with an arrow (the neighbor-walk keys) starts the walk | held with a drag: the temporary Hand; released with no drag: nothing | elements: Remove the selection; a set or path: delete the definition, keep the members, empty the selection, with a notice only under 3.5 level 4 (section 2, [i]); an item: nothing, and the polite region says why | the project's |
+| the canvas walk | playing: pause; else rung 2: leave the walk | select the focused node | leave the canvas and the walk (the member-walk keys step through the selection, `interaction-pattern-entries.md` 9.2) | the camera; Shift with an arrow moves to a neighbor | released with no drag: toggle the focused node in the selection; the walk goes on | the focused node in the selection: Remove the selection and announce the count; outside it: nothing, and the polite region names the key that selects the focused node | the project's |
 | any region, with a non-modal editor popover open elsewhere | the focused region's rungs; the popover stays open | as that region | as that region | as that region | as that region | as that region | as that region |
 
 The last row needs no signal from the host: the editor edits a definition, which does not depend on
@@ -814,9 +814,9 @@ walk.
 stateDiagram-v2
   state "Canvas has focus" as C {
     state "Keyboard" as K {
-      Idle --> Walk : arrow; Enter with elements or nothing selected
+      Idle --> Walk : neighbor-walk key; Enter with elements or nothing selected
       Idle --> Idle : Enter with a set, path or item selected (members); Esc rung 3 deselects; Delete by subject (3.6)
-      Walk --> Walk : arrow (neighbor); member-walk keys (next or previous member of the selection); walk-back key; walk-home key; Space released with no drag (toggle); Enter (select); Delete by subject (3.6); Esc while playing (pause)
+      Walk --> Walk : neighbor-walk key (neighbor); plain arrow (camera, walk kept); member-walk keys (next or previous member of the selection); walk-back key; walk-home key; Space released with no drag (toggle); Enter (select); Delete by subject (3.6); Esc while playing (pause)
       Walk --> Idle : Esc, not playing (rung 2); pointer down
     }
     --
@@ -974,4 +974,5 @@ A departure left with "none found yet" after its study goes back to Figma's way 
   Design"
 - Tidwell et al., *Designing Interfaces*; Alexander et al., *A Pattern Language*; Cooper et al.,
   *About Face*; Nielsen, *Usability Engineering*; Becker and Cleveland, "Brushing Scatterplots"
-- Open decisions cited (`one-way-doors.md`): 39, Selection as element state, and the cap; 40, The focused node and its event
+- Open decisions cited (`one-way-doors.md`): 39, Selection of one object as a whole
+- Decided doors cited: `decided-doors.md`, "The focused node and its event"

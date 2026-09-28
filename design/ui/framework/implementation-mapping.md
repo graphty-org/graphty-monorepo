@@ -59,7 +59,7 @@ workaround.
 | State | Owner | Why |
 |---|---|---|
 | The graph, data versions, attributes, results, runs, sets, paths, style layers, filter steps, views, notes, undo history, the project's own overview recipe; the graph on screen and the camera, saved as the project's reopen state | graphty-element (the session) | graph state; a bare embed needs all of it |
-| The selection of elements, and of one set, path or item as a whole | graphty-element (`session/selection/SelectionApi.ts`, master; objects are door 39, Selection as element state, and the cap) | every consumer reads it |
+| The selection of elements, and of one set, path or item as a whole | graphty-element (`session/selection/SelectionApi.ts`, master; objects are door 39, Selection of one object as a whole) | every consumer reads it |
 | The tool, the gesture in progress and the walk's focused node | graphty-element (`element-needs.md`, "`interaction:changed { tool, gesture, walkFocus }`") | a toolbar that tracked its own clicks would hold a shadow copy |
 | The project autosave; the assistant's providers and keys | graphty-element (`element-contract.md` 15, "The autosave"; the `@graphty/graphty-element/ai` entry point, master) | an embed needs them too; the app draws the dialog and reads and writes through the element |
 | **Transient UI:** which popover is open and its anchor, which list rows are focused, hover, scroll | app: React component state and compact-mantine's `PopoutManager` | chrome; the inspector never reads it, because it is a function of the element's selection alone (`interaction-patterns.md` 3.1) |
@@ -285,10 +285,10 @@ that the element never listens on the document.
 | A, a gesture in progress | graphty-element, reading its interaction state |
 | B, the focused field | the compact-mantine component |
 | C, the top-most overlay | Mantine `Menu`, `Combobox` and `Modal`, then compact-mantine's `PopoutManager` |
-| D, the canvas | graphty-element, on its focus target, including the canvas rungs of Esc, so a bare embed deselects on Esc (door 65, The default keymap and tools) |
+| D, the canvas | graphty-element, on its focus target, including the canvas rungs of Esc, so a bare embed deselects on Esc (`decided-doors.md`, "The default keymap and tools") |
 | E, everywhere else | the element's opt-in dispatcher, `attachKeymap(session, root)` (proposed), which a host attaches to a root it chooses, with `useKeymap` in `./react` |
 
-**The dispatcher is element code.** It reads the published keymap (door 65), skips a
+**The dispatcher is element code.** It reads the published keymap (`decided-doors.md`, "The default keymap and tools"), skips a
 `defaultPrevented` keydown, applies the focus-context rules of `interaction-patterns.md` 3.6 and
 `interaction-pattern-entries.md` 9.3, issues commands by name, and takes a host's extra chords, so every host gets the same
 dispatch (`element-needs.md`, "An opt-in key dispatcher"). The element still never listens on the
@@ -477,7 +477,7 @@ own key (`ShellContext.tsx:108`, `loadDefaults.ts:107`, `insightsMemory.ts:46`,
 `canvasMemory.ts:82`, `AnalyzePanel.tsx:64`, `defaults/accelerationSettings.ts` with its key
 `graphty.shell.acceleration.v1`). Label settings move to a style layer.
 
-**The overview recipe** has three levels (door 33, Choosing the overview recipe). The project's own is session state. The
+**The overview recipe** has three levels (`decided-doors.md`, "The overview recipe's three levels"; the option's published name is door 33, Choosing the overview recipe). The project's own is session state. The
 reader's default is a preference holding only a reference (a URL or a built-in name), handed to the
 element as its consumer default, which the element loads and validates. A domain that cares about
 flows rather than groups ships its own overview recipe, and a reader makes it their default. The
@@ -601,7 +601,7 @@ is gone. The old shell is what graphty.app serves.
 | `insights/insightsRules.ts` | rules about the graph | nothing: the suggestion cards are removed (`principles.md` 5) | -- |
 | `canvas/Legend.tsx`, `legend*.ts`, `Minimap.tsx` | a legend and a minimap drawn from graph content | the element's legend and minimap (door 58, The legend and not-drawn notice) | -- |
 | `statusbar/formatCounts.ts`, `readings/readingFormat.ts`, `statusbar/formatAcceleration.ts` | counts and the acceleration chip's text formatted in the app | the element's value formatter; its reader text for capabilities (`element-needs.md`, "Reader-facing text for graph facts") | -- |
-| `bindings.ts` `ESCAPE_LADDER` | an Esc ladder in the app | the element's keymap and dispatcher (door 65) | -- |
+| `bindings.ts` `ESCAPE_LADDER` | an Esc ladder in the app | the element's keymap and dispatcher (`decided-doors.md`, "The default keymap and tools") | -- |
 | `topbar/undoStore.ts`, `topbar/UndoSplitButton.tsx`, `topbar/HistoryPopover.tsx` | project history in the app | the element's history (PR #553); the history list returns only if graphty-element restores a canceled run on Redo (`element-needs.md`, the Undo rows) | -- |
 | `constants.ts` | a 280 px panel and 108 px fields from a superseded build spec | widths derived from `PANEL_GRID` (`interface-specification.md` 1.3) | -- |
 | `canvas/DataTableDrawer.tsx`, `canvas/TimeSlider.tsx` | a table and a time slider in the app | the bottom dock over the windowed read; the time-window component in compact-mantine | -- |
@@ -667,7 +667,7 @@ lands in the same pull request.
 |---|---|---|---|---|
 | 0 | Open a node: a Small fixture opened from a file picker, drawn, one node clicked, its attributes read in the inspector | part of 4 | `open-and-inspect-a-node` | `revision(key)` for the graph and selection keys; the headless data-load event; `useSession`, `useSessionRead` and `useIdGuard` in `./react`; the fixture generator's Small variant (each other variant arrives with the slice that first draws it) |
 | 1 | Open and characterize, and the keyboard floor | 1 | `open-and-characterize` on the Cliff fixture; gate: `keyboard-floor` on a bare embed | a **minimal intent-command registry**: element-owned ids, labels and synchronous availability for only the commands this slice draws (Set position, Pin, Unpin, Replace, Use as default overview, Compute the overview), so no app code writes a graph command's label (menus and Quick actions stay 2b); the filter chip as a read-only statement ("Full graph") of what every number is computed on, with no menu until filters exist; registered recipes, so the reader's default overview is replaceable from a list (the project's own overview, stored in the file, is slice 7's); the built-in General overview and the reciprocity reading (`element-needs.md`, data area); separating what the element holds from what it draws, which the alert-investigation journey needs to start; `useKeymap`; the component-size list; the keymap, the opt-in dispatcher and canvas Esc rungs; live regions; the interaction state with its gesture flag; the tooltip; set a node's position |
-| 2 | Find, inspect, table | 4 | `find-and-inspect` | paged listings and search; the windowed sorted read; a selection count without the id list; the selection breakdown by kind and type; the walk and camera step controls with the typed handle (a keyboard reader inspects by walking) |
+| 2 | Find, inspect, table | 4 | `find-and-inspect` | paged listings and search; the windowed sorted read; a selection count without the id list; the selection breakdown by kind and type; the walk on the neighbor-walk keys and camera step controls, with the typed handle (a keyboard reader inspects by walking); the session's public shape trimmed to its nouns, then the `graph` getter and the `Graph` export deprecated (`decided-doors.md`, "The graph getter and Graph export") |
 | 2b | Menus and Quick actions | part of 4 (act on what was found) | `select-neighbors-from-menu` (Filter to neighbors needs undoable ordered steps, slice 6) | intent commands from `./commands` with the generated menus and palette; availability with a reason; load preview |
 | 3 | Reopen where I left off | the Load bookend, reopened (the journey's Re-enter stage, `task-flows.md` 2.2) | `reopen-where-left`, which states in writing which sections survive a reopen | the project id; the autosave adapter with one writer; the envelope, reserving the checkpoints' place; committed-only saves by the gesture flag (section 6); node and edge identity and the graph qualifier on references; a section whose doors are undecided stays in the session only (door 88) |
 | 4a | Rank | 2 | `rank-by-centrality` | the ranking read, `ranking(field)`, for a metric result's Top nodes; scoped reads with histogram bins; binned density; the cost estimate as a read; requirement notes; pick-a-target; `catalog.optionsFor`; `OptionDescriptor`'s shared descriptor names |

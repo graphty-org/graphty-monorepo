@@ -277,7 +277,7 @@ A7's licensing fact; the scroll wheel now follows Figma's own map.
 | Variables table rows take no hover tint | table rows take the hover background under the pointer and on linked hover (filed against `DataTable`) | 1 | linked hover between canvas and table needs a visible row target |
 | Hover draws an outline and nothing else | hover also shows the element's label, exempt from the label budget, and the tooltip after its delay (`canvas-drawing.md` 9) | 5 | a node's identity is read without selecting it; values stay in the inspector |
 | The canvas is 2D | in 3D a right drag past the drag threshold, or Alt and a left drag (the trackpad and one-button route), orbits; a right press without travel opens the context menu; a plain wheel pans and a Ctrl or Mod wheel, a pinch among them, zooms, as in Figma | 3D | a 3D view needs an orbit gesture, and a trackpad has no easy right drag; the wheel keeps Figma's meaning because a browser cannot tell a mouse wheel from a two-finger drag (`element-needs.md`, "The canvas input map") |
-| The arrow keys nudge the selection | the arrows walk from the focused node to a neighbor | ontology | positions are unitless; a graph is walked along its edges |
+| The arrow keys nudge the selection | the arrows move the camera, and Shift with an arrow walks from the focused node to a neighbor (`interaction-pattern-entries.md` 9.2) | ontology | positions are unitless; a graph is walked along its edges |
 | Tab on the canvas selects the next sibling and never leaves | Tab always leaves the canvas, walk or not; the member-walk keys step through the selection (`interaction-pattern-entries.md` 9.2) | fixed rule: standalone; WCAG 2.1.2 | a bare embed has no region-cycle chord, and a Tab that stepped a 400-member set would take hundreds of presses to leave |
 | Enter in a field returns focus to the canvas | Enter keeps focus in the field | accessibility | returning after each commit makes a keyboard user re-find the next field |
 | A layer-row click and a rename's commit return focus to the canvas | focus stays on the row | accessibility (WAI-ARIA tree, grid and listbox) | a keyboard user would re-find the row after each commit, and a stray key on the canvas acts on the selection |
@@ -364,4 +364,4 @@ is the Figma column of `state-matrix.md` 2, and this ledger holds the rows it ci
   `right-sidebar-selection/README.md`
 - Figma Help: "Adjust your zoom and view options"; "Navigate Figma Design files"
 - `conceptual-model.md` 1.3; compact-mantine `design/figma-spec.md` 10.6
-- Open decisions cited (`one-way-doors.md`): 39, Selection as element state, and the cap
+- Decided doors cited: `decided-doors.md`, "Selection over the cap"

@@ -293,6 +293,17 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Whether a load from a data source is still streaming records in.
+     *
+     * A static layout reads it to tell a chunk of a load, after which the whole graph is arranged
+     * again, from a reader's add to a finished graph, after which existing nodes stay put.
+     * @returns true between a load's first chunk and its end
+     */
+    get isLoading(): boolean {
+        return this.loadTally !== null;
+    }
+
+    /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
      * Distinct from `positions.placedCount`, which counts what anything has placed -- including

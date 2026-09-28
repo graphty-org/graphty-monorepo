@@ -1,8 +1,8 @@
-import { Edge as LayoutEdge, Node as LayoutNode, planarLayout } from "@graphty/layout";
+import { indexed } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Planar Layout
@@ -88,15 +88,11 @@ export class PlanarLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = planarLayout(
-            { nodes, edges },
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-            this.config.seed,
-        );
+        this.result = indexed.planar(this.graph, {
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+            dim: layoutDim(this.config.dim),
+            seed: this.config.seed,
+        });
     }
 }

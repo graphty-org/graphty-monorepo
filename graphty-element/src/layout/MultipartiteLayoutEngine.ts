@@ -1,4 +1,5 @@
-import { Edge as LayoutEdge, multipartiteLayout, Node as LayoutNode } from "@graphty/layout";
+import { INVALID_INDEX } from "@graphty/graph-format";
+import { indexed } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -82,15 +83,14 @@ export class MultipartiteLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = multipartiteLayout(
-            { nodes, edges },
-            this.config.subsetKey,
-            this.config.align,
-            this.config.scale,
-            this.config.center,
-        );
+        this.result = indexed.multipartite(this.graph, {
+            // A node a layer names that the graph does not hold has nowhere to be drawn.
+            subsets: Object.values(this.config.subsetKey).map((layer) =>
+                layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
+            ),
+            align: this.config.align,
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+        });
     }
 }

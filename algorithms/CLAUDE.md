@@ -40,8 +40,12 @@ algorithms/
 `src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
 `indexed` namespace: BFS, Dijkstra, connected components, Kruskal MST, PageRank, HITS, Katz,
 common neighbours, k-core, Louvain, label propagation and all-pairs shortest paths. Each lands
-beside its legacy function without replacing it; tests live in `test/unit/indexed/` and
-before/after timings in `benchmarks/port-bench.ts`.
+beside its legacy function; tests live in `test/unit/indexed/` and before/after timings in
+`benchmarks/port-bench.ts`. Some legacy functions now delegate to their port and keep only their
+signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and
+`labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it accepts negative weights,
+which the port refuses. The conversions they use live in
+`src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade*.test.ts`.
 
 ## Essential Commands
 
@@ -100,11 +104,10 @@ Key principles:
 ## Testing Guidelines
 
 - **Test projects**: `default` (happy-dom) and `browser` (Playwright)
-- **IMPORTANT**: Do not increase test coverage for floyd-warshall module - it causes vitest to hang.
-  This is the legacy `src/algorithms/shortest-path/floyd-warshall.ts` only. The index-based
-  `indexed.allPairsShortestPath` (`src/indexed/all-pairs.ts`) is tested normally in
-  `test/unit/indexed/all-pairs.test.ts`, which calls the legacy function only as a reference and
-  leaves its coverage unchanged
+- The Map-based Floyd-Warshall sweep that used to live in
+  `src/algorithms/shortest-path/floyd-warshall.ts` hung vitest when its coverage was raised. It is
+  gone: that file now delegates to `indexed.allPairsShortestPath` (`src/indexed/all-pairs.ts`), and
+  both are tested normally
 - Performance regression tests track algorithm speed over time
 - Use `npm run test:performance:update` to update baselines after intentional changes
 

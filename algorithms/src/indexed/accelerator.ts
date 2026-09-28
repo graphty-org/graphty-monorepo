@@ -174,10 +174,11 @@ export interface BetweennessAcceleratorOptions {
  * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
  * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
  *
- * `labelPropagation` passes its options through the same way. An accelerator's result carries no
- * `iterations` or `converged`, and a deterministic kernel has no use for `randomSeed`; call
- * `indexed.labelPropagation` directly for those. webgpu-graph-algorithms does not implement
- * `labelPropagation` yet, so with its accelerator this method runs the CPU port.
+ * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
+ * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
+ * accelerator's result carries no `iterations` or `converged`; call `indexed.labelPropagation`
+ * directly for those. webgpu-graph-algorithms does not implement `labelPropagation` yet, so with its
+ * accelerator this method runs the CPU port.
  *
  * `allPairsShortestPath` is the reverse case: the accelerator member reads none of the port's
  * options and has no negative-cycle flag, so the dispatcher calls it, without options, only when it
@@ -293,7 +294,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         labelPropagation: (s, options) =>
-            acc?.labelPropagation !== undefined
+            acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
     };

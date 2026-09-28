@@ -2,7 +2,6 @@ import { GraphBuilder, type GraphSnapshot, renumberPartition } from "@graphty/gr
 import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
-import { labelPropagation as legacyLabelPropagation } from "../../../src/algorithms/community/label-propagation.js";
 import { Graph } from "../../../src/core/graph.js";
 import { labelPropagation } from "../../../src/indexed/label-propagation.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
@@ -712,20 +711,6 @@ describe("indexed.labelPropagation: directed snapshots", () => {
     });
 });
 
-/** The legacy result as a dense label array in snapshot index order, renumbered first-seen. */
-function legacyLabels(s: GraphSnapshot, graph: Graph, randomSeed: number): { labels: number[]; converged: boolean } {
-    const r = legacyLabelPropagation(graph, { randomSeed });
-    const raw = new Uint32Array(s.nodeCount);
-    for (let i = 0; i < s.nodeCount; i++) {
-        const c = r.communities.get(String(s.ids.idOf(i)));
-        if (c === undefined) {
-            throw new Error(`legacy result has no community for node ${i}`);
-        }
-        raw[i] = c;
-    }
-    return { labels: [...renumberPartition(raw).labels], converged: r.converged };
-}
-
 /** Adjusted Rand index of two partitions (Hubert and Arabie 1985), by pair counting. */
 function adjustedRandIndex(a: ArrayLike<number>, b: ArrayLike<number>): number {
     const n = a.length;
@@ -756,40 +741,28 @@ function adjustedRandIndex(a: ArrayLike<number>, b: ArrayLike<number>): number {
     return maximum === expected ? 1 : (index - expected) / (maximum - expected);
 }
 
-describe("indexed.labelPropagation: against the legacy labelPropagation", () => {
-    it("finds the same communities where the graph determines them", () => {
+describe("indexed.labelPropagation: partitions the graph determines", () => {
+    it("finds the cliques and the isolated node for every seed", () => {
+        const expected: Record<string, number[]> = {
+            "two triangles and an isolated node": [0, 0, 0, 1, 1, 1, 2],
+            "two five-cliques, disconnected": [0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+        };
         for (const { name, graph } of undirectedFixtures()) {
-            if (name !== "two triangles and an isolated node" && name !== "two five-cliques, disconnected") {
+            if (!(name in expected)) {
                 continue;
             }
             const s = checksummedSnapshot(graph);
             for (const seed of SEEDS_10) {
                 expect([...labelPropagation(s, { randomSeed: seed }).labels], `${name}, seed ${seed}`).toEqual(
-                    legacyLabels(s, graph, seed).labels,
+                    expected[name],
                 );
             }
             s.validate({ checksum: true });
         }
     });
 
-    it("ends dominant wherever both report convergence, on every shared undirected fixture", () => {
-        for (const { name, graph } of undirectedFixtures()) {
-            const s = checksummedSnapshot(graph);
-            for (const seed of SEEDS_10) {
-                const port = labelPropagation(s, { randomSeed: seed });
-                const legacy = legacyLabels(s, graph, seed);
-                if (port.converged && legacy.converged) {
-                    expect(dominanceHolds(s, port.labels), `${name}, seed ${seed}, port`).toBe(true);
-                    expect(dominanceHolds(s, legacy.labels), `${name}, seed ${seed}, legacy`).toBe(true);
-                }
-            }
-            s.validate({ checksum: true });
-        }
-    });
-
-    it("recovers a planted partition at least as well as the legacy function (mean ARI >= 0.9)", () => {
+    it("recovers a planted partition (mean ARI >= 0.9)", () => {
         let portSum = 0;
-        let legacySum = 0;
         for (const seed of SEEDS_10) {
             const sample = plantedPartitionGraph({ groups: 4, groupSize: 50, pIn: 0.3, pOut: 0.01, seed });
             const g = new Graph({ directed: false });
@@ -806,12 +779,8 @@ describe("indexed.labelPropagation: against the legacy labelPropagation", () => 
             const s = checksummedSnapshot(g);
             const planted = Array.from({ length: s.nodeCount }, (_, i) => truth[Number(s.ids.idOf(i))]);
             portSum += adjustedRandIndex(labelPropagation(s, { randomSeed: seed }).labels, planted);
-            legacySum += adjustedRandIndex(legacyLabels(s, g, seed).labels, planted);
             s.validate({ checksum: true });
         }
-        const portMean = portSum / SEEDS_10.length;
-        const legacyMean = legacySum / SEEDS_10.length;
-        expect(portMean).toBeGreaterThanOrEqual(0.9);
-        expect(portMean).toBeGreaterThanOrEqual(legacyMean - 0.05);
+        expect(portSum / SEEDS_10.length).toBeGreaterThanOrEqual(0.9);
     });
 });

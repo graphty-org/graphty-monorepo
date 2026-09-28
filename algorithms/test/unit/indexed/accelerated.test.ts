@@ -283,9 +283,9 @@ describe("accelerated(acc)", () => {
         expect((await accelerated(null).labelPropagation(s, { maxIterations: 0 })).count).toBe(3);
     });
 
-    it("hands label propagation to an accelerator with the same snapshot and options object", async () => {
+    it("hands an unseeded label propagation to an accelerator with the same snapshot and options object", async () => {
         const s = cycle();
-        const options = { maxIterations: 3, randomSeed: 5, weighted: false };
+        const options = { maxIterations: 3, weighted: false };
         const answer: LabelResultLike = { labels: Uint32Array.of(0, 0, 0), count: 1, groups: () => [] };
         const seen: unknown[] = [];
         const fake: AlgorithmAccelerator = {
@@ -298,6 +298,22 @@ describe("accelerated(acc)", () => {
         expect(await accelerated(fake).labelPropagation(s, options)).toBe(answer);
         expect(seen[0]).toBe(s);
         expect(seen[1]).toBe(options);
+    });
+
+    it("runs a seeded label propagation on the CPU port even with an accelerator attached", async () => {
+        const s = cycle();
+        const calls: unknown[] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            labelPropagation: (...a) => (calls.push(a), Promise.reject(new Error("must not be called"))),
+        };
+        const viaDispatcher = await accelerated(fake).labelPropagation(s, { randomSeed: 7 });
+        const direct = indexed.labelPropagation(s, { randomSeed: 7 });
+        expect(calls).toEqual([]);
+        expect([...viaDispatcher.labels]).toEqual([...direct.labels]);
+        expect(viaDispatcher.count).toBe(direct.count);
+        // only the CPU port reports iterations; an accelerator's result has none
+        expect((viaDispatcher as typeof direct).iterations).toBe(direct.iterations);
     });
 
     it("lets a throwing label propagation accelerator reject unchanged", async () => {

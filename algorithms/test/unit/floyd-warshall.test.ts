@@ -421,8 +421,9 @@ describe("Floyd-Warshall Algorithm", () => {
             // Try to get path in graph with negative cycle
             const path = floydWarshallPath(directedGraph, "A", "C");
 
-            // Path should still be found despite negative cycle
-            expect(path).not.toBeNull();
+            // Under a negative cycle no shortest path exists, so there is none to return
+            expect(path).toBeNull();
+            expect(result.distances.get("A")?.get("C")).toBeNaN();
         });
 
         it("should handle empty distance map in path reconstruction", () => {

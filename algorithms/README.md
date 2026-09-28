@@ -364,8 +364,9 @@ otherwise; `method: "floyd-warshall"` or `"per-source"` forces a strategy, and `
 which ran. Pass `paths: true` to record predecessors, then `pathTo(i, j)` and `pathEdges(i, j)` return
 node and edge indices. It refuses graphs above 5,792 nodes (256 MiB of matrix) unless you raise
 `maxNodes`. A negative cycle gives `hasNegativeCycle: true` and a matrix of `NaN`. On a 512-node graph
-with 5,120 edges it is 69x faster than `floydWarshall` with Floyd-Warshall forced, 201x on weighted
-input by default, and 775x on unweighted input.
+with 5,120 edges it was 69x faster than the Map-of-Maps Floyd-Warshall that `floydWarshall` ran before it
+delegated here, with Floyd-Warshall forced, 201x on weighted input by default, and 775x on unweighted
+input.
 
 ### Centrality Algorithms
 
@@ -716,7 +717,8 @@ const labels = labelPropagationSemiSupervised(graph, seedLabels, options);
 Over a `@graphty/graph-format` snapshot, `indexed.labelPropagation(toSnapshot(graph), { maxIterations,
 randomSeed, weighted })` runs fast label propagation (FLPA) on typed arrays and returns
 `{ labels, count, groups(), iterations, converged }`. It stops once every label is dominant, so it
-also converges on paths and trees; its partitions differ from `labelPropagation`'s for the same seed.
+also converges on paths and trees. `labelPropagation` delegates to it, so for the same integer seed both
+return the same partition.
 
 #### Girvan-Newman Algorithm
 

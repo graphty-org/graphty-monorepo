@@ -211,6 +211,27 @@ describe("indexed.maximumBipartiteMatching", () => {
         expect(greedyBipartiteMatching(s).size).toBe(3);
     });
 
+    it("follows a left node's in-arcs after its out-arcs when a later search revisits it", () => {
+        // a matches r1 by its out-arc. b then reaches a through r1, and a must re-scan from the
+        // start of its in-row to find r2; its out-row ends past where its in-row starts.
+        const b = new GraphBuilder({ directed: true });
+        for (const id of ["a", "b", "r1", "r2"]) {
+            b.addNode(id);
+        }
+        for (const [u, v] of [
+            ["a", "r1"],
+            ["b", "r1"],
+            ["r2", "a"],
+        ]) {
+            b.addEdge(u, v);
+        }
+        const s = b.freeze();
+        const result = maximumBipartiteMatching(s);
+        expect(result.size).toBe(2);
+        expect(result.matching[s.ids.indexOf("a")]).toBe(s.ids.indexOf("r2"));
+        expect(result.matching[s.ids.indexOf("b")]).toBe(s.ids.indexOf("r1"));
+    });
+
     it("keeps its size on a multigraph with every edge doubled", () => {
         const graph = randomBipartite(30, 25, 70, 11);
         const b = new GraphBuilder({ directed: false });

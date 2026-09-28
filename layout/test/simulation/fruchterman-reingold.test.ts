@@ -6,7 +6,11 @@ import { describe, it } from "vitest";
 import { fruchtermanReingoldLayoutLegacy as fruchtermanReingoldLayout } from "../../src/layouts/force-directed/fruchterman-reingold-legacy";
 import { FruchtermanReingoldSimulation } from "../../src/simulation/fruchterman-reingold";
 import { seedPositions } from "../../src/simulation/seed";
+import { goldenFile } from "../indexed/golden";
 import type { Edge, Graph, Node, PositionMap } from "../../src/types";
+
+// the legacy loop's outputs, recorded before layout 2.0.0 removed it
+const golden = goldenFile("simulation-fruchterman-reingold");
 
 /** The edge arrays of a w x h grid (index i = y * w + x), the same edge order for the snapshot and the legacy Graph. */
 function gridEdges(w: number, h: number): { src: number[]; dst: number[] } {
@@ -165,7 +169,7 @@ describe("FruchtermanReingoldSimulation", () => {
             }
             // the legacy function rescales at the end only when `fixed` is null: one fixed node on both sides
             // disables it, and the same node is pinned in the simulation
-            const expected = fruchtermanReingoldLayout(legacyGrid(w, h), null, pos, [0], k);
+            const expected = golden(`one step, k ${k}`, s.ids, () => fruchtermanReingoldLayout(legacyGrid(w, h), null, pos, [0], k));
             const mask = makeMask(n);
             maskSet(mask, 0, true);
             const sim = new FruchtermanReingoldSimulation({ iterations: k, fixed: mask, settleThreshold: 0 });
@@ -199,7 +203,9 @@ describe("FruchtermanReingoldSimulation", () => {
         for (let i = 0; i < n; i++) {
             pos[i] = [positions[3 * i], positions[3 * i + 1]];
         }
-        const expected = fruchtermanReingoldLayout({ nodes: () => nodes, edges: () => edges }, null, pos, [3], 7);
+        const expected = golden("self-loop, parallel edge and isolate", s.ids, () =>
+            fruchtermanReingoldLayout({ nodes: () => nodes, edges: () => edges }, null, pos, [3], 7),
+        );
         const mask = makeMask(n);
         maskSet(mask, 3, true);
         const sim = new FruchtermanReingoldSimulation({ iterations: 7, fixed: mask, settleThreshold: 0 });
@@ -226,7 +232,7 @@ describe("FruchtermanReingoldSimulation", () => {
             pos[i] = [base[3 * i], base[3 * i + 1]];
         }
         const legacy: Graph = legacyGrid(3, 2);
-        const expected = fruchtermanReingoldLayout(legacy, 0.5, pos, [0], 6);
+        const expected = golden("k, scale and center", s.ids, () => fruchtermanReingoldLayout(legacy, 0.5, pos, [0], 6));
         const mask = makeMask(n);
         maskSet(mask, 0, true);
         const sim = new FruchtermanReingoldSimulation({

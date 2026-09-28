@@ -189,9 +189,22 @@ export class JsonDataSource extends DataSource {
         const idKey = this.nodeIdKey(rawNodes);
         const endpoints = this.endpointKeys(rawEdges);
 
+        // The element keeps the FIRST record of a repeated node id and skips the rest; graph-io
+        // would merge them with the later values winning, so the repeats are left out here.
+        const seenIds = new Set<unknown>();
+        const uniqueNodes = rawNodes.filter((node) => {
+            if (idKey === null || !isObject(node) || !(idKey in node)) {
+                return true;
+            }
+
+            const repeated = seenIds.has(node[idKey]);
+            seenIds.add(node[idKey]);
+            return !repeated;
+        });
+
         const imported = await importRecords(
             jsonImporter,
-            JSON.stringify({ nodes: idKey === null ? [] : rawNodes, edges: endpoints === null ? [] : rawEdges }),
+            JSON.stringify({ nodes: idKey === null ? [] : uniqueNodes, edges: endpoints === null ? [] : rawEdges }),
             {
                 dialect: "node-link",
                 nodesPath: "nodes",
@@ -210,20 +223,19 @@ export class JsonDataSource extends DataSource {
 
         // An edge naming a node the file never declared adds that node to the import; the element
         // materialises such an endpoint itself, and has never been handed a record for it.
-        const declaredIds = new Set(
-            rawNodes.map((node) => (isObject(node) && idKey !== null ? node[idKey] : undefined)),
-        );
+        // The id and endpoints are written last, under the keys the file used, so a value the file
+        // also carries under another of those keys stays where the file put it.
         const nodes =
             idKey === null
                 ? rawNodes.filter((node, index) => this.isValidNode(node, index))
                 : imported.nodes
-                      .filter((node) => declaredIds.has(node.id))
-                      .map(({ id, ...rest }) => ({ ...rest, [idKey]: id }));
+                      .filter((node) => seenIds.has(node.id))
+                      .map(({ id, data }) => ({ ...data, [idKey]: id }));
         const edges =
             endpoints === null
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
-                : imported.edges.map(({ source, target, ...rest }) => ({
-                      ...rest,
+                : imported.edges.map(({ source, target, data }) => ({
+                      ...data,
                       [endpoints.source]: source,
                       [endpoints.target]: target,
                   }));

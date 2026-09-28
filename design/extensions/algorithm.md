@@ -30,7 +30,7 @@ changes in section 7 below); the design studio's gap workflows (`design/designlo
 
 | Type | Kind |
 | --- | --- |
-| `AlgorithmDescriptor`, the statics (`type`, `namespace`, `descriptor`, `scopeInput`, `parallelEdges`, `version`, `cost`, `costUnits`), `compute`, `AlgorithmOutput` (as a return value) | implemented by extensions |
+| `AlgorithmDescriptor`, the statics (`type`, `namespace`, `descriptor`, `scopeInput`, `parallelEdges`, and the `AlgorithmStatics` members `version`, `cost`, `costUnits`), `compute`, `AlgorithmOutput` (as a return value) | implemented by extensions |
 | `AlgorithmRunContext`, `ScopedInput`, `RunProgressReport`, `Caveats`, the helpers (`metricField`, `nodeMetricFields`, the field-spec builders, `declaredCaveats`, `forEachChunked`, `checkShapeContract`), `schemaOptions`, `nodeIndex` | called by extensions |
 | `GraphSnapshot`, `NodeMask`, `EdgeMask` | graph-format types, re-exported by `./extend` |
 
@@ -38,7 +38,7 @@ changes in section 7 below); the design studio's gap workflows (`design/designlo
 
 | Member | Rule |
 | --- | --- |
-| `key` | Non-empty; MUST equal `static type`; not a built-in key; permanent (it is recorded in run records and result paths) |
+| `key` | Non-empty; MUST equal `static type`; not a built-in key; permanent (it is recorded in run records, and every run id the element derives is computed from it, README section 4.4) |
 | `plainName`, `technicalName`, `description` | `plainName` non-empty |
 | `category` | One of the published categories, or a new string (open union) |
 | `shape` | One of the published result shapes |
@@ -65,13 +65,17 @@ changes in section 7 below); the design studio's gap workflows (`design/designlo
    source-target pair, which cannot name one of two parallel edges).
 5. `graph` holds graph-level values.
 6. Fields the element can derive (group sizes, level counts, a set's count, a metric's ranking and
-   range) MUST NOT be published by the algorithm.
+   range) MUST NOT be published by the algorithm. Section 2.2.3 defines them.
 7. `caveats` MUST state at least `method` and `direction`; build it with `declaredCaveats`, which
    fills `exact: true`, `precision: "f64"` and `notes: []`. An approximate, sampled, seeded,
    iterative or partial run MUST say so in the matching caveat member.
 8. Every value MUST be JSON-compatible. A result is a value: it can be posted to a worker, saved and
    compared. (A columnar form over snapshot rows, for results of tens of millions of elements, is
-   open decision 18.)
+   open decision 18.) Every published number MUST be finite: `JSON.stringify` turns `Infinity` and
+   `NaN` into `null`, so a saved result would hold `null` where the top hub was. A metric whose raw
+   value can overflow double precision or lose its exact integers (a sum of factorials of clique
+   sizes, as cytoHubba's MCC is) MUST be published log-scaled, with the field's `normalization`
+   naming the transform (for example `"log10"`), and the method caveat saying so.
 9. **Partial results.** A run that fails (throws) publishes nothing. A run that stops early because
    a limit the CALLER set was reached (a time box or an iteration cap, once forwarded; section
    5.1) MAY publish what it has, and then MUST set `caveats.exact` to `false` and
@@ -104,8 +108,23 @@ sizes, counts are derived).
 
 `nodeMetricFields` builds the `node-metric` set; for every other shape an author writes the
 fields with `metricField`. A field-builder per shape is a convenience the element SHOULD add
-(additive). A community result has no place for a per-group NAME (for example a cluster's top
-annotation term); that is part of open decision 18.
+(additive).
+
+**Fields beyond the shape's own.** `checkShapeContract` checks only that a shape's required fields
+are present, so a descriptor MAY declare more (a `zscore` and a `pvalue` next to a node-metric's
+`value`). The element ranks and encodes only the shape's primary field -- `value` for a metric,
+`score` for a category table, the group, level or set membership otherwise -- and derives the
+default style layer from it. An extra field is published under its own result path, so a reader's
+own layer can select on it and the result table shows it; it gets no rank or percentile of its
+own unless a caller asks the result for a ranking by that field.
+
+**What a shape cannot carry.** A community result gives each node exactly one group, so
+overlapping membership (a protein in two complexes, as MCODE with "fluff" or ClusterONE produce)
+cannot be published without dropping a membership, and it has no per-group table (a cluster's
+score, its seed node, its name or its enriched terms). The `sizes`, `categories`, `steps`, `series`
+and `rates` table fields have no declared row schema: unlike `pairs` (section 2.2.2) nothing says
+which columns the element expects, so a plugin's temporal or category table may be shown wrong.
+All three are part of open decision 18.
 
 ### 2.2.2 The `pair-list` table
 
@@ -119,10 +138,46 @@ plugin MUST emit the same:
    by `score`, descending; ties keep the algorithm's order.
 3. Extra members MAY be added per row; they are plain JSON.
 4. Whether a pair already joined by an edge is allowed is the algorithm's to state in its
-   description; the element does not check it.
+   description; the element does not check it, and no machine-readable flag says it.
+5. A plugin SHOULD bound the number of rows by a declared numeric option with a `max` (a top-k),
+   because the whole table is one JSON value in a graph field, posted and saved as one.
+
+What the contract does not yet say, all part of open decision 18: a declared schema for the
+extra per-row members (so a reader, an exporter or a form knows their names and types); a flag
+for whether connected pairs are excluded; a grouping key so the element can rank per source (the
+top ten items per user, rather than the thousand best pairs in the whole graph); a candidate-set
+input ("score only user-to-item pairs", a held-out pair list), which needs the `pair-list` option
+type of open decision 22; and a columnar form for tables of millions of rows. Nor does it say
+what a scope means for a pair-list: whether a row is kept when both endpoints are in scope, when
+either is, or when only the source is. Cold-start recommendation needs "source in scope, target
+anywhere"; that rule is part of open decision 23.
 
 A pair-list result is read as a table; nothing turns it into drawn edges or into a new network
-(a derived network, open decision 18).
+(a derived network, open decision 18), and no export writes it as a table yet (`file-format.md`
+section 8.1).
+
+### 2.2.3 The values the element derives
+
+The element derives these from what `compute` returned (`graphty-element/src/session/results/statistics.ts`),
+so that no two algorithms disagree about them. They are normative, and a methods section can cite
+them:
+
+1. **Measured.** Only elements with a finite value in the primary field count. An element with no
+   entry, or a non-finite value, is unmeasured: it has no rank, no percentile, and is left out of
+   every statistic and denominator below.
+2. **Rank.** Descending: rank 1 is the HIGHEST value. Ties share the lowest rank of their group
+   and the next distinct value takes the rank its position implies ("competition" ranking, the
+   `min` method of `scipy.stats.rankdata` applied to the negated values: 1, 2, 2, 4). Within a
+   tie, entries are listed in order of their id's string form, so a re-run does not reshuffle
+   them; that order carries no meaning.
+3. **Percentile.** The share of measured elements this one ranks at or above:
+   `(measured - rank + 1) / measured`, in (0, 1]. The top element is at 1, and when every value
+   is equal every element is at 1. (This is inclusive and top-anchored; pandas'
+   `rank(pct=True, method="min", ascending=False)` gives `rank / measured` instead.)
+4. **Median.** The lower median: the value at index `floor((measured - 1) / 2)` of the measured
+   values sorted ascending (no averaging of the two middle values).
+5. **Mean.** The arithmetic mean over measured values, summed with Kahan compensation.
+6. **tiedAtMin.** How many measured elements share the minimum value.
 
 ### 2.3 Style
 
@@ -148,6 +203,12 @@ reader's choice, never the algorithm's.
 `simplify: "none"` keeps every parallel edge as its own row, so an event-level algorithm on a
 multigraph sees each one.
 
+A reciprocal pair collapsed by `"undirected"` is merged by the same policy. For an edge list that
+lists every interaction in both directions (STRING does), the default `"sum"` doubles every
+strength once weights reach a plugin (open decision 17); a plugin that reads a strength SHOULD ask
+for `simplify: "max"`, and the run record MUST say which orientation and policy the run used
+(`RunRecord.orientation` and `simplify`, open decision 26).
+
 Rules:
 
 1. An algorithm MUST read the graph only through `context.input` (or through `schemaOptions` for
@@ -161,21 +222,24 @@ Rules:
    "report for these", not "compute without the rest": a what-if run that removes a node cannot be
    expressed by scoping a whole-graph algorithm, and gets the baseline numbers back with only a
    caveat. Separating the two roles is open decision 23.
-4. **Edge identity (not yet met).** There is no public way to turn an edge row into the element's
-   `Edge.id`: the mapping is internal. A plugin that reads only the snapshot cannot therefore
-   publish an edge-shaped result. The proposed fix is `ScopedInputEdgeIdentity` in
-   `algorithm.d.ts` (`edgeId(row)` on `graph`, `subgraphEdgeIds(row)` on the subgraph), README open
-   decision 5. The migration plan specifies the same accessor differently -- "the scoped input's
-   snapshot plus the edge remap", a map from declared edge rows to view edge rows, which the
-   element's accelerated route already builds -- and open decision 5 must pick one of the two and
-   update the other document. Until it lands:
-   - an edge-shaped plugin is an EXCEPTION to section 3.2: it MAY read edge ids through the
-     deprecated `algorithmGraph()` route;
-   - it MUST NOT use the guide's `edgeIdsByPair` helper on a graph with parallel edges, because a
-     source-target pair cannot name one of two parallel edges and the value would be published to
-     the wrong edge or collapse two edges into one;
-   - the `@deprecated` tag on `algorithmGraph` MUST NOT ship before the accessor does: without it,
-     an edge-shaped plugin has no conforming route once 4.0 removes the old one.
+4. **Edge identity (not yet met): no conforming edge-shaped plugin exists today.** There is no
+   public way to turn an edge row into the element's `Edge.id`: the mapping is internal. The
+   deprecated `algorithmGraph()` does not help: it is built over the SIMPLIFIED subgraph with
+   `graph.addEdge(source, target, weight)` and never receives an `Edge.id`
+   (`graphty-element/src/algorithms/utils/snapshotGraph.ts`), and the legacy graph holds one edge
+   per pair, so parallel edges are already merged. The only route that works is the guide's
+   `edgeIdsByPair` helper, which reads `this.graph.getSession()` -- forbidden by rule 1 -- and
+   which cannot name one of two parallel edges. The parity suite's edge tests use that route too.
+   So an `edge-metric` or `edge-set` plugin cannot publish by id without breaking this contract on
+   any graph, and cannot publish one value per edge at all on a multigraph (an event log, an
+   interaction log). The fix is `ScopedInputEdgeIdentity` in `algorithm.d.ts` (`edgeId(row)` on
+   `graph`, `subgraphEdgeIds(row)` on the subgraph), README open decision 5, which is therefore a
+   blocker for the whole algorithm contract, not only for the deprecation. The migration plan
+   specifies the same accessor differently -- "the scoped input's snapshot plus the edge remap" --
+   and open decision 5 must pick one and update the other document. It must also say what a value
+   published for a subgraph row that merged several parallel edges means: copied to every id
+   behind it, or refused. Until it lands, the `@deprecated` tag on `algorithmGraph` MUST NOT ship,
+   and the "Who this serves" table does not claim edge results as served.
 5. **What the snapshot carries beyond topology (not yet specified).** The specification does not
    yet say whether `graph` carries the loaded node and edge attributes as columns, which attribute
    (if any) fills a weights array and whether it means a distance or a strength, or whether the
@@ -184,7 +248,10 @@ Rules:
    route to its values, and `subgraph()` states no policy for columns when parallel edges merge.
    Until open decision 17 is taken a plugin MUST NOT rely on attribute columns, weights or other
    runs' results being present in its input, and `caveats.weight` cannot be filled truthfully by a
-   plugin. The proposal (`ScopedInputColumns` in `algorithm.d.ts`): `input.column(optionName)`
+   plugin. In plain words: **a plugin algorithm is unweighted and topology-only today.** A plugin
+   MUST NOT declare a weight or attribute option it cannot read (a weighted method that silently
+   ignores its weights is worse than an unweighted one), and the plugin guide MUST say this in its
+   first section. Open decision 17 SHOULD be taken before the algorithm contract is frozen. The proposal (`ScopedInputColumns` in `algorithm.d.ts`): `input.column(optionName)`
    resolves a declared `"attribute"` or `"partition"` option to a typed column over the rows of
    `graph`; `ScopedInputOptions.weight` names the weight attribute and its meaning, the element
    fills the weights from it and fills `caveats.weight` itself; `subgraph()` keeps the weight and
@@ -197,9 +264,8 @@ Rules:
 `Algorithm.algorithmGraph(mode)` returns a legacy `Graph` object from `@graphty/algorithms`, and
 `./extend` exports its type as `AlgorithmGraphView`. The owner decided on 2026-09-28 to deprecate
 both in a 3.x minor and remove them in graphty-element 4.0, together with `@graphty/algorithms`
-3.0. A new algorithm MUST NOT use them, except to read edge ids for an edge-shaped result while
-open decision 5 is open (section 3.1 item 4). Until 4.0 they keep working, and a class that uses
-them is still conforming.
+3.0. A new algorithm MUST NOT use them. They cannot supply edge ids either (section 3.1 item 4).
+Until 4.0 they keep working, and a class that uses them is still conforming.
 
 **Inconsistency to fix:** the published guide's main example
 (`graphty-element/docs/guide/extending/custom-algorithms.md`) still reads its input through
@@ -219,9 +285,15 @@ is not assignable to one from another. Therefore:
    `instanceof` against graph-format classes.
 2. It MUST use only members published by the graph-format major the element depends on.
 3. An element signature that accepts a snapshot from a plugin (the proposed `runAlgorithmHeadless`)
-   SHOULD accept a structural interface rather than the class. graph-format declares one,
-   `GraphSnapshotContract`, but does not export it today; exporting it is part of open decision
-   9.
+   MUST accept a structural interface rather than the class, or a plugin's Node test that builds
+   its own snapshot will not type-check. graph-format declares one, `GraphSnapshotContract`, but
+   does not export it today. `./extend` also exports no way to BUILD a snapshot with the element's
+   copy, and re-exports only `GraphSnapshot`, `NodeMask` and `EdgeMask` -- not `Column`, which the
+   proposed `ScopedInputColumns.column` returns. Exporting the contract, a snapshot builder, a
+   worker transfer pair and every type a proposed member returns is part of open decision 9
+   (`design/extensions/extend-snapshot.d.ts` lists them). The declaration files in this directory
+   import snapshot types through that stub, so type-checking them proves only the `./extend`
+   surface.
 4. The re-exported snapshot types are "called by extensions" (README section 6.2): an element
    release that moves to a new graph-format major is an element major.
 
@@ -273,9 +345,9 @@ is not assignable to one from another. Therefore:
 | A style layer derived from the shape, painting only measured elements | styles | "paints the graph from its result...", "paints only the nodes it measured" |
 | Values selectable by a reader's own layer | result paths | "publishes its values where a reader's own style layer can select on them" |
 | Re-runnable in place, keeping layers and references | re-run | "is re-runnable in place..." |
-| Edge results by `Edge.id`, with a derived picture | `edges` | the three edge tests |
+| Edge results by `Edge.id`, with a derived picture | `edges` | the three edge tests -- whose plugin reads ids through `this.graph.getSession()`, which section 3.1 rule 1 forbids; NOT at parity for a conforming plugin (section 3.1 item 4) |
 | Computes over the scope when declared, or whole-graph with a caveat | `static scopeInput` | the two scope tests |
-| Runs on an attached accelerator, on the CPU port otherwise, and fails early when acceleration is required and impossible | protected `accelerated(...)` | "an algorithm written outside this package, on an accelerator" block |
+| Runs on an attached accelerator, on the CPU port otherwise, and fails early when acceleration is required and impossible | protected `accelerated(...)` | NOT at parity: the "an algorithm written outside this package, on an accelerator" block pins only the element-internal route, which a plugin may not use (section 5.1 item 4) |
 | Plain catalogue, safe to post to a worker | descriptor | "leaves the catalogue plain enough to post to a worker" |
 
 ### 5.1 Parity statements
@@ -299,25 +371,51 @@ is not assignable to one from another. Therefore:
      no effect.
    - The forwarding proposal (open decision 16): `AlgorithmRunContext.parameters`
      (`AlgorithmRunParameters` in `algorithm.d.ts`). One rule for the seed: the run's `seed` fills
-     the algorithm's declared `"seed"` option, and passing both is `E_BAD_COMMAND`. When the
-     algorithm declares a `"seed"` option and the caller passes none, the element draws a seed and
-     records it in the run record and in `caveats.seed`, so no stochastic run is ever unseeded.
+     the algorithm's declared `"seed"` option; passing both with DIFFERENT values is
+     `E_BAD_COMMAND`, and passing the same value in both is accepted, so a run record replays as
+     recorded. When the algorithm declares a `"seed"` option and the caller passes none, the
+     element supplies one and records it in the run record and in `caveats.seed`, so no
+     stochastic run is ever unseeded. Whether the supplied seed is DRAWN per run or a FIXED
+     default is not settled: the migration plan keeps a fixed element default of 42 for label
+     propagation, and routes every call that carries a `randomSeed` to the CPU port, so under a
+     drawn-seed rule no label propagation run would reach the GPU. Open decision 16 must pick one
+     rule for both documents, and a run MUST record which route (CPU or accelerator) it took.
      The same proposal passes the resolved options to the cost model
      (`cost(n, m, options)`), so an option that multiplies the work (iterations, samples, depth)
      cannot slip under the cost cap, and requires every such numeric option to declare `max`.
 4. **Acceleration is not at parity.** The protected `accelerated(capability, mode)` route is used by
-   built-ins and pinned for plugins by a test, but `algorithm.d.ts` does not declare it: its return
-   type is internal, its dispatcher type comes from `@graphty/algorithms`, and no list of
-   capability names is published. A plugin therefore cannot call it without a cast, which breaks
-   parity clause 6. Until the element declares `accelerated`, its result type and its capability
-   names on `./extend`, a plugin MUST NOT use it. When it is declared, the element SHOULD fill
-   `caveats.precision` from the accelerator's verdict rather than trust the plugin to copy it.
+   built-ins and exercised by a test, but `algorithm.d.ts` does not declare it: its return type is
+   internal, its dispatcher type comes from `@graphty/algorithms`, and no list of capability names
+   is published. A plugin therefore cannot call it without a cast, which breaks parity clause 6.
+   Until the element declares `accelerated`, its result type and its capability names on
+   `./extend`, a plugin MUST NOT use it. Three consequences:
+   - a plugin descriptor MUST NOT declare `requires.accelerator: true`, which would make the
+     element refuse the run on a machine with no GPU (`E_NO_ACCELERATOR`) while the plugin is
+     forbidden to use the GPU on a machine that has one. **(not yet met)** 2.6.1 accepts it; it
+     SHOULD be refused at registration with `E_UNSUPPORTED` until `accelerated` is declared;
+   - a plugin MUST NOT construct its own WebGPU device (for example through its own import of
+     `@graphty/webgpu-graph-algorithms`): the element owns detection, construction and device
+     loss (root `CLAUDE.md`, "WebGPU");
+   - a plugin cannot read whether an accelerator is attached or at what precision, so it cannot
+     fill `caveats.precision` truthfully for a GPU pass. A read-only verdict on the run context
+     (`AlgorithmRunContextAcceleration` in `algorithm.d.ts`) is part of open decision 16; when
+     `accelerated` is declared, the element SHOULD fill `caveats.precision` itself.
 5. **Headless testing is NOT at parity.** `Algorithm`'s constructor takes the renderer-backed
    graph, so a plugin cannot be unit-tested in Node against real element code. Section 10 proposes
    a headless host.
 6. **Workers.** A plugin MAY run its work in a worker it creates and terminates within the run,
-   honouring `context.signal`. Whether the element may run a plugin's `compute` in a worker, and
-   whether a `ScopedInput` snapshot is transferable, is not specified (open decision 9).
+   honouring `context.signal`. It cannot move the snapshot there conformingly: `structuredClone` of
+   a `GraphSnapshot` delivers a plain object with no methods, and rebuilding one needs
+   graph-format's `fromWire`, which `./extend` does not re-export (and a plugin may not take it
+   from its own graph-format copy, section 3.3). The only compliant route is to copy the typed
+   arrays out by hand. A transfer pair bound to the element's copy (`toTransferable` and
+   `fromTransferable` in `extend-snapshot.d.ts`), and whether the element may run a plugin's
+   `compute` in a worker, are open decision 9.
+7. **Composing algorithms.** `compute` cannot run another registered algorithm, and cannot build a
+   derived snapshot to run over (a degree-preserving rewire for a null model), because `./extend`
+   exports no snapshot builder. A significance test ("clustering z-score against 100 rewires")
+   therefore has to reimplement the metric inside the plugin and hand-roll the snapshot. A
+   `context.run(key, snapshot, params)` and a snapshot builder are part of open decision 9.
 
 ## 6. Options
 
@@ -332,6 +430,10 @@ is not assignable to one from another. Therefore:
    `descriptor.options`, so a mismatch compiles and reads `undefined` at run time. The proposed
    `OptionValues<typeof options>` helper (`common.d.ts`) derives the type from a `const` option
    array; an author SHOULD use it once published.
+6. An option with no `default` that the caller omits is ABSENT from `schemaOptions`: the element
+   does not refuse the omission (README section 7 item 2). A `"node-id"` option such as a path's
+   `source` therefore needs either a default or a check in `compute` that fails with
+   `E_OPTION_RANGE` naming the option.
 
 ## 7. Errors
 
@@ -361,13 +463,19 @@ is not assignable to one from another. Therefore:
    release (the edge identity accessor would be one).
 2. `ResultShape` is open for readers and closed for writers: a plugin MUST use a shape the element
    publishes. A new shape is an element release, not a plugin decision.
-3. `static version` SHOULD be declared and SHOULD follow semantic versioning; it is recorded on
-   every run so a saved result says what produced it. Without it the run record cannot tell two
-   releases of a plugin apart. Making it REQUIRED for plugins at the next major, the shape of the
-   run record (`RunRecord` in `algorithm.d.ts`) and what happens when a recorded version differs
-   from the installed one are open decision 26.
-4. Result paths are derived from the key; renaming a key breaks every saved style that selects on
-   its results.
+3. `static version` SHOULD be declared and MUST follow semantic versioning when it is; it is
+   recorded on every run so a saved result says what produced it. Without it the run record cannot
+   tell two releases of a plugin apart, and the element MUST record `null` (never its own version,
+   which would attribute the result to the wrong code). `version`, `cost` and `costUnits` are read
+   by `register` from the class (`AlgorithmStatics`); the base class does not declare them, so a
+   subclass declares them WITHOUT `override`. Making `version` REQUIRED for plugins at the next
+   major, the shape of the run record (`RunRecord` in `algorithm.d.ts`) and what happens when a
+   recorded version differs from the installed one are open decision 26.
+4. Result paths are `results.<runId>.<field>` (README section 4.4). A run id the element derives
+   is computed from the key, whether the run was exact or sampled, and the scope specification --
+   not from the parameters or the seed -- so re-running with new parameters keeps every saved
+   selector working, and renaming a key breaks every saved style that selects on a derived id. A
+   style or recipe meant to be reused across runs and networks SHOULD bind to an `as` name.
 5. `algorithmGraph`/`AlgorithmGraphView`: deprecated in 3.x, removed in 4.0 (section 3.2).
 
 ## 9. Security
@@ -382,7 +490,8 @@ reports a plugin that tries.
 ## 10. Testing without a browser (proposed)
 
 `runAlgorithmHeadless(Class, snapshot, options)` in the "Proposed" section of `algorithm.d.ts`
-runs a `DeclaredAlgorithm` over a graph-format snapshot with no renderer, in Node or a worker. It
+runs a `DeclaredAlgorithm` over a graph-format snapshot (typed structurally, so one built by the
+plugin's own graph-format copy is accepted) with no renderer, in Node or a worker. It
 performs the element's own steps -- option resolution, scope handling, shape-contract check, caveat
 defaults, abort propagation -- and returns what `compute` returned. It would make the Node checks
 of the conformance kit possible and give plugins the unit-testability the design studio's
@@ -392,7 +501,12 @@ possible. Its name and signature are part of README open decision 9, which also 
 Node-safe session (load through readers, run registered algorithms, export through writers) for
 batch pipelines. The host MUST NOT invent edge ids: a snapshot whose algorithm publishes edges
 MUST come with the element's `Edge.id` per row, or the plugin's headless ids would never occur in
-the live element.
+the live element. When `edgeIds` is omitted the host uses the element's own deterministic
+assignment for edges with no file id (by position among the edges of the same pair, as
+`ImportReport.edgeIdentity` describes), so a Node pipeline that imported the same file gets the
+ids the live element would give it; that ties open decision 9 to the stable-id question of open
+decision 19. The host also takes an edge scope and an exclusion (`edges`, `exclude`), so an
+edge-scoped or held-out run can be tested headless.
 
 ## 11. Conformance checks
 
@@ -414,8 +528,12 @@ headless host (section 10); until it exists they run in the browser configuratio
 | reports progress | on the 500-node graph, `report` is called at least once with `completed` and `total` |
 | cancels | aborting after the first progress report rejects the run with the abort reason and publishes nothing |
 | yields | on the 500-node graph, `yieldNow` (or `forEachChunked`) is awaited at least once per 1,000 nodes or edges processed, counted by the kit; the longest uninterrupted stretch is reported as a measurement, never as a failure, because it depends on the machine |
-| makes no network request | with `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `navigator.sendBeacon` trapped, a run makes no call |
+| makes no network request | with the network APIs of README section 9.4 item 2 trapped, a run makes no call (mistake detection only) |
 | is deterministic with a seed | with a declared `"seed"` option, two runs with the same seed give identical output |
+| does not depend on record order | the same graph with its records loaded in a permuted order, with the same seed, gives the same values per id (a warning, with the ids that moved: an algorithm that breaks ties by row SHOULD sort by id first) |
+| values are finite | every published number is finite (section 2.2 item 8) |
+| cost is honest | on the kit's degree-skewed graphs (two hubs joined to many leaves; a clique beside a long path), the work the kit counts through `forEachChunked` and `yieldNow` stays within a factor of the declared `costUnits` (a warning with both numbers) |
+| replays from its record | a run record, handed back to the run API, is accepted and gives the same output (fails until open decision 26 is met) |
 | scope is honoured | with `scopeInput = "subgraph"`, every published id is inside the scope |
 | failures are coded | an invalid input the author supplies fails with a `GraphtyError` |
 
@@ -423,7 +541,11 @@ headless host (section 10); until it exists they run in the browser configuratio
 
 A hub score written only against the snapshot: the share of possible links among a node's
 neighbours, damped by neighbourhood size. It resembles cytoHubba's DMNC but is NOT it (DMNC
-measures the largest connected component of the neighbourhood), so it does not borrow that name:
+measures the largest connected component of the neighbourhood), so it does not borrow that name.
+Its work is the sum of squared degrees, which the `(n, m)` cost signature cannot see, so it
+declares the worst case -- a star, where one node's neighbourhood is the whole graph -- and a
+graph with a hub of 200,000 leaves is estimated honestly and refused above the cap instead of
+passing as "instant". A cost model that sees the maximum degree is part of open decision 16:
 
 ```ts
 import {
@@ -440,7 +562,7 @@ const DESCRIPTOR: AlgorithmDescriptor = {
     shape: "node-metric",
     fields: nodeMetricFields({ plainName: "Density", technicalName: "Neighbourhood link density" }),
     options: [{ name: "epsilon", plainName: "Exponent", type: "number", default: 1.7, min: 1, max: 2 }],
-    costClass: "instant",
+    costClass: "iterative",
     complexity: "O(sum of degree squared)",
 };
 
@@ -449,8 +571,9 @@ class NeighbourhoodDensity extends DeclaredAlgorithm<{ epsilon: number }> {
     static override type = "acmehub-neighbourhood-density";
     static override descriptor = DESCRIPTOR;
     static override scopeInput = "subgraph" as const;
-    static version = "1.0.0";
-    static costUnits = (n: number, m: number): number => n + 2 * m;
+    static version = "1.0.0";                          // read by register; no `override` (section 8 item 3)
+    // Sum of squared degrees <= 2m * maxDegree <= 2m * min(n, 2m): the worst case, element visits.
+    static costUnits = (n: number, m: number): number => n + 2 * m * Math.min(n, 2 * m);
 
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         const { epsilon } = this.schemaOptions;
@@ -511,22 +634,35 @@ const run = session.runs.start("acmehub-neighbourhood-density", { epsilon: 1.7 }
   (open decision 18).
 - A scope cannot remove elements from the computation (section 3.1 item 3; open decision 23).
 - No option type names an edge set, a list of node pairs, a file or a table (open decision 22).
+- `algorithmGraph` cannot supply edge ids, so no conforming plugin can publish an edge result
+  (section 3.1 item 4).
+- `requires.accelerator` is accepted on a plugin descriptor although a plugin may not use an
+  accelerator; a plugin cannot read the accelerator verdict (section 5.1 item 4).
+- A plugin cannot run another algorithm or build a derived snapshot, and cannot move its
+  snapshot into a worker conformingly (section 5.1 items 6 and 7).
+- Table fields other than `pairs` have no row schema; community results cannot overlap
+  (section 2.2.1).
+- An option with no default can arrive absent, and nothing refuses the omission (section 6).
 
 ## 14. Who this serves
 
-| Need | Source |
-| --- | --- |
 Rows marked "not yet" name a need the contract cannot meet until the named open decision is
 taken.
 
 | Need | Source | Served |
 | --- | --- | --- |
-| MCL and MCODE clustering | `design/designloom/workflows/W21.yaml` | yes, unweighted; weighted needs open decision 17 |
+| MCL and MCODE clustering, as the Cytoscape and stringApp protocols run them (weighted by the STRING score) | `design/designloom/workflows/W21.yaml` | not yet: a plugin cannot read weights (decision 17); an unweighted MCL runs but gives different modules from the published protocol |
+| MCODE with overlapping membership, and cluster scores | `design/designloom/workflows/W21.yaml` | not yet: decision 18 |
+| Per-cluster enrichment (top terms per cluster, with FDR) | `design/designloom/workflows/W21.yaml` | not yet: a per-group table (decision 18) and gene-set input (decision 22) |
 | Per-cluster profiles (mean of a data column, dominant annotation) | `design/designloom/workflows/W21.yaml` | not yet: decision 17 |
 | Building an enrichment map from gene-set overlap | `design/designloom/workflows/W22.yaml` | not yet: gene sets have no route in (decision 22), and a derived network has no shape (decision 18) |
 | Hub rankings (MCC, DMNC) | `design/designloom/workflows/W23.yaml` | yes |
 | Combined hub scores from several runs | `design/designloom/workflows/W23.yaml` | not yet: decision 17 |
-| Link prediction as scored pair lists | `design/designloom/workflows/W16.yaml`, `design/designloom/personas/ml-engineer-recsys.yaml` | yes (section 2.2.2) |
+| Link prediction as scored pair lists | `design/designloom/workflows/W16.yaml`, `design/designloom/personas/ml-engineer-recsys.yaml` | partly: small, whole-graph pair lists only; no candidate set, per-source top-N, row schema, table export or columnar form (section 2.2.2) |
+| Per-edge scores (one value per interaction or event) | `design/designloom/workflows/W16.yaml`, `W07.yaml` | not yet: no edge identity accessor (decision 5) |
+| Significance against a null model (rewired graphs) | `design/designloom/workflows/W03.yaml` | not yet: no snapshot builder or composition (decision 9) |
+| Anomaly scores over edge attributes and time (bytes per connection, logon hour, first seen) | `design/designloom/workflows/W12.yaml` | not yet: edge columns, per-column merge policies and typed timestamps (decisions 17 and 20) |
+| Differential networks (a disease against a healthy network) | `design/designloom/workflows/W24.yaml` | not yet: an algorithm receives one graph; an edge column as a condition partition or a second-network option (decisions 17 and 22) |
 | Embeddings | same | not yet: decision 18 |
 | Risk scoring | `design/designloom/workflows/W06.yaml` | yes, over topology; attribute-driven needs decision 17 |
 | What-if removal | `design/designloom/workflows/W11.yaml` | not yet: decision 23 |

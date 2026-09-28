@@ -34,7 +34,11 @@ export interface LogRecord {
 
 /** ./logging. A destination. A plain object, not a class. IMPLEMENTED BY EXTENSIONS. */
 export interface Sink {
-    /** The name it is attached under. For a registered destination, MUST equal descriptor.id. */
+    /**
+     * The name it is attached under. For a live object added with addSink, this is the key. For a
+     * registered destination the element attaches it under descriptor.id and ignores this value
+     * (logging.md section 3 item 4; not yet met in 2.6.1, which keys by this name).
+     */
     name: string;
     /** Synchronous, fire-and-forget. A throw is caught and reported; a returned promise is ignored. */
     write(record: LogRecord): void;
@@ -87,11 +91,13 @@ export interface LogSinkReference {
 }
 
 /**
- * ./logging. The part of the logger configuration a destination is named in. NOT AN EXPORT: this
- * document's name for the `sinks` member of the configuration object `GraphtyLogger.configure`
- * takes.
+ * ./logging. What GraphtyLogger.configure takes. Restated IN PART: only the members this
+ * specification governs. As built it extends Partial<LoggerConfig> (level, modules and the other
+ * logger settings), which are not restated here.
  */
-export interface GraphtyLoggerSinkConfig {
+export interface GraphtyLoggerConfig {
+    /** URL of the built-in remote destination. Never from a stored or URL-derived configuration without the embedder's allowlist (logging.md 7 item 4). */
+    remoteLogUrl?: string;
     /** Live objects are attached as given; references are built from the registry. */
     sinks?: readonly (Sink | LogSinkReference)[];
 }
@@ -114,7 +120,10 @@ export interface LogSinkEgress {
 }
 
 /**
- * PROPOSED -- open decision 13. An element-level setting: what the element strips from a record
- * before a non-built-in destination's write is called. Default "data-and-stacks".
+ * PROPOSED -- open decision 13. An element-level setting, settable from code only: what the
+ * element strips from a record before the write of EVERY destination that sends records off the
+ * page (the built-in remote included). "data-and-stacks" (the default) strips data, error.stack,
+ * error.cause and GraphtyError.details; "none" delivers the record whole. Message text carries no
+ * graph values by the rule of logging.md section 7 item 2.
  */
 export type LogRedaction = "none" | "data" | "data-and-stacks";

@@ -110,6 +110,23 @@ export declare function clearRegisteredCamerasForTesting(): void;
 // =============================================================================================
 
 /**
+ * PROPOSED -- open decision 27 (scene convention). Added to CameraState, so a 3D view can say which
+ * direction is up on screen. Absent keeps the controller's current up. Also proposed there: zoom
+ * in CSS pixels per scene unit, pan as the scene coordinates of the viewport centre.
+ */
+export interface CameraStateUp {
+    up?: { x: number; y: number; z: number };
+}
+
+/**
+ * PROPOSED -- open decision 27. Added to CameraViewInput: the active layout and the frame it
+ * declares, so a view can refuse or adapt to a layout it was not written for.
+ */
+export interface CameraViewInputLayout {
+    readonly layout: { readonly id: string; readonly frame?: string } | null;
+}
+
+/**
  * PROPOSED -- open decision "Persisting camera views and layout choices" (README.md section 12,
  * item 8). What a saved view or recipe records about a named camera view, so that it can be
  * applied again. Plain JSON.

@@ -6,14 +6,18 @@
  */
 import type { OptionDescriptor } from "./common";
 
-// Graph-format types a layout names. A plugin takes them from ./extend (algorithm.md section 3.3).
-import type { GraphSnapshot, NodeMask } from "@graphty/graph-format";
+// Graph-format types a layout names, as ./extend re-exports them (algorithm.md section 3.3).
+import type { GraphSnapshot, NodeMask } from "./extend-snapshot";
 
 // =============================================================================================
 // Published (graphty-element 2.6.1)
 // =============================================================================================
 
-/** The built-in arrangement ids. Reserved, as are the names of the element's own engines. */
+/**
+ * The built-in arrangement ids. Reserved, as are the names of the element's own engines.
+ * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalogue publishes as
+ * built-in arrangements (README section 5 item 4); adding them is an additive fix.
+ */
 export declare const KNOWN_LAYOUT_IDS: readonly [
     "force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell",
     "spectral", "bipartite", "layers", "fixed", "random",
@@ -26,8 +30,9 @@ export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 export type NodeIdType = string | number;
 
 /**
- * A node as a layout sees it. TYPE-ONLY: a layout MUST NOT construct one and SHOULD read only
- * `id`. The element's Node class has many more members; they are not part of this contract.
+ * A node as a layout sees it. TYPE-ONLY: a layout MUST NOT construct one, and MAY read only
+ * `id`, `index` and `data` (layout.md section 2). The element's Node class has many more members;
+ * they are not part of this contract.
  */
 export interface Node {
     readonly id: NodeIdType;
@@ -128,6 +133,16 @@ export declare abstract class LayoutEngine {
     /** Default: nothing. An engine that keeps per-node state MUST override both. */
     removeNode(n: Node): void;
     removeEdge(e: Edge): void;
+    /**
+     * The element calls this with nodes that arrived after the layout started. Default: up to ten
+     * steps, stopping early once settled. An engine that can place a newcomer directly overrides it.
+     */
+    updatePositions(nodes: readonly Node[]): void;
+    /**
+     * Read a node's published coordinates into `out`. False, leaving `out` untouched, for a row
+     * no engine has placed. Public; reads held rows too. CALLED BY EXTENSIONS.
+     */
+    readNodePosition(n: Node, out: { x: number; y: number; z: number }): boolean;
     /** Called on the engine being replaced. Release timers, workers, listeners. */
     dispose(): void;
     /** Copy coordinates into the element's position array. Default walks getNodePosition. */
@@ -145,6 +160,15 @@ export declare abstract class LayoutEngine {
     protected writeNodePosition(n: Node, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
 
     /**
+     * The options the element adds for a view mode, merged into the constructor options after
+     * validation and only where the consumer passed nothing; null when the engine cannot draw in
+     * that many dimensions. The LayoutEngine default returns {} (nothing to add); SimpleLayoutEngine
+     * returns { dim }. The only route by which an engine learns the view mode (layout.md section 3).
+     * IMPLEMENTED BY EXTENSIONS (override).
+     */
+    static getOptionsForDimension(dimension: 2 | 3): object | null;
+
+    /**
      * Register an engine class. Returns the class. Throws GraphtyError E_BAD_COMMAND
      * (details.field: type, descriptor, descriptor.id) or E_DUPLICATE_PLUGIN.
      * NOTE: takes no RegisterOptions in 2.6.1 (README open decision 6).
@@ -152,7 +176,13 @@ export declare abstract class LayoutEngine {
     static register<T extends new (opts: object) => LayoutEngine>(cls: T): T;
 }
 
-/** The options every SimpleLayoutEngine accepts beside its own. */
+/**
+ * The options SimpleLayoutEngine's constructor reads. A descriptor-bearing plugin receives only
+ * its DECLARED options, so a consumer can set these on a plugin only when the plugin declares
+ * them in descriptor.options (layout.md section 5 item 7). AS BUILT the published type is a
+ * Partial of a loose object and carries an index signature, which is why the worked example does
+ * not extend it.
+ */
 export interface SimpleLayoutOpts {
     /** Multiplies every computed coordinate. Default 100. */
     scalingFactor?: number;
@@ -177,6 +207,10 @@ export declare abstract class SimpleLayoutEngine extends LayoutEngine {
     init(): Promise<void>;
     addNode(n: Node): void;
     addEdge(e: Edge): void;
+    /** Drops the node from _nodes. An override MUST call super. */
+    removeNode(n: Node): void;
+    /** Drops the edge from _edges. An override MUST call super. */
+    removeEdge(e: Edge): void;
     getNodePosition(n: Node): Position;
     setNodePosition(n: Node, p: Position): void;
     getEdgePosition(e: Edge): EdgePosition;
@@ -186,6 +220,8 @@ export declare abstract class SimpleLayoutEngine extends LayoutEngine {
     get nodes(): Iterable<Node>;
     get edges(): Iterable<Edge>;
     readonly isSettled: true;
+    /** Returns { dim: dimension }, or null above maxDimensions. */
+    static getOptionsForDimension(dimension: 2 | 3): object | null;
 }
 
 export declare function registeredLayoutDescriptors(): readonly LayoutDescriptor[];
@@ -244,6 +280,17 @@ export interface LayoutInitContext {
  * lifecycle of layout.md section 3 over plain nodes and edges, in Node, with no renderer, and
  * returns every node's position after `steps` steps (or once settled).
  */
+/**
+ * PROPOSED -- open decision 27. Added to the settled event: what the layout could not do.
+ */
+export interface LayoutReport {
+    /** Nodes left unplaced because their data gave no position; drawn one element-defined way. */
+    readonly unplaced: readonly NodeIdType[];
+    readonly notes: readonly string[];
+    /** A carried scope that the engine could not honour and that was therefore dropped. */
+    readonly droppedScope: boolean;
+}
+
 export declare function runLayoutHeadless(
     engine: new (opts: object) => LayoutEngine,
     input: {

@@ -28,14 +28,28 @@ Grounding: owner's list of official points (2026-09-21) and his parity test requ
 
 `Node` and `Edge` are published as type-only re-exports so that a plugin can type its members
 without importing the renderer. A layout MUST read only `Node.id`, `Node.index`, `Node.data`,
-`Edge.id`, `Edge.srcId`, `Edge.dstId` and `Edge.data` (the built-in fixed layout reads
-coordinates from `Node.data`, so attribute access is at parity), and MUST NOT construct, mutate or retain a `Node` or `Edge` beyond
-its own lifetime. Every other member of those classes is renderer state and is not part of this
-contract; reading it is unsupported and will break when the layout contract moves onto the
-snapshot (section 7). `Node.data` holds the attributes as LOADED; an algorithm's results live under
+`Edge.id`, `Edge.srcId`, `Edge.dstId` and `Edge.data`, and MUST NOT construct, mutate or retain a
+`Node` or `Edge` beyond its own lifetime. Attribute access through `data` is allowed because the
+owner's parity rule requires it: a built-in arrangement may place nodes by their attributes, so a
+plugin must be able to. Every other member of those classes is renderer state and is not part of
+this contract; reading it is unsupported and will break when the layout contract moves onto the
+snapshot (section 7). The element's OWN code reads more: `SimpleLayoutEngine.getEdgePosition`
+reads `Edge.srcNode` and `Edge.dstNode`, and so does the live engine in the parity suite
+(`layout-extension.test.ts`, its `getEdgePosition`). The base class may; a plugin MUST NOT, and the
+parity-suite engine is corrected to look endpoints up by `srcId` and `dstId` (README section 13). `Node.data` holds the attributes as LOADED; an algorithm's results live under
 result paths and are not in it, so a layout cannot today place nodes by a computed value (a tier
 computed as a distance, a ring by betweenness). Resolving an `"attribute"` option that names a
 result path is open decision 17.
+
+**Weights.** `static honoursWeights = true` is published in the catalogue as "arranges a weighted
+graph differently", but this contract gives a plugin no declared way to read weights. The only
+route today is the protected `pairWeights(edges)` helper of `LayoutEngine` (the one the built-in
+Kamada-Kawai and ForceAtlas2 engines use), which `layout.d.ts` did not declare and which the
+migration's static-layout work item deletes in a minor release. Until the snapshot layout contract
+(open decision 14) gives weights a route, a plugin SHOULD NOT declare `honoursWeights`, and a
+plugin that calls `pairWeights` relies on a helper that section 7 item 4 now requires the
+migration to keep until the next major. Parsing `Edge.data.weight` by hand ignores the element's
+configured weight key and its handling of parallel edges.
 
 `AuthoredLayoutDescriptor` rules:
 
@@ -45,7 +59,7 @@ result path is open decision 17.
 | `plainName`, `technicalName`, `description`, `family` | Strings; `plainName` non-empty |
 | `kind` | `"live"` or `"batch"`; MUST match the base class (`SimpleLayoutEngine` is batch) (not yet enforced at registration) |
 | `maxDimensions` | 2 or 3; MUST equal `static maxDimensions` (not yet enforced at registration) |
-| `sizeRating` | `"any"`, 10000, 2000 or 500: the largest node count the author considers comfortable |
+| `sizeRating` | `"any"`, 10000, 2000 or 500: the largest node count the author considers comfortable. Advisory: nothing refuses a larger graph (open decision 27), and the four values cannot say "comfortable at 50,000, not at 500,000" |
 | `structuralInputs` | Which of `"node"`, `"partition"`, `"ordering"` its options read |
 | `options` | README section 7 |
 | `engine` | For a plugin, its own `type` |
@@ -59,8 +73,15 @@ The element drives an engine in this order. An engine MAY rely on it.
 
 1. **Construct**: `new Engine(options)` where `options` are the consumer's layout options, resolved
    against `descriptor.options` (defaults filled, unknown names and bad values refused before
-   construction), plus `dim` when the element needs a specific dimension count
-   (`getOptionsForDimension`).
+   construction), plus the keys the engine class's `static getOptionsForDimension(dimension)`
+   returns for the element's current view mode. Those keys are merged AFTER validation and only
+   where the consumer passed nothing, because they are the element's to add
+   (`LayoutManager.ts`). This is the only route by which an engine learns whether the element
+   draws in two or three dimensions: `SimpleLayoutEngine`'s implementation returns `{ dim }`, the
+   `LayoutEngine` base returns `{}`, so a live engine that needs the dimension MUST override
+   `getOptionsForDimension`. A descriptor-bearing engine receives ONLY its declared options plus
+   those keys: `scalingFactor`, which every `SimpleLayoutEngine` understands, is refused with
+   `E_UNKNOWN_OPTION` unless the plugin declares it in `descriptor.options` (section 5 item 7).
 2. **Load**: `addNodes(...)`/`addNode(...)` for every node, then `addEdges(...)`/`addEdge(...)`.
 3. **Initialise**: `await init()`. The element draws no frame with this layout before `init`
    settles. A throw from `init` fails the `setLayout` call and leaves the previous layout running.
@@ -72,19 +93,41 @@ The element drives an engine in this order. An engine MAY rely on it.
 6. **Publish**: after each step batch the element publishes coordinates into its position array
    (calling `publishPositions()`); an engine MAY also call it itself. The default implementation
    walks `getNodePosition`; an engine that can write without allocating overrides it.
-7. **Change**: `addNode`/`addEdge` for elements that arrive later; `removeNode`/`removeEdge` for
-   elements taken out; `pin`/`unpin` when the reader pins; `setNodePosition` when the reader drops a
-   dragged node.
+7. **Change**: `addNode`/`addEdge` for elements that arrive later, then `updatePositions(nodes)`
+   with the nodes that arrived (its default runs up to ten steps, stopping early once settled; an
+   engine that can place a newcomer without re-running overrides it); `removeNode`/`removeEdge`
+   for elements taken out; `pin`/`unpin` when the reader pins; `setNodePosition` when the reader
+   drops a dragged node.
 8. **Replace**: when the consumer chooses another layout, `dispose()` is called on this engine and
    it is never called again.
 
 In graphty-element 3.0 (README section 14) the membership methods of step 2 and 7 (`addNode`,
 `addEdge`, `addNodes`, `addEdges`, `removeNode`, `removeEdge`) become protected: the element still
-calls them and a plugin still overrides them, but no consumer can. An engine is not told the
-current coordinates of nodes before `init` (so it cannot warm-start from the previous layout of a
-changing graph), cannot read a held node's coordinates (so a scoped layout cannot place its scope
-next to them), and is not told when a node's attributes change (so a batch layout keyed on an
-attribute stays stale after an edit). All three are open decision 27.
+calls them and a plugin still overrides them, but no consumer can.
+
+`LayoutEngine.readNodePosition(node, out)` is public in 2.6.1 and reads the element's published
+coordinates of any placed row, held rows included; the built-in simulation engines use it. It is
+therefore the one declared way to read where a node currently is, including a held node for a
+scoped layout. It is not a warm start: nothing guarantees a row still carries the previous
+layout's coordinates when a new engine is constructed, and nothing is handed to `init`. An engine
+is also not told when a node's attributes change (so a batch layout keyed on an attribute stays
+stale after an edit). A warm-start argument and attribute-change notification are open decision
+27; if `heldPosition` is adopted there, `readNodePosition` is deprecated in its favour or kept
+as its implementation, and the decision says which.
+
+**When `setLayout` resolves.** The specification does not state whether the promise `setLayout`
+returns settles before or after the first publish of positions, or before a live layout settles,
+so `await setLayout(...)` followed by `applyCameraView(...)` may frame the previous layout's
+positions. Until open decision 27 states it, a caller that must frame the new arrangement waits
+for the layout-settled event.
+
+**A carried scope.** Besides `setLayout(id, options, { scope })`, the element carries a scope
+across layout switches (`graph.setLayoutScope(scope)`, and the element's layout-scope property,
+since 2.5.0). Unlike the explicit route, a carried scope is NEVER refused: under an engine
+without `static scoped` it is silently inactive and the whole graph is laid out
+(`Graph.ts`, `setLayoutScope`). A reader who scoped a re-layout and then switches to an unscoped
+plugin layout sees every held node move, with nothing reported. Open decision 27 recommends a
+coded warning event when a carried scope is dropped.
 
 Obligations:
 
@@ -96,9 +139,17 @@ Obligations:
    visibly moves under any engine, but an engine that keeps integrating a held body computes every
    other force against a position that is never drawn.
 3. An engine that keeps per-node or per-edge state MUST override `removeNode` and `removeEdge`;
-   the defaults do nothing, and a removed node left in an engine's lists is a leak.
-4. `getNodePosition` MUST return finite numbers for every node the engine was given; z MUST be 0 or
-   absent when laying out in two dimensions.
+   the `LayoutEngine` defaults do nothing, and a removed node left in an engine's lists is a leak.
+   `SimpleLayoutEngine` overrides both to drop the element from `_nodes` and `_edges`; a batch
+   engine that overrides them again MUST call `super`.
+4. `getNodePosition` MUST return finite numbers for every node the engine placed; z MUST be 0 or
+   absent when laying out in two dimensions. A batch engine MAY leave a node it cannot place out
+   of `positions`: 2.6.1 then leaves that row UNPLACED in the position array rather than writing
+   the origin (`SimpleLayoutEngine`'s private `publishRecord`). But `getNodePosition` and the
+   edge ends still fall back to the origin for such a node, and nothing reports it, so today an
+   unplaced node can still be drawn at (0, 0). Making "unplaced" a first-class outcome -- drawn
+   one element-defined way, left out of camera bounds, reported with the settled event -- is
+   recommended in open decision 27 to replace any need to invent a position.
 5. `step()` MUST return promptly (the element calls it inside a frame); a step that needs more time
    SHOULD do less per call.
 6. `dispose()` MUST release every timer, worker and listener the engine created.
@@ -119,7 +170,7 @@ Obligations:
 | Pinned nodes stay; released nodes move again | `pin`, `unpin` | "leaves a pinned node exactly where it is..." |
 | Dragged nodes stay where dropped | `setNodePosition` | "is told where the reader dropped a node..." |
 | Disposed on switch | `dispose` | "is disposed when the consumer switches..." |
-| Told 2D or 3D; options kept across a switch | `dim`, `getOptionsForDimension` | "is told whether the element is drawing in two dimensions or three", "keeps the consumer's options..." |
+| Told 2D or 3D; options kept across a switch | `static getOptionsForDimension` (section 3 step 1) | "is told whether the element is drawing in two dimensions or three", "keeps the consumer's options..." |
 | Batch placement in one pass, scaled | `SimpleLayoutEngine`, `scalingFactor` | "a static engine built on SimpleLayoutEngine" block |
 | Listed in the catalogue, found by name, answers which arrangement it is | `session.catalog.layouts()`, `layoutIdForEngine` | "being offerable, and not only reachable" block |
 | Says whether it reads weights | `static honoursWeights` | "has the catalogue answer whether it reads weights..." |
@@ -150,16 +201,33 @@ Obligations:
 2. A layout reading a structural input (a root node, a partition attribute, an ordering) MUST
    declare it with the matching option type (`"node-id"`, `"partition"`, `"ordering"`) and list it
    in `structuralInputs`, so a picker can render the right control.
-3. A stochastic layout SHOULD declare a `"seed"` option and MUST produce identical positions for
-   an identical graph, options and seed. Reproducibility of figures depends on it
-   (`design/designloom/workflows/W25.yaml`).
+3. A stochastic layout MUST declare a `"seed"` option and MUST produce identical positions for
+   an identical graph, options and seed. "Identical graph" means equal sets of node ids, edges
+   (endpoints and ids) and attributes, whatever order the records were loaded in: a layout that
+   breaks ties by row order SHOULD sort by id first, because two readers loading the same file
+   sorted differently must get the same figure. Reproducibility of figures depends on it
+   (`design/designloom/workflows/W25.yaml`). A plugin layout that draws on `Math.random` without
+   a seed option cannot be reproduced and nothing reports it today; open decision 16 recommends
+   that the element draw and record a seed for every layout with a `"seed"` option the caller
+   left empty, as for algorithms, and whether each built-in stochastic layout takes a seed is
+   part of open decision 27.
 4. The deprecated Zod-based `zodOptionsSchema` statics MUST NOT be used by a new engine.
 5. An attribute a layout reads MUST be declared as an `"attribute"` option (with `attributeType`),
-   not hard-coded, so a reader whose column has another name can use the layout.
-6. A layout has no channel for caveats: one that cannot place a node (a geographic layout and a
-   node with no coordinates) must still return a finite position, and cannot tell the reader it
-   guessed. Until the layout report of open decision 27 exists, such a layout SHOULD place those
-   nodes in a documented area apart from the placed ones and say so in its `description`.
+   not hard-coded, so a reader whose column has another name can use the layout. **(not yet met)**
+   The element validates an `"attribute"` option as a string only: a misspelt column, or a column
+   loaded as text where `attributeType` says `"integer"`, is accepted and yields a wrong layout
+   with no error. The element SHOULD refuse a column no node carries with `E_OPTION_RANGE`
+   (naming the nearest column names) and report a type mismatch (open decision 22). A layout
+   MUST NOT turn an unreadable value into a real value (reading a missing tier as tier 0).
+6. A layout has no channel for caveats. One that cannot place a node from its data (a geographic
+   layout and a node with no coordinates) MAY leave it out of `positions` (section 3 obligation
+   4), or place it in a documented area apart from the placed ones; either way it SHOULD say so
+   in its `description`, until the layout report of open decision 27 exists. It MUST NOT place
+   such nodes where they read as data (at latitude and longitude zero).
+7. A descriptor-bearing batch engine that wants `scalingFactor` settable MUST declare it in
+   `descriptor.options`; the element does not add `SimpleLayoutOpts` to the declared set
+   (section 3 step 1). Whether the element should treat those as element-owned options, as it
+   does for a reader's `data`, `url` and `file`, is part of open decision 27.
 
 ## 6. Errors
 
@@ -197,9 +265,12 @@ parity suite covers construction and `init` only.
 4. **The migration must not break `SimpleLayoutEngine` in a minor release.** The migration's
    static-layout work item makes `SimpleLayoutEngine` load the snapshot and the position array and
    removes the per-call node and edge objects. A plugin extends `SimpleLayoutEngine` and reads
-   `_nodes`, `_edges`, `positions` and `Node.data`, as the worked example does. The migration MUST
-   keep those working for plugins (an adapter) until the next major, or ship the snapshot contract
-   first (README section 10 item 2).
+   `_nodes`, `_edges`, `positions` and `Node.data`, as the worked example does, and a weighted
+   plugin may call the protected `pairWeights(edges)` (section 2). The migration MUST keep all of
+   those working for plugins (an adapter) until the next major, or ship the snapshot contract
+   first (README section 10 item 2). Its plan deletes `pairWeights` and `pairWeightKey` in the
+   dual-API window, which is a minor release; by README section 6.2 removing a protected helper
+   is a contract major.
 5. New capabilities (progress, a warm start, a held node's position) SHOULD reach an engine as
    arguments to `init` or the constructor rather than as new inherited members, which could
    collide with a plugin's own (README section 6.2 item 1).
@@ -230,11 +301,14 @@ configuration.
 | is plain data | the published descriptor survives `structuredClone` |
 | places every node | on every standard graph, every node has a finite position; in 2D every z is 0 |
 | settles | a live engine reports `isSettled` within the step budget the kit allows (a warning, with the step count, when not) |
-| makes no network request | with `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `sendBeacon` trapped, a full lifecycle makes no call |
+| makes no network request | with the network APIs of README section 9.4 item 2 trapped, a full lifecycle makes no call (mistake detection only) |
 | is deterministic with a seed | when a `"seed"` option is declared, two runs with the same seed give identical positions |
 | honours pins and drags | a pinned node does not move across 100 steps; a node set with `setNodePosition` stays there |
 | honours a hold | when `scoped`, no held row moves and the scoped rows do |
 | forgets removed elements | after `removeNode`, `nodes` no longer yields it |
+| does not depend on record order | with a `"seed"` option, the same graph loaded in two record orders gives identical positions (a warning, with the moved nodes, when not) |
+| survives awkward ids | on a graph whose node ids include `__proto__`, `constructor` and `toString`, every node gets its own position (README section 9.2 item 6) |
+| leaves unreadable nodes apart | on a graph where the layout's `"attribute"` option names a column some nodes lack, those nodes are either unplaced or placed apart, never at a data-valued position (a warning) |
 | disposes cleanly | after `dispose`, no timer, animation frame or worker created by the engine is alive |
 | failures are coded | a throw from the constructor or `init` reaches `setLayout`'s rejection as a `GraphtyError` |
 
@@ -242,13 +316,20 @@ configuration.
 
 A batch "tiers" layout that places nodes in horizontal rows by a numeric attribute the reader
 names, tier 0 (the customers) at the bottom and each higher tier above it -- the hierarchical
-supply-chain view of `design/designloom/workflows/W11.yaml`:
+supply-chain view of `design/designloom/workflows/W11.yaml`. A node with no readable tier goes in
+its own row below the customers, not into tier 0, and the description says so (section 5 item
+6). The tier must be a LOADED attribute: a tier computed by an algorithm cannot be read yet (open
+decision 17).
 
 ```ts
-import { LayoutEngine, SimpleLayoutEngine, type AuthoredLayoutDescriptor, type SimpleLayoutOpts }
+import { LayoutEngine, SimpleLayoutEngine, type AuthoredLayoutDescriptor }
     from "@graphty/graphty-element/extend";
 
-interface TiersOpts extends SimpleLayoutOpts { spacing?: number; tierAttribute?: string }
+// Not `extends SimpleLayoutOpts`: that type carries an index signature, and a constructor taking
+// it does not fit the `new (opts: object) => LayoutEngine` bound LayoutEngine.register publishes.
+interface TiersOpts { spacing?: number; tierAttribute?: string; scalingFactor?: number }
+
+const UNTIERED_ROW = -1;                              // below tier 0, apart from real customers
 
 class TiersLayout extends SimpleLayoutEngine {
     static override type = "acmechain-tiers";
@@ -257,7 +338,7 @@ class TiersLayout extends SimpleLayoutEngine {
         id: "acmechain-tiers",
         plainName: "Supply tiers",
         technicalName: "Layered placement by tier",
-        description: "Suppliers in rows by tier, customers at the bottom.",
+        description: "Suppliers in rows by tier, customers at the bottom; nodes with no tier value in a separate row beneath.",
         family: "hierarchical",
         kind: "batch",
         maxDimensions: 2,
@@ -266,6 +347,8 @@ class TiersLayout extends SimpleLayoutEngine {
         options: [
             { name: "tierAttribute", plainName: "Tier column", type: "attribute", attributeType: "integer", default: "tier" },
             { name: "spacing", plainName: "Spacing", type: "number", default: 1, min: 0.1, max: 10 },
+            // Declared so a consumer may set it (section 5 item 7).
+            { name: "scalingFactor", plainName: "Scale", type: "number", default: 100, min: 1, max: 10000 },
         ],
         engine: "acmechain-tiers",
     };
@@ -273,7 +356,7 @@ class TiersLayout extends SimpleLayoutEngine {
     readonly #spacing: number;
     readonly #tierAttribute: string;
     constructor(opts: TiersOpts = {}) {                 // options arrive validated and defaulted
-        super(opts);
+        super({ scalingFactor: opts.scalingFactor });
         this.#spacing = opts.spacing ?? 1;
         this.#tierAttribute = opts.tierAttribute ?? "tier";
     }
@@ -282,7 +365,7 @@ class TiersLayout extends SimpleLayoutEngine {
         const rows = new Map<number, number>();         // tier -> next column
         for (const node of this._nodes) {
             const value = node.data[this.#tierAttribute];
-            const tier = typeof value === "number" ? value : 0;
+            const tier = typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : UNTIERED_ROW;
             const column = rows.get(tier) ?? 0;
             rows.set(tier, column + 1);
             // tier 0 at the bottom; y grows upward in this example (no convention is published yet)
@@ -315,14 +398,30 @@ await graph.setLayout("acmechain-tiers", { tierAttribute: "supplier_tier", spaci
   an attribute change or report a node it could not place (sections 2, 3 and 5; open decisions
   17 and 27).
 - No scene coordinate convention is published (open decision 27).
+- `static honoursWeights` has no declared weight route; the undeclared `pairWeights` helper is
+  deleted by the migration in a minor release (sections 2 and 7).
+- A carried scope is silently dropped under an unscoped engine (section 3).
+- An `"attribute"` option naming a missing or mistyped column is accepted (section 5 item 5).
+- Nothing states when `setLayout` resolves relative to the first publish (section 3).
+- `sizeRating` is advisory and too coarse for graphs past 10,000 nodes; a batch `doLayout` runs
+  on the main thread with no size gate, so a project that restores a heavy layout on open can
+  hang the page on every open (open decisions 8 and 27).
+- `SimpleLayoutEngine.positions` is a plain object keyed by node id, so a node whose id is
+  `__proto__` writes the object's prototype instead of a row (README section 9.2 item 6); the
+  fix is a `Map` or a null-prototype object, which changes a published member's type and so
+  waits for the snapshot contract or the next major.
+- `KNOWN_LAYOUT_IDS` omits `spiral` and `planar`, two built-in arrangements the catalogue
+  publishes (README section 5 item 4).
 
 ## 12. Who this serves
 
-| Need | Source |
-| --- | --- |
-| Hierarchical tiers and what-if views of a supply chain | `design/designloom/workflows/W11.yaml`, `design/designloom/personas/supply-chain-analyst.yaml` |
-| Radial layout around a hub | `design/designloom/workflows/W17.yaml` |
-| Layout per cluster, instead of by hand | `design/designloom/workflows/W21.yaml` |
-| The same layout across two conditions | `design/designloom/workflows/W24.yaml` |
-| Geographic placement | `design/designloom/personas/supply-chain-analyst.yaml`, `design/designloom/personas/intelligence-analyst.yaml` |
-| Seeded, reproducible figures | `design/designloom/workflows/W25.yaml` |
+| Need | Source | Served |
+| --- | --- | --- |
+| Hierarchical tiers from a loaded tier column | `design/designloom/workflows/W11.yaml`, `design/designloom/personas/supply-chain-analyst.yaml` | yes (section 10) |
+| Tiers computed by an algorithm (hop distance upstream) | `design/designloom/workflows/W11.yaml` | not yet: a layout cannot read results (open decision 17) |
+| What-if views compared at the same positions | `design/designloom/workflows/W11.yaml` | not yet: no warm start (open decision 27) and no "compute without" scope (open decision 23) |
+| Radial layout around a hub | `design/designloom/workflows/W17.yaml` | yes, with a `"node-id"` option |
+| Layout per cluster, instead of by hand | `design/designloom/workflows/W21.yaml` | not yet: the clusters are a result, which a layout cannot read (open decision 17) |
+| The same positions across two conditions | `design/designloom/workflows/W24.yaml` | not served by this point: a seed cannot align two different graphs; needs network collections and a shared-positions rule, outside the six points |
+| Geographic placement | `design/designloom/personas/supply-chain-analyst.yaml`, `design/designloom/personas/intelligence-analyst.yaml` | partly: coordinates from loaded attributes; unplaced nodes and a scene convention need open decision 27, and a joined location table needs open decision 19 |
+| Seeded, reproducible figures | `design/designloom/workflows/W25.yaml` | partly: only for plugins that declare a seed; a layout choice is not restored from a saved document (open decision 8) |

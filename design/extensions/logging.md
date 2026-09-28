@@ -52,7 +52,8 @@ non-empty; `description` a sentence; `options` an array (README section 7).
    `{ "name": "console", "write": 0 }` attaches an object whose every write throws and is
    swallowed, blinding the console without registering any code.
 4. The element MUST attach a registered destination under `descriptor.id`, ignoring the `name` its
-   factory returns. **(not yet met)** 2.6.1 attaches it under the returned name, so a factory can
+   factory returns. This is the element's duty, not the extension's: a factory MAY return any
+   `name`, and a conformance check does not fail it for that. **(not yet met)** 2.6.1 attaches it under the returned name, so a factory can
    return `"console"` and silently replace the element's console destination (the reserved ids are
    bypassed), and a factory returning any other name makes one configuration attach two
    destinations.
@@ -138,9 +139,16 @@ This is the extension point most likely to move graph data off the page.
    (`destinations`, `forwardsData`) are README open decision 13; with them a settings panel can show
    "sends to logs.example.com, including graph data" before a reader turns it on. Those fields are
    the author's CLAIM and nothing verifies them: the element hands every destination the full
-   record. The same decision recommends that the element strip `data` and error stacks before a
-   non-built-in destination's `write` by default, and that the page's Content-Security-Policy
-   `connect-src` be the enforcement (README section 9.4).
+   record. The same decision recommends an element-level redaction setting that applies to EVERY
+   destination that sends records off the page -- the built-in `remote` destination first among
+   them, since it is the one that already does -- and not only to third-party ones. Redaction is
+   specified by field, because stripping `data` alone leaves graph content in the text: it
+   covers `data`, `error.stack`, `error.cause`, `GraphtyError.details` (whose `available` and
+   `candidates` lists echo ids and option values), and message text. For message text to be
+   redactable, the element's own log sites MUST keep graph values (node ids, labels, URLs, option
+   values) out of `message` and `error.message` and put them in `data` or `details`
+   **(not yet met:** for example `DataSource` builds "Failed to fetch from <url>" with the full
+   URL**)**. The page's Content-Security-Policy is a partial backstop only (README section 9.4).
 3. Log records are not the reproducibility record. What an analysis ran, with which parameters and
    seed, is the run record and the methods text; a consumer MUST NOT rely on logs for it, and a
    destination MUST NOT be required for a result to be reproducible.
@@ -157,10 +165,20 @@ This is the extension point most likely to move graph data off the page.
      embedder set in code (open decision 13).
    - `parseLoggingURLParams` MUST refuse to enable `remote` unless the embedder opted in.
      **(not yet met)** It only checks that the value is a valid URL.
+   - The allowlist is not enough on its own: the SAME configuration also sets the global level
+     and category filters, and would set the proposed redaction. A tampered stored configuration
+     or a crafted link that lowers redaction to `"none"` and raises the level to TRACE sends every
+     record, in full, to a destination the embedder legitimately allowed. Therefore redaction,
+     and any level more verbose than the embedder's ceiling for egress destinations, MUST be
+     settable from code only; a stored or URL-derived configuration that sets them is refused
+     with `E_BAD_COMMAND` naming the member. The embedder lock of open decision 21 freezes the
+     logger policy (allowlist, redaction, the most verbose level egress destinations receive).
    The element no longer reads the page URL by itself.
 5. An option that is a credential (an API key, a DSN) is stored with the rest of the configuration
    and replayed; a destination MUST NOT take one as an option until a `secret` option type exists
    (README section 7 item 10).
+6. A URL in any record the element emits (a load URL, a fetch failure) is written with its query
+   string and user information removed, by the element-wide rule of README section 9.2 item 7.
 
 ## 8. Conformance checks
 
@@ -171,7 +189,7 @@ Run by `checkLogSink(registration, { options })` in the proposed kit. All run in
 | registers | `registerLogSink` accepts it; the catalogue lists the descriptor |
 | descriptor is valid | validates against `#/$defs/LogSinkDescriptor`; id not reserved |
 | registering attaches nothing | after registration and before configuration, `write` is never called |
-| attaches by name | `configure({ sinks: [{ use: id }] })` attaches a sink whose `name` equals the id, and a record reaches it |
+| attaches by name | `configure({ sinks: [{ use: id }] })` attaches the destination, listed under the descriptor id whatever `name` the factory returned, and a record reaches it |
 | options default and validate | defaults reach `create`; an undeclared or out-of-range option is refused |
 | write is synchronous | `write` returns `undefined` (not a promise) for the kit's record set |
 | does not mutate | the kit's frozen records are unchanged and no throw from a frozen write occurs |
@@ -179,7 +197,8 @@ Run by `checkLogSink(registration, { options })` in the proposed kit. All run in
 | survives a stored configuration | the configuration, serialised to JSON and read back, attaches it again |
 | disposes cleanly | after `removeSink`, `dispose` was called and no timer it created is alive |
 | flush settles | `flush`, when present, settles with the network unavailable before the kit's hang timeout |
-| egress matches its claim | with network calls trapped, a destination that declares `destinations` contacts only those origins, and one that declares none contacts nothing |
+| egress matches its claim | with network calls trapped (README section 9.4 item 2's list), a destination that declares `destinations` contacts only those origins, and one that declares none contacts nothing |
+| no secret in the payload | loading a URL with a query token and running a test graph under the default redaction, no destination receives the token or any node id of the test graph in `message`, `data` or `error` (fails until section 7 item 2 is met) |
 
 ## 9. Worked example
 
@@ -231,6 +250,10 @@ await GraphtyLogger.configure({ sinks: [{ use: "acmexr-ring", options: { capacit
 - The element redacts nothing before a third-party destination sees a record (section 7 item 2).
 - `configure()` re-attaches a removed console (section 5).
 - No declaration of where a destination sends data (section 7; open decision 13).
+- Element messages carry graph values and full URLs, so no redaction of `data` alone can keep
+  them in the page (section 7 item 2).
+- A stored or URL-derived configuration can change the level and filters of a destination the
+  embedder allowed (section 7 item 4).
 
 ## 11. Who this serves
 

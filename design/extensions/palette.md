@@ -124,9 +124,14 @@ a palette takes no options (section 6).
    built-in palettes. A document is thereby self-describing: it carries everything needed to paint
    it again except the element itself.
 3. Applying a document (today): every palette it carries MUST already be registered with equal
-   content, or the document is refused as a whole with `E_UNKNOWN_PALETTE` -- never half-applied.
-   A document that carries a palette whose id is registered with DIFFERENT content MUST be refused
-   too, comparing the normalised descriptors as JSON with anchors compared case-insensitively.
+   COLOURS, or the document is refused as a whole with `E_UNKNOWN_PALETTE` -- never half-applied.
+   A document that carries a palette whose id is registered with different colours MUST be refused
+   too. "Equal colours" means the same `kind` and the same normalised anchors in the same order,
+   compared case-insensitively, and nothing else: a different `plainName`, `version`,
+   `colorblindSafe` claim or an unknown member is reported as a difference (so a legend can say
+   the page names the palette differently) but never refuses the document, because none of them
+   changes what is painted. (This is deliberately narrower than registration sameness in section
+   3 item 4, which includes `plainName` so that re-registering a corrected name takes effect.)
    **(not yet met)** 2.6.1 checks only that each carried id is registered
    (`graphty-element/src/session/styles/StylesApi.ts`, `checkDocument`), so a document is applied
    with whatever colours the page registered under that id and a shared file can paint different
@@ -135,9 +140,20 @@ a palette takes no options (section 6).
    only where each member first registers the lab's palettes by code.
 4. Applying a document (proposed, open decision 10 in `README.md`): the carried palettes resolve
    in a scope OWNED BY THE DOCUMENT (`palette.d.ts`, `DocumentPalettePolicy` `"document-scope"`).
-   They paint that document's layers, are not listed in the page catalogue, shadow no palette
-   registered by code, and are dropped when the document is closed; within the document its own
-   anchors win, so it always paints the colours it was saved with. The motivating case is the
+   They paint that document's layers and shadow no palette registered by code; within the
+   document its own anchors win, so it always paints the colours it was saved with. The
+   recommendation also defines the document's lifetime, which the first draft left open:
+   - a style document is OPEN from the moment it is applied until every layer it added has been
+     removed; loading new data, including a load with `replace: true`, does not close it, so a lab
+     style keeps painting the next network it is applied to (the W20 "down-regulated list" case);
+   - while it is open, the palette picker lists its carried palettes, marked as coming from that
+     document, so a reader can use the lab ramp for a NEW layer; such a layer joins the document;
+   - a carried palette whose id is a BUILT-IN id is refused with `E_DUPLICATE_PLUGIN`
+     (`details.builtIn: true`), under every policy, so a file cannot paint its own colours under
+     the name `viridis` and borrow that palette's reviewed claims;
+   - a carried palette whose id is registered BY CODE with different colours is either refused or
+     shown under a document-local name (for example "acmelab-fold-change (from lab-style.json)"),
+     never under the registered palette's name, `plainName` or `colorblindSafe` claim. The motivating case is the
    owner's "load style" / "load recipe" task (2026-09-27): a community shares a starting point
    without sharing its data, and the receiving reader should not have to register anything first.
    Registering a document's palettes into the page-global, permanent registry was considered and
@@ -178,6 +194,10 @@ its consequence is visible. This is true of built-in palettes too.
 ## 8. Versioning and compatibility
 
 - `PaletteDescriptor` is implemented by extensions: adding a required member is a major release.
+- `ColorVisionDeficiency` is a closed union of the three dichromacies. A grayscale or print-safety
+  claim (which journals and `design/designloom/capabilities/style-presets.yaml` ask for) cannot be
+  recorded, and adding a value later is a closed-union change; whether to add `"achromatopsia"` or
+  `"grayscale"` now, or to open the union for readers, is README open decision 30.
 - The anchor normalisation rule (six-digit hex) is part of the contract; a document written by one
   version MUST paint the same colours in a later version of the same major.
 - A reader of a `StyleDocument` that meets a palette descriptor member it does not know MUST ignore
@@ -214,12 +234,15 @@ the last two, which need the kit's browser configuration.
 | safety claim holds | every deficiency in `colorblindSafe` passes `isPaletteSafe` (a warning, not a failure: the claim is the author's) |
 | paints a ramp | a sequential or diverging palette bound to a numeric attribute paints the lowest value with the first anchor and the highest with the last (browser) |
 | survives a document round trip | `toDocument()` carries the descriptor, and applying it to a fresh element with the palette registered paints the same colours (browser) |
+| a renamed palette still applies | a document carrying the palette with a different `plainName` and an unknown extra member applies, reporting the difference (Node; fails until section 5 item 3 is met) |
 | overflow is observable | a categorical binding with more groups than the capacity and no `overflow` reports `E_CAP_EXCEEDED` to the consumer (browser; fails until section 7 is met) |
 
 ## 11. Worked examples
 
 A diverging fold-change palette for gene expression, with grey for missing values supplied by the
-binding (the need in `design/designloom/workflows/W20.yaml`):
+binding (the need in `design/designloom/workflows/W20.yaml`). `capacity: null` is written out
+because 2.6.1 types the parameter as `PaletteDescriptor`, which requires it, although the run time
+derives it (section 12):
 
 ```ts
 import { registerPalette } from "@graphty/graphty-element/extend";
@@ -229,6 +252,7 @@ registerPalette({
     plainName: "Fold change (blue - white - red)",
     kind: "diverging",
     colors: ["#2166ac", "#67a9cf", "#f7f7f7", "#ef8a62", "#b2182b"],
+    capacity: null,                            // derived; required by the 2.6.1 type
     colorblindSafe: ["deuteranopia", "protanopia"],
 });
 
@@ -252,7 +276,9 @@ await session.styles.add({
 A malformed registration and what the author sees:
 
 ```ts
-registerPalette({ id: "acme-bad", plainName: "Bad", kind: "categorical", colors: ["#fff", "nope"], capacity: 2 });
+import { registerPalette } from "@graphty/graphty-element/extend";
+
+registerPalette({ id: "acme-bad", plainName: "Bad", kind: "categorical", colors: ["#fff", "nope"], capacity: 2, colorblindSafe: [] });
 // throws GraphtyError { code: "E_BAD_COMMAND", source: "registry",
 //   details: { kind: "palette", name: "acme-bad", field: "colors" },
 //   message: '"nope" in the palette "acme-bad" is not a colour' }
@@ -265,6 +291,9 @@ registerPalette({ id: "acme-bad", plainName: "Bad", kind: "categorical", colors:
   document whose palette id is registered with different content is applied with the page's
   colours instead of refused (section 5 item 3).
 - A registered palette is global, not scoped to the document that carried it.
+- A document's palette comparison, once built, must compare colours only (section 5 item 3).
+- Nothing stops a document from carrying a palette under a built-in id or a code-registered id
+  (section 5 item 4).
 - The content key that decides sameness leaves out `plainName` (section 3 item 4).
 - The published parameter type of `registerPalette` requires `capacity` and `colorblindSafe`
   although the run time derives or defaults them; `PaletteRegistration` in `palette.d.ts` is the

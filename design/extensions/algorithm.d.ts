@@ -3,7 +3,7 @@
  * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/AlgorithmDescriptor.
  */
-import type { Column, EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
+import type { Column, EdgeMask, GraphSnapshot, GraphSnapshotContract, NodeMask } from "./extend-snapshot";
 import type { OptionDescriptor } from "./common";
 
 // =============================================================================================
@@ -157,11 +157,10 @@ export declare abstract class Algorithm<TOptions extends Record<string, unknown>
     /** "subgraph" to be handed the scope; absent or "none" to be handed the whole graph. */
     static scopeInput?: "none" | "subgraph";
     static parallelEdges?: SimplifyPolicy;
-    /** The algorithm's own version; recorded on every run as provenance. */
-    static version?: string;
-    /** Estimated seconds over n nodes and m edges. Lives on the class, never in the descriptor. */
-    static cost?: (n: number, m: number) => number;
-    static costUnits?: (n: number, m: number) => number;
+    /*
+     * NOT DECLARED ON THE CLASS: version, cost and costUnits. register() reads them from the class
+     * as AlgorithmStatics (below); a subclass declares them WITHOUT `override`.
+     */
 
     protected get schemaOptions(): TOptions;
 
@@ -185,6 +184,21 @@ export declare abstract class Algorithm<TOptions extends Record<string, unknown>
 
     /** Register the class. Returns it. NOTE: takes no RegisterOptions in 2.6.1 (README decision 6). */
     static register<T extends abstract new (...args: never[]) => Algorithm>(cls: T): T;
+}
+
+/** The statics register() reads from an algorithm class. Exported from ./extend. IMPLEMENTED BY EXTENSIONS. */
+export interface AlgorithmStatics {
+    descriptor?: AlgorithmDescriptor;
+    /** Estimated seconds over n nodes and m edges. Prefer costUnits. Lives on the class, never in the descriptor. */
+    cost?: (n: number, m: number) => number;
+    /**
+     * Work units of the descriptor's costClass over n nodes and m edges, for the whole run:
+     * elements for instant and iterative, source-edge pairs for heavy, operations for cubic.
+     * Wins over cost.
+     */
+    costUnits?: (n: number, m: number) => number;
+    /** The algorithm's own semver version; recorded on every run as provenance. */
+    version?: string;
 }
 
 export declare abstract class DeclaredAlgorithm<
@@ -253,15 +267,20 @@ export interface ScopedInputEdgeIdentity {
  */
 export declare function runAlgorithmHeadless(
     cls: abstract new (...args: never[]) => DeclaredAlgorithm,
-    snapshot: GraphSnapshot,
+    /** Structural, so a snapshot built by the plugin's own graph-format copy is accepted. */
+    snapshot: GraphSnapshotContract,
     options?: {
         readonly params?: Readonly<Record<string, unknown>>;
         readonly scope?: NodeMask;
+        /** An edge scope (a time window over events). */
+        readonly edges?: EdgeMask;
+        /** Rows computed WITHOUT (open decision 23), for a held-out or what-if run. */
+        readonly exclude?: { readonly nodes?: NodeMask; readonly edges?: EdgeMask };
         readonly signal?: AbortSignal;
         readonly onProgress?: (report: RunProgressReport) => void;
         /**
-         * The element's Edge.id by row of `snapshot`. REQUIRED when the algorithm publishes edges:
-         * the host never invents ids, because invented ids never occur in the live element.
+         * The element's Edge.id by row of `snapshot`. When omitted, the host applies the element's
+         * own deterministic assignment (open decision 19), never an invented numbering.
          */
         readonly edgeIds?: readonly string[];
     },
@@ -290,6 +309,15 @@ export interface AlgorithmRunParameters {
 /** PROPOSED -- the member of AlgorithmRunContext that carries the forwarded run options. */
 export interface AlgorithmRunContextParameters {
     readonly parameters: AlgorithmRunParameters;
+}
+
+/** PROPOSED -- open decision 16. A read-only accelerator verdict on the run context. */
+export interface AlgorithmRunContextAcceleration {
+    readonly acceleration: {
+        readonly available: boolean;
+        readonly policy: "auto" | "require" | "off";
+        readonly precision: "f32" | "f64" | null;
+    };
 }
 
 /**
@@ -325,20 +353,41 @@ export interface ScopedInputWeightOption {
  * records for every run, so a methods section can cite it and a replay can detect drift.
  */
 export interface RunRecord {
+    /** The run id its results live under (results.<runId>.<field>), and the caller's `as` name when one was given. */
+    readonly runId: string;
+    readonly name: string | null;
     readonly key: AlgorithmKey;
-    /** The npm package that registered the algorithm; absent for a built-in. */
+    /** The npm package the registration CLAIMED; absent for a built-in. Provenance, not identity. */
     readonly package?: string;
-    /** The algorithm's static version; for a built-in, the element version. */
-    readonly version: string;
+    /**
+     * The algorithm's own semver version. For a built-in, the built-in's OWN version, bumped at a
+     * major whenever its output changes for the same input and seed -- not the element version.
+     * null for a plugin that declares none (read as unresolved on replay).
+     */
+    readonly version: string | null;
     readonly elementVersion: string;
-    /** Every option after defaults were filled, not only what the caller passed. */
+    /**
+     * Every option after defaults were filled, not only what the caller passed. The declared
+     * "seed" option and parameters.seed carry the same value; replaying both is accepted.
+     */
     readonly options: Readonly<Record<string, unknown>>;
     readonly parameters: AlgorithmRunParameters;
-    /** The scope, as the set or rule the caller named. */
-    readonly scope: unknown;
+    /** The orientation and simplify policy the run's input used. */
+    readonly orientation: "declared" | "undirected";
+    readonly simplify: SimplifyPolicy;
+    /** Where it ran. */
+    readonly route: "cpu" | "accelerator";
+    /** The scope as DEFINED at run time (the set or rule, its definition copied), and a digest of the resolved member ids. */
+    readonly scope: { readonly definition: unknown; readonly membersDigest: string } | null;
+    /** The loads the input graph was built from (LoadReport.loadId), in order. */
+    readonly loadIds: readonly number[];
     /** Result paths the run read as input (ScopedInputColumns). */
     readonly inputs: readonly string[];
-    /** An identity of the input graph (for example a content hash of the snapshot), so a result is tied to the network it was computed on. */
+    /**
+     * An order-independent digest over node ids, edge endpoints and ids, and every column the run
+     * read (the weight column included), so two graphs with equal topology but different weights
+     * differ, and a permuted load of the same file does not.
+     */
     readonly inputIdentity: string;
     readonly caveats: Caveats;
     readonly partial: boolean;

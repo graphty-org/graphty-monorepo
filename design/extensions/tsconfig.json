@@ -12,5 +12,5 @@
     "baseUrl": "../..",
     "paths": { "@graphty/graph-format": ["graph-format/src/index.ts"] }
   },
-  "files": ["common.d.ts", "palette.d.ts", "file-format.d.ts", "camera.d.ts", "layout.d.ts", "algorithm.d.ts", "logging.d.ts"]
+  "files": ["common.d.ts", "extend-snapshot.d.ts", "palette.d.ts", "file-format.d.ts", "camera.d.ts", "layout.d.ts", "algorithm.d.ts", "logging.d.ts"]
 }

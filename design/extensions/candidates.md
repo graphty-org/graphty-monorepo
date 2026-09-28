@@ -99,9 +99,29 @@ pushed feeds over WebSocket or server-sent events); a credential slot whose valu
 keeps and never logs or serialises; the service release it queried and the query parameters,
 recorded as provenance; a found and not-found identifier report; and a `publish` direction for
 upload. The element owns confirmation, retry, cancellation, rate limiting, caching and error
-mapping. A refresh MUST add or merge and keep the reader's state (runs, sets, positions); it never
-silently replaces the graph. It would give imports cancellation, which the File format point
-lacks.
+mapping. A refresh keeps the reader's state (runs, sets, positions) and never silently replaces
+the graph -- but "add or merge" alone is not enough, for three reasons the shape must answer:
+
+- **Retention.** A live feed (SIEM events over the last 24 hours) grows without limit under
+  add-only refreshes, and a canvas past a few hundred thousand events is unusable. The source
+  contract needs an element-owned retention policy -- a time window on a declared timestamp
+  attribute, a maximum element count -- and removal records in the stream (a remove or tombstone
+  record), with a stated rule for runs, sets and annotations that name an evicted element (kept,
+  and reported as unresolved). The window is part of the recorded provenance.
+- **Identifier resolution.** A service resolves identifiers ambiguously (one gene symbol to several
+  proteins, aliases, pseudogenes). The report needs an `ambiguous` category with the candidate
+  matches beside found and not-found, and the resolution the reader accepted is recorded and
+  reused on replay.
+- **Releases.** A service defaults to its latest release, so a replay six months later queries a
+  different network. A `release` option pinned by default, recorded as provenance, and a replay
+  against a different release reads as unresolved.
+
+A source whose service returns a document in a format a registered reader handles (a SPARQL
+CONSTRUCT answering `text/turtle`) SHOULD hand the body and its media type to the format registry
+rather than bundle its own parser, so the same bytes are read one way whether they came from a
+file or a query; that needs media-type detection (`file-format.md` section 4 item 9), and the
+reader's id and version go into the source's provenance. The point would give imports
+cancellation, which the File format point lacks.
 
 **Verdict: Promote**, as an owner decision (README open decision 15), taken before the file-format
 contract is frozen: either a seventh point "Data source", or a declared second kind of File format
@@ -120,8 +140,13 @@ UniProt to gene) or attaches external annotations (GO and KEGG terms, druggabili
 4.14 of `design/element-api/element-api-design.md`) named both kinds.
 
 **Evidence against.** Both are data sources in disguise: they fetch from a service and join by key.
-Enrichment statistics over a cluster are an algorithm (a `category-table` result) once the
-annotations are loaded.
+Enrichment statistics over a cluster are an algorithm once the annotations are loaded -- but NOT a
+`category-table` one, as an earlier draft said: that shape puts one category, score and rank on
+each NODE, while per-cluster enrichment produces, for each GROUP, many terms with an FDR, a gene
+count and the member genes. It needs a per-group result table (open decision 18, widened from
+per-group labels to rows of terms per group), plus the `dataset` and `"partition"` inputs of open
+decisions 22 and 17. Running one scoped run per cluster is exactly the manual work
+`design/designloom/workflows/W21.yaml` names as the pain.
 
 **But nothing loads annotations that are not a graph.** Offline enrichment needs a gene-set file
 (GMT) or an identifier map as input. It is not a graph, so no reader applies; no option type can
@@ -257,7 +282,10 @@ deferred "animate along a path" runs through saved views.
 they belong in the element, not in a third party's plugin. The formats are few and stable.
 
 **Verdict: Not an extension point.** The element should ship SVG/PDF and video export itself. A
-graph file writer is a different thing and is covered by `file-format.md` section 8.
+graph file writer is a different thing and is covered by `file-format.md` section 8. Publication
+export needs a specification of its own before it ships, above all of what the exported legend
+states (each layer, its column, the palette anchors, the midpoint, the missing-value colour and
+the domain), because that legend is what a figure caption cites; no document defines it today.
 
 ## 12. Set kinds, rule leaves and scope keywords
 
@@ -278,8 +306,20 @@ each plays, and the per-match score, and a plugin may not invent a shape. On an 
 the pivot is often one of hundreds of parallel edges, which a snapshot-only plugin cannot name
 (README open decision 5). **Pattern search is not achievable as an extension today.**
 
-**Verdict: Later.** The algorithm route needs a `match-list` result shape (README open decision 18)
-and the edge identity accessor first; try it then, before any set-kind extension.
+Three further dependencies were not stated in the first draft. An exponential match search
+declares `costClass: "unbounded"`, so at the 100,000-node scale of
+`design/designloom/workflows/W07.yaml` it is refused with `E_CAP_EXCEEDED`, and no per-run override
+exists. A partial result (the first N matches) is allowed only when a caller-set limit stops the
+run, but `timeBox` is not forwarded, so a plugin can never legally return partial matches. And
+the default `simplify: "sum"` merges parallel events, erasing the individual logon edge that is
+the pivot.
+
+**Verdict: Later.** The algorithm route needs, together: a `match-list` result shape (README open
+decision 18(b)), the edge identity accessor (open decision 5), forwarded `timeBox` and a cap
+override the reader confirms (open decision 16), and `simplify: "none"`. A saved hunt needs the
+recipe and filter file formats too. Try the route when all of them exist, before any set-kind
+extension; the conformance kit then adds "a match-list run stopped by its time box publishes
+partial matches marked with `caveats.partialReason`".
 
 ## 13. Attribute value types
 
@@ -300,7 +340,8 @@ DATA formats, specified separately. Do they need extension points?
   decision 8.
 - **Recipes** reference algorithms by key and version (Algorithm extensions) and layouts; they need
   no new point. A recipe naming a plugin algorithm that is not installed MUST be kept and read as
-  unresolved, naming what to install.
+  unresolved, naming the missing id; the package the file names is shown only as the file
+  author's claim, never as an install instruction (README section 9.2 item 2).
 - **Annotations** are notes over nodes, edges and regions, independent of the data. No workflow asks
   for a new KIND of annotation from a third party. **Not an extension point.**
 
@@ -349,8 +390,13 @@ into a network that can be laid out, clustered or exported.
 
 **Verdict: Not an extension point.** The element should ship an explicit "apply as edges"
 operation over a pair-list result (or a load of it as a separate network), carrying the run record
-with it. Until then the route is to export the pairs and import them as a file. README open
-decision 18 item (d).
+with it. README open decision 18 item (d). An earlier draft said that until then the route is to
+export the pairs and import them as a file. That route does not exist: there is no writer seam
+(README open decision 1), and even with one a pair list is a graph-level table that no node or
+edge writer has a place for (`file-format.md` section 8.1). So today NO route turns a pair list
+into a network, and `design/designloom/workflows/W22.yaml` (an enrichment map from gene-set
+overlap) cannot be reached until "apply as edges", or the table export of open decision 24,
+exists.
 
 ## Does the design framework's ontology cover the extension points?
 

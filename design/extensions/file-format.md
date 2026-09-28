@@ -50,14 +50,30 @@ section 12.4).
 
 A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource.toRecord`:
 
-1. A node record MUST carry `id` (string or number). Every other member is an attribute.
+1. A node record MUST carry `id` (string or number). Every other member is an attribute, EXCEPT the
+   members the element reads with a meaning of its own (`DataSource.toRecord`):
+   - `position` on a node record seeds its coordinates in file units, as `{ x, y, z }`, `[x, y]` or
+     `[x, y, z]`, so a file that arrives laid out stays laid out. A reader whose format carries
+     coordinates (CX2's cartesian layout, GraphML with positions) SHOULD emit them here, not as
+     `x` and `y` attributes, which the element would treat as plain data and re-lay out;
+   - the configured weight key on an edge record (`weight` unless `data.knownFields.edgeWeightPath`
+     says otherwise; a `value` member is read as a legacy fallback) is the weight algorithms and
+     styles read. A reader whose format has a strength or distance column SHOULD emit it there, and
+     say in its documentation which it is;
+   - the edge endpoint spellings below, and `id` on an edge.
+   These are the reserved record keys. A reader MUST NOT emit any of them with another meaning; an
+   attribute of the source format that would compact to one of them (`dcterms:source`, a `from`
+   column on a record that also has `source` and `target`) MUST be renamed by the reader, because
+   the element reads the reserved meaning first.
 2. An edge record MUST carry its endpoints as `source` and `target`. The element also accepts
    `src`/`dst` and `from`/`to`, in that order of preference, but a reader SHOULD emit
    `source`/`target`: that is what every built-in emits and what `session.data.edge(id)` returns.
-3. An edge record MAY carry `id`; when absent the element assigns one. The specification does not
-   yet promise that an assigned id is stable across reloads of an updated source, so saved results,
-   annotations and sets that name an assigned edge id can point elsewhere after a reload. A reader
-   whose format has natural edge ids SHOULD emit them. Deterministic assignment is part of open
+3. An edge record MAY carry `id`; when absent the element identifies the edge by its position
+   among the edges of the same ordered pair (`ImportReport.edgeIdentity` counts both kinds). A
+   position is not stable when an updated file lists a pair's edges in another order, so saved
+   results, annotations and sets can point at a different edge after a reload. A reader whose
+   format has a natural edge name SHOULD emit it as `id` (SIF's `A (pp) B`, with an ordinal
+   suffix for a repeat, as the worked example does). Deterministic assignment is part of open
    decision 19.
 4. An edge MAY reference a node the reader never yielded; the element creates that node, as it
    does for built-ins. `E_EDGE_ENDPOINTS_UNRESOLVED` is something else: the element raises it when
@@ -67,9 +83,40 @@ A reader yields `DataSourceChunk`s of `AdHocData` records built with `DataSource
    objects of those). A reader MUST NOT put functions, class instances or cyclic structures in a
    record.
 6. A record has no way to say which attribute is the node's display label, what type an attribute
-   is (a date, an integer, a list), or what the graph-level metadata is (a prefix map, a named
-   graph). Those are dropped or arrive as plain strings, and a writer cannot report a loss it never
-   knew about. A `declareSchema(...)` helper is part of open decision 20.
+   is (a date, an integer, a list, a language-tagged literal), or what the graph-level metadata is
+   (a prefix map, a named graph). Those are dropped or arrive as plain strings, and a writer cannot
+   report a loss it never knew about. Time-structured values (GEXF spells, intervals) have no
+   form at all: a reader MUST raise them as a per-record warning rather than drop them silently,
+   until open decision 20 decides whether intervals are in scope. A `declareSchema(...)` helper is
+   part of open decision 20.
+7. **Attribute keys have no grammar.** The element resolves attribute paths by splitting on `.`
+   (style bindings, legends, selectors, `"attribute"` options), so an attribute whose key contains
+   a dot -- every RDF predicate IRI (`http://schema.org/name`), many CURIEs -- loads but can never
+   be bound, selected or named by an option. Until open decision 29 settles an escaping rule, a
+   reader SHOULD emit keys without `.` (for example a local name, `schema_name`) and document the
+   mapping back to the source key.
+8. **Within one load and across loads**, as built in 2.6.1 (`DataManager`):
+   - node ids are compared by value AND type: the string `"1"` and the number `1` are two nodes;
+   - a node id that arrives a second time -- in the same load or a later added load -- is
+     IGNORED, attributes included: the first record wins and nothing reports the later one. (Open
+     decision 19 must decide whether that stays; see there);
+   - repeated edges follow the element's repeated-edge policy (`data.knownFields.repeatedEdges`,
+     graph-format's `DuplicatePolicy`: `keep` by default, or `error`, `first`, `last`, `sum`,
+     `min`, `max`). Under `keep`, every repeated record for an ordered pair becomes an edge of its
+     own, and a reciprocal pair (A-B and B-A, which STRING emits for every interaction) is two
+     edges even in an undirected load. `ImportReport.repeated` counts what the policy did. A
+     reader MUST NOT merge repeats itself; the policy is the consumer's;
+   - an edge naming a node no record declared creates that node (item 4);
+   - the element applies the consumer's field mapping (`nodeIdPath`, `edgeSource`, `edgeTarget`,
+     from the load options or `data.knownFields`) to the records of EVERY reader, built-in or
+     plugin (`Graph.ts`, the load path). A plugin reader therefore emits its records in the
+     source's own terms and leaves the mapping to the element; `resolveOptions` skipping those keys
+     (section 6 item 2) is what lets it;
+   - ids are document-local in many formats (an RDF blank node `_:b0`, a GraphML id, an
+     auto-numbered row) but the element matches them globally, so two files that both use `_:b0`
+     for unrelated things merge them into one node under the default add. A reader SHOULD
+     qualify such ids with something unique to the file until open decision 19 gives it a
+     per-load token.
 
 ## 3. Registration
 
@@ -98,7 +145,12 @@ NOT offer a way to publish one without the other.
 
 1. **By name.** A host that names the format (`{ format: "roster" }`) bypasses detection.
 2. **By extension.** `detectFormats({ filename })` matches the file name's extension against every
-   descriptor's `extensions`, built-ins first.
+   descriptor's `extensions`, built-ins first. Only descriptors that can READ take part (once
+   writers exist, a writer-only descriptor claims nothing in detection; a "Save as" list shows
+   only descriptors with `canExport: true`, section 8.3). **(not yet met)** For a URL,
+   `loadFromUrl` takes the extension of the WHOLE URL, query string included:
+   `https://x/data.json?v=2` matches nothing and `https://x/get?file=a.ttl` matches `.ttl`. The
+   query and fragment MUST be stripped first.
 3. **By content.** `detectFormats({ sample })` asks every built-in sniffer first, in the element's
    order, and only then each registered `detect`, in registration order.
 4. **A registered sniffer can never take a file a built-in claims.** Content detection returns the
@@ -121,6 +173,17 @@ NOT offer a way to publish one without the other.
    before calling any registered `detect`, on every route.
 8. `detect` receives text. A binary format cannot be sniffed by content in this version; it is
    recognised by extension or by name (open decision 20).
+9. **Media types are declared but never consulted.** Every descriptor must list `mimeTypes`, but
+   `DetectionInput` carries only a file name and a sample, so an HTTP `Content-Type` (`text/turtle`)
+   and a dropped file's `File.type` are ignored. A URL with no known extension is therefore
+   sniffed, and a generic built-in sniffer may claim it first (the CSV sniffer reads
+   `@prefix foaf: <...> .` as space-separated words). Ranking a format whose `mimeTypes` match
+   above content sniffing is part of open decision 2.
+10. **A dialect of a built-in cannot win on the built-in's extension.** Among the formats that
+    claim an extension, built-ins come first and the sample only reorders claimants whose sniffers
+    accept it; the built-in JSON sniffer accepts any JSON, so a JSON-LD reader that also claims
+    `.json` never reads a dropped `.json` file that is JSON-LD. The confidence model of open
+    decision 2 is to apply among extension claimants too.
 
 The graph-io importer contract uses a different model: `sniff(head: Uint8Array): number`, a
 confidence from 0 to 1. After the migration the built-in sniffers delegate to graph-io, while
@@ -136,7 +199,7 @@ confidence model is part of open decision 2.
 | --- | --- | --- |
 | Loaded from a string | `graph.addDataFromSource("<id>", { data })` | "a third party's file format" |
 | Loaded from a `File`, named or detected | `graph.loadFromFile(file, { format })`, `graph.loadFromFile(file)` | same |
-| Loaded from a URL, with three attempts and exponential backoff | `graph.loadFromUrl(url)` | same |
+| Loaded from a URL, with three attempts and exponential backoff | `graph.loadFromUrl(url)` | same. **(not yet met)** only when the format is named or recognised by extension: a URL whose extension is unknown is first fetched ONCE with a bare `fetch` for sniffing, with no retry, and a failure there is an uncoded `Error`, not `E_FETCH_FAILED` (`Graph.ts`, `loadFromUrl`) |
 | Listed beside built-ins with its plain name | `session.catalog.formats()` | "...in the catalogue a picker is built from" |
 | Found by the id a saved document records | catalogue lookup by id | "is found by the name a saved document records" |
 | Found from a file name before the file is read | `detectFormats({ filename })` | "is found from a file name's extension..." |
@@ -160,13 +223,17 @@ Parity statements:
    the migration onto graph-io is expected to close this.
 4. **Options: parity is inverted.** A registered reader's options are validated against its
    descriptor; the built-in readers skip `resolveOptions`.
-5. **The per-record errors have no route to the consumer.** A reader records per-record problems
-   with `errorAggregator`, but the specification names no event, load result or report that
-   carries them to the consumer after a successful load, `DataLoadingError` has no severity
-   (warning against blocking), and there is no preview (the first records before a full load).
-   The skipped records therefore vanish. The load report is open decision 19; until it lands, a
-   reader SHOULD NOT rely on per-record errors reaching anyone, and SHOULD fail the load
-   (`E_PARSE_FAILED`) rather than silently skip data a reader would need to know about.
+5. **The per-record errors have no route to the consumer.** 2.6.1 publishes an `ImportReport` on
+   `./session` for every load, built-in or plugin: the endpoint spelling used, node and edge
+   counts after the load against the records handed over, rejected records, what the repeated-edge
+   policy did, where weights came from, and how edges will be found again. It carries no
+   per-record errors: a reader records those with `errorAggregator`, but nothing carries them to
+   the consumer after a successful load, `DataLoadingError` has no severity (warning against
+   blocking), and there is no preview. The skipped records therefore vanish. Extending the
+   published `ImportReport` into a load report is open decision 19 (`LoadReport` in
+   `file-format.d.ts` extends it; it is not a second shape); until it lands, a reader SHOULD NOT
+   rely on per-record errors reaching anyone, and SHOULD fail the load (`E_PARSE_FAILED`) rather
+   than silently skip data a reader would need to know about.
 6. **What a load records.** A run records its key, version and options; a load records nothing a
    methods section can cite (format id, reader version, resolved options). A reader SHOULD declare
    `static version`, as an algorithm does, so that the load record of open decision 19 can carry
@@ -194,7 +261,7 @@ Parity statements:
 | `E_UNKNOWN_FORMAT` | a load names a format nothing registered | `available`: every format and its directions |
 | `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | host options fail validation | option name, nearest name |
 | `E_PARSE_FAILED` | the content cannot be read | MUST carry `format`; SHOULD carry `line` (1-based) |
-| `E_FETCH_FAILED` | the URL could not be fetched after the retries | `url` with its query string and user information removed **(not yet met:** 2.6.1 records the full URL, so a token in a query string reaches every log destination**)**, `attempts`; `recoverable: true` |
+| `E_FETCH_FAILED` | the URL could not be fetched after the retries | `url` with its query string and user information removed, and the same redacted form in `message` **(not yet met:** 2.6.1 records the full URL in `details` and builds the message as "Failed to fetch from <url> ..." (`DataSource.ts`), so a token in a query string reaches every log destination whatever `details` holds; README section 9.2 item 7**)**, `attempts`; `recoverable: true` |
 | `E_EDGE_ENDPOINTS_UNRESOLVED` | no endpoint spelling answers in a batch of edge records (section 2.2 item 4) | the keys the records carry |
 | `E_EMPTY_LOAD` | the load produced no nodes | as built-ins |
 
@@ -208,8 +275,15 @@ Parity statements:
 3. A failed load MUST reach the consumer through the `data-loading-error` event and the rejection
    of the load call, exactly as a built-in failure does. A load with `{ replace: true }` MUST leave
    the previous graph as it was. A default load ADDS to the graph, and 2.6.1 keeps (and paints)
-   the rows that arrived before the failure, for built-ins and plugins alike. The parity suite
-   does not pin either for plugin readers yet.
+   the rows that arrived before the failure, for built-ins and plugins alike -- including when the
+   error limit of item 2 stops the reader part-way. Nothing marks those rows or says which load
+   they came from, no report is produced for a failed load, and there is no way to remove them
+   short of replacing everything: a 9-million-triple file that fails at triple 6 million leaves 6
+   million triples silently merged into a graph built from other sources, and every later run
+   computes over it. This is a DEFECT the parity rule does not excuse. Open decision 20
+   recommends staged loads, committed only on success, so that a failed or cancelled load in any
+   mode leaves the graph as it was. The parity suite does not pin any of this for plugin readers
+   yet.
 
 ## 8. The writer (proposed; not built)
 
@@ -220,7 +294,10 @@ specification reads that as:
 
 1. An export MUST carry everything the chosen format can represent: nodes, edges, their
    attributes, current positions, algorithm results (as node and edge attributes), and style
-   information where the format has a place for it.
+   information where the format has a place for it. "Algorithm results" means every field the
+   result's descriptor declares, the element-derived ones included (`rank`, `percentile`,
+   `groupSize`, as defined in `algorithm.md` section 2.2.3), so an exported ranking uses the
+   element's tie rule and not the spreadsheet's.
 2. Whatever the format cannot hold MUST be reported, as a `LossNote` per omission, before or with
    the export. An export MUST NOT silently drop anything.
 3. The ELEMENT, not the writer, resolves style layers into concrete per-element values (colour,
@@ -242,12 +319,41 @@ Three consequences of item 3 conflict with items 1 and 2, and are open decision 
   attributes where the format has them, and raises a loss note otherwise.
 - The names of exported result columns are not specified (`results.<runId>.value` carries dots
   and changes with the run id). A column name a third party reads back is a one-way door.
+- **Results that are graph-level TABLES have no export route at all.** A pair-list's `pairs`, a
+  temporal result's `steps`, `series` and `rates`, a category table's `categories` and a
+  community's `sizes` are graph fields of type `table`; they are not node or edge attributes, so
+  item 1 does not cover them, no writer receives them, and no loss note is defined for dropping
+  them. A scored pair list for a Python pipeline, a metric time series for R, a cluster table or
+  an enrichment table therefore cannot leave the element except by copying from the screen. The
+  recommendation (open decision 24): an element-owned "export result table" operation that writes
+  one run's table field as CSV or TSV, with the run record as a header block or a JSON sidecar,
+  under the same escaping rules as item 4; and a writer that receives result tables beside the
+  snapshot, raising `W_RESULT_TABLE_DROPPED` when its format has no place for one. The migration
+  plan's `element-export-api` item builds its snapshot from "the data bags and current
+  positions" only, so it carries neither results nor style; it must be widened to match item 1
+  (README section 10).
+- A vector field (an embedding, proposed in open decision 18) has no place in CSV, TSV or
+  GraphML. The recommendation is that a writer without lists expands it into dimension-indexed
+  columns (`<run>_<field>_0` .. `_<d-1>`) and raises a note only when a column limit is reached,
+  because those are exactly the formats a feature pipeline reads.
+- Carrying everything collides with operational security: an export for an outside partner must
+  be able to hold only the attack path, with internal host names pseudonymised, and run
+  provenance written into graph attributes reveals the hunt (the IOC values and target ids given
+  as options). Whether a caller may export less, and whether provenance is written by default or
+  only on request, are open decision 24; this document records the conflict with the owner's
+  words rather than settling it.
 
 Two further rules for any writer:
 
 4. Every exported value MUST be escaped for the target syntax (XML, DOT and CSV quoting). A CSV or
-   TSV writer MUST neutralise a leading `=`, `+`, `-`, `@`, tab or carriage return in a cell, by
-   default, because imported attribute values are untrusted and a spreadsheet executes a formula.
+   TSV writer MUST, by default, neutralise a STRING cell that begins with `=`, `+`, `-`, `@`, tab
+   or carriage return, because imported attribute values are untrusted and a spreadsheet executes
+   a formula. It MUST NOT touch a value that is a finite number in the snapshot (a column of type
+   `number` or `integer`): a negative fold change of `-2.31` is written as `-2.31`, or every
+   down-regulated gene would be read back as text. The rule is per value type, the writer offers
+   an option to switch neutralisation off for a pipeline that reads the file with a CSV parser,
+   and the conformance kit checks that a numeric column with negative values round-trips byte for
+   byte.
 5. Whether a caller may export a chosen subset (a selection, some columns, pseudonymised ids) and
    report each deliberate omission as a loss note is part of open decision 24, and needs the
    owner's confirmation as consistent with "whatever the format supports".
@@ -284,6 +390,10 @@ These requirements apply only if option A is chosen.
    registration is refused with `E_BAD_COMMAND`, `field: "descriptor"`; the catalogue publishes one
    entry with both flags true.
 3. `registration.exporter.format` MUST equal the descriptor id.
+   Detection and every load route consider only descriptors with `canImport: true`; a "Save as"
+   list considers only descriptors with `canExport: true`. A writer registered under an id with no
+   reader therefore never claims a file (two vendors' `.cx2` reader and writer cannot make a
+   dropped `.cx2` fail with "no reader").
 4. Before writing, the element MUST call `exporter.check(snapshot, options)` and MUST include every
    returned `LossNote` in the result. The exporter's `capabilities` MUST be truthful: a capability
    it claims and then drops is a conformance failure.
@@ -307,6 +417,15 @@ may have a different installed copy of graph-format than the one that built the 
 writer MUST take the snapshot type from `./extend` (not its own graph-format), MUST read the
 snapshot only through members published by the graph-format major the element depends on, and
 MUST NOT use `instanceof` against graph-format classes (`algorithm.md` section 3.3).
+
+Under option A this collides with "the writing code is graph-io's contract": graph-io's
+`GraphExporter` is declared against graph-io's own graph-format import (`check(snapshot:
+GraphSnapshot, ...)`, `graph-io/src/types.ts`), `./extend` re-exports no graph-io type, and
+graph-io tests `instanceof GraphFormatError`, which fails across copies. An author who implements
+`GraphExporter` from their own `@graphty/graph-io` gets their own graph-format's snapshot type. So
+option A also requires `./extend` to re-export the writer vocabulary -- `GraphExporter`,
+`ExportCapabilities`, `LossNote`, `CommonExportOptions` -- bound to the element's own graph-format
+and graph-io, and a writer to take those types from `./extend`. That is part of open decision 1.
 
 ## 9. The reader after the migration
 
@@ -372,16 +491,24 @@ Run by `checkFormat(ReaderClass, { samples, invalidSamples })` in the proposed k
 | content detection | for every sample marked `detectable`, `detectFormat({ sample })` RETURNS the id; a sample a built-in also claims is reported as "recognised by extension only" (a warning naming the built-in), not as a pass |
 | does not steal built-in files | for each file in the kit's built-in corpus, `detect` either returns false or the built-in id ranks first |
 | sniffer is safe | `detect` returns a boolean for empty, binary-looking and 4 KiB inputs and for the kit's backtracking-probe corpus; the time it took is reported as a measurement |
-| makes no network request | with `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `sendBeacon` trapped, loading a sample from `data` makes no call |
-| reads the samples | each sample yields the expected node and edge counts, every node has `id`, every edge has `source` and `target` |
+| makes no network request | with the network APIs of README section 9.4 item 2 trapped, loading a sample from `data` makes no call (mistake detection only) |
+| reads the samples | each sample yields, after INGESTION (not records yielded: repeated node ids, repeated edges under the policy and created endpoints all change the counts, section 2.2 item 8), the expected node and edge counts; every node has `id`, every edge has `source` and `target`. The Node run needs the headless session of open decision 9 to run the element's ingestion; until then the Node check counts records and the browser check counts the graph |
+| duplicates are the element's | a sample with a repeated node line and a repeated edge gives the counts section 2.2 item 8 predicts, and the reader merged nothing itself |
+| document-local ids stay local | loading the same sample with document-local ids twice (added) gives disjoint nodes (fails until open decision 19 gives a per-load token, unless the reader qualifies its ids) |
+| reserved keys are used as reserved | a sample with coordinates yields `position`, and one with a strength column yields the configured weight key (skipped when the format has neither) |
 | options default and validate | each declared option's default is applied when omitted; an undeclared name raises `E_UNKNOWN_OPTION`; a value outside `min`/`max`/`values` raises `E_OPTION_RANGE` |
 | invalid input fails coded | each invalid sample fails with `E_PARSE_FAILED`, `details.format` equal to the id |
 | records are JSON | every record survives `JSON.parse(JSON.stringify(record))` unchanged |
 | loads through every route | the sample loads through a string, a `File` and a URL served by the kit, with equal counts (browser) |
 
 A writer (when one exists) adds: "round trips" (every sample the reader reads, the writer writes and
-the reader reads back with equal counts, ids and the attributes the capabilities claim), and "loss
-notes are truthful" (for a snapshot with a feature the capabilities deny, `check` returns a note).
+the reader reads back with equal counts, ids and the attributes the capabilities claim), "loss
+notes are truthful" (for a snapshot with a feature the capabilities deny, `check` returns a note),
+"numbers survive" (a numeric column with negative values round-trips byte for byte through CSV
+and TSV) and "writer-only claims nothing" (a writer registered without a reader is absent from
+`detectFormats` for its extensions). When element-owned decompression lands (open decision 20),
+the kit adds a bomb corpus: a small gzip that inflates past the byte limit, a nested zip and a
+zip with several entries, each refused with a coded error.
 
 ## 13. Worked example
 
@@ -424,6 +551,7 @@ class SifDataSource extends DataSource {
         const text = await this.getContent();
         const ids = new Set<string>();
         const edges = [];
+        const seen = new Map<string, number>();          // natural edge name -> repeats so far
         for (const [index, line] of text.split(/\r?\n/).entries()) {
             if (line.trim() === "") continue;
             const [source, relation, ...targets] = line.split(line.includes("\t") ? "\t" : /\s+/);
@@ -439,7 +567,13 @@ class SifDataSource extends DataSource {
             ids.add(source);
             for (const target of targets) {
                 ids.add(target);
-                edges.push(DataSource.toRecord({ source, target, relation }));
+                // Cytoscape's own edge name, "A (pp) B", so an annotation on an edge survives a
+                // reload of a reordered file; a repeat gets an ordinal suffix (section 2.2 item 3).
+                const name = `${source} (${relation}) ${target}`;
+                const repeat = seen.get(name) ?? 0;
+                seen.set(name, repeat + 1);
+                const id = repeat === 0 ? name : `${name} #${repeat + 1}`;
+                edges.push(DataSource.toRecord({ id, source, target, relation }));
             }
         }
         this.declareDirection(this.#directed, "the directed option");
@@ -470,6 +604,15 @@ await graph.loadFromFile(droppedFile);            // recognised by ".sif"; by co
   or a non-graph lookup table has no route in any point (open decision 22).
 - Wrapping of uncoded throws and the outcome of a failed load are not pinned by the parity suite
   for plugin readers (section 7).
+- A failed or error-limited added load leaves its rows merged, unmarked and unremovable
+  (section 7 item 3).
+- Graph-level result tables cannot be exported (section 8.1).
+- A repeated node record is silently ignored, attributes included (section 2.2 item 8).
+- Detection ignores media types, takes a URL's extension with its query string, and fetches an
+  unknown URL once without retry (section 4).
+- Attribute keys containing `.` load but cannot be bound (section 2.2 item 7).
+- A reader cannot report progress in bytes or against a known total, so a large plugin format
+  shows no progress until its first chunk (open decision 20).
 
 ## 15. Who this serves
 
@@ -482,6 +625,9 @@ await graph.loadFromFile(droppedFile);            // recognised by ".sif"; by co
 | A gene list joined to an attribute table, with a match report | `design/designloom/workflows/W20.yaml` | not yet: open decision 19 |
 | GMT gene sets and identifier lists | `design/designloom/workflows/W22.yaml` | not yet: not a graph; open decision 22 |
 | GraphML and CX for collaborators, upload to NDEx, tables as CSV | `design/designloom/workflows/W25.yaml`, `W21.yaml`, `W23.yaml`, `W24.yaml` | not yet: no writer seam (open decision 1); upload is a data-source publish direction (open decision 15) |
-| RDF and OWL files | `design/designloom/personas/knowledge-engineer.yaml` | reader yes; types, labels and prefixes need open decision 20 |
+| RDF and OWL files | `design/designloom/personas/knowledge-engineer.yaml` | partly: a reader loads them, but predicate IRIs cannot be bound (open decision 29), blank nodes merge across files (open decision 19), and types, languages, labels and prefixes need open decision 20 |
+| Refreshing one of several integrated sources | `design/designloom/workflows/W13.yaml` | not yet: no load keeps its source, so none can be replaced alone (open decision 19) |
+| Two conditions side by side (tumor and normal logFC) | `design/designloom/workflows/W24.yaml` | not yet: a second load of the same genes is ignored, and a join has no column-collision policy (open decision 19) |
+| Scored pairs, clusters and enrichment tables as CSV | `design/designloom/workflows/W16.yaml`, `W21.yaml`, `W22.yaml`, `W23.yaml` | not yet: no table export (section 8.1; open decision 24) |
 | Many source systems, SPARQL endpoints and databases | `design/designloom/workflows/W13.yaml` | not yet: open decisions 15 and 19 |
 | Features exported to ML pipelines | `design/designloom/workflows/W16.yaml` | not yet: no writer seam; binary and streamed output need open decision 24 |

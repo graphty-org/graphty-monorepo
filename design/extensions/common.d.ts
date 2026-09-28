@@ -68,13 +68,20 @@ export type AttributeType = "string" | "number" | "integer" | "boolean" | "time"
  * JSON form: design/extensions/descriptors.schema.json#/$defs/OptionDescriptor.
  */
 export interface OptionDescriptor {
-    /** The key a caller passes. Unique within one descriptor's options. */
+    /**
+     * The key a caller passes. Unique within one descriptor's options. MUST NOT be "__proto__",
+     * "constructor" or "prototype" (README section 9.2 item 6).
+     */
     name: string;
     /** What a form labels it with. */
     plainName: string;
     technicalName?: string;
     type: OptionType;
-    /** Applied when the caller passes nothing. MUST be valid against the option's own constraints. */
+    /**
+     * Applied when the caller passes nothing. MUST be valid against the option's own constraints.
+     * WITHOUT a default, an option the caller omits is ABSENT from the resolved values: nothing
+     * refuses the omission (README section 7 item 2), so the extension handles absence itself.
+     */
     default?: unknown;
     min?: number | string | OptionBound;
     max?: number | string | OptionBound;
@@ -109,13 +116,27 @@ export declare function resolveOptionValues(
 ): Record<string, unknown>;
 
 /**
- * The error codes an extension, or the element on an extension's behalf, uses. The full list is
- * graphty-element/src/errors/codes.ts, published on ./extend as GraphtyErrorCode (the type of
- * GraphtyErrorInit.code there). ExtensionErrorCode is this document's name for the subset the
- * extension contracts name; it is NOT an export. CLOSED for writers (an extension MUST NOT invent
- * a code), OPEN for readers (a consumer MUST treat an unknown code as a generic failure; adding a
- * code is a minor release). An element that receives a GraphtyError whose code it does not know
- * (thrown by an extension built against a newer element) passes it through unchanged.
+ * Every published error code: graphty-element/src/errors/codes.ts, exported from ./extend as
+ * GraphtyErrorCode, the type of GraphtyErrorInit.code. CLOSED for writers (an extension MUST NOT
+ * invent a code), OPEN for readers (a consumer MUST treat an unknown code as a generic failure;
+ * adding a code is a minor release).
+ */
+export type GraphtyErrorCode =
+    | ExtensionErrorCode
+    | "E_BAD_FORMULA" | "E_BAD_LAYER" | "E_BAD_QUERY" | "E_BAD_SELECTOR" | "E_DEVICE_INCORRECT"
+    | "E_DEVICE_LOST" | "E_DISPOSED" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_ID" | "E_ID_MISSING"
+    | "E_NO_ADAPTER" | "E_NO_WEBGL" | "E_NO_WEBGPU" | "E_OUT_OF_MEMORY" | "E_READONLY"
+    | "E_SELECTOR_EMPTY" | "E_SOFTWARE_ONLY" | "E_UNKNOWN_ATTRIBUTE" | "E_UNKNOWN_CHANNEL"
+    | "E_UNKNOWN_LAYER" | "E_UNKNOWN_RUN" | "E_UNKNOWN_SCALE" | "E_UNSCOPED_RUN_ENCODING"
+    | "E_UNSTABLE_RUN_ID";
+
+/**
+ * The codes the extension contracts name. This document's name, NOT an export: documentation of
+ * which codes each point's specification lists. An extension MAY also throw any other published
+ * GraphtyErrorCode that its built-in peer can raise (E_DISPOSED when the element was torn down
+ * while it worked); it MUST NOT invent one. An element that
+ * receives a GraphtyError whose code it does not know (thrown by an extension built against a
+ * newer element) passes it through unchanged (README section 9.3).
  */
 export type ExtensionErrorCode =
     | "E_BAD_COMMAND"
@@ -154,7 +175,7 @@ export type GraphtyErrorTarget =
 /** What a GraphtyError is constructed from. */
 export interface GraphtyErrorInit {
     /** The machine-readable reason. A consumer switches on this and never on the message. */
-    code: ExtensionErrorCode;
+    code: GraphtyErrorCode;
     /** A sentence a person can read. Not part of the contract; it may be reworded in any release. */
     message: string;
     /** registry for registration failures; data, run, layout, view, style or config for use-time failures. */
@@ -168,10 +189,15 @@ export interface GraphtyErrorInit {
     cause?: unknown;
 }
 
-/** The one failure type of the extension contracts. */
+/**
+ * The one failure type of the extension contracts. AS BUILT, isGraphtyError and GraphtyError.wrap
+ * recognise an error by `instanceof` this copy's class, so an error built by another copy of the
+ * element on the same page (a plugin bundling a newer ./extend) is not recognised and is wrapped,
+ * losing its code, recoverable flag and details (README section 9.3, not yet met).
+ */
 export declare class GraphtyError extends Error {
     constructor(init: GraphtyErrorInit);
-    readonly code: ExtensionErrorCode;
+    readonly code: GraphtyErrorCode;
     readonly source: GraphtyErrorSource;
     readonly recoverable: boolean;
     readonly details?: Readonly<Record<string, unknown>>;
@@ -187,10 +213,12 @@ export declare function isGraphtyError(value: unknown): value is GraphtyError;
 /**
  * PROPOSED -- open decision "Host compatibility check".
  * The version of each point's contract, as full semver strings (node-semver rejects "1.0").
- * Each moves independently of the graphty-element package version, and its major is bumped on
- * ANY incompatible change to a type of that point on ./extend or ./logging -- "implemented by
- * extensions" and "called by extensions" alike (a removed protected helper is a break). One number
- * per point, so a break in the layout contract does not refuse every palette.
+ * Each moves independently of the graphty-element package version (README section 6.4 item 1):
+ * the MINOR is bumped for every additive change an extension can use (a member, a union value, a
+ * listed error code); the MAJOR only when an existing extension of that point can break, and a
+ * major removes nothing that was not deprecated in an earlier minor. A change to the shared
+ * vocabulary in this file (OptionType, OptionDescriptor, GraphtyErrorCode) bumps every point.
+ * One number per point, so a break in the layout contract does not refuse every palette.
  */
 export declare const EXTENSION_API_VERSIONS: {
     readonly palette: "1.0.0";
@@ -213,34 +241,81 @@ export interface ExtensionCompatibility {
      * MUST NOT be "*" or empty.
      */
     readonly requiresApi?: string;
-    /** The extension's own semver version, recorded as provenance wherever its key is recorded. */
+    /**
+     * The extension's own semver version (MUST be valid semver when present), recorded as
+     * provenance wherever its key is recorded. The extension's CLAIM: nothing verifies it.
+     */
     readonly version?: string;
-    /** The npm package that ships the extension, recorded with the key so a replay can tell two vendors apart. */
+    /**
+     * The npm package that ships the extension, recorded with the key as provenance. The
+     * extension's CLAIM: nothing verifies it, so it is never shown as an install instruction and
+     * never used for a trust decision (README section 6.4 item 2).
+     */
     readonly package?: string;
     /**
-     * Members of this descriptor an element MUST understand to honour it (preconditions, egress
-     * declarations). An element that does not know a listed member refuses the registration with
-     * E_UNSUPPORTED naming it, instead of silently ignoring a constraint.
+     * TOP-LEVEL members of this descriptor an element MUST understand to honour it (preconditions,
+     * egress declarations). An element that knows mustUnderstand and does not know a listed member
+     * refuses the registration with E_UNSUPPORTED naming it. An element that predates
+     * mustUnderstand ignores it like any unknown member, so an extension relying on it MUST also
+     * set requiresApi to at least the minor that introduced it (README section 6.3 item 3).
      */
     readonly mustUnderstand?: readonly string[];
 }
 
 /**
- * PROPOSED -- README section 7. The option values a descriptor's `const` option array implies, so
- * a registration can hand them to the extension typed, with no cast:
- *   const options = [{ name: "margin", type: "number", ... }] as const;
- *   compute(input: CameraViewInput<OptionValues<typeof options>>)
+ * PROPOSED -- open decision 3. Every descriptor type of the six points, intersected with the
+ * compatibility members once they are adopted (PaletteDescriptor & ExtensionCompatibility, ...).
+ * For a class-shaped point the members are statics of the same names; a descriptor member that
+ * disagrees with its static is refused with E_BAD_COMMAND.
  */
-export type OptionValues<T extends readonly { readonly name: string; readonly type: OptionType }[]> = {
-    readonly [O in T[number] as O["name"]]: O["type"] extends "number" | "integer" | "seed"
-        ? number
-        : O["type"] extends "boolean"
-          ? boolean
-          : O["type"] extends "node-set"
-            ? readonly (string | number)[]
-            : O["type"] extends "node-id"
-              ? string | number
-              : O["type"] extends "unknown"
-                ? unknown
-                : string;
+export type WithCompatibility<Descriptor> = Descriptor & ExtensionCompatibility;
+
+/**
+ * PROPOSED -- open decision 22. Members OptionDescriptor would gain.
+ */
+export interface OptionDescriptorEvolution {
+    /** The caller MUST pass a value; its absence is E_OPTION_RANGE naming the option. Only meaningful without a default. */
+    readonly required?: boolean;
+    /** Old names the element rewrites to this one, so a saved configuration keeps working after a rename. */
+    readonly deprecatedNames?: readonly string[];
+    readonly deprecated?: { readonly since: string; readonly replacement?: string };
+}
+
+/** The option shape OptionValues reads: a `const` option descriptor. */
+interface OptionLike {
+    readonly name: string;
+    readonly type: OptionType;
+    readonly default?: unknown;
+    readonly values?: readonly { readonly value: string }[];
+}
+
+/** The value type one option implies; an enum is the union of its declared values. */
+type OptionValue<O extends OptionLike> = O["type"] extends "number" | "integer" | "seed"
+    ? number
+    : O["type"] extends "boolean"
+      ? boolean
+      : O["type"] extends "node-set"
+        ? readonly (string | number)[]
+        : O["type"] extends "node-id"
+          ? string | number
+          : O["type"] extends "enum"
+            ? O extends { readonly values: readonly { readonly value: infer V }[] }
+                ? V
+                : string
+            : O["type"] extends "unknown"
+              ? unknown
+              : string;
+
+/**
+ * PROPOSED -- README section 7 item 8. The option values a descriptor's `const` option array
+ * implies, so a registration can hand them to the extension typed, with no cast:
+ *   const options = [{ name: "margin", type: "number", default: 0.1 }] as const;
+ *   compute(input: CameraViewInput<OptionValues<typeof options>>)
+ * An option WITH a default is always present; one WITHOUT is optional, because resolveOptionValues
+ * leaves it absent when the caller omits it.
+ */
+export type OptionValues<T extends readonly OptionLike[]> = {
+    readonly [O in T[number] as O extends { readonly default: {} | null } ? O["name"] : never]: OptionValue<O>;
+} & {
+    readonly [O in T[number] as O extends { readonly default: {} | null } ? never : O["name"]]?: OptionValue<O>;
 };

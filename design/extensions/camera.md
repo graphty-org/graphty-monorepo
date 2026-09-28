@@ -55,6 +55,13 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 4. `input.options` is already validated and defaulted; `compute` MUST NOT re-validate it.
 5. A 3D result SHOULD set `position` and `target`, and MAY set `fov`. A 2D result SHOULD set `zoom`
    and `pan`, and MAY set `rotation`. Members it leaves out keep the camera's current values.
+   Two things a view needs are not published. `CameraState` has no up vector or roll for a 3D
+   camera, so a view that looks straight down (a map) cannot say where north lands on screen:
+   the controller's previous orientation decides, and for an orbit camera looking straight down
+   that direction is unstable. And the units of `zoom` and `pan` are not stated: the worked
+   example assumes CSS pixels per scene unit and the scene coordinates of the viewport centre,
+   and a view written with another reading frames the graph wrongly. An optional `up` member and
+   the units are part of open decision 27 (`CameraStateUp` in `camera.d.ts`).
 6. Every number returned MUST be finite. A non-finite value MUST be refused by the element with
    `E_INTERNAL`, `source: "view"`, and the camera MUST NOT move. **(not yet met)** 2.6.1 ends
    `resolveCameraView` (`graphty-element/src/camera/resolve.ts`) with `return compute(input)`: it
@@ -160,7 +167,9 @@ decision.
   implemented by extensions; `CameraViewInput` and `GraphBounds` are called by extensions and MAY
   gain members in a minor release (`viewport` was added this way).
 - `DrawingMode` is closed for writers. If a new mode is added (for example an XR mode) a view that
-  does not declare it is refused in that mode, so existing views stay safe.
+  does not declare it is refused in that mode, so existing views stay safe. Such an addition is
+  therefore a MINOR change of the camera contract version (README section 6.4 item 1): the
+  element delivers the new value only to views that declared it.
 - `CameraState` members are part of the contract; a view returning a member a later element no
   longer reads loses only that member's effect.
 
@@ -190,6 +199,7 @@ Run by `checkCameraView(registration)` in the proposed kit. All run in Node exce
 | options default and validate | declared defaults reach `input.options`; an undeclared or out-of-range option is refused before `compute` is called |
 | is applied by every route | `applyCameraView`, `loadCameraPreset`, `setCameraState({ preset })` and `captureScreenshot({ camera: { preset } })` each move the camera to the computed state (browser) |
 | is refused in an undeclared mode | in a mode not in `modes`, the route rejects with `E_UNSUPPORTED` and `compute` is not called (browser) |
+| frames a screenshot on a subset | `captureScreenshot({ camera: { preset, params, scope } })` frames the scope with the options (browser; fails until section 4.1 item 3 is met) |
 
 ## 10. Worked example
 
@@ -210,6 +220,8 @@ function mapView(input: CameraViewInput): CameraState {
     }
     const fov = input.fov ?? Math.PI / 4;
     const distance = Math.max(height, width / input.aspect) / 2 / Math.tan(fov / 2);
+    // Straight down: without a published up vector (section 3 item 5) north lands wherever the
+    // controller's previous orientation puts it, so "north up" holds reliably only in 2D.
     return { position: { x: center.x, y: center.y, z: center.z + distance }, target: { ...center } };
 }
 
@@ -235,6 +247,9 @@ await graph.applyCameraView("acmegeo-map", { scope: { set: "port-cities" }, para
 - A `compute` throw is not wrapped, a non-finite result is not refused, and an empty box still
   calls `compute` (sections 3, 4.4 and 5).
 - A saved camera snapshot can be shadowed by a later view of the same name (section 4.2).
+- No up vector for a 3D view, and no stated units for `zoom` and `pan` (section 3 item 5).
+- A view is not told which layout or coordinate frame produced the box, so a map view applied to
+  a tiers layout frames it as a map without a word (open decision 27).
 - No scene convention (which way is north, what `scalingFactor` does) is published, so a map view
   and a geographic layout from two vendors fit only by accident. The example assumes +y is north;
   the convention is open decision 27.

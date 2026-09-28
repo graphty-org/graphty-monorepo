@@ -3,7 +3,7 @@
  * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/FormatDescriptor.
  */
-import type { GraphtyError, OptionDescriptor, RegisterOptions } from "./common";
+import type { AttributeType, GraphtyError, OptionDescriptor, RegisterOptions } from "./common";
 
 // =============================================================================================
 // Published (graphty-element 2.6.1): the READER
@@ -133,6 +133,11 @@ export interface DetectionInput {
     readonly sample?: string;
 }
 
+/** PROPOSED -- open decision 2. Added to DetectionInput: the HTTP Content-Type or File.type, ranked above sniffing. */
+export interface DetectionInputMediaType {
+    readonly mediaType?: string;
+}
+
 /** Every format that claims the input: built-ins first, then registered readers in registration order. */
 export declare function detectFormats(input: DetectionInput): readonly FormatId[];
 export declare function detectFormat(input: DetectionInput): FormatId | null;
@@ -230,12 +235,47 @@ export interface DataLoadingErrorSeverity {
 }
 
 /**
- * PROPOSED -- open decision 19. What every load reports, built-in or plugin, carried by the
- * data-loaded event and returned by the load call.
+ * PUBLISHED on ./session (graphty-element/src/data/report.ts), restated IN PART as the base the
+ * proposed LoadReport extends: what the element did with one load.
  */
-export interface LoadReport {
+export interface ImportReport {
+    readonly format: string;
+    readonly counts: {
+        /** Nodes and edges the graph holds AFTER the load. */
+        readonly nodes: number;
+        readonly edges: number;
+        /** Records handed over; fewer nodeRecords than nodes means edges created endpoints. */
+        readonly nodeRecords: number;
+        readonly edgeRecords: number;
+        readonly rejected: number;
+    };
+    readonly repeated: { readonly seen: number; readonly kept: number; readonly dropped: number; readonly merged: number };
+    readonly policy: "keep" | "error" | "first" | "last" | "sum" | "min" | "max";
+    readonly weights: { readonly resolvedFrom: "path" | "legacy" | "none"; readonly attribute: string | null };
+    readonly edgeIdentity: { readonly idPath: string | null; readonly byId: number; readonly byPosition: number };
+}
+
+/**
+ * PROPOSED -- open decision 19. What every load reports, built-in or plugin, carried by the
+ * data-loaded event and returned by the load call. EXTENDS the published ImportReport; it is not
+ * a second shape. Produced for a FAILED load too.
+ */
+export interface LoadReport extends ImportReport {
     readonly loadId: number;
-    readonly format: FormatId;
+    /** A caller-chosen key naming the source system, so one source can be replaced alone. */
+    readonly sourceKey: string | null;
+    /** Where the bytes came from, for a methods section. Credentials and query strings removed. */
+    readonly source: {
+        readonly kind: "data" | "file" | "url";
+        readonly name: string | null;
+        readonly byteLength: number | null;
+        /** sha256 of the raw input, hex. */
+        readonly sha256: string | null;
+        readonly loadedAt: string;
+    };
+    /** True when the load failed, was cancelled or stopped at a limit; then committed says what stayed. */
+    readonly partial: boolean;
+    readonly committed: "all" | "none";
     /** The reader's static version, when it declares one. */
     readonly readerVersion?: string;
     /** The reader's options after defaults were filled. */
@@ -244,14 +284,27 @@ export interface LoadReport {
     readonly direction: DeclaredDirection | null;
     readonly nodes: number;
     readonly edges: number;
-    /** Nodes the element created because an edge named them and no record did. */
-    readonly createdEndpoints: number;
+    /** Nodes the element created because an edge named them and no record did: the count, and the first ids. */
+    readonly createdEndpoints: { readonly count: number; readonly ids: readonly (string | number)[] };
+    /** Records whose node id the graph already held, which the element ignored (first record wins). */
+    readonly repeatedNodes: { readonly count: number; readonly ids: readonly (string | number)[] };
+    /** Attribute values another load had already set, and what the conflict policy did with them. */
+    readonly conflicts: readonly { readonly column: string; readonly count: number; readonly policy: string }[];
     /** Every per-record problem the reader recorded, with its severity. */
     readonly errors: readonly (DataLoadingError & DataLoadingErrorSeverity)[];
     /** True when the reader stopped because the error limit was reached. */
     readonly errorLimitReached: boolean;
-    /** For a join: keys matched, keys in the table with no node, and duplicate keys. */
-    readonly match?: { readonly matched: number; readonly unmatched: readonly string[]; readonly duplicates: readonly string[] };
+    /**
+     * For a join: keys matched, keys in the table with no node, duplicate keys, and the graph's
+     * nodes that received no row (the count and the first ids: the nodes a figure paints as "not
+     * measured").
+     */
+    readonly match?: {
+        readonly matched: number;
+        readonly unmatched: readonly string[];
+        readonly duplicates: readonly string[];
+        readonly nodesWithoutRow: { readonly count: number; readonly ids: readonly (string | number)[] };
+    };
 }
 
 /**
@@ -267,12 +320,37 @@ export interface ReaderContext {
     stream(): ReadableStream<Uint8Array>;
     /** Stop after this many records, for a preview. Undefined for a full load. */
     readonly recordLimit?: number;
-    /** State the label attribute, attribute types and graph-level metadata, before the first chunk. */
+    /** A token unique to this load, for qualifying document-local ids (blank nodes, per-file ids). */
+    readonly loadToken: string;
+    /** Report progress in the reader's own terms; the element reports download bytes itself. */
+    progress(report: { readonly bytesRead?: number; readonly totalBytes?: number; readonly records?: number }): void;
+    /**
+     * State the label attribute, attribute types and graph-level metadata, before the first chunk.
+     * A column's type is the element's AttributeType; sourceType keeps the format's own type
+     * ("xsd:date", "rdf:langString") verbatim for writers. The element checks records against the
+     * declared types and reports mismatches as warnings in the load report.
+     */
     declareSchema(schema: {
         readonly labelAttribute?: string;
-        readonly columns?: readonly { readonly name: string; readonly kind: "node" | "edge"; readonly type: string }[];
+        readonly columns?: readonly {
+            readonly name: string;
+            readonly kind: "node" | "edge";
+            readonly type: AttributeType;
+            readonly sourceType?: string;
+            /** The key in the source format when the column name had to differ (an IRI; open decision 29). */
+            readonly sourceKey?: string;
+        }[];
         readonly graph?: Readonly<Record<string, unknown>>;
     }): void;
+}
+
+/**
+ * PROPOSED -- open decision 25. Added to FormatDescriptor (descriptors.schema.json already lists
+ * it): deprecated, unserved built-in ids this reader answers, so a saved document naming "cx2"
+ * resolves to an installed CX2 reader.
+ */
+export interface FormatDescriptorServes {
+    readonly serves?: readonly FormatId[];
 }
 
 /** PROPOSED -- open decision 20 (with 2). What a sniffer sees: at most 4 KiB, as text and as bytes. */

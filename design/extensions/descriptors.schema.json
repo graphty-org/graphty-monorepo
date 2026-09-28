@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schemas/extensions/descriptors-1.json",
   "title": "graphty-element extension descriptors",
-  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table) are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken.",
+  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table), each marked \"x-open-union\": true, are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken.",
   "$defs": {
     "OptionBound": {
       "type": "object",
@@ -41,7 +41,15 @@
       "properties": {
         "name": {
           "type": "string",
-          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "not": {
+            "enum": [
+              "__proto__",
+              "constructor",
+              "prototype"
+            ]
+          },
+          "description": "Unique within one descriptor. Never a key that is special on a plain object (README section 9.2 item 6)."
         },
         "plainName": {
           "type": "string",
@@ -64,7 +72,8 @@
             "partition",
             "ordering",
             "unknown"
-          ]
+          ],
+          "x-open-union": true
         },
         "default": {},
         "min": {
@@ -112,7 +121,8 @@
             "time",
             "category",
             "mixed"
-          ]
+          ],
+          "x-open-union": true
         },
         "group": {
           "type": "string"
@@ -507,7 +517,8 @@
             "boolean",
             "string",
             "table"
-          ]
+          ],
+          "x-open-union": true
         },
         "unit": {
           "type": "string"
@@ -574,7 +585,8 @@
             "heavy",
             "cubic",
             "unbounded"
-          ]
+          ],
+          "x-open-union": true
         },
         "complexity": {
           "type": "string"
@@ -757,7 +769,8 @@
             10000,
             2000,
             500
-          ]
+          ],
+          "x-open-union": true
         },
         "structuralInputs": {
           "type": "array",
@@ -767,7 +780,8 @@
               "node",
               "partition",
               "ordering"
-            ]
+            ],
+            "x-open-union": true
           }
         },
         "options": {

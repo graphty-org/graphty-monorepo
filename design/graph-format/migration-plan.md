@@ -97,8 +97,15 @@ These are reversible, so they are made here rather than asked.
   `indexed.*`. Section 2 has the reason.
 - **Export naming.** New ports follow the existing pattern without separate sign-off: the function
   under `indexed.*`, its option and result types flat with an `Indexed` prefix when the flat name
-  is taken, results per the 14.2 table, and a dispatcher method only where `AlgorithmAccelerator`
-  already declares the member.
+  is taken, results per the 14.2 table, and a dispatcher method where `AlgorithmAccelerator`
+  already declares the member. A port that a graphty-element adapter runs also gets a CPU-only
+  dispatcher method, taking the port's own options and returning its own result, even though no
+  accelerator member exists: the element then reaches every algorithm through `accelerated(acc)`,
+  and the method gains an accelerator branch when a kernel lands. Ports no adapter runs
+  (per-pair scores, evaluation helpers) stay on `indexed.*` only. An adapter that still calls
+  `indexed.*` directly counts as on the dispatcher, per section 5. This replaces the rule in
+  `design/webgpu/plans/2026-09-19-webgpu-m6-graphty-element.md` that the permanent-CPU adapters
+  (DFS, Girvan-Newman, MaxFlow, MinCut) never call `accelerated()`.
 - **Dispatcher routing rules live in `@graphty/algorithms`.** A dispatcher method sends a call to
   the accelerator only when the accelerator can give the same answer; otherwise it runs the CPU
   port. `allPairsShortestPath` already has such a rule (`acceleratorAnswersApsp`). The

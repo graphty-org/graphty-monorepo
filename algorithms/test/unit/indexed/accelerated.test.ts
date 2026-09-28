@@ -18,6 +18,7 @@ import {
     type SsspResultLike,
     toSnapshot,
 } from "../../../src/index.js";
+import { gnm } from "./port-fixtures.js";
 
 // No vi.fn anywhere: algorithms has no mock-injection convention (plan decision PD-13) and a plain
 // literal with a closed-over call log proves everything the design asks for.
@@ -639,27 +640,37 @@ describe("accelerated(acc)", () => {
         });
     });
 
-    it("carries exactly the seventeen methods whose ports exist", () => {
+    it("carries exactly the methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
+            "adamicAdarPrediction",
             "allPairsShortestPath",
             "bellmanFord",
             "betweennessCentrality",
             "breadthFirstSearch",
             "closenessCentrality",
+            "commonNeighborsPrediction",
             "connectedComponents",
+            "depthFirstSearch",
             "edgeBetweennessCentrality",
             "eigenvectorCentrality",
+            "girvanNewman",
             "hits",
             "kCoreDecomposition",
+            "kargerMinCut",
             "katzCentrality",
             "labelPropagation",
+            "leiden",
             "louvain",
+            "maxFlow",
+            "minSTCut",
             "minimumSpanningTree",
             "pageRank",
             "personalizedPageRank",
             "sssp",
+            "stoerWagner",
+            "stronglyConnectedComponents",
             "weaklyConnectedComponents",
         ]);
     });
@@ -877,5 +888,110 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
         await expect(dispatcher.eigenvectorCentrality(triangle(), { maxIterations: 7 })).rejects.toThrow(
             "eigenvectorCentrality did not converge in 7 iterations",
         );
+    });
+});
+
+describe("accelerated(acc) CPU routes for the traversal, community, flow and link families", () => {
+    // No accelerator declares these members, so every call runs the port -- with or without one attached.
+    // An accelerator for the nearest declared members: reaching any of them fails the test.
+    const refuse = (): Promise<never> => Promise.reject(new Error("the accelerator was called"));
+    const neighbours: AlgorithmAccelerator = {
+        kind: "fake",
+        breadthFirstSearch: refuse,
+        connectedComponents: refuse,
+        weaklyConnectedComponents: refuse,
+        louvain: refuse,
+        labelPropagation: refuse,
+        sssp: refuse,
+        edgeBetweennessCentrality: refuse,
+        minimumSpanningTree: refuse,
+    };
+    const directed = toSnapshot(gnm(24, 60, true, 7, true));
+    const undirected = toSnapshot(gnm(24, 60, false, 11, true));
+    const dispatchers: [string, AcceleratedAlgorithms][] = [
+        ["no accelerator", accelerated(null)],
+        ["an accelerator whose neighbouring members all reject", accelerated(neighbours)],
+    ];
+
+    describe.each(dispatchers)("with %s", (_, d) => {
+        it("depthFirstSearch equals the port", async () => {
+            const got = await d.depthFirstSearch(directed, 0, { order: "post" });
+            const want = indexed.depthFirstSearch(directed, 0, { order: "post" });
+            expect(got).toEqual(want);
+            expect(got.visitedCount).toBeGreaterThan(1);
+        });
+
+        it("stronglyConnectedComponents equals the port", async () => {
+            const got = await d.stronglyConnectedComponents(directed);
+            const want = indexed.stronglyConnectedComponents(directed);
+            expect(got.count).toBe(want.count);
+            expect([...got.labels]).toEqual([...want.labels]);
+            expect(got.groups().map((g) => [...g])).toEqual(want.groups().map((g) => [...g]));
+        });
+
+        it("stronglyConnectedComponents forwards an arc order", async () => {
+            // a -> b and a -> c: trying a's arcs in reverse finishes c before b, so the labels change.
+            const g = new Graph({ directed: true });
+            g.addEdge("a", "b");
+            g.addEdge("a", "c");
+            const s = toSnapshot(g);
+            const arcOrder = new Uint32Array(s.arcCount);
+            for (let u = 0; u < s.nodeCount; u++) {
+                for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
+                    arcOrder[k] = s.rowPtr[u] + s.rowPtr[u + 1] - 1 - k;
+                }
+            }
+            const got = await d.stronglyConnectedComponents(s, { arcOrder });
+            const want = indexed.stronglyConnectedComponents(s, { arcOrder });
+            expect([...got.labels]).toEqual([...want.labels]);
+            expect([...got.labels]).not.toEqual([...indexed.stronglyConnectedComponents(s).labels]);
+        });
+
+        it("leiden equals the port", async () => {
+            const got = await d.leiden(undirected, { randomSeed: 3, resolution: 1.2 });
+            const want = indexed.leiden(undirected, { randomSeed: 3, resolution: 1.2 });
+            expect([...got.labels]).toEqual([...want.labels]);
+            expect(got.count).toBe(want.count);
+            expect(got.modularity).toBe(want.modularity);
+            expect(got.iterations).toBe(want.iterations);
+        });
+
+        it("girvanNewman equals the port", async () => {
+            const got = await d.girvanNewman(undirected, { maxCommunities: 3 });
+            const want = indexed.girvanNewman(undirected, { maxCommunities: 3 });
+            expect(got.levels.map((l) => [...l])).toEqual(want.levels.map((l) => [...l]));
+            expect([...got.modularity]).toEqual([...want.modularity]);
+            expect(got.levels.length).toBeGreaterThan(1);
+        });
+
+        it("maxFlow and minSTCut equal the port, including an exact f64 capacity override", async () => {
+            const weights = expandEdges(
+                directed,
+                Float64Array.from({ length: directed.edgeCount }, (_, i) => 0.1 * (i + 1)),
+            );
+            const flow = await d.maxFlow(directed, 0, 5, { weights });
+            expect(flow).toEqual(indexed.maxFlow(directed, 0, 5, { weights }));
+            const cut = await d.minSTCut(directed, 0, 5, { weights });
+            expect(cut).toEqual(indexed.minSTCut(directed, 0, 5, { weights }));
+            expect(cut.cutValue).toBeCloseTo(flow.maxFlow, 9);
+        });
+
+        it("stoerWagner and kargerMinCut equal the port", async () => {
+            expect(await d.stoerWagner(undirected)).toEqual(indexed.stoerWagner(undirected));
+            const karger = { iterations: 20, randomSeed: 5 };
+            expect(await d.kargerMinCut(undirected, karger)).toEqual(indexed.kargerMinCut(undirected, karger));
+        });
+
+        it("commonNeighborsPrediction and adamicAdarPrediction equal the port", async () => {
+            const cn = await d.commonNeighborsPrediction(undirected, { topK: 5 });
+            expect(cn).toEqual(indexed.commonNeighborsPrediction(undirected, { topK: 5 }));
+            expect(cn.scores.length).toBe(5);
+            const aa = await d.adamicAdarPrediction(undirected, { topK: 5 });
+            expect(aa).toEqual(indexed.adamicAdarPrediction(undirected, { topK: 5 }));
+        });
+
+        it("turns a port's throw into a rejection", async () => {
+            await expect(d.maxFlow(directed, 0, 0)).rejects.toThrow(RangeError);
+        });
     });
 });

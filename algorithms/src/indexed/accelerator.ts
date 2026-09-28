@@ -17,15 +17,22 @@ import { ConvergenceError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
 import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
-import type { BfsOptions } from "./bfs.js";
+import type { ArcOrderOption, BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
+import type { LabelResult } from "./components.js";
+import type { DfsOptions, DfsResult } from "./dfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { type EigenvectorOptions, minMaxRescale } from "./eigenvector.js";
+import type { MaxFlowOptions, MaxFlowResult, MinCutResult } from "./flow.js";
+import type { GirvanNewmanOptions, GirvanNewmanResult } from "./girvan-newman.js";
 import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
 import type { KatzOptions } from "./katz.js";
 import type { LabelPropagationOptions } from "./label-propagation.js";
+import type { LeidenOptions, LeidenResult } from "./leiden.js";
+import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
 import type { LouvainOptions } from "./louvain.js";
+import type { KargerOptions, StoerWagnerOptions } from "./min-cut.js";
 import type { MstOptions } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
 
@@ -251,6 +258,13 @@ export interface BetweennessAcceleratorOptions {
  * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
  * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
+ *
+ * `depthFirstSearch`, `stronglyConnectedComponents`, `leiden`, `girvanNewman`, `maxFlow`,
+ * `minSTCut`, `stoerWagner`, `kargerMinCut`, `commonNeighborsPrediction` and
+ * `adamicAdarPrediction` always run the CPU port: `AlgorithmAccelerator` declares no member for
+ * them, since no GPU kernel exists. They are here so graphty-element runs every algorithm through
+ * one object, and each gains an accelerator branch when a kernel lands. A port's throw becomes a
+ * rejection.
  * @public
  */
 export interface AcceleratedAlgorithms {
@@ -277,6 +291,27 @@ export interface AcceleratedAlgorithms {
     betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ScoresResultLike>;
+    depthFirstSearch(s: GraphSnapshot, start: number, options?: DfsOptions): Promise<DfsResult>;
+    stronglyConnectedComponents(s: GraphSnapshot, options?: ArcOrderOption): Promise<LabelResult>;
+    leiden(s: GraphSnapshot, options?: LeidenOptions): Promise<LeidenResult>;
+    girvanNewman(s: GraphSnapshot, options?: GirvanNewmanOptions): Promise<GirvanNewmanResult>;
+    maxFlow(s: GraphSnapshot, source: number, sink: number, options?: MaxFlowOptions): Promise<MaxFlowResult>;
+    minSTCut(s: GraphSnapshot, source: number, sink: number, options?: MaxFlowOptions): Promise<MinCutResult>;
+    stoerWagner(s: GraphSnapshot, options?: StoerWagnerOptions): Promise<MinCutResult>;
+    kargerMinCut(s: GraphSnapshot, options?: KargerOptions): Promise<MinCutResult>;
+    commonNeighborsPrediction(s: GraphSnapshot, options?: LinkPredictionOptions): Promise<LinkPredictionResult>;
+    adamicAdarPrediction(s: GraphSnapshot, options?: LinkPredictionOptions): Promise<LinkPredictionResult>;
+}
+
+/**
+ * Run a CPU port inside a promise, so a throw becomes a rejection.
+ * @param run - The port call
+ * @returns Its result
+ */
+function onCpu<T>(run: () => T): Promise<T> {
+    return new Promise((resolve) => {
+        resolve(run());
+    });
 }
 
 /**
@@ -550,5 +585,15 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
+        depthFirstSearch: (s, start, options) => onCpu(() => indexed.depthFirstSearch(s, start, options)),
+        stronglyConnectedComponents: (s, options) => onCpu(() => indexed.stronglyConnectedComponents(s, options)),
+        leiden: (s, options) => onCpu(() => indexed.leiden(s, options)),
+        girvanNewman: (s, options) => onCpu(() => indexed.girvanNewman(s, options)),
+        maxFlow: (s, source, sink, options) => onCpu(() => indexed.maxFlow(s, source, sink, options)),
+        minSTCut: (s, source, sink, options) => onCpu(() => indexed.minSTCut(s, source, sink, options)),
+        stoerWagner: (s, options) => onCpu(() => indexed.stoerWagner(s, options)),
+        kargerMinCut: (s, options) => onCpu(() => indexed.kargerMinCut(s, options)),
+        commonNeighborsPrediction: (s, options) => onCpu(() => indexed.commonNeighborsPrediction(s, options)),
+        adamicAdarPrediction: (s, options) => onCpu(() => indexed.adamicAdarPrediction(s, options)),
     };
 }

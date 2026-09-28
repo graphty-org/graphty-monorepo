@@ -70,6 +70,9 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
     return { directed: value, statedBy: `"directed": ${String(value)}` };
 }
 
+/** The attribute a record's position in the file is carried to graph-io and back under. */
+const ROW_KEY = "graphty.row";
+
 /** The keys a node record may carry its id under when no `nodeIdPath` is configured, in the order they are tried. */
 const ID_KEYS = ["id", "name", "key", "label"] as const;
 
@@ -141,10 +144,9 @@ export class JsonDataSource extends DataSource {
      * Fetches and parses JSON data into graph chunks.
      *
      * The node and edge arrays are found with the configured JMESPath expressions and read by
-     * graph-io's node-link importer, which checks every record and types every value. The records
-     * that come back keep the keys the file wrote: a node's id under the key it was read from, an
-     * edge's endpoints under the spelling the file uses (`source`/`target`, `src`/`dst` or
-     * `from`/`to`), and every other value exactly as the file held it.
+     * graph-io's node-link importer, which checks every node's id and every edge's endpoints. The
+     * records the element receives are the ones the file wrote, unchanged, less the ones graph-io
+     * refused and every repeat of a node id after its first record.
      *
      * Two things graph-io cannot read are handed to the element as the file wrote them: nodes
      * whose id is a JMESPath expression rather than a key, and edges whose endpoints no key names
@@ -189,22 +191,20 @@ export class JsonDataSource extends DataSource {
         const idKey = this.nodeIdKey(rawNodes);
         const endpoints = this.endpointKeys(rawEdges);
 
-        // The element keeps the FIRST record of a repeated node id and skips the rest; graph-io
-        // would merge them with the later values winning, so the repeats are left out here.
-        const seenIds = new Set<unknown>();
-        const uniqueNodes = rawNodes.filter((node) => {
-            if (idKey === null || !isObject(node) || !(idKey in node)) {
-                return true;
-            }
-
-            const repeated = seenIds.has(node[idKey]);
-            seenIds.add(node[idKey]);
-            return !repeated;
-        });
-
+        // graph-io is handed only what it checks -- each record's id or endpoints -- plus the
+        // record's position, and the records the element receives are the file's own, so every
+        // value keeps the type, the key and the digits the file wrote.
+        const stub = (record: unknown, row: number, keys: readonly string[]): unknown =>
+            isObject(record) ? Object.fromEntries([...keys.map((key) => [key, record[key]]), [ROW_KEY, row]]) : record;
         const imported = await importRecords(
             jsonImporter,
-            JSON.stringify({ nodes: idKey === null ? [] : uniqueNodes, edges: endpoints === null ? [] : rawEdges }),
+            JSON.stringify({
+                nodes: idKey === null ? [] : rawNodes.map((node, row) => stub(node, row, [idKey])),
+                edges:
+                    endpoints === null
+                        ? []
+                        : rawEdges.map((edge, row) => stub(edge, row, [endpoints.source, endpoints.target])),
+            }),
             {
                 dialect: "node-link",
                 nodesPath: "nodes",
@@ -217,28 +217,22 @@ export class JsonDataSource extends DataSource {
                 defaultDirected: true,
                 errorLimit: this.opts.errorLimit,
             },
-            true,
         );
         recordIssues(imported.report, this.errorAggregator);
 
-        // An edge naming a node the file never declared adds that node to the import; the element
-        // materialises such an endpoint itself, and has never been handed a record for it.
-        // The id and endpoints are written last, under the keys the file used, so a value the file
-        // also carries under another of those keys stays where the file put it.
+        // An edge naming a node the file never declared adds that node to the import, with no
+        // position; the element materialises such an endpoint itself, and has never been handed a
+        // record for it.
+        const rowsOf = (records: readonly { data: Record<string, unknown> }[]): number[] =>
+            records.flatMap(({ data }) => (typeof data[ROW_KEY] === "number" ? [data[ROW_KEY]] : []));
         const nodes =
             idKey === null
                 ? rawNodes.filter((node, index) => this.isValidNode(node, index))
-                : imported.nodes
-                      .filter((node) => seenIds.has(node.id))
-                      .map(({ id, data }) => ({ ...data, [idKey]: id }));
+                : rowsOf(imported.nodes).map((row) => rawNodes[row]);
         const edges =
             endpoints === null
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
-                : imported.edges.map(({ source, target, data }) => ({
-                      ...data,
-                      [endpoints.source]: source,
-                      [endpoints.target]: target,
-                  }));
+                : rowsOf(imported.edges).map((row) => rawEdges[row]);
 
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
     }

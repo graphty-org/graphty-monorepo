@@ -1,10 +1,4 @@
-import {
-    type ColumnHandle,
-    GraphBuilder,
-    type GraphSnapshot,
-    INVALID_INDEX,
-    type NodeId,
-} from "@graphty/graph-format";
+import { type ColumnHandle, GraphBuilder, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
     type GraphImporter,
@@ -58,40 +52,30 @@ export interface ImportedRecords {
 }
 
 /**
- * A builder that stores every attribute it was not told the type of as a `json` column, so a value
- * reaches the element exactly as the file held it.
+ * A builder that keeps the FIRST value a node's attribute is given, as the element does.
  *
- * The default builder infers one dtype per column and widens it to fit every row, which is right
- * for a text format (a CSV cell has no type until one is inferred) and wrong for JSON, whose
- * values already have one: a `value` key holding 42 in one record and "n/a" in another would come
- * back as the strings "42" and "n/a", and a schema the caller validates records against would
- * reject the record the file wrote correctly.
+ * The element keeps the first record of a repeated node id and skips the rest; graph-io merges a
+ * repeated node row into the node it already read, the later values winning. A cell written once
+ * is therefore not written again. A repeated row can still fill a cell the first row left empty.
  */
-class VerbatimBuilder extends GraphBuilder {
+class FirstValueBuilder extends GraphBuilder {
+    private readonly written = new Map<number, Set<number>>();
+
     override setNodeValue(column: ColumnHandle | string, index: number, value: unknown): void {
-        if (
-            typeof column === "string" &&
-            value !== undefined &&
-            value !== null &&
-            this.nodeColumn(column) === INVALID_INDEX
-        ) {
-            this.declareNodeColumn({ name: column, dtype: "json" });
+        const handle = typeof column === "string" ? this.nodeColumn(column) : column;
+        if (this.written.get(handle)?.has(index) === true) {
+            return;
         }
 
         super.setNodeValue(column, index, value);
-    }
-
-    override setEdgeValue(column: ColumnHandle | string, edge: number, value: unknown): void {
-        if (
-            typeof column === "string" &&
-            value !== undefined &&
-            value !== null &&
-            this.edgeColumn(column) === INVALID_INDEX
-        ) {
-            this.declareEdgeColumn({ name: column, dtype: "json" });
+        const declared = typeof column === "string" ? this.nodeColumn(column) : column;
+        let rows = this.written.get(declared);
+        if (rows === undefined) {
+            rows = new Set();
+            this.written.set(declared, rows);
         }
 
-        super.setEdgeValue(column, edge, value);
+        rows.add(index);
     }
 }
 
@@ -157,14 +141,12 @@ function recordsOf(snapshot: GraphSnapshot): { nodes: ImportedNode[]; edges: Imp
  * @param importer - the graph-io importer
  * @param input - the text to read
  * @param options - the importer's options
- * @param verbatim - store untyped attributes as `json` columns (for formats whose values are typed)
  * @returns the records and the report
  */
 export async function importRecords<O>(
     importer: GraphImporter<O>,
     input: ImportInput,
     options: O & CommonImportOptions,
-    verbatim = false,
 ): Promise<ImportedRecords> {
     const builderOptions = {
         directed: true,
@@ -173,7 +155,7 @@ export async function importRecords<O>(
         selfLoops: "keep",
         weightDtype: "f64",
     } as const;
-    const builder = verbatim ? new VerbatimBuilder(builderOptions) : new GraphBuilder(builderOptions);
+    const builder = new FirstValueBuilder(builderOptions);
 
     let report: ImportReport;
     try {

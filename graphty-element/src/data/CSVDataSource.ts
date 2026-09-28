@@ -5,6 +5,7 @@ import {
     type CsvImportOptions,
     headBytes,
     neo4jImporter,
+    parseTextCell,
 } from "@graphty/graph-io";
 
 import type { AdHocData } from "../config";
@@ -78,14 +79,15 @@ function readGephiTypeColumn(
  * name (`weight`, `Weight`), which is where the element's data bags have always carried it.
  *
  * A file the reader is not told the shape of is read as an edge table, and becomes a node table
- * only when its header has an `id` column ({@link CSVDataSource.readTable}).
+ * only when its header has an `id` column ({@link CSVDataSource.readTable}). A node table's id is
+ * its `id`, `Id` or `ID` column, else its row number ({@link CSVDataSource.readTable}).
  */
 const VARIANT_TABLES: Readonly<Record<Exclude<CSVVariant, "neo4j">, CsvImportOptions>> = {
     "edge-list": { table: "edges" },
     gephi: { table: "edges", sourceColumn: "Source", targetColumn: "Target" },
     cytoscape: { table: "edges" },
     "adjacency-list": { table: "adjacency" },
-    "node-list": { table: "nodes", rowNumberIds: true },
+    "node-list": { table: "nodes" },
     generic: { table: "edges" },
 };
 
@@ -103,6 +105,27 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 
 /** The header names that make a file the reader is not told the shape of a node list. */
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
+
+/**
+ * Type every text cell of the records on its own, as a number, a boolean or text.
+ *
+ * graph-io types a CSV column as a whole, so one cell that is not a number (`n/a`) turns every
+ * number in its column into text. The element has always typed a cell by what it holds, which is
+ * what numeric styling and weights read.
+ * @param imported - the records, typed in place
+ * @returns the records
+ */
+function typeCells(imported: ImportedRecords): ImportedRecords {
+    for (const { data } of [...imported.nodes, ...imported.edges]) {
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === "string") {
+                data[key] = parseTextCell(value);
+            }
+        }
+    }
+
+    return imported;
+}
 
 /**
  * The header of a file an explicit column option could not be found in, from graph-io's refusal.
@@ -213,6 +236,7 @@ export class CSVDataSource extends DataSource {
      * @param content - the file's text
      * @param table - the variant's table options
      * @param mayBeNodeList - read a header with no endpoint pair and an `id` column as a node table
+     *     (a node table's own id column is looked for the same way, and is the row number without one)
      * @returns the records, or null when the header names no endpoint pair (and, where it may be a
      *     node list, no id column): the rows are then handed to the element unread
      */
@@ -222,37 +246,48 @@ export class CSVDataSource extends DataSource {
         mayBeNodeList: boolean,
     ): Promise<Pick<ImportedRecords, "nodes" | "edges"> | null> {
         const { edgeSource, edgeTarget } = this.config;
-        const chosen = edgeSource !== undefined || edgeTarget !== undefined || table.sourceColumn !== undefined;
         const edgeTable = table.table === "edges";
+        const nodeTable = table.table === "nodes";
+        const chosen = edgeTable
+            ? edgeSource !== undefined || edgeTarget !== undefined || table.sourceColumn !== undefined
+            : this.config.idColumn !== undefined;
+        let options = table;
+        if (edgeTable) {
+            options = {
+                ...table,
+                sourceColumn: edgeSource ?? table.sourceColumn ?? "source",
+                targetColumn: edgeTarget ?? table.targetColumn ?? "target",
+            };
+        } else if (nodeTable) {
+            options = { ...table, idColumn: this.config.idColumn ?? "id" };
+        }
+
         let imported: ImportedRecords;
         try {
-            imported = await this.importTable(
-                content,
-                edgeTable
-                    ? {
-                          ...table,
-                          sourceColumn: edgeSource ?? table.sourceColumn ?? "source",
-                          targetColumn: edgeTarget ?? table.targetColumn ?? "target",
-                      }
-                    : table,
-            );
+            imported = await this.importTable(content, options);
         } catch (error) {
             const header = missingColumnHeader(error);
             if (header === null) {
                 throw error;
             }
 
-            if (!edgeTable || chosen) {
+            if (chosen) {
                 this.addError({ message: (error as Error).message, category: "validation-error" });
                 return { nodes: [], edges: [] };
             }
 
             const pair = ENDPOINT_PAIRS.find(([source, target]) => header.includes(source) && header.includes(target));
-            const idColumn = mayBeNodeList ? NODE_ID_COLUMNS.find((name) => header.includes(name)) : undefined;
-            if (pair !== undefined) {
+            const idColumn =
+                mayBeNodeList || nodeTable ? NODE_ID_COLUMNS.find((name) => header.includes(name)) : undefined;
+            if (edgeTable && pair !== undefined) {
                 imported = await this.importTable(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
             } else if (idColumn !== undefined) {
                 imported = await this.importTable(content, { table: "nodes", idColumn });
+            } else if (nodeTable) {
+                // No id column: each row's number is its id, and every column stays an attribute --
+                // graph-io would otherwise take a `name`, `node` or `key` column as the id.
+                const numbered = await this.importTable(content, { table: "nodes", nodeIdFrom: "index" });
+                imported = { ...numbered, nodes: numbered.nodes.map(({ id, data }) => ({ id: String(id), data })) };
             } else {
                 return null;
             }
@@ -269,7 +304,11 @@ export class CSVDataSource extends DataSource {
      * @param nodes - a node file read before the edges, for a pair of files
      * @returns the records and the report
      */
-    private importTable(content: string, table: CsvImportOptions, nodes?: string): Promise<ImportedRecords> {
+    private async importTable(
+        content: string,
+        table: CsvImportOptions & CommonImportOptions,
+        nodes?: string,
+    ): Promise<ImportedRecords> {
         const { delimiter, idColumn } = this.config;
         // An adjacency table has no columns to name, and graph-io refuses a column option for one;
         // its `neighbour:weight` suffixes are its weight, which `weightFrom: null` would drop.
@@ -284,14 +323,16 @@ export class CSVDataSource extends DataSource {
                       typeColumn: null,
                       ...(idColumn === undefined ? {} : { idColumn }),
                   };
-        return importRecords(csvImporter, content, {
-            ids: "string",
-            errorLimit: this.config.errorLimit,
-            ...columns,
-            ...table,
-            ...(delimiter === undefined ? {} : { delimiter }),
-            ...(nodes === undefined ? {} : { nodes }),
-        });
+        return typeCells(
+            await importRecords(csvImporter, content, {
+                ids: "string",
+                errorLimit: this.config.errorLimit,
+                ...columns,
+                ...table,
+                ...(delimiter === undefined ? {} : { delimiter }),
+                ...(nodes === undefined ? {} : { nodes }),
+            }),
+        );
     }
 
     /**
@@ -307,14 +348,16 @@ export class CSVDataSource extends DataSource {
      * @yields the rows as edge records, and no nodes
      */
     private async *passThroughRows(content: string): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const rows = await importRecords(csvImporter, content, {
-            table: "nodes",
-            header: true,
-            nodeIdFrom: "index",
-            weightFrom: null,
-            errorLimit: this.config.errorLimit,
-            ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
-        });
+        const rows = typeCells(
+            await importRecords(csvImporter, content, {
+                table: "nodes",
+                header: true,
+                nodeIdFrom: "index",
+                weightFrom: null,
+                errorLimit: this.config.errorLimit,
+                ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+            }),
+        );
         recordIssues(rows.report, this.errorAggregator);
         yield* this.chunkData([], rows.nodes.map(({ data }) => data) as AdHocData[]);
     }

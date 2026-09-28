@@ -147,6 +147,59 @@ describe("CSV read through graph-io", () => {
         assert.include(ids, edges[0].target);
     });
 
+    test("keeps the first row of a repeated node id, as the element does", async () => {
+        const nodeList = await collect(new CSVDataSource({ data: "id,name\n1,a\n1,b\n2,c\n" }));
+        assert.deepStrictEqual(nodeList.nodes, [
+            { id: "1", name: "a" },
+            { id: "2", name: "c" },
+        ]);
+
+        const neo4j = await collect(new CSVDataSource({ data: "i:ID,name\n1,a\n1,b\n" }));
+        assert.strictEqual(neo4j.nodes.length, 1);
+        assert.strictEqual(neo4j.nodes[0].name, "a");
+
+        const pair = await collect(
+            new CSVDataSource({
+                nodeFile: new File(["id,label\n1,A\n1,B\n"], "nodes.csv"),
+                edgeFile: new File(["source,target\n1,1\n"], "edges.csv"),
+            }),
+        );
+        assert.deepStrictEqual(pair.nodes, [{ id: "1", label: "A" }]);
+    });
+
+    test("types every cell on its own, whatever else its column holds", async () => {
+        const { edges } = await collect(
+            new CSVDataSource({ data: "source,target,weight,v\n1,2,1.5,1e3\n2,3,n/a,Infinity\n" }),
+        );
+
+        assert.deepStrictEqual(
+            edges.map(({ weight, v }) => [weight, v]),
+            [
+                [1.5, 1000],
+                ["n/a", "Infinity"],
+            ],
+        );
+    });
+
+    test("numbers the rows of a node list with no id column, keeping every column", async () => {
+        const { nodes } = await collect(new CSVDataSource({ data: "name,age\nann,3\nbob,4\n", variant: "node-list" }));
+
+        assert.deepStrictEqual(nodes, [
+            { id: "0", name: "ann", age: 3 },
+            { id: "1", name: "bob", age: 4 },
+        ]);
+    });
+
+    test("reads a file whose header has an id column and no endpoints as a node list", async () => {
+        const { nodes, edges } = await collect(new CSVDataSource({ data: "Id,label\n1,a\n2,b\n" }));
+
+        assert.deepStrictEqual(
+            nodes.map((node) => node.id),
+            ["1", "2"],
+        );
+        assert.deepStrictEqual(edges, []);
+    });
+
     test("reads an empty file as an empty graph", async () => {
         const source = new CSVDataSource({ data: "" });
         const { nodes, edges } = await collect(source);
@@ -190,7 +243,13 @@ describe("JSON read through graph-io", () => {
     });
 
     test("keeps a value the file carries under the key the element reads the id from", async () => {
-        const data = JSON.stringify({ nodes: [{ name: "a", id: 5 }, { name: "b", id: 6 }], edges: [] });
+        const data = JSON.stringify({
+            nodes: [
+                { name: "a", id: 5 },
+                { name: "b", id: 6 },
+            ],
+            edges: [],
+        });
         const { nodes } = await collect(new JsonDataSource({ data, nodeIdPath: "name" }));
 
         assert.deepStrictEqual(nodes, [
@@ -206,8 +265,37 @@ describe("JSON read through graph-io", () => {
         assert.deepStrictEqual(edges, [{ src: "a", dst: "b", source: "web" }]);
     });
 
+    test("keeps an id with more digits than a number holds exactly, and the edges naming it", async () => {
+        const data =
+            '{"nodes":[{"id":1234567890123456789},{"id":2}],"edges":[{"source":1234567890123456789,"target":2}]}';
+        const { nodes, edges } = await collect(new JsonDataSource({ data }));
+        const big = JSON.parse("1234567890123456789") as number;
+
+        assert.deepStrictEqual(nodes, [{ id: big }, { id: 2 }]);
+        assert.deepStrictEqual(edges, [{ source: big, target: 2 }]);
+    });
+
+    test("keeps a null value and any key the file wrote", async () => {
+        const data = JSON.stringify({
+            nodes: [{ id: 1, color: null, "": 2, "a.b": 3 }],
+            edges: [{ source: 1, target: 1, weight: null }],
+        });
+        const source = new JsonDataSource({ data });
+        const { nodes, edges } = await collect(source);
+
+        assert.deepStrictEqual(nodes, [{ id: 1, color: null, "": 2, "a.b": 3 }]);
+        assert.deepStrictEqual(edges, [{ source: 1, target: 1, weight: null }]);
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
+    });
+
     test("keeps the first record of a repeated node id, as the element does", async () => {
-        const data = JSON.stringify({ nodes: [{ id: "a", v: 1 }, { id: "a", v: 2 }], edges: [] });
+        const data = JSON.stringify({
+            nodes: [
+                { id: "a", v: 1 },
+                { id: "a", v: 2 },
+            ],
+            edges: [],
+        });
         const { nodes } = await collect(new JsonDataSource({ data }));
 
         assert.deepStrictEqual(nodes, [{ id: "a", v: 1 }]);

@@ -1,3 +1,4 @@
+import type { GraphImporter } from "@graphty/graph-io";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
@@ -9,6 +10,7 @@ import type { FormatDescriptor } from "../catalog/types";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { ErrorAggregator } from "./ErrorAggregator.js";
+import { type ImporterOptions, importRecords, type RecordMapping } from "./graphIoImport.js";
 
 // Base configuration interface
 export interface BaseDataSourceConfig {
@@ -510,6 +512,31 @@ export abstract class DataSource {
      */
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges = 0): void {
         this.declaration = { directed, statedBy, conflictingEdges };
+    }
+
+    /**
+     * Read this source's input through a graph-io importer and yield the records it holds.
+     *
+     * A reader built on graph-io implements {@link sourceFetchData} as one call to this. The
+     * importer's errors land in {@link getErrorAggregator}, the direction the file stated is
+     * declared before the first chunk, and the records are chunked like any other source's.
+     * @param importer - the graph-io importer for the format
+     * @param options - importer options; `errorLimit` defaults to this source's
+     * @param mapping - how this format's records differ from the default ones
+     * @yields DataSourceChunk objects containing the file's nodes and edges
+     */
+    protected async *importThrough(
+        importer: GraphImporter,
+        options?: ImporterOptions,
+        mapping?: RecordMapping,
+    ): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const imported = await importRecords(importer, await this.getContent(), this.errorAggregator, options, mapping);
+        if (imported.direction) {
+            const { directed, statedBy, conflictingEdges } = imported.direction;
+            this.declareDirection(directed, statedBy, conflictingEdges);
+        }
+
+        yield* this.chunkData(imported.nodes, imported.edges);
     }
 
     /**

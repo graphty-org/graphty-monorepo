@@ -39,11 +39,11 @@ reports that acceleration is unavailable.
 
 The `acceleration` attribute says what you want, and it is one of three words.
 
-| Policy     | What it means                                                                           |
-| ---------- | --------------------------------------------------------------------------------------- |
-| `auto`     | The default. Use an accelerator when one can be attached; run on the CPU when none can. |
-| `off`      | Never look. Every layout and every run is on the CPU.                                   |
-| `required` | Refuse to run on the CPU: work that would fall back throws `E_NO_ACCELERATOR` instead.  |
+| Policy     | What it means                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `auto`     | The default. Use an accelerator when one can be attached; run on the CPU when none can.    |
+| `off`      | Never look. Every layout and every run is on the CPU.                                      |
+| `required` | Work that would fall back to the CPU throws `E_NO_ACCELERATOR` instead (exceptions below). |
 
 If you are drawing a control over these, take the list from the element rather than typing the words yourself:
 `ACCELERATION_POLICIES`, `ACCELERATION_POLICY_DEFAULT` and `isAccelerationPolicy` are exported from
@@ -131,14 +131,16 @@ That is the label to show beside a value a reader might compare against a saved 
 | `pagerank`                             | Yes, with one exception | The CPU implementation                           |
 | `connected-components`                 | Yes                     | The CPU implementation                           |
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
+| `eigenvector`                          | Yes, with exceptions    | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
 
 The last row is routed but not accelerated: it asks the accelerator for a member it does not
 implement yet, and takes the CPU path with `caveats.precision` reading `"f64"`. It gains the
 hardware the day the member exists, with no change to your page.
 
-An algorithm is accelerated only above a measured node count: `pagerank` from 50,000 nodes,
-`dijkstra` from 107,000, `connected-components` from 132,000 and `bfs` from 141,000. An algorithm
+An algorithm is accelerated only above a measured node count: `eigenvector` from 6,600 nodes,
+`pagerank` from 50,000, `dijkstra` from 107,000, `connected-components` from 132,000 and `bfs`
+from 141,000. An algorithm
 is one call, and on the device that call costs several round trips whatever the size, so below
 those counts the CPU has finished before the device has started -- and a traversal, which is one
 round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
@@ -147,13 +149,13 @@ card (see `acceleration-min-nodes` below for how to replace them with your own),
 `acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
 purpose.
 
-Three of those four floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
+Three of those five floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
 `connected-components` and `bfs` take the CPU path at every size the element will hold today. That
 is the measurement, not caution: through the element an accelerated call never returned in under
 about 12 milliseconds, because every level of a traversal and every convergence test is a readback
 worth roughly 2 milliseconds of round trip, and on a graph of 50,000 nodes and 100,000 edges the
-CPU implementations of all three finish well inside that. PageRank is the one that crosses, and it
-crosses at the top of what the element can hold. Raising the renderer's ceiling is what would put
+CPU implementations of all three finish well inside that. Eigenvector centrality crosses early,
+and PageRank crosses at the top of what the element can hold. Raising the renderer's ceiling is what would put
 the others in reach; until then, `acceleration="required"` or your own
 `acceleration-min-nodes` is how to put them on the device deliberately.
 
@@ -162,6 +164,16 @@ any run over an undirected graph, takes the CPU implementation whatever hardware
 those three change what the numbers mean rather than how fast they are computed, and only the
 reference implementation defines them. Such a run reports `caveats.precision` as `"f64"` and says
 in its caveats which of the three sent it there.
+
+Eigenvector centrality has exceptions of the same kind. A run over a directed graph (`mode` of
+`in` or `out`) and one over a graph with a bipartite piece take the CPU implementation, because
+the device's kernel is not defined to give the same answer there. They report `caveats.precision`
+as `"f64"`.
+
+These exceptions hold under `acceleration="required"` too: `"required"` refuses to fall back when
+the accelerator is missing or the work would otherwise have gone to it, but a run whose options or
+graph the device cannot answer, and an algorithm the element does not route to the device at all
+(`betweenness` and `closeness` today), run on the CPU and say `"f64"` rather than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

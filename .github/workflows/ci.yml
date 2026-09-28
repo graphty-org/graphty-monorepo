@@ -885,6 +885,96 @@ jobs:
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
 
+    # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
+    # in visual-baselines/ (visual-review/, design in design/visual-testing/design.md). The owner reviews
+    # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
+    # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
+    # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
+    # the job fails only when the tool itself crashes, and continue-on-error keeps even that from failing
+    # the run, because release.yml, deploy-pages.yml and coverage.yml gate on the run's conclusion. What
+    # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
+    # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
+    # 4-worker development machine; CI runners are slower and not yet measured.
+    visual:
+        name: visual (${{ matrix.project }})
+        needs: build
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        continue-on-error: true
+        timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: compact-mantine
+                      artifact: build-storybook-compact-mantine
+                    - project: graphty-element
+                      artifact: build-storybook-element
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").dependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            # With the browser cached this installs only the system libraries Chromium needs.
+            - name: Install Chromium
+              run: pnpm --filter @graphty/visual-review exec playwright install --with-deps chromium
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.project }}/storybook-static/
+
+            - name: Capture
+              run: node visual-review/trusted/cli.mjs capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual"
+
+            # Kept even when capture crashed, so the owner sees the partial results.json.
+            - name: Upload captures
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual/
+                  retention-days: 30
+
+            - name: Write the counts to the job summary
+              if: always()
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  {
+                      echo "### Visual review (${{ matrix.project }})"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items",
+                              "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      else
+                          echo "No results.json: capture did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
@@ -904,6 +994,7 @@ jobs:
                 chromatic-compact-mantine,
                 chromatic-algorithms,
                 chromatic-layout,
+                visual,
             ]
         if: always()
         runs-on: ubuntu-latest
@@ -917,11 +1008,46 @@ jobs:
                   [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
+                  # The visual job never decides here, whatever result job-level continue-on-error makes
+                  # it report: on a pull request the gate step below judges its results.json, and on
+                  # master a capture crash must not hold release, deploy or coverage.
                   bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
+                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
                       exit 1
                   fi
                   echo "All checks passed!"
+
+            # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
+            # with baselines on the base branch fails here when its newest capture (the highest attempt
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
+            # excluded items, or when that capture is missing, unfinished or invalid. It also fails when
+            # a baseline PNG or an excluding settings file differs from the base without a review record
+            # added in the pull request that names its new hash. So it shows the captures match the pull
+            # request's baselines and that each baseline change is named (path and new hash) in a record;
+            # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
+            # (visual-review/README.md, "What this does and does not guarantee"). Pull requests only, so
+            # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
+            # (standard library only). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
+            # the pull request was merged onto; blobs are fetched only for the changed baselines.
+            - name: Check out the gate
+              if: github.event_name == 'pull_request'
+              uses: actions/checkout@v4
+              with:
+                  sparse-checkout: visual-review
+                  fetch-depth: 2
+                  filter: blob:none
+
+            - name: Download visual captures
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Check visual changes were accepted
+              if: github.event_name == 'pull_request'
+              run: node visual-review/trusted/gate.mjs --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD

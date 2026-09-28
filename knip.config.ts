@@ -243,6 +243,13 @@ const config: KnipConfig = {
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
+        // visual-review tool (plain .mjs, no build)
+        "visual-review": {
+            entry: ["test/**/*.test.mjs"],
+            project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
+            ignore: ["coverage/**", "node_modules/**"],
+        },
+
         // compact-mantine package
         "compact-mantine": {
             entry: ["tests/**/*.test.{ts,tsx}", "stories/**/*.stories.tsx"],

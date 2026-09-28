@@ -457,7 +457,9 @@ describe("GraphBuilder edges", () => {
             const hub = b.indexOf("hub");
             const leaf = b.indexOf("leaf500");
             // The link columns are what a walk steps along; count the steps.
-            const { staging } = b as unknown as { staging: { nextOut: { get: () => number }; nextIn: { get: () => number } } };
+            const { staging } = b as unknown as {
+                staging: { nextOut: { get: () => number }; nextIn: { get: () => number } };
+            };
             const outSteps = vi.spyOn(staging.nextOut, "get");
             const inSteps = vi.spyOn(staging.nextIn, "get");
             expect(Array.from(b.findEdges(hub, leaf))).toEqual([500, 1000]);

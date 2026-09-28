@@ -92,8 +92,16 @@ const cases: readonly Case[] = [
     { name: "random 12 nodes, 20 edges", graph: () => gnm(12, 20, false, 31337) },
     { name: "random 30 nodes, 60 edges", graph: () => gnm(30, 60, false, 2024) },
     { name: "directed three-cycle", graph: () => fromPairs(true, "a-b b-c c-a"), automorphisms: 3 },
-    { name: "directed hub, three targets, two sources", graph: () => fromPairs(true, "h-a h-b h-c d-h e-h"), automorphisms: 12 },
-    { name: "directed cycle with reciprocal arcs", graph: () => fromPairs(true, "a-b b-a b-c c-d d-a"), automorphisms: 1 },
+    {
+        name: "directed hub, three targets, two sources",
+        graph: () => fromPairs(true, "h-a h-b h-c d-h e-h"),
+        automorphisms: 12,
+    },
+    {
+        name: "directed cycle with reciprocal arcs",
+        graph: () => fromPairs(true, "a-b b-a b-c c-d d-a"),
+        automorphisms: 1,
+    },
     { name: "random directed 10 nodes, 18 arcs", graph: () => gnm(10, 18, true, 99) },
 ];
 
@@ -207,7 +215,10 @@ describe("indexed.findAllIsomorphisms", () => {
             b.addEdge("a", "b", weight);
             return b.freeze();
         };
-        const byWeight = { edgeMatch: (e1: number, e2: number, a: GraphSnapshot, b: GraphSnapshot) => a.edgeList().weights?.[e1] === b.edgeList().weights?.[e2] };
+        const byWeight = {
+            edgeMatch: (e1: number, e2: number, a: GraphSnapshot, b: GraphSnapshot) =>
+                a.edgeList().weights?.[e1] === b.edgeList().weights?.[e2],
+        };
         expect(findAllIsomorphisms(arc(1), arc(2), byWeight)).toHaveLength(0);
         expect(isGraphIsomorphic(arc(1), arc(2), byWeight).isomorphic).toBe(false);
         expect(findAllIsomorphisms(arc(1), arc(1), byWeight)).toHaveLength(1);
@@ -220,7 +231,10 @@ describe("indexed.findAllIsomorphisms", () => {
             b.addEdge("a", "b", 5);
             return b.freeze();
         };
-        const byWeight = { edgeMatch: (e1: number, e2: number, a: GraphSnapshot, b: GraphSnapshot) => a.edgeList().weights?.[e1] === b.edgeList().weights?.[e2] };
+        const byWeight = {
+            edgeMatch: (e1: number, e2: number, a: GraphSnapshot, b: GraphSnapshot) =>
+                a.edgeList().weights?.[e1] === b.edgeList().weights?.[e2],
+        };
         expect(findAllIsomorphisms(loop(1), loop(2), byWeight)).toHaveLength(0);
         expect(isGraphIsomorphic(loop(1), loop(2), byWeight).isomorphic).toBe(false);
         expect(findAllIsomorphisms(loop(1), loop(1), byWeight)).toHaveLength(1);

@@ -185,7 +185,11 @@ describe("a data source reading through a graph-io importer", () => {
     });
 
     it("yields a record for a node only an edge named, when the format's reader always did", async () => {
-        const source = new ProbeDataSource({ data: "", importer: recordingImporter([]), mapping: { endpointNodes: true } });
+        const source = new ProbeDataSource({
+            data: "",
+            importer: recordingImporter([]),
+            mapping: { endpointNodes: true },
+        });
 
         const { nodes } = await drain(source);
 

@@ -298,4 +298,3 @@ export function directionOptimizedBFS<TNodeId = NodeId>(
     const bfs = new DirectionOptimizedBFS(graph, options);
     return bfs.search(source);
 }
-

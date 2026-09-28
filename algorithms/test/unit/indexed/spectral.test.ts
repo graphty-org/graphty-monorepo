@@ -139,7 +139,11 @@ describe("indexed.spectralClustering", () => {
             // The embedding is the returned eigenvectors, one row per node, scaled to unit length
             // for the normalized Laplacian (Ng, Jordan and Weiss). With tolerance 0 k-means stops
             // only when no node changes cluster, so every node sits nearest its own cluster's mean.
-            for (const name of ["Zachary's karate club", "three four-cliques in a chain", "random 80 nodes, 320 weighted edges"]) {
+            for (const name of [
+                "Zachary's karate club",
+                "three four-cliques in a chain",
+                "random 80 nodes, 320 weighted edges",
+            ]) {
                 const s = checksummedSnapshot(undirectedFixtures().find((f) => f.name === name)?.graph as Graph);
                 const k = 4;
                 const r = spectralClustering(s, { k, laplacianType: type, tolerance: 0, maxIterations: 1000 });
@@ -150,9 +154,13 @@ describe("indexed.spectralClustering", () => {
                 });
                 const centres = Array.from({ length: r.count }, (_, c) => {
                     const members = rows.filter((_, i) => r.labels[i] === c);
-                    return Array.from({ length: k }, (_, t) => members.reduce((sum, row) => sum + row[t], 0) / members.length);
+                    return Array.from(
+                        { length: k },
+                        (_, t) => members.reduce((sum, row) => sum + row[t], 0) / members.length,
+                    );
                 });
-                const dist = (row: number[], c: number): number => row.reduce((sum, x, t) => sum + (x - centres[c][t]) ** 2, 0);
+                const dist = (row: number[], c: number): number =>
+                    row.reduce((sum, x, t) => sum + (x - centres[c][t]) ** 2, 0);
                 rows.forEach((row, i) => {
                     const own = dist(row, r.labels[i]);
                     for (let c = 0; c < r.count; c++) {
@@ -182,14 +190,32 @@ describe("indexed.spectralClustering", () => {
     for (const type of TYPES) {
         it(`recovers planted cliques exactly with the ${type} Laplacian`, () => {
             const planted: [string, number, number[][]][] = [
-                ["two five-cliques, disconnected", 2, [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]],
-                ["three four-cliques in a chain", 3, [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]],
+                [
+                    "two five-cliques, disconnected",
+                    2,
+                    [
+                        [0, 1, 2, 3, 4],
+                        [5, 6, 7, 8, 9],
+                    ],
+                ],
+                [
+                    "three four-cliques in a chain",
+                    3,
+                    [
+                        [0, 1, 2, 3],
+                        [4, 5, 6, 7],
+                        [8, 9, 10, 11],
+                    ],
+                ],
                 ["two triangles and an isolated node", 3, [[0, 1, 2], [3, 4, 5], [6]]],
             ];
             for (const [name, k, groups] of planted) {
                 const s = checksummedSnapshot(undirectedFixtures().find((f) => f.name === name)?.graph as Graph);
                 const r = spectralClustering(s, { k, laplacianType: type });
-                expect(r.groups().map((group) => [...group]), name).toEqual(groups);
+                expect(
+                    r.groups().map((group) => [...group]),
+                    name,
+                ).toEqual(groups);
                 s.validate({ checksum: true });
             }
         });
@@ -204,12 +230,20 @@ describe("indexed.spectralClustering", () => {
             for (const type of ["unnormalized", "normalized"] as const) {
                 const l = denseLaplacian(graph, s, type);
                 for (const k of [2, 3, 4]) {
-                    const port = ritzTrace(l, spectralClustering(s, { k, laplacianType: type, weights: exactArcWeights(s) }).eigenvectors);
+                    const port = ritzTrace(
+                        l,
+                        spectralClustering(s, { k, laplacianType: type, weights: exactArcWeights(s) }).eigenvectors,
+                    );
                     expect(port, name).not.toBeNull();
                     for (let seed = 1; seed <= 5; seed++) {
-                        const legacy = ritzTrace(l, legacySpectral(graph, { k, laplacianType: type, seed }).eigenvectors ?? []);
+                        const legacy = ritzTrace(
+                            l,
+                            legacySpectral(graph, { k, laplacianType: type, seed }).eigenvectors ?? [],
+                        );
                         if (legacy !== null) {
-                            expect(port as number, `${name} ${type} k=${k} seed ${seed}`).toBeLessThanOrEqual(legacy + 1e-9);
+                            expect(port as number, `${name} ${type} k=${k} seed ${seed}`).toBeLessThanOrEqual(
+                                legacy + 1e-9,
+                            );
                         }
                     }
                 }
@@ -226,7 +260,11 @@ describe("indexed.spectralClustering", () => {
             const s = checksummedSnapshot(graph);
             for (const type of TYPES) {
                 for (const k of [2, 3, 4]) {
-                    const port = normalisedCut(graph, s, spectralClustering(s, { k, laplacianType: type, weights: exactArcWeights(s) }).labels);
+                    const port = normalisedCut(
+                        graph,
+                        s,
+                        spectralClustering(s, { k, laplacianType: type, weights: exactArcWeights(s) }).labels,
+                    );
                     let sum = 0;
                     for (let seed = 1; seed <= 10; seed++) {
                         const legacy = legacySpectral(graph, { k, laplacianType: type, seed });

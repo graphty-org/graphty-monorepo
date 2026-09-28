@@ -1,4 +1,3 @@
- 
 import { ActionManager, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
@@ -104,7 +103,9 @@ describe("Node Behavior Tests", () => {
             setNodePosition: vi.fn(),
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as { setNodePosition: (node: unknown, position: unknown) => void };
+        const spyTarget = mockLayoutEngine as unknown as {
+            setNodePosition: (node: unknown, position: unknown) => void;
+        };
         const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
 
         // Start dragging
@@ -135,7 +136,9 @@ describe("Node Behavior Tests", () => {
             setNodePosition: vi.fn(),
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as { setNodePosition: (node: unknown, position: unknown) => void };
+        const spyTarget = mockLayoutEngine as unknown as {
+            setNodePosition: (node: unknown, position: unknown) => void;
+        };
         const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
 
         // Simulate position change without dragging (node.dragging should be false)

@@ -86,10 +86,14 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
         const end = rowPtr[u + 1];
         for (let a = begin; a < end; a++) {
             if (arcOrder[a] < begin || arcOrder[a] >= end) {
-                throw new RangeError(`arcOrder[${String(a)}] = ${String(arcOrder[a])} is not an arc of node ${String(u)}`);
+                throw new RangeError(
+                    `arcOrder[${String(a)}] = ${String(arcOrder[a])} is not an arc of node ${String(u)}`,
+                );
             }
             if (seen[arcOrder[a]] === 1) {
-                throw new RangeError(`arcOrder[${String(a)}] = ${String(arcOrder[a])} repeats an arc of node ${String(u)}`);
+                throw new RangeError(
+                    `arcOrder[${String(a)}] = ${String(arcOrder[a])} repeats an arc of node ${String(u)}`,
+                );
             }
             seen[arcOrder[a]] = 1;
         }

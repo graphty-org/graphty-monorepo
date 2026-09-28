@@ -130,7 +130,9 @@ describe("indexed.hierarchicalClustering", () => {
                     const expected = trees.flatMap((t) => cutDendrogram(t, h)).map((set) => [...set]);
                     expect(cut, `${name} at height ${h}`).toEqual(expected);
                     if (trees.length === 1) {
-                        expect(expected, `${name} at height ${h}`).toEqual(legacy.clusters.get(h)?.map((set) => [...set]));
+                        expect(expected, `${name} at height ${h}`).toEqual(
+                            legacy.clusters.get(h)?.map((set) => [...set]),
+                        );
                     }
                 }
                 s.validate({ checksum: true });
@@ -162,7 +164,9 @@ describe("indexed.hierarchicalClustering", () => {
             const s = checksummedSnapshot(g);
             for (const linkage of LINKAGES) {
                 const port = hierarchicalClustering(s, { linkage });
-                expect(plainPort(s, port), `trial ${trial} ${linkage}`).toEqual(plainLegacy(legacyHierarchical(g, linkage).root));
+                expect(plainPort(s, port), `trial ${trial} ${linkage}`).toEqual(
+                    plainLegacy(legacyHierarchical(g, linkage).root),
+                );
             }
         }
     });

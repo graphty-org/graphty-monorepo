@@ -225,7 +225,13 @@ describe("indexed.astar", () => {
     it("never reopens an expanded node, as legacy astarWithDetails, under an inconsistent heuristic", () => {
         // a is expanded at cost 4 before b offers it at cost 2; legacy keeps the cost-4 route.
         const adjacency = new Map([
-            ["s", new Map([["a", 4], ["b", 1]])],
+            [
+                "s",
+                new Map([
+                    ["a", 4],
+                    ["b", 1],
+                ]),
+            ],
             ["b", new Map([["a", 1]])],
             ["a", new Map([["t", 10]])],
             ["t", new Map<string, number>()],

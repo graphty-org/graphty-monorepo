@@ -293,7 +293,11 @@ describe("metric results", () => {
             assert.isDefined(record);
             assert.isNumber(record.hub);
             assert.isNumber(record.authority);
-            assert.approximately(record.value as number, ((record.hub as number) + (record.authority as number)) / 2, 1e-12);
+            assert.approximately(
+                record.value as number,
+                ((record.hub as number) + (record.authority as number)) / 2,
+                1e-12,
+            );
         });
 
         it("degree publishes the two directions beside their total", async () => {
@@ -343,7 +347,11 @@ describe("what the top-ranked elements are called", () => {
             ["n3", { id: "n3", data: { name: "Tiny" } }],
         ]);
         const graph = await createMockGraph({
-            nodes: [{ id: "n1", name: "Mr Whiskers" }, { id: "n2", name: "Chonky Boy" }, { id: "n3", name: "Tiny" }],
+            nodes: [
+                { id: "n1", name: "Mr Whiskers" },
+                { id: "n2", name: "Chonky Boy" },
+                { id: "n3", name: "Tiny" },
+            ],
             edges: [
                 { srcId: "n1", dstId: "n2" },
                 { srcId: "n2", dstId: "n3" },

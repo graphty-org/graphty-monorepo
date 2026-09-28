@@ -41,7 +41,10 @@ describe("HITS and Katz through the dispatcher match the CPU ports", () => {
     const graphs: readonly [string, () => GraphSnapshot][] = [
         ["karate, undirected", () => snapshotOf(KARATE_EDGES)],
         ["random, directed", () => snapshotOf(randomEdges(80, 240, 7), { directed: true })],
-        ["random, directed, weighted", () => snapshotOf(randomEdgesLoose(80, 240, 11), { directed: true, weighted: true })],
+        [
+            "random, directed, weighted",
+            () => snapshotOf(randomEdgesLoose(80, 240, 11), { directed: true, weighted: true }),
+        ],
     ];
 
     for (const [name, make] of graphs) {
@@ -53,13 +56,21 @@ describe("HITS and Katz through the dispatcher match the CPU ports", () => {
                 acc.release(s);
             });
             const katz = { alpha: 0.05, maxIterations: 300, tolerance: 1e-7 };
-            expectClose((await dispatch.katzCentrality(s, katz)).scores, indexed.katzCentrality(s, katz).scores, `${name} katz`);
+            expectClose(
+                (await dispatch.katzCentrality(s, katz)).scores,
+                indexed.katzCentrality(s, katz).scores,
+                `${name} katz`,
+            );
             const iter = { maxIterations: 300, tolerance: 1e-8 };
             for (const normalized of [true, false]) {
                 const device = await dispatch.hits(s, { ...iter, normalized });
                 const port = indexed.hits(s, { ...iter, normalized });
                 expectClose(device.hubs, port.hubs, `${name} hubs, normalized ${String(normalized)}`);
-                expectClose(device.authorities, port.authorities, `${name} authorities, normalized ${String(normalized)}`);
+                expectClose(
+                    device.authorities,
+                    port.authorities,
+                    `${name} authorities, normalized ${String(normalized)}`,
+                );
             }
         });
     }

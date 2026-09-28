@@ -104,7 +104,9 @@ function symmetricRows(s: GraphSnapshot, weights: NumericVector | null): Symmetr
             for (let a = view.rowPtr[u]; a < view.rowPtr[u + 1]; a++) {
                 const weight = weights === null ? 1 : weights[arcOf(a)];
                 if (!(weight >= 0) || weight === Infinity) {
-                    throw new RangeError(`an arc has weight ${weight}; spectral clustering needs finite, non-negative weights`);
+                    throw new RangeError(
+                        `an arc has weight ${weight}; spectral clustering needs finite, non-negative weights`,
+                    );
                 }
                 if (view.colIdx[a] !== u) {
                     colIdx[k] = view.colIdx[a];
@@ -539,5 +541,10 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
         }
     }
     const { labels, count } = renumberPartition(best);
-    return { ...withGroups(labels, count), eigenvalues: eig.values, eigenvectors: eig.vectors, converged: eig.converged };
+    return {
+        ...withGroups(labels, count),
+        eigenvalues: eig.values,
+        eigenvectors: eig.vectors,
+        converged: eig.converged,
+    };
 }

@@ -127,7 +127,10 @@ describe("indexed.markovClustering", () => {
                 const legacy = legacyMarkov(graph, options);
                 const port = markovClustering(s, { ...options, weights: exactArcWeights(s) });
                 expect(labelsToGroups(s.ids, port.labels, port.count), name).toEqual(legacy.communities);
-                expect(Array.from(port.attractors, (i) => s.ids.idOf(i)), name).toEqual([...legacy.attractors]);
+                expect(
+                    Array.from(port.attractors, (i) => s.ids.idOf(i)),
+                    name,
+                ).toEqual([...legacy.attractors]);
                 expect(port.converged, name).toBe(legacy.converged);
                 // The legacy function reports one round too many when it stops at the cap.
                 expect(port.iterations + (port.converged ? 0 : 1), name).toBe(legacy.iterations);
@@ -170,7 +173,12 @@ describe("indexed.modularity", () => {
         expect(modularity(s, two)).toBeCloseTo(0.5, 15);
         // The legacy MCL modularity collects the null-model term over the edges only.
         expect(calculateMCLModularity(g, [["a", "b", "c", "d", "e", "f"]])).toBeCloseTo(1 / 3, 15);
-        expect(calculateMCLModularity(g, [["a", "b", "c"], ["d", "e", "f"]])).toBeCloseTo(1 / 3, 15);
+        expect(
+            calculateMCLModularity(g, [
+                ["a", "b", "c"],
+                ["d", "e", "f"],
+            ]),
+        ).toBeCloseTo(1 / 3, 15);
     });
 
     it("reads edge weights by default, which calculateMCLModularity ignores", () => {

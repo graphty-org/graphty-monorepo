@@ -132,7 +132,9 @@ function legacyInIndexOrder(s: GraphSnapshot): Graph {
     const el = s.edgeList();
     const pairs: [number, number][] = [];
     for (let e = 0; e < s.edgeCount; e++) {
-        const [a, b] = s.directed ? [el.src[e], el.dst[e]] : [Math.min(el.src[e], el.dst[e]), Math.max(el.src[e], el.dst[e])];
+        const [a, b] = s.directed
+            ? [el.src[e], el.dst[e]]
+            : [Math.min(el.src[e], el.dst[e]), Math.max(el.src[e], el.dst[e])];
         pairs.push([a, b]);
     }
     pairs.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
@@ -149,7 +151,11 @@ function pathXYZ(): GraphSnapshot {
     return b.freeze();
 }
 
-function explicitSides(s: GraphSnapshot, leftIds: readonly NodeId[], rightIds: readonly NodeId[]): { left: Uint32Array; right: Uint32Array } {
+function explicitSides(
+    s: GraphSnapshot,
+    leftIds: readonly NodeId[],
+    rightIds: readonly NodeId[],
+): { left: Uint32Array; right: Uint32Array } {
     const left = makeMask(s.nodeCount);
     const right = makeMask(s.nodeCount);
     for (const id of leftIds) {

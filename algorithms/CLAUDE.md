@@ -72,13 +72,12 @@ can pair other nodes than the old augmenting-path loop, which follows the order 
 lists each side in, and the greedy matching is by design not a maximum one) -- and `isGraphIsomorphic`
 and `findAllIsomorphisms`, which have no port. The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
 `test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
-replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts` as their test oracle.
+replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts`as their test oracle.
 Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade
-test, or for inputs the port refuses -- it sits beside it in a `*-legacy.ts` file, unchanged, until
-the removal release deletes it. A `*-legacy.ts` file can also be the only implementation of
-published functions that do not delegate: `hierarchical-legacy.ts` holds `cutDendrogram`,
-`cutDendrogramKClusters` and `modularityHierarchicalClustering` (and the `hierarchicalClustering`
-facade calls `cutDendrogram`), and `mcl-legacy.ts` holds `calculateMCLModularity`. Those functions
+test, or for inputs the port refuses -- it sits beside it in a`*-legacy.ts`file, unchanged, until
+the removal release deletes it. A`\*-legacy.ts`file can also be the only implementation of
+published functions that do not delegate:`hierarchical-legacy.ts`holds`cutDendrogram`,
+`cutDendrogramKClusters`and`modularityHierarchicalClustering`(and the`hierarchicalClustering`facade calls`cutDendrogram`), and `mcl-legacy.ts`holds`calculateMCLModularity`. Those functions
 are re-exported from the public file and are not dead code; the removal release must move them, not
 delete them.
 
@@ -176,8 +175,8 @@ graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, ca
 ### Documentation Samples
 
 `test/unit/docs/guide-samples.test.ts` type-checks and runs every ```typescript block of
-`docs/guide/getting-started.md`, which must all be marked `<!-- doc-check -->` just before them, and every
-block of `README.md` so marked. Keep each marked block self-contained, with its own imports.
+`docs/guide/getting-started.md`, which must all be marked `<!-- doc-check -->`just before them, and every
+block of`README.md` so marked. Keep each marked block self-contained, with its own imports.
 
 ### Running Examples
 

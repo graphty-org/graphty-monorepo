@@ -25,7 +25,12 @@ export interface ShellLayoutOptions extends CommonLayoutOptions {
  * @param center - at least 2 components
  * @returns `2 * n` values, NaN for a node in no shell
  */
-export function shellRows(n: number, shells: readonly ArrayLike<number>[], scale: number, center: readonly number[]): F64 {
+export function shellRows(
+    n: number,
+    shells: readonly ArrayLike<number>[],
+    scale: number,
+    center: readonly number[],
+): F64 {
     const rows = new Float64Array(2 * n).fill(Number.NaN);
     if (shells.length === 0) {
         return rows;
@@ -61,7 +66,9 @@ export function shell(s: GraphSnapshot, options: ShellLayoutOptions = {}): Layou
     const { n, dim, scale, center } = resolve(s, options);
     const { nlist } = options;
     const shells =
-        typeof nlist === "string" ? groupsOfColumn(s, nlist, "shell") : (nlist ?? [Array.from({ length: n }, (_, i) => i)]);
+        typeof nlist === "string"
+            ? groupsOfColumn(s, nlist, "shell")
+            : (nlist ?? [Array.from({ length: n }, (_, i) => i)]);
     for (const list of shells) {
         for (let j = 0; j < list.length; j++) {
             if (!Number.isInteger(list[j]) || list[j] < 0 || list[j] >= n) {

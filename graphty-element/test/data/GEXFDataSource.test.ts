@@ -294,7 +294,10 @@ describe("GEXFDataSource", () => {
             nodes.push(...chunk.nodes);
         }
 
-        assert.deepEqual(nodes.map((node) => node.id), ["a", "b"]);
+        assert.deepEqual(
+            nodes.map((node) => node.id),
+            ["a", "b"],
+        );
         assert.strictEqual(source.getErrorAggregator().getErrorCount(), 1);
     });
 
@@ -328,7 +331,9 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        async function load(xml: string): Promise<{ nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }> {
+        async function load(
+            xml: string,
+        ): Promise<{ nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }> {
             const source = new GEXFDataSource({ data: xml });
             const nodes: Record<string, unknown>[] = [];
             const edges: Record<string, unknown>[] = [];
@@ -370,7 +375,9 @@ describe("GEXFDataSource", () => {
 
         test("a static file gains no time keys", async () => {
             const { nodes, edges } = await load(
-                dynamicXml.replace(/<spells>[\s\S]*?<\/spells>/, "").replace(/ (start|end|startopen|endopen|timestamp)="[^"]*"/g, ""),
+                dynamicXml
+                    .replace(/<spells>[\s\S]*?<\/spells>/, "")
+                    .replace(/ (start|end|startopen|endopen|timestamp)="[^"]*"/g, ""),
             );
             for (const record of [...nodes, ...edges]) {
                 for (const key of ["start", "end", "startOpen", "endOpen", "timestamp", "spells"]) {

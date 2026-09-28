@@ -281,13 +281,25 @@ describe("importAllGraphs", () => {
         ];
         for (const [format, text, nodes] of cases) {
             const all = await importAllGraphs(utf8(text), { format });
-            expect(all.map((r) => r.snapshot.nodeCount), format).toEqual(nodes);
-            expect(all.every((r) => r.format === format), format).toBe(true);
-            expect(all.flatMap((r) => r.report.issues.map((i) => i.code)), format).not.toContain("W_MULTIPLE_GRAPHS");
+            expect(
+                all.map((r) => r.snapshot.nodeCount),
+                format,
+            ).toEqual(nodes);
+            expect(
+                all.every((r) => r.format === format),
+                format,
+            ).toBe(true);
+            expect(
+                all.flatMap((r) => r.report.issues.map((i) => i.code)),
+                format,
+            ).not.toContain("W_MULTIPLE_GRAPHS");
             // import() keeps the first graph and says how many it skipped
             const one = await importGraph(utf8(text), { format });
             expect(one.snapshot.nodeCount, format).toBe(nodes[0]);
-            expect(one.report.issues.map((i) => i.code), format).toContain("W_MULTIPLE_GRAPHS");
+            expect(
+                one.report.issues.map((i) => i.code),
+                format,
+            ).toContain("W_MULTIPLE_GRAPHS");
         }
     });
 

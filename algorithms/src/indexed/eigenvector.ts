@@ -53,7 +53,9 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
     const tol = o.tolerance ?? 1e-6;
     const start = o.startVector;
     if (start !== undefined && start.length !== n) {
-        throw new Error(`eigenvectorCentrality: startVector has ${String(start.length)} entries for ${String(n)} nodes`);
+        throw new Error(
+            `eigenvectorCentrality: startVector has ${String(start.length)} entries for ${String(n)} nodes`,
+        );
     }
     let x = new Float64Array(n);
     if (n === 0) {

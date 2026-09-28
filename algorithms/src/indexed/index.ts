@@ -18,11 +18,25 @@ export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
+export {
+    hierarchicalClustering,
+    type HierarchicalOptions,
+    type HierarchicalResult,
+    type Linkage,
+} from "./hierarchical.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
+export { markovClustering, type MarkovOptions, type MarkovResult } from "./markov.js";
+export { modularity, type ModularityOptions } from "./modularity.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
+export {
+    type LaplacianType,
+    spectralClustering,
+    type SpectralOptions,
+    type SpectralResult,
+} from "./spectral.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";

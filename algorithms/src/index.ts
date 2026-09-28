@@ -91,6 +91,12 @@ export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
 // option types one capital letter apart in the same barrel is a trap, not a convenience.
+// Unprefixed: the legacy clustering types are named LinkageMethod, MCL* and SpectralClustering*.
+export type {
+    HierarchicalOptions,
+    HierarchicalResult,
+    Linkage,
+} from "./indexed/hierarchical.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
@@ -103,12 +109,15 @@ export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,
 } from "./indexed/louvain.js";
+export type { MarkovOptions, MarkovResult } from "./indexed/markov.js";
+export type { ModularityOptions } from "./indexed/modularity.js";
 export type { MstOptions, MstResult } from "./indexed/mst.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {
     PageRankOptions as IndexedPageRankOptions,
     PageRankResult as IndexedPageRankResult,
 } from "./indexed/pagerank.js";
+export type { LaplacianType, SpectralOptions, SpectralResult } from "./indexed/spectral.js";
 
 // Note: Configuration exports have been removed.
 // The library now automatically optimizes based on graph size.

@@ -39,9 +39,10 @@ algorithms/
 
 `src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
 `indexed` namespace: BFS, Dijkstra, connected components, Kruskal MST, PageRank, HITS, Katz,
-common neighbours, k-core, Louvain, label propagation and all-pairs shortest paths. Each lands
-beside its legacy function without replacing it; tests live in `test/unit/indexed/` and
-before/after timings in `benchmarks/port-bench.ts`.
+common neighbours, k-core, Louvain, label propagation, all-pairs shortest paths, hierarchical,
+Markov and spectral clustering, and modularity. Each lands beside its legacy function without
+replacing it; tests live in `test/unit/indexed/` and before/after timings in
+`benchmarks/port-bench.ts`.
 
 ## Essential Commands
 

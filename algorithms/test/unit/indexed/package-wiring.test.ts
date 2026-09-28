@@ -4,10 +4,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type {
+    HierarchicalResult,
     IndexedApspOptions,
     IndexedApspResult,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    MarkovResult,
+    SpectralOptions,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -55,5 +58,23 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed clustering exports", () => {
+    it("reaches the hierarchical, Markov, spectral and modularity ports through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        const tree: HierarchicalResult = pkg.indexed.hierarchicalClustering(s, { linkage: "average" });
+        expect(tree.left.length).toBe(2);
+        const flow: MarkovResult = pkg.indexed.markovClustering(s);
+        expect(flow.labels.length).toBe(3);
+        const options: SpectralOptions = { k: 2, laplacianType: "normalized" };
+        expect(pkg.indexed.spectralClustering(s, options).count).toBe(2);
+        expect(pkg.indexed.modularity(s, new Uint32Array(3))).toBeCloseTo(0, 15);
     });
 });

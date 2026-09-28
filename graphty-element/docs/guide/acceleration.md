@@ -39,11 +39,11 @@ reports that acceleration is unavailable.
 
 The `acceleration` attribute says what you want, and it is one of three words.
 
-| Policy     | What it means                                                                           |
-| ---------- | --------------------------------------------------------------------------------------- |
-| `auto`     | The default. Use an accelerator when one can be attached; run on the CPU when none can. |
-| `off`      | Never look. Every layout and every run is on the CPU.                                   |
-| `required` | Refuse to run on the CPU: work that would fall back throws `E_NO_ACCELERATOR` instead.  |
+| Policy     | What it means                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `auto`     | The default. Use an accelerator when one can be attached; run on the CPU when none can.    |
+| `off`      | Never look. Every layout and every run is on the CPU.                                      |
+| `required` | Work that would fall back to the CPU throws `E_NO_ACCELERATOR` instead (exceptions below). |
 
 If you are drawing a control over these, take the list from the element rather than typing the words yourself:
 `ACCELERATION_POLICIES`, `ACCELERATION_POLICY_DEFAULT` and `isAccelerationPolicy` are exported from
@@ -166,9 +166,14 @@ reference implementation defines them. Such a run reports `caveats.precision` as
 in its caveats which of the three sent it there.
 
 Eigenvector centrality has exceptions of the same kind. A run over a directed graph (`mode` of
-`in` or `out`), one that sets a start vector, and one over a graph with a bipartite piece take the
-CPU implementation, because the device's kernel is not defined to give the same answer there. They
-report `caveats.precision` as `"f64"`.
+`in` or `out`) and one over a graph with a bipartite piece take the CPU implementation, because
+the device's kernel is not defined to give the same answer there. They report `caveats.precision`
+as `"f64"`.
+
+These exceptions hold under `acceleration="required"` too: `"required"` refuses to fall back when
+the accelerator is missing or the work would otherwise have gone to it, but a run whose options or
+graph the device cannot answer, and an algorithm the element does not route to the device at all
+(`betweenness` and `closeness` today), run on the CPU and say `"f64"` rather than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

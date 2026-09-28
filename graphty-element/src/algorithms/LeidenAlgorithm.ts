@@ -123,6 +123,11 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
      * Publishes the community shape's uniform fields: a group per node, and the modularity the
      * method reported. How many passes it took qualifies those numbers rather than being one of
      * them, so it travels in the caveats.
+     *
+     * The modularity counts a self-loop twice in its node's degree, the standard (NetworkX)
+     * reading; the object-graph route this replaced counted it once. The partition is a
+     * randomised heuristic's and not the replaced route's: on small graphs without self-loops its
+     * modularity lands within about 0.05 of that route's either way, and no lower on average.
      * @param context - What the element gave the run.
      * @returns The community result, or null when there are no nodes to group.
      */

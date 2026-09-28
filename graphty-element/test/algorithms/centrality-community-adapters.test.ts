@@ -3,10 +3,14 @@
  *
  * Each case runs the adapter and the legacy `@graphty/algorithms` function over the SAME
  * simplified graph the element built for it (`toAlgorithmGraph`), and compares what was
- * published. Scores agree to 1e-9 relative. Girvan-Newman's partition is the same partition and
- * its modularity agrees to 1e-9. Leiden is a randomised heuristic whose port does not move nodes
- * in the legacy order, so its partition is not compared; its modularity is held to the legacy
- * one within 0.02, and to the modularity of the partition it published.
+ * published. Scores agree to 1e-9 relative. On a graph without a self-loop Girvan-Newman's
+ * partition is the same partition and its modularity agrees to 1e-9; with one, modularity counts
+ * the self-loop twice in its node's degree where the legacy function counted it once, so the
+ * published score is checked against the port's own modularity instead. Leiden is a randomised
+ * heuristic whose port does not move nodes in the legacy order, so its partition is not compared:
+ * its modularity is within 0.02 of the legacy one on the two fixtures, within 0.05 either way on
+ * small random graphs without self-loops and no lower on average, and it is the modularity of the
+ * partition it published.
  *
  * Then the routing: eigenvector goes to the accelerator at 6,600 nodes and above and stays on the
  * processor below, and a run the dispatcher answers on the processor says `f64` even when an
@@ -75,11 +79,22 @@ const FIXTURES: readonly [string, MockGraphOpts][] = [
  * @param opts - The records.
  * @param fake - The accelerator.
  * @param floors - Whether the built-in per-capability floors apply.
+ * @param policy - The acceleration policy; `"required"` also applies the floors, which it ignores.
  * @returns The graph.
  */
-async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, floors = false): Promise<Graph> {
+async function graphWith(
+    opts: MockGraphOpts,
+    fake?: FakeAccelerator,
+    floors = false,
+    policy: "auto" | "required" = "auto",
+): Promise<Graph> {
     const graph = await createMockGraph(opts);
-    if (floors) {
+    if (policy === "required") {
+        (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
+            policy,
+            registry: new AcceleratorRegistry(),
+        });
+    } else if (floors) {
         // The shared mock pins the threshold at 0, which switches the built-in floors off; a
         // controller left at its default is what a consumer who set nothing gets.
         (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
@@ -319,6 +334,99 @@ describe("centrality and community adapters on the index-based ports", () => {
         assert.notStrictEqual(groups.get("X"), groups.get("D"));
     });
 
+    it("girvan-newman counts a self-loop twice in its node's degree", async () => {
+        // One node with a self-loop and one without an edge: each is its own community, and a
+        // community holding all of its degree scores 0. The legacy function scored this 0.75.
+        const lone = await computed(
+            new GirvanNewmanAlgorithm(
+                await graphWith({ nodes: [{ id: "A" }, { id: "B" }], edges: [{ srcId: "A", dstId: "A" }] }),
+            ),
+        );
+        close(lone.graph?.modularity as number, 0, "modularity of a lone self-loop");
+
+        // Two triangles joined by a bridge, with self-loops: the published score is the port's
+        // modularity of the published partition.
+        const graph = await graphWith({
+            nodes: ["A", "B", "C", "D", "E", "F"].map((id) => ({ id })),
+            edges: [
+                { srcId: "A", dstId: "B" },
+                { srcId: "B", dstId: "C" },
+                { srcId: "C", dstId: "A" },
+                { srcId: "D", dstId: "E" },
+                { srcId: "E", dstId: "F" },
+                { srcId: "F", dstId: "D" },
+                { srcId: "C", dstId: "D" },
+                { srcId: "A", dstId: "A", weight: 2 },
+                { srcId: "E", dstId: "E" },
+            ],
+        });
+        const output = await computed(new GirvanNewmanAlgorithm(graph));
+        const snapshot = toSnapshot(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+        const groups = groupsOf(output);
+        const labels = Uint32Array.from({ length: snapshot.nodeCount }, (_, i) =>
+            Number(groups.get(snapshot.ids.idOf(i))),
+        );
+        close(output.graph?.modularity as number, indexed.modularity(snapshot, labels), "modularity with self-loops");
+        assert.deepStrictEqual(partition(groups), ["A,B,C", "D,E,F"]);
+    });
+
+    it("leiden stays within 0.05 of the legacy modularity on small random graphs, and no lower on average", async () => {
+        // Small graphs are where the port and the legacy function part ways most. Over 3,000 such
+        // graphs the port scored between 0.046 below and 0.040 above the legacy function, and
+        // 0.002 above it on average: a different partition, not a worse one.
+        let random = 0x2545f491;
+        const next = (): number => {
+            random = (Math.imul(random, 1103515245) + 12345) >>> 0;
+            return random / 2 ** 32;
+        };
+        let publishedTotal = 0;
+        let referenceTotal = 0;
+        for (let trial = 0; trial < 60; trial++) {
+            const n = 3 + Math.floor(next() * 23);
+            const p = 0.05 + next() * 0.3;
+            const nodes = Array.from({ length: n }, (_, index) => ({ id: index }));
+            const edges: MockGraphOpts["edges"] = [];
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    if (next() < p) {
+                        edges.push({ srcId: i, dstId: j, weight: 1 + Math.floor(next() * 4) });
+                    }
+                }
+            }
+            const graph = await graphWith({ nodes, edges });
+            const output = await computed(new LeidenAlgorithm(graph));
+            const reference = leiden(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
+                resolution: 1,
+                randomSeed: 42,
+                maxIterations: 100,
+                threshold: 1e-6,
+            });
+            const published = output.graph?.modularity as number;
+            if (Number.isNaN(reference.modularity)) {
+                continue;
+            }
+            assert.approximately(published, reference.modularity, 0.05, `trial ${String(trial)}`);
+            publishedTotal += published;
+            referenceTotal += reference.modularity;
+        }
+        assert.isAtLeast(publishedTotal, referenceTotal);
+    });
+
+    it("eigenvector with mode in or out on a directed graph equals the legacy directed route", async () => {
+        for (const mode of ["in", "out"] as const) {
+            const graph = await graphWith({ ...WEIGHTED_MULTI, directed: true });
+            const { values } = await measured(graph, new EigenvectorCentralityAlgorithm(graph, { mode }));
+            const reference = eigenvectorCentrality(toAlgorithmGraph(graph.getDataManager(), "directed"), {
+                maxIterations: 1000,
+                tolerance: 1e-6,
+                mode,
+            });
+            for (const id of graph.getDataManager().nodes.keys()) {
+                close(values.get(id), reference[String(id)], `eigenvector ${mode} of ${String(id)}`);
+            }
+        }
+    });
+
     it("eigenvector turns a start vector keyed by node id into one keyed by row", async () => {
         const graph = await graphWith(WEIGHTED_MULTI);
         const startVector = new Map([
@@ -402,6 +510,20 @@ describe("centrality and community adapters on the index-based ports", () => {
             assert.strictEqual(calls.closeness, 0);
             assert.strictEqual(betweenness.precision, "f64");
             assert.strictEqual(closeness.precision, "f64");
+        });
+
+        it("betweenness and closeness run on the processor under required with an accelerator that lacks them", async () => {
+            // The element does not forward either, so the controller is never asked -- asked, it
+            // would refuse with E_NO_ACCELERATOR because this accelerator has no such member.
+            const fake = createFakeAccelerator();
+            assert.notProperty(fake, "betweennessCentrality");
+            assert.notProperty(fake, "closenessCentrality");
+            const graph = await graphWith(WEIGHTED_MULTI, fake, true, "required");
+            const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
+            const closeness = await measured(graph, new ClosenessCentralityAlgorithm(graph));
+            assert.strictEqual(betweenness.precision, "f64");
+            assert.strictEqual(closeness.precision, "f64");
+            assert.isAbove(betweenness.values.get("C") ?? 0, 0);
         });
     });
 

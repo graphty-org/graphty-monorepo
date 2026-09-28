@@ -102,6 +102,11 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
      * The method produces a dendrogram -- one partition per cut -- and the run publishes the cut
      * that scored the highest modularity, with that score. A graph with no edges falls apart at
      * the first step, and every node is then its own community.
+     *
+     * Modularity counts a self-loop twice in its node's degree, the standard (NetworkX) reading.
+     * The object-graph route this replaced counted it once, so on a graph with a self-loop the
+     * published modularity differs from that route's, and because the best-scoring cut is the one
+     * published, the partition can differ too. Without a self-loop both are unchanged.
      * @param context - What the element gave the run.
      * @returns The community result, or null when there are no nodes to group.
      */

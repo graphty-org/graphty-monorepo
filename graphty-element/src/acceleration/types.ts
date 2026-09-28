@@ -477,8 +477,9 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * Below the point where the processor's own work exceeds the device's round trips, the device
  * cannot win however fast its arithmetic is.
  *
- * SO THREE OF THE FOUR FLOORS ARE ABOVE THE RENDER CEILING AND THOSE CAPABILITIES ARE NOT ROUTED
- * TO THE DEVICE AT ALL TODAY. Their numbers are not from the sweep above -- it cannot reach them
+ * SO THREE OF THE FIVE FLOORS ARE ABOVE THE RENDER CEILING AND THOSE CAPABILITIES ARE NOT ROUTED
+ * TO THE DEVICE AT ALL TODAY. PageRank's floor is at the ceiling and eigenvector centrality's
+ * (6,600, the kernel's resident crossover from the same record) is well inside it. Their numbers are not from the sweep above -- it cannot reach them
  * -- but from the crossovers measured on `@graphty/webgpu-graph-algorithms` itself with the graph
  * resident, in `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`: 141,000 nodes for
  * breadth-first search, 107,000 for shortest paths and 132,000 for connected components. Those are
@@ -516,12 +517,12 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         breadthFirstSearch: 141_000,
         // Likewise above the render ceiling, and likewise the kernel's resident crossover.
         sssp: 107_000,
-        // Measured through the element: the only capability that crosses inside what it can hold.
+        // Measured through the element, and it crosses at the top of what the element can hold.
         pageRank: 50_000,
         // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
         connectedComponents: 132_000,
-        // The kernel's resident crossover from the same record ("minimum of N"). Unlike the three
-        // above it is inside the render ceiling, so a graph this large does reach the device.
+        // The kernel's resident crossover from the same record ("minimum of N"). Unlike the other
+        // four it is well inside the render ceiling, so a graph this large does reach the device.
         eigenvectorCentrality: 6_600,
     },
 );

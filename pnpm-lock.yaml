@@ -599,6 +599,9 @@ importers:
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
+      '@graphty/graph-io':
+        specifier: workspace:^
+        version: link:../graph-io
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout
@@ -614,9 +617,6 @@ importers:
       d3-force-3d:
         specifier: ^3.0.6
         version: 3.0.6
-      fast-xml-parser:
-        specifier: ^5.3.1
-        version: 5.11.1
       hammerjs:
         specifier: ^2.0.8
         version: 2.0.8

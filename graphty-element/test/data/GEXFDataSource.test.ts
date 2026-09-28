@@ -261,6 +261,43 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks[0].edges[0].weight, 2.5);
     });
 
+    test("gives weight only to the edges the file weighted, at the precision it wrote", async () => {
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" version="1.3">
+  <graph defaultedgetype="undirected">
+    <nodes><node id="a"/><node id="b"/><node id="c"/></nodes>
+    <edges>
+      <edge id="0" source="a" target="b"/>
+      <edge id="1" source="b" target="c" weight="0.1"/>
+      <edge id="2" source="c" target="a" weight="16777217"/>
+    </edges>
+  </graph>
+</gexf>`;
+
+        const edges = [];
+        for await (const chunk of new GEXFDataSource({ data: xml }).getData()) {
+            edges.push(...chunk.edges);
+        }
+
+        assert.notProperty(edges[0], "weight");
+        assert.strictEqual(edges[1].weight, 0.1);
+        assert.strictEqual(edges[2].weight, 16777217);
+    });
+
+    test("keeps what a document read before it broke off, and counts the break as an error", async () => {
+        const xml =
+            '<?xml version="1.0"?><gexf version="1.3"><graph>' +
+            '<nodes><node id="a"/><node id="b"></nodes></graph></gexf>';
+        const source = new GEXFDataSource({ data: xml });
+        const nodes = [];
+        for await (const chunk of source.getData()) {
+            nodes.push(...chunk.nodes);
+        }
+
+        assert.deepEqual(nodes.map((node) => node.id), ["a", "b"]);
+        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 1);
+    });
+
     describe("dynamic graphs", () => {
         const dynamicXml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">

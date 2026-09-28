@@ -81,6 +81,45 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
 }
 
 /**
+ * Floyd-Warshall in place (design section 3.1): k-i-j over the row-major matrix, row offsets
+ * hoisted, a row skipped when `d[i][k]` is +Infinity, strict `<` so the smallest pivot wins ties.
+ * @param s - The snapshot
+ * @param w - The weights in use, or `null` for 1 per arc
+ * @param d - The n x n output, overwritten
+ */
+function floydWarshall(s: GraphSnapshot, w: NumericVector | null, d: F64): void {
+    const { nodeCount: n, rowPtr, colIdx } = s;
+    d.fill(Infinity);
+    for (let u = 0; u < n; u++) {
+        const ur = u * n;
+        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+            const v = colIdx[a];
+            const x = w === null ? 1 : w[a];
+            if (v !== u && x < d[ur + v]) {
+                d[ur + v] = x;
+            }
+        }
+        d[ur + u] = 0;
+    }
+    for (let k = 0; k < n; k++) {
+        const kr = k * n;
+        for (let i = 0; i < n; i++) {
+            const ir = i * n;
+            const dik = d[ir + k];
+            if (dik === Infinity) {
+                continue;
+            }
+            for (let j = 0; j < n; j++) {
+                const via = dik + d[kr + j];
+                if (via < d[ir + j]) {
+                    d[ir + j] = via;
+                }
+            }
+        }
+    }
+}
+
+/**
  * All-pairs shortest paths over a snapshot.
  * @param s - The snapshot
  * @param options - Weights, strategy, paths and the size bound
@@ -96,16 +135,15 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
             `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
         );
     }
-    weightsInUse(s, options);
-    if (n > 0) {
-        throw new Error("not implemented");
-    }
+    const { w } = weightsInUse(s, options);
+    const dist = new Float64Array(n * n);
+    floydWarshall(s, w, dist);
     const empty = new Uint32Array(0);
     return {
-        dist: new Float64Array(0),
+        dist,
         n,
         hasNegativeCycle: false,
-        method: "bfs",
+        method: "floyd-warshall",
         predArc: null,
         pathTo: () => empty,
         pathEdges: () => empty,

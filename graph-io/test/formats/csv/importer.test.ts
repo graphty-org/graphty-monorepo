@@ -995,6 +995,12 @@ describe("csvImporter: adjacency tables", () => {
         expect(snapshot.flags.weighted).toBe(false);
     });
 
+    it("reads the first row as data under header auto, even when it looks like a header", async () => {
+        const { snapshot } = await load("id,label\n1,2:0.5\n2,3\n", { table: "adjacency" });
+        expect(snapshot.ids.toArray()).toEqual(["id", "label", 1, 2, 3]);
+        expect(edgesOf(snapshot)).toEqual(["id->label", "1->2", "2->3"]);
+    });
+
     it("skips the first row under header true and skips blank neighbour cells", async () => {
         const { snapshot, report } = await load("node,neighbours\na,,b\n", { table: "adjacency", header: true });
         expect(edgesOf(snapshot)).toEqual(["a->b"]);
@@ -1015,11 +1021,15 @@ describe("csvImporter: adjacency tables", () => {
     });
 
     it("refuses column options, and is never guessed", async () => {
-        for (const option of ["sourceColumn", "targetColumn", "typeColumn"] as const) {
+        for (const option of ["sourceColumn", "targetColumn", "typeColumn", "idColumn"] as const) {
             await expect(load("a,b\n", { table: "adjacency", [option]: 0 })).rejects.toMatchObject({
                 code: "E_UNSUPPORTED",
             });
         }
+        await expect(load("a,b\n", { table: "adjacency", rowNumberIds: true })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+        expect((await load("a,b\n", { table: "adjacency", rowNumberIds: false })).snapshot.edgeCount).toBe(1);
         const guessed = await load("a,b:1,c\n");
         expect(edgesOf(guessed.snapshot)).not.toContain("a->b");
     });

@@ -393,16 +393,19 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
         }
         return value;
     };
-    const holder = nodesPath === null ? root : valueAt(root, nodesPath.slice(0, -1));
-    // the keys the paths replace: the nodes key, and every edge key when edgesPath names the edges
+    const holderPath = nodesPath === null ? [] : nodesPath.slice(0, -1);
+    const holder = valueAt(root, holderPath);
+    // the keys the paths replace: the nodes key, and every edge key when edgesPath names the edges,
+    // with the holder's key that edgesPath descends through when the edges sit inside the holder
     const replaced = new Set<string>();
     if (nodesPath !== null) {
         replaced.add(nodesPath[nodesPath.length - 1]);
     }
-    const edgesLast = edgesPath === null ? null : edgesPath[edgesPath.length - 1];
-    if (edgesLast !== null) {
-        for (const key of [edgesLast, "edges", "links"]) {
-            replaced.add(key);
+    if (edgesPath !== null) {
+        replaced.add("edges");
+        replaced.add("links");
+        if (edgesPath.length > holderPath.length && holderPath.every((key, i) => edgesPath[i] === key)) {
+            replaced.add(edgesPath[holderPath.length]);
         }
     }
     const record: JsonRecord = Object.fromEntries(
@@ -411,10 +414,21 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
     if (nodesPath !== null) {
         record.nodes = lookup("nodesPath", nodesPath);
     }
-    if (edgesPath !== null && edgesLast !== null) {
-        record[json.edgesKey ?? (edgesLast === "links" ? "links" : "edges")] = lookup("edgesPath", edgesPath);
+    if (edgesPath !== null) {
+        record[pathEdgesKey(json, edgesPath)] = lookup("edgesPath", edgesPath);
     }
     return record;
+}
+
+/**
+ * The key applyPaths() stores the edge array under: the caller's edgesKey, else "links" when
+ * edgesPath ends in links (so the d3 sniff still sees it), else "edges".
+ * @param json - the resolved options
+ * @param edgesPath - the edgesPath segments
+ * @returns the key
+ */
+function pathEdgesKey(json: ResolvedJsonOptions, edgesPath: readonly string[]): string {
+    return json.edgesKey ?? (edgesPath[edgesPath.length - 1] === "links" ? "links" : "edges");
 }
 
 /**
@@ -449,7 +463,14 @@ function documentOf(
         return { root: parsed, dialect: detectDialect(parsed, json.dialect, report) };
     }
     const root = applyPaths(parsed, json, report);
-    return { root, dialect: pathDialect(root, json.dialect) };
+    const dialect = pathDialect(root, json.dialect);
+    // vis and graphology read their edges from the edges key only
+    if (json.edgesPath !== null && (dialect === "vis" || dialect === "graphology") && isJsonObject(root)) {
+        const key = pathEdgesKey(json, json.edgesPath);
+        const renamed = Object.fromEntries(Object.entries(root).map(([k, v]) => [k === key ? "edges" : k, v]));
+        return { root: renamed, dialect };
+    }
+    return { root, dialect };
 }
 
 /**

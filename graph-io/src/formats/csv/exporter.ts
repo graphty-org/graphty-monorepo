@@ -37,6 +37,7 @@ import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { EDGE_ID_NAMES, findColumn, LABEL_NAMES } from "./header.js";
+import { DELIMITER_CANDIDATES } from "./records.js";
 
 /** The format-specific options of the CSV exporter. */
 export interface CsvExportOptions {
@@ -835,9 +836,13 @@ function neighbourCell(id: string, weight: string | null): string {
  */
 function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { delimiter, newline } = plan.csv;
-    const quote = (text: string): string => quoteCsvCell(text, delimiter);
+    const forced = (text: string): string => `"${text.replace(/"/g, '""')}"`;
+    // rows vary in width by design, so a bare cell holding any delimiter the importer sniffs for
+    // (a space in "New York") can win the sniff over the real delimiter: such a cell is quoted
+    const quote = (text: string): string =>
+        DELIMITER_CANDIDATES.some((c) => text.includes(c)) ? forced(text) : quoteCsvCell(text, delimiter);
     // a leading `#` or `%` would open a comment line on the first row
-    const first = (text: string): string => (/^[#%]/.test(text) ? `"${text.replace(/"/g, '""')}"` : quote(text));
+    const first = (text: string): string => (/^[#%]/.test(text) ? forced(text) : quote(text));
     const list = snapshot.edgeList();
     const { edgeRows, weights } = plan;
     const seen = new Uint8Array(snapshot.nodeCount);

@@ -221,8 +221,9 @@ losses and format rules, in addition to the table:
   number, and a row holding only its node adding an isolated node. It is never sniffed: nothing in
   its rows tells it from an edge list. The exported table keeps ids, the node order, isolated nodes,
   the edge order and explicit weights (a neighbour id holding a colon is written `id:` when it has no
-  weight); it holds no direction and no columns (`W_CSV_DIRECTION_DROPPED`, `W_CSV_EDGE_COLUMNS`). A
-  node table without an id column is refused (`E_CSV_NO_ID_COLUMN`) unless `rowNumberIds: true`, which
+  weight, and a cell holding a space, tab, `;` or `|` is quoted so the delimiter sniff still finds
+  the comma); it holds no direction and no columns (`W_CSV_DIRECTION_DROPPED`, `W_CSV_EDGE_COLUMNS`).
+  Column options and `rowNumberIds` are refused with it (`E_UNSUPPORTED`). A node table without an id column is refused (`E_CSV_NO_ID_COLUMN`) unless `rowNumberIds: true`, which
   makes each data row's 0-based number its id, coerced by `ids` like any other id cell.
 - **JSON**: the dialect is sniffed from the document (`dialect` forces it); the importer records the
   shape under `meta.extra.json` so a re-export keeps it (a d3 document is written back bare, a

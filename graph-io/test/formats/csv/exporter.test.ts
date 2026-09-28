@@ -566,6 +566,24 @@ describe("csvExporter: adjacency tables", () => {
         expectSameSnapshot(s, await importCsv(text, ADJACENCY), { allowExtraColumns: false });
     });
 
+    it("quotes every cell holding a delimiter the importer sniffs for, so the sniff still finds the comma", async () => {
+        const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        b.addEdge("New York", "Boston", 3);
+        b.addEdge("New York", "Los Angeles", 1);
+        b.addEdge("Boston", "Salt Lake City");
+        b.addEdge("a;b", "c\td");
+        b.addEdge("c\td", "e|f");
+        const s = b.freeze();
+        expect(csvExporter.check(s, ADJACENCY)).toEqual([]);
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe(
+            '"New York",Boston:3,"Los Angeles:1"\nBoston,"Salt Lake City"\n"a;b","c\td"\n"c\td","e|f"\n',
+        );
+        const again = await importCsv(text, ADJACENCY);
+        expect(again.ids.toArray()).toEqual(["New York", "Boston", "Los Angeles", "Salt Lake City", "a;b", "c\td", "e|f"]);
+        expectSameSnapshot(s, again, { allowExtraColumns: false });
+    });
+
     it("announces what an adjacency table cannot hold: direction, edge columns and node columns", async () => {
         const s = fromRecords({
             directed: false,
@@ -591,7 +609,7 @@ describe("csvExporter: adjacency tables", () => {
     });
 
     it("round-trips any directed graph of awkward ids and weights exactly, with no notes", async () => {
-        const id = fc.stringMatching(/^[a-c:#%," ]{0,4}$/).filter((t) => !/^[-+]?[0-9]/.test(t));
+        const id = fc.stringMatching(/^[a-c:#%,"\t;| ]{0,4}$/).filter((t) => !/^[-+]?[0-9]/.test(t));
         const graph = fc.record({
             ids: fc.uniqueArray(id, { minLength: 1, maxLength: 8 }),
             edges: fc.array(
@@ -617,8 +635,8 @@ describe("csvExporter: adjacency tables", () => {
                 const s = b.freeze();
                 expect(csvExporter.check(s, ADJACENCY)).toEqual([]);
                 const text = await csvExporter.exportToString(s, ADJACENCY);
-                // an id holding spaces can outvote the comma in the delimiter sniff: say which it is
-                const again = await importCsv(text, { ...ADJACENCY, delimiter: "," });
+                // no delimiter given: the re-import sniffs it, as a reader of the file would
+                const again = await importCsv(text, ADJACENCY);
                 const diffs = compareSnapshots(s, again, { allowExtraColumns: false });
                 expect(diffs, `${text}\n${describeDiffs(diffs)}`).toEqual([]);
             }),

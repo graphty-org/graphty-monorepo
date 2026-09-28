@@ -1314,6 +1314,47 @@ describe("nodesPath and edgesPath", () => {
         expect(through.s.nodeCount).toBe(0);
     });
 
+    it("does not report the key edgesPath descends through as unread when only edgesPath is given", async () => {
+        const doc = { directed: true, nodes: [{ id: "a" }, { id: "b" }], e: { list: [{ source: "a", target: "b" }] } };
+        const { s, report } = await load(json(doc), { edgesPath: "e.list" });
+        expect(s.nodeCount).toBe(2);
+        expect(edge(s, 0)).toBe("a->b");
+        expect(report.issues).toEqual([]);
+    });
+
+    it("drops the holder's own edges and links arrays when edgesPath points elsewhere", async () => {
+        const doc = {
+            data: {
+                nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+                links: [{ source: "a", target: "c" }],
+                rel: [{ source: "a", target: "b" }],
+            },
+        };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.rel" });
+        expect(Array.from({ length: s.edgeCount }, (_, e) => edge(s, e))).toEqual(["a->b"]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("reads vis and graphology edges from an edgesPath that ends in links", async () => {
+        const docs = {
+            vis: { data: { nodes: [{ id: "a" }, { id: "b" }], links: [{ from: "a", to: "b" }] } },
+            graphology: { data: { nodes: [{ key: "a" }, { key: "b" }], links: [{ source: "a", target: "b" }] } },
+        } as const;
+        for (const dialect of ["vis", "graphology"] as const) {
+            for (const forced of [dialect, undefined]) {
+                const { s, report } = await load(json(docs[dialect]), {
+                    dialect: forced,
+                    nodesPath: "data.nodes",
+                    edgesPath: "data.links",
+                });
+                expect(s.edgeCount, `${dialect} ${String(forced)}`).toBe(1);
+                expect(edge(s, 0)).toBe("a->b");
+                expect(report.issues).toEqual([]);
+                expect((s.meta.extra.json as { dialect: string }).dialect).toBe(dialect);
+            }
+        }
+    });
+
     it("still refuses a path that names something other than an array", async () => {
         const error = await expectImportError(json({ data: { nodes: {} } }), { nodesPath: "data.nodes" });
         expect(error.report.issues[0].code).toBe(JSON_ISSUE.SHAPE);

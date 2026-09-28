@@ -291,13 +291,19 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         checkColumnRef("typeColumn", o.typeColumn);
     }
     if (o.table === "adjacency") {
-        for (const name of ["sourceColumn", "targetColumn", "typeColumn"] as const) {
+        for (const name of ["sourceColumn", "targetColumn", "typeColumn", "idColumn"] as const) {
             if (o[name] !== undefined) {
                 throw new GraphFormatError("E_UNSUPPORTED", `option ${name}: an adjacency table has no columns`, {
                     option: name,
                     found: o[name],
                 });
             }
+        }
+        if (o.rowNumberIds === true) {
+            throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: an adjacency table names its nodes", {
+                option: "rowNumberIds",
+                found: o.rowNumberIds,
+            });
         }
     }
     if (o.rowNumberIds !== undefined && typeof o.rowNumberIds !== "boolean") {

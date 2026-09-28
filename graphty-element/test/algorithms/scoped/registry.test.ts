@@ -150,9 +150,6 @@ class Recording extends InputGraph {
                 return base.getSnapshot();
             },
             undirected: base.undirected,
-            // One edge's record by an id the input named, for an attribute the snapshot does not
-            // carry (a flow capacity): not a topology read, so it is not recorded.
-            getEdge: base.getEdge,
         };
     }
 }

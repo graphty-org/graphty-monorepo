@@ -80,6 +80,14 @@ const SEED_COLUMN = "graphty.importPosition";
 const PINNED_COLUMN = "graphty.pinned";
 
 /**
+ * The edge column holding each edge's flow capacity, read from its record at ingest by
+ * `resolveEdgeCapacity`. A flow algorithm reads it at the edge's declared row and hands it to the
+ * port as a per-arc override (`expandEdges`), so the capacity is an exact f64 and never passes
+ * through the f32 weight array. Unset rows read 1, a record's missing capacity.
+ */
+export const CAPACITY_COLUMN = "graphty.capacity";
+
+/**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.
  *
  * `stage` is the NEXT callback to deliver, so a retry after a consumer threw resumes there instead
@@ -139,6 +147,8 @@ export class GraphStore {
     readonly seedColumn: ColumnHandle;
     /** Handle of the element-assigned edge counter column. */
     readonly edgeIdColumn: ColumnHandle;
+    /** Handle of the edge capacity column ({@link CAPACITY_COLUMN}). */
+    readonly capacityColumn: ColumnHandle;
 
     private readonly options: GraphStoreOptions;
     private readonly counter: EdgeCounter;
@@ -201,6 +211,12 @@ export class GraphStore {
             dtype: "u32",
             role: "id",
             unique: true,
+        });
+        this.capacityColumn = this.builder.declareEdgeColumn({
+            name: CAPACITY_COLUMN,
+            dtype: "f64",
+            default: 1,
+            nullable: false,
         });
         // The stable-identity columns (design/sets/sets-design.md 12.2, 12.3), beside the counter
         // they are derived from, filled by the completion pass at freeze. 8 bytes per node, 16 per

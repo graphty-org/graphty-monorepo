@@ -132,6 +132,17 @@ export function resolveEdgeWeight(
 }
 
 /**
+ * Resolve an edge's flow capacity: the record's `capacity`, else its `value`, else 1. A key that is
+ * present but not a number reads as 1 rather than falling through to the next key.
+ * @param record - the raw edge record
+ * @returns the capacity
+ */
+export function resolveEdgeCapacity(record: Record<string | number, unknown>): number {
+    const raw = record.capacity ?? record.value ?? 1;
+    return typeof raw === "number" ? raw : 1;
+}
+
+/**
  * Push one edge into the element's builder and stamp its element-assigned counter column.
  *
  * The builder is constructed with `addMissingNodes: true`, so an endpoint that has not arrived yet
@@ -148,6 +159,7 @@ export function resolveEdgeWeight(
  * @param weight - the resolved weight
  * @param fileId - the edge's id read at the configured `edgeIdPath`, when there is one: its stable
  *     identity (design/sets/sets-design.md 12.3)
+ * @param capacity - the edge's flow capacity, from {@link resolveEdgeCapacity}
  * @returns the logical edge index and the counter stamped into the edge's id column, or
  *     `INVALID_INDEX` for both when either id is not one graph-format accepts
  */
@@ -157,6 +169,7 @@ export function ingestEdge(
     dstId: unknown,
     weight: number,
     fileId?: string | number,
+    capacity = 1,
 ): { index: number; edgeId: number } {
     if (!isStorableId(srcId) || !isStorableId(dstId)) {
         return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
@@ -165,6 +178,9 @@ export function ingestEdge(
     const index = store.builder.addEdge(srcId, dstId, weight);
     const edgeId = store.nextEdgeId();
     store.builder.setEdgeValue(store.edgeIdColumn, index, edgeId);
+    if (capacity !== 1) {
+        store.builder.setEdgeValue(store.capacityColumn, index, capacity);
+    }
     store.recordIngestedEdge(index, edgeId, fileId);
     store.touch();
     return { index, edgeId };

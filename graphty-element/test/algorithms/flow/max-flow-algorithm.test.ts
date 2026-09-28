@@ -68,6 +68,20 @@ describe("MaxFlowAlgorithm", () => {
             });
         }
 
+        it("rejects a source and sink that are one node with E_OPTION_RANGE", async () => {
+            const graph = await createMockGraph(UNDIRECTED);
+            const algo = new MaxFlowAlgorithm(graph, { source: "B", sink: "B" });
+
+            const error = await algo.compute(detachedRunContext()).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_OPTION_RANGE");
+            assert.strictEqual(error.details.option, "sink");
+        });
+
         it("says when the ends were chosen automatically and when no flow path exists", async () => {
             const graph = await createMockGraph(UNDIRECTED);
             const output = await new MaxFlowAlgorithm(graph).compute(detachedRunContext());
@@ -90,6 +104,27 @@ describe("MaxFlowAlgorithm", () => {
             const notes = output.caveats.notes.join("\n");
             assert.notMatch(notes, /chosen automatically/);
             assert.notMatch(notes, /no directed path/i);
+        });
+    });
+
+    describe("Capacity", () => {
+        it("counts a negative capacity as none, so no parallel edge reports more flow than capacity", async () => {
+            const graph = await createMockGraph({
+                nodes: [{ id: "s" }, { id: "t" }],
+                edges: [
+                    { srcId: "s", dstId: "t", capacity: 5 },
+                    { srcId: "s", dstId: "t", capacity: -3 },
+                ],
+            });
+            const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(
+                detachedRunContext(),
+            );
+
+            assert.ok(output);
+            assert.strictEqual(output.graph?.maxFlow, 5);
+            for (const edge of output.edges ?? []) {
+                assert.deepStrictEqual(edge.values, { value: 5, capacity: 5, utilization: 1 });
+            }
         });
     });
 });

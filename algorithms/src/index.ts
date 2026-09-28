@@ -77,6 +77,7 @@ export type {
     HitsResultLike,
     LabelResultLike,
     MstResultLike,
+    PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspResultLike,
@@ -103,6 +104,10 @@ export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
 // option types one capital letter apart in the same barrel is a trap, not a convenience.
+export type {
+    EigenvectorOptions as IndexedEigenvectorOptions,
+    EigenvectorResult as IndexedEigenvectorResult,
+} from "./indexed/eigenvector.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";

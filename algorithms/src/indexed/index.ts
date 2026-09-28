@@ -38,13 +38,14 @@ export { connectedComponents, type LabelResult, weaklyConnectedComponents } from
 export { degreeCentrality, type DegreeCentralityOptions } from "./degree.js";
 export { depthFirstSearch, type DfsOptions, type DfsResult, hasCycle, topologicalSort } from "./dfs.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
+export { eigenvectorCentrality, type EigenvectorOptions, type EigenvectorResult } from "./eigenvector.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
 export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
 export { labelPropagation, type LabelPropagationOptions, type LabelPropagationResult } from "./label-propagation.js";
 export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions, type PrimResult } from "./mst.js";
-export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
+export { pageRank, type PageRankOptions, type PageRankResult, personalizedPageRank } from "./pagerank.js";
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";
 export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";

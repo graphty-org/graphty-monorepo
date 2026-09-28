@@ -5,7 +5,7 @@ import type {
     BfsOptions,
     BfsResultLike,
     HitsOptionsLike,
-    IndexedPageRankOptions,
+    PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspOptions,
@@ -109,7 +109,7 @@ expectTypeOf(dispatch(createAccelerator(ctx))).toEqualTypeOf<AcceleratedAlgorith
 // method-syntax members are bivariant in their parameters and an all-optional bag (`SsspOptions & { delta?: number }`,
 // or `{ cutoff?: number }` with `weights` dropped) is assignable to `SsspOptions` in both directions. `toEqualTypeOf`
 // on the GPU member's parameter is the one check that fails when a GPU option type drifts from the seam's by one key.
-expectTypeOf<IndexedPageRankOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
+expectTypeOf<PageRankOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
 
 // ---- P8 (PD-19): the four traversal members conform to the seam TYPE FOR TYPE -- the seam's option types in, the
 // design's result records out, which satisfy the seam's `*Like` shapes.

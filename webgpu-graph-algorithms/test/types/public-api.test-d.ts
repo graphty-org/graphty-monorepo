@@ -1,4 +1,4 @@
-import { type BfsOptions, type IndexedPageRankOptions, type SsspOptions } from "@graphty/algorithms";
+import { type BfsOptions, type PageRankOptionsLike, type SsspOptions } from "@graphty/algorithms";
 import { type F32, type F64, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
 import {
     type AcceleratorOptions,
@@ -455,7 +455,7 @@ expectTypeOf<CommunityResultLike["modularity"]>().toBeNumber();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().parameter(0).toEqualTypeOf<GraphSnapshot>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>()
     .parameter(1)
-    .toEqualTypeOf<IndexedPageRankOptions | undefined>();
+    .toEqualTypeOf<PageRankOptionsLike | undefined>();
 expectTypeOf<HitsOptions>().toEqualTypeOf<HitsOptionsLike>(); // M8b's record IS the CPU seam's shape
 expectTypeOf<BetweennessAcceleratorOptions["sources"]>().toEqualTypeOf<readonly number[] | undefined>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().returns.resolves.toEqualTypeOf<PageRankResultLike>();

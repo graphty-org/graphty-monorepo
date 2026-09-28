@@ -22,6 +22,8 @@ import type {
     IndexedApspOptions,
     IndexedApspResult,
     IndexedBellmanFordResult,
+    IndexedEigenvectorOptions,
+    IndexedEigenvectorResult,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
     LabelResult,
@@ -77,6 +79,21 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed eigenvector and personalized PageRank exports", () => {
+    it("reaches both through the package barrel, with the eigenvector's flat Indexed* types", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        const s = b.freeze();
+        const options: IndexedEigenvectorOptions = { normalized: false };
+        const r: IndexedEigenvectorResult = pkg.indexed.eigenvectorCentrality(s, options);
+        expect(r.scores[0]).toBeCloseTo(Math.SQRT1_2, 12);
+        const p = pkg.indexed.personalizedPageRank(s, Float64Array.of(1, 1));
+        expect(p.scores[0]).toBeCloseTo(0.5, 12);
     });
 });
 

@@ -20,9 +20,13 @@ export function rescaleLayout(
 ): PositionMap | number[][] {
     // Check if pos is empty
     if (Array.isArray(pos)) {
-        if (pos.length === 0) {return [];}
+        if (pos.length === 0) {
+            return [];
+        }
     } else {
-        if (Object.keys(pos).length === 0) {return {};}
+        if (Object.keys(pos).length === 0) {
+            return {};
+        }
     }
 
     // Extract position values
@@ -71,7 +75,7 @@ export function rescaleLayout(
             for (let i = 0; i < targetDim; i++) {
                 centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
             }
-            (centeredPos)[node] = centered;
+            centeredPos[node] = centered;
         }
     }
 
@@ -108,7 +112,9 @@ export function rescaleLayout(
                         return center[i];
                     }
                     // Preserve NaN values (Bug #3)
-                    if (isNaN(val)) {return NaN;}
+                    if (isNaN(val)) {
+                        return NaN;
+                    }
                     return val * scaleFactor + center[i];
                 }),
             );
@@ -122,7 +128,9 @@ export function rescaleLayout(
                         return center[i];
                     }
                     // Preserve NaN values (Bug #3)
-                    if (isNaN(val)) {return NaN;}
+                    if (isNaN(val)) {
+                        return NaN;
+                    }
                     return val * scaleFactor + center[i];
                 });
             }

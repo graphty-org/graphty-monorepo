@@ -470,8 +470,13 @@ const centralities = pageRankCentrality(graph, options);
 ```
 
 Over a `@graphty/graph-format` snapshot, `new indexed.DeltaPageRank(s)` and `new indexed.PriorityDeltaPageRank(s)` are the snapshot
-counterparts of `DeltaPageRank` and `PriorityDeltaPageRank`, with the same results and the same
-state kept between calls; `update()` takes node indices and skips any outside the graph.
+counterparts of `DeltaPageRank` and `PriorityDeltaPageRank`, with the same state kept between
+calls; `update()` takes node indices and skips any outside the graph. A snapshot stores edge
+weights in single precision, and both engines divide by the weighted out-degree even when
+`weighted` is false, so a graph whose weights are not exact in single precision gives scores that
+differ from the legacy engines in about the seventh significant digit. For the legacy scores to
+full double precision, pass the double-precision weights of every arc as `{ weights }` (arcCount
+long, in arc order); a vector of any other length throws a `RangeError`.
 
 #### Eigenvector Centrality
 

@@ -4294,9 +4294,12 @@ export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankRes
 ```
 
 The facade returns `{ ranks: ids.toRecord(scores), iterations, converged }`
-unchanged; the `SimpleDeltaPageRank` path becomes a second indexed
-implementation over the same view with today's dispatch rule kept so the
-differential tests compare like with like.
+unchanged. Legacy's two paths -- the delta engine it picks when `useDelta
+!== false` and the graph has more than 100 nodes, and the plain loop above
+otherwise -- run the same power iteration with the same stopping rule, so one
+indexed implementation answers both and the facade needs no dispatch on
+node count; the differential tests run fixtures on both sides of 100 nodes
+with `useDelta` undefined, true and false to keep that true.
 
 Port 4 -- connectedComponents (union-find over `edgeList()`, each edge
 once): `for (let e = 0; e < s.edgeCount; e++) uf.union(src[e], dst[e]);

@@ -123,6 +123,22 @@ function nodeVector(v: NumericVector | undefined, n: number, name: string): F64 
     return out;
 }
 
+/**
+ * The per-arc weight override, checked against the arc count, or the snapshot's own weights.
+ * @param s - The snapshot
+ * @param w - The caller's override
+ * @returns The weights to use, or null when the snapshot has none and no override is given
+ */
+function arcWeights(s: GraphSnapshot, w: NumericVector | undefined): NumericVector | null {
+    if (w === undefined) {
+        return s.weights;
+    }
+    if (w.length !== s.arcCount) {
+        throw new RangeError(`weights has ${String(w.length)} entries; the graph has ${String(s.arcCount)} arcs`);
+    }
+    return w;
+}
+
 function checkDamping(d: number): void {
     if (d < 0 || d > 1) {
         throw new Error("Damping factor must be between 0 and 1");
@@ -159,7 +175,7 @@ export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): P
     const personal = nodeVector(o.personalization, n, "personalization");
     let rank = nodeVector(o.initialRanks, n, "initialRanks") ?? new Float64Array(n).fill(1 / n);
     const order = arcsInEdgeOrder(s);
-    const weights = o.weighted === true ? (o.weights ?? s.weights) : null;
+    const weights = o.weighted === true ? arcWeights(s, o.weights) : null;
     const outW = outWeights(s, order, weights);
     let next = new Float64Array(n);
     let iterations = 0;
@@ -224,7 +240,7 @@ export class DeltaPageRank {
         }
         this.s = s;
         this.order = arcsInEdgeOrder(s);
-        this.weights = o.weights ?? s.weights;
+        this.weights = arcWeights(s, o.weights);
         this.outW = outWeights(s, this.order, this.weights);
         this.scores = new Float64Array(s.nodeCount);
         this.deltas = new Float64Array(s.nodeCount).fill(1 / s.nodeCount);
@@ -428,7 +444,7 @@ export class PriorityDeltaPageRank {
         }
         this.s = s;
         this.order = arcsInEdgeOrder(s);
-        this.weights = o.weights ?? s.weights;
+        this.weights = arcWeights(s, o.weights);
         this.outW = outWeights(s, this.order, this.weights);
         this.scores = new Float64Array(s.nodeCount);
         this.deltas = new Float64Array(s.nodeCount).fill(1 / s.nodeCount);

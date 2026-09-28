@@ -43,11 +43,24 @@ function fractionalWeights(): Graph {
     return out;
 }
 
+/** Node b has arcs, all of weight 0: weighted, it is not dangling and passes nothing on. */
+function zeroWeightArcs(): Graph {
+    const g = new Graph({ directed: true });
+    g.addEdge("a", "b", 1);
+    g.addEdge("a", "c", 2);
+    g.addEdge("b", "c", 0);
+    g.addEdge("b", "d", 0);
+    g.addEdge("c", "a", 1);
+    g.addEdge("d", "a", 3);
+    return g;
+}
+
 function fixtures(): FacadeFixture[] {
     return [
         ...directedFixtures(),
         { name: "self-loops, a dangling node and an isolated node", graph: selfLoopsAndDangling() },
         { name: "random directed 60 nodes, fractional weights", graph: fractionalWeights() },
+        { name: "a node whose arcs all weigh 0", graph: zeroWeightArcs() },
         { name: "random directed 150 nodes, 700 edges", graph: gnm(150, 700, true, 97531) },
         { name: "random directed 240 nodes, 1200 weighted edges", graph: gnm(240, 1200, true, 8642, true) },
     ];
@@ -180,6 +193,17 @@ describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
         const s = snapshotOf(g);
         expect(() => deltaPageRank(s, { personalization: [1] })).toThrow(RangeError);
         expect(() => deltaPageRank(s, { initialRanks: [1, 2, 3] })).toThrow(RangeError);
+    });
+
+    it("rejects a per-arc weights override whose length is not the arc count", () => {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b");
+        g.addEdge("b", "c");
+        const s = snapshotOf(g);
+        const weights = [1];
+        expect(() => deltaPageRank(s, { weighted: true, weights })).toThrow(RangeError);
+        expect(() => new DeltaPageRank(s, { weights })).toThrow(RangeError);
+        expect(() => new PriorityDeltaPageRank(s, { weights })).toThrow(RangeError);
     });
 
     it("counts every parallel arc: two a->b arcs weigh like one a->b edge of weight 2", () => {

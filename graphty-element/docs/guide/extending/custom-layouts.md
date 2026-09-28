@@ -77,7 +77,8 @@ so they overlap: multiply them in `place` (a `scale: 50` option) or ask NetworkX
   `context.dimensions` says which view you are drawing into.
 - **It keeps randomness repeatable.** `context.random()` gives seeded numbers in [0, 1), so the
   same graph is laid out the same way every time. Set `random: true` for a different arrangement
-  each run.
+  each run: the element then adds a `seed` option, and a reader who passes `{ seed: 7 }` gets the
+  same arrangement again.
 - **It redraws when the graph changes.** Nodes and edges added later are laid out by calling
   `place` again.
 
@@ -506,8 +507,9 @@ implementation cannot register under `force`: the arrangement table is the eleme
 judgement about which of its own engines to prefer, which is not a judgement a third party can
 make on the element's behalf. Register your own key.
 
-**There is no progress and no cancellation** anywhere in the layout path, for a built-in or a
-plugin. A single-pass engine that takes a long time holds the frame.
+**There is no progress and no cancellation** for an engine class, built-in or registered. A
+single-pass engine that takes a long time holds the frame. (A `defineLayout` layout has both:
+`context.progress()` yields to the page, and `context.signal` aborts when the layout is replaced.)
 
 **A saved document's `graph.layout` is inert.** Nothing reads it back yet, for a built-in layout
 or a registered one.

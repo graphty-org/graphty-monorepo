@@ -220,7 +220,7 @@ graph-io source: `formats/gexf/importer.ts` and `schema.ts`.
 
 | Case | graph-io today | Right behaviour |
 |---|---|---|
-| start / end, `startopen` / `endopen`, both start and startopen, spells, 1.3 timestamps and intervals, overlapping or touching spells, timed attvalues, dynamic weight | Supported; `SPELL_OPEN_DROPPED`, `OPEN_BOUND_CONFLICT` | Keep it. `end < start`: warn. |
+| start / end, `startopen` / `endopen`, both start and startopen, spells, 1.3 timestamps and intervals, overlapping or touching spells, timed attvalues, dynamic weight | Supported; an open spell bound is kept in the `spellsOpen` column; `OPEN_BOUND_CONFLICT` | Keep it. `end < start`: warn. |
 
 **viz**
 

@@ -1700,7 +1700,7 @@ function defaultEdgeType(snapshot: GraphSnapshot): GexfEdgeType {
     if (!snapshot.directed) {
         return "undirected";
     }
-    return graphExtraText(snapshot, "defaultedgetype") === "mutual" ? "mutual" : "directed";
+    return graphExtraText(snapshot, "defaultedgetype")?.trim().toLowerCase() === "mutual" ? "mutual" : "directed";
 }
 
 /**

@@ -158,6 +158,16 @@ export {
 };
 
 const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutual"]);
+
+/**
+ * An edge type as a keyword of {@link EDGE_TYPES}: the schema spells them in lower case, but files
+ * in the wild write `Directed`, and the keyword is read whatever its case or surrounding space.
+ * @param text - a `defaultedgetype` or edge `type` value
+ * @returns the text trimmed and in lower case
+ */
+function edgeTypeKeyword(text: string): string {
+    return text.trim().toLowerCase();
+}
 const ABORT_CHECK_INTERVAL = 64;
 
 /** The XML attributes the importer reads on `<node>`; any other one is reported once. */
@@ -812,8 +822,8 @@ class GexfReader implements XmlHandler {
         const edgeType = attrs.get("defaultedgetype");
         if (edgeType === undefined) {
             this.defaultKind = this.options.defaultDirected ? "directed" : "undirected";
-        } else if (EDGE_TYPES.has(edgeType)) {
-            this.defaultKind = edgeType as GexfEdgeType;
+        } else if (EDGE_TYPES.has(edgeTypeKeyword(edgeType))) {
+            this.defaultKind = edgeTypeKeyword(edgeType) as GexfEdgeType;
         } else {
             this.defaultKind = this.options.defaultDirected ? "directed" : "undirected";
             this.warnHeader("defaultedgetype", edgeType, where);
@@ -1420,13 +1430,14 @@ class GexfReader implements XmlHandler {
             return;
         }
         let kind: EdgeKind = this.defaultKind;
-        const type = attrs.get("type");
-        if (type !== undefined) {
+        const typeText = attrs.get("type");
+        if (typeText !== undefined) {
+            const type = edgeTypeKeyword(typeText);
             if (!EDGE_TYPES.has(type)) {
                 report.error(
                     "validation-error",
                     EDGE_TYPE_CODE,
-                    `edge type "${type}" is not directed, undirected or mutual`,
+                    `edge type "${typeText}" is not directed, undirected or mutual`,
                     where,
                 );
                 report.counts.skippedEdges++;

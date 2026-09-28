@@ -567,6 +567,16 @@ describe("gexfImporter: headers and defaults", () => {
         expect(values(snapshot.edges.byRole("id"))).toEqual(["u1", undefined, "d1", "m1", undefined]);
     });
 
+    it("reads defaultedgetype and an edge type whatever their case", async () => {
+        const doc = `<gexf version="1.2"><graph defaultedgetype="Directed"><nodes><node id="a"/><node id="b"/><node id="c"/></nodes><edges><edge source="a" target="b"/><edge source="b" target="c" type=" UNDIRECTED "/><edge source="c" target="a" type="Directed"/></edges></graph></gexf>`;
+        const { snapshot, report } = await load(doc);
+        expect(report.errorCount).toBe(0);
+        expect(report.warningCount).toBe(0);
+        expect(snapshot.directed).toBe(true);
+        expect(values(snapshot.edges.byRole("directed"))).toEqual([true, false, false, true]);
+        expect(snapshot.meta.extra.gexf).toEqual({ defaultedgetype: "Directed" });
+    });
+
     it("coerces ids per the option", async () => {
         const doc = `<gexf version="1.3"><graph><nodes><node id="1"/><node id="01"/><node id="x"/></nodes><edges><edge source="1" target="x"/></edges></graph></gexf>`;
         const canonical = await load(doc);

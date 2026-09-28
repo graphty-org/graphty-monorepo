@@ -114,7 +114,11 @@ export class NGraphEngine extends LayoutEngine {
      */
     constructor(config: object = {}) {
         super();
-        this.ngraph = createGraph();
+        // A multigraph: each element edge is its own ngraph link. ngraph's default names a link by
+        // its endpoints' strings, so two parallel edges -- or `"1" -> 1` beside `1 -> 1` -- came
+        // back as ONE shared link, and removing either took the other's spring with it: its
+        // position was then undefined and redrawing it threw.
+        this.ngraph = createGraph({ multigraph: true });
 
         // Cast config to a more specific type for property access
         const typedConfig = config as Record<string, unknown>;

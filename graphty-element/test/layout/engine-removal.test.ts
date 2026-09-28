@@ -101,6 +101,25 @@ describe("a layout engine gives back a node the graph has removed", () => {
         assert.strictEqual(simulation.ngraph.getLinksCount(), 0, "and the link");
     });
 
+    it("keeps a parallel edge's link when the edge beside it is removed", () => {
+        // ngraph names a link by its endpoints' strings unless it is a multigraph, so two edges
+        // between the same pair -- or between "1" and 1 -- shared one link, and removing one took
+        // the other's spring: its position was undefined and the next redraw threw.
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const simulation = new NGraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        const first = edge(a, b);
+        const second = edge(a, b);
+        layoutEngineInternals.addEdges(simulation, [first, second]);
+
+        simulation.removeEdge(first);
+
+        assert.deepStrictEqual([...simulation.edges], [second]);
+        assert.strictEqual(simulation.ngraph.getLinksCount(), 1, "ngraph keeps the other edge's link");
+        assert.doesNotThrow(() => simulation.getEdgePosition(second), "and its position");
+    });
+
     it("ignores a node or an edge it was never given, rather than throwing", () => {
         // Removal arrives from the element's data manager, which does not know which engine holds
         // what: a node added before the current engine was built, or one the reader removed twice,

@@ -11,7 +11,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 import fc from "fast-check";
-import { afterEach, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { EdgeId, NodeId } from "../../../src/catalog/types";
 import { EDGE_ID_COLUMN, edgeIdOf } from "../../../src/data/edgeIdentity";
@@ -211,15 +211,32 @@ describe("every kept set survives the data manager's edits and re-freezes", () =
     });
 
     it("matches the model after every command, over 100 sequences", async () => {
+        // A derivation hook that throws -- a redraw of an edge the layout engine lost -- rejects
+        // no command the model awaits, so it would pass here and fail only the run as a whole.
+        const escaped: unknown[] = [];
+        const onRejection = (event: PromiseRejectionEvent): void => {
+            escaped.push(event.reason);
+        };
+        const onError = (event: ErrorEvent): void => {
+            escaped.push(event.error);
+        };
+        window.addEventListener("unhandledrejection", onRejection);
+        window.addEventListener("error", onError);
         const driver = new DataManagerDriver(graph);
         const ops = opsFor({ embed: false, declared: false }).map((arb) => arb.map((op) => new Step(op)));
-        await fc.assert(
-            fc.asyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
-                graph.getDataManager().clear();
-                driver.path = null;
-                await fc.asyncModelRun(() => ({ model: new Model(), real: driver }), commands);
-            }),
-            fcParams(100),
-        );
+        await fc
+            .assert(
+                fc.asyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
+                    graph.getDataManager().clear();
+                    driver.path = null;
+                    await fc.asyncModelRun(() => ({ model: new Model(), real: driver }), commands);
+                }),
+                fcParams(100),
+            )
+            .finally(() => {
+                window.removeEventListener("unhandledrejection", onRejection);
+                window.removeEventListener("error", onError);
+            });
+        assert.deepEqual(escaped.map(String), [], "no error escaped a command");
     });
 });

@@ -1,0 +1,163 @@
+name: Visual seed capture
+
+# Captures the Storybooks of an older, known-good commit with master's capture tool, so the owner
+# can seed visual-baselines/ from it: `visual-review serve --master-run <this run's id>` lists it as
+# master, and Finish opens the seed pull request (visual-review/README.md, "Seeding"). Dispatch it
+# from master with the commit to capture:
+#   gh workflow run visual-seed.yml --ref master -f ref=<sha>
+# The capture job repeats ci.yml's `visual` job (same runner image, same steps, same tool from
+# master) except that it has no master reference, so every story without a baseline is `new`, and
+# that results.json records the captured commit instead of master's. The review page finds the
+# jobs by their names ("visual (<project>)") and the artifacts by "visual-<project>-<attempt>".
+
+on:
+    workflow_dispatch:
+        inputs:
+            ref:
+                description: "The commit (or branch or tag) whose Storybooks are captured"
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+jobs:
+    storybook:
+        name: Build Storybooks at ${{ inputs.ref }}
+        runs-on: ubuntu-latest
+        outputs:
+            sha: ${{ steps.sha.outputs.sha }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+
+            - name: Resolve the commit
+              id: sha
+              run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # build-storybook depends on ^build, so nx builds the packages each Storybook imports first.
+            - name: Build Storybooks
+              run: pnpm exec nx run-many -t build-storybook -p graphty-element,compact-mantine --parallel=2
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-compact-mantine
+                  path: compact-mantine/storybook-static/
+
+    visual:
+        name: visual (${{ matrix.project }})
+        needs: storybook
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: compact-mantine
+                      artifact: build-storybook-compact-mantine
+                    - project: graphty-element
+                      artifact: build-storybook-element
+        steps:
+            # Master's checkout: the capture tool, projects.json and the baselines come from here.
+            - uses: actions/checkout@v4
+
+            - name: Restore this project's baseline images
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project)) }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").dependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - name: Install Chromium
+              run: pnpm --filter @graphty/visual-review exec playwright install --with-deps chromium
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.project }}/storybook-static/
+
+            - name: Capture
+              run: node visual-review/trusted/cli.mjs capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual"
+
+            # capture takes the commit from GITHUB_SHA, which is master's here; a seed Finish branches
+            # from results.json's commit, so it must name the commit whose Storybook was captured.
+            - name: Record the captured commit
+              if: always()
+              env:
+                  SHA: ${{ needs.storybook.outputs.sha }}
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  if [[ -f "$f" ]]; then
+                      jq --arg sha "$SHA" '.commit = $sha' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+                  fi
+
+            - name: Upload captures
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual/
+                  retention-days: 30
+
+            - name: Write the counts to the job summary
+              if: always()
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  {
+                      echo "### Visual seed capture (${{ matrix.project }}) at ${{ needs.storybook.outputs.sha }}"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items",
+                              "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      else
+                          echo "No results.json: capture did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"

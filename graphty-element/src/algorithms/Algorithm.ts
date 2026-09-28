@@ -5,7 +5,7 @@ import { narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
-import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId } from "../catalog/types";
+import type { AlgorithmDescriptor, FieldDescriptor, NodeId } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
@@ -376,18 +376,6 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const merged = simplify === undefined ? options : { ...options, simplify };
 
         return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this));
-    }
-
-    /**
-     * One edge's record, by the id an input named it by: for an attribute the snapshot does not
-     * carry yet, such as a flow capacity. It is not a topology read -- the ids come from the input
-     * -- and it goes away once the store carries attribute columns.
-     * @param id - The edge's session id, from `scopeEdges`.
-     * @returns The record the edge was loaded from, or undefined.
-     * @internal
-     */
-    protected edgeRecord(id: EdgeId): Readonly<Record<string, unknown>> | undefined {
-        return this.graph.getDataManager().getEdge(id)?.data;
     }
 
     /**

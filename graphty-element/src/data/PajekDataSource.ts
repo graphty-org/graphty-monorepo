@@ -78,12 +78,13 @@ export class PajekDataSource extends DataSource {
                     ...(value === undefined ? {} : { weight: value }),
                 }),
                 // Direction is stated by a line section header; a file with none states nothing.
-                statedBy: (snapshot, report) =>
-                    report.issues.some((issue) => issue.code === PAJEK_ISSUE.NO_LINES)
-                        ? null
-                        : snapshot.directed
-                          ? "*Arcs"
-                          : "*Edges",
+                statedBy: (snapshot, report) => {
+                    if (report.issues.some((issue) => issue.code === PAJEK_ISSUE.NO_LINES)) {
+                        return null;
+                    }
+
+                    return snapshot.directed ? "*Arcs" : "*Edges";
+                },
             },
         );
 

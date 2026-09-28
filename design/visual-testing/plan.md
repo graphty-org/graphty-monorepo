@@ -55,6 +55,8 @@ These keep milestone 1 small. Each is reversed in a later milestone without rewo
 | An accept writes an unsigned record marked `"unproven": true`                                                                                                                                                                                                                                       | Signing needs hardware keys the owner has not bought yet                                                                                                                                                                                                                                                                                                                                                                                                                  | Milestone 3                                                                            |
 | Pull requests from forks are not supported by accept                                                                                                                                                                                                                                                | Every waiting pull request is on this repository                                                                                                                                                                                                                                                                                                                                                                                                                          | Milestone 3                                                                            |
 | Viewport-only screenshots (1200 x 900) for both projects                                                                                                                                                                                                                                            | A full-page capture can resize a Babylon canvas mid-frame; compact-mantine full height waits for a stability measurement                                                                                                                                                                                                                                                                                                                                                  | Milestone 2                                                                            |
+| Baseline PNGs are Git LFS objects from the first baseline; only the `visual` job fetches images, for its own project, through the Actions cache                                                                                                                                                     | Plain-git image history is permanent (110 to 210 MB in year one) and a later move is a history rewrite; `design.md` section 7 has the bandwidth estimate                                                                                                                                                                                                                                                                                                                  | Not planned to change                                                                  |
+| Seeding is per story: a story with no baseline that looks as in master's newest capture is `unseeded` and passes the gate; one a pull request adds or changes is `new` and blocks                                                                                                                   | Many stories need several rounds before they look right; one-pass seeding would force accepting wrong images or blocking every pull request (`design.md` section 11a)                                                                                                                                                                                                                                                                                                     | Not planned to change                                                                  |
 
 ### Files
 
@@ -71,7 +73,7 @@ visual-review/                       @graphty/visual-review, private, plain .mjs
                                      graphty-element), seedFromMaster. Modes are not listed here:
                                      they come from each story's parameters.chromatic.modes
   capture/capture.mjs                Playwright capture (phase 3)
-  trusted/cli.mjs                    subcommands: capture, compare, serve
+  trusted/cli.mjs                    subcommands: capture, reference, compare, serve
   trusted/lib/results.mjs            results.json format and its validator (phase 1)
   trusted/lib/compare.mjs            hash, pixel comparison, classification (phase 2)
   trusted/lib/github.mjs             gh calls: pull requests, CI runs, artifacts (phase 4)
@@ -81,7 +83,9 @@ visual-review/                       @graphty/visual-review, private, plain .mjs
   test/*.test.mjs
   test/fixtures/results/             a small results.json with changed, new, removed and unstable
                                      items and their PNGs, used by phases 2 and 4
-visual-baselines/<project>/<story-id>[.<mode>].png
+.gitattributes                       visual-baselines/**/*.png stored in Git LFS
+tools/lfs-pre-push.sh                the Git LFS upload, run first by .husky/pre-push
+visual-baselines/<project>/<story-id>[.<mode>].png    a Git LFS object
 visual-baselines/<project>/<story-id>.json     only for excluded stories in this milestone
 visual-baselines/reviews/<utc-time>-<id>.json  one record per accept session
 ```
@@ -103,6 +107,7 @@ Written by capture, read by CI, the review page and later the MCP server:
     "runAttempt": 1,
     "local": null,
     "seeded": true,
+    "reference": 987600,
     "complete": true,
     "expected": 828,
     "capturedAt": "2026-09-27T12:00:00Z",
@@ -130,9 +135,12 @@ Written by capture, read by CI, the review page and later the MCP server:
 }
 ```
 
-`seeded` is true when the captured commit holds any baseline for the project. Capture rewrites
+`seeded` is true when the captured commit holds any baseline for the project. `reference` is the
+master CI run whose capture served as the reference for stories with no baseline, or null (a
+master capture, or no reference downloaded). Capture rewrites
 the file after every item and sets `complete: true` only at the end, so a crash leaves a file that
-says how far it got (`items.length` of `expected`). `status` is one of `unchanged`, `changed`, `new`, `removed` (a baseline whose story is gone),
+says how far it got (`items.length` of `expected`). `status` is one of `unchanged`, `changed`, `new`, `unseeded` (no
+baseline, and the capture matches master's newest capture of the story), `removed` (a baseline whose story is gone),
 `unstable` (two captures disagree and neither equals the baseline), `failed` (render errored or
 did not settle) or `excluded`. `local` is null for CI and holds `git describe --always --dirty` and
 the SHA-256 of `git diff HEAD --binary` for a local run, as `{ "describe": "...", "diff": "<sha256>" }`;
@@ -146,7 +154,7 @@ matched the baseline); for `changed` and `unstable` it is the first.
 valid); every reader calls it before using a field. Beyond the types it enforces that `file` is
 exactly `<id>[.<mode>].png` (id and mode are lowercase letters, digits and hyphens, so a file name
 can never hold `/` or `..`), that no story and mode appears twice, that `changed` and `unchanged`
-items carry both hashes, `new` only a capture and `removed` only a baseline, at most 5,000 items,
+items carry both hashes, `new` and `unseeded` only a capture and `removed` only a baseline, at most 5,000 items,
 at most 100 console lines, and strings of at most 2,000 characters.
 
 ### Phase 1: package skeleton and the results format
@@ -383,7 +391,10 @@ when `github.event_name == 'pull_request'`: a sparse checkout of `visual-review/
 every `visual-*` artifact of the run (all attempts), and `visual-review/trusted/gate.mjs`, which
 fetches the base branch tip's tree (no blobs) and, for every project with baseline PNGs there,
 fails, naming the project and counts, when the newest attempt's `results.json` holds an item that
-is not `unchanged` or `excluded`, or is missing or unfinished. An unseeded project passes. It never
+is not `unchanged`, `excluded` or `unseeded`, or is missing or unfinished. A project with no
+baseline on the base branch passes. The job also fetches its project's LFS images (`git lfs pull
+--include`, through the Actions cache) and, on pull requests, master's newest capture as the
+reference for stories with no baseline (`visual-review reference`, `actions: read`). It never
 runs on master, so release, deploy and coverage are unaffected.
 
 **Done when.** The tooling pull request's own CI run shows both `visual` jobs green, each artifact
@@ -400,8 +411,11 @@ its live check.
 1. The owner merges the tooling pull request. Master's CI run for the merge commit X finishes.
 2. An agent starts `serve --master-run <X's run id>` through servherd and gives the owner the URL.
 3. The owner opens "master" (the page shows X and its run id), reviews the compact-mantine grid
-   (828 images), excludes unstable stories with a reason, accepts the rest, and presses Finish. The
-   tool pushes `visual/seed-<date>` at X and opens the seed pull request.
+   (828 images), accepts the stories that look right, rejects the ones that do not with a reason,
+   excludes unstable stories with a reason, leaves the rest, and presses Finish. The tool pushes
+   `visual/seed-<date>` at X, opens the seed pull request, and files the rejects as one issue.
+   Later rounds repeat this for the stories still without a baseline; until then they block only
+   a pull request that changes them.
 4. The seed pull request's own `visual` job captures its merge commit, with the newest master, on
    a different runner.
 
@@ -443,6 +457,8 @@ has no remaining Chromatic review to do for these two projects.
   its snapshot limit rather than billing, remove the payment method, and stop using the
   `chromatic` label.
 - Order two FIDO2 security keys with PIN support (needed for milestone 3).
+- Install git-lfs on every machine that accepts or pushes baselines (`visual-review/README.md`,
+  "Setup"); the development server has it.
 
 ## Later milestones (outline)
 
@@ -458,7 +474,8 @@ has no remaining Chromatic review to do for these two projects.
    The graphty app after its light mode (preview reads `theme`, the app sets `colorScheme`) and its
    eruda debug button (issue #204) are fixed.
 4. Pre-push: a blocking step before the gate's "No package is affected" exit, failing a push of a
-   baseline PNG without a record naming its hash; an opt-in `PREPUSH_VISUAL=1` local capture.
+   baseline PNG without a record naming its hash (read from the PNG's LFS pointer with the gate's
+   `contentHash`, so no image is downloaded); an opt-in `PREPUSH_VISUAL=1` local capture.
    Measure local against CI captures of the same commit and record it in `design.md`.
 5. Review page: modes of a story together, live Storybook links (graphty.app for the baseline, the
    pull request's Storybook served by a second servherd server on another origin), per-story
@@ -487,5 +504,5 @@ remove every Chromatic job, script, addon, dependency and token, and replace `is
 ### Milestone 5: later
 
 Notes Claude can pick up (as untrusted pull request data), an MCP server with no accept tool,
-WebKit for compact-mantine, grouping identical changes, region masks, a history page, and WebP or
-Git LFS when baseline history passes 300 MB.
+WebKit for compact-mantine, grouping identical changes, region masks, a history page, and WebP
+baselines if LFS storage or bandwidth ever matters.

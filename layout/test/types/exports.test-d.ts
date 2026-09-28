@@ -90,3 +90,8 @@ expectTypeOf<Extract<keyof typeof layout, Removed>>().toEqualTypeOf<never>();
 // The unused 1.x `Embedding` type is gone as well.
 // @ts-expect-error -- layout 2.0.0 exports no Embedding type
 export type NoEmbedding = layout.Embedding;
+
+// The ForceAtlas2Simulation constructor's options type is exported, so a caller (and the API docs) can name it.
+expectTypeOf<ConstructorParameters<typeof layout.ForceAtlas2Simulation>[0]>().toEqualTypeOf<
+    layout.ForceAtlas2SimulationOptions | undefined
+>();

@@ -113,6 +113,30 @@ describe("what the random sequences found, each pinned on its own", () => {
         session.dispose();
     });
 
+    it("an import undone past and redone gives its edges back the load provenance they had", async () => {
+        const session = blankSession({ baselineWindow: true });
+        const digest = (): string => stateDigest(dispatcherOf(session).state, { snapshot: session.snapshot() });
+        const data = JSON.stringify({
+            nodes: [{ id: "n1" }, { id: "n2" }, { id: "n3" }],
+            edges: [
+                { src: "n1", dst: "n2" },
+                { src: "n2", dst: "n3" },
+            ],
+        });
+        await session.data.import({ type: "json", config: { data } });
+        const loaded = digest();
+        await session.data.removeEdges(["0"]);
+        // Read, so the last freeze is a graph without the edge: undoing both steps in one go
+        // then finds it only in the removal's recorded row, put back by the same restore.
+        session.snapshot();
+
+        await session.history.restoreTo(null);
+        await session.redo();
+
+        assert.strictEqual(digest(), loaded, "the edge columns graphty.edgeHash, edgeOrdinal and edgeAmong");
+        session.dispose();
+    });
+
     it("the capture a history move seals cannot evict the step it moves to", async () => {
         const session = await fixtureSession();
         const layout = fakeLayout(session);

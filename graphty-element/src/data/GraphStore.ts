@@ -126,6 +126,44 @@ interface PendingPositions {
 /** Every registered builder column's value in one row, by column name; unset cells are absent. */
 type RowValues = ReadonlyMap<string, unknown>;
 
+/**
+ * An edge's stable-identity cells in a snapshot.
+ * @param snapshot - The snapshot.
+ * @param edgeId - The element-assigned counter.
+ * @returns The cells, or undefined when the snapshot holds no such edge or it was never completed.
+ */
+function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells | undefined {
+    const row = snapshot.edgeIndexOf(edgeId);
+    return row === INVALID_INDEX
+        ? undefined
+        : identityOf(
+              new Map(
+                  [IDENTITY_COLUMNS.edgeHash, IDENTITY_COLUMNS.edgeOrdinal, IDENTITY_COLUMNS.edgeAmong].map((name) => [
+                      name,
+                      snapshot.edges.value(name, row),
+                  ]),
+              ),
+          );
+}
+
+/**
+ * An edge's stable-identity cells from its column values.
+ * @param values - The values, by column name.
+ * @returns The cells, or undefined when it has no hash yet.
+ */
+function identityOf(values: RowValues): EdgeIdentityCells | undefined {
+    const hash = values.get(IDENTITY_COLUMNS.edgeHash) as readonly number[] | undefined;
+    if (hash === undefined) {
+        return undefined;
+    }
+
+    return {
+        hash: [hash[0], hash[1]],
+        ordinal: values.get(IDENTITY_COLUMNS.edgeOrdinal) as number,
+        among: values.get(IDENTITY_COLUMNS.edgeAmong) as number,
+    };
+}
+
 /** A node row a removal took out, with what putting it back needs. */
 interface RemovedNode {
     /** Its id. */
@@ -611,22 +649,23 @@ export class GraphStore {
      * @returns the hash, ordinal and among, or undefined when the last freeze holds no such edge
      */
     frozenEdgeIdentity(edgeId: number): EdgeIdentityCells | undefined {
-        const snapshot = this.cache;
-        const row = snapshot === null ? INVALID_INDEX : snapshot.edgeIndexOf(edgeId);
-        if (snapshot === null || row === INVALID_INDEX) {
-            return undefined;
+        // An undo that runs several steps in one go never freezes between them, so the edge may
+        // be in the graph only by a structural change still waiting -- a removal undone in the
+        // same restore -- whose recorded row holds the cells the last freeze does not. The newest
+        // waiting change that names the edge decides.
+        for (let at = this.structural.length - 1; at >= 0; at--) {
+            const change = this.structural[at];
+            if (change.kind === "replace") {
+                return change.restore ? identityIn(change.kept.snapshot, edgeId) : undefined;
+            }
+
+            const edge = change.rows.edges.find((each) => each.edgeId === edgeId);
+            if (edge !== undefined) {
+                return change.kind === "insert" ? identityOf(edge.values) : undefined;
+            }
         }
 
-        const hash = snapshot.edges.value(IDENTITY_COLUMNS.edgeHash, row) as readonly number[] | undefined;
-        if (hash === undefined) {
-            return undefined;
-        }
-
-        return {
-            hash: [hash[0], hash[1]],
-            ordinal: snapshot.edges.value(IDENTITY_COLUMNS.edgeOrdinal, row) as number,
-            among: snapshot.edges.value(IDENTITY_COLUMNS.edgeAmong, row) as number,
-        };
+        return this.cache === null ? undefined : identityIn(this.cache, edgeId);
     }
 
     /**

@@ -1038,7 +1038,7 @@ Each item below is a one-way door: a published name, shape, file format or behav
 consumers and saved documents would come to depend on. None is decided by this specification. Each
 carries a recommendation.
 
-1. **Where third-party file WRITERS register.** The owner decided what an export contains
+1. **Where third-party file WRITERS register.** DECIDED 2026-09-28: option A, element-owned `registerFormatWriter`. (`design/decisions/2026-09-28-extension-contract-owner-decisions.md`) The owner decided what an export contains
    ("whatever the format supports"), not where writers register. Options: (A) an element-owned
    `registerFormatWriter({ descriptor, exporter })` that wraps a graph-io `GraphExporter`, so the
    writing code is graph-io's contract but the catalogue entry, the reserved ids, the options and
@@ -1111,7 +1111,7 @@ descriptor)` so an author who already has a graph-io `GraphImporter` registers i
    it. Ids compare exactly (section 4.3 item 5). The recorded `package` is still only the
    extension's claim (section 6.4 item 2): it lets an honest document say which vendor it meant,
    and it cannot catch a plugin that lies.
-5. **The public edge identity accessor for algorithms.** `ScopedInput` has no public way to turn
+5. **The public edge identity accessor for algorithms.** DECIDED 2026-09-28: `edgeId(row)` and `subgraphEdgeIds(row)`; a merged row's value is copied to every edge behind it. (`design/decisions/2026-09-28-extension-contract-owner-decisions.md`) `ScopedInput` has no public way to turn
    an edge row into the element's `Edge.id`, so a plugin that reads only the snapshot cannot
    publish an edge-shaped result once `algorithmGraph` is removed. The migration plan specifies the
    accessor as "the scoped input's snapshot plus the edge remap"; this specification proposes
@@ -1248,7 +1248,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     `configure({ sinks: [liveObject] })`. A URL is recorded by default as its origin plus a digest
     of the full URL, with the path kept only when the embedder opts in, because an internal host
     name and an incident path (`/api/cases/INC-4411/export`) are themselves sensitive.
-14. **A snapshot-based layout contract.** The layout contract names the element's render classes
+14. **A snapshot-based layout contract.** DECIDED 2026-09-28: the snapshot contract ships first, in a minor, and the migration builds the built-in layouts on it. (`design/decisions/2026-09-28-extension-contract-owner-decisions.md`) The layout contract names the element's render classes
     (`Node`, `Edge`). The element's own layouts are moving onto graph-format snapshots. A successor
     contract -- a batch layout as an async function from a snapshot, options, fixed rows, a signal
     and a progress channel to a coordinate array (`layout.d.ts`, "Proposed") -- would give layouts
@@ -1263,7 +1263,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
     and an element-owned attribute accessor (`column(optionName)`), resolving an `"attribute"`
     option's PATH exactly as styles and filters do, so `location.lat` means the same to a layout
     as to a filter (`layout.md` section 5 item 5).
-15. **Data sources as a seventh extension point.** Service queries (STRING, BioGRID, Neo4j,
+15. **Data sources as a seventh extension point.** DECIDED 2026-09-28: yes, data sources are the seventh official extension point. (`design/decisions/2026-09-28-extension-contract-owner-decisions.md`) Service queries (STRING, BioGRID, Neo4j,
     SPARQL), live feeds and lazy expansion do not fit a file reader, and today the only route is
     for a consumer to fetch and pass the text as `data`, which is the consumer-side integration
     the architectural principles forbid. **Recommended:** decide it before the file-format contract
@@ -1319,7 +1319,7 @@ options, dimension, scope }` in the project, with no extension version, which pr
       picks), refused with `E_OPTION_RANGE` outside it and drawn uniformly from it by the element,
       so a seed from numpy or R (up to 2^64) is refused rather than rounded into a seed that was
       never used. `common.d.ts` and the schema then state it.
-17. **Attribute, weight and result columns in the algorithm input.** Whether `ScopedInput.graph`
+17. **Attribute, weight and result columns in the algorithm input.** DECIDED 2026-09-28: the column accessor, `input.weight` with its meaning, and earlier results as columns, as proposed. (`design/decisions/2026-09-28-extension-contract-owner-decisions.md`) Whether `ScopedInput.graph`
     carries the loaded attributes, which attribute fills the weights and what it means, how a
     declared `"attribute"` or `"partition"` option reaches its values, and whether other runs'
     results are readable. **Recommended:** `ScopedInputColumns.column(optionName)` and

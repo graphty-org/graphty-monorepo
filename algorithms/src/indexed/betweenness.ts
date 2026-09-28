@@ -16,8 +16,8 @@ export interface BetweennessOptions {
     readonly sources?: readonly number[] | undefined;
     /**
      * Sampled betweenness: how many distinct sources to draw when `sources` is not given. The draw is
-     * deterministic -- the same `(n, k)` draws the same sources every time, the same ones the WebGPU
-     * accelerator draws. With `sources` it must equal `sources.length`.
+     * deterministic -- the same `(n, k)` draws the same sources every time, and the dispatcher hands an
+     * accelerator the drawn sources, so both paths run the same ones. With `sources` it must equal `sources.length`.
      */
     readonly k?: number | undefined;
 }
@@ -53,12 +53,12 @@ export interface EdgeScoresResult {
     readonly scores: F64;
 }
 
-/** The seed of the `k` draw; the WebGPU accelerator uses the same one, so both paths sample alike. */
+/** The seed of the `k` draw. Any fixed value works: the draw only has to repeat. */
 const SAMPLE_SEED = 0x9e3779b9;
 
 /**
- * `k` distinct node indices by a partial Fisher-Yates shuffle over a fixed-seed mulberry32 stream. This is the
- * WebGPU accelerator's draw, value for value, so a `k` call routes to either side and runs the same sources.
+ * `k` distinct node indices by a partial Fisher-Yates shuffle over a fixed-seed mulberry32 stream, so the same
+ * `(n, k)` draws the same sources every time.
  * @param n - The node count
  * @param k - How many to draw, at most n
  * @returns The sources
@@ -85,7 +85,11 @@ function drawSources(n: number, k: number): number[] {
  * @returns The sources
  * @throws RangeError for a source outside `[0, n)`, a `k` outside `[0, n]`, or a `k` that disagrees with the list
  */
-function resolveSources(n: number, sources: readonly number[] | undefined, k: number | undefined): readonly number[] {
+export function resolveSources(
+    n: number,
+    sources: readonly number[] | undefined,
+    k: number | undefined,
+): readonly number[] {
     if (k !== undefined && (!Number.isInteger(k) || k < 0 || k > n)) {
         throw new RangeError(`betweenness: k must be an integer in [0, ${n}], got ${k}`);
     }

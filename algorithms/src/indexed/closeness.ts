@@ -43,6 +43,8 @@ function scorer(s: GraphSnapshot, o: ClosenessOptions): Scorer {
     const dist = new Float64Array(n).fill(Infinity);
     const reached = new Uint32Array(n);
     const heap = weights === null ? null : new IndexedMinHeap(n);
+    // A popped node is final, as in the legacy search: without this a negative cycle never ends.
+    const settled = new Uint8Array(n);
 
     /**
      * Fill `dist` from the source and list the reached nodes in `reached`.
@@ -72,11 +74,15 @@ function scorer(s: GraphSnapshot, o: ClosenessOptions): Scorer {
         heap.push(source, 0);
         while (!heap.isEmpty()) {
             const v = heap.pop();
+            settled[v] = 1;
             if (dist[v] >= cutoff) {
                 continue;
             }
             for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
                 const w = colIdx[a];
+                if (settled[w] === 1) {
+                    continue;
+                }
                 const d = dist[v] + weights[a];
                 if (d < dist[w]) {
                     if (dist[w] === Infinity) {
@@ -104,6 +110,7 @@ function scorer(s: GraphSnapshot, o: ClosenessOptions): Scorer {
         }
         for (let i = 0; i < count; i++) {
             dist[reached[i]] = Infinity;
+            settled[reached[i]] = 0;
         }
         if (o.harmonic === true) {
             return o.normalized === true && n > 1 ? score / (n - 1) : score;
@@ -116,9 +123,12 @@ function scorer(s: GraphSnapshot, o: ClosenessOptions): Scorer {
 }
 
 /**
- * Closeness centrality of every node: `1 / sum(distance to each reached node)` by default, exactly the legacy
- * `closenessCentrality` (hops) and `weightedClosenessCentrality` (`weighted: true`) numbers. An unreached node
- * adds nothing, and a node that reaches nothing scores 0.
+ * Closeness centrality of every node: `1 / sum(distance to each reached node)` by default, the legacy
+ * `closenessCentrality` (hops) and `weightedClosenessCentrality` (`weighted: true`) numbers. The weighted
+ * route reads the snapshot's f32 arc weights, so it matches legacy to f32 rounding; pass the f64 weights as
+ * `weights` for the exact legacy sums. As in legacy, a node's distance is final once it is searched from, so a
+ * negative weight gives the legacy (not the true shortest) distance and never loops. An unreached node adds
+ * nothing, and a node that reaches nothing scores 0.
  * @param s - The snapshot
  * @param options - Normalisation, harmonic form, cutoff and weights
  * @returns One score per node index; `iterations` is the number of searches run

@@ -69,6 +69,88 @@ describe("indexed.closenessCentrality", () => {
         expect([...closenessCentrality(b.freeze(), { weighted: true }).scores]).toEqual([1 / 2, 1 / 2]);
     });
 
+    it("with negative weights, ends and keeps each node's first settled distance as legacy does", () => {
+        const cases: [boolean, [string, string, number][]][] = [
+            // undirected, so the negative edge is a negative cycle
+            [
+                false,
+                [
+                    ["a", "b", 2],
+                    ["b", "c", -1],
+                ],
+            ],
+            // directed, no cycle: b is settled at 1 before c offers -2
+            [
+                true,
+                [
+                    ["a", "b", 1],
+                    ["a", "c", 3],
+                    ["c", "b", -5],
+                ],
+            ],
+            // a negative self-loop
+            [
+                true,
+                [
+                    ["a", "a", -1],
+                    ["a", "b", 1],
+                ],
+            ],
+        ];
+        for (const [directed, edges] of cases) {
+            const g = new Graph({ directed });
+            for (const [u, v, w] of edges) {
+                g.addEdge(u, v, w);
+            }
+            const s = checksummedSnapshot(g);
+            for (const options of OPTION_SETS) {
+                expectMatches(
+                    s,
+                    closenessCentrality(s, { ...options, weighted: true }).scores,
+                    legacyWeightedCloseness(g, options),
+                );
+            }
+        }
+    });
+
+    it("equals legacy weighted closeness on a weighted multigraph, taking the lightest parallel edge", () => {
+        const edges: [string, string, number][] = [
+            ["a", "b", 5],
+            ["a", "b", 2],
+            ["b", "a", 3],
+            ["b", "c", 1],
+            ["a", "c", 4],
+            ["c", "c", 7],
+            ["c", "d", 2],
+            ["c", "d", 0.5],
+        ];
+        for (const directed of [false, true]) {
+            const b = new GraphBuilder({ directed });
+            // legacy keeps one edge per pair, so give it the lightest
+            const lightest = new Map<string, [string, string, number]>();
+            for (const [u, v, w] of edges) {
+                b.addEdge(u, v, w);
+                const key = directed || u <= v ? `${u}>${v}` : `${v}>${u}`;
+                const seen = lightest.get(key);
+                if (seen === undefined || w < seen[2]) {
+                    lightest.set(key, [u, v, w]);
+                }
+            }
+            const g = new Graph({ directed });
+            for (const [u, v, w] of lightest.values()) {
+                g.addEdge(u, v, w);
+            }
+            const s = b.freeze();
+            for (const options of OPTION_SETS) {
+                expectMatches(
+                    s,
+                    closenessCentrality(s, { ...options, weighted: true }).scores,
+                    legacyWeightedCloseness(g, options),
+                );
+            }
+        }
+    });
+
     it("with a weighted cutoff, stops searching past it as the legacy weighted function does", () => {
         const g = new Graph({ directed: false });
         g.addEdge("a", "b", 1);
@@ -76,8 +158,17 @@ describe("indexed.closenessCentrality", () => {
         const s = checksummedSnapshot(g);
         // c is 6 away from a and past the cutoff, but it is counted: the search expands b, which is closer than 2
         expect(closenessCentrality(s, { weighted: true, cutoff: 2 }).scores[0]).toBe(1 / 7);
-        for (const options of [{ cutoff: 2 }, { cutoff: 0.5 }, { cutoff: 1, harmonic: true }, { cutoff: 5, normalized: true }]) {
-            expectMatches(s, closenessCentrality(s, { ...options, weighted: true }).scores, legacyWeightedCloseness(g, options));
+        for (const options of [
+            { cutoff: 2 },
+            { cutoff: 0.5 },
+            { cutoff: 1, harmonic: true },
+            { cutoff: 5, normalized: true },
+        ]) {
+            expectMatches(
+                s,
+                closenessCentrality(s, { ...options, weighted: true }).scores,
+                legacyWeightedCloseness(g, options),
+            );
         }
     });
 

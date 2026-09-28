@@ -6,7 +6,7 @@ import {
     edgeBetweennessCentrality as legacyEdgeBetweenness,
 } from "../../../src/algorithms/centrality/betweenness.js";
 import type { Graph } from "../../../src/core/graph.js";
-import { betweennessCentrality, edgeBetweennessCentrality } from "../../../src/indexed/betweenness.js";
+import { betweennessCentrality, edgeBetweennessCentrality, resolveSources } from "../../../src/indexed/betweenness.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
@@ -144,6 +144,12 @@ describe("indexed.betweennessCentrality", () => {
             expect(a.iterations).toBe(10);
             const full = betweennessCentrality(s).scores;
             betweennessCentrality(s, { k: s.nodeCount }).scores.forEach((x, i) => expectClose(x, full[i], `${i}`));
+        });
+
+        it("draws a fixed list for a given (n, k), so a saved k call reruns on the same sources", () => {
+            // pinned: a changed seed or draw changes every sampled score a caller has stored
+            expect(resolveSources(6, undefined, 2)).toEqual([2, 1]);
+            expect(resolveSources(10, undefined, 4)).toEqual([3, 1, 7, 9]);
         });
 
         it("accepts k equal to the list's length and refuses anything else", () => {

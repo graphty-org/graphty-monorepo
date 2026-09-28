@@ -450,20 +450,22 @@ describe("accelerated(acc)", () => {
             );
         });
 
-        it("hands a plain or sampled call to the accelerator with the same snapshot and options", async () => {
+        it("hands the accelerator the sources the port would run, never a bare or k-only call", async () => {
             const s = sixNodes();
             const calls: unknown[][] = [];
             const dispatcher = accelerated(stub(calls));
-            const sampled = { sources: [0, 3], normalized: true };
-            const drawn = { k: 2 };
-            expect(await dispatcher.betweennessCentrality(s, sampled)).toBe(scores);
+            expect(await dispatcher.betweennessCentrality(s, { sources: [0, 3], normalized: true })).toBe(scores);
             expect(await dispatcher.betweennessCentrality(s, { endpoints: false })).toBe(scores);
-            expect(await dispatcher.edgeBetweennessCentrality(s, drawn)).toBe(edgeScores);
-            expect(calls).toHaveLength(3);
-            expect(calls[0][1]).toBe(s);
-            expect(calls[0][2]).toBe(sampled);
-            expect(calls[2]).toEqual(["edgeBetweennessCentrality", s, drawn]);
-            expect(calls[2][2]).toBe(drawn);
+            expect(await dispatcher.edgeBetweennessCentrality(s, { k: 2 })).toBe(edgeScores);
+            expect(await dispatcher.edgeBetweennessCentrality(s)).toBe(edgeScores);
+            expect(calls).toEqual([
+                ["betweennessCentrality", s, { normalized: true, sources: [0, 3] }],
+                // an exact call names every node, so an accelerator's own sampling default cannot apply
+                ["betweennessCentrality", s, { normalized: undefined, sources: [0, 1, 2, 3, 4, 5] }],
+                // k is drawn here, as indexed.edgeBetweennessCentrality draws it
+                ["edgeBetweennessCentrality", s, { normalized: undefined, sources: [2, 1] }],
+                ["edgeBetweennessCentrality", s, { normalized: undefined, sources: [0, 1, 2, 3, 4, 5] }],
+            ]);
         });
 
         it("hands closeness an explicit weighted flag, and nothing else", async () => {

@@ -14,7 +14,7 @@
 import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
-import type { BetweennessOptions, EdgeBetweennessOptions } from "./betweenness.js";
+import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
 import type { BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
@@ -193,8 +193,9 @@ export interface BetweennessAcceleratorOptions {
  * The three path centralities route the same way. `betweennessCentrality` and
  * `edgeBetweennessCentrality` go to the accelerator unless the snapshot is a multigraph (the port
  * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
- * `alive` edge mask is given; sampled calls go with their `sources` / `k`, which both sides resolve to
- * the same sources. `closenessCentrality` goes only for the plain score -- no `normalized`,
+ * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
+ * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
+ * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
  * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
  * @public
@@ -216,6 +217,23 @@ export interface AcceleratedAlgorithms {
     betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ScoresResultLike>;
+}
+
+/**
+ * Betweenness options with the sources the port would run spelled out, and no `k`. `endpoints` is never
+ * forwarded: a call that sets it runs the port.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns The options for the accelerator
+ */
+function explicitSources(
+    s: GraphSnapshot,
+    options: BetweennessOptions | EdgeBetweennessOptions | undefined,
+): BetweennessAcceleratorOptions {
+    return {
+        normalized: options?.normalized,
+        sources: resolveSources(s.nodeCount, options?.sources, options?.k),
+    };
 }
 
 /**
@@ -322,11 +340,11 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
             acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
-                ? acc.betweennessCentrality(s, options)
+                ? acc.betweennessCentrality(s, explicitSources(s, options))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
-                ? acc.edgeBetweennessCentrality(s, options)
+                ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
         closenessCentrality: (s, options) =>
             acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(options)

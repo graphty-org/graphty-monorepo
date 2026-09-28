@@ -1,4 +1,10 @@
-import { type ColumnHandle, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import {
+    type ColumnHandle,
+    GraphBuilder,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeId,
+} from "@graphty/graph-format";
 import {
     type CommonImportOptions,
     type GraphImporter,
@@ -9,15 +15,42 @@ import {
 
 import type { ErrorAggregator } from "./ErrorAggregator";
 
+/** The exact shadow column a freeze writes an edge weight to when f32 cannot hold it. */
+const WEIGHT_COLUMN_NAME = "graphty.weight";
+
 /** One node or edge record, in the shape the element's data bags hold. */
 export type ImportedRecord = Record<string, unknown>;
 
+/**
+ * One imported node: its id, and every attribute the file set on it.
+ *
+ * The id is kept apart from the attributes because a file may carry an attribute under the very
+ * key the element reads the id from (a JSON node whose id is `name` and which also has an `id`
+ * value); each data source decides which key the id goes under.
+ */
+export interface ImportedNode {
+    /** The node id. */
+    readonly id: NodeId;
+    /** Every attribute the file set. */
+    readonly data: ImportedRecord;
+}
+
+/** One imported edge: its endpoints, and every attribute the file set on it. See {@link ImportedNode}. */
+export interface ImportedEdge {
+    /** The source node id. */
+    readonly source: NodeId;
+    /** The target node id. */
+    readonly target: NodeId;
+    /** Every attribute the file set, plus `weight` when the importer read a weight for it. */
+    readonly data: ImportedRecord;
+}
+
 /** What a graph-io import yields once it is turned back into element records. */
 export interface ImportedRecords {
-    /** One record per node, in node index order: `id` plus every attribute the file set. */
-    readonly nodes: ImportedRecord[];
-    /** One record per logical edge, in insertion order: `source`, `target` plus every attribute. */
-    readonly edges: ImportedRecord[];
+    /** One entry per node, in node index order. */
+    readonly nodes: ImportedNode[];
+    /** One entry per logical edge, in insertion order. */
+    readonly edges: ImportedEdge[];
     /** The importer's report, also when it aborted. */
     readonly report: ImportReport;
     /** Whether the importer aborted (a fatal issue, or its error limit): the records are then empty. */
@@ -63,21 +96,16 @@ class VerbatimBuilder extends GraphBuilder {
 }
 
 /**
- * Copy every set cell of one table row onto a record.
+ * Copy every set attribute cell of one table row onto a new record.
  * @param snapshot - the frozen import
  * @param table - which table
  * @param row - the node or edge index
- * @param record - the record to fill
  * @returns the record
  */
-function fillRow(
-    snapshot: GraphSnapshot,
-    table: "nodes" | "edges",
-    row: number,
-    record: ImportedRecord,
-): ImportedRecord {
+function rowOf(snapshot: GraphSnapshot, table: "nodes" | "edges", row: number): ImportedRecord {
+    const record: ImportedRecord = {};
     for (const column of snapshot[table]) {
-        if (column.isSet(row)) {
+        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.isSet(row)) {
             record[column.meta.name] = column.value(row);
         }
     }
@@ -87,24 +115,31 @@ function fillRow(
 
 /**
  * Turn a frozen import back into the records the element's data bags hold.
+ *
+ * An edge's weight is read from the exact shadow column when the freeze wrote one, and from the
+ * f32 weight array otherwise: the freeze leaves the shadow column out when every weight survives
+ * the narrowing to f32, so the array is then the only place the weight is.
  * @param snapshot - the frozen import
- * @returns the node and edge records
+ * @returns the nodes and edges
  */
-function recordsOf(snapshot: GraphSnapshot): { nodes: ImportedRecord[]; edges: ImportedRecord[] } {
-    const nodes: ImportedRecord[] = [];
+function recordsOf(snapshot: GraphSnapshot): { nodes: ImportedNode[]; edges: ImportedEdge[] } {
+    const nodes: ImportedNode[] = [];
     for (let node = 0; node < snapshot.nodeCount; node++) {
-        nodes.push(fillRow(snapshot, "nodes", node, { id: snapshot.ids.idOf(node) }));
+        nodes.push({ id: snapshot.ids.idOf(node), data: rowOf(snapshot, "nodes", node) });
     }
 
-    const { src, dst } = snapshot.edgeList();
-    const edges: ImportedRecord[] = [];
+    const { src, dst, weights } = snapshot.edgeList();
+    const exactWeight = snapshot.edges.get(WEIGHT_COLUMN_NAME);
+    const edges: ImportedEdge[] = [];
     for (let edge = 0; edge < snapshot.edgeCount; edge++) {
-        edges.push(
-            fillRow(snapshot, "edges", edge, {
-                source: snapshot.ids.idOf(src[edge]),
-                target: snapshot.ids.idOf(dst[edge]),
-            }),
-        );
+        const data = rowOf(snapshot, "edges", edge);
+        if (exactWeight?.isSet(edge)) {
+            data.weight = exactWeight.value(edge);
+        } else if (weights !== null) {
+            data.weight = weights[edge];
+        }
+
+        edges.push({ source: snapshot.ids.idOf(src[edge]), target: snapshot.ids.idOf(dst[edge]), data });
     }
 
     return { nodes, edges };
@@ -171,16 +206,11 @@ function missingEndpoint(message: string): string {
  * decides whether a load is reported as having failed rows.
  * @param report - the importer's report
  * @param aggregator - the data source's aggregator
- * @param skip - issue codes the caller has already answered, which are not recorded
  * @throws Error when the aggregator's error limit is reached, as every reader does
  */
-export function recordIssues(
-    report: ImportReport,
-    aggregator: ErrorAggregator,
-    skip: ReadonlySet<string> = new Set(),
-): void {
+export function recordIssues(report: ImportReport, aggregator: ErrorAggregator): void {
     for (const issue of report.issues) {
-        if (issue.severity !== "error" || skip.has(issue.code)) {
+        if (issue.severity !== "error") {
             continue;
         }
 

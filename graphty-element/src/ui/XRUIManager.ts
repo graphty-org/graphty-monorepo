@@ -16,7 +16,7 @@ export class XRUIManager {
     private container: HTMLElement;
     private overlay: HTMLElement | null = null;
     private config: XRUIConfig;
-    private unavailableTimeout: NodeJS.Timeout | null = null;
+    private unavailableTimeout: ReturnType<typeof setTimeout> | null = null;
     private styleElement: HTMLStyleElement | null = null;
 
     /**

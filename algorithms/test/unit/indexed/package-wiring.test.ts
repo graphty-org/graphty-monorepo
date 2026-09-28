@@ -28,6 +28,8 @@ import type {
     IndexedBipartiteFlowNetwork,
     IndexedEigenvectorOptions,
     IndexedEigenvectorResult,
+    IndexedGrsbmOptions,
+    IndexedGrsbmResult,
     IndexedKargerOptions,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
@@ -35,6 +37,10 @@ import type {
     IndexedMaxFlowResult,
     IndexedMinCutResult,
     IndexedStoerWagnerOptions,
+    IndexedSyncClusteringOptions,
+    IndexedSyncClusteringResult,
+    IndexedTeraHacOptions,
+    IndexedTeraHacResult,
     LabelResult,
     MarkovResult,
     PathOptions,
@@ -234,5 +240,25 @@ describe("indexed clustering exports", () => {
         const options: SpectralOptions = { k: 2, laplacianType: "normalized" };
         expect(pkg.indexed.spectralClustering(s, options).count).toBe(2);
         expect(pkg.indexed.modularity(s, new Uint32Array(3))).toBeCloseTo(0, 15);
+    });
+});
+
+describe("indexed research clustering exports", () => {
+    it("reaches indexed.teraHAC, indexed.syncClustering and indexed.grsbm and their flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        const hac: IndexedTeraHacOptions = { linkage: "single" };
+        const hacResult: IndexedTeraHacResult = pkg.indexed.teraHAC(s, hac);
+        expect(hacResult.merges).toBe(2);
+        const sync: IndexedSyncClusteringOptions = { numClusters: 1 };
+        const syncResult: IndexedSyncClusteringResult = pkg.indexed.syncClustering(s, sync);
+        expect(syncResult.labels.length).toBe(3);
+        const bisect: IndexedGrsbmOptions = { weighted: false };
+        const bisectResult: IndexedGrsbmResult = pkg.indexed.grsbm(s, bisect);
+        expect(bisectResult.count).toBe(1);
     });
 });

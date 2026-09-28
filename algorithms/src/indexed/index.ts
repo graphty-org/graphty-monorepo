@@ -54,6 +54,7 @@ export {
     type MinCutResult,
     minSTCut,
 } from "./flow.js";
+export { grsbm, type GrsbmCluster, type GrsbmOptions, type GrsbmResult, type GrsbmSplit } from "./grsbm.js";
 export {
     hierarchicalClustering,
     type HierarchicalOptions,
@@ -91,3 +92,5 @@ export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type 
 export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
 export { type LaplacianType, spectralClustering, type SpectralOptions, type SpectralResult } from "./spectral.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";
+export { syncClustering, type SyncClusteringOptions, type SyncClusteringResult } from "./sync.js";
+export { teraHAC, type TeraHacOptions, type TeraHacResult } from "./terahac.js";

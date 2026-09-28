@@ -119,9 +119,25 @@ export type {
 } from "./indexed/eigenvector.js";
 // Unprefixed: the legacy clustering types are named LinkageMethod, MCL* and SpectralClustering*.
 export type { HierarchicalOptions, HierarchicalResult, Linkage } from "./indexed/hierarchical.js";
+// Aliased: the flat GRSBMConfig / GRSBMResult / GRSBMCluster, SynCConfig / SynCResult and
+// TeraHACConfig / TeraHACResult name the legacy research functions' types, one capital letter away.
+export type {
+    GrsbmCluster as IndexedGrsbmCluster,
+    GrsbmOptions as IndexedGrsbmOptions,
+    GrsbmResult as IndexedGrsbmResult,
+    GrsbmSplit as IndexedGrsbmSplit,
+} from "./indexed/grsbm.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
+export type {
+    SyncClusteringOptions as IndexedSyncClusteringOptions,
+    SyncClusteringResult as IndexedSyncClusteringResult,
+} from "./indexed/sync.js";
+export type {
+    TeraHacOptions as IndexedTeraHacOptions,
+    TeraHacResult as IndexedTeraHacResult,
+} from "./indexed/terahac.js";
 // Aliased: the flat LabelPropagationOptions / LabelPropagationResult name the legacy function's types.
 export type {
     LabelPropagationOptions as IndexedLabelPropagationOptions,

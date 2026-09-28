@@ -45,14 +45,14 @@ PageRank, the delta PageRank engines (`deltaPageRank`, `DeltaPageRank`, `Priorit
 HITS, Katz, eigenvector centrality, degree centrality, closeness centrality, betweenness centrality,
 edge betweenness centrality, common neighbours, k-core, Louvain, label propagation, all-pairs
 shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum cuts, the bipartite
-flow network, Adamic-Adar link prediction, hierarchical, Markov and spectral clustering, modularity.
-Each lands beside its legacy function; tests live in `test/unit/indexed/`.
-`benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS, Louvain, label propagation)
-against their legacy functions. Some legacy functions now delegate to their port and keep only their
-signature and result shape: `floydWarshall`, `floydWarshallPath`, `transitiveClosure` and
-`labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it accepts negative weights,
-which the port refuses. The conversions they use live in `src/indexed/facade.ts`; each has a facade
-test in `test/unit/indexed/*-facade*.test.ts`.
+flow network, Adamic-Adar link prediction, hierarchical, Markov and spectral clustering, modularity,
+and the research clusterings teraHAC, SynC and GRSBM. Each lands beside its legacy function; tests
+live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS,
+Louvain, label propagation) against their legacy functions. Some legacy functions now delegate to
+their port and keep only their signature and result shape: `floydWarshall`, `floydWarshallPath`,
+`transitiveClosure` and `labelPropagation`. The Dijkstra-based `allPairsShortestPath` does not: it
+accepts negative weights, which the port refuses. The conversions they use live in
+`src/indexed/facade.ts`; each has a facade test in `test/unit/indexed/*-facade*.test.ts`.
 
 ## Essential Commands
 

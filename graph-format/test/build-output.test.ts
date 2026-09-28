@@ -169,6 +169,12 @@ describe("Build Output Tests", () => {
         expect(paths).toContain("dist/src/index.d.ts");
         const runtime = paths.filter((p) => p.startsWith("dist/") && /\.js(\.map)?$/.test(p));
         expect(runtime.sort()).toEqual(["dist/graph-format.js", "dist/graph-format.js.map"]);
+        // The producer string is assembled at runtime, so "@graphty/graph-format@dev" never appears
+        // literally. A file that still reads the commit placeholder is one the build did not stamp,
+        // and it falls back to "dev".
+        for (const p of paths.filter((path) => path.endsWith(".js"))) {
+            expect(readFileSync(resolve(p), "utf-8"), p).not.toContain("__GRAPH_FORMAT_COMMIT__");
+        }
 
         const bundle = (await import(pathToFileURL(bundlePath).href)) as typeof import("../src/index.js");
         const builder = new bundle.GraphBuilder({ directed: false });

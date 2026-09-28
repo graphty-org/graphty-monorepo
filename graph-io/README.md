@@ -216,6 +216,15 @@ losses and format rules, in addition to the table:
   (`W_CSV_DIRECTION_DROPPED`). Untyped cells follow the 5.1 text grammar per column (`2.0` stays
   f64, `1e5` and `-0` keep their spelling in a string column). An edge table cannot carry an
   isolated node or the node order (`W_CSV_ISOLATED_NODES`, `W_CSV_NODE_ORDER`; write the node table).
+  `table: "adjacency"` reads (and writes) an adjacency table: each row is a node followed by its
+  neighbours, `neighbour:weight` giving the edge's weight when the text after the last colon is a
+  number, and a row holding only its node adding an isolated node. It is never sniffed: nothing in
+  its rows tells it from an edge list. The exported table keeps ids, the node order, isolated nodes,
+  the edge order and explicit weights (a neighbour id holding a colon is written `id:` when it has no
+  weight, and a cell holding a space, tab, `;` or `|` is quoted so the delimiter sniff still finds
+  the comma); it holds no direction and no columns (`W_CSV_DIRECTION_DROPPED`, `W_CSV_EDGE_COLUMNS`).
+  Column options and `rowNumberIds` are refused with it (`E_UNSUPPORTED`). A node table without an id column is refused (`E_CSV_NO_ID_COLUMN`) unless `rowNumberIds: true`, which
+  makes each data row's 0-based number its id, coerced by `ids` like any other id cell.
 - **JSON**: the dialect is sniffed from the document (`dialect` forces it); the importer records the
   shape under `meta.extra.json` so a re-export keeps it (a d3 document is written back bare, a
   graphology one with only the options it declared). JSON declares no types: the capability table
@@ -230,7 +239,11 @@ losses and format rules, in addition to the table:
   node-link. The bare `NaN`, `Infinity` and `-Infinity` that Python's json module writes are read as
   numbers (`W_JSON_NONSTANDARD_NUMBER`), and an integer literal beyond 2^53 keeps its exact digits as
   a string (`W_JSON_BIG_INTEGER`), so two large ids never round to one; the exporter writes an
-  integral number that large in exponent form (`1e+20`) so it re-imports as a number.
+  integral number that large in exponent form (`1e+20`) so it re-imports as a number. `nodesPath`
+  and `edgesPath` point at node and edge arrays nested anywhere in the document as dotted key paths
+  (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`) for the node-link, d3, vis and
+  graphology dialects; the object holding the nodes supplies the graph flags, and a path that names
+  nothing is an `E_MISSING_SECTION` issue, not an abort.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
   THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored

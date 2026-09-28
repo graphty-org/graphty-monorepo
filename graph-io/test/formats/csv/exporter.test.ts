@@ -1,4 +1,5 @@
 import { fromRecords, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { LOSS } from "../../../src/common/export.js";
@@ -391,8 +392,14 @@ describe("csvExporter: check() loss notes", () => {
 describe("csvExporter: round trips", () => {
     for (const entry of corpusFiles("csv")) {
         it(`${entry.path}: export then import is the same snapshot with no loss notes`, async () => {
-            const original = await importCsv(new TextDecoder().decode(readCorpusBytes("csv", entry.path)));
-            const { notes, snapshot } = await roundTrip(original, csvExporter, csvImporter);
+            const options = (entry.options ?? {}) as NonNullable<ImportOptions>;
+            const original = await importCsv(new TextDecoder().decode(readCorpusBytes("csv", entry.path)), options);
+            // the file's own table: an adjacency file is written back as one, a node table as one
+            const table = options.table === "adjacency" || options.table === "nodes" ? { table: options.table } : {};
+            const { notes, snapshot } = await roundTrip(original, csvExporter, csvImporter, {
+                exportOptions: table,
+                importOptions: table,
+            });
             expect(notes).toEqual([]);
             expectSameSnapshot(original, snapshot, { allowExtraColumns: false });
         });
@@ -511,5 +518,129 @@ describe("csvExporter: round trips", () => {
         expect(text).toBe("1 2 0.5\n2 3 1\n");
         const back = await importCsv(text);
         expectSameSnapshot(original, back);
+    });
+});
+
+describe("csvExporter: adjacency tables", () => {
+    const ADJACENCY = { table: "adjacency" } as const;
+
+    it("writes adjacency-weighted.csv back as rows of consecutive edges, isolated nodes last", async () => {
+        const original = await importCsv(readCorpusText("csv", "adjacency-weighted.csv"), ADJACENCY);
+        expect(csvExporter.check(original, ADJACENCY)).toEqual([]);
+        const text = await csvExporter.exportToString(original, ADJACENCY);
+        expect(text).toBe("a,b:1.5,c:0.1\nb,c:2,host:8080:\nc,a\nhost:8080,a:16777217\nd\n");
+        const again = await importCsv(text, ADJACENCY);
+        expectSameSnapshot(original, again, { allowExtraColumns: false });
+    });
+
+    it("gives a node its own row first when a row would introduce it out of index order", async () => {
+        const b = new GraphBuilder({ directed: true });
+        for (const id of ["x", "y", "z"]) {
+            b.addNode(id);
+        }
+        b.addEdge("z", "x");
+        b.addEdge("x", "y");
+        const s = b.freeze();
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe("x\ny\nz\nz,x\nx,y\n");
+        expectSameSnapshot(s, await importCsv(text, ADJACENCY), { allowExtraColumns: false });
+    });
+
+    it("keeps the edge order when one source's edges are not consecutive", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b");
+        b.addEdge("b", "a");
+        b.addEdge("a", "c");
+        const s = b.freeze();
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe("a,b\nb,a\na,c\n");
+        expectSameSnapshot(s, await importCsv(text, ADJACENCY), { allowExtraColumns: false });
+    });
+
+    it("quotes a first cell that would open a comment line and a cell holding the delimiter", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("#a", "b,c", 2);
+        const s = b.freeze();
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe('"#a","b,c:2"\n');
+        expectSameSnapshot(s, await importCsv(text, ADJACENCY), { allowExtraColumns: false });
+    });
+
+    it("quotes every cell holding a delimiter the importer sniffs for, so the sniff still finds the comma", async () => {
+        const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        b.addEdge("New York", "Boston", 3);
+        b.addEdge("New York", "Los Angeles", 1);
+        b.addEdge("Boston", "Salt Lake City");
+        b.addEdge("a;b", "c\td");
+        b.addEdge("c\td", "e|f");
+        const s = b.freeze();
+        expect(csvExporter.check(s, ADJACENCY)).toEqual([]);
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe(
+            '"New York",Boston:3,"Los Angeles:1"\nBoston,"Salt Lake City"\n"a;b","c\td"\n"c\td","e|f"\n',
+        );
+        const again = await importCsv(text, ADJACENCY);
+        expect(again.ids.toArray()).toEqual(["New York", "Boston", "Los Angeles", "Salt Lake City", "a;b", "c\td", "e|f"]);
+        expectSameSnapshot(s, again, { allowExtraColumns: false });
+    });
+
+    it("announces what an adjacency table cannot hold: direction, edge columns and node columns", async () => {
+        const s = fromRecords({
+            directed: false,
+            nodes: [{ id: "a", group: 1 }, { id: "b" }],
+            edges: [{ source: "a", target: "b", label: "knows", since: 2001 }],
+        }).snapshot;
+        const notes = csvExporter.check(s, ADJACENCY);
+        expect(notes.map((n) => [n.code, n.count])).toEqual([
+            [CSV_LOSS.DIRECTION_DROPPED, 1],
+            [CSV_LOSS.EDGE_COLUMNS, 2],
+            [CSV_LOSS.NODE_TABLE, 1],
+        ]);
+        const text = await csvExporter.exportToString(s, ADJACENCY);
+        expect(text).toBe("a,b\n");
+        const again = await importCsv(text, { ...ADJACENCY, defaultDirected: false }, false);
+        expect(again.directed).toBe(false);
+        expect(again.edgeCount).toBe(1);
+    });
+
+    it("refuses a header row", () => {
+        const s = fromRecords({ directed: true, nodes: [{ id: "a" }], edges: [] }).snapshot;
+        expect(() => csvExporter.check(s, { table: "adjacency", header: true })).toThrow(/no header row/);
+    });
+
+    it("round-trips any directed graph of awkward ids and weights exactly, with no notes", async () => {
+        const id = fc.stringMatching(/^[a-c:#%,"\t;| ]{0,4}$/).filter((t) => !/^[-+]?[0-9]/.test(t));
+        const graph = fc.record({
+            ids: fc.uniqueArray(id, { minLength: 1, maxLength: 8 }),
+            edges: fc.array(
+                fc.record({
+                    s: fc.nat(),
+                    t: fc.nat(),
+                    w: fc.option(fc.oneof(fc.double({ noNaN: true }), fc.constantFrom(0.1, 16777217, -0)), {
+                        nil: undefined,
+                    }),
+                }),
+                { maxLength: 12 },
+            ),
+        });
+        await fc.assert(
+            fc.asyncProperty(graph, async ({ ids, edges }) => {
+                const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+                for (const v of ids) {
+                    b.addNode(v);
+                }
+                for (const { s, t, w } of edges) {
+                    b.addEdge(ids[s % ids.length], ids[t % ids.length], w);
+                }
+                const s = b.freeze();
+                expect(csvExporter.check(s, ADJACENCY)).toEqual([]);
+                const text = await csvExporter.exportToString(s, ADJACENCY);
+                // no delimiter given: the re-import sniffs it, as a reader of the file would
+                const again = await importCsv(text, ADJACENCY);
+                const diffs = compareSnapshots(s, again, { allowExtraColumns: false });
+                expect(diffs, `${text}\n${describeDiffs(diffs)}`).toEqual([]);
+            }),
+            { numRuns: 300, seed: 20260927 },
+        );
     });
 });

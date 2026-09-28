@@ -1,7 +1,8 @@
 /**
  * The CSV / TSV importer (design sections 8.4 and 8.6; research note 07 section 2.6): a streaming
  * edge-list reader for the generic (`source,target[,weight,...]`), Gephi (`Source,Target,Type,Id,
- * Label,Weight,...`) and headerless (`u v [w]`) dialects, with an optional node table merged by id.
+ * Label,Weight,...`) and headerless (`u v [w]`) dialects, with an optional node table merged by id,
+ * and, with `table: "adjacency"`, an adjacency table (`node,neighbour[:weight],...`).
  *
  * - The delimiter is sniffed from a preview unless given; LF, CRLF and lone-CR files all read.
  * - The first row is a header when it holds a known column name or when it is all text over a
@@ -19,6 +20,13 @@
  *   section 5.1 and the sink infers the column dtype (widening per column, never per cell); an
  *   all-text column of low cardinality becomes a dict (design section 5.4); an `id` column of the
  *   edge table is the edge id (role id, unique); a `label` column is the label (role label).
+ * - An adjacency table has no header (unless `header: true`, which skips the first row): each row
+ *   is a node followed by its neighbours, one edge per neighbour in row order. A neighbour cell
+ *   `id:weight` carries the edge's weight when the text after its LAST colon is a number; a cell
+ *   ending in a bare colon (`a:1:`) is the id before it with no weight; any other cell is the id
+ *   as written (`http://x`). A row holding only its node adds an isolated node.
+ * - A node table without an id column is refused unless `rowNumberIds` is set: then each data row's
+ *   0-based number is its id, coerced by `ids` like any other id cell.
  * - Per-row problems (wrong field count, blank endpoint, invalid weight, bad Type, refused id)
  *   are recorded and the row skipped; the import aborts with ImportError once `errorLimit` is
  *   exceeded, on a malformed or unterminated quoted field, on an empty input and on a header
@@ -80,10 +88,12 @@ export interface CsvImportOptions {
     /** Whether the first row is a header; "auto" (default) decides from its content. */
     header?: boolean | "auto" | undefined;
     /**
-     * What the input is: an edge table, a node table, or "auto" (default): an edge table when
-     * source and target columns resolve, a node table when only an id column does.
+     * What the input is: an edge table, a node table, an adjacency table (`node,neighbour[:weight],...`
+     * per row, no header by default), or "auto" (default): an edge table when source and target
+     * columns resolve, a node table when only an id column does. An adjacency table is never
+     * guessed: nothing in its rows tells it from an edge list.
      */
-    table?: "edges" | "nodes" | "auto" | undefined;
+    table?: "edges" | "nodes" | "adjacency" | "auto" | undefined;
     /** The source column, by name or 0-based position; resolved from the header by default. */
     sourceColumn?: CsvColumnRef | undefined;
     /** The target column, by name or 0-based position; resolved from the header by default. */
@@ -97,6 +107,11 @@ export interface CsvImportOptions {
     idColumn?: CsvColumnRef | undefined;
     /** A node table read before the edges: its ids become nodes and its other columns node attributes. */
     nodes?: ImportInput | undefined;
+    /**
+     * A node table whose header has no id column gets its ids from the row numbers (0 for the first
+     * data row), coerced by `ids`, instead of failing with E_CSV_NO_ID_COLUMN. False by default.
+     */
+    rowNumberIds?: boolean | undefined;
 }
 
 /** Issue code: the input holds no header row at all. */
@@ -126,7 +141,7 @@ export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
 /** Issue code: a repeated edge id (the column is unique); the edge is skipped. */
 export const DUPLICATE_EDGE_ID_CODE = SHARED_DUPLICATE_EDGE_ID_CODE;
 
-const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "auto"]);
+const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "adjacency", "auto"]);
 
 /** The common options an edge-table import reads (the rest is reported by reportUnusedOptions). */
 const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof CommonImportOptions>([
@@ -154,13 +169,14 @@ const BAD_DELIMITERS: ReadonlySet<string> = new Set(['"', "\n", "\r"]);
 interface ResolvedCsvOptions {
     readonly delimiter: string | null;
     readonly header: boolean | "auto";
-    readonly table: "edges" | "nodes" | "auto";
+    readonly table: "edges" | "nodes" | "adjacency" | "auto";
     readonly sourceColumn: CsvColumnRef | null;
     readonly targetColumn: CsvColumnRef | null;
     /** The direction column reference; null for none; undefined for the Gephi rule. */
     readonly typeColumn: CsvColumnRef | null | undefined;
     readonly idColumn: CsvColumnRef | null;
     readonly nodes: ImportInput | null;
+    readonly rowNumberIds: boolean;
 }
 
 /** The columns of an edge table, by index. */
@@ -182,10 +198,18 @@ interface NodePlan {
     readonly kind: "nodes";
     readonly names: readonly string[];
     readonly width: number;
-    /** The column ids are read from, or -1 under nodeIdFrom "index". */
+    /** The column ids are read from, or -1 under nodeIdFrom "index" or rowNumberIds. */
     readonly id: number;
+    /** Whether a row's id is its row number coerced by `ids` (rowNumberIds); else the raw ordinal under -1. */
+    readonly rowNumber: boolean;
     readonly label: number;
     readonly attributes: readonly number[];
+}
+
+/** An adjacency table: no columns, a node and its neighbours per row. */
+interface AdjacencyPlan {
+    readonly kind: "adjacency";
+    readonly names: readonly string[];
 }
 
 /** Everything one import call shares between its tables. */
@@ -255,7 +279,7 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         });
     }
     if (o.table !== undefined && !TABLE_MODES.has(o.table)) {
-        throw new GraphFormatError("E_UNSUPPORTED", 'option table: expected "edges", "nodes" or "auto"', {
+        throw new GraphFormatError("E_UNSUPPORTED", 'option table: expected "edges", "nodes", "adjacency" or "auto"', {
             option: "table",
             found: o.table,
         });
@@ -266,6 +290,28 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
     if (o.typeColumn !== null) {
         checkColumnRef("typeColumn", o.typeColumn);
     }
+    if (o.table === "adjacency") {
+        for (const name of ["sourceColumn", "targetColumn", "typeColumn", "idColumn"] as const) {
+            if (o[name] !== undefined) {
+                throw new GraphFormatError("E_UNSUPPORTED", `option ${name}: an adjacency table has no columns`, {
+                    option: name,
+                    found: o[name],
+                });
+            }
+        }
+        if (o.rowNumberIds === true) {
+            throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: an adjacency table names its nodes", {
+                option: "rowNumberIds",
+                found: o.rowNumberIds,
+            });
+        }
+    }
+    if (o.rowNumberIds !== undefined && typeof o.rowNumberIds !== "boolean") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: expected a boolean", {
+            option: "rowNumberIds",
+            found: o.rowNumberIds,
+        });
+    }
     return {
         delimiter: o.delimiter ?? null,
         header: o.header ?? "auto",
@@ -275,6 +321,7 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         typeColumn: o.typeColumn,
         idColumn: o.idColumn ?? null,
         nodes: o.nodes ?? null,
+        rowNumberIds: o.rowNumberIds ?? false,
     };
 }
 
@@ -412,6 +459,40 @@ function parseKind(text: string): EdgeKind | null | undefined {
 }
 
 /**
+ * Split an adjacency neighbour cell into its id and weight: the text after the LAST colon is the
+ * weight when it is a number, nothing when it is empty (`a:1:` is the id `a:1`, unweighted, the
+ * form the exporter writes for an id containing a colon), and part of the id otherwise.
+ * @param text - the cell text
+ * @returns the id text and the weight (undefined when the cell has none)
+ */
+export function splitNeighbour(text: string): { readonly id: string; readonly weight: number | undefined } {
+    const colon = text.lastIndexOf(":");
+    if (colon < 0) {
+        return { id: text, weight: undefined };
+    }
+    const suffix = text.slice(colon + 1);
+    if (suffix.length === 0) {
+        return { id: text.slice(0, colon), weight: undefined };
+    }
+    const weight = numberOrNull(suffix);
+    return weight === null ? { id: text, weight: undefined } : { id: text.slice(0, colon), weight };
+}
+
+/**
+ * A weight suffix as a number, or null when the text is not one.
+ * @param text - the suffix
+ * @returns the number, or null
+ */
+function numberOrNull(text: string): number | null {
+    try {
+        return parseWeightText(text) ?? null;
+    } catch {
+        // not a number: the colon belongs to the id
+        return null;
+    }
+}
+
+/**
  * Read one CSV table into the sink.
  */
 class TableReader {
@@ -419,9 +500,9 @@ class TableReader {
 
     private readonly reader: CsvRecordReader;
 
-    private readonly kind: "edges" | "nodes" | "auto";
+    private readonly kind: "edges" | "nodes" | "adjacency" | "auto";
 
-    private plan: EdgePlan | NodePlan | null = null;
+    private plan: EdgePlan | NodePlan | AdjacencyPlan | null = null;
 
     private writers: (InferredColumn | null)[] = [];
 
@@ -445,7 +526,12 @@ class TableReader {
      * @param kind - what the table is, or "auto"
      * @param progress - whether this table reports byte progress
      */
-    constructor(state: ImportState, input: ImportInput, kind: "edges" | "nodes" | "auto", progress: boolean) {
+    constructor(
+        state: ImportState,
+        input: ImportInput,
+        kind: "edges" | "nodes" | "adjacency" | "auto",
+        progress: boolean,
+    ) {
         this.state = state;
         this.kind = kind;
         const readerOptions: CsvReaderOptions = {
@@ -484,7 +570,8 @@ class TableReader {
         const firstQuoted = this.reader.quoted.slice(0, firstRow.length);
         const pending: { row: string[]; quoted: readonly boolean[]; line: number }[] = [];
         let header: boolean;
-        const { header: mode } = this.state.csv;
+        // an adjacency table has no header unless the caller says so: its rows vary in width
+        const mode = this.kind === "adjacency" && this.state.csv.header === "auto" ? false : this.state.csv.header;
         if (mode === "auto") {
             const second = await iterator.next();
             const secondRow: string[] | null = second.done ? null : second.value;
@@ -542,8 +629,11 @@ class TableReader {
      * @param line - the header line
      * @returns the plan; the import aborts when no endpoints (or id) resolve
      */
-    private resolvePlan(names: readonly string[], header: boolean, line: number): EdgePlan | NodePlan {
+    private resolvePlan(names: readonly string[], header: boolean, line: number): EdgePlan | NodePlan | AdjacencyPlan {
         const { csv, report } = this.state;
+        if (this.kind === "adjacency") {
+            return { kind: "adjacency", names: [] };
+        }
         const width = names.length;
         let source = -1;
         let target = -1;
@@ -585,7 +675,7 @@ class TableReader {
             );
         }
         const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : width >= 1;
-        if (this.kind === "auto" && csv.idColumn === null && !idResolves) {
+        if (this.kind === "auto" && csv.idColumn === null && !idResolves && !csv.rowNumberIds) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
                 `no source / target columns and no id column in the header (${shown}); the input is neither an edge table nor a node table`,
@@ -696,6 +786,10 @@ class TableReader {
                 id = -1;
                 break;
             default:
+                if (idColumn < 0 && csv.rowNumberIds) {
+                    id = -1;
+                    break;
+                }
                 if (idColumn < 0) {
                     report.fail(
                         NO_ID_COLUMN_CODE,
@@ -717,7 +811,8 @@ class TableReader {
                 attributes.push(i);
             }
         }
-        return { kind: "nodes", names, width: names.length, id, label, attributes };
+        const rowNumber = id < 0 && common.nodeIdFrom !== "index";
+        return { kind: "nodes", names, width: names.length, id, rowNumber, label, attributes };
     }
 
     /**
@@ -726,6 +821,9 @@ class TableReader {
      */
     private prepareColumns(line: number): void {
         const plan = this.requirePlan();
+        if (plan.kind === "adjacency") {
+            return;
+        }
         const { sink, report } = this.state;
         const domain = plan.kind === "edges" ? "edge" : "node";
         const origin = { format: "csv" };
@@ -759,7 +857,7 @@ class TableReader {
      * The plan, which exists once the header was read.
      * @returns the plan
      */
-    private requirePlan(): EdgePlan | NodePlan {
+    private requirePlan(): EdgePlan | NodePlan | AdjacencyPlan {
         if (this.plan === null) {
             throw new GraphFormatError("E_UNSUPPORTED", "the header has not been read", { reason: "no plan" });
         }
@@ -777,8 +875,73 @@ class TableReader {
         this.dataRows++;
         if (plan.kind === "edges") {
             this.processEdgeRow(plan, row, quoted, line);
-        } else {
+        } else if (plan.kind === "nodes") {
             this.processNodeRow(plan, row, quoted, line);
+        } else {
+            this.processAdjacencyRow(row, quoted, line);
+        }
+    }
+
+    /**
+     * Push one adjacency row: the node, then one edge per set neighbour cell, in row order.
+     * @param row - the cells
+     * @param quoted - whether each cell was quoted
+     * @param line - the row's line
+     */
+    private processAdjacencyRow(row: string[], quoted: readonly boolean[], line: number): void {
+        const { report, sink, resolver, common } = this.state;
+        const { counts } = report;
+        const { where } = this;
+        where.line = line;
+        where.element = null;
+        let neighbours = 0;
+        for (let k = 1; k < row.length; k++) {
+            if (!isUnset(row[k], quoted[k])) {
+                neighbours++;
+            }
+        }
+        if (isUnset(row[0], quoted[0])) {
+            report.error("missing-value", MISSING_ID_CODE, `line ${line}: blank node cell`, { line });
+            counts.skippedNodes++;
+            counts.skippedEdges += neighbours;
+            return;
+        }
+        const kind: EdgeKind = (this.state.commentDirected ?? common.defaultDirected) ? "directed" : "undirected";
+        if (!this.state.headerSet) {
+            this.state.headerSet = true;
+            resolver.setHeader(kind !== "undirected", where);
+        }
+        let source: NodeId;
+        try {
+            where.element = row[0];
+            source = this.coerce(row[0]);
+            if (sink.indexOf(source) === INVALID_INDEX) {
+                counts.nodes++;
+            }
+            sink.addNode(source);
+        } catch (err) {
+            report.recordError(err, where);
+            counts.skippedNodes++;
+            counts.skippedEdges += neighbours;
+            return;
+        }
+        for (let k = 1; k < row.length; k++) {
+            if (isUnset(row[k], quoted[k])) {
+                continue;
+            }
+            where.element = row[k];
+            try {
+                const cell = splitNeighbour(row[k]);
+                const target = this.coerce(cell.id);
+                const targetNew = sink.indexOf(target) === INVALID_INDEX;
+                const before = sink.edgeCount;
+                resolver.addEdge(source, target, kind, common.weightFrom === null ? undefined : cell.weight, where);
+                counts.edges += sink.edgeCount - before;
+                counts.nodes += targetNew ? 1 : 0;
+            } catch (err) {
+                report.recordError(err, where);
+                counts.skippedEdges++;
+            }
         }
     }
 
@@ -911,7 +1074,7 @@ class TableReader {
         where.element = idText;
         let index: number;
         try {
-            const id = plan.id >= 0 ? this.coerce(idText) : ordinal;
+            const id = plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
             if (sink.indexOf(id) !== INVALID_INDEX) {
                 report.warning(
                     "merged",

@@ -19,6 +19,7 @@ import {
     NO_ENDPOINT_COLUMNS_CODE,
     NO_ID_COLUMN_CODE,
     ROLE_TAKEN_CODE,
+    splitNeighbour,
 } from "../../../src/formats/csv/importer.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "../../../src/formats/csv/records.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
@@ -100,7 +101,7 @@ function column(s: GraphSnapshot, table: "nodes" | "edges", name: string): unkno
 describe("csvImporter: the corpus", () => {
     for (const entry of corpusFiles("csv")) {
         it(`imports ${entry.path} with the manifest's counts`, async () => {
-            const { snapshot, report } = await load(readCorpusBytes("csv", entry.path));
+            const { snapshot, report } = await load(readCorpusBytes("csv", entry.path), entry.options as Options);
             expect(snapshot.nodeCount).toBe(entry.expectedNodes);
             // the manifest counts source rows; an expanded undirected row of a mixed file is two logical edges
             expect(snapshot.edgeCount - report.counts.expandedMixed).toBe(entry.expectedEdges);
@@ -113,9 +114,9 @@ describe("csvImporter: the corpus", () => {
 
         it(`imports ${entry.path} identically from every input shape`, async () => {
             const bytes = readCorpusBytes("csv", entry.path);
-            const reference = await load(bytes);
+            const reference = await load(bytes, entry.options as Options);
             for (const shape of inputShapes(bytes)) {
-                const { snapshot } = await load(shape.make());
+                const { snapshot } = await load(shape.make(), entry.options as Options);
                 expect(snapshot.ids.toArray(), shape.name).toEqual(reference.snapshot.ids.toArray());
                 expect(edgesOf(snapshot), shape.name).toEqual(edgesOf(reference.snapshot));
                 expect(weightsOf(snapshot), shape.name).toEqual(weightsOf(reference.snapshot));
@@ -940,7 +941,8 @@ describe("csvImporter: cancellation, progress and sniffing", () => {
         expect(sniff(enc('*Vertices 3\n1 "a"\n'))).toBe(0);
         expect(sniff(enc('Creator "x"\ngraph [\n]'))).toBe(0);
         for (const entry of corpusFiles("csv")) {
-            expect(sniff(readCorpusBytes("csv", entry.path)), entry.path).toBe(0.9);
+            // an adjacency table and a node table without an id column have no header the sniff knows
+            expect(sniff(readCorpusBytes("csv", entry.path)), entry.path).toBe(entry.options === undefined ? 0.9 : 0.3);
         }
     });
 
@@ -954,5 +956,140 @@ describe("csvImporter: cancellation, progress and sniffing", () => {
     it("exposes INVALID_INDEX for unknown ids after an import", async () => {
         const { snapshot } = await load("source,target\na,b\n");
         expect(snapshot.ids.indexOf("zzz")).toBe(INVALID_INDEX);
+    });
+});
+
+describe("csvImporter: adjacency tables", () => {
+    it("adjacency-weighted.csv: node:weight suffixes, exact f64 weights, a colon id and an isolated node", async () => {
+        const { snapshot, report } = await load(readCorpusText("csv", "adjacency-weighted.csv"), {
+            table: "adjacency",
+        });
+        expect(snapshot.ids.toArray()).toEqual(["a", "b", "c", "host:8080", "d"]);
+        expect(edgesOf(snapshot)).toEqual(["a->b", "a->c", "b->c", "b->host:8080", "c->a", "host:8080->a"]);
+        expect(weightsOf(snapshot)).toEqual([1.5, 0.1, 2, undefined, undefined, 16777217]);
+        expect(snapshot.directed).toBe(true);
+        expect(snapshot.nodes.names()).toEqual([]);
+        expect(report.counts).toMatchObject({ nodes: 5, edges: 6, skippedNodes: 0, skippedEdges: 0 });
+        expect(report.issues).toEqual([]);
+    });
+
+    it("reads the element's unweighted adjacency list, one edge per neighbour in row order", async () => {
+        const { snapshot } = await load("n1,n2,n3\nn2,n3,n4\nn3,n1", { table: "adjacency" });
+        expect(edgesOf(snapshot)).toEqual(["n1->n2", "n1->n3", "n2->n3", "n2->n4", "n3->n1"]);
+        expect(snapshot.flags.weighted).toBe(false);
+    });
+
+    it("sniffs a space delimiter, coerces ids canonically and honours defaultDirected and a KONECT header", async () => {
+        const plain = await load("1 2 3\n2 3\n", { table: "adjacency", defaultDirected: false });
+        expect(plain.snapshot.ids.toArray()).toEqual([1, 2, 3]);
+        expect(plain.snapshot.directed).toBe(false);
+        expect(edgesOf(plain.snapshot)).toEqual(["1->2", "1->3", "2->3"]);
+        const konect = await load("% sym\n1\t2:0.5\n", { table: "adjacency" });
+        expect(konect.snapshot.directed).toBe(false);
+        expect(weightsOf(konect.snapshot)).toEqual([0.5]);
+    });
+
+    it("splits the weight off under weightFrom null but stores none", async () => {
+        const { snapshot } = await load("a,b:2,c\n", { table: "adjacency", weightFrom: null });
+        expect(edgesOf(snapshot)).toEqual(["a->b", "a->c"]);
+        expect(snapshot.flags.weighted).toBe(false);
+    });
+
+    it("reads the first row as data under header auto, even when it looks like a header", async () => {
+        const { snapshot } = await load("id,label\n1,2:0.5\n2,3\n", { table: "adjacency" });
+        expect(snapshot.ids.toArray()).toEqual(["id", "label", 1, 2, 3]);
+        expect(edgesOf(snapshot)).toEqual(["id->label", "1->2", "2->3"]);
+    });
+
+    it("skips the first row under header true and skips blank neighbour cells", async () => {
+        const { snapshot, report } = await load("node,neighbours\na,,b\n", { table: "adjacency", header: true });
+        expect(edgesOf(snapshot)).toEqual(["a->b"]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("records a blank node cell and goes on", async () => {
+        const { snapshot, report } = await load(",b,c\nd,e\n", { table: "adjacency" });
+        expect(codes(report)).toEqual([MISSING_ID_CODE]);
+        expect(report.counts).toMatchObject({ skippedNodes: 1, skippedEdges: 2, nodes: 2, edges: 1 });
+        expect(edgesOf(snapshot)).toEqual(["d->e"]);
+    });
+
+    it("keeps a neighbour whose colon tail is not a number as the id", async () => {
+        const { snapshot } = await load("a,http://x,b:c\n", { table: "adjacency" });
+        expect(snapshot.ids.toArray()).toEqual(["a", "http://x", "b:c"]);
+        expect(snapshot.flags.weighted).toBe(false);
+    });
+
+    it("refuses column options, and is never guessed", async () => {
+        for (const option of ["sourceColumn", "targetColumn", "typeColumn", "idColumn"] as const) {
+            await expect(load("a,b\n", { table: "adjacency", [option]: 0 })).rejects.toMatchObject({
+                code: "E_UNSUPPORTED",
+            });
+        }
+        await expect(load("a,b\n", { table: "adjacency", rowNumberIds: true })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+        expect((await load("a,b\n", { table: "adjacency", rowNumberIds: false })).snapshot.edgeCount).toBe(1);
+        const guessed = await load("a,b:1,c\n");
+        expect(edgesOf(guessed.snapshot)).not.toContain("a->b");
+    });
+
+    it("splits a neighbour cell at its last colon", () => {
+        expect(splitNeighbour("b")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbour("b:1.5")).toEqual({ id: "b", weight: 1.5 });
+        expect(splitNeighbour("b:")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbour("h:80:")).toEqual({ id: "h:80", weight: undefined });
+        expect(splitNeighbour("h:80:2")).toEqual({ id: "h:80", weight: 2 });
+        expect(splitNeighbour("x:-0").weight).toBe(-0);
+        expect(splitNeighbour("x:Infinity").weight).toBe(Infinity);
+        expect(splitNeighbour("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
+        expect(splitNeighbour(":3")).toEqual({ id: "", weight: 3 });
+    });
+});
+
+describe("csvImporter: row-number ids", () => {
+    it("nodes-without-id.csv: each data row's number is its id, the other columns are attributes", async () => {
+        const { snapshot, report } = await load(readCorpusText("csv", "nodes-without-id.csv"), {
+            table: "nodes",
+            rowNumberIds: true,
+        });
+        expect(snapshot.ids.toArray()).toEqual([0, 1, 2]);
+        expect(column(snapshot, "nodes", "title")).toEqual(["Alice", "Bob", "Carol"]);
+        expect(column(snapshot, "nodes", "score")).toEqual([1.5, 2, 3.25]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("coerces the row numbers by ids, so a paired edge table names them the same way", async () => {
+        const asText = await load("source,target\n0,2\n", {
+            nodes: "title,score\nA,1\nB,2\nC,3\n",
+            rowNumberIds: true,
+            ids: "string",
+        });
+        expect(asText.snapshot.ids.toArray()).toEqual(["0", "1", "2"]);
+        expect(edgesOf(asText.snapshot)).toEqual(["0->2"]);
+    });
+
+    it("numbers every data row, skipped ones included", async () => {
+        const { snapshot, report } = await load("title,score\nA,1\nB\nC,3\n", { table: "nodes", rowNumberIds: true });
+        expect(codes(report)).toEqual([FIELD_COUNT_CODE]);
+        expect(snapshot.ids.toArray()).toEqual([0, 2]);
+    });
+
+    it("turns a header with neither endpoints nor an id into a node table under auto", async () => {
+        const { snapshot } = await load("title,score\nA,1\n", { rowNumberIds: true });
+        expect(snapshot.ids.toArray()).toEqual([0]);
+        expect(column(snapshot, "nodes", "title")).toEqual(["A"]);
+    });
+
+    it("leaves an id column in charge, and is opt-in", async () => {
+        const withId = await load("id,title\nx,A\n", { table: "nodes", rowNumberIds: true });
+        expect(withId.snapshot.ids.toArray()).toEqual(["x"]);
+        const err = await failure("title,score\nA,1\n", { table: "nodes" });
+        expect(err.report.issues[0].code).toBe(NO_ID_COLUMN_CODE);
+        await expect(
+            load("title,score\nA,1\n", { table: "nodes", rowNumberIds: "yes" as unknown as boolean }),
+        ).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
     });
 });

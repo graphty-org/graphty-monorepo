@@ -22,6 +22,7 @@ import {
     byteStream,
     CORPUS_FORMATS,
     corpusFiles,
+    corpusOptions,
     readCorpusBytes,
     textChunksOf,
 } from "./helpers/corpus.js";
@@ -40,18 +41,6 @@ function edges(s: GraphSnapshot): string[] {
         { length: s.edgeCount },
         (_, e) => `${String(s.ids.idOf(el.src[e]))}-${String(s.ids.idOf(el.dst[e]))}`,
     );
-}
-
-/**
- * A neo4j corpus manifest entry's importer options, when it has any.
- * @param format - the corpus format
- * @param path - the file
- * @returns the options or an empty object
- */
-function corpusOptions(format: string, path: string): Record<string, unknown> {
-    const entry = corpusFiles(format as (typeof CORPUS_FORMATS)[number]).find((f) => f.path === path) as
-        { options?: Record<string, unknown> } | undefined;
-    return entry?.options ?? {};
 }
 
 describe("FormatRegistry", () => {

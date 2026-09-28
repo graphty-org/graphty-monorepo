@@ -27,7 +27,7 @@ export const UNCLOSED_QUOTE_CODE = "E_CSV_UNCLOSED_QUOTE";
 export const BAD_QUOTE_CODE = "E_CSV_QUOTE";
 
 /** The delimiters tried, in priority order, when none is given. */
-const DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t", ";", "|", " "]);
+export const DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t", ";", "|", " "]);
 
 /** Rows the delimiter sniff looks at. */
 const PREVIEW_ROWS = 10;
@@ -117,9 +117,10 @@ export function sniffNewline(text: string): "\n" | "\r" {
  * @param delimiter - the delimiter
  * @param quote - the quote character
  * @param maxRows - the most rows to return
- * @returns the rows as cell arrays (blank lines skipped)
+ * @returns the rows as cell arrays (blank lines skipped), or null when a closing quote is followed
+ * by text other than the delimiter or a line break (the import would abort under this delimiter)
  */
-function splitRecords(text: string, delimiter: string, quote: string, maxRows: number): string[][] {
+function splitRecords(text: string, delimiter: string, quote: string, maxRows: number): string[][] | null {
     const rows: string[][] = [];
     const delimiterCode = delimiter.charCodeAt(0);
     const quoteCode = quote.charCodeAt(0);
@@ -143,6 +144,9 @@ function splitRecords(text: string, delimiter: string, quote: string, maxRows: n
                 segment = i + 1;
                 state = QUOTED;
                 continue;
+            }
+            if (c !== delimiterCode && c !== LF && c !== CR) {
+                return null;
             }
             state = AFTER_QUOTED;
             segment = i;
@@ -220,8 +224,9 @@ function stripLeadingComments(text: string, comments: readonly string[]): string
 /**
  * Sniff the delimiter of a text: every candidate is tried over the first rows and the one whose
  * field count is most consistent across rows wins (ties broken by the higher field count); a
- * candidate that yields fewer than two fields per row on average is never chosen. `null` when no
- * candidate qualifies (a single-column file).
+ * candidate that yields fewer than two fields per row on average, or under which a closing quote
+ * is followed by other text, is never chosen. `null` when no candidate qualifies (a single-column
+ * file).
  * @param text - the preview text
  * @param newline - the sniffed line terminator (unused by the splitter, which reads every kind;
  * kept for callers that sniffed it)
@@ -243,7 +248,12 @@ export function sniffDelimiter(
         if (delimiter === quote || delimiter === newline) {
             continue;
         }
-        let rows = splitRecords(text, delimiter, quote, PREVIEW_ROWS).filter((row) => !isBlankRow(row));
+        const split = splitRecords(text, delimiter, quote, PREVIEW_ROWS);
+        if (split === null) {
+            // a quoted cell this delimiter does not close: it is not the file's delimiter
+            continue;
+        }
+        let rows = split.filter((row) => !isBlankRow(row));
         if (rows.length > 1 && !terminated) {
             // the preview is a prefix of the file: its last row may be cut short
             rows = rows.slice(0, -1);

@@ -473,17 +473,31 @@ export class Arrangement {
             }
 
             let exact: ArrangementCapture | null = null;
+            // The rows a capture that is not whole, and the patches after it, write. Every other
+            // row was unplaced in the arrangement restored: it arrived after the capture and
+            // nothing the history holds placed it (a rest point seals a placement into the step
+            // that added the row or a later one), so it goes back to unplaced.
+            let covered: Uint8Array | null = null;
             for (const op of ops.slice(from)) {
                 if ("capture" in op) {
-                    writeCapture(op.capture, snapshot, lane, this.state.graph.token);
-                    (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
                     const whole =
                         op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
+                    covered = whole ? null : new Uint8Array(snapshot.nodeCount);
+                    writeCapture(op.capture, snapshot, lane, this.state.graph.token, covered);
+                    (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
                     exact = whole ? op.capture : null;
                 } else {
-                    writePatch(op.patch, op.forward, snapshot, lane);
+                    writePatch(op.patch, op.forward, snapshot, lane, covered);
                     exact = null;
                 }
+            }
+
+            if (covered !== null) {
+                covered.forEach((written, row) => {
+                    if (written === 0) {
+                        lane.fill(Number.NaN, POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3);
+                    }
+                });
             }
 
             source.positions.moved();
@@ -562,8 +576,15 @@ function badPosition(message: string, id: NodeId): GraphtyError {
  * @param snapshot - The snapshot the lane follows now.
  * @param lane - The lane, exactly `3 * nodeCount` long.
  * @param token - The graph token now.
+ * @param covered - Marked with each row written, when the caller keeps count.
  */
-function writeCapture(capture: ArrangementCapture, snapshot: GraphSnapshot, lane: Float32Array, token: number): void {
+function writeCapture(
+    capture: ArrangementCapture,
+    snapshot: GraphSnapshot,
+    lane: Float32Array,
+    token: number,
+    covered: Uint8Array | null = null,
+): void {
     if (capture.token === token && capture.ids.length === snapshot.nodeCount) {
         lane.set(capture.coords);
         return;
@@ -572,6 +593,10 @@ function writeCapture(capture: ArrangementCapture, snapshot: GraphSnapshot, lane
     capture.ids.forEach((id, from) => {
         const row = rowOf(snapshot, id, from);
         if (row !== INVALID_INDEX) {
+            if (covered !== null) {
+                covered[row] = 1;
+            }
+
             lane.set(
                 capture.coords.subarray(POSITION_COMPONENTS * from, POSITION_COMPONENTS * from + 3),
                 POSITION_COMPONENTS * row,
@@ -586,12 +611,23 @@ function writeCapture(capture: ArrangementCapture, snapshot: GraphSnapshot, lane
  * @param forward - New values, or prior ones.
  * @param snapshot - The snapshot the lane follows now.
  * @param lane - The lane.
+ * @param covered - Marked with each row written, when the caller keeps count.
  */
-function writePatch(patch: RowPatch, forward: boolean, snapshot: GraphSnapshot, lane: Float32Array): void {
+function writePatch(
+    patch: RowPatch,
+    forward: boolean,
+    snapshot: GraphSnapshot,
+    lane: Float32Array,
+    covered: Uint8Array | null = null,
+): void {
     const offset = forward ? 3 : 0;
     patch.ids.forEach((id, index) => {
         const row = rowOf(snapshot, id, patch.rows[index]);
         if (row !== INVALID_INDEX) {
+            if (covered !== null) {
+                covered[row] = 1;
+            }
+
             lane.set(patch.values.subarray(6 * index + offset, 6 * index + offset + 3), POSITION_COMPONENTS * row);
         }
     });

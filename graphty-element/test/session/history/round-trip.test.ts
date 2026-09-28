@@ -113,6 +113,19 @@ describe("what the random sequences found, each pinned on its own", () => {
         session.dispose();
     });
 
+    it("undoing a placement that sealed a capture puts a row no earlier capture held back to unplaced", async () => {
+        const session = await fixtureSession();
+        await session.data.clear();
+        await session.data.addEdges([{ src: "n4", dst: "n1" }]);
+        // One row of two: more than a third, so the step keeps an after-capture, not a row patch.
+        await session.positions.set([{ id: "n4", x: 0, y: 0, z: 0 }]);
+
+        await session.undo();
+
+        assert.deepEqual(lane(session), { n4: UNPLACED, n1: UNPLACED });
+        session.dispose();
+    });
+
     it("an import undone past and redone gives its edges back the load provenance they had", async () => {
         const session = blankSession({ baselineWindow: true });
         const digest = (): string => stateDigest(dispatcherOf(session).state, { snapshot: session.snapshot() });

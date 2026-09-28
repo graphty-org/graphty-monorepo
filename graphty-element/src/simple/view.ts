@@ -222,7 +222,13 @@ function ensureCarried(
             code: "E_OPTION_RANGE",
             message: refusal(facts),
             source: state.options.source ?? "run",
-            details: { extension: state.options.id, target, path, carriers: facts.carriers, ...(run === undefined ? {} : { run }) },
+            details: {
+                extension: state.options.id,
+                target,
+                path,
+                carriers: facts.carriers,
+                ...(run === undefined ? {} : { run }),
+            },
         });
     }
 
@@ -334,7 +340,9 @@ class NodeImpl implements NodeView {
      */
     outEdges(): readonly EdgeView[] {
         requireDirected(this.#state, "outEdges");
-        this.#out ??= this.#state.directedData ? frozen(this.edges().filter((edge) => edge.source === this)) : this.edges();
+        this.#out ??= this.#state.directedData
+            ? frozen(this.edges().filter((edge) => edge.source === this))
+            : this.edges();
         return this.#out;
     }
 
@@ -344,7 +352,9 @@ class NodeImpl implements NodeView {
      */
     inEdges(): readonly EdgeView[] {
         requireDirected(this.#state, "inEdges");
-        this.#in ??= this.#state.directedData ? frozen(this.edges().filter((edge) => edge.target === this)) : this.edges();
+        this.#in ??= this.#state.directedData
+            ? frozen(this.edges().filter((edge) => edge.target === this))
+            : this.edges();
         return this.#in;
     }
 
@@ -425,7 +435,9 @@ class NodeImpl implements NodeView {
         }
 
         const state = this.#state;
-        ensureCarried(state, "node", path, (facts) => literalRefusal(state.options.id, `node.attr(${JSON.stringify(path)})`, facts));
+        ensureCarried(state, "node", path, (facts) =>
+            literalRefusal(state.options.id, `node.attr(${JSON.stringify(path)})`, facts),
+        );
         return state.source.nodeValue(this.#row, path);
     }
 
@@ -440,7 +452,9 @@ class NodeImpl implements NodeView {
         }
 
         const state = this.#state;
-        ensureCarried(state, "node", path, (facts) => literalRefusal(state.options.id, `node.number(${JSON.stringify(path)})`, facts));
+        ensureCarried(state, "node", path, (facts) =>
+            literalRefusal(state.options.id, `node.number(${JSON.stringify(path)})`, facts),
+        );
         return counted(state, "node", path, this.#row, state.source.nodeValue(this.#row, path));
     }
 
@@ -460,9 +474,7 @@ class NodeImpl implements NodeView {
         }
 
         const { nodePosition } = this.#state;
-        return frozen(
-            [...seen].sort((a, b) => nodePosition[(a as NodeImpl).row] - nodePosition[(b as NodeImpl).row]),
-        );
+        return frozen([...seen].sort((a, b) => nodePosition[(a as NodeImpl).row] - nodePosition[(b as NodeImpl).row]));
     }
 }
 
@@ -546,7 +558,9 @@ class EdgeImpl implements EdgeView {
         }
 
         const state = this.#state;
-        ensureCarried(state, "edge", path, (facts) => literalRefusal(state.options.id, `edge.weight(${JSON.stringify(path)})`, facts));
+        ensureCarried(state, "edge", path, (facts) =>
+            literalRefusal(state.options.id, `edge.weight(${JSON.stringify(path)})`, facts),
+        );
         state.weightPaths.add(path);
         return counted(state, "edge", path, this.#row, state.source.edgeValue(this.#row, path));
     }
@@ -562,7 +576,9 @@ class EdgeImpl implements EdgeView {
         }
 
         const state = this.#state;
-        ensureCarried(state, "edge", path, (facts) => literalRefusal(state.options.id, `edge.attr(${JSON.stringify(path)})`, facts));
+        ensureCarried(state, "edge", path, (facts) =>
+            literalRefusal(state.options.id, `edge.attr(${JSON.stringify(path)})`, facts),
+        );
         return state.source.edgeValue(this.#row, path);
     }
 
@@ -577,7 +593,9 @@ class EdgeImpl implements EdgeView {
         }
 
         const state = this.#state;
-        ensureCarried(state, "edge", path, (facts) => literalRefusal(state.options.id, `edge.number(${JSON.stringify(path)})`, facts));
+        ensureCarried(state, "edge", path, (facts) =>
+            literalRefusal(state.options.id, `edge.number(${JSON.stringify(path)})`, facts),
+        );
         return counted(state, "edge", path, this.#row, state.source.edgeValue(this.#row, path));
     }
 }
@@ -703,7 +721,11 @@ export function createGraphView(source: ViewSource, options: GraphViewOptions): 
                     }
                 }
 
-                held = new Map([...found.entries()].sort(([a], [b]) => compareGroupKeys(a, b)).map(([key, list]) => [key, frozen(list)]));
+                held = new Map(
+                    [...found.entries()]
+                        .sort(([a], [b]) => compareGroupKeys(a, b))
+                        .map(([key, list]) => [key, frozen(list)]),
+                );
                 groups.set(path, held);
             }
 

@@ -3,14 +3,14 @@
 Six things can be brought to graphty-element from outside. The list is closed: it is what a third
 party may build against, and what the element promises not to break.
 
-| Extension point | What you bring | Guide |
-| --- | --- | --- |
-| Palette | A named set of colour anchors a style layer ramps through | [Custom palettes](./custom-palettes) |
-| File format | A reader for a graph file the element does not ship | [Custom file formats](./custom-data-sources) |
-| Camera | A way of deciding where the viewer stands and what they look at | [Custom camera views](./custom-cameras) |
-| Layout | An engine that decides where nodes sit | [Custom layouts](./custom-layouts) |
-| Algorithm | Something computed over the graph that publishes a result | [Custom algorithms](./custom-algorithms) |
-| Logging | A destination the element's log records are delivered to | [Custom log destinations](./custom-log-destinations) |
+| Extension point | What you bring                                                  | Guide                                                |
+| --------------- | --------------------------------------------------------------- | ---------------------------------------------------- |
+| Palette         | A named set of colour anchors a style layer ramps through       | [Custom palettes](./custom-palettes)                 |
+| File format     | A reader for a graph file the element does not ship             | [Custom file formats](./custom-data-sources)         |
+| Camera          | A way of deciding where the viewer stands and what they look at | [Custom camera views](./custom-cameras)              |
+| Layout          | An engine that decides where nodes sit                          | [Custom layouts](./custom-layouts)                   |
+| Algorithm       | Something computed over the graph that publishes a result       | [Custom algorithms](./custom-algorithms)             |
+| Logging         | A destination the element's log records are delivered to        | [Custom log destinations](./custom-log-destinations) |
 
 ## The promise
 
@@ -37,12 +37,12 @@ errors. **The advanced tier** is the registration each guide below describes: a 
 base class or a registration object, for when you need speed, a result shape the simple tier does
 not produce, or full control.
 
-| Point | Simple tier | Guide |
-| --- | --- | --- |
-| Algorithm | `defineAlgorithm({ id, node })` -- or `edge`, `nodes`, `groups` | [Custom algorithms](./custom-algorithms) |
-| Layout | `defineLayout({ id, place })` | [Custom layouts](./custom-layouts) |
-| Palette | `definePalette({ id, kind, colors })` | [Custom palettes](./custom-palettes) |
-| Logging | `defineLogDestination({ id, write })` | [Custom log destinations](./custom-log-destinations) |
+| Point     | Simple tier                                                     | Guide                                                |
+| --------- | --------------------------------------------------------------- | ---------------------------------------------------- |
+| Algorithm | `defineAlgorithm({ id, node })` -- or `edge`, `nodes`, `groups` | [Custom algorithms](./custom-algorithms)             |
+| Layout    | `defineLayout({ id, place })`                                   | [Custom layouts](./custom-layouts)                   |
+| Palette   | `definePalette({ id, kind, colors })`                           | [Custom palettes](./custom-palettes)                 |
+| Logging   | `defineLogDestination({ id, write })`                           | [Custom log destinations](./custom-log-destinations) |
 
 A whole working page, with no build step:
 
@@ -82,20 +82,20 @@ acme-share: edge() threw for edge "17" (TypeError: Cannot read properties of und
 An algorithm's `node`, `edge`, `nodes` or `groups` function and a layout's `place` function
 receive the graph as nodes and edges with their real ids:
 
-| Member | What it gives |
-| --- | --- |
-| `graph.nodes()`, `graph.edges()` | every node and every edge; parallel edges are separate edges with their own ids |
-| `graph.node(id)`, `graph.edge(id)` | one node or edge by id, or `undefined` |
-| `graph.groupBy(path)` | the nodes grouped by an attribute's value, groups in readable order ("2" before "10") |
-| `node.id`, `node.degree` | the id as the data spelled it; the number of edges touching the node |
-| `node.neighbors()`, `node.edges()` | the adjacent nodes (each once, never the node itself) and the touching edges |
-| `node.outNeighbors()`, `inNeighbors()`, `outEdges()`, `inEdges()` | the directed forms, only with `direction: "directed"` in the definition |
-| `edge.id`, `edge.source`, `edge.target` | the element's edge id and its two ends |
-| `edge.other(node)` | the far end seen from `node` -- the way to walk from a node along its edges |
-| `node.edgesTo(other)`, `node.weightTo(other, path)` | the edges between two nodes, and their summed weight |
-| `edge.weight(path)`, `node.strength(path)` | an edge's weight, and a node's summed edge weight |
-| `node.attr(path)`, `edge.attr(path)` | an attribute, or a finished run's result (`"results.degree.value"`) |
-| `node.number(path)`, `edge.number(path)` | the same, when it is a number; `undefined` otherwise |
+| Member                                                            | What it gives                                                                         |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `graph.nodes()`, `graph.edges()`                                  | every node and every edge; parallel edges are separate edges with their own ids       |
+| `graph.node(id)`, `graph.edge(id)`                                | one node or edge by id, or `undefined`                                                |
+| `graph.groupBy(path)`                                             | the nodes grouped by an attribute's value, groups in readable order ("2" before "10") |
+| `node.id`, `node.degree`                                          | the id as the data spelled it; the number of edges touching the node                  |
+| `node.neighbors()`, `node.edges()`                                | the adjacent nodes (each once, never the node itself) and the touching edges          |
+| `node.outNeighbors()`, `inNeighbors()`, `outEdges()`, `inEdges()` | the directed forms, only with `direction: "directed"` in the definition               |
+| `edge.id`, `edge.source`, `edge.target`                           | the element's edge id and its two ends                                                |
+| `edge.other(node)`                                                | the far end seen from `node` -- the way to walk from a node along its edges           |
+| `node.edgesTo(other)`, `node.weightTo(other, path)`               | the edges between two nodes, and their summed weight                                  |
+| `edge.weight(path)`, `node.strength(path)`                        | an edge's weight, and a node's summed edge weight                                     |
+| `node.attr(path)`, `edge.attr(path)`                              | an attribute, or a finished run's result (`"results.degree.value"`)                   |
+| `node.number(path)`, `edge.number(path)`                          | the same, when it is a number; `undefined` otherwise                                  |
 
 A toy example: on the path `a - b - c` with a self-loop on `c`,
 
@@ -124,25 +124,25 @@ defineAlgorithm({
 
 In the notation of a network paper:
 
-| Paper | Here |
-| --- | --- |
-| a_ij, "i and j are adjacent" | `node.edgesTo(j).length > 0` |
-| w_ij | `node.weightTo(j, w)`, parallel edges added |
-| k_i on a simple graph (no loops, no repeats) | `node.neighbors().length` |
-| s_i | `node.strength(w)` |
+| Paper                                        | Here                                        |
+| -------------------------------------------- | ------------------------------------------- |
+| a_ij, "i and j are adjacent"                 | `node.edgesTo(j).length > 0`                |
+| w_ij                                         | `node.weightTo(j, w)`, parallel edges added |
+| k_i on a simple graph (no loops, no repeats) | `node.neighbors().length`                   |
+| s_i                                          | `node.strength(w)`                          |
 
 On a graph with parallel edges, `node.degree` counts each of them, so the number of distinct
 neighbours is `node.neighbors().length`, not `node.degree`.
 
 ### Coming from NetworkX
 
-| NetworkX | Here |
-| --- | --- |
-| `G.degree(n)` with a self-loop | counts the loop twice; `node.degree` counts it once -- add `node.edgesTo(node).length` |
+| NetworkX                                           | Here                                                                                   |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `G.degree(n)` with a self-loop                     | counts the loop twice; `node.degree` counts it once -- add `node.edgesTo(node).length` |
 | `G.degree(n, weight="w")` with an edge missing `w` | reads the edge as 1; `node.strength("w")` leaves it out and the run's record counts it |
-| `G[u][v]["w"]` | `u.weightTo(v, "w")` (summed over parallel edges) |
-| `G.edges(keys=True)` on a `MultiGraph` | `graph.edges()`: each parallel edge with its own `edge.id` |
-| `nx.to_scipy_sparse_array(G)` | `strength()` and `weightTo()`: parallel edges add, a self-loop appears once |
+| `G[u][v]["w"]`                                     | `u.weightTo(v, "w")` (summed over parallel edges)                                      |
+| `G.edges(keys=True)` on a `MultiGraph`             | `graph.edges()`: each parallel edge with its own `edge.id`                             |
+| `nx.to_scipy_sparse_array(G)`                      | `strength()` and `weightTo()`: parallel edges add, a self-loop appears once            |
 
 So a random walk (PageRank) written over `strength()` and `edges()` weighs the edges as
 `nx.pagerank` does on a `MultiGraph`. The element's own "degree" algorithm is a third convention: it counts a self-loop
@@ -207,7 +207,7 @@ result path is built from your algorithm's key. Every registry does ship a
 name is deliberate, and it is not part of the contract.
 
 **Registering the same implementation twice is a no-op**, because a module a bundler re-evaluates
-must not become two extensions. Registering a *different* implementation under a name already
+must not become two extensions. Registering a _different_ implementation under a name already
 taken replaces it and warns once; pass `{ strict: true }` to make that throw `E_DUPLICATE_PLUGIN`
 instead.
 

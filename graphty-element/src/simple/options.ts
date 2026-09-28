@@ -105,7 +105,12 @@ function expandOne(verb: SimpleVerb, id: string, name: string, entry: unknown): 
         }
 
         if (on !== "node" && on !== "edge") {
-            throw badDefinition(verb, id, `${field}.on`, `"${field}.on" must be "node" or "edge"; got ${describeValue(on)}.`);
+            throw badDefinition(
+                verb,
+                id,
+                `${field}.on`,
+                `"${field}.on" must be "node" or "edge"; got ${describeValue(on)}.`,
+            );
         }
     }
 

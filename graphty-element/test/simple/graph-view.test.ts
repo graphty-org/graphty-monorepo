@@ -434,7 +434,10 @@ describe("walking with other()", () => {
         const error = thrown(() => edge.other(nodeOf(view, "c")));
 
         assert.strictEqual(error.code, "E_BAD_COMMAND");
-        assert.match(error.message, /^acme-test: edge\.other\(\) was given node "c", which is not an end of edge "\d+"/);
+        assert.match(
+            error.message,
+            /^acme-test: edge\.other\(\) was given node "c", which is not an end of edge "\d+"/,
+        );
     });
 });
 

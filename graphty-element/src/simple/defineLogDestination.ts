@@ -22,7 +22,14 @@ import { type LogSinkRegistration, registerLogSink } from "../catalog/logSinkReg
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { LogLevel, type LogRecord, type Sink } from "../logging/types";
-import { badDefinition, checkDefinition, describeValue, displayName, optionalOneOf, requireFunction } from "./definition";
+import {
+    badDefinition,
+    checkDefinition,
+    describeValue,
+    displayName,
+    optionalOneOf,
+    requireFunction,
+} from "./definition";
 import type { LogDestinationDefinition, LogLevelName, PlainLogRecord } from "./types";
 
 /** The five level words, in the order of `LogLevel` from ERROR (1) to TRACE (5). */
@@ -239,7 +246,12 @@ export function defineLogDestination(definition: LogDestinationDefinition, optio
     const checked = checkLogDestination(definition);
     const { id } = checked;
     const registration: LogSinkRegistration = registrations.get(definition) ?? {
-        descriptor: { id, plainName: displayName(checked), description: typeof checked.description === "string" ? checked.description : "", options: [] },
+        descriptor: {
+            id,
+            plainName: displayName(checked),
+            description: typeof checked.description === "string" ? checked.description : "",
+            options: [],
+        },
         create: () => createSimpleSink(id, checked as unknown as LogDestinationDefinition),
     };
 
@@ -264,4 +276,3 @@ export function defineLogDestination(definition: LogDestinationDefinition, optio
         }
     };
 }
-

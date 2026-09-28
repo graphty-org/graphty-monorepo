@@ -67,7 +67,10 @@ describe("the definition object", () => {
             const error = thrown(() => checkDefinition("defineLayout", { id }));
 
             assert.strictEqual(error.code, "E_BAD_COMMAND", id);
-            assert.isTrue(error.message.startsWith(`defineLayout(${JSON.stringify(id)}): "id" must be lower-case words`), id);
+            assert.isTrue(
+                error.message.startsWith(`defineLayout(${JSON.stringify(id)}): "id" must be lower-case words`),
+                id,
+            );
             assert.strictEqual(error.details.field, "id");
         }
     });
@@ -111,7 +114,10 @@ describe("the definition object", () => {
         assert.strictEqual(describeValue(undefined), "undefined");
         assert.strictEqual(describeValue(null), "null");
         assert.strictEqual(describeValue([1]), "an array");
-        assert.strictEqual(describeValue(() => 1), "a function");
+        assert.strictEqual(
+            describeValue(() => 1),
+            "a function",
+        );
         assert.strictEqual(describeValue({}), "an object");
         assert.strictEqual(describeValue(true), "the boolean true");
         assert.strictEqual(describeValue(0), "the number 0");

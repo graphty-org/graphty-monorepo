@@ -20,23 +20,12 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
-export type {
-    AutoApplyPolicy,
-    AutoApplyRun,
-    AutoApplySources,
-    AutoApplyStyles,
-} from "./autoApply";
+export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles } from "./autoApply";
 export { createAutoApplyPolicy } from "./autoApply";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
 export type { EncodingRun, EncodingSource, EncodingSpec } from "./EncodingSpec";
-export type {
-    ChannelExplanation,
-    ExplainTarget,
-    StyleContribution,
-    StyleExplanation,
-    UnboundLayer,
-} from "./explain";
+export type { ChannelExplanation, ExplainTarget, StyleContribution, StyleExplanation, UnboundLayer } from "./explain";
 export type {
     CompiledLayer,
     Layer,

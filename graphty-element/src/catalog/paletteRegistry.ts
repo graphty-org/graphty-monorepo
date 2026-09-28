@@ -45,7 +45,13 @@ import { KNOWN_PALETTE_IDS, type PaletteDescriptor, type PaletteId, type Palette
  * @returns A key two identical palettes share.
  */
 function contentKey(descriptor: PaletteDescriptor): string {
-    return JSON.stringify([descriptor.id, descriptor.kind, descriptor.colors, descriptor.capacity, descriptor.colorblindSafe]);
+    return JSON.stringify([
+        descriptor.id,
+        descriptor.kind,
+        descriptor.colors,
+        descriptor.capacity,
+        descriptor.colorblindSafe,
+    ]);
 }
 
 const registry = createPluginRegistry<PaletteDescriptor, PaletteDescriptor>({
@@ -86,7 +92,11 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
     }
 
     if (descriptor.plainName === undefined || descriptor.plainName === "") {
-        refuse(descriptor.id, "plainName", `the palette "${String(descriptor.id)}" was registered without a plain name`);
+        refuse(
+            descriptor.id,
+            "plainName",
+            `the palette "${String(descriptor.id)}" was registered without a plain name`,
+        );
     }
 
     if (descriptor.kind !== "sequential" && descriptor.kind !== "diverging" && descriptor.kind !== "categorical") {
@@ -105,7 +115,11 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
     for (const color of descriptor.colors) {
         const hex = normalizeHexAnchor(color);
         if (hex === null) {
-            refuse(descriptor.id, "colors", `"${String(color)}" in the palette "${String(descriptor.id)}" is not a colour`);
+            refuse(
+                descriptor.id,
+                "colors",
+                `"${String(color)}" in the palette "${String(descriptor.id)}" is not a colour`,
+            );
         }
 
         colors.push(hex);

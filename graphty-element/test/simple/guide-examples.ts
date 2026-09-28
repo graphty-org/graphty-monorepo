@@ -96,7 +96,9 @@ export function exampleText(file: string, region?: string): string {
     }
 
     const lines = match[1].split("\n");
-    const indent = Math.min(...lines.filter((line) => line.trim() !== "").map((line) => /^ */.exec(line)?.[0].length ?? 0));
+    const indent = Math.min(
+        ...lines.filter((line) => line.trim() !== "").map((line) => /^ */.exec(line)?.[0].length ?? 0),
+    );
     return lines
         .map((line) => line.slice(indent))
         .join("\n")

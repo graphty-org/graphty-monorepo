@@ -164,7 +164,12 @@ export function optionalOneOf(
     const value = definition[field];
     if (value !== undefined && !allowed.includes(value as string | number | boolean)) {
         const listed = allowed.map((item) => JSON.stringify(item)).join(", ");
-        throw badDefinition(verb, definition.id, field, `"${field}" must be one of ${listed}; got ${describeValue(value)}.`);
+        throw badDefinition(
+            verb,
+            definition.id,
+            field,
+            `"${field}" must be one of ${listed}; got ${describeValue(value)}.`,
+        );
     }
 }
 
@@ -190,7 +195,9 @@ export function sentenceCase(key: string): string {
  * @returns The name.
  */
 export function displayName(definition: CheckedDefinition): string {
-    return typeof definition.name === "string" && definition.name !== "" ? definition.name : sentenceCase(definition.id);
+    return typeof definition.name === "string" && definition.name !== ""
+        ? definition.name
+        : sentenceCase(definition.id);
 }
 
 /** Who was running when the author's own function threw. */

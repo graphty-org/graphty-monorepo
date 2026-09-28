@@ -218,7 +218,9 @@ describe("the brand palettes from the guide's first example", () => {
 
         assert.strictEqual(painted("a"), before, "six groups do not fit five colours, so the layer paints nothing");
         assert.isTrue(
-            warned.some((line) => line.includes('"Colour by data.team" paints nothing') && line.includes("E_CAP_EXCEEDED")),
+            warned.some(
+                (line) => line.includes('"Colour by data.team" paints nothing') && line.includes("E_CAP_EXCEEDED"),
+            ),
             `the element says why on the console; it said: ${JSON.stringify(warned)}`,
         );
     });

@@ -135,7 +135,8 @@ describe("a function that holds the page", () => {
             const run = element.run("acme-spin");
             await run;
 
-            const advice = "acme-spin: nodes() held the page for over 200 ms at a time; await context.progress(i / n) inside its loop.";
+            const advice =
+                "acme-spin: nodes() held the page for over 200 ms at a time; await context.progress(i / n) inside its loop.";
             assert.include(run.caveats.notes, advice);
             assert.include(warned, advice);
         } finally {

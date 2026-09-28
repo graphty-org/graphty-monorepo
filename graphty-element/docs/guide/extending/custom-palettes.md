@@ -83,15 +83,15 @@ Every mistake is refused by the `definePalette` call itself, as a `GraphtyError`
 `E_BAD_COMMAND` ("invalid definition") and `details.field` naming the member at fault. The message
 starts with the call and your id:
 
-| You wrote | The element says |
-| --- | --- |
-| `colors: ["var(--brand-navy)"]` | `definePalette("acme-brand"): ...` -- a `var()` is not resolved; read the token first (below) |
-| a token read before its stylesheet loaded (`""`) | refused the same way, so a too-early read fails loudly |
-| `colors: ["navvy"]` | the colour it could not read, quoted |
-| `kind: "qualitative"` | `"kind"` must be `"categorical"`, `"sequential"` or `"diverging"` |
-| `id: "Acme Brand"` | an id is lower-case words joined by hyphens, led by your own prefix |
-| `colorblindSafe: ["deuteranomaly"]` | a claim lists `"deuteranopia"`, `"protanopia"` or `"tritanopia"` |
-| `id: "viridis"` | `E_DUPLICATE_PLUGIN`: the element ships that one |
+| You wrote                                        | The element says                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `colors: ["var(--brand-navy)"]`                  | `definePalette("acme-brand"): ...` -- a `var()` is not resolved; read the token first (below) |
+| a token read before its stylesheet loaded (`""`) | refused the same way, so a too-early read fails loudly                                        |
+| `colors: ["navvy"]`                              | the colour it could not read, quoted                                                          |
+| `kind: "qualitative"`                            | `"kind"` must be `"categorical"`, `"sequential"` or `"diverging"`                             |
+| `id: "Acme Brand"`                               | an id is lower-case words joined by hyphens, led by your own prefix                           |
+| `colorblindSafe: ["deuteranomaly"]`              | a claim lists `"deuteranopia"`, `"protanopia"` or `"tritanopia"`                              |
+| `id: "viridis"`                                  | `E_DUPLICATE_PLUGIN`: the element ships that one                                              |
 
 **Colours from design tokens.** Read each token's value first, after the stylesheet that defines
 it has loaded (a module script that runs after the page's stylesheets, or on `DOMContentLoaded`):
@@ -112,7 +112,6 @@ palettes you build or load as data (a design-system export, a saved document). A
 with `definePalette` IS such a descriptor once registered, so everything below applies to it too.
 
 ## Advanced: the palette descriptor
-
 
 A palette is plain data. Nothing in the element ever asks a palette for behaviour: the categorical
 index path, the continuous interpolation, the step table, the over-subscription refusal, the
@@ -202,9 +201,9 @@ Everything, because all of it is palette-agnostic once a descriptor resolves:
 ```ts
 import { paletteDescriptor, palettesOfKind } from "@graphty/graphty-element/catalog";
 
-paletteDescriptor("acme-heat")?.plainName;   // "Acme Deep Sea to Sunrise"
-palettesOfKind("categorical");               // the element's own, then yours
-session.catalog.palettes();                  // every palette a picker may offer
+paletteDescriptor("acme-heat")?.plainName; // "Acme Deep Sea to Sunrise"
+palettesOfKind("categorical"); // the element's own, then yours
+session.catalog.palettes(); // every palette a picker may offer
 ```
 
 ## Saved documents carry your palette
@@ -221,19 +220,19 @@ the document.
 
 Registration validates at the door, and every refusal is a `GraphtyError` naming the field:
 
-| What is wrong | Code |
-| --- | --- |
-| An anchor that is not a colour | `E_BAD_COMMAND`, `details.field` is `colors` |
+| What is wrong                            | Code                                           |
+| ---------------------------------------- | ---------------------------------------------- |
+| An anchor that is not a colour           | `E_BAD_COMMAND`, `details.field` is `colors`   |
 | A `capacity` that contradicts the `kind` | `E_BAD_COMMAND`, `details.field` is `capacity` |
-| No id, or no colours | `E_BAD_COMMAND` |
-| An id the element itself ships | `E_DUPLICATE_PLUGIN` |
+| No id, or no colours                     | `E_BAD_COMMAND`                                |
+| An id the element itself ships           | `E_DUPLICATE_PLUGIN`                           |
 
 And afterwards:
 
-| What is wrong | Code |
-| --- | --- |
+| What is wrong                                                                | Code                                          |
+| ---------------------------------------------------------------------------- | --------------------------------------------- |
 | A layer, an `encode()` call or a document names a palette nothing registered | `E_UNKNOWN_PALETTE`, with `details.available` |
-| A categorical palette is asked to name more groups than it has colours | `E_CAP_EXCEEDED` |
+| A categorical palette is asked to name more groups than it has colours       | `E_CAP_EXCEEDED`                              |
 
 ```ts
 import { isGraphtyError } from "@graphty/graphty-element/extend";

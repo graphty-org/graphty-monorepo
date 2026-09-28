@@ -74,7 +74,10 @@ function externalDependencies(): RegExp[] {
         dependencies?: Record<string, string>;
         peerDependencies?: Record<string, string>;
     };
-    const names = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]);
+    const names = new Set([
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.peerDependencies ?? {}),
+    ]);
 
     return [...names]
         .filter((name) => !bundledDependencies.has(name))

@@ -84,7 +84,10 @@ describe.each(GUIDES)("the $file guide and its examples", (guide) => {
     });
 
     it("keeps the first plugin, end to end, within the adoption budget", () => {
-        const total = guide.firstPlugin.reduce((sum, [file, region]) => sum + authorLines(exampleText(file, region)), 0);
+        const total = guide.firstPlugin.reduce(
+            (sum, [file, region]) => sum + authorLines(exampleText(file, region)),
+            0,
+        );
         assert.isAtMost(total, 20, `the first plugin takes ${String(total)} author lines`);
     });
 

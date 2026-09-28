@@ -70,7 +70,10 @@ describe("the short form", () => {
         });
 
         assert.strictEqual(option.plainName, "Seconds for one turn");
-        assert.strictEqual(expandOptions("defineLayout", "acme-x", { secondsPerTurn: 60 })[0].plainName, "Seconds per turn");
+        assert.strictEqual(
+            expandOptions("defineLayout", "acme-x", { secondsPerTurn: 60 })[0].plainName,
+            "Seconds per turn",
+        );
     });
 
     it("is empty when the definition declares no options", () => {
@@ -128,7 +131,11 @@ describe("the checks before the author's code runs", () => {
     it("pass a graph that carries every attribute named and every node named, and record the inputs", () => {
         const view = graph();
 
-        checkViewOptions(view, "acme-confidence-degree", declared, { confidence: "confidence", seeds: [0, "b"], start: 0 });
+        checkViewOptions(view, "acme-confidence-degree", declared, {
+            confidence: "confidence",
+            seeds: [0, "b"],
+            start: 0,
+        });
         assert.deepEqual(viewInputs(view), [{ target: "edge", path: "confidence" }]);
     });
 
@@ -149,7 +156,10 @@ describe("the checks before the author's code runs", () => {
         const error = thrown(() => checkViewOptions(view, "acme-confidence-degree", declared, { seeds: [0, "0"] }));
 
         assert.strictEqual(error.code, "E_OPTION_RANGE");
-        assert.strictEqual(error.message, 'acme-confidence-degree: option "seeds" names node "0", which the graph does not have.');
+        assert.strictEqual(
+            error.message,
+            'acme-confidence-degree: option "seeds" names node "0", which the graph does not have.',
+        );
         assert.strictEqual(
             thrown(() => checkViewOptions(view, "acme-confidence-degree", declared, { start: 4217 })).message,
             'acme-confidence-degree: option "start" names node 4217, which the graph does not have.',
@@ -160,7 +170,9 @@ describe("the checks before the author's code runs", () => {
         const options = expandOptions("defineAlgorithm", "acme-share", {
             strength: { type: "attribute", default: "results.strength.value" },
         });
-        const error = thrown(() => checkViewOptions(graph(), "acme-share", options, { strength: "results.strength.value" }));
+        const error = thrown(() =>
+            checkViewOptions(graph(), "acme-share", options, { strength: "results.strength.value" }),
+        );
 
         assert.strictEqual(
             error.message,

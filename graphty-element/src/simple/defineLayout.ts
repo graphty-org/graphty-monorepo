@@ -75,7 +75,10 @@ interface Plan {
  * The engine each id was last filed with, the function it came from and the rest of the definition
  * it was built from: the sameness rule. A changed member files a new engine, which replaces it.
  */
-const filed = new Map<string, { readonly place: unknown; readonly signature: string; readonly engine: DefinedEngine }>();
+const filed = new Map<
+    string,
+    { readonly place: unknown; readonly signature: string; readonly engine: DefinedEngine }
+>();
 
 /** A definition with no options, the default of the verb's generic. */
 type NoOptions = Readonly<Record<never, never>>;

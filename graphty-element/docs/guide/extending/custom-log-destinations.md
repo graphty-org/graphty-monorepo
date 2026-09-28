@@ -120,7 +120,10 @@ On a page with no build step, import both from the self-contained bundle:
 
 ```html
 <script type="module">
-    import { defineLogDestination, GraphtyLogger } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js";
+    import {
+        defineLogDestination,
+        GraphtyLogger,
+    } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js";
 
     defineLogDestination({ id: "acme-page-log", write: (record) => console.log(record.message) });
     await GraphtyLogger.configure({ enabled: true });

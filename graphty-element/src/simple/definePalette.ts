@@ -90,7 +90,10 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
     }
 
     const claims: unknown = checked.colorblindSafe ?? [];
-    if (!Array.isArray(claims) || claims.some((claim) => !["deuteranopia", "protanopia", "tritanopia"].includes(claim as string))) {
+    if (
+        !Array.isArray(claims) ||
+        claims.some((claim) => !["deuteranopia", "protanopia", "tritanopia"].includes(claim as string))
+    ) {
         throw badDefinition(
             "definePalette",
             id,

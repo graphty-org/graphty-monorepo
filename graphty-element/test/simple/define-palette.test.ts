@@ -80,7 +80,13 @@ describe("a palette defined through the simple tier", () => {
 
     it("refuses a colour-vision claim that is not one of the three deficiencies, in both tiers", () => {
         const refusals = [
-            () => definePalette({ id: "acme-claim", kind: "categorical", colors: COLORS, colorblindSafe: ["nonsense"] as never }),
+            () =>
+                definePalette({
+                    id: "acme-claim",
+                    kind: "categorical",
+                    colors: COLORS,
+                    colorblindSafe: ["nonsense"] as never,
+                }),
             () =>
                 registerPalette({
                     id: "acme-claim-advanced",

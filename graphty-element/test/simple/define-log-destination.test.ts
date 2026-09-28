@@ -507,7 +507,11 @@ describe("defineLogDestination", () => {
             layout.error("stuck");
             logger().error("elsewhere");
 
-            const { id: _simpleId, plainName: _simpleName, ...simpleRest } = logSinkDescriptor("acme-simple-twin") ?? {};
+            const {
+                id: _simpleId,
+                plainName: _simpleName,
+                ...simpleRest
+            } = logSinkDescriptor("acme-simple-twin") ?? {};
             const { id: _advId, plainName: _advName, ...advancedRest } = logSinkDescriptor("acme-advanced-twin") ?? {};
             assert.deepStrictEqual(simpleRest, advancedRest, "the same entry, apart from the id and its name");
             assert.deepStrictEqual(simple, advanced, "the same records");

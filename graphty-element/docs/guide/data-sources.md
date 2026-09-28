@@ -118,9 +118,10 @@ If that pair's load failed, assigning it again retries it.
 `loadFromFile` and `loadFromUrl` pick the format from the file name first. When two formats claim
 the extension (`.xml` is GraphML or GEXF), or the name has no extension the element knows, the
 first bytes decide, using the content checks of the matching
-`@graphty/graph-io` importers. A file is named by its content
-only when an importer recognises it, not merely tolerates it: a headerless CSV table needs its
-`.csv`, `.tsv` or `.tab` extension. When neither settles it, name the format explicitly.
+`@graphty/graph-io` importers. Any table whose first line is split by a comma, tab, semicolon or
+pipe is read as CSV, whatever its column names. A space-separated table is not detected: name the
+format and pass `delimiter: " "`. When neither the name nor the bytes settle it, name the format
+explicitly.
 
 The same detection is published, so a drop target can ask before it loads anything:
 

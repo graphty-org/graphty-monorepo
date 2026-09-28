@@ -52,6 +52,9 @@ import { registeredFormats } from "./formatRegistry";
 import { FORMAT_DESCRIPTORS, UNSERVED_FORMAT_IDS } from "./formats";
 import type { FormatId } from "./types";
 
+/** The column separators that make a first line a table rather than prose. */
+const CSV_DELIMITERS = [",", "\t", ";", "|"] as const;
+
 /** What is known about the file: its name, its first bytes, or both. */
 export interface DetectionInput {
     /** The file name, with its extension. */
@@ -82,26 +85,47 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
  * How sure a graph-io sniffer must be before the element names its format from content alone.
  *
  * Below this a sniffer is tolerating the bytes, not recognising them: graph-io's GraphML answers
- * 0.05 for any XML prolog and its CSV answers 0.3 for any consistently delimited rows, which
- * includes a line of prose split at its spaces. Answering either would hand a file the element
- * cannot read to a reader that then reports a parse error instead of "unknown format". The cost
- * is that a headerless table is recognised by its extension (`.csv`, `.tsv`, `.tab`), not by its
- * content.
+ * 0.05 for any XML prolog. Answering it would hand a file the element cannot read to a reader
+ * that then reports a parse error instead of "unknown format". CSV has its own test, below.
  */
 const MIN_CONTENT_CONFIDENCE = 0.5;
 
 /**
+ * Whether graph-io's CSV answer names a table the element's CSV reader can split.
+ *
+ * graph-io's CSV sniffer is sure only of headers it knows (`source,target`, `id`) and answers 0.3
+ * for any other consistently delimited rows -- which is most real tables, headerless or with
+ * column names of their own (`person,friend`). The element's reader takes those, so any score
+ * counts. But graph-io also splits on spaces, which the element's reader does not, so a line of
+ * prose (`Name of the report`) would be answered "csv"; the first line must hold one of the
+ * reader's own delimiters.
+ * @param content - graph-io's CSV content score.
+ * @param sample - The first bytes of the file, trimmed.
+ * @returns Whether the element should answer "csv".
+ */
+function isReadableTable(content: number, sample: string): boolean {
+    const firstLine = sample.split(/\r?\n|\r/, 1)[0];
+
+    return content > 0 && CSV_DELIMITERS.some((delimiter) => firstLine.includes(delimiter));
+}
+
+/**
  * The element's built-in formats that recognise the bytes, best first, as graph-io's sniffers
  * rank them.
- * @param sample - The first bytes of the file.
+ * @param sample - The first bytes of the file, trimmed.
  * @returns The format ids, best first, each once.
  */
 function sniffBuiltIns(sample: string): FormatId[] {
-    const ranked = rankFormats(
+    const ids = rankFormats(
         { head: sample },
         BUILT_IN_IMPORTERS.map((entry) => entry.importer),
-    ).filter((result) => result.content >= MIN_CONTENT_CONFIDENCE);
-    const ids = ranked.map((result) => BUILT_IN_IMPORTERS.find((entry) => entry.importer.format === result.format)?.id);
+    )
+        .filter((result) =>
+            result.format === csvImporter.format
+                ? isReadableTable(result.content, sample)
+                : result.content >= MIN_CONTENT_CONFIDENCE,
+        )
+        .map((result) => BUILT_IN_IMPORTERS.find((entry) => entry.importer.format === result.format)?.id);
 
     return [...new Set(ids.filter((id): id is FormatId => id !== undefined))];
 }

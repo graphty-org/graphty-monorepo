@@ -102,16 +102,30 @@ describe("detectFormat", () => {
             assert.strictEqual(detectFormat("", ":START_ID,:END_ID,:TYPE\n1,2,KNOWS\n"), "csv");
         });
 
-        test("recognises a headerless table by its extension, not by content graph-io only tolerates", () => {
-            assert.strictEqual(detectFormat("edges.csv", "a,b\nb,c\n"), "csv");
-            assert.strictEqual(detectFormat("", "a,b\nb,c\n"), null);
+        test("detects a delimited table whose header graph-io does not know as CSV", () => {
+            assert.strictEqual(detectFormat("", "a,b\nb,c\n"), "csv");
+            assert.strictEqual(detectFormat("", "person,friend\nalice,bob"), "csv");
+            assert.strictEqual(detectFormat("", "user,follows,weight\n1,2,0.5"), "csv");
+            assert.strictEqual(detectFormat("", "a\tb\nx\ty"), "csv");
+            assert.strictEqual(detectFormat("", "left;right\nx;y"), "csv");
         });
 
-        test("ranks every built-in that claims the content, best first", () => {
-            const ranked = detectFormats({ sample: "source,target\na,b\n" });
+        test("does not name space-separated text CSV, which the CSV reader cannot split", () => {
+            assert.strictEqual(detectFormat("", "source target\na b\nb c"), null);
+            assert.strictEqual(detectFormat("", "id name\n1 foo"), null);
+            assert.strictEqual(detectFormat("", "Name of the report\nThe first line of text"), null);
+        });
 
-            assert.strictEqual(ranked[0], "csv");
-            assert.strictEqual(new Set(ranked).size, ranked.length, "no format appears twice");
+        test("detects a CSV whose first column is named graph as CSV, not DOT", () => {
+            assert.deepStrictEqual(detectFormats({ sample: "graph,id,name\ng1,1,x" }), ["csv"]);
+        });
+
+        test("detects a single-column neo4j-admin node file as CSV", () => {
+            assert.deepStrictEqual(detectFormats({ sample: ":ID\n1\n2\n" }), ["csv"]);
+        });
+
+        test("names CSV once when both of its graph-io importers claim the content", () => {
+            assert.deepStrictEqual(detectFormats({ sample: ":START_ID,:END_ID,:TYPE\n1,2,KNOWS\n" }), ["csv"]);
         });
     });
 });

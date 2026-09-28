@@ -514,6 +514,15 @@ describe("dot importer: the grammar", () => {
         expect(cell(snapshot, "edges", "pos", 0)).toBe("e,1,2 3,4");
     });
 
+    it("keeps a node pos as written text with positions false", async () => {
+        const { snapshot, report } = await load('digraph { a [pos="1,2!"]; b [pos="nope"] }', { positions: false });
+        expect(codes(report)).toEqual([]);
+        expect(snapshot.nodes.byRole("position")).toBeNull();
+        expect(nodeCell(snapshot, "a", "pos")).toBe("1,2!");
+        expect(nodeCell(snapshot, "b", "pos")).toBe("nope");
+        expect(snapshot.nodes.get("pin")).toBeNull();
+    });
+
     it("takes the weight from the weight attribute, explicit only", async () => {
         const { snapshot } = await load('digraph { a -> b [weight=2.5]; b -> c; c -> a [weight=""] }');
         expect(snapshot.flags.weighted).toBe(true);

@@ -663,7 +663,9 @@
                             "maximum": 256
                         },
                         "exponent": {
-                            "type": "number"
+                            "type": "number",
+                            "minimum": 0.01,
+                            "maximum": 100
                         }
                     },
                     "not": {
@@ -768,7 +770,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
-            "description": "A predicate in graphty-element's expression language, a subset of JMESPath with no functions (style.md, 'Expressions'), over {data, results} (style.md, 'Paths'); at most 1024 characters and 32 levels of nesting."
+            "description": "A predicate in graphty-element's expression language, a subset of JMESPath with no functions (style.md, 'Expressions'), over {data, results} (style.md, 'Paths'); numbers, true, false and null may be written bare (padj < 0.05), and a path without a prefix reads data; at most 1024 characters and 32 levels of nesting."
         }
     }
 }

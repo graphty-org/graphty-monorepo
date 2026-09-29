@@ -77,7 +77,9 @@ file's text, or its bytes as UTF-8.
    forever, as a document holding that one style member (as if it had `"kind": "graphty-style"`),
    so a kindless file with one malformed layer paints its other layers, and a kindless style of a
    later version whose layers changed shape is skipped with `E_UNSUPPORTED_VERSION`, not refused
-   as an unknown format. Any other shape falls to rule 6, so another tool's file that happens to
+   as an unknown format. graphty-element writes `kind` on every style from 3.0.0 on,
+   `toDocument()` included, so a kindless style is one 2.x wrote and every later style version is
+   written with its `kind`; the test can stay tied to version 1's layer shape. Any other shape falls to rule 6, so another tool's file that happens to
    have `version` and `layers` (a MapLibre map style, whose layers have a `type` and no
    `selector`) is never taken for a graphty style.
 4. A top-level object with `"graphtyTemplate": true` is a graphty-element 1.x style template. A
@@ -142,13 +144,14 @@ recipe.md, "Commands" rule 3 checks against the catalogue instead), and a data m
 (checked against the format's catalogue, "Import options"). Every closed object, and what a reader
 does with an unknown member in it:
 
-| Closed object                                      | A reader that meets an unknown member                                                                                                                                                               |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a recipe command, its `scope` and its `style`      | skips the command, `E_UNKNOWN_OPTION`, and every later one, `E_DEPENDENCY_SKIPPED` naming it (recipe.md, "Replaying" rule 3)                                                                        |
-| a reading of a recipe's `table`                    | the commands are unaffected; every table import made for the recipe is refused with `E_UNKNOWN_OPTION` at that member's pointer, never read by the importer's own guesses (recipe.md, "Table data") |
-| a data member                                      | skips the data member, `E_BAD_DOCUMENT` ("The data member" rule 6)                                                                                                                                  |
-| a style's selectors, bindings and carried palettes | reports `W_UNKNOWN_MEMBER`, applies the layer and writes the member back on save: the schema refuses the member, so a validator catches the misspelling (`overflw`) the reader only warns about     |
-| the keys of a style layer's `set` and `encode`     | channel names: style.md, "Reading and applying" rule 3                                                                                                                                              |
+| Closed object                                      | A reader that meets an unknown member                                                                                                                                                                                                                |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a recipe command and its `scope`                   | skips the command, `E_UNKNOWN_OPTION`, and every later one, `E_DEPENDENCY_SKIPPED` naming it (recipe.md, "Replaying" rule 3)                                                                                                                         |
+| a reading of a recipe's `table`                    | the commands are unaffected; the readings are tried up to that one, and when none before it passes the import is refused with `E_UNKNOWN_OPTION` at that member's pointer, never read by the importer's own guesses (recipe.md, "Table data" rule 7) |
+| a data member                                      | skips the data member, `E_BAD_DOCUMENT` ("The data member" rule 6)                                                                                                                                                                                   |
+| a style's selectors, bindings and carried palettes | reports `W_UNKNOWN_MEMBER`, applies the layer and writes the member back on save: the schema refuses the member, so a validator catches the misspelling (`overflw`) the reader only warns about                                                      |
+| the keys of a style layer's `set` and `encode`     | channel names: style.md, "Reading and applying" rule 3                                                                                                                                                                                               |
+| the parts of a run's `style`                       | drops the part, `W_UNKNOWN_MEMBER`; the run runs and paints the parts this reader knows (recipe.md, "Replaying" rule 3)                                                                                                                              |
 
 The first three change a result when a member is ignored, so they stop; the others do not. A
 recipe's own top level and the document's are open, with one guard, because a misspelling there
@@ -177,16 +180,22 @@ adds a top-level member within that distance of one of those names.
    exports; the URL of a schema always serves the newest copy. Because the lists grow, whether a
    file is valid version 1 depends on which copy checks it: each release's copy is also published
    under an `$id` of its own, `https://graphty.app/schema/documents/<kind>/v1/<release>.json`,
-   and a check that must give the same answer tomorrow (a continuous-integration job) names one.
+   whose every `$ref` names that same release's copy of the other kinds, so the pinned container
+   never pulls in a newer style, recipe or data schema, and two releases' copies loaded side by
+   side have two `$id`s; the floating `v1.json` copies refer to one another's floating URLs. A
+   check that must give the same answer tomorrow (a continuous-integration job) names one pinned
+   copy.
    A file a newer release wrote can fail an older copy for a value that release added; an older
    reader still opens it, dropping only that value. A reader that does not know a value
    fails that one layer entry, layer or command, never a style or recipe member (style.md,
    "Compatible with graphty-element 2.x" rule 2); a data member is the exception, skipped whole
    for a format, dialect or import option its reader does not know ("The data member" rule 10),
-   because reading a file some other way gives other columns. The closed objects -- a recipe
-   command, a run's `style` and `scope`, a data member, a style's selectors, bindings and carried
-   palettes -- gain members only in a new major version of their kind, because an older reader
-   skips or misreads a member it does not know. Two exceptions follow from the order a reader
+   because reading a file some other way gives other columns. The parts of a run's `style` are
+   an open list too, because they choose only what a run paints. The closed objects -- a recipe
+   command and its `scope`, a data member, a style's selectors, bindings and carried palettes --
+   gain members only by the routes of rule 3, because an older reader skips or misreads a member
+   it does not know. Every op a release adds admits the member `narrows` (`false`), which a reader
+   that knows the op ignores (recipe.md, "Replaying" rule 4). Two exceptions follow from the order a reader
    checks things in. Members that exist only alongside a new selector kind or a new scale
    (`hops` beside a new `match`) arrive with that value within version 1: an older reader fails
    the layer for the unknown `match` or `scale` before it looks at members, so it never misapplies
@@ -206,16 +215,16 @@ adds a top-level member within that distance of one of those names.
    sits -- `commands[*].as` -- never change in any recipe version, and a later member kind that
    names runs lists them at a fixed place of its own, so a reader that skips a newer recipe can
    still tell which `results.` paths belong to it (style.md, "Reading and applying" rule 4).
-3. **An addition an old reader would misapply by ignoring it needs a new major version.** A new
-   selector member that narrows what a layer matches, or a new command member that changes what a
-   run computes, is written as the next major version of that kind, which an old reader refuses by
-   version (rule 12 above) instead of ignoring and painting or computing the wrong thing. A new
-   member kind that others depend on is listed in `requires` instead (rule 9). A recipe command
-   that gains a member changing what it computes is added as a new `op` instead
-   (`algo.run-transformed`): an older reader then runs every command before it and stops the
+3. **An addition an old reader would misapply by ignoring it.** A new selector member that narrows
+   what a layer matches is written as the next major version of the style kind, which an old
+   reader refuses by version (rule 12 above) instead of ignoring it and painting the wrong thing. A
+   new member kind that others depend on is listed in `requires` instead (rule 9). A recipe has one
+   route for each class of change: a command that needs a member changing what it computes is a
+   new `op` (`algo.run-transformed`), so an older reader runs every command before it and stops the
    replay there (recipe.md, "Replaying" rule 4), where a new recipe major version would lock it
-   out of the whole recipe. A recipe major version is kept for a change to the meaning of the
-   recipe's own top level.
+   out of the whole recipe; a member that changes only what a run paints is a new part of the
+   run's `style`, which an older reader drops with a notice (rule 2); and a change to what the
+   recipe's own top level or an existing member means is recipe version 2.
 4. A writer MUST write the lowest version of each kind that can express the content, so saving a
    file does not lock out a colleague on an older release. A style whose top layers need a later
    style version SHOULD be written as two members, the lower layers at the lowest version and the
@@ -310,8 +319,9 @@ interface ReferencedData {
 3. **Where a reference may point.** graphty-element resolves `href` itself, with the WHATWG URL
    parser, against the `base` the caller passed to `openDocument` (the URL the document came from),
    and checks the resolved URL, never the raw text:
-    - an absolute `https:` URL with no user name or password is allowed, unless its host is
-      `localhost`, a name ending `.localhost`, or an IP literal that is not a public unicast
+    - an absolute `https:` URL with no user name or password is allowed, unless its host -- with
+      one trailing dot removed, so `localhost.` is `localhost` -- is `localhost`, a name ending
+      `.localhost`, or an IP literal that is not a public unicast
       address, which is refused unless the caller passes `allowPrivateHosts: true`. The refused
       addresses are every entry of the IANA IPv4 and IPv6 Special-Purpose Address Registries that
       is not marked globally reachable -- those registries, as published when the release was
@@ -428,7 +438,9 @@ later release adds need no new data version. In version 1:
   space-separated file (STRING's bulk downloads) needs `delimiter: " "`. Every occurrence
   separates two columns; a run of spaces is not collapsed. `variant`, the CSV shape (README, "What
   every importer produces"), and `idColumn`, the node table's id column. A neo4j-admin import CSV is
-  `"format": "csv"` with `"variant": "neo4j"`;
+  `"format": "csv"` with `"variant": "neo4j"`. A row ends at LF or at CR LF, and a CR before an LF
+  is never part of a field, so a file re-saved on Windows reads the same, its last header
+  included;
 - JSON: `nodeIdPath`.
 
 `directed` and `repeatedEdges` are graphty-element settings today; publishing them, and
@@ -514,6 +526,12 @@ interface OpenedDocument {
 ```
 
 The promise resolves once the data has applied, the styles are added and the recipes are planned.
+A file refused whole -- too large, not JSON, not a graphty document, a container version this
+reader does not read, a `requires` kind it lacks ("Reading a file" rules 1 and 6 to 9) --
+rejects the promise with a `GraphtyError` whose `code` and `details` say why (`E_UNSUPPORTED_VERSION`
+with `{ found, reads }`, `E_UNSUPPORTED` naming the kind, `E_UNKNOWN_FORMAT` with
+`details.available`), in a preview too, and nothing in the session changes. A member skipped on
+its own is an entry of the report, never a rejection.
 With `run: true` it does not wait for the runs: each recipe's `running` is then the run in
 progress, which the caller can wait for or cancel (recipe.md, "Applying a recipe").
 
@@ -528,8 +546,11 @@ progress, which the caller can wait for or cancel (recipe.md, "Applying a recipe
       `resolve` supply it; otherwise the loaded graph. So a caller can see how a colleague's
       recipe would do on the colleague's data before replacing their own;
     - when no graph is available, says the plan is unbound, with every estimate `null`;
-    - plans every recipe in full and reports a repeat application as a notice, never a refusal, so
-      two versions of a recipe can be compared before choosing `onRepeat`;
+    - plans every recipe in full, a repeat application included, so two versions of a recipe can
+      be compared before choosing `onRepeat`, and gives a recipe that the real opening with the
+      same `onRepeat` would refuse as a repeat `wouldStart: false` and
+      `wouldStartReason: "repeat"`; its member summary says so ("would be refused as a repeat of
+      1.0.0; pass onRepeat");
     - applies rule 8 as an opening with `run: true` would: when the file's planned total is over
       the budget, every recipe's `wouldStart` is false and carries `E_CAP_EXCEEDED` with that
       total, and the report's own `wouldStart` is false;
@@ -537,8 +558,9 @@ progress, which the caller can wait for or cancel (recipe.md, "Applying a recipe
 2. **Order.** Data first, then recipes in file order, then styles in file order. The data must exist
    before anything binds to its columns, and a style that paints a recipe's results must come after
    the recipe. A run's own suggested colouring is added when the run completes, above every layer
-   present then -- the file's style layers included -- so a file whose style member paints a run's
-   result says `style: false` on that run (recipe.md, "Commands" rule 8).
+   present then -- the file's style layers included -- so a run whose results a style member of
+   the file reads paints nothing of its own unless it says `style: true`, and a writer still
+   writes `style: false` on it (recipe.md, "Commands" rule 8).
 3. **Recipes do not run unless asked.** Opening binds and plans each recipe; it runs only with
    `run: true`, and a recipe held for data only when the caller calls its `run()` (rule 6;
    recipe.md, "Running").
@@ -586,12 +608,18 @@ progress, which the caller can wait for or cancel (recipe.md, "Applying a recipe
    quoting it -- nearest-name suggestions, a column's most frequent values, the columns
    `W_TABLE_COLUMNS_DIFFER` names, the delimiter an `E_PARSE_FAILED` names -- and by counting it:
    every scope's and filter's `matched` and `of`, every column's `withValue`, and which commands
-   are skipped with `E_SCOPE_EMPTY`. The counts are a query channel: a document of 1,000 cheap
-   commands, each scoped to one threshold on one person's salary, reads the salary back one bit
-   per command, and every command's `sees`. For data a document's `href` fetched, a report leaves
+   are skipped with `E_SCOPE_EMPTY`. A style report does both too: each layer's `matched` and `of`,
+   each read's `withValue`, the `map` keys that matched no value, `W_MATCHES_NOTHING` and the values
+   it lists, `W_FEW_VALUES`, the notice about values outside an explicit domain, a passthrough
+   binding's `samples`, and a layer `failing` because its data holds more categories than its
+   palette. The counts are a query channel: a document of 1,000 cheap commands, each scoped to one
+   threshold on one person's salary, reads the salary back one bit per command, and every
+   command's `sees`; a style of 1,000 `map` keys guesses 1,000 names in one preview. For data a document's `href` fetched, a report leaves
    both out unless the caller passes `quoteFetchedData: true`, and for data the caller loaded
    itself when it passes `quoteLoadedData: false`: the quotes are omitted, the counts are `null`,
-   `data.sameBytes` is `null`, and a notice says what was left out. Which commands were skipped
+   the notices that answer a question about the data are left out, a layer failing only for its
+   count of categories is reported as painting, `data.sameBytes` is `null`, and a notice says what
+   was left out. Which commands were skipped
    still shows, because the report must say what ran, and that is still one bit per command. So a
    service that previews or runs documents submitted by others MUST NOT pass
    `quoteFetchedData: true`, MUST pass `quoteLoadedData: false` when it runs them against data it
@@ -619,7 +647,15 @@ session.data.saveDocument(options?: {
     keepElementSelectors?: boolean; // default false: see rule 4
     recipe?: RecordOptions; // recipe.md, "Recording"
     data?: false | { embed: true } | { reference: true } | { href: string; format: string; options?: Record<string, unknown>; sha256?: boolean; allowQuery?: boolean };
-}): Promise<{ text: string; report: { leftOut: readonly Problem[]; notices: readonly Problem[] } }>
+}): Promise<{
+    text: string;
+    report: {
+        leftOut: readonly Problem[];
+        notices: readonly Problem[];
+        /** When it recorded a recipe: the session run each written `as` came from (recipe.md, "Recording"). */
+        sources?: readonly { as: string; runId: string }[];
+    };
+}>
 ```
 
 1.  A writer MUST write `kind` and `version` first, then `name`, `description`, `generator`,
@@ -635,7 +671,9 @@ session.data.saveDocument(options?: {
     unknown kind, a newer version -- stays in place verbatim, with its unknown object members and
     `extensions`; new members are appended. A recipe member opened from the file is written
     back as it was read -- unknown and skipped commands included -- unless the caller records a
-    recipe with the same `id` (`recipe.id`). That recording replaces it only when every command of
+    recipe with the same `id` (`recipe.id`), or records under another `id` a recipe that carries
+    its `table` and leading filter, which supersedes it and leaves it out, listed in
+    `report.leftOut` (recipe.md, "Recording" rule 8). A recording under the same `id` replaces it only when every command of
     the opened recipe ran here, or the caller passes `recipe.dropUnrun: true`; otherwise the
     opened recipe is written back as it was read, and `report.leftOut` lists each command that did
     not run (an unknown `op`, an unknown algorithm, a skipped command) with its reason (recipe.md,
@@ -646,8 +684,9 @@ session.data.saveDocument(options?: {
     `report.leftOut`. A writer MUST keep the unknown object members of a member it regenerated: of
     the member itself, and of each style layer (matched by its `id`, else by its position) and of
     the selectors, bindings and palettes inside it. It reports any member it could not place. A
-    recipe command is the exception: its members are closed and never gain one within version 1,
-    so an unknown member of a version 1 command is a misspelling, which skipped that command
+    recipe command is the exception: its members are closed and never gain one within version 1
+    (the parts of a run's `style` aside, which are written back as read), so an unknown member of a
+    version 1 command is a misspelling, which skipped that command
     (recipe.md, "Replaying" rule 3). A regenerated recipe writes each command only as its schema
     allows, and an unknown member of a command it replaced is listed in `report.leftOut`, never
     carried onto another command. A writer does not rewrite references inside members or extensions it does not
@@ -657,7 +696,10 @@ session.data.saveDocument(options?: {
     - **the style** (`session.styles.toDocument()`, with `kind`), or only the layers `style.layers`,
       `style.templateId` or `style.sources` choose, so "our lab's look" can be saved without the
       colouring an analysis added: `sources: ["user", "template"]` writes the layers made by hand
-      and those opened from documents, and lists every layer a run painted in `report.leftOut`. It leaves out every layer that selects particular elements -- an `ids`
+      and those opened from documents, and lists every layer a run painted in `report.leftOut`.
+      When the file holds no recipe, that is the default: a layer a run painted would name a run
+      that does not exist where the file is opened next, so it is left out and listed, and
+      `style.sources` including `"run"` keeps it. It leaves out every layer that selects particular elements -- an `ids`
       selector, or a `member` selector of any scope but `{ where }`, in a refused layer too -- and
       lists each in `report.leftOut`, as the recorder leaves out a run on the selection, because a
       file shared with others would otherwise name them. `keepElementSelectors: true` keeps them.
@@ -747,7 +789,7 @@ interface DocumentReport {
         readonly totalEstimateSeconds: number | null; // null when any command has no estimate
         readonly budgetSeconds: number;
         readonly wouldStart: boolean; // false when the total is unknown or over the budget
-        readonly wouldStartReason: "ok" | "over-budget" | "unknown-estimate" | "unbound";
+        readonly wouldStartReason: "ok" | "over-budget" | "unknown-estimate" | "unbound" | "repeat";
     };
     /** W_UNKNOWN_MEMBER, W_RELEASE_DIFFERS and other notices about the document's own top level. */
     readonly notices: readonly Problem[];
@@ -922,6 +964,12 @@ A reader conforms when, for each input, it does what the right-hand column says:
 | a document with `"require": ["graphty-data-plan"]`                                                                                                                                       | refused, `E_BAD_DOCUMENT`, suggesting `requires`                                                                                                                                        |
 | a session of hand-made layers and a Louvain run's colouring, saved with `style: { id, sources: ["user", "template"] }`                                                                   | only the hand-made layers written; the run's layer in `leftOut`                                                                                                                         |
 | a document of threshold-scoped recipes, run by a service against its own loaded cohort with `quoteLoadedData: false`                                                                     | every `matched`, `of`, `withValue` and `sees` `null`; no quoted values; `sameBytes` `null`; a notice saying so                                                                          |
+| `"kind": "graphty-document", "version": 2`, or `"requires": ["graphty-data-plan"]`, opened with `apply: false`                                                                           | the promise rejects with a `GraphtyError`, `E_UNSUPPORTED_VERSION` with `found` and `reads`, or `E_UNSUPPORTED` naming the kind                                                         |
+| `href` `https://localhost./x` or `https://a.localhost./x`                                                                                                                                | data skipped, `E_BAD_DOCUMENT`, unless `allowPrivateHosts: true`                                                                                                                        |
+| a session with runs `Hubs 2024` and two unnamed PageRank runs, saved with a recipe `id`                                                                                                  | `report.sources` pairs `hubs_2024`, `pagerank` and `pagerank_2` with their session runs                                                                                                 |
+| a style saved with `members: ["graphty-style"]` from a session holding a Louvain run's colouring                                                                                         | the run's layer left out and listed in `leftOut`; with `sources` including `"run"`, kept                                                                                                |
+| a file checked against the pinned 3.1.0 copy of the container schema, before and after release 3.2.0 adds a node shape                                                                   | the same answer both times: the pinned copy refers only to 3.1.0's style, recipe and data schemas                                                                                       |
+| a kindless `{ "version": 2, "layers": [{ "select": "..." }] }`                                                                                                                           | refused, `E_UNKNOWN_FORMAT`: graphty-element writes every later style version with its `kind`, so this is not a graphty style                                                           |
 
 ## Worked example
 

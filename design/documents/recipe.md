@@ -76,6 +76,8 @@ interface TableReading {
     repeatedEdges?: "keep" | "first" | "last" | "sum" | "min" | "max" | "error";
     combineColumn?: string; // the column sum, min and max combine; default the weight
     columns?: Record<string, string>; // recipe column name -> this table's header ("Table data" rule 1)
+    nodeColumns?: Record<string, string>; // the same, for this tool's node table only
+    edgeColumns?: Record<string, string>; // the same, for this tool's edge table only
     filterWhileReading?: boolean; // filter rows before merging them; default false ("Table data" rule 4)
 }
 
@@ -98,7 +100,7 @@ interface AlgoRun {
     seed?: number; // integer, 0 to 2147483647
     sample?: number; // integer, the sample size of an approximate method
     exact?: boolean; // refuse to approximate
-    recordedCapSeconds?: number; // advisory: the cost cap it was recorded under ("Running" rule 2)
+    recordedCapSeconds?: number; // advisory, at most 3,600: the cost cap it was recorded under ("Running" rule 2)
     recordedPrecision?: "f32" | "f64"; // advisory: the precision it was recorded in, as Caveats spells it
     style?: boolean | { size?: boolean | [number, number] }; // what the run paints; default true
     description?: string; // why this command is here; shown to people
@@ -258,10 +260,15 @@ node filter keeps stays even when it lost its edges to that filter, as rule 13 s
     silently.
 
 8. **`style`** is the run's own suggested colouring, as graphty-element's run option of the same
-   name (`RunStyle`): `true` or absent paints it, `false` paints nothing, and the object form
-   chooses parts of it. Its layers are added when the run
-   completes, above every layer present then. A file whose style member paints this run's result
-   MUST say `false`, so the result is not painted twice; the recorder does ("Recording" rule 6).
+   name (`RunStyle`): `true` paints it, `false` paints nothing, and the object form chooses parts
+   of it: `{ "size": true }` paints only the size part, sizing nodes by the score, and
+   `{ "size": [a, b] }` does so from `a` to `b` scene units, 1 being the default node size. Absent,
+   it paints, unless a style member of the same file reads this run's results: then it paints
+   nothing, as if it said `false`, and the plan says so, because the file's own layer is the
+   colouring its author chose. Its layers are added when the run completes, above every layer
+   present then. The channels each algorithm's colouring writes are in the catalogue and in the
+   plan's `paints`. A file whose style member paints this run's result SHOULD still say `false`,
+   for a reader of the recipe alone; the recorder does ("Recording" rule 6).
 9. **Unknown keys.** An algorithm key or layout id this installation has not registered skips the
    command with `E_UNKNOWN_ALGORITHM` or `E_UNKNOWN_LAYOUT`. A retired key that graphty-element still
    resolves (`scc` to `components` with `{ "strength": "strong" }`) runs, and the report names the
@@ -290,12 +297,17 @@ node filter keeps stays even when it lost its edges to that filter, as rule 13 s
     the kept graph is a later change. A seed
     makes a layout start from the same positions; an engine that stops on a time-based settle test
     can end in slightly different positions, so a replayed picture is similar, not identical. A
-    layout that needs a node (a tree from a root) cannot be recorded.
+    layout whose catalogue descriptor lists `structuralInputs` -- `bipartite`, `layers` and `shell`
+    take lists of particular nodes, `hierarchical` a root -- needs inputs that name particular
+    nodes and that its published options do not declare, so rule 4's check cannot see them: the
+    recorder leaves such a layout out and reports it, and a `layout.set` naming one is skipped with
+    `E_BAD_COMMAND` before anything runs. When graphty-element publishes those inputs as options a
+    recipe can bind by column, rule 4 governs them like any other.
 13. **Filters.** A `graph.filter` narrows the graph every later command of the recipe sees:
     - `on: "nodes"` (the default) keeps the nodes its `where` matches and the edges between them;
     - `on: "edges"` keeps the edges its `where` matches, and every node, unless `dropIsolated: true`
       also drops each node left with no edge. The high-confidence core of a STRING network is
-      ``{ "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true }``,
+      `{ "op": "graph.filter", "where": "combined_score >= 700", "on": "edges", "dropIsolated": true }`,
       and a `"largest-component"` run after it runs on the largest component of that core.
 
     `dropIsolated: true` drops every node that has no edge once this filter's rule has applied,
@@ -322,8 +334,9 @@ node filter keeps stays even when it lost its edges to that filter, as rule 13 s
 
 A command names a column in exactly two places:
 
-- in a `where` -- a filter's or a scope's -- as `data.<column>` (style.md, "Paths": `data.adj.P.Val`
-  is the column named `adj.P.Val`), of the table its `on` names;
+- in a `where` -- a filter's or a scope's -- as `data.<column>`, or by the column's bare name
+  (style.md, "Paths": `data.adj.P.Val` is the column named `adj.P.Val`, and `confidence` is
+  `data.confidence`), of the table its `on` names;
 - as the value of an option whose descriptor type is `attribute`, such as an algorithm's `weight`:
   the column's name, as a string.
 
@@ -348,7 +361,8 @@ either. So a recipe for table data says how its table is read, the way it names 
 
 1. The names are the import options of container.md, "Import options" (`edgeSource`,
    `edgeTarget`, `idColumn`, `delimiter`, `variant`, `repeatedEdges`, `combineColumn`), and mean
-   what they mean there, plus `filterWhileReading` (rule 4) and `columns`. Each is optional. The recipe's own `directed` is
+   what they mean there, plus `filterWhileReading` (rule 4) and the renames `columns`,
+   `nodeColumns` and `edgeColumns`. Each is optional. The recipe's own `directed` is
    read with them as the `directed` import option. `table` may be a list of such readings, for a
    group whose members' tools head their tables differently (`supplier_id,buyer_id` in one ERP
    export, `from_company,to_company` in another spreadsheet): they are tried in order by the
@@ -358,9 +372,20 @@ either. So a recipe for table data says how its table is read, the way it names 
    such header by the recipe's name as it is read, so the recipe's commands and the style members
    of the same file bind to it, and the report records each rename. It applies only when its
    reading passes the header test, so it is declared by the author for one recognised table
-   shape, never guessed; a header it names that the file lacks, or a name that is already a header
-   of the file, is not renamed and is reported with `W_TABLE_COLUMNS_DIFFER`. The caller's own
-   `columns` and `edgeColumns` apply after it, to the names it produced.
+   shape, never guessed. The header test also requires every header `columns` names (rule 3), so
+   two tools that write the same endpoint headers and name an attribute differently
+   (`source,target,qty` and `source,target,amount`) are told apart by their renames. A tool that
+   writes a node table and an edge table puts each table's renames in `nodeColumns` and
+   `edgeColumns`, whose headers only a table of that kind is tested for, so the edge table's
+   renames are never reported missing from the node table. A rename onto a name that is already a
+   header of the file -- `weight` on a file that also has `Weight` included -- is not made and is
+   reported with `W_TABLE_COLUMNS_DIFFER`. A reading's renames apply first, to the headers as the
+   file writes them, before the weight is found: a header a reading renames is read only under its
+   new name, never also as the weight, so `{ "columns": { "volume": "Weight" } }` on Gephi's
+   `Source,Target,Weight` gives the column `volume` and no weight. For a `neo4j` reading, a rename
+   names the property as that variant produces it, without its type suffix: `amount` for the
+   header `amount:float`. The caller's own `columns` and `edgeColumns` apply after all of this, to
+   the names it produced. The recorder never writes renames: a reading's renames are the author's.
 2. **When they are used.** A table is read for a recipe in two ways only: through the
    application's `import(source, options)` (below), and as the file's own data member when it
    references a table (container.md, "The data member" rule 9). A plain `session.data.import`
@@ -370,8 +395,9 @@ either. So a recipe for table data says how its table is read, the way it names 
 3. **Defaults, not orders.** Each value is a default: an option the caller or the data member
    gives wins, and a difference is reported with `W_TABLE_COLUMNS_DIFFER`.
     - The endpoint and id columns, the delimiter and the variant are used when the file's first
-      line holds the reading's endpoint columns (or, for a node table, its `idColumn`), read with
-      the reading's delimiter. A header is compared with a name exactly, after a leading UTF-8
+      line holds the reading's endpoint columns (or, for a node table, its `idColumn`) and every
+      header its renames require (rule 1: those of `columns`, and of `edgeColumns` for an edge
+      table or `nodeColumns` for a node table), read with the reading's delimiter. A header is compared with a name exactly, after a leading UTF-8
       byte-order mark and the quotes around a field are removed, as binding compares names; a
       test that fails only on case (`Supplier_ID` for `supplier_id`) fails, and
       `W_TABLE_COLUMNS_DIFFER` names the near miss. When it does not, the test is repeated with the delimiter the
@@ -383,8 +409,8 @@ either. So a recipe for table data says how its table is read, the way it names 
       were used instead. So a colleague's `edges.csv` headed `Source,Target,Weight` is read as the
       importer reads it, never broken by another member's names.
     - A reading whose `variant` is `neo4j` has its own test: it passes when the file's first line
-      holds `:START_ID` and `:END_ID` (a relationship file) or `:ID` (a node file), and the file is
-      then read as that variant, whose header types its own structure, so no endpoint or id
+      holds `:START_ID` and `:END_ID` (a relationship file) or `:ID` (a node file), and the
+      properties its renames require, and the file is then read as that variant, whose header types its own structure, so no endpoint or id
       column and no delimiter of a reading is given to it. A file the caller imports with
       `variant: "neo4j"` is read the same way.
     - A reading that names no endpoint column, no id column and not the `neo4j` variant has
@@ -398,9 +424,9 @@ either. So a recipe for table data says how its table is read, the way it names 
    to each row while the table is read, so a download far larger than the page could hold is read
    down to what the recipe keeps. In this order:
     - **Which names they read.** A filter binds against the columns the import will produce: after
-      the weight's normalisation to `weight` (README, "What every importer produces" rule 2) and
-      after the caller's `columns` and `edgeColumns` renames, which apply here as they do to every
-      command. A filter one of whose columns is not in the header that way is not applied while
+      the reading's own renames (rule 1), then the weight's normalisation to `weight` of a header no
+      reading renamed (README, "What every importer produces" rule 2), then the caller's `columns`
+      and `edgeColumns` renames, which apply here as they do to every command. A filter one of whose columns is not in the header that way is not applied while
       reading; it runs after import, binds or is skipped as usual, and the report carries
       `W_FILTER_AFTER_IMPORT` naming the column. So a table headed `Weight` passes a filter on
       `data.weight`, and a table that lacks the column never loses its edges to a row test.
@@ -421,27 +447,41 @@ either. So a recipe for table data says how its table is read, the way it names 
       reading has `dropIsolated: true`, only the ends of the rows that pass every filter up to and
       including the last such one become nodes, because every other node would be dropped as
       isolated: that is the graph those filters keep. Without `dropIsolated`, a dropped row's two
-      ends are still imported as nodes, as filtering after import would leave them. Then
+      ends are still imported as nodes, as filtering after import would leave them. Nodes are
+      created in the order a plain import of the same bytes creates them -- each at the first row
+      that names it, whether that row is kept or dropped -- and kept rows in file order, so on the
+      unmerged path the graph is the one filtering after import gives, node order included, which
+      Louvain and label propagation depend on ("Same data, same results" condition 6). Then
       `repeatedEdges` merges the kept rows, and the load ceilings are checked on the graph
       actually built -- its nodes, and the edges left after the merge; the kept rows are held to
       twice the edge ceiling before the merge (README, "Limits").
     - **Reported.** The report's `appliedWhileReading` says which filters were applied while
-      reading and how many rows each dropped; the commands themselves still bind and are planned
-      as usual, and are not reported as matching every edge.
+      reading and how many rows each dropped. Such a filter did its work during the import, so its
+      state is `done` once the import completes: `run()` does not run it again, and a recording
+      under the recipe's `id` counts it as run ("Recording" rule 8). It is shown as the session's
+      filter when the application's first run starts, as every recipe filter is. The commands after
+      it bind and are planned as usual, and it is not reported as matching every edge.
 5. On data that marks its own structure, `table` is not used and not reported, and the recipe's
    `directed` is not passed to the import; `directed` is compared as "Binding to a new graph" rule
    5 says. Such a file may still be imported through the application's `import()`, which reads it
    as a plain import does and then plans.
 6. When the graph was already loaded from a table without the recipe, the applier compares the
-   columns that import read the ends and the id from with the recipe's, and reports a difference
-   with `W_TABLE_COLUMNS_DIFFER` before anything runs. The commands still run: the data was loaded
-   as the caller chose.
+   options that import was read with -- the endpoint and id columns, the delimiter, the variant,
+   `directed`, `repeatedEdges` and `combineColumn` -- with the recipe's, and runs the readings'
+   header test on the headers that import saw. It reports each difference with
+   `W_TABLE_COLUMNS_DIFFER` before anything runs, and when a reading passes, names it and its
+   renames and says that importing the table again through the application's `import()` reads it
+   that way. The commands still run: the data was loaded as the caller chose. A style member of
+   the same file opened on its own (`members: ["graphty-style"]`) gets the same notice when a
+   column it needs is one a reading's renames would produce.
 7. **Unknown members.** The members of a reading are the import options and grow with them
-   within version 1 (container.md, "Versions" rule 2). When one holds a member this reader does not
-   know, every table import for the recipe is refused with `E_UNKNOWN_OPTION` at that member's
-   pointer, because reading the table while ignoring an instruction about how to read it would
-   give another graph; the importer's own guesses are never used instead. The commands are not
-   affected.
+   within version 1 (container.md, "Versions" rule 2). Readings are tried in order up to the first
+   one holding a member this reader does not know: one before it that passes is used, so a
+   reading a newer release appended never stops an older release from reading the tables it
+   knows. When none before it passes, the import is refused with `E_UNKNOWN_OPTION` at that
+   member's pointer, and the readings after it are not tried, because reading the table while
+   ignoring an instruction about how to read it would give another graph; the importer's own
+   guesses are never used instead. The commands are not affected.
 8. The recorder writes `table` from the table imports that built the graph ("Recording" rule 5):
    `idColumn` from a node-table import and `edgeSource` and `edgeTarget` from an edge-table
    import, whether each was given them or found them by itself; the delimiter, variant and
@@ -568,8 +608,11 @@ for (const l of element.session.catalog.layouts()) {
 A layout's options differ by engine, so a `layout.set` is checked against its engine's own list
 ("Commands" rule 3), not the default engine's list that `catalog.layouts()` carries.
 
-The guide pages at `https://graphty.app/docs/graphty-element/` describe the same algorithms and
-layouts in prose.
+The same catalogue is published for every release as a page of graphty-element's documentation,
+generated from that entry point, so a person who does not run JavaScript can read each
+algorithm's key, its options with their types and defaults, its result fields and whether it
+takes `weight` (degree does not: it counts edges). The guide pages at
+`https://graphty.app/docs/graphty-element/` describe the same algorithms and layouts in prose.
 
 ## Identity and versions
 
@@ -664,8 +707,10 @@ in this session and ran at least one command, a second application follows `onRe
 (the default) fails with `E_REPEAT_APPLICATION`, naming both versions when they differ; `"replace"`
 keeps the earlier namespace, removes the earlier runs and the colouring they painted, and runs
 again; `"add"` applies it again under a new namespace (rule 2 of "Run ids and namespaces"). A
-preview (`apply: false`) reports a repeat as a notice and plans in full, so the two versions can be
-compared first. New data starts afresh (container.md, "Applying a file" rule 7): applying a recipe to newly loaded data is
+preview (`apply: false`) plans a repeat in full, so the two versions can be compared first, and
+reports what a real opening with the same `onRepeat` would do: `wouldStart: false` with
+`wouldStartReason: "repeat"`, and a notice naming both versions and the `onRepeat` that would
+run it. New data starts afresh (container.md, "Applying a file" rule 7): applying a recipe to newly loaded data is
 never a repeat of its application to the data that was replaced.
 
 A refused repeat still answers the file's styles. When a file's recipe is refused as a repeat, the
@@ -687,9 +732,11 @@ never start (container.md, "Applying a file" rule 5).
    caller's `capSeconds`. A recipe cannot raise it. The plan applies the cap before anything
    runs: a command whose estimate is past it is planned with `E_CAP_EXCEEDED`, its dependants with
    `E_DEPENDENCY_SKIPPED`, and the report gives the cap. When the command carries
-   `recordedCapSeconds` -- the cap its author ran it under, which the recorder writes when that was
-   above the default -- the problem quotes it, so the person replaying knows what `capSeconds` to
-   pass. `recordedCapSeconds` is advice to a person; the applier never raises the cap from it. The estimate held to the cap is the one of the
+   `recordedCapSeconds` -- the cap its author ran it under, at most 3,600 seconds -- the problem
+   quotes it as the file's own claim, beside the total budget, so the person replaying knows what
+   `capSeconds` to consider. `recordedCapSeconds` is advice to a person: the applier never raises
+   the cap from it, and an application never offers it as a default or as a one-step "run with
+   the recorded cap". The estimate held to the cap is the one of the
    method that will run, so a command whose `sample` gives an estimate past the cap is refused with
    `E_CAP_EXCEEDED` like an exact one. A command with no estimate -- a layout whose engine publishes
    none, in a session that draws ("Commands" rule 1 covers one that draws nothing) -- counts as past the cap and is skipped with `E_CAP_EXCEEDED`, never as free; every layout
@@ -724,13 +771,16 @@ never start (container.md, "Applying a file" rule 5).
 ## Same data, same results
 
 Replaying a recipe on the same data gives the same numbers when all of these hold. The replay report
-shows the first five; it cannot show the sixth. Whether the data is the same it shows in `data`:
-the SHA-256 of each file the graph was imported from, which two replay reports can compare; for a
-file whose data member records a `sha256`, whether the loaded bytes are those (container.md, "The
-data member" rule 5); how many elements were added, removed or updated after each import
-(`changedSince`); and an entry with `sha256: null` for data that came from no file (`data.apply`,
-elements added by hand). Two reports with equal hashes and no changes saw the same graph; a report
-with changes, or with data from no file, says it cannot show that:
+shows every one but the sixth. Whether the data is the same it shows in `data`: the SHA-256 of
+each file the graph was imported from, which two replay reports can compare, with the import
+options that file was read with (the endpoint and id columns, the delimiter, the variant,
+`directed`, `repeatedEdges`, `combineColumn`, and which filters were applied while reading),
+because the same bytes read another way are another graph; for a file whose data member records
+a `sha256`, whether the loaded bytes are those (container.md, "The data member" rule 5); how many
+elements were added, removed or updated after each import (`changedSince`); and an entry with
+`sha256: null` for data that came from no file (`data.apply`, elements added by hand). Two reports
+with equal hashes, equal import options and no changes saw the same graph; a report with changes,
+or with data from no file, says it cannot show that:
 
 1. **The same release** of graphty-element. The report names the release that recorded the recipe
    (its own `generator`, else the document's) and the one replaying it, and carries
@@ -759,7 +809,14 @@ with changes, or with data from no file, says it cannot show that:
    (Louvain, label propagation). The same network read from two file types, or two releases of one
    database, can list its nodes in a different order, so Louvain can find different communities on
    its CSV and its GraphML export. The plan carries a notice on every command whose algorithm's descriptor
-   says its result depends on node order, so this condition is seen before anything runs.
+   says its result depends on node order, so this condition is seen before anything runs. The same
+   bytes read the same way give the same order, a table read through a recipe's filters included
+   ("Table data" rule 4).
+7. **The same cap.** Whether a command completes depends on the machine: the cost estimate is
+   calibrated on each one, and a command still running at the cap is stopped ("Running" rules 2
+   and 3). The recorder writes `recordedCapSeconds` whenever a run's estimate or its duration
+   passed half the cap it ran under, so the plan on a slower machine warns before anything runs;
+   a group that replays one file on several machines passes the same `capSeconds` on each.
 
 A layout gives a similar picture, not an identical one ("Commands" rule 12). A community's number
 is a label, not a measure: two replays that find the same communities can number them differently,
@@ -767,10 +824,12 @@ so compare which nodes share a community, not the numbers.
 
 A report does not compare results (README, "What version 1 does not cover"). Each run's results are
 read in the session with `session.results.get(runId)`, the `runId` each command's entry in the
-report names. This compares two runs field by field: every numeric field of nodes and of edges
-over every element either run holds, a partition (`group`) by which elements share a group rather
-than by the numbers, and every graph-level number, flag or text (a modularity). It ends by saying
-how much it compared, so a comparison that found nothing to compare does not read as a match:
+report names. This compares two runs field by field, over the fields either run publishes: every
+numeric field of nodes and of edges over every element either run holds, a field whose
+descriptor gives it the role `partition` by which elements share a group rather than by the
+numbers, whatever the field is called, and every graph-level number, flag or text (a
+modularity). A field only one run publishes is a difference, never a crash. It ends by saying how
+much it compared, so a comparison that found nothing to compare does not read as a match:
 
 ```js
 function compare(session, runA, runB) {
@@ -780,15 +839,24 @@ function compare(session, runA, runB) {
         values = 0,
         differ = 0;
     const note = (what, x, y) => (differ++, console.log(runA, what, x, y));
-    for (const f of a.fields) {
-        if (f.kind === "graph" && f.type !== "table") {
-            fields++;
+    const byKey = (r) => new Map(r.fields.map((f) => [`${f.kind} ${f.name}`, f]));
+    const fa = byKey(a),
+        fb = byKey(b);
+    for (const key of new Set([...fa.keys(), ...fb.keys()])) {
+        const f = fa.get(key) ?? fb.get(key);
+        if (f.type === "table") continue;
+        fields++;
+        if (!fa.has(key) || !fb.has(key)) {
+            note(`${key}: published by one run only`, fa.has(key), fb.has(key));
+            continue;
+        }
+        if (f.kind === "graph") {
             values++;
             if (JSON.stringify(a.graph[f.name]) !== JSON.stringify(b.graph[f.name]))
-                note(f.name, a.graph[f.name], b.graph[f.name]);
+                note(key, a.graph[f.name], b.graph[f.name]);
+            continue;
         }
-        if (f.kind === "graph" || (f.type !== "number" && f.type !== "integer")) continue;
-        fields++;
+        if (f.type !== "number" && f.type !== "integer") continue;
         const va = new Map(a.ranking(f.name).map((e) => [e.id, e.value]));
         const vb = new Map(b.ranking(f.name).map((e) => [e.id, e.value]));
         const aToB = new Map(),
@@ -798,10 +866,10 @@ function compare(session, runA, runB) {
             const x = va.get(id),
                 y = vb.get(id);
             const same =
-                f.name !== "group"
+                f.role !== "partition"
                     ? x === y
                     : (aToB.get(x) ?? (aToB.set(x, y), y)) === y && (bToA.get(y) ?? (bToA.set(y, x), x)) === x;
-            if (!same) note(`${f.kind} ${f.name} ${id}`, x, y);
+            if (!same) note(`${key} ${id}`, x, y);
         }
     }
     console.log(`${runA}: ${fields} fields, ${values} values compared, ${differ} differ`);
@@ -830,7 +898,9 @@ again.remove();
 
 The analysis you recorded against its replay: `record()` returns `sources`, the session run each
 recorded `as` came from, so a replay's runs pair with the runs they reproduce, whatever renames the
-recording made (`Hubs 2024` written as `hubs_2024`, an unnamed run as `pagerank_2`):
+recording made (`Hubs 2024` written as `hubs_2024`, an unnamed run as `pagerank_2`).
+`saveDocument` returns the same `sources` in its report whenever it records a recipe, for the
+recipe it wrote, so a saved file is checked against the session without recording twice:
 
 ```js
 const { recipe, sources } = session.recipes.record({ id: "org.example-lab.hub-genes" });
@@ -882,6 +952,14 @@ interface RecipeReport {
         readonly sha256: string | null;
         readonly source: "import" | "apply" | "elements"; // a file, data.apply, elements added by hand
         readonly reading?: number | null;
+        /**
+         * The import options the file was read with, found or given: edgeSource, edgeTarget,
+         * idColumn, delimiter, variant, directed, repeatedEdges, combineColumn; null for data
+         * from no file.
+         */
+        readonly options: Readonly<Record<string, unknown>> | null;
+        /** For a table read through a recipe: the indexes of the filters applied while reading. */
+        readonly filteredWhileReading?: readonly number[];
         /** Elements added, removed or updated since this entry; all zero when unchanged. */
         readonly changedSince: { readonly added: number; readonly removed: number; readonly updated: number };
     }[];
@@ -945,8 +1023,18 @@ interface RecipeReport {
         readonly seed?: number;
         readonly recordedPrecision?: "f32" | "f64"; // as the command records it
         readonly style: boolean; // whether it will paint its suggested colouring
-        /** The channels that colouring writes; a notice when an enabled layer already writes one. */
-        readonly paints: readonly string[];
+        /**
+         * What that colouring writes, from the algorithm's suggested layers, in the shape a style
+         * layer's report gives; a notice when an enabled layer already writes a channel.
+         */
+        readonly paints: readonly {
+            readonly channel: string;
+            readonly by: string; // results.<runId>.<field>
+            readonly scale?: string;
+            readonly palette?: string;
+            /** Elements its selector will cover, where the plan knows it; else null. */
+            readonly covers: number | null;
+        }[];
         readonly fields: readonly string[]; // the result fields it publishes, as results.<runId>.<field>
         readonly estimateSeconds: number | null;
         /** True when the estimate is an upper bound on the whole graph ("Binding to a new graph" rule 8). */
@@ -968,9 +1056,11 @@ interface RecipeReport {
     readonly wouldStart: boolean;
     /**
      * Why wouldStart is what it is: "unbound" with no graph to plan against, "unknown-estimate"
-     * when a command has no estimate, "over-budget" when the total passes the budget.
+     * when a command has no estimate, "over-budget" when the total passes the budget, "repeat"
+     * when a real opening with the same onRepeat would refuse it as a repeat (a notice names
+     * both recipeVersions).
      */
-    readonly wouldStartReason: "ok" | "over-budget" | "unknown-estimate" | "unbound";
+    readonly wouldStartReason: "ok" | "over-budget" | "unknown-estimate" | "unbound" | "repeat";
     readonly notices: readonly Problem[];
 }
 ```
@@ -1045,13 +1135,26 @@ document beside the style. The recorder:
       before the first `graph.filter` when every run it reads came before that filter too;
       otherwise it is left out and reported as "ran on the whole graph after a filter; a recipe
       cannot widen its filter".
+    - **A filter applied while reading.** A table imported through a recipe whose leading edge
+      filter was applied while it was read ("Table data" rule 4) never held the rows that filter
+      dropped, so every run made by hand on that graph ran on the filtered graph, whatever the
+      session showed. That filter is the recording's leading `graph.filter` (rule 5), and every
+      such run is written after it with its own scope: a run on the whole graph with no session
+      filter, and a run on `"largest-component"`, whose whole graph was the filtered one, are
+      written after it, not before it as the other rules of this list place a whole-graph run. A session filter
+      a run started under that is the same rule as that leading filter -- the recipe's own filter,
+      shown when its application ran -- is not written a second time.
     - **Which filters convert.** A filter whose rule tree is an `all` of leaves, each a rule over
       columns, converts: an `expression` leaf as its expression; an `edges` leaf as its `where` on
-      `on: "edges"`; a `range` leaf as `>=` and `<=` comparisons (the session's range matches only
-      numbers where the recipe's comparison also reads numeric text, and the conversion says so
-      when the column holds text); a `categories` leaf as `==` comparisons joined with `||`, each
-      value compared both as its text and, when it reads as a number, as that number, because the
-      session's categories compare a value's text; and a `connected` node ("Data
+      `on: "edges"`; a `range` leaf as `>=` and `<=` comparisons; a `categories` leaf as `==`
+      comparisons joined with `||`, each value compared both as its text and, when it reads as a
+      number, as that number. The last two convert only when the conversion is exact on the data
+      at recording: the session's range matches only numbers, where the recipe's comparison also
+      reads numeric text, and the session's categories compare a value's text, where the recipe
+      also compares its number. So a `range` leaf over a column holding numeric text, and a
+      `categories` leaf with a value whose shortest number form is not its text (`0.50`, `03`)
+      over a column holding numbers, leave out every run made under them, reported, as a leaf with
+      no exact equivalent does. A `connected` node ("Data
       model") as `dropIsolated: true` on the last filter inside it. A leaf reading a run's result (`results.<id>.<field>`)
       converts like a leaf over a column, rewritten to that run's recorded `as`; it depends on
       that run and is written after it, with the notice of "Commands" rule 5 about comparing a
@@ -1076,7 +1179,9 @@ document beside the style. The recorder:
       component of the whole graph, whatever filter was shown, because graphty-element resolves
       that scope over the whole graph; so it is written as a run on the whole graph under the
       rules above -- before the first `graph.filter`, or left out -- with `"largest-component"`
-      as its scope and a notice that the session's largest component ignores the filter. A scope defined inline as a rule set
+      as its scope and a notice that the session's largest component ignores the filter. A graph
+      read through a filter applied while reading is the exception above: its whole graph was
+      the filtered one. A scope defined inline as a rule set
       (`{ define: { kind: "rule", where, reading } }`) whose rule tree is one leaf over columns is
       written as a `where` scope: an `expression` leaf with the `induced` reading on nodes, an
       `edges` leaf with the `clipped` reading on edges. Any other scope of a run made by hand
@@ -1098,12 +1203,13 @@ document beside the style. The recorder:
 5. **Writes what the run computed.** In `params`, every option whose value differs from the
    published default ("Commands" rule 3), or every effective value when the caller passed
    `explicitDefaults: true` (a methods supplement then states every parameter, at the cost of not
-   replaying on a release that lacks one of them). `seed` from the run's caveats whenever the run was
+   replaying on a release that lacks one of them: an option a later release added, written at its
+   default, is unknown to the release before, which skips the command with `E_UNKNOWN_OPTION`). `seed` from the run's caveats whenever the run was
    randomised or sampled. When the run approximated (`caveats.exact` false), `sample` from
    `caveats.sampleSize`; when an algorithm that can approximate ran exactly, `exact: true`, which
    a command without `sample` also means ("Commands" rule 7), written so a person reading the
-   recipe sees it. `recordedCapSeconds` when the run was made under a cap above
-   the default. For the layout, the seed the engine used, from the layout's report, whenever its
+   recipe sees it. `recordedCapSeconds`, the cap the run ran under, when that cap was above the default, or when
+   the run's estimate or its duration passed half of it ("Same data, same results" condition 7). For the layout, the seed the engine used, from the layout's report, whenever its
    descriptor has a seed option -- drawn and reported when the person set none -- so the recorded
    layout starts from the same positions on every replay; in a session that draws nothing, which
    places nothing, the seed the command's options gave, or none, with a notice. A non-default value of the algorithm's
@@ -1125,7 +1231,13 @@ document beside the style. The recorder:
    algorithm, a skipped command -- the recorder refuses by default: it returns no recipe, and
    `leftOut` lists each command that did not run with its reason, so a colleague's commands are
    never dropped by a save. `dropUnrun: true` records anyway. `saveDocument` then writes the
-   opened recipe back as it was read (container.md, "Writing a file" rule 3).
+   opened recipe back as it was read (container.md, "Writing a file" rule 3). A leading filter
+   applied while the recipe's table was read ran ("Table data" rule 4), so a starter recipe --
+   `table` and that filter, nothing else -- imported through and then extended by runs made by
+   hand records under its own `id` with no `run()` and no refusal. A recording under another `id`
+   that carries an applied recipe's `table` and leading filter supersedes it: `saveDocument` leaves
+   that recipe's member out of the file and lists it in `leftOut`, so the file holds one recipe,
+   the one that does what the author did.
 
 ## The overview recipe
 
@@ -1152,7 +1264,7 @@ The rules for a file from another release or a hand-written file:
 1. Commands are read one at a time; a failure is as small as possible.
 2. A command of a known `op` that fails its schema is skipped with `E_BAD_COMMAND`, and its
    dependants with `E_DEPENDENCY_SKIPPED`.
-3. **Command members are closed**, and so are the members of a command's `scope` and `style`. A
+3. **Command members are closed**, and so are the members of a command's `scope`. A
    command with a member outside its schema (`"sed": 7` for `"seed": 7`, or `dropIsolated` inside
    a scope) is skipped with `E_UNKNOWN_OPTION`, suggesting the nearest member, **and so is every
    later command**, each with `E_DEPENDENCY_SKIPPED` naming the misspelled one, so the report
@@ -1160,6 +1272,9 @@ The rules for a file from another release or a hand-written file:
    numbers a run produces; a misspelled one would otherwise run unseeded, sampled or on the whole
    graph with nothing but a warning. An unknown key inside `params` or `options` is different: it
    is `E_UNKNOWN_OPTION` on that command and skips only it and its dependants ("Commands" rule 3).
+   The parts of a run's `style` are open: they choose only what the run paints, never what it
+   computes, so a later release adds a part within version 1, and a reader that meets a part it
+   does not know drops it with `W_UNKNOWN_MEMBER` and paints the parts it knows; the run runs.
 4. **Unknown commands stop the replay.** `op` is an open list: a later version adds commands to
    version 1 recipes. A command whose `op` the reader does not know is skipped with
    `E_UNKNOWN_COMMAND`, suggesting the nearest known `op`, **and so is every later command**, each
@@ -1171,7 +1286,9 @@ The rules for a file from another release or a hand-written file:
    The one exception is a later command that carries `"narrows": false`,
    its author's statement that it changes nothing a later command sees (a command that only reads
    earlier results and names its own): a reader skips only it and the commands that read its `as`,
-   and runs the rest. **Who names an op.** An op of two segments whose first is `graph`, `algo`,
+   and runs the rest. Every op a release adds admits `narrows` among its members, as
+   `const false`, and a reader that knows the op ignores it, so marking a new op for older readers
+   never makes its own release refuse it. **Who names an op.** An op of two segments whose first is `graph`, `algo`,
    `layout`, `column`, `style` or `data` is graphty-element's, and only graphty-element defines
    one; anyone else's op has three or more segments and starts with a reverse-domain name
    (`org.example.motif-census`), so a third party's op never collides with one a later release
@@ -1346,6 +1463,34 @@ The rules for a file from another release or a hand-written file:
 | two runs weighted by `strength` and a `layout.set`, on a graph with no `strength` column                                                                                                                                                                                             | both runs skipped, `E_UNKNOWN_ATTRIBUTE`; the layout runs                                                                                                                                                                    |
 | a graph imported from a file, then 40 nodes deleted by hand, then a recipe applied                                                                                                                                                                                                   | `data[0]` gives the file's SHA-256 and `changedSince.removed` 40                                                                                                                                                             |
 | a graph built with `data.apply`, then a recipe applied                                                                                                                                                                                                                               | `data` holds one entry, `source: "apply"`, `sha256: null`                                                                                                                                                                    |
+| a starter recipe (`table` and a leading edge filter with `dropIsolated`), a STRING file imported through it, betweenness and k-core run by hand, saved with `recipe: { id: <the starter's id> }`, no `run()`                                                                         | the filter `done` after the import; the recipe written with that `table`, the filter first, then both runs; nothing refused                                                                                                  |
+| the same, betweenness run by hand on `"largest-component"`                                                                                                                                                                                                                           | written after the filter, on `"largest-component"`                                                                                                                                                                           |
+| the same, saved under a new `id`                                                                                                                                                                                                                                                     | the file holds only the new recipe; the starter listed in `leftOut`                                                                                                                                                          |
+| the same, with `run()` called on the starter before the runs made by hand                                                                                                                                                                                                            | the filter written once                                                                                                                                                                                                      |
+| the README STRING recipe and a yeast file whose lines end in CR LF                                                                                                                                                                                                                   | the last header read as `combined_score`; the filter applied while reading                                                                                                                                                   |
+| a directed edge CSV of rows `C,X,100`, `A,B,900`, `C,A,900`, read through a leading filter `weight >= 700` with `dropIsolated`, and the same bytes imported plainly, then filtered                                                                                                   | the nodes in the order C, A, B both ways                                                                                                                                                                                     |
+| one file imported with `repeatedEdges: "sum"` and `combineColumn: "amount"`, and again plainly with `"max"`                                                                                                                                                                          | the two `data` entries give the same SHA-256 and different `options`; `W_TABLE_COLUMNS_DIFFER` names `repeatedEdges`                                                                                                         |
+| a run under a session range filter on `padj` from 0 to 0.05, where `padj` is the number `0.01` on some nodes and the text `"0.02"` on others, recorded                                                                                                                               | left out and reported: the range and the recipe's comparison disagree on the text                                                                                                                                            |
+| a run under a session categories filter with the value `"0.50"` over a numeric column, recorded                                                                                                                                                                                      | left out and reported                                                                                                                                                                                                        |
+| `compare()` on two runs of which only one publishes a field `community` with the role `partition`                                                                                                                                                                                    | the field reported as published by one run only; nothing thrown                                                                                                                                                              |
+| a run whose estimate was 26 s under the default 30 s cap, recorded                                                                                                                                                                                                                   | written with `recordedCapSeconds: 30`                                                                                                                                                                                        |
+| `recordedCapSeconds: 1000000000`                                                                                                                                                                                                                                                     | refused by the schema; a reader skips the command, `E_BAD_COMMAND`                                                                                                                                                           |
+| `table` [`{ "edgeSource": "source", "edgeTarget": "target", "columns": { "volume": "qty" } }`, the same with `"amount"`], and a CSV headed `source,target,amount`                                                                                                                    | read with the second reading, `amount` read as `volume`                                                                                                                                                                      |
+| a reading `{ "edgeSource": "Source", "edgeTarget": "Target", "columns": { "volume": "Weight" } }` and Gephi's `Source,Target,Weight`, with a leading filter `volume >= 1000`                                                                                                         | the column `volume` and no weight; the filter applied while reading                                                                                                                                                          |
+| a reading with `columns: { "weight": "qty" }` and a file headed `source,target,Weight,qty`                                                                                                                                                                                           | the rename not made, `W_TABLE_COLUMNS_DIFFER`; the weight read from `Weight`                                                                                                                                                 |
+| a `neo4j` reading with `columns: { "volume": "amount" }` and a relationships file headed `:START_ID,:END_ID,:TYPE,amount:float`                                                                                                                                                      | `amount` read as `volume`                                                                                                                                                                                                    |
+| a `neo4j` reading with `nodeColumns: { "sector": "industry" }` and `edgeColumns: { "volume": "amount" }`, a node file then a relationships file imported through `import()`                                                                                                          | each table renamed; no `W_TABLE_COLUMNS_DIFFER`                                                                                                                                                                              |
+| a CSV headed `from_company,to_company,qty` imported with a plain `data.import`, then a recipe opened whose reading renames `qty` to `volume`                                                                                                                                         | `W_TABLE_COLUMNS_DIFFER` naming that reading and `import()`; `data.volume` unbound                                                                                                                                           |
+| `table` [a reading that matches the file, a reading holding an unknown member]                                                                                                                                                                                                       | imported with the first reading                                                                                                                                                                                              |
+| `table` [a reading holding an unknown member, a reading that matches the file]                                                                                                                                                                                                       | the import refused, `E_UNKNOWN_OPTION` at the unknown member                                                                                                                                                                 |
+| a command of an op this reader knows, carrying `"narrows": false`                                                                                                                                                                                                                    | runs; the member ignored                                                                                                                                                                                                     |
+| a run with `"style": { "size": true, "color": false }` on a reader that does not know `color`                                                                                                                                                                                        | `color` dropped, `W_UNKNOWN_MEMBER`; the run runs and paints its size                                                                                                                                                        |
+| a recording with `explicitDefaults: true` holding an option a later release added, replayed on the release before                                                                                                                                                                    | that command skipped, `E_UNKNOWN_OPTION` naming the option; its dependants skipped                                                                                                                                           |
+| a `layout.set` of `bipartite`                                                                                                                                                                                                                                                        | skipped, `E_BAD_COMMAND`; a session's `bipartite` layout is not recorded, and is reported                                                                                                                                    |
+| a recipe applied and run, then a file holding its next `recipeVersion` previewed with the default `onRepeat`                                                                                                                                                                         | `wouldStart: false`, `wouldStartReason: "repeat"`; a notice naming both versions                                                                                                                                             |
+| a planned `louvain` command whose suggested colouring paints nodes by group                                                                                                                                                                                                          | `paints` gives `node.color` by `results.<runId>.group`, the palette, and the nodes it covers                                                                                                                                 |
+| a run with no `style` in a file whose style member reads its result                                                                                                                                                                                                                  | the run paints nothing of its own; the plan says so                                                                                                                                                                          |
+| `"where": "confidence >= 0.4"` and ``"where": "data.confidence >= `0.4`"``                                                                                                                                                                                                           | the same filter                                                                                                                                                                                                              |
 
 ## Worked example
 
@@ -1383,7 +1528,7 @@ the edge weight, `weight`, as PageRank's weight, and `padj` (an adjusted p-value
                     "op": "algo.run",
                     "algorithm": "degree",
                     "as": "significant_degree",
-                    "scope": { "where": "data.padj < `0.05`" }
+                    "scope": { "where": "data.padj < 0.05" }
                 },
                 { "op": "layout.set", "id": "force", "options": { "seed": 42 } }
             ]
@@ -1399,7 +1544,10 @@ Replayed on a colleague's GraphML file with a `padj` node key and a `weight` edg
 commands run. Replayed on a CSV edge list headed `source,target,weight` with no node table, the
 third command is skipped with `E_UNKNOWN_ATTRIBUTE` naming `padj`; the other three run, and the
 report says so before anything starts. (A header with other endpoint names, `gene_a,gene_b`, needs
-a `table` naming them, or `edgeSource` and `edgeTarget` from the caller.) Imported with a plain
+a `table` naming them, or `edgeSource` and `edgeTarget` from the caller.) For the same numbers on a
+GraphML copy of a CSV: the same column names (another tool's GraphML may rename one), the same
+direction (a GraphML file declaring `edgedefault="directed"` is read directed), the same release,
+and acceleration off on both machines ("Same data, same results"). Imported with a plain
 `data.import`, which reads a CSV as directed, the report also carries `W_DIRECTION_DIFFERS`,
 because the recipe says `directed: false`; imported through the application's `import()`, or with
 `directed: false`, it does not.

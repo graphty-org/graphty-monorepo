@@ -28,7 +28,7 @@ session.data.export(format: string, options?: {
     resultNames?: Record<string, string>; // run id -> the <run> part of its column names ("Results as columns" rule 2)
     table?: "nodes" | "edges"; // CSV only: which table this file holds; default "edges"
     layers?: readonly string[]; // the style layers whose drawn appearance is written; default every enabled one
-    spreadsheetSafe?: boolean; // CSV only: prefix formula-like cells ("Per format"); default true
+    spreadsheetSafe?: boolean; // csv and neo4j: prefix formula-like cells, headers included ("Per format"); default true
 }): Promise<{
     readonly blob: Blob;
     stream(): ReadableStream<Uint8Array>;
@@ -144,7 +144,10 @@ graphty-element draws 3D solids; GEXF has `disc`, `square`, `triangle`, `diamond
 ## Per format
 
 "Today" is what graph-io's exporters write now. Where appearance is "no", every painted channel is
-reported with `W_GRAPHTY_CHANNEL`. Every format writes each imported column under its own name,
+reported with `W_GRAPHTY_CHANNEL`. Every format writes each imported column under its own name --
+for a column a recipe's table reading renamed (recipe.md, "Table data" rule 1), the header it was
+read from, as the weight is written under the file's own name, so a member's own tool reads the
+export back and a second import through the recipe renames it again --
 and every format with a direction flag (GraphML `edgedefault`, GEXF `defaultedgetype`, GML
 `directed`, DOT `digraph`, Pajek `*Arcs`, the JSON dialects' own flag) writes the graph's
 direction, so a table exported and replayed binds and reads as it did.
@@ -172,9 +175,11 @@ written as a quoted string in every format, never as a DOT HTML-like label or a 
 which those tools render as HTML with images and links. Each value neutralised is counted and
 reported with `W_GRAPHTY_TEXT_QUOTED`.
 
-**CSV cells.** A CSV cell that begins with `=`, `+`, `-`, `@`, a tab or a carriage return is written
-prefixed with a single quote, so a spreadsheet does not run it as a formula; the count is reported
-with `W_GRAPHTY_CSV_NEUTRALIZED`. A caller whose consumer is not a spreadsheet MAY turn this off. A
+**CSV cells.** In every format whose output is CSV -- `csv` and the neo4j-admin files of `neo4j` --
+a cell that begins with `=`, `+`, `-`, `@`, a tab or a carriage return is written prefixed with a
+single quote, so a spreadsheet does not run it as a formula; the count is reported with
+`W_GRAPHTY_CSV_NEUTRALIZED`. Header cells are cells: a column name taken from a file
+(`=HYPERLINK(...)` as a GraphML key's `attr.name`) is neutralised the same way. A caller whose consumer is not a spreadsheet MAY turn this off. A
 negative number is a number, not a text cell, and is not prefixed.
 
 ## A graphty document beside an export

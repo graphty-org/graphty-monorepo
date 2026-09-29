@@ -21,16 +21,23 @@ The style member is the `StyleDocument` graphty-element 2.x already publishes
    `kind`) is read as a document with that one style (container.md, "Reading a file" rule 3); inside
    a document the same object with `"kind": "graphty-style"` added is a valid member. There are two
    exceptions. One is a layer selecting edges by id ("Selectors"). The other is a value past a
-   maximum version 1 adds where 2.x checks none: `node.size`, `edge.width`, `node.glowStrength` or
-   `edge.animationSpeed` above 1,000,000; `edge.patternCount` above 1,000 or not an integer; a label
+   maximum version 1 adds where 2.x checks none: `node.size`, `edge.width`, `edge.arrowHeadSize`,
+   `edge.arrowTailSize`, `node.glowStrength` or `edge.animationSpeed` above 1,000,000; `edge.patternCount` above 1,000 or not an integer; a label
    style's `sizePx` above 512, or its `padding`, `borderWidth` or `shadowBlur` above 64. 2.x
    accepts and writes these, and its label-style check accepts any object. Such a layer fails the
    version 1 schema; a version 1 reader refuses it ("Reading and applying" rule 2), keeps it as read
    and writes it back unchanged, and graphty-element 3.0.0 refuses the same values when a layer is
    made by hand, so a 3.0.0 session never holds one it would write.
-2. **Version 1 is what 2.x reads**, with one addition: on a node, `data.id` reads the node's id
-   when the node has no column `id` ("Paths" rule 4). 2.x answers nothing there, so on 2.x such a
-   layer is switched off and reported, never misapplied. The `top` selector is read from
+2. **Version 1 is what 2.x reads**, with three differences, each one of the graphty-element 3.0.0
+   changes README lists. On a node, `data.id` reads the node's id when the node has no column `id`
+   ("Paths" rule 4); 2.x answers nothing there, so on 2.x such a layer is switched off and
+   reported, never misapplied. An expression may write a number, `true`, `false` or `null` without
+   backticks ("Expressions" rule 1); 2.x refuses a bare number, and with it the whole style, and
+   reads a bare `true` as a column named `true`, which no graph has, so such a layer is switched
+   off there. A style meant for 2.x readers too writes its literals in backticks. And `map` takes its
+   pinned values out of the palette and out of the numbering of the other categories ("Bindings"
+   rule 9), where 2.x lays `map` over the palette's colours, so a style whose unmapped categories
+   2.x painted can paint them in other colours or shapes on 3.0.0. The `top` selector is read from
    graphty-element 2.3.0 and `member` from 2.6.0; an earlier 2.x release refuses a whole style
    holding one. The channel names, selector kinds, scales, layer kinds and the value lists of the
    enumerated channels (node shapes, line patterns, arrows) grow within version 1: a release that
@@ -117,7 +124,9 @@ graphty-element 2.x implements:
 1. `data.<column>` reads the column of that name; `results.<run id>.<field>` reads a field of a
    run's result. A column name is flat: a dot is part of the name, and nested values are not
    walked, so `data.adj.P.Val` reads the column named `adj.P.Val`. A path with neither prefix is
-   read as `data.<path>`, as 2.x reads it (`team` is `data.team`); a writer writes the prefix.
+   read as `data.<path>`, as 2.x reads it (`team` is `data.team`). A person writing by hand MAY
+   leave `data.` out, as README's first examples do; graphty-element's own writers write it, and
+   `data.` is needed for a column whose name is `results`.
 2. Every path -- a binding's `by`, a `has` or `top` selector's `path`, and the paths inside a
    `where` -- is read the same way. A segment that is not an identifier (`[A-Za-z_][A-Za-z0-9_]*`)
    is quoted (`data."log-fc"`, `data."stringdb::node type"`); an unquoted hyphen is subtraction. A
@@ -134,25 +143,28 @@ graphty-element 2.x implements:
    `data.source` and `data.target` read the ids of its two ends when the edge has no column of that
    name. A real column of that name wins. On an edge list whose gene symbols are the node ids
    (`gene_a,gene_b,score`), `{ "by": "data.id", "scale": "passthrough" }` labels each node by its
-   symbol, as `data.name` does on a Cytoscape GraphML export. graphty-element 2.x already reads an
+   symbol. graphty-element 2.x already reads an
    edge's `data.source` and `data.target` this way; `data.id` on a node is new in version 1, and
    2.x answers nothing there. An id is a value of one dataset, so a selector comparing one with a
    literal (`data.source == 'TP53'`) names particular nodes, like an `ids` selector. A style reads
    nothing else of the structure, and no value nested inside a column. Because every node has an
    id, a label reading `data.id` binds on every file, and what it shows depends on the file: the
    gene symbol on an edge list whose ends are symbols, but the internal number (the SUID) on a
-   Cytoscape GraphML export, whose node ids Cytoscape writes as numbers. A label meant for both
-   kinds of file is written as two layers, `data.id` below and `data.name` above ("Coming from
-   Cytoscape"), so the export shows its `name` and the edge list its ids.
+   Cytoscape GraphML export, whose node ids Cytoscape writes as numbers. A label meant for every
+   kind of file is written as three layers, `data.id` lowest, then `data.name`, then
+   `data."display name"` ("Coming from Cytoscape"): Cytoscape's `name` holds whatever the network
+   was built from, which for a network from its stringApp is the STRING identifier, and stringApp
+   keeps the gene symbol in `display name`.
 
 ### Expressions
 
 A `where` in a selector or a recipe scope is written in graphty-element's expression language, a
 subset of JMESPath (`graphty-element/src/session/styles/predicate.ts`). An accepted expression means
-what JMESPath means by it, except that a path names one flat column ("Paths" rule 1: `data.adj.P.Val`
-reads the column `adj.P.Val`, where JMESPath would walk nested objects); anything outside the
-subset is refused at the character where it starts, and the layer (or the command) fails alone
-with `E_BAD_SELECTOR`.
+what JMESPath means by it, with two departures: a path names one flat column ("Paths" rule 1:
+`data.adj.P.Val` reads the column `adj.P.Val`, where JMESPath would walk nested objects), and a
+number, `true`, `false` and `null` may be written bare (rule 1), where JMESPath needs backticks
+and reads a bare `true` as a field. Anything outside the subset is refused at the character where
+it starts, and the layer (or the command) fails alone with `E_BAD_SELECTOR`.
 
 ```
 expression := or
@@ -161,11 +173,17 @@ and        := comparison ( "&&" comparison )*
 comparison := unary ( ("==" | "!=" | "<" | "<=" | ">" | ">=") unary )?
 unary      := "!" unary | operand
 operand    := literal | path | "(" expression ")"
+literal    := number | "true" | "false" | "null" | "'" text "'" | "`" json "`"
 path       := name ( "." name )*
 ```
 
-1. **Literals.** A JSON value in backticks (``  `0.05` ``, ``  `true` ``, ``  `null` ``, ``  `["a","b"]` ``),
-   or text in single quotes (`'SUPPLIES'`, where only `'` and `\` are escapes).
+1. **Literals.** A JSON number written bare (`0.05`, `-2`, `1e-6`), the words `true`, `false` and
+   `null`, or text in single quotes (`'SUPPLIES'`, where only `'` and `\` are escapes): so
+   `padj < 0.05`, `significant == true`. The long form, any JSON value in backticks
+   (``  `0.05` ``, ``  `true` ``, ``  `["a","b"]` ``), means the same and is the only way to write a
+   list or an object. A bare `true`, `false` or `null` is always the literal; a column of that name
+   is written `data.true` or `data."true"`. A bare number is read where an operand starts with a
+   digit or with `-` followed by a digit, which no name can.
 2. **Paths** are those of "Paths"; a name is an identifier or a double-quoted JSON string.
 3. **No functions, projections, slices, pipes, wildcards or multi-selects.** `contains()`,
    `starts_with()` and `length()` are refused, so no expression tests whether a list holds a value.
@@ -179,7 +197,10 @@ path       := name ( "." name )*
    an empty object; zero is true, and so is the text `"FALSE"` (README, "What every importer
    produces" rule 4). In JMESPath `!` binds tighter than `.`, so `!data.flag` would mean
    `(!data).flag`; it is refused with `E_BAD_SELECTOR`, and written `!(data.flag)`. `!` before a
-   one-segment path, or before parentheses, is accepted.
+   one-segment path, or before parentheses, is accepted. The same column can be text in one
+   format and booleans in another (README, "What every importer produces" rule 4): R's CSV writes
+   `TRUE`, a GraphML file Cytoscape wrote holds `true`. A selector meant for both tests both,
+   `significant == 'TRUE' || significant == true`.
 
 ### Result fields
 
@@ -187,12 +208,15 @@ path       := name ( "." name )*
 `AlgorithmDescriptor.fields` in graphty-element's catalogue (exported from the `./catalog` entry
 point); the plan of a recipe lists them per command (recipe.md, "The replay report"). The most used:
 
-| Algorithms                                                                        | Node fields                                                                        |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `degree`, `betweenness`, `closeness`, `pagerank`, `eigenvector`, `katz`, `k-core` | `value` (the score; weighted only when the run had `weight`), `rank`, `percentile` |
-| `louvain`, `leiden`, `label-propagation`, `girvan-newman`, `components`           | `group` (an integer per community or piece), `groupSize`                           |
+| Algorithms                                                                        | Node fields                                                                                                    |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `degree`, `betweenness`, `closeness`, `pagerank`, `eigenvector`, `katz`, `k-core` | `value` (the score; weighted only when the run had `weight`, which degree does not take), `rank`, `percentile` |
+| `louvain`, `leiden`, `label-propagation`, `girvan-newman`, `components`           | `group` (an integer per community or piece), `groupSize`                                                       |
 
-A selector or binding naming a field the run does not publish leaves the layer switched off, like a
+`data.<column>` reads a column the data file has; `results.<run>.<field>` reads what a run
+computed. To colour by communities a file already records, read `data.community`; to colour by
+the communities a Louvain run named `groups` found, read `results.groups.group`. A selector or
+binding naming a field the run does not publish leaves the layer switched off, like a
 missing column. A node outside a run's scope has no value for its fields: a `has` selector does not
 match it, and an encoding leaves it to the layers beneath.
 
@@ -202,9 +226,13 @@ on when the run completes (recipe.md, "Run ids and namespaces"). A layer that en
 selects with `has` on that path (or another selector that matches only elements with a value), never
 `everything`, which 2.x refuses with `E_UNSCOPED_RUN_ENCODING`. A run's own suggested colouring is
 added above every layer when the run completes, so a run whose colouring writes a channel any
-layer of the file writes -- the run's own result or a data column -- says `"style": false`. For
-sizing nodes by one run's score, a run's `style: { size: [a, b] }` is the short form; a style
-layer is the form that travels to a file without the recipe and combines with other layers.
+layer of the file writes -- the run's own result or a data column -- says `"style": false`; a run
+whose results a style member of the same file reads is taken as `false` when it gives no `style`
+(recipe.md, "Commands" rule 8). For sizing nodes by one run's score, a run's
+`style: { size: [a, b] }` is the short form; a style layer is the form that travels to a file
+without the recipe and combines with other layers. For a count-like score with a long tail
+(degree, PageRank, betweenness), `{ "scale": "sqrt", "range": [1, 3] }` keeps the largest node
+three times the usual size without hiding the small ones.
 Colouring nodes by a Louvain run named `groups`, with `"style": false` on that command so its own
 colouring does not paint over this layer:
 
@@ -254,13 +282,22 @@ The member names of `set` and `encode` are channel names, the list graphty-eleme
 | label, tooltip and arrow-text styles                                                                           | a label style record                                                                                |
 | `node.wireframe`, `node.flat`, `edge.curvature`                                                                | a boolean                                                                                           |
 | `edge.patternCount`                                                                                            | an integer from 2 to 1,000                                                                          |
-| `edge.animationSpeed`, `node.glowStrength`                                                                     | a non-negative number                                                                               |
+| `edge.animationSpeed`, `node.glowStrength`                                                                     | a number from 0 to 1,000,000                                                                        |
 
 The limits hold for every value a layer produces, not only for `set`: a value an encoding produces
 -- from `range`, `map`, `missing`, `other`, or a `passthrough` of the data -- is checked against its
 channel when it is painted, a number clamped to the channel's range and text cut to 1,024
-characters, and the report counts each. So `"edge.patternCount": { "by": "data.n", "scale":
-"passthrough" }` over a value of 4,294,967,295 draws 1,000 pieces, not four billion.
+characters, and the report counts each; a value that is not a finite number (`NaN` from a failed
+transform, an infinity) is missing, never clamped. So `"edge.patternCount": { "by": "data.n",
+"scale": "passthrough" }` over a value of 4,294,967,295 draws 1,000 pieces, not four billion.
+
+**Pattern pieces are bounded whatever the width.** A patterned edge (`dot`, `star`, `box`, `dash`,
+`diamond` and the others) with no `edge.patternCount` takes its number of pieces from its length
+and its width: pieces are spaced by the larger of the width and 0.01 scene units, so a width of 0
+or 0.000001 never divides a length by nothing. Across the whole scene one paint draws at most
+2,000,000 pieces (README, "Limits"); a layer whose pieces would pass that, `patternCount` 1,000 on
+100,000 edges for one, enters the state `failing` with `E_CAP_EXCEEDED` and paints nothing, and
+the layers beneath show through.
 
 `node.marker` is reserved for graphty-element's own note markers and is not written by a style. A
 channel entry that writes it is dropped from its layer with `E_UNSUPPORTED` under rule 3 of
@@ -286,22 +323,29 @@ other channel `passthrough`. For the numeric scales:
    top of the range. For a column whose scale varies by source, prefer `"auto"` or `clamp`. When
    more than 95 percent of the values fall outside an explicit domain, the report carries a notice.
 2. `midpoint` places that value at 0.5, each half linear after the transform, so a skewed domain
-   keeps its midpoint at the centre of a diverging palette.
+   keeps its midpoint at the centre of a diverging palette. With `"auto"`, the domain is widened
+   to include the midpoint: over fold changes from 0.8 to 4.2 with `midpoint: 0`, 0 stays white
+   and every value is a shade of the high end, never drawn in the low end's colour.
 3. `clamp` `[p, q]` narrows the domain to the values at those percentiles of the values present.
    `clamp` and an explicit `domain` MUST NOT both be given.
 4. `range` `[a, b]` maps position 0 to `a` and 1 to `b` for a number channel; a colour channel reads
    its palette. `reverse: true` swaps the ends.
 5. `missing` decides an element with no value: `"skip"` (the default) paints nothing; `{ value }`
    paints that value.
-6. `exponent` is the power of the `pow` scale (default 2). `bins` is how many groups of equal width
-   (`bins`) or equal count (`quantile`) the values are sorted into (default 4, at most 256).
-7. A value that is not a number (text such as `NA` in a CSV column) is treated as missing, and the
-   report counts it with `W_COLUMN_TYPE`, as a recipe's numeric comparison does (README, "What
-   every importer produces" rule 4). So is a value the scale cannot transform: a negative number
-   under `log`, `neglog10` or `sqrt`. Zero under `log` or `neglog10` is placed at the end the
-   transform tends to -- position 0 for `log`, position 1 for `neglog10`, where the smallest
-   p-values belong -- and is left out of the `"auto"` domain's extent, so an adjusted p-value
-   that underflowed to 0 draws as the most significant, and the others keep their spread.
+6. `exponent` is the power of the `pow` scale (default 2), from 0.01 to 100. `bins` is how many
+   groups the values are sorted into, at most 256: groups of equal width for the `bins` scale
+   (default 5) and of equal count for `quantile` (default 4), as graphty-element 2.x cuts them.
+7. A value that is not a finite number (text such as `NA` in a CSV column, `NaN`, an infinity) is
+   treated as missing, left out of the `"auto"` domain, and counted with `W_COLUMN_TYPE`, as a
+   recipe's numeric comparison does (README, "What every importer produces" rule 4). So is a value
+   the scale cannot place, as in 2.x: zero or a negative number under `log` or `neglog10`. A
+   size by the log of betweenness, which is zero on many nodes of any real graph, leaves those
+   nodes to the layers beneath; an adjusted p-value that underflowed to 0 is missing under
+   `neglog10`, so give the binding `missing: { value }` to draw it, or clamp such values in the
+   file. `sqrt` is signed, as in 2.x: a negative value is placed by the negative of the root of
+   its size, so a signed fold change keeps its sign. Every number a binding itself gives --
+   `domain`, `range`, `midpoint`, `exponent`, `clamp`, `bins`, `other.threshold` -- is finite:
+   JSON text such as `1e400` reads as an infinity, and fails its layer with `E_OPTION_RANGE`.
 
 For `ordinal`, which maps categories:
 
@@ -317,15 +361,17 @@ For `ordinal`, which maps categories:
    the category text of rule 8. On a colour channel an unmapped category takes the next palette
    colour that no `map` entry uses, in the order of rule 8, so an unmapped group never shares a
    pinned colour; running out follows `overflow`. On any other channel (a shape) an unmapped
-   category is treated as missing (`missing`). The report names every `map` key that matched no
+   category is treated as missing (`missing`). Both are graphty-element 3.0.0 changes: 2.x lays
+   `map` over the palette's colours, numbering every category, mapped or not, so an unmapped group
+   can take a pinned colour, and gives an unmapped category the shape at its rank. The report names every `map` key that matched no
    value, so a vocabulary spelled differently (`supplier` for `Supplier`) is seen.
 10. `other: { threshold, value }` paints every category carried by fewer than `threshold` elements
     with `value`.
 11. `overflow` says what happens when there are more categories than the palette has colours:
     `"other"` keeps the palette's colours for the largest groups and paints the rest dark grey
     (#505050); `"shape"` (nodes only) reuses the colours with a new shape per round; `"extend"`
-    gives every group its own colour, not guaranteed distinct. Without `overflow`, a named palette
-    too small for the data fails the layer with `E_CAP_EXCEEDED` -- so a style meant for data it
+    gives every group its own colour, not guaranteed distinct. Without `overflow`, a palette too
+    small for the data, the default one included, fails the layer with `E_CAP_EXCEEDED` -- so a style meant for data it
     has not seen, which may hold more groups than the palette has colours, gives `overflow`. The
     count is known only when the layer paints, and can grow after opening (a merge adds a ninth
     category), so the layer then enters the state `failing`: enabled, painting nothing, with its
@@ -338,11 +384,11 @@ For `ordinal`, which maps categories:
 graphty-element does not read Cytoscape style files (`styles.xml`, the style inside a `.cys`
 session, CX2 visual properties); a Cytoscape style is rewritten by hand, with these tables.
 
-| Cytoscape mapping | Here                                                                                                                                                                                                                                                                       |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| passthrough       | `{ "by": "data.name", "scale": "passthrough" }` on a Cytoscape export, which keeps the symbol in `name`; for the node's own id on an edge list, `{ "by": "data.id", "scale": "passthrough" }`                                                                              |
-| discrete          | `{ "by": "data.mutation_type", "scale": "ordinal", "map": { "missense": "octahedron" }, "missing": { "value": "sphere" } }` for "anything else"                                                                                                                            |
-| continuous        | `{ "by": "data.logFC", "domain": [-2, 2], "midpoint": 0, "palette": "blue-orange" }`: blue at -2, white at 0, red at 2; values past the domain take the end colours. Use `blue-orange` for red-white-blue, not `red-blue` reversed, which has no white middle ("Palettes") |
+| Cytoscape mapping | Here                                                                                                                                                                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| passthrough       | `{ "by": "data.name", "scale": "passthrough" }` for Cytoscape's `name`, which holds what the network was built from; a network from stringApp has the STRING id there and the symbol in `display name`, read as `data."display name"`; the node's own id is `data.id` |
+| discrete          | `{ "by": "data.mutation_type", "scale": "ordinal", "map": { "missense": "octahedron" }, "missing": { "value": "sphere" } }` for "anything else"                                                                                                                       |
+| continuous        | `{ "by": "data.logFC", "domain": [-2, 2], "midpoint": 0, "palette": "blue-white-red" }`: blue at -2, white at 0, red at 2; values past the domain take the end colours. Not `red-blue` reversed, which has no white middle ("Palettes")                               |
 
 | Cytoscape visual property                    | Channel                                                                                                                                         |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -368,16 +414,21 @@ style by the pixel size of that style's usual node, so the usual node becomes 1 
 their proportions (a 50-pixel node in a style whose usual node is 35 pixels is about 1.4). Edge
 widths take the same factor.
 
-A label that must work on both kinds of file -- a Cytoscape GraphML export, where the symbol is the
-column `name` and the node id is Cytoscape's internal number, and an edge list, where the symbol
-is the node id -- is two layers: `data.id` below, `data.name` above. This is the way to write a
-portable label. On the export both bind and the upper one is drawn; on the edge list the upper one
-is switched off for its missing column, and the id shows through. A lone `data.id` label binds on
-both and shows the internal numbers on the export, and the report finds nothing wrong. For one
-file at hand, a rename does it too: `columns: { "name": "id" }` makes a layer reading `data.name`
-read the node's id, as `data.id` does under "Paths" rule 4, so a style saved on a Cytoscape export
-labels an edge list by its symbols. A rename target `id` on nodes, and `source` or `target` on
-edges, reads the structure that way whenever the table has no real column of that name.
+A label that must work on every kind of file is three layers, lowest first: `data.id`,
+`data.name`, `data."display name"`. Cytoscape's node ids are its internal numbers, and its `name`
+holds whatever the network was built from: the gene symbol for a network loaded from a table of
+symbols, the STRING identifier (`9606.ENSP00000269305`) for one from its stringApp, which keeps
+the symbol in `display name`. So a stringApp export draws `display name`, another Cytoscape
+export `name`, and an edge list whose ends are symbols its ids, each upper layer switched off
+where its column is missing. This is the way to write a portable label. A lone `data.id` or
+`data.name` label binds on every export and can show internal numbers or STRING ids, and the
+report finds nothing wrong except in its samples: a preview gives two or three values each
+passthrough layer would draw ("Reading and applying" rule 4), so a label that binds to ids is
+seen before it applies. For one file at hand, a rename does it too: `columns: { "name": "display name" }`
+makes a layer reading `data.name` read stringApp's symbols, and `columns: { "name": "id" }` makes it
+read the node's id, as `data.id` does under "Paths" rule 4. A rename target `id` on nodes, and
+`source` or `target` on edges, reads the structure that way whenever the table has no real column
+of that name.
 
 ### Layer sources
 
@@ -406,20 +457,24 @@ built-in id is ignored and reported, and the built-in palette is used. The built
   `greens`, `oranges`;
 - categorical: `okabe-ito` (the default for categories), `tol-vibrant`, `tol-muted`, `pastel`,
   `carbon`;
-- diverging: `purple-green`, `blue-orange`, `red-blue`;
+- diverging: `purple-green`, `blue-white-red`, `blue-orange`, `red-blue`;
 - highlight: `blue-highlight`, `green-highlight`, `orange-highlight`.
 
 Their colours are graphty-element's exported palette table (`PALETTE_DESCRIPTORS` in its `./catalog`
 entry point). The diverging ones, low end first:
 
-| Palette        | Colours                                                                           | Middle                                                          |
-| -------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `purple-green` | `#762a83 #9970ab #c2a5cf #e7d4e8 #f7f7f7 #d9f0d3 #a6dba0 #5aae61 #1b7837`         | `#f7f7f7`, at the midpoint                                      |
-| `blue-orange`  | `#2166ac #4393c3 #92c5de #d1e5f0 #f7f7f7 #fddbc7 #f4a582 #d6604d #b2182b`         | `#f7f7f7`, at the midpoint; ColorBrewer's RdBu from blue to red |
-| `red-blue`     | `#67001f #b2182b #d6604d #f4a582 #fddbc7 #f7f7f7 #d1e5f0 #92c5de #4393c3 #2166ac` | none: ten colours, so the midpoint falls between two, tinted    |
+| Palette          | Colours                                                                           | Middle                                                          |
+| ---------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `purple-green`   | `#762a83 #9970ab #c2a5cf #e7d4e8 #f7f7f7 #d9f0d3 #a6dba0 #5aae61 #1b7837`         | `#f7f7f7`, at the midpoint                                      |
+| `blue-white-red` | `#2166ac #4393c3 #92c5de #d1e5f0 #f7f7f7 #fddbc7 #f4a582 #d6604d #b2182b`         | `#f7f7f7`, at the midpoint; ColorBrewer's RdBu from blue to red |
+| `blue-orange`    | the same colours as `blue-white-red`, under 2.x's name                            | `#f7f7f7`, at the midpoint                                      |
+| `red-blue`       | `#67001f #b2182b #d6604d #f4a582 #fddbc7 #f7f7f7 #d1e5f0 #92c5de #4393c3 #2166ac` | none: ten colours, so the midpoint falls between two, tinted    |
 
-For a Cytoscape red-white-blue mapping, use `blue-orange` (blue low, red high) rather than
-`red-blue` reversed, whose even count puts no white at the midpoint.
+For a Cytoscape red-white-blue mapping, use `blue-white-red` (blue low, red high), the name of what
+it draws; `blue-orange` is the same palette under the name graphty-element 2.x published, and stays.
+`red-blue` reversed puts no white at the midpoint, because its ten colours have no middle one: a
+binding that gives a `midpoint` with a diverging palette of an even number of colours carries a
+notice saying so.
 
 A carried descriptor has `id`, `plainName`, `kind` (`sequential`, `diverging` or `categorical`),
 `colors` (at most 256, each at most 64 characters), `capacity` (how many categories it can keep
@@ -428,11 +483,24 @@ apart; the number of colours for a categorical palette, `null` for a continuous 
 unsafe). All are required, as in graphty-element 2.x's `PaletteDescriptor`. A sequential or diverging palette's
 colours are spaced evenly from position 0 to 1, so a diverging palette with an odd number of colours
 has its middle colour at the binding's `midpoint`. A page that wants its brand palette everywhere
-registers it once, with `registerPalette(descriptor)` from `@graphty/graphty-element/extend` and a
-descriptor of the shape below, and names it in its styles; a carried palette is for a style
-travelling to pages that do not have it. Register on your own page, carry in files that travel. A
-registered palette wins over a carried one of the same id, so update the registered copy when the
-brand changes. An ordinal binding hands a palette's colours out by group size, largest group
+registers it once and names it in its styles; a carried palette is for a style travelling to
+pages that do not have it. Register on your own page, carry in files that travel:
+
+```js
+import { registerPalette } from "@graphty/graphty-element/extend";
+
+registerPalette({
+    id: "acme-brand",
+    plainName: "Acme brand",
+    kind: "categorical",
+    colors: ["#0b5fff", "#ff8800", "#00a86b"],
+    capacity: 3, // the number of colours, for a categorical palette
+    colorblindSafe: [], // untested
+});
+```
+
+A registered palette wins over a carried one of the same id, so update the registered copy when
+the brand changes. An ordinal binding hands a palette's colours out by group size, largest group
 first, not in the palette's order ("Bindings" rule 8), so a department keeps its brand colour
 across datasets only when `map` pins it, as `sales` is pinned below; `overflow` keeps the layer
 painting when the data holds more departments than the palette has colours.
@@ -503,8 +571,8 @@ painting when the data holds more departments than the palette has colours.
     worked example of this directory (not the conformance inputs, some of which are meant to fail)
     and require acceptance, and MUST check `toDocument()` output against the version 1 schema, so a
     value a release adds without adding it to the schema fails in continuous integration. A worked
-    example that uses the version 1 addition 2.x does not answer (a node's `data.id`) is checked
-    for a switched-off layer instead.
+    example that uses a version 1 addition 2.x does not read (a node's `data.id`, a bare literal)
+    is checked for what "Compatible with graphty-element 2.x" rule 2 says 2.x does with it.
 12. **Renamed layers are written under the document's names.** A layer opened with a `columns`
     rename is written back with its original text, so saving a shared look after opening it on one
     dataset does not turn it into a look for that dataset only. The rename is kept in the report,
@@ -551,7 +619,9 @@ painting when the data holds more departments than the palette has colours.
    a recipe to new data" rule 5). When the unbound path is read by a `passthrough` binding (a
    label or a tooltip), the suggestions also offer `id` on a node layer, or `source` and `target`
    on an edge layer, where the table has no real column of that name, with a reason naming the
-   rename that reads the structure (`columns: { "name": "id" }`, "Coming from Cytoscape"). A layer waiting for a run the file's own recipe will make has the state
+   rename that reads the structure (`columns: { "name": "id" }`, "Coming from Cytoscape"). A
+   `passthrough` binding that binds (a label, a tooltip) gives up to three sample values it would
+   draw, so a label reading STRING ids or internal numbers is seen before it applies. A layer waiting for a run the file's own recipe will make has the state
    `waiting` in the report, naming the command, so a preview tells it apart from a layer that
    will never paint. A `results.` path that names a run by a plain `as` of a command in a recipe of
    the same file never binds to a run of the reader's own that happens to have that name: when
@@ -632,15 +702,17 @@ interface StyleReport {
         readonly selector: Selector;
         /**
          * Elements of the layer's target it selects on this graph, out of `of`; null when a path
-         * it reads is unbound or it is waiting. So a preview tells a layer that fades every node
-         * from one that marks 40 of 4,000.
+         * it reads is unbound or it is waiting, and when the report may not count the data
+         * (quoteLoadedData: false, or fetched data without quoteFetchedData; container.md,
+         * "Applying a file" rule 9). So a preview tells a layer that fades every node from one
+         * that marks 40 of 4,000.
          */
         readonly matched: number | null;
         readonly of: number | null;
         readonly reads: readonly {
             readonly path: string;
             readonly bound: boolean;
-            /** Elements of the layer's target with a value at the path, out of `of`; null when unbound. */
+            /** Elements of the layer's target with a value at the path, out of `of`; null when unbound or not counted. */
             readonly withValue: number | null;
             readonly of: number | null;
             readonly suggestions: readonly string[]; // nearest existing names when unbound; never used
@@ -657,11 +729,15 @@ interface StyleReport {
             readonly scale?: string;
             readonly palette?: string;
             readonly range?: readonly [unknown, unknown];
+            /** A passthrough binding: up to three values it would draw; left out when not quoted. */
+            readonly samples?: readonly string[];
         }[];
         /**
          * "waiting": switched off until a run of the file's own recipe completes. "failing":
          * enabled, but throwing while it paints (more categories than its palette, "Bindings"
-         * rule 11). "refused": switched off for failing a check (rule 2).
+         * rule 11; more pattern pieces than the scene allows; past the repaint budget).
+         * "refused": switched off for failing a check (rule 2). When the report may not count
+         * the data, a layer failing only for its count of categories is reported "paints".
          */
         readonly state: "paints" | "waiting" | "unbound" | "refused" | "failing";
         /** For "refused", "unbound" and "failing": the code and the reason, in a preview too. */
@@ -685,7 +761,10 @@ interface StyleReport {
     /**
      * Palettes registered for this session, channels dropped, ignored members, W_PAINTS_OVER,
      * W_MATCHES_NOTHING, W_ID_COLLISION, and W_FEW_VALUES for a path fewer than half of the
-     * layer's target have a value at. New.
+     * layer's target have a value at. New. When the report may not count or quote the data, it
+     * leaves out every notice that answers a question about it -- W_MATCHES_NOTHING and its
+     * values, W_FEW_VALUES, the map keys that matched no value, the share of values outside an
+     * explicit domain -- and says so in one notice.
      */
     readonly notices: readonly Problem[];
 }
@@ -775,7 +854,8 @@ data settings change how every later import is read (container.md, "Reading a fi
 | a file whose recipe member is version 2 (skipped) and whose style reads `results.hubs.value`, with a session run named `hubs`                                                   | the layer switched off, naming the skipped recipe; the session's `hubs` is not painted                                              |
 | a 1.x template with a skybox background                                                                                                                                         | the layers converted; the background reported, not applied, nothing fetched                                                         |
 | a style reading `data.logFC` and `data.padj`, opened on an edge list, then a node table holding both merged with `mode: "merge"`                                                | the two layers switched on when the merge lands, each reported                                                                      |
-| `{ "by": "data.padj", "scale": "neglog10", "range": [0.5, 3] }` over values including three `0`                                                                                 | the three drawn at 3 (position 1); the `"auto"` domain spans the other values                                                       |
+| `{ "by": "data.padj", "scale": "neglog10", "range": [0.5, 3] }` over values including three `0`                                                                                 | the three treated as missing and counted, as in 2.x; the `"auto"` domain spans the other values                                     |
+| `{ "by": "data.logFC", "scale": "sqrt" }` over values including `-4`                                                                                                            | `-4` placed as -2 after the transform, below 0, as in 2.x                                                                           |
 | `{ "by": "data.x", "scale": "log" }` over values including `-2`                                                                                                                 | `-2` treated as missing; `W_COLUMN_TYPE` counts it                                                                                  |
 | a layer reading `data.logFC` on 280 nodes, 40 of which carry it                                                                                                                 | `reads` gives `withValue: 40, of: 280`; `W_FEW_VALUES`                                                                              |
 | a document layer with `source: { "by": "run", "runId": "overview__degree" }` naming a run the reader made                                                                       | stamped `{ "by": "template" }`; the replaced source reported; removing the template removes it                                      |
@@ -798,6 +878,19 @@ data settings change how every later import is read (container.md, "Reading a fi
 | the worked example's merge, `{ file, idColumn: "gene" }` with no `variant`, of a table headed `gene,baseMean,log2FoldChange,lfcSE,stat,pvalue,padj`                             | read as a node list                                                                                                                 |
 | a table of 20,000 genes merged into a 280-node network whose ids no row matches                                                                                                 | `merge` gives 0 matched and 20,000 added, with five of the added ids, and a notice                                                  |
 | a style opened before a node table is merged; the merge adds the column a switched-off layer reads                                                                              | `opened.report` replaced before the import resolves; the layer's `reads` give the counts after the merge                            |
+| the three label layers of the worked example on a GraphML file from Cytoscape's stringApp (`name` holds `9606.ENSP00000269305`, `display name` holds `TP53`)                    | every node labelled by its `display name`; a preview's `samples` for the `data.name` layer show the STRING ids                      |
+| `where: "data.significant == 'TRUE' \|\| data.significant == true"`, applied to R's CSV (text `TRUE`) and to a Cytoscape GraphML (boolean `true`)                               | the same nodes selected on both                                                                                                     |
+| a GraphML key `logFC` declaring `<default>0</default>`, a node without `logFC`, and a colour layer with `missing: { "value": "#bdbdbd" }`                                       | that node painted `#bdbdbd`; it counts as having no value in `W_FEW_VALUES`; the import report names the default                    |
+| `{ "by": "data.logFC", "midpoint": 0, "palette": "blue-white-red" }` with the `"auto"` domain over values from 0.8 to 4.2                                                       | the domain widened to 0 to 4.2; no value drawn in a blue                                                                            |
+| a binding with `"midpoint": 0` and palette `red-blue`                                                                                                                           | paints; a notice that the palette has no middle colour                                                                              |
+| `{ "match": "everything" }` setting `"edge.style": "dot"` and `"edge.width": 0`                                                                                                 | pieces spaced by 0.01 scene units; the scene's 2,000,000-piece limit holds; nothing divides by zero                                 |
+| `"edge.patternCount": 1000` on every edge of a 100,000-edge graph                                                                                                               | state `failing`, `E_CAP_EXCEEDED`; the layers beneath show                                                                          |
+| embedded data with a node `"score": 1e400`, and `{ "node.size": { "by": "data.score" } }`                                                                                       | that node treated as missing, counted with `W_COLUMN_TYPE`; the `"auto"` domain spans the others                                    |
+| a binding `{ "scale": "pow", "exponent": 1e400 }`                                                                                                                               | that layer refused, `E_OPTION_RANGE`                                                                                                |
+| a 1,000-layer style of `map` keys and thresholds, previewed with `quoteLoadedData: false`                                                                                       | every `matched`, `of` and `withValue` `null`; no unmatched `map` keys, `W_MATCHES_NOTHING` or `W_FEW_VALUES`; one notice saying so  |
+| a style whose layers finish just inside the opening budget, then a run completes                                                                                                | the repaint held to the same budget; the layers past it `failing`, `E_CAP_EXCEEDED`                                                 |
+| `where: "padj < 0.05 && significant == true && name != null"`                                                                                                                   | read as `data.padj < 0.05`, a boolean literal and `null`                                                                            |
+| a binding with `"scale": "bins"` and no `bins`, and one with `"scale": "quantile"` and no `bins`                                                                                | five groups and four groups                                                                                                         |
 
 ## Worked example
 
@@ -810,8 +903,12 @@ switch on when the merge lands. After the merge, `opened.report` holds each laye
 they now are (`withValue` of `of`), and the merge's own report, `session.data.lastImport().merge`,
 says how many of the table's rows matched a node and how many added a new one: a merge key that
 does not match the node ids (a symbol against a STRING protein id, or a difference of case)
-shows up there as rows that matched nothing, with a notice (README, "CSV shapes"). Only to carry the data inside a document do the two tables
-need to be one GraphML or node-link JSON file (README, "What version 1 does not cover").
+shows up there as rows that matched nothing, with a notice (README, "CSV shapes"). A merge
+matches rows to node ids only, so a network whose ids are not gene symbols -- a Cytoscape GraphML
+export, whose ids are internal numbers; an igraph export, whose ids are `n0`, `n1`, ... -- cannot
+take the expression table in a session: combine the two in R or Python first, as README, "What
+version 1 does not cover", joins, shows. Only to carry the data inside a document do the two tables
+need to be one GraphML or node-link JSON file in any case.
 
 Applied to a network whose nodes have `logFC` and `padj`, the layers paint. The tools that make
 these tables spell the columns differently: DESeq2 writes `log2FoldChange` and `padj`, limma
@@ -821,9 +918,9 @@ layer names `data.padj` with no suggestion, because the names share nothing. Eit
 opens the file again with the renames and asks for the first opening to be replaced:
 `openDocument(text, { columns: { "logFC": "log2FoldChange" }, onRepeat: { style: "replace" } })`,
 or `columns: { "padj": "FDR" }`. Without `onRepeat` a second opening with no `base` adds a second
-copy ("Reading and applying" rule 9). The two label layers
-label by `name` where the file has one (a Cytoscape export) and by the node id otherwise (an edge
-list of symbols), never by Cytoscape's internal numbers ("Paths" rule 4).
+copy ("Reading and applying" rule 9). The three label layers label by `display name` where the
+file has one (a stringApp export), else by `name` (another Cytoscape export), else by the node id
+(an edge list of symbols), never by Cytoscape's internal numbers or STRING ids ("Paths" rule 4).
 
 ```json
 {
@@ -845,7 +942,7 @@ list of symbols), never by Cytoscape's internal numbers ("Paths" rule 4).
                     "encode": {
                         "node.color": {
                             "by": "data.logFC",
-                            "palette": "blue-orange",
+                            "palette": "blue-white-red",
                             "domain": [-3, 3],
                             "midpoint": 0,
                             "missing": { "value": "#bdbdbd" }
@@ -857,7 +954,7 @@ list of symbols), never by Cytoscape's internal numbers ("Paths" rule 4).
                     "name": "padj below 0.05",
                     "target": "node",
                     "kind": "highlight",
-                    "selector": { "match": "expression", "where": "data.padj < `0.05`" },
+                    "selector": { "match": "expression", "where": "data.padj < 0.05" },
                     "set": { "node.outline": "#000000" }
                 },
                 {
@@ -871,6 +968,12 @@ list of symbols), never by Cytoscape's internal numbers ("Paths" rule 4).
                     "name": "Label by name",
                     "selector": { "match": "has", "path": "data.name" },
                     "encode": { "node.label": { "by": "data.name", "scale": "passthrough" } }
+                },
+                {
+                    "id": "label-display-name",
+                    "name": "Label by display name",
+                    "selector": { "match": "has", "path": "data.\"display name\"" },
+                    "encode": { "node.label": { "by": "data.\"display name\"", "scale": "passthrough" } }
                 }
             ]
         }

@@ -18,8 +18,12 @@ pnpm add @graphty/graphty-element
 ```
 
 `@graphty/graph-format` and `@graphty/graph-io` are regular dependencies of graphty-element, so
-the package manager installs them for you. Your application can depend on any version of either
-one for its own use; graphty-element keeps the copy it needs.
+the package manager installs them for you. Your application can depend on another major of either
+one for its own use and still install the element; the element then gets its own nested copy, and
+so do `@graphty/algorithms` and `@graphty/layout`, which also depend on graph-format, so the same
+code is installed more than once. Staying on the major the element uses lets the package manager
+install one shared copy. A plugin that reads the snapshots the element hands it imports the
+graph-format types and helpers from `@graphty/graphty-element/extend`, never from its own copy.
 
 Then import in your JavaScript/TypeScript:
 

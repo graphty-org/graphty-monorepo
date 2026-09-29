@@ -4000,9 +4000,12 @@ Rules:
    structural `Symbol.for` brand check plus `formatVersion`, never
    `instanceof`, so a duplicated copy within one major still interoperates.
    (Superseded for graphty-element, owner decision 2026-09-28, issue #85:
-   graph-format and graph-io are REGULAR dependencies of graphty-element
-   only, never peers, so a consumer on another graph-format major can still
-   install the element.)
+   graphty-element lists graph-format -- and graph-io, which this rule never
+   covered -- only under `dependencies`, never as a peer, so a consumer on
+   another graph-format major can still install the element. The cost: such a
+   consumer gets nested 1.x copies under the element and under each package
+   that still peers graph-format. Plugins take graph-format's types and
+   `maskTest` from `@graphty/graphty-element/extend`, the element's copy.)
 4. Because algorithms and layout re-export format types, a format major
    forces their majors; format majors are scheduled only at consumer major
    boundaries (2.0 in section 14.6).

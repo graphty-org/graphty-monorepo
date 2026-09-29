@@ -84,23 +84,25 @@ until it resolves.
 
 **What `compute` is handed** (`SnapshotLayoutInput`):
 
-| Member            | What it is                                                                                                                                               |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph`           | The graph as an undirected `GraphSnapshot` from `@graphty/graph-format`: one edge per connected pair. The layouts of `@graphty/layout` take it directly. |
-| `stored`          | The same graph as the element stores it -- directed or not, every parallel and reciprocal edge, and the edge weights. Read weights here.                 |
-| `dimensions`      | 2 or 3, from the element's view mode or the consumer's `dim` option, capped at `maxDimensions`.                                                          |
-| `options`         | The consumer's options, validated and defaulted against `descriptor.options`.                                                                            |
-| `fixed`           | `rows` (a `NodeMask`) and their current `positions`: pinned nodes, nodes outside a scope, and after an add every node already drawn.                     |
-| `firstRun`        | True until one of this layout's answers has been published since `setLayout` chose it; false for a run that follows a change.                    |
-| `initial`         | Every node's current coordinates, NaN for a node nothing has placed yet.                                                                                 |
-| `added`           | After an add, the new rows (a `NodeMask`); null for a fresh arrangement.                                                                                 |
-| `scope`           | For a layout run over a set with `setLayout(id, opts, { scope })`, the rows it places; null for the whole graph.                                         |
-| `column(option)`  | The node attribute an option names as a dotted path (`"geo.lat"`), one value per row.                                                                    |
-| `dataPositions()` | Where each node's own `position` field puts it, scaled by the element's `positionScale`; NaN where a node has none.                                      |
-| `signal`          | Aborted when the answer is no longer wanted: the graph changed, the layout was replaced, or the element was disposed.                                    |
-| `report(p)`       | Tell the consumer how far you have got: `{ fraction, message? }`, emitted as the element's `layout-progress` event.                                      |
+| Member            | What it is                                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph`           | The graph as an undirected `GraphSnapshot` (a graph-format snapshot): one edge per connected pair. The layouts of `@graphty/layout` take it directly. |
+| `stored`          | The same graph as the element stores it -- directed or not, every parallel and reciprocal edge, and the edge weights. Read weights here.              |
+| `dimensions`      | 2 or 3, from the element's view mode or the consumer's `dim` option, capped at `maxDimensions`.                                                       |
+| `options`         | The consumer's options, validated and defaulted against `descriptor.options`.                                                                         |
+| `fixed`           | `rows` (a `NodeMask`) and their current `positions`: pinned nodes, nodes outside a scope, and after an add every node already drawn.                  |
+| `firstRun`        | True until one of this layout's answers has been published since `setLayout` chose it; false for a run that follows a change.                         |
+| `initial`         | Every node's current coordinates, NaN for a node nothing has placed yet.                                                                              |
+| `added`           | After an add, the new rows (a `NodeMask`); null for a fresh arrangement.                                                                              |
+| `scope`           | For a layout run over a set with `setLayout(id, opts, { scope })`, the rows it places; null for the whole graph.                                      |
+| `column(option)`  | The node attribute an option names as a dotted path (`"geo.lat"`), one value per row.                                                                 |
+| `dataPositions()` | Where each node's own `position` field puts it, scaled by the element's `positionScale`; NaN where a node has none.                                   |
+| `signal`          | Aborted when the answer is no longer wanted: the graph changed, the layout was replaced, or the element was disposed.                                 |
+| `report(p)`       | Tell the consumer how far you have got: `{ fraction, message? }`, emitted as the element's `layout-progress` event.                                   |
 
-Read a mask with `maskTest(mask, row)` from `@graphty/graph-format`.
+Read a mask with `maskTest(mask, row)`. Import it, and the `GraphSnapshot`, `NodeMask` and `EdgeMask`
+types, from `@graphty/graphty-element/extend`, not from `@graphty/graph-format`: they are the
+element's own copy, so they always match the snapshots it hands you.
 
 **Rows you cannot move stay put whatever you answer.** A pinned node, a node outside the scope and,
 after a reader adds nodes to a finished graph, every node that was already drawn is left where it

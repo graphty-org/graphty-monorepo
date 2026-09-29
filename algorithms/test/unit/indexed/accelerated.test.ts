@@ -1162,6 +1162,37 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         expectClose(r.scores, indexed.katzCentrality(s, { weighted: true }).scores);
     });
 
+    it("keeps Katz on the port when its series may diverge: alpha times the spectral-radius bound reaches 1", async () => {
+        // A hub joined both ways to sixteen leaves has spectral radius sqrt(16) = 4, and the bound
+        // is that exactly: at alpha 0.25 the series may diverge, where an f32 iteration with no
+        // normaliser can overflow, so the port answers. Just below it the accelerator is asked.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 16; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+            g.addEdge("hub", `leaf${String(i)}`);
+        }
+        const s = toSnapshot(g);
+        const calls: unknown[][] = [];
+        const dispatcher = accelerated(deviceLike(calls));
+        const onPort = await dispatcher.katzCentrality(s, { alpha: 0.25 });
+        expect(calls).toEqual([]);
+        expect([...onPort.scores]).toEqual([...indexed.katzCentrality(s, { alpha: 0.25 }).scores]);
+        await dispatcher.katzCentrality(s, { alpha: 0.24 });
+        expect(calls).toHaveLength(1);
+    });
+
+    it("sends Katz to the accelerator at the default alpha past a hub of ten or more in-arcs", async () => {
+        // The largest in-arc count (16) would bound the radius above 1 / 0.1; the radius is 4.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 16; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+            g.addEdge("hub", `leaf${String(i)}`);
+        }
+        const calls: unknown[][] = [];
+        await accelerated(deviceLike(calls)).katzCentrality(toSnapshot(g), { alpha: 0.1 });
+        expect(calls).toHaveLength(1);
+    });
+
     it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {
         const calls: unknown[][] = [];
         const s = uneven(true);

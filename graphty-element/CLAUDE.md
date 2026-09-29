@@ -297,11 +297,12 @@ arrives only through the `./webgpu` entry point.
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
 accelerator when the controller planned one and the CPU simulation when it did not; the
-algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector,
-betweenness and closeness route through
-`@graphty/algorithms`' `accelerated()` and label the result's `caveats.precision` with the
-arithmetic that produced it. Only the members listed in `src/acceleration/narrow.ts` are ever
-offered to the device; betweenness and closeness are not yet, so they always take the CPU port.
+algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector, HITS,
+Katz, betweenness, closeness, k-core and Louvain route through `@graphty/algorithms`'
+`accelerated()` and label the result's `caveats.precision` with the arithmetic that produced it.
+Only the members listed in `src/acceleration/narrow.ts` are ever offered to the device;
+betweenness, closeness, k-core and Louvain are not, so they always take the CPU port and
+`acceleration="required"` does not refuse them.
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
 frame-count-independent, and it is shared by the tests and the stories -- write no second one.
 

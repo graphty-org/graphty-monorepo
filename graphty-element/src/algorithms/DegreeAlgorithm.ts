@@ -1,3 +1,5 @@
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -57,14 +59,33 @@ export class DegreeAlgorithm extends MetricAlgorithm {
      * @returns One count per node, unscaled.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        // Directed, so in-degree and out-degree are the directions the records declared.
-        const graphData = this.algorithmGraph("directed");
+        /* The declared snapshot, with each group of parallel edges counted once -- the same merge
+           every run takes. Counted off the edge list rather than the snapshot's degree views: an
+           undirected snapshot's in- and out-degree are one array holding the whole degree, so
+           adding them would double it. The edge list keeps the orientation each record declared,
+           so in plus out is the degree once on either kind of graph. */
+        const { snapshot } = this.input("declared").derived();
+        const { ids, nodeCount } = snapshot;
+        const { src, dst } = snapshot.edgeList();
+        const inDegrees = new Uint32Array(nodeCount);
+        const outDegrees = new Uint32Array(nodeCount);
+        for (let edge = 0; edge < src.length; edge++) {
+            outDegrees[src[edge]]++;
+            inDegrees[dst[edge]]++;
+        }
         const nodes: ResultElementValues[] = [];
 
         await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
-            const inDegree = graphData.inDegree(nodeId);
-            const outDegree = graphData.outDegree(nodeId);
+            const index = ids.indexOf(nodeId);
 
+            if (index === INVALID_INDEX) {
+                nodes.push({ id: nodeId, values: {} });
+
+                return;
+            }
+
+            const inDegree = inDegrees[index];
+            const outDegree = outDegrees[index];
             nodes.push({ id: nodeId, values: { value: inDegree + outDegree, inDegree, outDegree } });
         });
 

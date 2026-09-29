@@ -456,24 +456,34 @@ export function derivedInputsOf(owner: InputOwner): DerivedInputs {
     if (inputs === undefined) {
         inputs = new DerivedInputs({
             release: (snapshot) => {
-                const { accelerator } = owner.acceleration;
-                const release = accelerator?.release;
-                if (typeof release !== "function") {
-                    return;
-                }
-
-                try {
-                    (release as (target: GraphSnapshot) => void).call(accelerator, snapshot);
-                } catch (error) {
-                    // A third party's release is untrusted code; a throw must not fail the run.
-                    console.warn("graphty: an accelerator threw while releasing a derived input", error);
-                }
+                releaseOnAccelerator(owner, snapshot);
             },
         });
         caches.set(owner, inputs);
     }
 
     return inputs;
+}
+
+/**
+ * Frees the attached accelerator's device buffers for a snapshot nothing will read again, when the
+ * accelerator has a `release`. Safe for a snapshot the accelerator never saw.
+ * @param owner - The graph.
+ * @param snapshot - The snapshot to release.
+ */
+export function releaseOnAccelerator(owner: InputOwner, snapshot: GraphSnapshot): void {
+    const { accelerator } = owner.acceleration;
+    const release = accelerator?.release;
+    if (typeof release !== "function") {
+        return;
+    }
+
+    try {
+        (release as (target: GraphSnapshot) => void).call(accelerator, snapshot);
+    } catch (error) {
+        // A third party's release is untrusted code; a throw must not fail the run.
+        console.warn("graphty: an accelerator threw while releasing a derived input", error);
+    }
 }
 
 /**

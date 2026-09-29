@@ -47,3 +47,26 @@ The review of the full five-document specification did not converge: three round
 critical or high problems and 35 open decisions. Style and recipe are the two documents the owner
 has asked to share ("where is export style, export recipe? load style?"), so they go first, on a
 container simple enough to read and diff as text.
+
+## Further decisions, taken after the version 1 review
+
+5. **Filters are in version 1.** A recipe records a filter over columns (for example "drop edges
+   whose confidence is below 0.4") as well as algorithm runs and layouts. This keeps the scope of
+   decision 1, which the version 1 draft had narrowed to two commands.
+6. **A recipe's weight option names a column.** Each run builds its weights from the column the
+   recipe names, so one recipe can weight different runs by different columns.
+7. **The recipe names its own endpoint and id columns,** the way it names weights. Where the data
+   comes from a table (CSV, a Neo4j export), the recipe states which columns hold an edge's two
+   endpoints and a node's id, so recipes do not depend on every importer agreeing on header names.
+   Formats that mark endpoints structurally (GraphML, GEXF, GML, DOT, Pajek) need no such mapping.
+8. **The file extension is `.graphty.json`, and the media type `application/vnd.graphty+json` is
+   reserved for future use.** Nothing uses the media type today: graphty-element returns a
+   document as text and never labels a file, and graphty identifies a document by the magic field
+   inside it, never by its name or label. The name is reserved so that, if a need appears (an
+   operating system associating files with a graphty app, or a server distinguishing graphty
+   documents from other JSON), every tool uses the same one.
+9. **Documents get their own specific error codes** (`E_UNSUPPORTED_VERSION`,
+   `E_UNKNOWN_COMMAND`, `E_REPEAT_APPLICATION` and the others the specification lists).
+10. **Exported result columns are named `<run>.<field>`** (for example `groups.group`), and a name
+    collision is refused unless the caller supplies names. The extension-point specification uses
+    the same form.

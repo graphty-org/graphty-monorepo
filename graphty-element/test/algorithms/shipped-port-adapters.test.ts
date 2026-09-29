@@ -34,10 +34,10 @@ import { KatzCentralityAlgorithm } from "../../src/algorithms/KatzCentralityAlgo
 import { KCoreAlgorithm } from "../../src/algorithms/KCoreAlgorithm";
 import { LouvainAlgorithm } from "../../src/algorithms/LouvainAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
-import { toAlgorithmGraph } from "../../src/algorithms/utils/snapshotGraph";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { toAlgorithmGraph } from "../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 
 /** A directed graph with a reciprocal pair, a self-loop, a parallel pair and an isolated node. */

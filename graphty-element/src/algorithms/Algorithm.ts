@@ -1,4 +1,4 @@
-import { accelerated, type AcceleratedAlgorithms, type Graph as AlgorithmGraph } from "@graphty/algorithms";
+import { accelerated, type AcceleratedAlgorithms } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
@@ -10,8 +10,10 @@ import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
+import { type InputColumns, sessionColumns } from "./input/columns";
 import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
 import {
+    type AlgorithmGraphMode,
     createScopedInput,
     type ElementScopedInput,
     orientationOf,
@@ -21,7 +23,6 @@ import {
 } from "./input/ScopedInput";
 import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
-import { type AlgorithmGraphMode, toAlgorithmGraph } from "./utils/snapshotGraph";
 
 /**
  * Type for algorithm class constructor
@@ -348,20 +349,6 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     }
 
     /**
-     * The `@graphty/algorithms` Graph this run reads, built from the element's graph snapshot.
-     *
-     * This is the ONLY way an algorithm should obtain its input. The `Node` and `Edge` objects the
-     * data manager also holds are render objects -- each `Node` builds a Babylon mesh in its
-     * constructor -- and reading the graph out of them ties every algorithm to a renderer and to
-     * whatever part of a data load the scene has caught up with.
-     * @param mode - the shape this algorithm needs; see {@link AlgorithmGraphMode}
-     * @returns a freshly built Graph for the algorithm package
-     */
-    protected algorithmGraph(mode: AlgorithmGraphMode): AlgorithmGraph {
-        return toAlgorithmGraph(this.graph.getDataManager(), mode, this.input(orientationOf(mode)));
-    }
-
-    /**
      * The graph this run computes over, in one orientation: its scope's compact snapshot when the
      * class declares {@link Algorithm.scopeInput} and runs as a run, else the whole graph. Both
      * seams below read through it.
@@ -375,14 +362,36 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
         const merged = simplify === undefined ? options : { ...options, simplify };
 
-        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this));
+        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
+    }
+
+    /**
+     * Where this algorithm's input reads the columns behind its declared "attribute" and
+     * "partition" options, and the weight it asks for: the records and published results of the
+     * session it runs in. Read on first use, so an input that never asks for a column never
+     * touches the session.
+     * @returns The reader.
+     */
+    private columns(): InputColumns {
+        const statics = this.constructor as { descriptor?: AlgorithmDescriptor; type?: string };
+        const reader = (): InputColumns =>
+            sessionColumns(
+                this.graph.getSession(),
+                statics.descriptor?.options ?? [],
+                this._schemaOptions,
+                statics.descriptor?.key ?? statics.type ?? "",
+            );
+
+        return {
+            option: (name) => reader().option(name),
+            read: (graph, path, on, edgeIdAt) => reader().read(graph, path, on, edgeIdAt),
+        };
     }
 
     /**
      * The route an algorithm with an accelerated implementation takes.
      *
-     * It is the counterpart of {@link algorithmGraph} for the algorithms `@graphty/algorithms`
-     * can dispatch: instead of copying the snapshot into an object graph, the work runs over the
+     * The route for the algorithms `@graphty/algorithms` can dispatch: the work runs over the
      * snapshot itself, on the attached accelerator or on the index-based CPU port, and the adapter
      * writes one loop over an index-aligned result either way.
      *
@@ -424,9 +433,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            space of the whole graph alone -- so a node result indexes the declared snapshot's nodes
            directly -- and only an EDGE result needs the map.
 
-           THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES, the same step `toAlgorithmGraph` takes for
-           the object-graph route, and for a reason that outlives that route's inability to hold
-           two edges between one pair: a group of parallel edges becomes ONE edge carrying the
+           THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES: a group of parallel edges becomes ONE edge carrying the
            group's summed weight, because a repeated edge between two nodes is MORE connection
            rather than the same connection -- the reading a weighted layout gives the same data.
            A class that reads a repeat differently says so in `parallelEdges`: a shortest path

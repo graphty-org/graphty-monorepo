@@ -42,11 +42,11 @@ import { GirvanNewmanAlgorithm } from "../../src/algorithms/GirvanNewmanAlgorith
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
 import type { MetricAlgorithm } from "../../src/algorithms/metrics/MetricAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
-import { toAlgorithmGraph } from "../../src/algorithms/utils/snapshotGraph";
 import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { toAlgorithmGraph } from "../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 
 /** Two triangles joined by a path, with a parallel pair and a reciprocal pair, all weighted. */

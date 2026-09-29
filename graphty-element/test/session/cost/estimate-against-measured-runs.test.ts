@@ -56,13 +56,13 @@ import {
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
-import { toAlgorithmGraph } from "../../../src/algorithms/utils/snapshotGraph";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import type { AlgorithmKey } from "../../../src/catalog/types";
 import type { DataManager } from "../../../src/managers/DataManager";
 import { calibrateCost, DEFAULT_COST_RATES, estimateCost, type MachineCalibration } from "../../../src/session/cost";
 import type { CostRates } from "../../../src/session/cost/estimate";
 import type { GraphStatistics } from "../../../src/session/types";
+import { toAlgorithmGraph } from "../../helpers/legacy-algorithm-graph";
 
 /**
  * How far UNDER the stopwatch an estimate may sit, as estimate / measured. Carried over from the

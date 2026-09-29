@@ -37,28 +37,33 @@ So an export is two steps:
 
 Each included run contributes one column per published field of its result, per element kind.
 
-1. **Column name** `<run name>.<field>`: `influence.value`, `groups.group`. A run a recipe produced
-   is named by its `as`, without the namespace; a run started by hand without a name is named by
-   recipe.md's rule ("Recording" rule 4: `pagerank`, `pagerank_2`), so a script reads the same column
-   after a parameter is tuned. When two included runs would give one name (a recipe applied twice),
-   the export is refused, naming both, unless the caller supplies the names. The naming is a
-   contract for scripts in R and Python (README, "Open decisions" item 3).
-2. **Reading one back.** Imported again, such a column is an ordinary column whose name contains a
+1. **Column name** `<run>.<field>`: `influence.value`, `groups.group`, as the owner decided. A run a
+   recipe produced is named by its `as`, without the namespace; a run started by hand without a
+   name is named by recipe.md's rule ("Recording" rule 4: `pagerank`, `pagerank_2`), so a script
+   reads the same column after a parameter is tuned. The naming is a contract for scripts in R and
+   Python, and the extension-point specification uses the same form.
+2. **Collisions are refused.** When two included runs would give one name (a recipe applied twice),
+   or a result column would take the name of an imported column, the export is refused before
+   anything is written, naming each collision, unless the caller supplies names: an option of the
+   export mapping a run id to the name its columns take (`{ "hub_genes2__hubs": "hubs_again" }`
+   gives `hubs_again.value`). A supplied name follows the rules of `as` (recipe.md, "Commands" rule
+   2), and one that still collides is refused the same way.
+3. **Reading one back.** Imported again, such a column is an ordinary column whose name contains a
    dot, read as `data.influence.value` (column names are flat, README "Three things called a file
    format").
-3. **Name limits.** GEXF, GraphML, CSV, the JSON dialects, DOT and Neo4j hold the dotted name as
+4. **Name limits.** GEXF, GraphML, CSV, the JSON dialects, DOT and Neo4j hold the dotted name as
    written. GML keys are letters and digits only, and Pajek has no named attribute columns; for
    those two each result column is reported with `W_GRAPHTY_RESULT_NAME` and the name graph-io gave
-   it. A name that collides with an imported column is written with `.2` appended and reported.
-4. **Roles.** A result field that is a partition is given graph-format's `community` role, a rank
+   it.
+5. **Roles.** A result field that is a partition is given graph-format's `community` role, a rank
    the `rank` role, a component the `component` role, so formats that map roles place them. A
    snapshot allows one column per role per table, so the role goes to the first run that claims it
    and every later claimant is written as a plain column, reported with `W_GRAPHTY_ROLE_TAKEN`.
-5. **Graph-level fields** of a result (`min`, `max`, `mean`, the normalisation used) and each run's
+6. **Graph-level fields** of a result (`min`, `max`, `mean`, the normalisation used) and each run's
    precision and exactness are written as graph-level attributes `<run name>.<field>` where the
    format has them, and reported with `W_GRAPHTY_GRAPH_FIELDS` where it does not, so which
    convention produced a column is never lost silently.
-6. **Which runs.** Every run the session holds, unless the caller names runs; a run left out is not
+7. **Which runs.** Every run the session holds, unless the caller names runs; a run left out is not
    reported, because leaving it out was the caller's choice. Hiding a style layer never changes
    which columns a file has.
 
@@ -107,7 +112,7 @@ reported with `W_GRAPHTY_CHANNEL`.
 | ------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- | ---------------------- |
 | GEXF 1.3                        | yes, typed                                             | yes: `viz:color`, `viz:size`, `viz:shape`, edge `viz:thickness`, shape | no                     |
 | GraphML                         | yes, typed                                             | no                                                                     | yes                    |
-| GML                             | yes, names reported (rule 3)                           | no                                                                     | yes                    |
+| GML                             | yes, names reported (rule 4)                           | no                                                                     | yes                    |
 | DOT                             | yes, as attributes                                     | no                                                                     | yes                    |
 | Pajek                           | numbers as vectors or partitions only, others reported | no                                                                     | no                     |
 | CSV                             | yes, in the node and edge tables                       | no; CSV has no appearance                                              | no                     |
@@ -161,13 +166,13 @@ its next save, which turns a reported loss into one nobody sees.
 | `W_GRAPHTY_CHANNEL`         | a painted channel has no place in the format                               | the channel  | elements painted  |
 | `W_GRAPHTY_SHAPE`           | a shape or line pattern was translated                                     | the channel  | elements affected |
 | `W_GRAPHTY_RECIPE`          | results were written; the commands that produced them were not             | null         | runs              |
-| `W_GRAPHTY_RESULT_NAME`     | a result column was renamed for the format or for a collision              | the new name | null              |
+| `W_GRAPHTY_RESULT_NAME`     | a result column was renamed for a format that cannot hold its name         | the new name | null              |
 | `W_GRAPHTY_ROLE_TAKEN`      | a column lost a graph-format role to another claimant                      | the column   | null              |
 | `W_GRAPHTY_GRAPH_FIELDS`    | a run's graph-level fields have no place in the format                     | the run name | fields            |
 | `W_GRAPHTY_TEXT_QUOTED`     | text a format could read as markup was written quoted                      | the column   | values            |
 | `W_GRAPHTY_CSV_NEUTRALIZED` | CSV cells were prefixed so a spreadsheet does not run them                 | the column   | cells             |
 
-These codes are new and, like graph-io's, a published contract (README, "Open decisions" item 2).
+These codes are new and, like graph-io's, a published contract (README, "Error and warning codes").
 
 ## Worked example
 

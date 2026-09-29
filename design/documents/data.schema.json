@@ -61,41 +61,27 @@
             "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
         }
     },
-    "oneOf": [
-        {
-            "required": ["graph", "dialect"],
-            "properties": {
-                "format": {
-                    "const": "json"
-                }
+    "if": {
+        "required": ["graph"]
+    },
+    "then": {
+        "required": ["dialect"],
+        "properties": {
+            "format": {
+                "const": "json"
             },
-            "not": {
-                "anyOf": [
-                    {
-                        "required": ["href"]
-                    },
-                    {
-                        "required": ["options"]
-                    },
-                    {
-                        "required": ["sha256"]
-                    }
-                ]
-            }
+            "href": false,
+            "options": false,
+            "sha256": false
         },
-        {
-            "required": ["href"],
-            "not": {
-                "anyOf": [
-                    {
-                        "required": ["graph"]
-                    },
-                    {
-                        "required": ["dialect"]
-                    }
-                ]
-            }
-        }
-    ],
+        "description": "Embedded data: graph and dialect, format json, and none of the members of a reference."
+    },
+    "else": {
+        "required": ["href"],
+        "properties": {
+            "dialect": false
+        },
+        "description": "Referenced data: href, and no dialect."
+    },
     "unevaluatedProperties": false
 }

@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-style/v1.json",
     "title": "graphty style member, version 1",
-    "description": "A portable stack of style layers (style.md). Normative for what a writer produces. A reader applies it per layer: a layer that fails is added disabled with its reason, and only a failure of the member's own top level refuses the member. Every style document graphty-element 2.x writes is a valid version 1 style once kind is added, except a layer selecting edges by session edge id (style.md, 'Selectors').",
+    "description": "A portable stack of style layers (style.md). Normative for what a writer produces. A reader applies it per layer: a layer that fails is added disabled with its reason, and only a failure of the member's own top level refuses the member. Every style document graphty-element 2.x writes is a valid version 1 style once kind is added, except a layer selecting edges by session edge id (style.md, 'Selectors'). The value lists of this schema (channel names, node shapes, line patterns, arrows, selector kinds) grow within version 1 when graphty-element adds a value; a reader that does not know a value fails that layer or channel alone (container.md, 'Versions' rule 2).",
     "type": "object",
     "required": ["kind", "version", "layers"],
     "properties": {
@@ -18,9 +18,9 @@
             "minLength": 1,
             "maxLength": 256,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
-            "description": "The style's identity across saves: a reverse-domain name (org.example-lab.expression-overlay) is recommended. It is the template id of its layers, so opening a style whose id is already applied replaces the earlier layers by default (style.md, 'Reading and applying' rule 9). Ids starting graphty. or graphty: are reserved.",
+            "description": "The style's identity across saves: a reverse-domain name (org.example-lab.expression-overlay) is recommended. It is the template id of its layers, so opening a style whose id is already applied replaces the earlier layers by default (style.md, 'Reading and applying' rule 9). Ids starting graphty. or graphty: in any case, and URLs on graphty.app, are reserved.",
             "not": {
-                "pattern": "^graphty[.:]"
+                "pattern": "^([Gg][Rr][Aa][Pp][Hh][Tt][Yy][.:]|[Hh][Tt][Tt][Pp][Ss]?://([^/]*[.])?[Gg][Rr][Aa][Pp][Hh][Tt][Yy][.][Aa][Pp][Pp]([/:]|$))"
             }
         },
         "styleVersion": {
@@ -60,7 +60,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
-            "description": "A path over {data, results}: data.<column> or results.<run id>.<field> (style.md, 'Paths')."
+            "description": "A path over {data, results}: data.<column> or results.<run id>.<field>. A path with neither prefix is read as data.<path>, as graphty-element 2.x reads it; a writer writes the prefix. On a node, data.id reads the node's id when the node has no column id; on an edge, data.source and data.target read its ends when it has no such column (style.md, 'Paths')."
         },
         "runId": {
             "type": "string",
@@ -768,7 +768,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
-            "description": "A predicate in graphty-element's expression language, a subset of JMESPath with no functions (style.md, 'Expressions'), over {data, results} and the node id path id; at most 1024 characters and 32 levels of nesting."
+            "description": "A predicate in graphty-element's expression language, a subset of JMESPath with no functions (style.md, 'Expressions'), over {data, results} (style.md, 'Paths'); at most 1024 characters and 32 levels of nesting."
         }
     }
 }

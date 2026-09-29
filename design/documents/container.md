@@ -11,6 +11,18 @@ itself, and kinds a later version adds -- so one file can be "our lab's look", "
 "both, as a starting point without our data", or "both, with the data". The file is one JSON text a
 person can read, diff and keep in version control. There is no zip form.
 
+## File name and media type
+
+A graphty document is saved as `<name>.graphty.json`: the name says both that it is a graphty
+document and that it is JSON a person can read. A plain `.json` would be confused with graph data
+in graph-io's JSON dialects in every file picker.
+
+The media type `application/vnd.graphty+json` is reserved for graphty documents and used by nothing
+today. graphty-element returns a document as text and never labels a file, and a reader decides
+what a file is from the `kind` inside it, never from its name or a label ("Reading a file"). The
+name is reserved so that, if a need appears -- an operating system associating files with a graphty
+application, a server telling graphty documents from other JSON -- every tool uses the same one.
+
 ## Data model
 
 ```ts
@@ -53,7 +65,9 @@ file's text, or its bytes as UTF-8.
 
 1. It checks the limits of README "Limits" -- the size, then the nesting depth by one pass over the
    raw text, then member names while parsing -- and refuses the text with `E_TOO_LARGE` or
-   `E_BAD_DOCUMENT` when one is exceeded. Text that is not JSON is refused with `E_PARSE_FAILED`.
+   `E_BAD_DOCUMENT` when one is exceeded. Member names are compared as decoded strings, after their
+   `\u` escapes (escaped surrogate pairs included), so `"\u005f_proto__"` is `__proto__` and two
+   spellings of `href` are one name twice. Text that is not JSON is refused with `E_PARSE_FAILED`.
 2. A top-level object whose `kind` is `"graphty-document"` is a graphty document.
 3. A top-level object with no `kind`, an integer `version` and an array `layers` each of whose
    entries is an object with a `selector` and a `set` or an `encode` (an empty array included) is
@@ -68,8 +82,11 @@ file's text, or its bytes as UTF-8.
    skybox names an image URL; the data settings, which change how every later import is read; the
    camera; behaviour -- is reported by name and not applied, and is never handed to
    graphty-element's own template input. A caller who wants one sets it through its own API.
-5. A top-level object whose `kind` is a member kind (`"graphty-style"`, `"graphty-recipe"`,
-   `"graphty-data"`) is read as a document holding that one member. A writer never writes one.
+5. A top-level object whose `kind` is a string of the member-kind form (`graphty-` and a name, or a
+   reverse-domain name) and whose `version` is an integer is read as a document holding that one
+   member. So a bare style or recipe opens, and a bare member of a kind this reader does not know
+   is skipped with `W_UNKNOWN_KIND` (rule 11) rather than refused as "not a graphty document". A
+   writer never writes one.
 6. Anything else is not a graphty document and is refused with `E_UNKNOWN_FORMAT`, with
    `details.available` listing the data formats the caller could import it as instead.
 7. A document whose `version` is missing or not a positive integer (`"1"`, `1.5`) is refused with
@@ -106,35 +123,38 @@ A skipped member is not lost: see "Writing a file" rule 3.
 
 16. **A document given to a data import.** The reverse of rule 6: graphty-element's data import
     (`data.import`, and every importer the catalogue lists) given JSON text whose top level is one
-    of the shapes of rules 2 to 5 refuses it with `E_UNKNOWN_FORMAT`, saying it is a graphty
-    document to open with `openDocument`. It never reads one as graph data, which could find no
+    of the shapes of rules 2 to 5 -- a bare member of any kind included -- refuses it with
+    `E_UNKNOWN_FORMAT`, saying it is a graphty document to open with `openDocument`. It never reads one as graph data, which could find no
     nodes and say nothing useful.
 
 ### Unknown object members
 
 A reader MUST ignore an object member it does not know, at any depth outside the places listed
 below, and report each one with `W_UNKNOWN_MEMBER` and its JSON pointer (`/members/0/layers/2/colour`),
-so a misspelling is seen. The exceptions:
+so a misspelling is seen. Every closed object, and what a reader does with an unknown member in it:
 
-- the members of a recipe command are closed (recipe.md, "Replaying" rule 3), because ignoring one
-  would change a result;
-- the members of a data member are closed ("The data member" rule 6), for the same reason;
-- the member names of a style layer's `set` and `encode` are channel names, and an unknown one
-  follows style.md, "Reading and applying" rule 3, not this rule.
+| Closed object                                                     | A reader that meets an unknown member                                                                                                                               |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a recipe command, its `scope` and its `style`; a recipe's `table` | skips the command and every later one, `E_UNKNOWN_OPTION` (recipe.md, "Replaying" rule 3); an unknown member of `table` skips the recipe's use of `table`, reported |
+| a data member                                                     | skips the data member, `E_BAD_DOCUMENT` ("The data member" rule 6)                                                                                                  |
+| a style's selectors and bindings                                  | reports `W_UNKNOWN_MEMBER` and applies the layer: the schema refuses the member, so a validator catches the misspelling (`overflw`) the reader only warns about     |
+| the keys of a style layer's `set` and `encode`                    | channel names: style.md, "Reading and applying" rule 3                                                                                                              |
 
-The version 1 schemas also close a style's selectors and bindings, so a validator catches a
-misspelling (`overflw`) that a reader only warns about.
+The first two change a result when a member is ignored, so they stop; the others do not.
 
 ### Versions
 
 1. `version` is the major version, of the container and of each member kind separately. A style
    member at version 2 inside a container at version 1 is valid.
 2. Within a major version a change MUST be additive: a new optional member of an open object, a new
-   value where the schema's list is open, a new member kind. Removing or renaming a member, or
-   changing what a value means, needs a new major version. The open lists of version 1 are the
-   member kinds, a recipe command's `op` (an old reader stops the replay at an unknown command,
-   recipe.md "Replaying" rule 4), algorithm keys, layout ids, palette ids and the import option
-   names of a format (its catalogue decides). The closed objects -- a recipe command, a run's
+   value in an open list, a new member kind. Removing or renaming a member, or changing what a
+   value means, needs a new major version. The open lists of version 1 are the member kinds, a
+   recipe command's `op` (an old reader stops the replay at an unknown command, recipe.md
+   "Replaying" rule 4), algorithm keys, layout ids, palette ids, the import option names of a
+   format (its catalogue decides), and a style's channel names, selector kinds, scales, layer kinds
+   and the value lists of its enumerated channels. A release that adds a value adds it to the
+   published version 1 schema; a reader that does not know it fails that one layer, channel or
+   command, never the member (style.md, "Compatible with graphty-element 2.x" rule 2). The closed objects -- a recipe command, a run's
    `style` and `scope`, a data member, a style's selectors and bindings -- gain members only in a
    new major version of their kind, because an older reader skips or misreads a member it does
    not know. A writer MUST check every member it stamps with a version against that version's
@@ -151,8 +171,11 @@ misspelling (`overflw`) that a reader only warns about.
    file does not lock out a colleague on an older release. A style whose top layers need a later
    style version SHOULD be written as two members, the lower layers at the lowest version and the
    rest at the later one, so an older reader still draws the lower layers (style.md, "Writing").
-5. A reader SHOULD read the current major version and the one before it of each kind, upgrading the
-   older one on read. Style version 1 is read forever (rule 3 of "Reading a file").
+5. A reader MUST read every major version of the container and of each kind that a release of
+   graphty-element has written, upgrading an older one on read through each version in turn, and
+   the report says it was upgraded. A published file -- a recipe cited in a paper -- stays readable
+   by every later release. graphty-element's tests keep the frozen schema of each version and a
+   file of each, and read them on every build.
 
 ### Extensions
 
@@ -207,9 +230,11 @@ interface ReferencedData {
 }
 ```
 
-1. **Embedded.** `graph` holds the graph as a JSON value in the named graph-io dialect, written with
-   that dialect's own member names. A writer SHOULD embed in `node-link`, which every graph-io
-   release reads and writes. A node's or link's members other than the dialect's own become
+1. **Embedded.** For a graph that is a list of nodes and a list of links, write
+   `"dialect": "node-link"` and `"graph": { "nodes": [...], "links": [...] }`. In general `graph`
+   holds the graph as a JSON value in the named graph-io dialect, written with that dialect's own
+   member names; a writer SHOULD embed in `node-link`, which every graph-io release reads and
+   writes. A node's or link's members other than the dialect's own become
    columns under their own names ("What every importer produces" in README):
 
     ```jsonc
@@ -234,10 +259,16 @@ interface ReferencedData {
    parser, against the `base` the caller passed to `openDocument` (the URL the document came from),
    and checks the resolved URL, never the raw text:
     - an absolute `https:` URL with no user name or password is allowed, unless its host is
-      `localhost` or an IP literal in a loopback, private, link-local or unique-local range
-      (`127.0.0.1`, `[::1]`, `10.0.0.1`, `169.254.169.254`, `[fd00::1]`), which is refused unless
-      the caller passes `allowPrivateHosts: true`. A host name is not looked up here, so a
-      `resolve` that fetches applies its own check to the address a name reaches;
+      `localhost`, a name ending `.localhost`, or an IP literal that is not a public unicast
+      address, which is refused unless the caller passes `allowPrivateHosts: true`. The refused
+      addresses are those of the IANA special-purpose registries: IPv4 `0.0.0.0/8`, `10/8`,
+      `100.64/10`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `224/4` and above; IPv6 `::`,
+      `::1`, `fc00::/7`, `fe80::/10`, `ff00::/8`. An IPv4-mapped (`::ffff:0:0/96`) or NAT64
+      (`64:ff9b::/96`) address is judged by the IPv4 address inside it, so `[::ffff:127.0.0.1]` is
+      refused like `127.0.0.1`. A host name is not looked up here: a name can reach a private
+      address (`127.0.0.1.nip.io`). A `resolve` that fetches applies its own check to the address a
+      name reaches where it can see it; a browser's cannot, and relies on the person's consent
+      (rule 4) and the browser's own protection of private networks, where it has one;
     - a relative reference is allowed only when it resolves to the base's scheme and origin, at or
       below the base's directory. A reference starting `/` or `//`, one holding `\`, and one whose
       `..` climbs above the base's directory are refused;
@@ -258,12 +289,23 @@ interface ReferencedData {
    contents or declines. A `resolve` that fetches a URL leaving the base's origin MUST first show
    it to the person; one with no person to ask (a server, a script) MUST check it against an
    allowlist of origins. A `resolve` for the local file system joins `href` below one directory
-   and nothing else. Without a `resolve`, or when it declines, the data member is skipped and
-   reported as needing the file, naming `href`.
+   and nothing else. A `resolve` with a person to ask SHOULD show every `href` before the first read
+   of a document, the same origin included, unless the caller has chosen to trust the base's
+   directory: a document saved in a shared folder can otherwise load any file beside it without
+   anyone seeing its name. A `resolve` that fetches a URL leaving the base's origin MUST fetch it
+   without credentials (no cookies and no HTTP authentication: `credentials: "omit"`) and without
+   a referrer (`referrerPolicy: "no-referrer"`), unless the caller has listed that origin as one to
+   send them to, so a document cannot turn the person's login into a request for private data, or
+   leak the page's address. Without a `resolve`, or when it declines, the data member is skipped
+   and reported as needing the file, naming `href`.
 5. **Integrity.** When `sha256` is present, the reader compares it with the bytes `resolve`
    returned. A difference skips the data member with `E_DIGEST_MISMATCH` unless the caller passed
    `acceptChangedData: true`, in which case it loads and the difference is reported. A digest is an
-   integrity check, never a proof of who wrote the file.
+   integrity check, never a proof of who wrote the file. When the data member is not applied
+   because a graph is already loaded (rule 7), and that graph came from a file whose bytes
+   graphty-element read, the reader compares the member's `sha256` with those bytes too and reports
+   the data as the same, different or unknown (loaded from something other than one file), so a
+   replay on the caller's own copy says whether it is the copy the file names.
 6. **Closed.** A data member with a member its schema does not list (`encoding`, `sheet`) is skipped
    with `E_BAD_DOCUMENT`, naming it: reading a file under an option the reader ignored would give
    different columns.
@@ -275,11 +317,23 @@ interface ReferencedData {
    version 1.
 8. **When the file's data does not arrive.** When a file's data member was going to apply but did
    not -- no `resolve`, declined, refused, a digest mismatch, a version this reader does not
-   implement, a failed import -- the file's recipes are bound and planned but not run, even with
-   `run: true`, unless the caller also passed `runWithoutData: true`. A recipe meant for the file's
-   own data never spends its budget on whatever graph happened to be loaded. A data member skipped
-   only because a graph was already loaded and the caller kept it (`data: "keep"`) was not going to
-   apply, so it does not count: the file's recipes bind to the loaded graph and run when asked.
+   implement, a failed import -- a recipe meant for the file's own data never spends its budget on
+   whatever graph happened to be there:
+    - with a graph loaded (the caller passed `data: "replace"`), the file's recipes are bound to it
+      and planned but not run, even with `run: true`, unless the caller also passed
+      `runWithoutData: true`;
+    - with no graph loaded, the recipes are held, as when a file carries no data ("Applying a
+      file" rule 6). The next data the caller loads is the caller's choice of data, not whatever
+      happened to be there: the held recipes bind to it, and run then when `run: true` was passed.
+
+    A data member skipped only because a graph was already loaded and the caller kept it
+    (`data: "keep"`) was not going to apply, so it does not count: the file's recipes bind to the
+    loaded graph and run when asked.
+
+9. **Table columns from the recipe.** A referenced table (the `csv` format, its `neo4j` variant
+   included) whose `options` name no endpoint or id column takes them from the `table` of the
+   file's recipe (recipe.md, "Table data"). Options the data member gives win, and a difference is
+   reported.
 
 ### Import options
 
@@ -296,7 +350,8 @@ later release adds need no new data version. In version 1:
   works it out from the first line, choosing among comma, tab, semicolon and pipe, so a
   space-separated file (STRING's bulk downloads) needs `delimiter: " "`. Every occurrence
   separates two columns; a run of spaces is not collapsed. `variant`, the CSV shape (README, "What
-  every importer produces"), and `idColumn`, the node table's id column;
+  every importer produces"), and `idColumn`, the node table's id column. A Neo4j export is
+  `"format": "csv"` with `"variant": "neo4j"`;
 - JSON: `nodeIdPath`.
 
 `directed` and `repeatedEdges` are graphty-element settings today; publishing them as import
@@ -329,15 +384,29 @@ session.data.openDocument(src: string | Uint8Array, options?: {
     allowPrivateHosts?: boolean; // default false ("The data member" rule 3)
     preview?: { data?: boolean }; // with apply: false, whether resolve may be called; default false
     acceptChangedData?: boolean; // default false
-    columns?: Record<string, string>; // document column name -> data column name, every style and recipe
+    columns?: Record<string, string>; // document column name -> data column name, both tables, every style and recipe
+    nodeColumns?: Record<string, string>; // the same for the node table only; wins over columns
+    edgeColumns?: Record<string, string>; // the same for the edge table only; wins over columns
     run?: boolean; // default false
     runWithoutData?: boolean; // default false ("The data member" rule 8)
     onRepeat?: { recipe?: "refuse" | "replace" | "add"; style?: "replace" | "add" | "refuse" };
     capSeconds?: number; // the per-command cost cap for recipes; default the element's own
-    budget?: { totalSeconds?: number }; // each recipe's total budget
+    budget?: { totalSeconds?: number }; // one total budget for every recipe of the file; default 300
     openingSeconds?: number; // the opening budget (README "Limits"); default 5
-}): Promise<DocumentReport>
+}): Promise<OpenedDocument>
+
+interface OpenedDocument {
+    readonly report: DocumentReport; // "The report"
+    /** The application of each recipe member, in file order: run(), cancel() and remove(). */
+    readonly recipes: readonly RecipeApplication[];
+    /** Removes everything this opening added: the recipes' runs, colouring and filters, and the style layers. */
+    remove(): void;
+}
 ```
+
+The promise resolves once the data has applied, the styles are added and the recipes are planned.
+With `run: true` it does not wait for the runs: each recipe's `running` is then the run in
+progress, which the caller can wait for or cancel (recipe.md, "Applying a recipe").
 
 1. **What applies.** By default every member the reader can read. `members: ["graphty-style"]`
    applies only the style members. `apply: false` applies nothing and returns the report a real
@@ -359,21 +428,36 @@ session.data.openDocument(src: string | Uint8Array, options?: {
    result says `style: false` on that run (recipe.md, "Commands" rule 8).
 3. **Recipes do not run unless asked.** Opening binds and plans each recipe; it runs only with
    `run: true` (recipe.md, "Running").
-4. **Renames.** `columns` applies to every style and every recipe member of the file, and each
-   member's report records it.
-5. **References between members.** A style member that names `results.<as>.<field>`, where `<as>` is
-   a run name of a recipe in the same file, is rewritten to the run id that recipe's application
-   produced (recipe.md, "Run ids and namespaces"). When two recipes in the file use the same `<as>`,
-   the reference is ambiguous: the layer is added switched off with `E_BAD_LAYER`, naming both. A
-   layer waiting for a run the file's own recipe has not produced yet (the caller did not ask it to
-   run) is added switched off and reported; graphty-element MUST switch it on when that run
-   completes.
-6. **Opened before data.** When no graph is loaded and the file carries no data that applies, style
-   layers are added switched off and recipes are held; both bind when data is loaded (README,
-   "Applying a style and a recipe to new data" rule 5).
+4. **Renames.** `columns` applies to every style and every recipe member of the file, on both
+   tables. `nodeColumns` and `edgeColumns` rename on one table only, and win over `columns` there,
+   for a name the file uses on both tables with two meanings: `type` as a node's entity type and
+   an edge's relationship type, spelled `category` and `predicate` in the data. Each member's
+   report records every rename with its table.
+5. **References between members.** A style member that names `results.<as>.<field>`, where `<as>`
+   is the `as` of a command of a recipe in the same file -- known or of a later `op` -- is
+   rewritten to the run id that recipe's application gives the command (recipe.md, "Run ids and
+   namespaces"). When the recipe was refused as a repeat, that is the run id of its earlier
+   application on this data (recipe.md, "Applying a recipe"). When two recipes in the file use the
+   same `<as>`, the reference is ambiguous: the layer is added switched off with `E_BAD_LAYER`,
+   naming both. A layer waiting for a run the file's own recipe has not produced yet (the caller
+   did not ask it to run) is added switched off in the state `waiting`; graphty-element MUST switch
+   it on when that run completes. A layer reading a command that will never run here -- its recipe
+   was skipped, left out by `members` or refused by `requires`, or the replay skipped the command
+   -- stays switched off, naming the recipe or the command, and never binds to a run of the
+   reader's own with the same name (style.md, "Reading and applying" rule 4).
+6. **Opened before data.** When no graph is loaded and the file's data does not apply -- it carries
+   none, or its data member did not arrive ("The data member" rule 8) -- style layers are added
+   switched off and recipes are held; both bind when the caller next loads data, and the held
+   recipes run then when `run: true` was passed (README, "Applying a style and a recipe to new
+   data" rule 5). A table import made while a recipe is held takes its endpoint and id columns from
+   the recipe's `table` when the import names none (recipe.md, "Table data").
 7. **What counts as new data.** A `data.import` that replaces the graph, a `data.apply` that clears
    it, or a data member that applies starts afresh. Merging a file, and adding, removing or updating
    elements, is the same data.
+8. **One budget for the file.** With `run: true`, every recipe of the file is held to one total
+   budget together, `budget.totalSeconds` (300 seconds by default). When the planned total of all
+   of them is over it, none starts, and each recipe's report carries `E_CAP_EXCEEDED` with the
+   total, so a file of many recipes cannot spend many budgets.
 
 ## Writing a file
 
@@ -382,10 +466,17 @@ session.data.saveDocument(options?: {
     members?: ("graphty-style" | "graphty-recipe" | "graphty-data")[]; // see rule 4
     name?: string;
     description?: string;
-    style?: { id?: string; styleVersion?: string; name?: string; description?: string };
+    style?: {
+        id?: string;
+        styleVersion?: string;
+        name?: string;
+        description?: string;
+        layers?: readonly string[]; // the layers to write, by authored id or LayerId; default every layer
+        templateId?: string; // write only the layers one opening added (style.md, "Layer sources")
+    };
     keepElementSelectors?: boolean; // default false: see rule 4
     recipe?: RecordOptions; // recipe.md, "Recording"
-    data?: false | { embed: true } | { href: string; format: string; options?: Record<string, unknown>; sha256?: boolean; allowQuery?: boolean };
+    data?: false | { embed: true } | { reference: true } | { href: string; format: string; options?: Record<string, unknown>; sha256?: boolean; allowQuery?: boolean };
 }): Promise<{ text: string; report: { leftOut: readonly Problem[]; notices: readonly Problem[] } }>
 ```
 
@@ -400,38 +491,51 @@ session.data.saveDocument(options?: {
     keeps its place in `members`. A member that applied is replaced in place by its regenerated
     form, found by its template id (a style) or its `id` (a recipe); a member that was skipped -- an
     unknown kind, a newer version -- stays in place verbatim, with its unknown object members and
-    `extensions`; new members are appended. `requires` is written as the file's own list together
-    with every kind the writer itself requires. A member the caller's `members` option leaves out is
-    listed in `report.leftOut`. A writer SHOULD keep the unknown object members of a member it
-    regenerated, too. A writer does not rewrite references inside members or extensions it does not
+    `extensions`; new members are appended. A recipe member opened from the file is written
+    back as it was read -- unknown and skipped commands included -- unless the caller records a
+    recipe with the same `id` (`recipe.id`), which then replaces it; opening a file and saving it
+    never cuts a recipe down to the commands this release could run. `requires` is written anew:
+    every kind the writer itself requires, and the file's own entries for the kinds of the members
+    it wrote back as they were read. A member the caller's `members` option leaves out is listed in
+    `report.leftOut`. A writer MUST keep the unknown object members of a member it regenerated: of
+    the member itself, of each style layer (matched by its `id`, else by its position) and of each
+    recipe command, and report any it could not match. A writer does not rewrite references inside members or extensions it does not
     understand; a later kind that refers to a recipe's runs or a layer's `id` MUST report a name
     that no longer resolves and never fail on it. Rule 5 overrides this rule.
 4.  **What is written.** `members` chooses. By default:
-    - **the style** (`session.styles.toDocument()`, with `kind`), leaving out every layer that
-      selects particular elements -- an `ids` selector, or a `member` selector of any scope but
-      `{ where }` -- and listing each in `report.leftOut`, as the recorder leaves out a run on the
-      selection, because a file shared with others would otherwise name them.
-      `keepElementSelectors: true` keeps them. A layer opened with a `columns` rename is written
-      under the document's own names (style.md, "Writing" rule 12);
+    - **the style** (`session.styles.toDocument()`, with `kind`), or only the layers `style.layers`
+      or `style.templateId` choose, so "our lab's look" can be saved without the colouring an
+      analysis added. It leaves out every layer that selects particular elements -- an `ids`
+      selector, or a `member` selector of any scope but `{ where }`, in a refused layer too -- and
+      lists each in `report.leftOut`, as the recorder leaves out a run on the selection, because a
+      file shared with others would otherwise name them. `keepElementSelectors: true` keeps them.
+      A layer opened with a `columns` rename is written under the document's own names, and a layer
+      reading a namespaced run as the file's recipe names it (style.md, "Writing" rules 4, 12 and
+      14);
     - **the analysis as a recipe** (recipe.md, "Recording") when `recipe.id` is given; without one
       the report says the recipe was not written and why;
-    - **the data**: the data member the session's graph came from, when it applied; else, when the
-      graph was imported from a file, a reference to that file -- its base name as `href`, its
-      format and the import options it was read with (for a CSV, the endpoint columns it found are
-      written as `edgeSource` and `edgeTarget` even when they were found without options, so the
-      reference does not depend on the candidate lists), and no `sha256` -- so a colleague learns
-      how to read their own copy, and the report names those options; else nothing.
+    - **the data**: the data member the session's graph came from, when it applied and the file
+      is being saved back; else nothing. A file for sharing a technique does not carry the data,
+      or the name of the reader's own data file, by accident.
 
-    A data member that was only reported available (a graph was already loaded) or was skipped is
-    written only when the caller's `members` or `data` asks for it, and a notice names it.
-    `data: false` writes no data member. `data: { embed: true }` embeds the graph in `node-link`,
-    holding its data columns only, never run results, which belong to the recipe;
-    `data: { href, format }` writes a reference, with the SHA-256 of the loaded bytes when
-    `sha256: true`. Nothing embeds data by default, because a file for sharing a technique should
-    not carry the data by accident.
+    The caller asks for data explicitly. `data: { reference: true }` writes a reference to the
+    file the graph was imported from -- its base name as `href`, its format, the import options it
+    was read with (for a table, the endpoint and id columns it read, even when it found them
+    without options), and its SHA-256 -- so a colleague learns how to read their own copy, and a
+    replay on the same bytes can say so; the report names the file and the options. A graph built
+    by more than one import (a node table, then an edge list merged into it) cannot be one
+    reference: no data member is written, and a notice lists each import with its options.
+    `data: { embed: true }` embeds the graph in `node-link`, holding its data columns only, never
+    run results, which belong to the recipe. `data: { href, format }` writes the reference the
+    caller gives, with the SHA-256 of the loaded bytes when `sha256: true`. `data: false`, or
+    leaving `graphty-data` out of `members`, writes no data member. A data member that was only
+    reported available (a graph was already loaded) or was skipped is written only when the
+    caller's `members` or `data` asks for it, and a notice names it.
 
-    The report's notices list every literal text a written selector or `where` compares with, so
-    the author sees what the file discloses before sharing it.
+    The report's notices list every literal text a written selector or `where` compares with, and
+    every member, layer and extension written back as it was read without being understood (a
+    member of an unknown kind or a newer version, a refused layer), with its size, so the author
+    sees what the file discloses before sharing it.
 
 5.  **References that leak.** A writer MUST NOT write an `href` holding a user name or password, and
     writes one holding a query or a fragment only when the caller passed `allowQuery: true`, because
@@ -446,10 +550,11 @@ session.data.saveDocument(options?: {
     else exactly the style member's `id`; else the document's `name`, else `fileName`, else
     `sha256:` and the first 16 hex digits of the SHA-256 of the document's text -- each followed by
     `#` and the member's position among the style members of the file that have no `id` (1 for the
-    first). Only an `id` makes a corrected edition of a file replace the earlier opening: the other
-    forms change when the file is renamed or edited, and then reopening adds rather than replaces. A
-    look written as two members (Versions rule 4) gives each its own `id` (the base id, and the base
-    id with `/2` appended). `saveDocument` writes the caller's `style.id`, else the `id` the style was
+    first). Only an `id`, or the caller's `templateId`, replaces an earlier opening by default: the
+    other forms are stamps for removing an opening, never a claim that two files are one look, so
+    two unrelated files named "Overview" add rather than replace (style.md, "Reading and applying"
+    rule 9). A look written as two members (Versions rule 4) gives each its own `id` (the base id,
+    and the base id with `/2` appended). `saveDocument` writes the caller's `style.id`, else the `id` the style was
     opened with; without either, the report notes that reopening the file will not replace an
     earlier opening.
 8.  **No `__proto__`.** A writer MUST NOT write a member named `__proto__` at any depth, since a
@@ -459,13 +564,20 @@ session.data.saveDocument(options?: {
 
 ## The report
 
-`openDocument` resolves with one report entry per member, in file order, so a caller can show what
-applied and what did not:
+`openDocument`'s report has one entry per member, in file order, so a caller can show what applied
+and what did not. The document's own name and description, and each member's, come first, because
+they are what the author wrote for the person opening the file: a recipe's `description` is where
+its author says what preparation the data needs.
 
 ```ts
 interface DocumentReport {
     /** True for `apply: false`: nothing in the session changed, and "applied" means "would apply". */
     readonly preview: boolean;
+    readonly name?: string;
+    readonly description?: string;
+    /** What the file says about itself: shown as its claims, never as verified. */
+    readonly generator?: { readonly name: string; readonly version: string };
+    readonly provenance?: Provenance; // the graphty.provenance extension, when present
     readonly members: readonly MemberReport[];
     /** The graph the members bound to: the caller's, this file's data, or none. */
     readonly graph: {
@@ -489,6 +601,8 @@ interface MemberReport {
      * "planned": a recipe bound and planned but not run; "skipped": nothing in it applied.
      */
     readonly outcome: "applied" | "partial" | "planned" | "skipped";
+    /** One sentence a person can read: "Style 'Screen look': 4 of 5 layers paint; 1 needs data.padj." */
+    readonly summary: string;
     /** Why the whole member was skipped, when it was. */
     readonly problem?: Problem;
     readonly style?: StyleReport; // style.md, "Reading and applying"
@@ -508,6 +622,7 @@ interface MemberReport {
 interface Problem {
     readonly what: string; // a JSON pointer, a layer name, a command's `as`
     readonly reason: string; // one sentence a person can act on
+    readonly details?: Readonly<Record<string, unknown>>;
     readonly code: GraphtyErrorCode | GraphtyWarningCode;
 }
 ```
@@ -516,67 +631,90 @@ When the file's `generator` names graphty-element at a release other than the ru
 report carries `W_RELEASE_DIFFERS` naming both, because a run may compute differently on another
 release (recipe.md, "Same data, same results").
 
+Every string in a report that came from the document -- a name, a column, an `href`, an unknown
+member's name inside a JSON pointer -- is text: a consumer shows it as text, never as HTML, and the
+reader cuts each such string to 256 characters with an ellipsis, so a report stays small whatever
+the file holds. The codes are listed in README, "Error and warning codes".
+
 ## Conformance
 
 A reader conforms when, for each input, it does what the right-hand column says:
 
-| Input                                                                                                                            | Required result                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `{ "version": 1, "layers": [] }`                                                                                                 | read as a document holding one empty style                                                             |
-| `{ "version": 2, "layers": [] }` on a reader of style version 1                                                                  | that style skipped, `E_UNSUPPORTED_VERSION`, `kind: "graphty-style"`                                   |
-| `{ "kind": "graphty-recipe", "version": 1, "id": "x", "commands": [] }` at the top level                                         | read as a document holding that recipe                                                                 |
-| `{ "graphtyTemplate": true, "majorVersion": "1", ... }`                                                                          | converted (style.md, "Upgrading a 1.x template"); the parts not converted reported by name             |
-| a node-link graph (`{ "nodes": [], "links": [] }`)                                                                               | refused, `E_UNKNOWN_FORMAT`, `details.available` listing the data formats                              |
-| `"kind": "graphty-document", "version": 2`                                                                                       | refused whole, `E_UNSUPPORTED_VERSION`, `found: 2`, `reads: [1]`                                       |
-| a document with no `members`                                                                                                     | refused, `E_BAD_DOCUMENT`                                                                              |
-| `"requires": ["graphty-data-plan"]` on a reader that does not know that kind                                                     | refused whole, `E_UNSUPPORTED`, naming `graphty-data-plan`                                             |
-| a member `{ "kind": "graphty-view", "version": 1, ... }` beside a style                                                          | view skipped with `W_UNKNOWN_KIND`; the style applies; the view is kept on save                        |
-| members `{ "kind": 7 }`, `{ "kind": "graphty-style", "version": "1" }`, `{ "kind": "x" }` with no `version`                      | each skipped, `E_BAD_DOCUMENT`; the others apply                                                       |
-| a style member with `"version": 2` beside a recipe of version 1                                                                  | style skipped, `E_UNSUPPORTED_VERSION`; the recipe applies                                             |
-| a style member whose `layers` is a string                                                                                        | that member skipped, `E_BAD_DOCUMENT`; the others apply                                                |
-| a top-level member `"colour": "red"`                                                                                             | ignored, reported `W_UNKNOWN_MEMBER` at `/colour`, written back on save                                |
-| a member name `__proto__` anywhere                                                                                               | the file refused, `E_BAD_DOCUMENT`                                                                     |
-| embedded JGF whose nodes are keyed `constructor` and `prototype`                                                                 | read; two nodes with those ids                                                                         |
-| 64 MB of `[` characters                                                                                                          | refused, `E_TOO_LARGE`, before the text is parsed                                                      |
-| a referenced data member, opened with no `resolve`                                                                               | data skipped, reported as needing `href`; styles apply; recipes planned, not run even with `run: true` |
-| `href` `/etc/passwd`, `../../../x` (from base `https://h/a/doc.json`), `//host/x`, `FILE:///x`, `\tfile:///x`, `https://u:p@h/x` | data skipped, `E_BAD_DOCUMENT`; `resolve` is never called                                              |
-| a referenced data member whose bytes do not match `sha256`                                                                       | data skipped, `E_DIGEST_MISMATCH`                                                                      |
-| a referenced CSV with `options: { "sourceColumn": "from" }`                                                                      | data skipped, `E_UNKNOWN_OPTION`, naming `edgeSource`                                                  |
-| a referenced CSV with `edgeSource: "protein1"` whose header has no `protein1`                                                    | data skipped, `E_PARSE_FAILED`, naming `edgeSource` and `protein1`                                     |
-| a data member with an extra member `"encoding": "latin1"`                                                                        | data skipped, `E_BAD_DOCUMENT`, naming `encoding`                                                      |
-| a data member of `version: 2` and a recipe, opened with `run: true`                                                              | data skipped, `E_UNSUPPORTED_VERSION`; the recipe planned, not run                                     |
-| a style and embedded data, opened with defaults while a graph is loaded                                                          | the loaded graph untouched; data reported available; the style applies to the loaded graph             |
-| the same, with `data: "replace"`                                                                                                 | the file's graph replaces the loaded one; `graph.source` is `"document"`                               |
-| any file, opened with `apply: false`                                                                                             | nothing in the session changes; the report is the one a real opening would give                        |
-| two data members                                                                                                                 | the first applies; the second skipped, `E_UNSUPPORTED`                                                 |
-| a style layer reading `results.groups.group` and a recipe in the same file with `as: "groups"`, not run                          | layer added switched off; switched on when the run completes                                           |
-| a recipe opened without `run: true`                                                                                              | its member outcome is `"planned"`                                                                      |
-| a file opened with a referenced data member that applied, then saved with defaults                                               | the data member is written back as it was                                                              |
-| saving with `data: { href: "https://b.s3.example/x.csv?X-Amz-Signature=..." }`                                                   | refused and reported unless `allowQuery: true`                                                         |
-| a file whose `generator` is graphty-element 3.0.0, opened on 3.2.0                                                               | `W_RELEASE_DIFFERS` naming both                                                                        |
-| `{ "version": 8, "layers": [{ "id": "water", "type": "fill" }] }` (a MapLibre map style)                                         | refused, `E_UNKNOWN_FORMAT`: not a graphty style                                                       |
-| `"kind": "graphty-document"` with `"version": "1"`, `1.5` or no `version`                                                        | refused, `E_BAD_DOCUMENT`                                                                              |
-| `"requires": ["graphty-style"]` with a style member of `"version": 2`, on a reader of style version 1                            | refused whole, `E_UNSUPPORTED`, naming `graphty-style` and version 2                                   |
-| `"requires": ["graphty-recipe"]`, opened with `members: ["graphty-style"]`                                                       | refused whole, `E_UNSUPPORTED`                                                                         |
-| a member of kind `org.example.notes`                                                                                             | skipped, `W_UNKNOWN_KIND`; kept in place on save                                                       |
-| a 1.x template whose `graph.background` is a skybox with an `http:` image URL                                                    | nothing fetched; the background reported by name and not applied                                       |
-| a 1.x template with `data.knownFields` (`repeatedEdges`, `edgeWeightPath`)                                                       | the element's import settings unchanged; reported by name                                              |
-| an object `{ "href": "a.csv", "href": "https://x.example/b.csv" }`                                                               | the file refused, `E_BAD_DOCUMENT`, naming `/members/0/href`                                           |
-| `href` `%2e%2e/%2e%2e/etc/passwd` or `..%2F..%2Fetc%2Fpasswd`, with no `base`                                                    | data skipped, `E_BAD_DOCUMENT`; `resolve` is never called                                              |
-| `href` `https://127.0.0.1/x`, `https://[::1]/x`, `https://10.0.0.1/x`, `https://localhost/x`                                     | data skipped, `E_BAD_DOCUMENT`, unless `allowPrivateHosts: true`                                       |
-| a referenced data member and a recipe, opened with `run: true` while a graph is loaded                                           | data reported available; the recipe binds to the loaded graph and runs                                 |
-| a referenced data member, opened with `apply: false` and a `resolve`, no graph loaded                                            | `resolve` not called; the recipe plan unbound, estimates `null`; `data.href` in the report             |
-| an unknown member at `/members/0/layers/0/encode/node.color/overflw`                                                             | ignored, `W_UNKNOWN_MEMBER` with that pointer; the layer applies                                       |
-| the text of a graphty document given to `data.import` as JSON                                                                    | refused, `E_UNKNOWN_FORMAT`, naming `openDocument`                                                     |
-| members [style, unknown kind, recipe], opened and saved                                                                          | written in the same order; the unknown member verbatim in the middle                                   |
-| members [style version 1, style version 2] opened by a reader of version 1 only, saved                                           | [version 1 regenerated, version 2 verbatim], in that order; `requires` kept                            |
-| a file whose data member was only reported available, saved with defaults                                                        | no data member written; a notice names it                                                              |
-| a file whose data `href` holds `user:pass@` (refused on reading), saved                                                          | that data member dropped and reported                                                                  |
-| a session with an `ids` highlight layer, saved with defaults                                                                     | that layer left out, listed in `leftOut`; kept with `keepElementSelectors: true`                       |
-| a graph with a `__proto__` column, saved with `data: { embed: true }`                                                            | the data member refused and reported; the other members written                                        |
-| a session loaded from `links.txt` with `delimiter: " "`, saved with a recipe id                                                  | a data member `{ "href": "links.txt", "format": "csv", "options": { "delimiter": " ", ... } }`         |
-| two style members with no `id` in a document named `Looks`, opened                                                               | template ids `Looks#1` and `Looks#2`; neither replaces the other                                       |
-| edition 2 of a file adds a data member before a style whose `id` is `org.example.look`, opened over edition 1                    | the new layers replace edition 1's                                                                     |
+| Input                                                                                                                                          | Required result                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `{ "version": 1, "layers": [] }`                                                                                                               | read as a document holding one empty style                                                                                |
+| `{ "version": 2, "layers": [] }` on a reader of style version 1                                                                                | that style skipped, `E_UNSUPPORTED_VERSION`, `kind: "graphty-style"`                                                      |
+| `{ "kind": "graphty-recipe", "version": 1, "id": "x", "commands": [] }` at the top level                                                       | read as a document holding that recipe                                                                                    |
+| `{ "graphtyTemplate": true, "majorVersion": "1", ... }`                                                                                        | converted (style.md, "Upgrading a 1.x template"); the parts not converted reported by name                                |
+| a node-link graph (`{ "nodes": [], "links": [] }`)                                                                                             | refused, `E_UNKNOWN_FORMAT`, `details.available` listing the data formats                                                 |
+| `"kind": "graphty-document", "version": 2`                                                                                                     | refused whole, `E_UNSUPPORTED_VERSION`, `found: 2`, `reads: [1]`                                                          |
+| a document with no `members`                                                                                                                   | refused, `E_BAD_DOCUMENT`                                                                                                 |
+| `"requires": ["graphty-data-plan"]` on a reader that does not know that kind                                                                   | refused whole, `E_UNSUPPORTED`, naming `graphty-data-plan`                                                                |
+| a member `{ "kind": "graphty-view", "version": 1, ... }` beside a style                                                                        | view skipped with `W_UNKNOWN_KIND`; the style applies; the view is kept on save                                           |
+| members `{ "kind": 7 }`, `{ "kind": "graphty-style", "version": "1" }`, `{ "kind": "x" }` with no `version`                                    | each skipped, `E_BAD_DOCUMENT`; the others apply                                                                          |
+| a style member with `"version": 2` beside a recipe of version 1                                                                                | style skipped, `E_UNSUPPORTED_VERSION`; the recipe applies                                                                |
+| a style member whose `layers` is a string                                                                                                      | that member skipped, `E_BAD_DOCUMENT`; the others apply                                                                   |
+| a top-level member `"colour": "red"`                                                                                                           | ignored, reported `W_UNKNOWN_MEMBER` at `/colour`, written back on save                                                   |
+| a member name `__proto__` anywhere                                                                                                             | the file refused, `E_BAD_DOCUMENT`                                                                                        |
+| embedded JGF whose nodes are keyed `constructor` and `prototype`                                                                               | read; two nodes with those ids                                                                                            |
+| 64 MB of `[` characters                                                                                                                        | refused, `E_TOO_LARGE`, before the text is parsed                                                                         |
+| a referenced data member, opened with no `resolve` and no graph loaded                                                                         | data skipped, reported as needing `href`; style layers and recipes held until the caller loads data                       |
+| `href` `/etc/passwd`, `../../../x` (from base `https://h/a/doc.json`), `//host/x`, `FILE:///x`, `\tfile:///x`, `https://u:p@h/x`               | data skipped, `E_BAD_DOCUMENT`; `resolve` is never called                                                                 |
+| a referenced data member whose bytes do not match `sha256`                                                                                     | data skipped, `E_DIGEST_MISMATCH`                                                                                         |
+| a referenced CSV with `options: { "sourceColumn": "from" }`                                                                                    | data skipped, `E_UNKNOWN_OPTION`, naming `edgeSource`                                                                     |
+| a referenced CSV with `edgeSource: "protein1"` whose header has no `protein1`                                                                  | data skipped, `E_PARSE_FAILED`, naming `edgeSource` and `protein1`                                                        |
+| a data member with an extra member `"encoding": "latin1"`                                                                                      | data skipped, `E_BAD_DOCUMENT`, naming `encoding`                                                                         |
+| a data member of `version: 2` and a recipe, opened with `run: true` over a loaded graph with `data: "replace"`                                 | data skipped, `E_UNSUPPORTED_VERSION`; the recipe planned on the loaded graph, not run                                    |
+| a style and embedded data, opened with defaults while a graph is loaded                                                                        | the loaded graph untouched; data reported available; the style applies to the loaded graph                                |
+| the same, with `data: "replace"`                                                                                                               | the file's graph replaces the loaded one; `graph.source` is `"document"`                                                  |
+| any file, opened with `apply: false`                                                                                                           | nothing in the session changes; the report is the one a real opening would give                                           |
+| two data members                                                                                                                               | the first applies; the second skipped, `E_UNSUPPORTED`                                                                    |
+| a style layer reading `results.groups.group` and a recipe in the same file with `as: "groups"`, not run                                        | layer added switched off; switched on when the run completes                                                              |
+| a recipe opened without `run: true`                                                                                                            | its member outcome is `"planned"`                                                                                         |
+| a file opened with a referenced data member that applied, then saved with defaults                                                             | the data member is written back as it was                                                                                 |
+| saving with `data: { href: "https://b.s3.example/x.csv?X-Amz-Signature=..." }`                                                                 | refused and reported unless `allowQuery: true`                                                                            |
+| a file whose `generator` is graphty-element 3.0.0, opened on 3.2.0                                                                             | `W_RELEASE_DIFFERS` naming both                                                                                           |
+| `{ "version": 8, "layers": [{ "id": "water", "type": "fill" }] }` (a MapLibre map style)                                                       | refused, `E_UNKNOWN_FORMAT`: not a graphty style                                                                          |
+| `"kind": "graphty-document"` with `"version": "1"`, `1.5` or no `version`                                                                      | refused, `E_BAD_DOCUMENT`                                                                                                 |
+| `"requires": ["graphty-style"]` with a style member of `"version": 2`, on a reader of style version 1                                          | refused whole, `E_UNSUPPORTED`, naming `graphty-style` and version 2                                                      |
+| `"requires": ["graphty-recipe"]`, opened with `members: ["graphty-style"]`                                                                     | refused whole, `E_UNSUPPORTED`                                                                                            |
+| a member of kind `org.example.notes`                                                                                                           | skipped, `W_UNKNOWN_KIND`; kept in place on save                                                                          |
+| a 1.x template whose `graph.background` is a skybox with an `http:` image URL                                                                  | nothing fetched; the background reported by name and not applied                                                          |
+| a 1.x template with `data.knownFields` (`repeatedEdges`, `edgeWeightPath`)                                                                     | the element's import settings unchanged; reported by name                                                                 |
+| an object `{ "href": "a.csv", "href": "https://x.example/b.csv" }`                                                                             | the file refused, `E_BAD_DOCUMENT`, naming `/members/0/href`                                                              |
+| `href` `%2e%2e/%2e%2e/etc/passwd` or `..%2F..%2Fetc%2Fpasswd`, with no `base`                                                                  | data skipped, `E_BAD_DOCUMENT`; `resolve` is never called                                                                 |
+| `href` `https://127.0.0.1/x`, `https://[::1]/x`, `https://10.0.0.1/x`, `https://localhost/x`                                                   | data skipped, `E_BAD_DOCUMENT`, unless `allowPrivateHosts: true`                                                          |
+| a referenced data member and a recipe, opened with `run: true` while a graph is loaded                                                         | data reported available; the recipe binds to the loaded graph and runs                                                    |
+| a referenced data member, opened with `apply: false` and a `resolve`, no graph loaded                                                          | `resolve` not called; the recipe plan unbound, estimates `null`; `data.href` in the report                                |
+| an unknown member at `/members/0/layers/0/encode/node.color/overflw`                                                                           | ignored, `W_UNKNOWN_MEMBER` with that pointer; the layer applies                                                          |
+| the text of a graphty document given to `data.import` as JSON                                                                                  | refused, `E_UNKNOWN_FORMAT`, naming `openDocument`                                                                        |
+| members [style, unknown kind, recipe], opened and saved                                                                                        | written in the same order; the unknown member verbatim in the middle                                                      |
+| members [style version 1, style version 2] opened by a reader of version 1 only, saved                                                         | [version 1 regenerated, version 2 verbatim], in that order; `requires` kept                                               |
+| a file whose data member was only reported available, saved with defaults                                                                      | no data member written; a notice names it                                                                                 |
+| a file whose data `href` holds `user:pass@` (refused on reading), saved                                                                        | that data member dropped and reported                                                                                     |
+| a session with an `ids` highlight layer, saved with defaults                                                                                   | that layer left out, listed in `leftOut`; kept with `keepElementSelectors: true`                                          |
+| a graph with a `__proto__` column, saved with `data: { embed: true }`                                                                          | the data member refused and reported; the other members written                                                           |
+| a session loaded from `links.txt` with `delimiter: " "`, saved with `data: { reference: true }`                                                | a data member `{ "href": "links.txt", "format": "csv", "options": { "delimiter": " ", ... }, "sha256": ... }`             |
+| a session loaded from `links.txt`, saved with defaults and a recipe id                                                                         | no data member; the recipe carries `table` with the endpoint columns the import read                                      |
+| a session built from a node table and a merged edge list, saved with `data: { reference: true }`                                               | no data member; a notice lists both imports and their options                                                             |
+| a session holding a Louvain colouring and three layers of an opened look, saved with `style: { templateId }`                                   | only the look's three layers written                                                                                      |
+| two style members with no `id` in a document named `Looks`, opened                                                                             | template ids `Looks#1` and `Looks#2`; neither replaces the other                                                          |
+| edition 2 of a file adds a data member before a style whose `id` is `org.example.look`, opened over edition 1                                  | the new layers replace edition 1's                                                                                        |
+| edition 2 of a file holding a recipe and a style reading `results.reach.value`, opened with defaults over edition 1 on the same data           | the recipe refused, `E_REPEAT_APPLICATION`; the style's layers replace edition 1's and paint from edition 1's `reach` run |
+| a recipe with commands [`algo.run`, `column.compute`, `algo.run`], opened on a reader that does not know `column.compute`, saved with defaults | the recipe written back as it was read, all three commands                                                                |
+| a recipe opened without `run: true`, saved with defaults                                                                                       | the recipe written back unchanged                                                                                         |
+| a layer carrying an unknown member `legend`, opened and saved                                                                                  | `legend` written back on that layer                                                                                       |
+| a style layer reading `results.diff.value` where `diff` is the `as` of a command of a later `op`, on a reader that does not know it            | the layer switched off, naming the command; a session run `diff` is not painted                                           |
+| `{ "kind": "graphty-view", "version": 1 }` as a whole file, given to `openDocument`                                                            | read as a document holding that member; skipped, `W_UNKNOWN_KIND`                                                         |
+| the same text given to `data.import`                                                                                                           | refused, `E_UNKNOWN_FORMAT`, naming `openDocument`                                                                        |
+| `{ "members": [{ "kind": "graphty-data", "version": 1, "format": "csv", "href": "a.csv", "hr\u0065f": "https://x.example/b.csv" }] }`          | the file refused, `E_BAD_DOCUMENT`: `href` twice after decoding                                                           |
+| an extension member named `"\u005f_proto__"`                                                                                                   | the file refused, `E_BAD_DOCUMENT`                                                                                        |
+| `href` `https://0.0.0.0/x`, `https://[::]/x`, `https://[::ffff:127.0.0.1]/x`, `https://[64:ff9b::a9fe:a9fe]/x`, `https://100.101.102.103/x`    | data skipped, `E_BAD_DOCUMENT`, unless `allowPrivateHosts: true`                                                          |
+| two recipes planned at 200 s each, opened with `run: true` and the default budget                                                              | neither starts; each report carries `E_CAP_EXCEEDED` with the total of 400 s                                              |
+| `openDocument(text, { run: true })` with no graph loaded and a referenced data member but no `resolve`, then the caller imports a file         | the data member reported as needing its file; the recipes held, then bound to the imported graph and run                  |
+| the same with a graph loaded and `data: "replace"`                                                                                             | the recipes planned on the loaded graph, not run                                                                          |
+| a referenced data member with `sha256`, opened with defaults over a graph loaded from a file with other bytes                                  | data reported available and different from the file the document names                                                    |
+| a report quoting an unknown member whose name is 500,000 characters of markup                                                                  | the name cut to 256 characters, shown as text                                                                             |
 
 ## Worked example
 
@@ -602,6 +740,7 @@ reference to the file each colleague supplies from their own study.
             "version": 1,
             "id": "org.example-lab.coexpression-hubs",
             "recipeVersion": "1.2.0",
+            "table": { "edgeSource": "gene_a", "edgeTarget": "gene_b" },
             "commands": [
                 {
                     "op": "algo.run",
@@ -634,5 +773,7 @@ loaded and `run: true`, the CSV is imported (its weight column, whatever its cas
 `weight`), both runs complete under the namespace `coexpression_hubs`, the style's path
 `results.hubs.value` is rewritten to `results.coexpression_hubs__hubs.value`, and the size layer
 paints. PageRank's own colouring is off, because the style paints its result. Opened without
-`resolve`, the data member is reported as needing its file, the style's layer waits for its run, and
-the recipe is planned but not run.
+`resolve` and with no graph loaded, the data member is reported as needing its file, and the
+style's layer and the recipe wait for data. When the colleague then imports their own copy with
+`session.data.import`, the import reads each edge's ends from `gene_a` and `gene_b`, as the
+recipe's `table` says, and the runs start.

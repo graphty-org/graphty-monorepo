@@ -124,7 +124,15 @@ const STRUCTURAL_ROLES: ReadonlySet<string> = new Set([
 ]);
 
 /** The roles no JSON dialect can carry; skipped (checkCapabilities reports them). */
-const TEMPORAL_ROLES: ReadonlySet<string> = new Set(["start", "end", "timestamp", "timestamps", "spells", "open"]);
+const TEMPORAL_ROLES: ReadonlySet<string> = new Set([
+    "start",
+    "end",
+    "timestamp",
+    "timestamps",
+    "spells",
+    "open",
+    "spellsOpen",
+]);
 
 /** The dialects whose attributes live in a nested dict (data / metadata / attributes). */
 const NESTED_DIALECTS: ReadonlySet<JsonDialect> = new Set(["jgf", "cytoscape", "graphology"]);

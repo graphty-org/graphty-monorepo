@@ -4,19 +4,16 @@
  * Demonstrates bipartite layout where nodes are positioned in two columns/rows.
  * Shows animation from random initial positions to final bipartite positions.
  *
- * IMPORTANT: This story uses the actual bipartiteLayout implementation
+ * IMPORTANT: This story uses the actual bipartite implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { bipartiteLayout } from "@graphty/layout";
+import { makeMask, maskSet } from "@graphty/graph-format";
+import { bipartite, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -47,24 +44,21 @@ function createBipartiteStory(args: BipartiteArgs): HTMLElement {
 
     // Generate bipartite graph
     const generatedGraph = generateGraph("bipartite", nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Create left set (first half of nodes)
-    const leftSet = generatedGraph.nodes
-        .filter((_, i) => i < Math.ceil(nodeCount / 2))
-        .map((n) => n.id);
+    const leftSet = makeMask(snapshot.nodeCount);
+    for (let i = 0; i < Math.ceil(nodeCount / 2); i++) {
+        maskSet(leftSet, i, true);
+    }
 
     // Compute final bipartite layout using actual algorithm
-    const finalPositions = bipartiteLayout(
-        layoutGraph,
-        leftSet,
-        align,
-        scale,
-        [0, 0],
-        aspectRatio,
+    const finalPositions = toPositionMap(
+        bipartite(snapshot, { top: leftSet, align, scale, center: [0, 0], aspectRatio }),
+        snapshot.ids,
     );
 
     // Create container
@@ -76,10 +70,7 @@ function createBipartiteStory(args: BipartiteArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Bipartite Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Positions nodes in two ${align} lines with aspect ratio ${aspectRatio}.`,
-    );
+    updateInfoPanel(infoPanel, `Positions nodes in two ${align} lines with aspect ratio ${aspectRatio}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -161,7 +152,7 @@ type Story = StoryObj<BipartiteArgs>;
 /**
  * Bipartite layout story - positions nodes in two parallel lines.
  *
- * This story uses the actual `bipartiteLayout()` function from @graphty/layout.
+ * This story uses the actual `bipartite()` function from @graphty/layout.
  * The play function animates from random positions to the bipartite arrangement.
  */
 export const Bipartite: Story = {

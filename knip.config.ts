@@ -130,7 +130,7 @@ const config: KnipConfig = {
 
         // Layout package
         layout: {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "scripts/**/*.{ts,js}"],
+            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
             project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [

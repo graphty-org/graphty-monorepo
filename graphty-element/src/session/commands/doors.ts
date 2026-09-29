@@ -1005,8 +1005,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edges: READ,
             edgeVersion: RENDER,
             nodeCache: RENDER,
-            edgeCache: READ,
             edgesByIndex: READ,
+            // Whether an import is still streaming chunks, and the store's counts.
+            isLoading: READ,
+            heldCounts: READ,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
             graphResults: READ,
             meshCache: RENDER,
@@ -1635,12 +1637,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         name: "GraphtyError",
         file: "src/errors/GraphtyError.ts",
         half: "session",
-        whole: READ,
-    },
-    {
-        name: "ReadonlyEdgeMap",
-        file: "src/Edge.ts",
-        half: "renderer",
         whole: READ,
     },
     {

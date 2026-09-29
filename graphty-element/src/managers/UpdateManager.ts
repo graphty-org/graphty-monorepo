@@ -1144,7 +1144,9 @@ export class UpdateManager implements Manager {
      * Update statistics
      */
     private updateStatistics(): void {
-        this.statsManager.updateCounts(this.dataManager.nodeCache.size, this.dataManager.edgeCache.size);
+        // What the store holds, so the stats panel and `statistics()` give one number.
+        const { nodes, edges } = this.dataManager.heldCounts();
+        this.statsManager.updateCounts(nodes, edges);
 
         // Update mesh cache stats
         const meshCache = this.graphContext.getMeshCache();

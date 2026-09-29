@@ -75,9 +75,9 @@ describe("the renderer's public objects are read-only", () => {
         }
 
         assert.strictEqual(manager.nodes.size, 2);
-        const pair = manager.edgeCache.get("n1", "n2") as unknown as unknown[];
+        const pair = manager.getEdgesBetween("n1", "n2") as unknown as unknown[];
         pair.length = 0;
-        assert.lengthOf(manager.edgeCache.get("n1", "n2"), 1, "the pair list handed out is a copy");
+        assert.lengthOf(manager.getEdgesBetween("n1", "n2"), 1, "the pair list handed out is a copy");
     });
 
     it("refuses to replace the configuration document", async () => {

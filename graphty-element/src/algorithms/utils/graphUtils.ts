@@ -1,9 +1,35 @@
 /**
  * @file Helpers the adapters share: matching an `@graphty/algorithms` answer back onto an edge,
- * and refusing a node option that names no node.
+ * refusing a node option that names no node, and the neighbour order a walk tries.
  */
 
+import type { GraphSnapshot, U32 } from "@graphty/graph-format";
+
 import { GraphtyError } from "../../errors";
+
+/**
+ * The order a walk tries each node's neighbours in: the order their edges were declared.
+ *
+ * An index-based walk tries a node's arcs in row order, which is neighbour index order. The
+ * element's walks have always tried them in the order the edges were declared, and a depth-first
+ * order, a strongly connected component's number and the nodes a breadth-first walk expands
+ * before it reaches its target all depend on it. Passed to a port as `arcOrder`, this keeps them.
+ * @param snapshot - The snapshot the walk runs over.
+ * @returns A permutation of the arc indices, each row's slice sorted by the edge each arc is of.
+ */
+export function declarationArcOrder(snapshot: GraphSnapshot): U32 {
+    const { rowPtr, arcToEdge } = snapshot;
+    const order = new Uint32Array(snapshot.arcCount);
+    for (let arc = 0; arc < order.length; arc++) {
+        order[arc] = arc;
+    }
+
+    for (let node = 0; node < snapshot.nodeCount; node++) {
+        order.subarray(rowPtr[node], rowPtr[node + 1]).sort((a, b) => arcToEdge[a] - arcToEdge[b]);
+    }
+
+    return order;
+}
 
 /**
  * The key an `@graphty/algorithms` result is matched back onto the element's edges by: the two

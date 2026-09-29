@@ -487,6 +487,16 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * each. Carrying them is what makes the element's behaviour and that record agree; raising the
  * render ceiling (issue #419) is what would let any of the three be measured here and sharpened.
  *
+ * HITS, KATZ AND EIGENVECTOR CENTRALITY ARE FLOORED FROM THE SAME RECORD AND SIT BELOW THE CEILING.
+ * No sweep through the element has measured them yet. The record's section "Re-derived against the
+ * measured ports" times the kernels at 100 iterations against the index-based CPU ports in Chromium:
+ * HITS at 0.72x and 5.71x, Katz at 0.36x and 3.66x, at 10,000 and 100,000 nodes, so both LOSE at
+ * 10,000. The floors are where the speedup crosses 1x between those two measured sizes, taken on a
+ * straight line in log size against log speedup and rounded up: 15,000 nodes for HITS and 28,000
+ * for Katz. Eigenvector centrality shares Katz's floor: the record costs the two as one row, runs
+ * the same power iteration for both, and has no re-derivation of its own. All three are inside
+ * what the element can hold; a sweep through the element is what would sharpen them.
+ *
  * A floor is the smallest measured size at which the device's median was at or below the CPU
  * port's IN EVERY RUN, so a size that won under one load and lost under another is below it. A
  * capability that is not listed has no floor and follows {@link ACCELERATION_MIN_NODES_DEFAULT}.
@@ -516,9 +526,16 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         breadthFirstSearch: 141_000,
         // Likewise above the render ceiling, and likewise the kernel's resident crossover.
         sssp: 107_000,
-        // Measured through the element: the only capability that crosses inside what it can hold.
+        // Measured through the element, and it crosses at the top of what the element can hold.
         pageRank: 50_000,
         // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
         connectedComponents: 132_000,
+        // Interpolated between the kernel's measured 0.72x at 10,000 and 5.71x at 100,000 nodes
+        // against the index-based port; inside the render ceiling, so a graph this large does reach
+        // the device.
+        hits: 15_000,
+        // Likewise, between Katz's 0.36x and 3.66x; eigenvector centrality is costed as the same row.
+        katzCentrality: 28_000,
+        eigenvectorCentrality: 28_000,
     },
 );

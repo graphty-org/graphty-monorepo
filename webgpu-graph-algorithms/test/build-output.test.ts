@@ -138,8 +138,10 @@ describe("package.json (contract 2.1)", () => {
         // release carrying the simulation seam (1.7.0) is the first to ship; the workspace devDependency is what tsc
         // compiles against. The range was narrowed to ^1.7.0 only once 1.7.0 was published: nx release checks every
         // dependent's range against the dependency's CURRENT version before bumping it and refuses a range that
-        // excludes it, so ^1.7.0 committed alongside the seam failed the release that would have cut 1.7.0.
-        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0");
+        // excludes it, so ^1.7.0 committed alongside the seam failed the release that would have cut 1.7.0. 2.0.0 removed
+        // the positional layouts and kept the seam unchanged, so both majors are accepted; the same check passes
+        // before (1.x current) and after the 2.0.0 bump.
+        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0 || ^2.0.0");
         expect(packageJson.devDependencies["@graphty/layout"]).toBe("workspace:^");
         expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
         expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");

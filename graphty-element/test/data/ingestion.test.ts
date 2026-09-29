@@ -3,8 +3,9 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../src/catalog/types";
 import { GraphStore } from "../../src/data/GraphStore";
+import { readSeedPosition } from "../../src/data/seedPosition";
 import { GraphOps } from "../../src/session/project/graphOps";
-import { readSeedPosition, resolveEdgeWeight } from "../../src/session/project/ingest";
+import { resolveEdgeWeight } from "../../src/session/project/ingest";
 
 /**
  * Add one node record through the graph primitives, as ingest does.
@@ -183,6 +184,14 @@ describe("resolveEdgeWeight", () => {
         assert.deepStrictEqual(resolveEdgeWeight({ weight: Number.NaN }, "weight"), {
             weight: 1,
             source: "default",
+        });
+    });
+
+    it("treats a weight above the f32 range like an infinite one, since the snapshot could not hold it", () => {
+        assert.deepStrictEqual(resolveEdgeWeight({ weight: 1e39 }, "weight"), { weight: 1, source: "default" });
+        assert.deepStrictEqual(resolveEdgeWeight({ weight: -1e39, value: 2 }, "weight"), {
+            weight: 2,
+            source: "legacy",
         });
     });
 

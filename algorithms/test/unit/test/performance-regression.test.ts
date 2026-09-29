@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Graph as RealGraph } from "../../../src/core/graph.js";
 import { PerformanceRegressionTest } from "../../helpers/performance-regression.js";
 
 // Mock the two fs functions the helper uses. Under Vitest 4 a bare vi.mock("fs") automock
@@ -275,6 +276,15 @@ describe("PerformanceRegressionTest", () => {
     });
 
     describe("benchmark methods", () => {
+        // The benchmarks run the real algorithms, which read a real graph.
+        const pathOf = (size: number): RealGraph => {
+            const g = new RealGraph();
+            for (let i = 0; i + 1 < size; i++) {
+                g.addEdge(i, i + 1);
+            }
+            return g;
+        };
+
         it("should run BFS benchmark", () => {
             const test = new PerformanceRegressionTest();
             const benchmarkBFS = (
@@ -288,12 +298,7 @@ describe("PerformanceRegressionTest", () => {
                 }
             ).benchmarkBFS.bind(test);
 
-            const mockGraph = {
-                nodeCount: 100,
-                hasNode: () => true,
-                nodes: () => [{ id: 0 }],
-                neighbors: () => [],
-            };
+            const mockGraph = pathOf(100);
 
             const time = benchmarkBFS(mockGraph);
             expect(time).toBeGreaterThan(0);
@@ -305,11 +310,7 @@ describe("PerformanceRegressionTest", () => {
                 test as unknown as { benchmarkShortestPath: () => void }
             ).benchmarkShortestPath.bind(test);
 
-            const mockGraph = {
-                nodeCount: 100,
-                hasNode: () => true,
-                neighbors: () => [],
-            };
+            const mockGraph = pathOf(100);
 
             const time = benchmarkShortestPath(mockGraph);
             expect(time).toBeGreaterThan(0);
@@ -321,10 +322,7 @@ describe("PerformanceRegressionTest", () => {
                 test as unknown as { benchmarkSingleSourceSP: () => void }
             ).benchmarkSingleSourceSP.bind(test);
 
-            const mockGraph = {
-                hasNode: () => true,
-                neighbors: () => [],
-            };
+            const mockGraph = pathOf(100);
 
             const time = benchmarkSingleSourceSP(mockGraph);
             expect(time).toBeGreaterThan(0);

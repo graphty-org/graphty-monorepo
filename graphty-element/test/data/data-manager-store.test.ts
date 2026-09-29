@@ -116,9 +116,9 @@ describe("DataManager owns the graph store", () => {
     });
 
     it("folds a repeated record for a pending pair into the first one when the policy says first", () => {
-        // `edgeCache` cannot answer this on its own: it only learns about an edge when the Edge is
-        // built, so a repeat policy that looked only there would take the same pair twice for
-        // every edge whose endpoints have not arrived.
+        // The built edges cannot answer this on their own: an Edge exists only once both endpoints
+        // have a render Node, so a repeat policy that looked only there would take the same pair
+        // twice for every edge whose endpoints have not arrived.
         const { dm } = makeManager();
         dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
         dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
@@ -246,7 +246,7 @@ describe("DataManager removal reaches the store", () => {
         // visible by the per-frame mask.
         assert.strictEqual(dm.edges.size, 1, "only the edge that touches neither end of the removal is left");
         assert.isUndefined(dm.getEdge("0"), "and the incident edge is not reachable by its id");
-        assert.deepStrictEqual([...dm.edgeCache.get("a", "b")], [], "nor by its endpoint pair");
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [], "nor by its endpoint pair");
     });
 
     it("takes a removed edge out of the snapshot and leaves its endpoints", () => {
@@ -392,5 +392,74 @@ describe("DataManager indices", () => {
         dm.addEdges([{ src: "a", dst: "b" }]);
         dm.getSnapshot();
         assert.strictEqual(dm.edgesByIndex[0], undefined, "no render object claimed row 0 yet");
+    });
+});
+
+describe("DataManager answers edge lookups from the store", () => {
+    it("lists the edges of one ordered pair, oldest first, and nothing for the mirror or a stranger", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+            { src: "b", dst: "a" },
+        ]);
+        const first = registerEdgeStub(dm, "a", "b", 0);
+        const second = registerEdgeStub(dm, "a", "b", 1);
+        const mirror = registerEdgeStub(dm, "b", "a", 2);
+
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [first, second]);
+        assert.deepStrictEqual([...dm.getEdgesBetween("b", "a")], [mirror]);
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "nobody")], []);
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "a")], []);
+    });
+
+    it("keeps the pair's order in an undirected graph, where the store matches either orientation", () => {
+        const eventManager = new EventManager();
+        const styles = Styles.default();
+        styles.config.data.directed = false;
+        const dm = new DataManager(eventManager, styles);
+        dm.setGraphContext({} as unknown as GraphContext);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "a" },
+        ]);
+        const forward = registerEdgeStub(dm, "a", "b", 0);
+        const backward = registerEdgeStub(dm, "b", "a", 1);
+
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [forward]);
+        assert.deepStrictEqual([...dm.getEdgesBetween("b", "a")], [backward]);
+    });
+
+    it("leaves out an edge whose render object is still pending, and a removed one", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+        ]);
+        const built = registerEdgeStub(dm, "a", "b", 1);
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [built], "row 0 has no render object yet");
+
+        assert.isTrue(dm.removeEdge(built.id));
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], []);
+    });
+
+    it("counts what the store holds, which is what statistics().edgeCount reports", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        registerEdgeStub(dm, "a", "b", 0);
+
+        const snapshot = dm.getSnapshot();
+        assert.deepStrictEqual(dm.heldCounts(), { nodes: snapshot.nodeCount, edges: snapshot.edgeCount });
+        assert.strictEqual(dm.heldCounts().edges, 3, "pending edges are in the graph too");
+        assert.strictEqual(dm.heldCounts().nodes, 3, "so are endpoints no record declared as a node");
+        assert.deepStrictEqual(
+            [dm.getStats().nodeCount, dm.getStats().edgeCount],
+            [3, 3],
+            "getStats gives the same numbers",
+        );
     });
 });

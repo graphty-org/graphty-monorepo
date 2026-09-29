@@ -4,20 +4,15 @@
  * Demonstrates ForceAtlas2 force-directed layout algorithm.
  * Shows animation from random initial positions to final optimized positions.
  *
- * IMPORTANT: This story uses the actual forceatlas2Layout implementation
+ * IMPORTANT: This story uses the actual forceAtlas2 implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { forceatlas2Layout } from "@graphty/layout";
+import { forceAtlas2, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -49,28 +44,15 @@ function createForceAtlas2Story(args: ForceAtlas2Args): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final ForceAtlas2 layout using actual algorithm
-    const finalPositions = forceatlas2Layout(
-        layoutGraph,
-        null, // pos
-        iterations, // maxIter
-        1.0, // jitterTolerance
-        scalingRatio, // scalingRatio
-        gravity, // gravity
-        false, // distributedAction
-        false, // strongGravity
-        null, // nodeMass
-        null, // nodeSize
-        null, // weight
-        false, // dissuadeHubs
-        false, // linlog
-        seed, // seed
-        2, // dim
+    const finalPositions = toPositionMap(
+        forceAtlas2(snapshot, { maxIter: iterations, scalingRatio, gravity, seed, dim: 2 }),
+        snapshot.ids,
     );
 
     // Create container
@@ -82,10 +64,7 @@ function createForceAtlas2Story(args: ForceAtlas2Args): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("ForceAtlas2 Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `${iterations} iterations, gravity ${gravity}, scaling ${scalingRatio}.`,
-    );
+    updateInfoPanel(infoPanel, `${iterations} iterations, gravity ${gravity}, scaling ${scalingRatio}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -135,15 +114,7 @@ const meta: Meta<ForceAtlas2Args> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         iterations: {
@@ -180,7 +151,7 @@ type Story = StoryObj<ForceAtlas2Args>;
 /**
  * ForceAtlas2 layout story - continuous graph layout algorithm.
  *
- * This story uses the actual `forceatlas2Layout()` function from @graphty/layout.
+ * This story uses the actual `forceAtlas2()` function from @graphty/layout.
  * The play function animates from random positions to the optimized arrangement.
  */
 export const ForceAtlas2: Story = {

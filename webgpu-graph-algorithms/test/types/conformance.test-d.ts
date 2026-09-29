@@ -5,7 +5,7 @@ import type {
     BfsOptions,
     BfsResultLike,
     HitsOptionsLike,
-    IndexedPageRankOptions,
+    PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspOptions,
@@ -60,7 +60,9 @@ expectTypeOf(injected).toMatchTypeOf<LayoutAccelerator>();
 expectTypeOf<GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["forceAtlas2"]>>>().toEqualTypeOf<LayoutSimulation>();
 // P5: the two other layout members route the same way (spec 9.3 lines 3018-3025; PD-19)
-expectTypeOf<GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<
+    GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>
+>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>>().toEqualTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["springElectrical"]>>>().toEqualTypeOf<LayoutSimulation>();
@@ -109,7 +111,7 @@ expectTypeOf(dispatch(createAccelerator(ctx))).toEqualTypeOf<AcceleratedAlgorith
 // method-syntax members are bivariant in their parameters and an all-optional bag (`SsspOptions & { delta?: number }`,
 // or `{ cutoff?: number }` with `weights` dropped) is assignable to `SsspOptions` in both directions. `toEqualTypeOf`
 // on the GPU member's parameter is the one check that fails when a GPU option type drifts from the seam's by one key.
-expectTypeOf<IndexedPageRankOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
+expectTypeOf<PageRankOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
 
 // ---- P8 (PD-19): the four traversal members conform to the seam TYPE FOR TYPE -- the seam's option types in, the
 // design's result records out, which satisfy the seam's `*Like` shapes.

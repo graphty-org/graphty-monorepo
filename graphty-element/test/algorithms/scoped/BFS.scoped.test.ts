@@ -35,7 +35,7 @@ describe("bfs over a scope", () => {
         assert.deepInclude(result?.node("c"), { level: 1 });
     });
 
-    it("an early stop at a target walks the scope on the reference route", async () => {
+    it("an early stop at a target walks only the scope", async () => {
         const graph = new InputGraph(
             ["a", "x", "b", "d", "c"],
             [

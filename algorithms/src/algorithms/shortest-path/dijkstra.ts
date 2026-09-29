@@ -1,5 +1,8 @@
 import type { Graph } from "../../core/graph.js";
 import { PriorityQueue } from "../../data-structures/priority-queue.js";
+import { dijkstra as indexedDijkstra } from "../../indexed/dijkstra.js";
+import { exactArcWeights } from "../../indexed/facade.js";
+import { toSnapshotOrNull } from "../../indexed/to-snapshot.js";
 import type { DijkstraOptions, NodeId, ShortestPathResult } from "../../types/index.js";
 import { reconstructPath } from "../../utils/graph-utilities.js";
 import { BidirectionalDijkstra } from "./bidirectional-dijkstra.js";
@@ -174,6 +177,32 @@ export function singleSourceShortestPath(graph: Graph, source: NodeId, cutoff?: 
         throw new Error(`Source node ${String(source)} not found in graph`);
     }
 
+    const s = toSnapshotOrNull(graph);
+    const weights = s === null ? undefined : (exactArcWeights(s) ?? s.weights ?? undefined);
+    // Dijkstra's answer with a negative or NaN weight depends on the order the legacy walk settled
+    // nodes in, which the port does not share: those graphs keep the legacy walk.
+    if (s === null || weights?.some((w) => w < 0) === true) {
+        return singleSourceShortestPathLegacy(graph, source, cutoff);
+    }
+
+    const { dist } = indexedDijkstra(s, s.ids.indexOf(source), { cutoff, weights });
+    const result = new Map<NodeId, number>();
+    for (let i = 0; i < s.nodeCount; i++) {
+        if (dist[i] < Infinity && (cutoff === undefined || dist[i] <= cutoff)) {
+            result.set(s.ids.idOf(i), dist[i]);
+        }
+    }
+    return result;
+}
+
+/**
+ * The legacy walk behind {@link singleSourceShortestPath}, for graphs with a negative or NaN weight.
+ * @param graph - The graph to search
+ * @param source - The starting node for the search, known to be in the graph
+ * @param cutoff - Optional maximum distance to search
+ * @returns A map of node IDs to their distances from the source
+ */
+function singleSourceShortestPathLegacy(graph: Graph, source: NodeId, cutoff?: number): Map<NodeId, number> {
     const distances = new Map<NodeId, number>();
     const visited = new Set<NodeId>();
     const pq = new PriorityQueue<NodeId>();

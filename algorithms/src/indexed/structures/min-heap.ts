@@ -11,13 +11,18 @@ export class IndexedMinHeap {
     private readonly heap: U32; // slot -> node
     private readonly slot: U32; // node -> slot, INVALID_INDEX when absent
     private readonly key: F64; // node -> key
+    private readonly tieBreakByIndex: boolean;
     private size = 0;
 
     /**
      * Create an empty heap over node indices in `[0, capacity)`.
      * @param capacity - The number of distinct node indices the heap may hold
+     * @param tieBreakByIndex - When true, of two equal keys the lower node index pops first, so
+     * the pop order is fully determined by the keys; when false (the default) equal keys pop in
+     * an order that depends on the push history
      */
-    constructor(capacity: number) {
+    constructor(capacity: number, tieBreakByIndex = false) {
+        this.tieBreakByIndex = tieBreakByIndex;
         this.heap = new Uint32Array(capacity);
         this.slot = new Uint32Array(capacity).fill(INVALID_INDEX);
         this.key = new Float64Array(capacity);
@@ -32,11 +37,41 @@ export class IndexedMinHeap {
     }
 
     /**
+     * Whether a node is currently in the heap.
+     * @param node - The node index
+     * @returns True when the node was pushed and has not been popped since
+     */
+    has(node: number): boolean {
+        return this.slot[node] !== INVALID_INDEX;
+    }
+
+    /**
+     * The key a node was last given. Meaningful only while `has(node)` is true.
+     * @param node - The node index
+     * @returns Its key
+     */
+    keyOf(node: number): number {
+        return this.key[node];
+    }
+
+    /**
+     * The smallest key in the heap, without removing it.
+     * @returns The minimum key, or Infinity when the heap is empty
+     */
+    peekKey(): number {
+        return this.size === 0 ? Infinity : this.key[this.heap[0]];
+    }
+
+    /**
      * Insert a node that is not in the heap.
      * @param node - The node index
      * @param key - Its key
+     * @throws RangeError when the node index is outside `[0, capacity)`
      */
     push(node: number, key: number): void {
+        if (!(node >= 0 && node < this.slot.length)) {
+            throw new RangeError(`Node index ${String(node)} is outside the heap's ${String(this.slot.length)} nodes`);
+        }
         this.key[node] = key;
         this.heap[this.size] = node;
         this.slot[node] = this.size;
@@ -79,14 +114,25 @@ export class IndexedMinHeap {
         return top;
     }
 
+    /**
+     * Whether node `a` pops before node `b`.
+     * @param a - A node index in the heap
+     * @param b - A node index in the heap
+     * @returns True when a's key is smaller, or equal with the tie-break on and a lower index
+     */
+    private before(a: number, b: number): boolean {
+        const ka = this.key[a];
+        const kb = this.key[b];
+        return ka < kb || (this.tieBreakByIndex && ka === kb && a < b);
+    }
+
     private siftUp(from: number): void {
         let at = from;
         const node = this.heap[at];
-        const key = this.key[node];
         while (at > 0) {
             const parent = (at - 1) >> 1;
             const parentNode = this.heap[parent];
-            if (this.key[parentNode] <= key) {
+            if (!this.before(node, parentNode)) {
                 break;
             }
             this.heap[at] = parentNode;
@@ -100,16 +146,15 @@ export class IndexedMinHeap {
     private siftDown(from: number): void {
         let at = from;
         const node = this.heap[at];
-        const key = this.key[node];
         for (;;) {
             const left = 2 * at + 1;
             if (left >= this.size) {
                 break;
             }
             const right = left + 1;
-            const child = right < this.size && this.key[this.heap[right]] < this.key[this.heap[left]] ? right : left;
+            const child = right < this.size && this.before(this.heap[right], this.heap[left]) ? right : left;
             const childNode = this.heap[child];
-            if (key <= this.key[childNode]) {
+            if (!this.before(childNode, node)) {
                 break;
             }
             this.heap[at] = childNode;

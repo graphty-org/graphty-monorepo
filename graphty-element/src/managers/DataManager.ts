@@ -7,7 +7,7 @@ import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
-import { adoptEdgeRecord, Edge, EdgeMap, placeEdgeRow, type ReadonlyEdgeMap } from "../Edge";
+import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
@@ -23,7 +23,13 @@ import {
 import type { LaneStore } from "../session/GraphSession";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
-import { type AddEdgesOptions, Ingest, type IngestHost, type StoredEdge } from "../session/project/ingest";
+import {
+    type AddEdgesOptions,
+    Ingest,
+    type IngestHost,
+    isStorableId,
+    type StoredEdge,
+} from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
@@ -167,7 +173,6 @@ export class DataManager implements Manager {
     // Node and edge collections: written only here, as commands add, remove and renumber rows.
     private readonly nodeMap = new Map<string | number, Node>();
     private readonly edgeMap = new Map<string, Edge>();
-    private readonly edgePairs = new EdgeMap();
     private readonly edgeRows: (Edge | undefined)[] = [];
 
     static {
@@ -176,7 +181,6 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.edgeMap.set(edge.id, edge);
-            manager.edgePairs.set(edge.srcId, edge.dstId, edge);
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
             }
@@ -213,25 +217,6 @@ export class DataManager implements Manager {
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
-
-    /**
-     * The edges between each ordered pair of nodes, read-only.
-     * @returns The edges by endpoint pair.
-     */
-    get edgeCache(): ReadonlyEdgeMap {
-        return this.edgePairView;
-    }
-
-    /** {@link DataManager.edgeCache}: the pair index with no writer, handing out copies of its lists. */
-    private readonly edgePairView: ReadonlyEdgeMap = ((pairs: EdgeMap) =>
-        Object.freeze({
-            has: (srcId: NodeIdType, dstId: NodeIdType) => pairs.has(srcId, dstId),
-            get: (srcId: NodeIdType, dstId: NodeIdType) => pairs.get(srcId, dstId).slice(),
-            first: (srcId: NodeIdType, dstId: NodeIdType) => pairs.first(srcId, dstId),
-            get size() {
-                return pairs.size;
-            },
-        }))(this.edgePairs);
 
     /**
      * Render objects by their store edge index, so a freeze report's `edgeRemap` -- and a removal,
@@ -425,6 +410,17 @@ export class DataManager implements Manager {
      */
     get [WRITABLE_LANE](): ElementPositions {
         return this.store.positions;
+    }
+
+    /**
+     * Whether a load from a data source is still streaming records in.
+     *
+     * A static layout reads it to tell a chunk of a load, after which the whole graph is arranged
+     * again, from a reader's add to a finished graph, after which existing nodes stay put.
+     * @returns true between a load's first chunk and its end
+     */
+    get isLoading(): boolean {
+        return this.ingest.loading;
     }
 
     /**
@@ -787,7 +783,6 @@ export class DataManager implements Manager {
         this.edgeMap.clear();
         this.edgeVersion++;
         this.nodeCache.clear();
-        this.edgePairs.clear();
         this.edgeRows.length = 0;
         this.pendingEdges = [];
         this.pendingByPair.clear();
@@ -1065,7 +1060,7 @@ export class DataManager implements Manager {
      * @returns the existing edges, oldest first; empty when the pair is new
      */
     private existingBetween(sourceId: NodeIdType, targetId: NodeIdType): ExistingEdge[] {
-        const built = this.edgeCache.get(sourceId, targetId);
+        const built = this.getEdgesBetween(sourceId, targetId);
         const pending = this.pendingByPair.get(sourceId)?.get(targetId) ?? [];
         return [
             ...built.map((edge) => ({ edgeIndex: edge.index, edge, pending: null })),
@@ -1171,7 +1166,6 @@ export class DataManager implements Manager {
         this.edgeMap.clear();
         this.edgeVersion++;
         this.nodeCache.clear();
-        this.edgePairs.clear();
 
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
@@ -1333,7 +1327,7 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Record a freshly built render edge in all three of the places that index it.
+     * Record a freshly built render edge in both of the places that index it.
      * @param edge - the new render object
      * @param edgeIndex - the index the builder gave this edge. Never INVALID_INDEX: an edge whose
      *     endpoint ids graph-format will not store is rejected before it reaches here
@@ -1341,7 +1335,6 @@ export class DataManager implements Manager {
     private registerEdge(edge: Edge, edgeIndex: number): void {
         placeEdgeRow(edge, edgeIndex);
         this.edgeRows[edgeIndex] = edge;
-        this.edgePairs.set(edge.srcId, edge.dstId, edge);
         this.edgeMap.set(edge.id, edge);
         this.edgeVersion++;
     }
@@ -1430,7 +1423,6 @@ export class DataManager implements Manager {
     private teardownEdge(edge: Edge, edgeIndex: number): void {
         this.edgeMap.delete(edge.id);
         this.edgeVersion++;
-        this.edgePairs.delete(edge.srcId, edge.dstId, edge);
         this.edgeRows[edgeIndex] = undefined;
         placeEdgeRow(edge, INVALID_INDEX);
 
@@ -1583,12 +1575,36 @@ export class DataManager implements Manager {
      *
      * Plural because "the edge between a and b" stopped being a single thing the moment parallel
      * edges became representable.
+     *
+     * Answered by the store: the builder's incidence lists name the live edges between the two
+     * rows, and `edgesByIndex` turns each into its render object. An edge whose render object is
+     * still pending is left out, and so, in an undirected graph, is an edge recorded the other way
+     * round -- the pair is ORDERED, the same question for either direction.
      * @param srcNodeId - Source node identifier
      * @param dstNodeId - Destination node identifier
      * @returns the edges, oldest first; empty when there are none
      */
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[] {
-        return this.edgeCache.get(srcNodeId, dstNodeId);
+        if (!isStorableId(srcNodeId) || !isStorableId(dstNodeId)) {
+            return [];
+        }
+
+        const { builder } = this.store;
+        const u = builder.indexOf(srcNodeId);
+        const v = builder.indexOf(dstNodeId);
+        if (u === INVALID_INDEX || v === INVALID_INDEX) {
+            return [];
+        }
+
+        const found: Edge[] = [];
+        for (const e of builder.findEdges(u, v)) {
+            const edge = this.edgeRows[e];
+            if (edge !== undefined && builder.indexOf(edge.srcId) === u) {
+                found.push(edge);
+            }
+        }
+
+        return found;
     }
 
     /**
@@ -1775,17 +1791,28 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The node and edge counts the graph store holds: what `statistics()` and the stats panel
+     * report, including a pending edge and an endpoint no record declared as a node.
+     * @returns the node and edge counts
+     */
+    heldCounts(): { nodes: number; edges: number } {
+        return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
+    }
+
+    /**
      * Get statistics about the data
-     * @returns Object containing node count, edge count, and cached mesh count
+     * @returns the node and edge counts the graph holds -- the same numbers `statistics()` and the
+     *     stats panel give -- and the cached mesh count
      */
     getStats(): {
         nodeCount: number;
         edgeCount: number;
         cachedMeshes: number;
     } {
+        const { nodes, edges } = this.heldCounts();
         return {
-            nodeCount: this.nodes.size,
-            edgeCount: this.edges.size,
+            nodeCount: nodes,
+            edgeCount: edges,
             cachedMeshes: this.meshCache.size(),
         };
     }

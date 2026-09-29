@@ -170,6 +170,7 @@ export type KnownColumnRole =
     | "timestamps"
     | "spells"
     | "open"
+    | "spellsOpen"
     | "timeText"
     | "key"
     | "directed"

@@ -33,7 +33,8 @@ The rest of the branch -- the algorithms 3.0 removal, the plugin algorithm acces
 layout contract, the format writers and export, the data-source adapter from a graph-io importer,
 and graph-format and graph-io as regular dependencies -- goes to master through a second pull
 request from `feat/graph-format-migration`, opened on 2026-09-29 after #587 had merged. It
-supersedes #553, whose branch is merged into this one. That pull request is where the owner
+supersedes #553 (the element's undo and redo work, merged into master on 2026-09-28 and never
+released), whose branch is merged into this one. That pull request is where the owner
 reviews the story changes listed in `visual-changes/README.md`; that review is the only step
 between the branch and its release, and only the owner can take it.
 

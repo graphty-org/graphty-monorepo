@@ -14,10 +14,11 @@
  * (the empty graph, one node, `dest`, a negative weight). Run-twice bitwise on `perSource` and `scores` everywhere.
  */
 
-import { closenessCentrality as cpuClosenessCentrality } from "@graphty/algorithms";
+import { accelerated, closenessCentrality as cpuClosenessCentrality } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
+import { createAccelerator } from "../../src/accelerator.js";
 import { closenessCentrality, closenessWithTuning, SOURCES_PER_BATCH } from "../../src/algorithms/closeness.js";
 import { GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
@@ -366,6 +367,94 @@ describe("closenessCentrality (design 8.4 / 9.7; P8-T11)", () => {
         const stillSweeps = await closenessCentrality(ctx, negative, { weighted: false });
         expect(Array.from(stillSweeps.scores)).toEqual([Math.fround(1 / 3), Math.fround(1 / 2), Math.fround(1 / 3)]);
         ctx.release(negative);
+    }, 60_000);
+
+    it("sampled sources, every node of karate: bitwise the exact run's scores (the same integer sums, folded per node instead of per source)", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES, { label: "closeness-sampled-every" });
+        const every = Array.from({ length: s.nodeCount }, (_, i) => i);
+        const exact = await closenessCentrality(ctx, s);
+        const sampled = await closenessCentrality(ctx, s, { sources: every });
+        expectBitwiseEqual(sampled.scores, exact.scores, "sampled over every node vs exact");
+        expect(sampled.sourcesUsed).toBe(s.nodeCount);
+        expect(exact.sourcesUsed).toBe(s.nodeCount);
+        expect(sampled.iterations).toBe(exact.iterations);
+        ctx.release(s);
+    }, 60_000);
+
+    it("sampled sources: the CPU port on the same sources, score for score, duplicates run twice, run twice bitwise", async (t) => {
+        const ctx = await context(t);
+        const cases: [string, GraphSnapshot, number[]][] = [
+            ["karate", snapshotOf(KARATE_EDGES, { label: "closeness-sampled-karate" }), [0, 33, 5, 5, 16]],
+            // two batches, the second partial, a duplicate straddling them
+            [
+                "random70",
+                snapshotOf(randomEdges(70, 200, 11), { nodeCount: 70, label: "closeness-sampled-random70" }),
+                Array.from({ length: 40 }, (_, i) => (i * 7) % 70).concat([0]),
+            ],
+            [
+                "disconnected",
+                snapshotOf([...pathEdges(5), [6, 7], [7, 8], [8, 6]], {
+                    nodeCount: 10,
+                    label: "closeness-sampled-disconnected",
+                }),
+                [0, 9, 7],
+            ],
+        ];
+        for (const [label, s, sources] of cases) {
+            const first = await closenessCentrality(ctx, s, { sources });
+            const second = await closenessCentrality(ctx, s, { sources });
+            expectBitwiseEqual(first.scores, second.scores, `${label}: run twice`);
+            expect(first.sourcesUsed, `${label}: sourcesUsed`).toBe(sources.length);
+            expect(first.iterations, `${label}: batches`).toBe(Math.ceil(sources.length / SOURCES_PER_BATCH));
+            const cpu = cpuClosenessCentrality(s, { sources });
+            expect(cpu.sourcesUsed).toBe(sources.length);
+            expectScoresClose(first.scores, cpu.scores, SCORE_REL, `${label}: vs the CPU port on the same sources`);
+            ctx.release(s);
+        }
+    }, 120_000);
+
+    it("sampled by k through the dispatcher: the accelerator runs the port's own draw, so CPU and GPU agree score for score", async (t) => {
+        const ctx = await context(t);
+        const acc = createAccelerator(ctx);
+        const s = snapshotOf(randomEdges(70, 200, 11), { nodeCount: 70, label: "closeness-sampled-k" });
+        for (const k of [1, 20, 45]) {
+            const gpu = await accelerated(acc).closenessCentrality(s, { k });
+            const cpu = cpuClosenessCentrality(s, { k });
+            expect(gpu.sourcesUsed).toBe(k);
+            expect(gpu.scores).toBeInstanceOf(Float32Array);
+            expectScoresClose(gpu.scores, cpu.scores, SCORE_REL, `k = ${k}`);
+        }
+        acc.release(s);
+    }, 120_000);
+
+    it("sampled sources on the weighted karate (one sssp per source): within the derived SSSP tolerance of the CPU port's sampled sums", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(weightedEdges(KARATE_EDGES, "uniform", 1), { label: "closeness-sampled-weighted" });
+        const sources = [0, 33, 2, 2];
+        const gpu = await closenessCentrality(ctx, s, { weighted: true, sources });
+        expect(gpu.sourcesUsed).toBe(4);
+        expect(gpu.iterations).toBe(4);
+        const cpu = cpuClosenessCentrality(s, { weighted: true, sources });
+        const tolerance = ssspTolerance();
+        expectScoresClose(gpu.scores, cpu.scores, tolerance.value, `weighted vs CPU (${tolerance.basis})`);
+        ctx.release(s);
+    }, 120_000);
+
+    it("sampled sources refused: a directed snapshot is E_UNSUPPORTED, a source outside the snapshot E_INVALID_ARGUMENT, an empty list scores 0 with no batch", async (t) => {
+        const ctx = await context(t);
+        const directed = snapshotOf(pathEdges(5), { directed: true, label: "closeness-sampled-directed" });
+        const refused = await expectRejection(closenessCentrality(ctx, directed, { sources: [0] }), "E_UNSUPPORTED");
+        expect(refused.details).toMatchObject({ feature: "closenessCentrality.directedSources" });
+        ctx.release(directed);
+        const s = snapshotOf(pathEdges(5), { label: "closeness-sampled-bad" });
+        const bad = await expectRejection(closenessCentrality(ctx, s, { sources: [5] }), "E_INVALID_ARGUMENT");
+        expect(bad.details).toMatchObject({ argument: "sources" });
+        const none = await closenessCentrality(ctx, s, { sources: [] });
+        expect(Array.from(none.scores)).toEqual([0, 0, 0, 0, 0]);
+        expect(none.sourcesUsed).toBe(0);
+        expect(none.iterations).toBe(0);
+        ctx.release(s);
     }, 60_000);
 
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {

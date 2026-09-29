@@ -12,6 +12,8 @@ import type {
     BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     CommunityResultLike,
     CorenessResultLike,
     EdgeScoresResultLike,
@@ -31,6 +33,7 @@ import type { GpuContext } from "../context.js";
 import type {
     ComponentsOptions,
     EigenvectorOptions,
+    GpuClosenessResult,
     GpuHitsResult,
     GpuLabelResult,
     GpuPageRankResult,
@@ -66,6 +69,8 @@ export type {
     BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     CommunityResultLike,
     CorenessResultLike,
     EdgeScoresResultLike,
@@ -106,7 +111,7 @@ export interface AcceleratorOptions {
  * semantics on directed input) under both names the mirror declares; their options parameter stays OPTIONAL, because
  * the mirror declares none and an extra REQUIRED parameter would stop the member satisfying it. The four traversals
  * take the seam's OWN option types (PD-19: `BfsOptions`, `SsspOptions` for both `sssp` and `bellmanFord`,
- * `HitsOptionsLike` for `closenessCentrality`), so a key the CPU dispatcher forwards is exactly a key the GPU reads;
+ * `ClosenessAcceleratorOptions` for `closenessCentrality`), so a key the CPU dispatcher forwards is exactly a key the GPU reads;
  * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. Later phases add
  * one member per shipped algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
@@ -135,7 +140,7 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     breadthFirstSearch(s: GraphSnapshot, source: number, options?: BfsOptions): Promise<GpuBfsResult>;
     sssp(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuSsspResult>;
     bellmanFord(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuBellmanFordResult>;
-    closenessCentrality(s: GraphSnapshot, options?: HitsOptionsLike): Promise<GpuScoresResult>;
+    closenessCentrality(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult>;
     release(s: GraphSnapshot): void;
     dispose(): void;
 }

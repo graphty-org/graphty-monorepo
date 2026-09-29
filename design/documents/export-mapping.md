@@ -76,8 +76,9 @@ Each included run contributes one column per published field of its result, per 
 
 1. **Column name** `<run>.<field>`: `influence.value`, `groups.group`, as the owner decided. A run a
    recipe produced is named by its `as`, without the namespace; a run started by hand without a
-   name is named by recipe.md's rule ("Recording" rule 4: `pagerank`, `pagerank_2`), so a script
-   reads the same column after a parameter is tuned. The naming is a contract for scripts in R and
+   name is named by recipe.md's rule ("Recording" rule 4: `pagerank`, `pagerank_2`), numbered by
+   each run's first start, which a re-run or a retune never changes, so a script reads the same
+   column after a parameter is tuned. The naming is a contract for scripts in R and
    Python, and the extension-point specification uses the same form.
 2. **Collisions are refused.** When two included runs would give one name (a recipe applied twice),
    or a result column would take the name of an imported column, the export is refused before

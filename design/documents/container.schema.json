@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-document/v1.json",
     "title": "graphty document, version 1",
-    "description": "The one JSON file every graphty document is (container.md). Normative for what a writer produces. A member whose kind and version this schema knows is checked against that kind's own schema; a member of any other kind or version is checked only for its kind and version, so a file carrying a member from a later release is still a valid version 1 document. A reader follows container.md for what fails.",
+    "description": "The one JSON file every graphty document is (container.md). Normative for what a writer produces. A member whose kind and version this schema knows is checked against that kind's own schema; a member of any other kind or version is checked only for its kind and version, so a file carrying a member of a later kind or version is still a valid version 1 document. A new value inside a version 1 member (a channel, a shape, an import option) is valid against the copy of this schema of a release that knows it; each release's copy is also published as .../graphty-document/v1/<release>.json (container.md, 'Versions' rule 2). A reader follows container.md for what fails.",
     "type": "object",
     "required": ["kind", "version", "members"],
     "properties": {

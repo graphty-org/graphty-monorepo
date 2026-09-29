@@ -432,7 +432,10 @@ registers it once, with `registerPalette(descriptor)` from `@graphty/graphty-ele
 descriptor of the shape below, and names it in its styles; a carried palette is for a style
 travelling to pages that do not have it. Register on your own page, carry in files that travel. A
 registered palette wins over a carried one of the same id, so update the registered copy when the
-brand changes.
+brand changes. An ordinal binding hands a palette's colours out by group size, largest group
+first, not in the palette's order ("Bindings" rule 8), so a department keeps its brand colour
+across datasets only when `map` pins it, as `sales` is pinned below; `overflow` keeps the layer
+painting when the data holds more departments than the palette has colours.
 
 ```json
 {
@@ -543,7 +546,12 @@ brand changes.
    never uses. This is how a style reports what is missing on new data. When the graph's columns
    change -- an import replaces the graph or is merged into it, or elements gain a column no element
    had -- or the run completes, the applier MUST check such a layer again and switch it on when it
-   binds, reporting it (README, "Applying a style and a recipe to new data" rule 5). A layer waiting for a run the file's own recipe will make has the state
+   binds, reporting it: the opening's `report` is replaced by a fresh one whose `reads`,
+   suggestions and `W_FEW_VALUES` are as they are after the change (README, "Applying a style and
+   a recipe to new data" rule 5). When the unbound path is read by a `passthrough` binding (a
+   label or a tooltip), the suggestions also offer `id` on a node layer, or `source` and `target`
+   on an edge layer, where the table has no real column of that name, with a reason naming the
+   rename that reads the structure (`columns: { "name": "id" }`, "Coming from Cytoscape"). A layer waiting for a run the file's own recipe will make has the state
    `waiting` in the report, naming the command, so a preview tells it apart from a layer that
    will never paint. A `results.` path that names a run by a plain `as` of a command in a recipe of
    the same file never binds to a run of the reader's own that happens to have that name: when
@@ -583,12 +591,15 @@ brand changes.
    the stack, the applier follows `onRepeat`: `"replace"` removes them and puts the new layers
    where the lowest of them was; `"add"` adds a second copy above everything; `"refuse"` fails with
    `E_REPEAT_APPLICATION`. The default is `"replace"` when the template id is the caller's
-   `templateId`, or the style's own `id` and both openings came from the same place (the same
-   `base` origin and directory, or the same `fileName`), so opening a corrected version of a look,
-   or the same file again with a rename, replaces the earlier opening. An `id` is a string anyone
-   can copy: a style from another place that claims an `id` already opened is added beside it,
-   with `W_ID_COLLISION` naming the id, and replaces it only when the caller passes
-   `onRepeat: "replace"` -- an application asks the person first. A template id derived from the
+   `templateId`, or the style's own `id` and both openings came from the same place: the same
+   `base` origin and directory. So opening a corrected version of a look from the address it is
+   published at replaces the earlier opening. A `fileName` is chosen by whoever sent the file and
+   proves nothing about where it came from, and two openings with no `base` -- a file from a
+   download folder, a string -- are never the same place. An `id` is a string anyone can copy: a
+   style from another place that claims an `id` already opened is added beside it, with
+   `W_ID_COLLISION` naming the id, and replaces it only when the caller passes
+   `onRepeat: "replace"` (`onRepeat: { style: "replace" }` to `openDocument`) -- an application
+   asks the person first, and a script that reopens its own text with a rename passes it. A template id derived from the
    document's name, file name or text (container.md, "Writing a file" rule 7) never replaces by
    default: two unrelated files that are both called "Overview" add, and do not wipe each other.
    A preview lists the layers a real opening would replace, and the collision.
@@ -617,6 +628,15 @@ interface StyleReport {
         readonly index: number;
         readonly id?: string; // the authored id
         readonly name: string;
+        /** The selector as read, after renames, with a `where` given whole. */
+        readonly selector: Selector;
+        /**
+         * Elements of the layer's target it selects on this graph, out of `of`; null when a path
+         * it reads is unbound or it is waiting. So a preview tells a layer that fades every node
+         * from one that marks 40 of 4,000.
+         */
+        readonly matched: number | null;
+        readonly of: number | null;
         readonly reads: readonly {
             readonly path: string;
             readonly bound: boolean;
@@ -711,7 +731,7 @@ data settings change how every later import is read (container.md, "Reading a fi
 | a layer reading `data.logFC` on data whose column is `log2FoldChange`                                                                                                           | added switched off; `unbound` suggests `log2FoldChange` (they share the word `log`)                                                 |
 | a layer colouring by `data.logFC` where `logFC` holds numbers and `NA`                                                                                                          | the numbers painted; `NA` treated as missing; `W_COLUMN_TYPE` with the count                                                        |
 | an ordinal colour layer over `team` with groups of 5, 3 and 3 elements                                                                                                          | the largest group takes the palette's first colour; the tied groups by name                                                         |
-| the same style file opened twice                                                                                                                                                | the second opening replaces the first's layers (`replaced` lists them)                                                              |
+| the same style file opened twice from the same `base`                                                                                                                           | the second opening replaces the first's layers (`replaced` lists them)                                                              |
 | opened with no graph loaded, then data loaded that has the columns                                                                                                              | layers switched off, then switched on and reported when the data arrives                                                            |
 | a layer switched off for a missing column, saved                                                                                                                                | written with its authored `enabled` (true), not `false`                                                                             |
 | `"node.color": "red\" onload=\"x"`                                                                                                                                              | does not parse as a colour; layer switched off, `E_BAD_LAYER`                                                                       |
@@ -768,20 +788,29 @@ data settings change how every later import is read (container.md, "Reading a fi
 | an ordinal colour layer with a named palette of 8 and no `overflow`, painting 8 categories, then a merge adds a ninth                                                           | state `failing`, `E_CAP_EXCEEDED`; back to `paints` when the count fits; a save writes `enabled` as authored                        |
 | ``where: "data.significant == `true`"`` over a CSV column of `TRUE` and `FALSE`                                                                                                 | paints nothing; `W_MATCHES_NOTHING` listing `TRUE` and `FALSE`                                                                      |
 | a layer reading `data.name` opened with `columns: { "name": "id" }` on a CSV edge list                                                                                          | labels each node by its id                                                                                                          |
-| a style whose `id` another file already opened, opened from a different `fileName`                                                                                              | added, not replaced; `W_ID_COLLISION`                                                                                               |
+| a style whose `id` another opening added, opened with the same `fileName` and no `base`                                                                                         | added, not replaced; `W_ID_COLLISION`                                                                                               |
 | a refused layer in a preview                                                                                                                                                    | its `layers` entry carries `problem` with the code and reason                                                                       |
+| a style with an `id`, opened twice with no `base` or `fileName`, the second time with `columns` and `onRepeat: { style: "replace" }`                                            | one copy of each layer, under the rename                                                                                            |
+| the same, the second time without `onRepeat`                                                                                                                                    | two copies; `W_ID_COLLISION`                                                                                                        |
+| a label layer `{ "by": "data.name", "scale": "passthrough" }` on a CSV edge list                                                                                                | switched off; the suggestions include `id`, the reason naming `columns: { "name": "id" }`                                           |
+| a layer `{ "match": "everything" }` setting `node.opacity`, previewed on a graph of N nodes                                                                                     | `selector` given; `matched: N, of: N`                                                                                               |
+| a layer with `{ "match": "neighbours", "of": { "set": "seeds" }, "hops": 1 }` on a reader that does not know `neighbours`                                                       | switched off, `E_BAD_SELECTOR`; no `W_UNKNOWN_MEMBER` for `hops`                                                                    |
+| the worked example's merge, `{ file, idColumn: "gene" }` with no `variant`, of a table headed `gene,baseMean,log2FoldChange,lfcSE,stat,pvalue,padj`                             | read as a node list                                                                                                                 |
+| a table of 20,000 genes merged into a 280-node network whose ids no row matches                                                                                                 | `merge` gives 0 matched and 20,000 added, with five of the added ids, and a notice                                                  |
+| a style opened before a node table is merged; the merge adds the column a switched-off layer reads                                                                              | `opened.report` replaced before the import resolves; the layer's `reads` give the counts after the merge                            |
 
 ## Worked example
 
 A lab's expression overlay: red for genes up, blue for down, grey for not measured, significant genes
 outlined, and each node labelled by its gene symbol. It needs `logFC` and `padj` as node columns.
 In a session they can come from a second table: import the edge list, then merge the expression
-table with `data.import({ type: "csv", config: { file: deTable, idColumn: "gene" } }, { mode: "merge" })`,
-and the layers switch on
-when the merge lands. How many nodes the table reached shows in each layer's `reads`
-(`withValue` of `of`), and `W_FEW_VALUES` flags a column fewer than half the nodes hold: a merge
-key that does not match the node ids (a symbol against a STRING protein id, or a difference of
-case) shows up there as a low count. Only to carry the data inside a document do the two tables
+table with `data.import({ type: "csv", config: { file: deTable, idColumn: "gene" } }, { mode: "merge" })`
+(read as a node list because it names `idColumn` and has no endpoint columns), and the layers
+switch on when the merge lands. After the merge, `opened.report` holds each layer's `reads` as
+they now are (`withValue` of `of`), and the merge's own report, `session.data.lastImport().merge`,
+says how many of the table's rows matched a node and how many added a new one: a merge key that
+does not match the node ids (a symbol against a STRING protein id, or a difference of case)
+shows up there as rows that matched nothing, with a notice (README, "CSV shapes"). Only to carry the data inside a document do the two tables
 need to be one GraphML or node-link JSON file (README, "What version 1 does not cover").
 
 Applied to a network whose nodes have `logFC` and `padj`, the layers paint. The tools that make
@@ -789,8 +818,10 @@ these tables spell the columns differently: DESeq2 writes `log2FoldChange` and `
 `logFC` and `adj.P.Val`, edgeR `logFC` and `FDR`. On a DESeq2 table the colour layer is added
 switched off, naming `data.logFC` and suggesting `log2FoldChange`; on an edgeR table the outline
 layer names `data.padj` with no suggestion, because the names share nothing. Either way the caller
-opens the file again with the renames, `columns: { "logFC": "log2FoldChange" }` or
-`columns: { "padj": "FDR" }`, which replaces the first opening's layers. The two label layers
+opens the file again with the renames and asks for the first opening to be replaced:
+`openDocument(text, { columns: { "logFC": "log2FoldChange" }, onRepeat: { style: "replace" } })`,
+or `columns: { "padj": "FDR" }`. Without `onRepeat` a second opening with no `base` adds a second
+copy ("Reading and applying" rule 9). The two label layers
 label by `name` where the file has one (a Cytoscape export) and by the node id otherwise (an edge
 list of symbols), never by Cytoscape's internal numbers ("Paths" rule 4).
 

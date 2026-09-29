@@ -189,7 +189,7 @@ with a two-colourable component (an even ring, a tree, a grid). Above the floor 
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 
-`closeness` has one exception: an exact run (no `k` and no `sources`) over more than 30,000 nodes
+`closeness` has one exception: an exact run (no `k`) over more than 30,000 nodes
 takes the CPU implementation, and throws `E_NO_ACCELERATOR` under `acceleration="required"`. The
 device computes it, but the time grows with the square of the node count and is tens of seconds at
 100,000 nodes, so above that size ask for a sampled run instead. A sampled run has no cap. Its

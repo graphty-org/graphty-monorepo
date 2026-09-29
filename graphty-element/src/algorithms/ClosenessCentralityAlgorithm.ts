@@ -2,8 +2,6 @@ import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
-import { GraphtyError } from "../errors";
-import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
@@ -38,11 +36,6 @@ const closenessOptionsSchema = defineOptions({
 interface ClosenessOptions extends Record<string, unknown> {
     /** How many sources to draw for a sampled run, or null for the exact score from every node. */
     k: number | null;
-    /**
-     * The node ids to run from, for a sampled run (programmatic only: a list is not a value a form
-     * holds). A node listed twice runs twice. With `k` set, `k` must equal the list's length.
-     */
-    sources?: readonly NodeId[] | null;
 }
 
 /** What a closeness result publishes: the uniform node-metric fields and nothing else. */
@@ -57,8 +50,8 @@ const CLOSENESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * The published `value` is the algorithm's own figure, unscaled. A graph-level `min` and `max`
  * sit on the result, so a consumer that wants a 0-to-1 value has the range to make one with.
  *
- * With `k` or `sources` the run is SAMPLED: each node is scored from its distances to the
- * sampled sources only, so `1 / value` is the summed distance to those sources. The ranking is
+ * With `k` the run is SAMPLED: each node is scored from its distances to `k` drawn sources
+ * only, so `1 / value` is the summed distance to those sources. The ranking is
  * the estimate; multiply by `k / n` for an estimate of the exact value.
  */
 export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptions> {
@@ -82,19 +75,6 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         },
     };
 
-    /** The node ids to run from, kept from the constructor's arguments: no schema carries a list. */
-    private readonly sources: readonly NodeId[] | null;
-
-    /**
-     * Creates a closeness run.
-     * @param g - The graph to run on.
-     * @param options - `k`, and the programmatic `sources` list.
-     */
-    constructor(g: Graph, options?: Partial<ClosenessOptions>) {
-        super(g, options);
-        this.sources = options?.sources ?? null;
-    }
-
     /**
      * The fields a closeness result publishes.
      * @returns The uniform node-metric fields.
@@ -111,23 +91,14 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { k } = this.schemaOptions;
-        const sampled = k !== null || this.sources !== null;
-        if (k !== null && this.sources !== null && k !== this.sources.length) {
-            throw new GraphtyError({
-                code: "E_OPTION_RANGE",
-                message: `"k" is ${String(k)} but "sources" names ${String(this.sources.length)} nodes; give one, or make them agree`,
-                source: "run",
-                details: { option: "k", value: k },
-            });
-        }
+        const sampled = k !== null;
 
         // Undirected: closeness here measures distance, which ignores the declared direction. An
         // exact run is too slow on the device above the cap, so it stays on the CPU port there.
         const accelerable = sampled || this.input("undirected").nodeCount <= EXACT_CLOSENESS_MAX_ACCELERATED_NODES;
         const { snapshot, run } = this.accelerated("closenessCentrality", "undirected", { accelerable });
-        const sources = this.sources?.map((id) => this.nodeIndex(snapshot, "sources", id));
         // A k past the node count (a small scope, say) samples every node, which is the exact score.
-        const drawn = sources === undefined && k !== null ? Math.min(k, snapshot.nodeCount) : undefined;
+        const drawn = k === null ? undefined : Math.min(k, snapshot.nodeCount);
 
         context.report({
             phase: "measuring distances",
@@ -140,7 +111,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
         // The element's own half -- reading the scores back out -- is chunked below.
         const { value, precision } = await run((dispatch, s) =>
-            dispatch.closenessCentrality(s, sampled ? { sources, k: drawn } : undefined),
+            dispatch.closenessCentrality(s, sampled ? { k: drawn } : undefined),
         );
         context.signal.throwIfAborted();
 

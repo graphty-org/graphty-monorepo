@@ -21,9 +21,11 @@ import {
 import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
+import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, referenceSnapshot } from "../helpers/reference-snapshot";
+import { makeSession } from "../session/helpers";
 
 const FLOOR = ACCELERATION_MIN_NODES_BY_CAPABILITY.closenessCentrality ?? NaN;
 
@@ -114,19 +116,6 @@ describe("closeness centrality through accelerated()", () => {
         assert.strictEqual(caveats.precision, "f64");
     });
 
-    it("sampled by source ids runs from exactly those nodes, a duplicate twice", async () => {
-        const graph = await graphWith(LES_MIS);
-        const sources = ["Valjean", "Javert", "Javert"];
-        const { values, caveats } = await measured(graph, new ClosenessCentralityAlgorithm(graph, { sources }));
-        const s = referenceSnapshot(graph.getDataManager(), "undirected");
-        const indices = sources.map((id) => s.ids.requireIndex(id));
-        const reference = byId(s, closenessCentrality(s, { sources: indices }).scores);
-        for (const [id, value] of values) {
-            assert.strictEqual(value, reference.get(id), `score of ${String(id)}`);
-        }
-        assert.strictEqual(caveats.sampleSize, 3);
-    });
-
     it("a k past the node count samples every node, which is the exact score", async () => {
         const graph = await graphWith(LES_MIS);
         const exact = await measured(graph, new ClosenessCentralityAlgorithm(graph));
@@ -137,18 +126,23 @@ describe("closeness centrality through accelerated()", () => {
         assert.isTrue(exact.caveats.exact);
     });
 
-    it("refuses a k that disagrees with the sources, and a source the graph lacks", async () => {
-        const graph = await graphWith(LES_MIS);
-        for (const options of [{ k: 2, sources: ["Valjean"] }, { sources: ["nobody"] }]) {
-            let thrown: unknown;
-            try {
-                await new ClosenessCentralityAlgorithm(graph, options).run();
-            } catch (error) {
-                thrown = error;
-            }
-            assert.isTrue(isGraphtyError(thrown), String(thrown));
-            assert.strictEqual((thrown as { code: string }).code, "E_OPTION_RANGE");
+    it("takes k through the public run path, the one a consumer uses", async () => {
+        const params: Readonly<Record<string, unknown>>[] = [];
+        const harness = makeSession({
+            runs: {
+                execute: async (context: RunExecutionContext): Promise<RunOutcome> => {
+                    params.push(context.params);
+                    return Promise.reject(new Error("not needed: the params were checked"));
+                },
+            },
+        });
+        harness.add([{ id: "a" }, { id: "b" }]);
+        try {
+            await harness.session.runs.start("closeness", { k: 1 }, { style: false });
+        } catch {
+            // The executor refuses on purpose; only what reached it is under test.
         }
+        assert.deepStrictEqual(params.map((p) => p.k), [1]);
     });
 
     describe("routing", () => {

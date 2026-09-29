@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
+import type { AdjacencyView, F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
 import { ConvergenceError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
@@ -20,6 +20,7 @@ import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } 
 import type { ArcOrderOption, BfsOptions } from "./bfs.js";
 import type { ClosenessOptions } from "./closeness.js";
 import type { LabelResult } from "./components.js";
+import type { DegreesResult } from "./degree.js";
 import type { DfsOptions, DfsResult } from "./dfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { type EigenvectorOptions, minMaxRescale } from "./eigenvector.js";
@@ -282,11 +283,12 @@ export interface BetweennessAcceleratorOptions {
  * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
  *
- * `depthFirstSearch`, `stronglyConnectedComponents`, `leiden`, `girvanNewman`, `maxFlow`,
+ * `depthFirstSearch`, `degrees`, `stronglyConnectedComponents`, `leiden`, `girvanNewman`, `maxFlow`,
  * `minSTCut`, `stoerWagner`, `kargerMinCut`, `commonNeighborsPrediction`, `adamicAdarPrediction`,
  * `primMST` and `maximumBipartiteMatching` always run the CPU port: `AlgorithmAccelerator` declares no member for
  * them, since no GPU kernel exists. They are here so graphty-element runs every algorithm through
- * one object, and each gains an accelerator branch when a kernel lands. A port's throw becomes a
+ * one object, and each gains an accelerator branch when a kernel lands. `depthFirstSearch` takes any
+ * `AdjacencyView`, as its port does, so a walk can run over a reverse or an edited view. A port's throw becomes a
  * rejection.
  * @public
  */
@@ -314,7 +316,8 @@ export interface AcceleratedAlgorithms {
     betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ScoresResultLike>;
-    depthFirstSearch(s: GraphSnapshot, start: number, options?: DfsOptions): Promise<DfsResult>;
+    depthFirstSearch(g: AdjacencyView, start: number, options?: DfsOptions): Promise<DfsResult>;
+    degrees(s: GraphSnapshot): Promise<DegreesResult>;
     stronglyConnectedComponents(s: GraphSnapshot, options?: ArcOrderOption): Promise<LabelResult>;
     leiden(s: GraphSnapshot, options?: LeidenOptions): Promise<LeidenResult>;
     girvanNewman(s: GraphSnapshot, options?: GirvanNewmanOptions): Promise<GirvanNewmanResult>;
@@ -739,7 +742,8 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
-        depthFirstSearch: (s, start, options) => onCpu(() => indexed.depthFirstSearch(s, start, options)),
+        depthFirstSearch: (g, start, options) => onCpu(() => indexed.depthFirstSearch(g, start, options)),
+        degrees: (s) => onCpu(() => indexed.degrees(s)),
         stronglyConnectedComponents: (s, options) => onCpu(() => indexed.stronglyConnectedComponents(s, options)),
         leiden: (s, options) => onCpu(() => indexed.leiden(s, options)),
         girvanNewman: (s, options) => onCpu(() => indexed.girvanNewman(s, options)),

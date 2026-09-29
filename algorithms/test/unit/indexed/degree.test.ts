@@ -1,7 +1,7 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { degreeCentrality } from "../../../src/indexed/degree.js";
+import { degreeCentrality, degrees } from "../../../src/indexed/degree.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
@@ -68,4 +68,27 @@ describe("indexed.degreeCentrality", () => {
             snapshot.validate({ checksum: true });
         });
     }
+});
+
+describe("degrees", () => {
+    it("counts each edge at its declared source and target, a self-loop once in each half", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b");
+        b.addEdge("a", "c");
+        b.addEdge("c", "a");
+        b.addEdge("b", "b");
+        const { inDegree, outDegree } = degrees(b.freeze());
+        expect([...outDegree]).toEqual([2, 1, 1]);
+        expect([...inDegree]).toEqual([1, 2, 1]);
+    });
+
+    it("keeps the declared orientation on an undirected graph, so in plus out is the degree once", () => {
+        const u = new GraphBuilder({ directed: false });
+        u.addEdge("a", "b");
+        u.addEdge("c", "a");
+        u.addNode("d");
+        const { inDegree, outDegree } = degrees(u.freeze());
+        expect([...outDegree]).toEqual([1, 0, 1, 0]);
+        expect([...inDegree]).toEqual([1, 1, 0, 0]);
+    });
 });

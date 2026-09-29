@@ -282,6 +282,7 @@ type Promoted =
     | "connectedComponents"
     | "degreeCentrality"
     | "DeltaPageRank"
+    | "degrees"
     | "depthFirstSearch"
     | "dijkstra"
     | "directionOptimizedBfs"

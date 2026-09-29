@@ -1336,6 +1336,14 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
         this.#loaded = null;
         this.result = null;
+        if (this._nodes.length === 0) {
+            // Nothing to arrange, and nothing an option such as bfs's `start` names can be in yet:
+            // a layout chosen before the data arrives waits for it instead of failing.
+            this.stale = false;
+            this.#column = new Float32Array(0);
+            return;
+        }
+
         this.doLayout();
         // doLayout() clears this itself in every engine that ships here, but an engine written
         // elsewhere may not, and leaving it set would recompute the whole layout on every read.

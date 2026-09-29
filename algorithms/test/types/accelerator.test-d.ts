@@ -75,4 +75,7 @@ expectTypeOf(accelerated(acc).labelPropagation(s)).resolves.toEqualTypeOf<LabelR
 
 // ---- depth-first search walks any adjacency view, as its port does; degrees are the declared halves
 expectTypeOf<AcceleratedAlgorithms["depthFirstSearch"]>().parameter(0).toEqualTypeOf<AdjacencyView>();
-expectTypeOf(accelerated(null).degrees(s)).resolves.toEqualTypeOf<{ readonly inDegree: U32; readonly outDegree: U32 }>();
+expectTypeOf(accelerated(null).degrees(s)).resolves.toEqualTypeOf<{
+    readonly inDegree: U32;
+    readonly outDegree: U32;
+}>();

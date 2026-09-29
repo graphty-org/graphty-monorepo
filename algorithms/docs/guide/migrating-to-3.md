@@ -224,7 +224,8 @@ graphs named:
 - **Matching and isomorphism.** The matchings visit left nodes in node order and join a left node to a right one
   whichever way the arc points, so the greedy matching can differ in size and the maximum matching can pair other
   nodes; an isomorphism `edgeMatch` is offered every pair of corresponding edges, self-loops included, and directed
-  graphs are checked on in-arcs too.
+  graphs are checked on in-arcs too. An isomorphism's mapping and a matching's pairs come as arrays indexed by node, so
+  code that walks them meets the pairs in node order; 2.x returned a Map filled in the order its search found them.
 - **k-core** does not count a self-loop toward its node's core number, and refuses a directed graph.
 - **Delta PageRank.** `DeltaPageRank` and `PriorityDeltaPageRank` run over a frozen snapshot: `update()` no longer reads
   a graph changed after construction.

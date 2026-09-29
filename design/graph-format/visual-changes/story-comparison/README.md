@@ -76,33 +76,52 @@ isomorphism result differences of the 2026-09-28 owner decisions.
 ### Result changes that no graphty-element story shows
 
 The algorithm results themselves were read on both builds (`probes/results-probe.mjs`: every
-finished run's graph values and every node's and edge's values, for every `algorithms-` story).
-Apart from Louvain and the matching above, the only differences are in the last one or two
-digits of a float (PageRank, betweenness, eigenvector, HITS, link-prediction scores), too small to
-move a colour or a size. Every node and edge value of Label Propagation, Floyd Warshall, Prim,
-Bellman Ford, SCC, Max Flow and Min Cut is identical. Why each recorded result change leaves its
-story unchanged:
+algorithm run of every `algorithms-` story, its status, its graph values and every node's and
+edge's values; the runs of the two builds are paired by algorithm and by their place among that
+algorithm's runs, and a run on one side only or a status that differs is reported). Every run
+succeeded on both builds and no story gained or lost a run. Combined Edge Flow runs no algorithm on
+either build (it colours edges by their `value`), and Palette Picker holds no graph. Apart from
+Louvain and the matching above, the only differences are in the last one or two digits of a float
+(PageRank, betweenness, eigenvector, HITS, link-prediction scores), too small to move a colour or
+a size. Every node and edge value of Label Propagation, Floyd Warshall, Prim, Bellman Ford, SCC,
+Max Flow and Min Cut is identical.
 
-- **Label propagation** (another partition for the same seed): the change shows only on a graph
-  with more than one valid partition that the tie draw can pick between. On the cat network, the
-  data every algorithm story loads, the port and the legacy function reach the same communities
-  for the story's seed.
-- **Floyd-Warshall** (parallel edges and self-loops): the cat network has 29 edges, no self-loop,
-  no parallel edge and no reciprocal pair.
-- **PageRank and strongly connected components on a graph loaded undirected**: the stories load
-  the cat network with the element's default `directed: "auto"`, which is directed, so the
-  undirected reading never runs. The PageRank values differ only in the last digit.
-- **Prim and Bellman-Ford ties** (the ports break a tie by row order): both builds flag the same
-  edges. The cat network's weights are in `value`, and both algorithms read `weight`, so every edge
-  weighs 1 and every choice is a tie, but the ports' row order and the legacy functions' insertion
-  order pick the same edges on this data. The change shows only on a graph where the two orders
-  disagree.
-- **Max flow** (net flow on opposite directed edges): the story's water network has no pair of
-  opposite edges.
-- **Min cut** (Karger now seeded): the story runs the default s-t cut, not Karger's algorithm.
-- **Data stories** (graph-io reading the files): the drawings are identical once settled. The
-  differences are in text a tooltip or data panel shows, which appears only when a reader hovers
-  or selects a node; no story does either at its default arguments.
+The algorithm stories load the cat network: 20 nodes and 29 directed edges, with no self-loop, no
+parallel edge and no reciprocal pair, each edge weighing its `value` (1 to 10). What each recorded
+result change does, and why it leaves its story unchanged:
+
+- **Label propagation.** The port uses a work queue instead of full sweeps, a uniform tie draw and
+  another random generator, so the same seed can give other communities on a graph with more than
+  one valid partition. On the cat network the port reaches the same communities as the legacy
+  function for the story's seed.
+- **Floyd-Warshall.** The cheapest of several parallel edges now sets the distance (the last one
+  added did), and a positive self-loop no longer overwrites a node's distance to itself, so
+  eccentricity, diameter and radius change on graphs with either. The cat network has neither.
+- **PageRank and strongly connected components.** The ports read a graph loaded undirected as
+  edges both ways. The stories load the cat network with the element's default
+  `directed: "auto"`, which is directed, so the undirected reading never runs. The PageRank
+  values differ only in the last digit.
+- **Prim and Bellman-Ford.** The ports break a tie between equally cheap edges by edge index and
+  relax arcs in row order; the old code used its heap's insertion order and edge order. Both
+  builds flag the same edges, with the same tree weight (84) and the same route cost (11), because
+  the `value` weights leave no tie that the two orders settle differently. An earlier version of
+  the index said 8 of the 29 Prim edge flags change on the cat network; that count is for every
+  edge weighing 1. `probes/prim-ties.mjs` runs the 2.x `primMST` and the 3.0 port on the cat
+  network and reproduces it: 8 of 29 flags differ with unit weights, none with the `value`
+  weights. No story runs Prim unweighted.
+- **Max flow.** The flow port reports the net flow of a pair of opposite directed edges, each
+  within its capacity. The story's water network has no pair of opposite edges.
+- **Min cut.** Three changes: Stoer-Wagner adds the weights of two opposite directed edges, the s-t
+  cut reports its cut edges on graphs with numeric ids (it reported none), and Karger's cut is
+  seeded. The Min Cut story sets no source and no sink, so the element runs Stoer-Wagner's global
+  minimum cut, on the cat network, which has no reciprocal pair: the cut value is 9 on both
+  builds. The s-t cut runs only when a source and a sink are set, and Karger's only with
+  `useKarger`.
+- **Data stories.** graph-io now reads the files: JSON keys with null values are dropped,
+  mixed-type CSV columns widen to text, CSV ids stay text and a Neo4j node gains its `:ID` key. The
+  drawings are identical once settled. The differences are in text a tooltip or data panel shows,
+  which appears only when a reader hovers or selects a node; no story does either at its default
+  arguments.
 - **The undo work of pull request #553**: it is merged into both master and the branch, and the
   comparison of all 189 stories finds nothing beyond the rows above.
 
@@ -112,7 +131,9 @@ Four stories differ from before the migration, and none differs from master now:
 with pull request #587. Their captures and causes are in
 [layout-stories](../layout-stories/README.md): Layout2D / ARF (33007 pixels), Layout3D /
 Kamada-Kawai 3D (2537), Layout3D / Spherical (5) and Layout3D / Spring 3D (3). Nine more stories
-differ in their PNG bytes but in no pixel above the threshold.
+differ in their PNG bytes but in no pixel above the threshold. These counts are at 1000x800 with
+the threshold above; the record counts on visual-review's own 1200x900 capture, which is why it
+says 4 pixels for Spring 3D.
 
 ## graphty app
 
@@ -131,6 +152,11 @@ replaced, so it was compared too.
 | Community / Label Propagation | "2 iterations" where it said 3; same three groups | the port stops as soon as every label is dominant                                                | yes           |
 | Matching / Isomorphism        | nodes 2, 3 and 4 and their images change colour   | the same mapping, now listed in node order; the story colours each pair by its place in the list | no            |
 | Matching / Bipartite          | the pairs listed in another order; the same pairs | the 3.0 matching returns its pairs in node order                                                 | no            |
+
+The order in the last two rows is not one of the three matching and isomorphism differences the
+owner accepted on 2026-09-28. It comes with the 3.0 result shape: a mapping or a matching is a
+typed array indexed by node, where 2.x returned a Map filled in the order its search found the
+pairs. The algorithms migration guide now says so; the owner decides it on pull request #587.
 
 ![Label Propagation, before (left) and after (right)](algorithms-label-propagation.png)
 
@@ -153,9 +179,14 @@ Build every package and the Storybooks on the commits to compare, then, from the
 node design/graph-format/visual-changes/story-comparison/probes/compare.mjs \
     <before>/graphty-element/storybook-static <after>/graphty-element/storybook-static <out> \
     [--settle 15000] [--ids <id>,<id>] [--jobs 8]
-# every finished algorithm run's values, per story whose id starts with the prefix
+# every algorithm run's status and values, per story whose id starts with the prefix
+# (--self-test checks the pairing of runs without a browser)
 node design/graph-format/visual-changes/story-comparison/probes/results-probe.mjs \
     <before>/graphty-element/storybook-static <after>/graphty-element/storybook-static algorithms-
+# the 2.x primMST against the 3.0 port on the cat network, unit and value weights
+node design/graph-format/visual-changes/story-comparison/probes/prim-ties.mjs \
+    <before>/algorithms/dist/algorithms.js <after>/algorithms/dist/algorithms.js \
+    <after>/graph-format/dist/graph-format.js
 # a before-and-after image of one pair, optionally cropped to x0 y0 x1 y1
 python3 design/graph-format/visual-changes/story-comparison/probes/pair.py <out> <story> <png> [x0 y0 x1 y1]
 ```

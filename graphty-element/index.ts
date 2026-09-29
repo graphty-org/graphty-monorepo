@@ -142,6 +142,11 @@ export { Algorithm } from "./src/algorithms/Algorithm";
 export { registerCameraView } from "./src/catalog/cameraRegistry";
 export { registerLogSink } from "./src/catalog/logSinkRegistry";
 export { registerPalette } from "./src/catalog/paletteRegistry";
+// The simple tier's verbs, so a page with no build step reaches them from the bundle too.
+export { defineAlgorithm } from "./src/simple/defineAlgorithm";
+export { defineLayout } from "./src/simple/defineLayout";
+export { defineLogDestination } from "./src/simple/defineLogDestination";
+export { definePalette } from "./src/simple/definePalette";
 
 // =============================================================================
 // Events

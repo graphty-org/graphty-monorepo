@@ -21,7 +21,7 @@ The simplest approach: count shared neighbours.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { commonNeighborsScore } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("alice", "bob");
@@ -32,7 +32,7 @@ builder.addEdge("carol", "dave");
 const graph = builder.freeze();
 
 // How many friends do alice and dave share?
-const score = indexed.commonNeighborsScore(graph, graph.ids.requireIndex("alice"), graph.ids.requireIndex("dave"));
+const score = commonNeighborsScore(graph, graph.ids.requireIndex("alice"), graph.ids.requireIndex("dave"));
 console.log(score); // 2
 ```
 
@@ -48,7 +48,7 @@ more to the score.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { adamicAdarScore } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("alice", "bob");
@@ -59,7 +59,7 @@ builder.addEdge("carol", "dave");
 const graph = builder.freeze();
 
 // The sum of 1 / log(degree) over the common neighbours
-const score = indexed.adamicAdarScore(graph, graph.ids.requireIndex("alice"), graph.ids.requireIndex("dave"));
+const score = adamicAdarScore(graph, graph.ids.requireIndex("alice"), graph.ids.requireIndex("dave"));
 console.log(score.toFixed(3)); // 1.820
 ```
 
@@ -77,7 +77,7 @@ one score per pair:
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { commonNeighborsForPairs } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -87,7 +87,7 @@ builder.addEdge("a", "c");
 const graph = builder.freeze();
 const [a, b, c, d] = ["a", "b", "c", "d"].map((id) => graph.ids.requireIndex(id));
 
-const scores = indexed.commonNeighborsForPairs(graph, { sources: [a, b], targets: [d, d] });
+const scores = commonNeighborsForPairs(graph, { sources: [a, b], targets: [d, d] });
 console.log(scores); // [1, 1]
 ```
 
@@ -99,7 +99,7 @@ Rank every pair of nodes not yet joined by an edge, highest score first:
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { adamicAdarPrediction } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("alice", "bob");
@@ -110,14 +110,14 @@ builder.addEdge("dave", "eve");
 const graph = builder.freeze();
 const name = (i: number) => String(graph.ids.idOf(i));
 
-const top = indexed.adamicAdarPrediction(graph, { topK: 3 });
+const top = adamicAdarPrediction(graph, { topK: 3 });
 for (let k = 0; k < top.scores.length; k++) {
     console.log(`${name(top.sources[k])} - ${name(top.targets[k])}: ${top.scores[k].toFixed(3)}`);
 }
 console.log(`${name(top.sources[0])} - ${name(top.targets[0])}`); // alice - dave
 ```
 
-`indexed.commonNeighborsPrediction(graph, { topK })` ranks by common neighbours instead, and `includeExisting: true`
+`commonNeighborsPrediction(graph, { topK })` ranks by common neighbours instead, and `includeExisting: true`
 also scores pairs that are already joined.
 
 ## Practical Example: Friend Recommendations
@@ -126,7 +126,7 @@ also scores pairs that are already joined.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { getTopAdamicAdarCandidatesForNode } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("alice", "bob");
@@ -140,13 +140,13 @@ builder.addEdge("dave", "frank");
 const social = builder.freeze();
 
 // The best candidates for alice, among the people she does not know yet
-const recommendations = indexed.getTopAdamicAdarCandidatesForNode(social, social.ids.requireIndex("alice"), {
+const recommendations = getTopAdamicAdarCandidatesForNode(social, social.ids.requireIndex("alice"), {
     topK: 3,
 });
 console.log(Array.from(recommendations.targets, (i) => social.ids.idOf(i))); // ["dave", "eve"]
 ```
 
-`indexed.getTopCandidatesForNode` does the same by common neighbours.
+`getTopCandidatesForNode` does the same by common neighbours.
 
 ## Evaluating a Predictor
 
@@ -156,7 +156,7 @@ Hold some edges out of the graph, then ask how well each method ranks them above
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { compareAdamicAdarWithCommonNeighbors } from "@graphty/algorithms";
 
 // The training graph, without the held-out edge a-d
 const builder = new GraphBuilder({ directed: false });
@@ -170,7 +170,7 @@ const [a, b, c, d, e] = ["a", "b", "c", "d", "e"].map((id) => graph.ids.requireI
 
 const heldOut = { sources: [a], targets: [d] };
 const nonEdges = { sources: [a, b], targets: [e, c] };
-const { adamicAdar, commonNeighbors } = indexed.compareAdamicAdarWithCommonNeighbors(graph, heldOut, nonEdges);
+const { adamicAdar, commonNeighbors } = compareAdamicAdarWithCommonNeighbors(graph, heldOut, nonEdges);
 console.log(adamicAdar.auc, commonNeighbors.auc); // 1 1
 ```
 

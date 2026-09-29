@@ -1,11 +1,11 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { bellmanFord } from "../../../src/indexed/bellman-ford.js";
 import { dijkstra } from "../../../src/indexed/dijkstra.js";
-import { exactArcWeights } from "../../../src/indexed/facade.js";
+import { exactArcWeights } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 

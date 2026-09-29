@@ -5,7 +5,7 @@
  * or the global minimum cut of a graph. Uses the max-flow min-cut theorem.
  */
 
-import { indexed, type IndexedMinCutResult } from "@graphty/algorithms";
+import { kargerMinCut, type MinCutResult, minSTCut, stoerWagner } from "@graphty/algorithms";
 import { INVALID_INDEX, maskTest } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -197,7 +197,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
         const { useKarger, kargerIterations } = this._schemaOptions;
 
-        let cut: IndexedMinCutResult;
+        let cut: MinCutResult;
         let method: string;
         let autoEndNote: string | undefined;
 
@@ -206,10 +206,10 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
             if (useKarger) {
                 method = "karger";
-                cut = indexed.kargerMinCut(cutInput, { iterations: kargerIterations });
+                cut = kargerMinCut(cutInput, { iterations: kargerIterations });
             } else {
                 method = "stoer-wagner";
-                cut = indexed.stoerWagner(cutInput);
+                cut = stoerWagner(cutInput);
             }
         } else {
             method = "min-st-cut";
@@ -226,7 +226,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                     "set both source and sink to cut between the nodes you mean.";
             }
 
-            cut = indexed.minSTCut(cutInput, cutInput.ids.indexOf(source), cutInput.ids.indexOf(sink));
+            cut = minSTCut(cutInput, cutInput.ids.indexOf(source), cutInput.ids.indexOf(sink));
         }
 
         // Every declared edge maps onto the input edge it was merged into, so both edges of a

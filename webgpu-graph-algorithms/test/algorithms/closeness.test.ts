@@ -1,7 +1,7 @@
 /**
  * Closeness centrality (design 8.4, 3.3 line 810, 9.7, 11.3; P8-T11, the P8 plan's PD-13 / PD-19 / PD-25 / DEP-P8-F)
- * against `closenessOracle`, the CPU `indexed.closenessCentrality` of `@graphty/algorithms` called with no options
- * (the parity target, which computes what the legacy `closenessCentrality` did: `1 / sumOfDistances`, `0` when
+ * against `closenessOracle`, the CPU `closenessCentrality` of `@graphty/algorithms` called with no options
+ * (the parity target, which computes what algorithms 2.x's id-keyed `closenessCentrality` did: `1 / sumOfDistances`, `0` when
  * nothing is reached, no reached factor and no Wasserman-Faust scaling), and the closed forms of the path and the star -- every readback naming its buffer: the
  * `perSource` block of every batch (the exact integer `reached` and 64-bit `sum` per source, read through the inspect
  * seam) and the `scores` the driver folds from it. The path and the star analytically, karate against the oracle AND
@@ -14,7 +14,7 @@
  * (the empty graph, one node, `dest`, a negative weight). Run-twice bitwise on `perSource` and `scores` everywhere.
  */
 
-import { indexed } from "@graphty/algorithms";
+import { closenessCentrality as cpuClosenessCentrality } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
@@ -56,13 +56,13 @@ async function expectRejection(promise: Promise<unknown>, code: string): Promise
 }
 
 /**
- * The CPU closeness of `@graphty/algorithms` on the same snapshot with no options, which computes what the legacy
- * `closenessCentrality` did (the algorithms package checks it against that function's recorded results).
+ * The CPU closeness of `@graphty/algorithms` on the same snapshot with no options, which computes what the
+ * id-keyed `closenessCentrality` of 2.x did (the algorithms package checks it against that function's recorded results).
  * @param s - the snapshot
  * @returns the CPU scores by node index
  */
 function cpuScores(s: GraphSnapshot): Float64Array {
-    return indexed.closenessCentrality(s).scores;
+    return cpuClosenessCentrality(s).scores;
 }
 
 /**

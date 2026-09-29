@@ -8,15 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { bipartitePartition, Graph, maximumBipartiteMatching } from "@graphty/algorithms";
+import { isBipartite, maximumBipartiteMatching } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    type GraphNode,
-    SeededRandom,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, type GraphNode, SeededRandom } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -94,23 +92,6 @@ function generateBipartiteGraph(
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Color palette for bipartite partitions.
  */
 const PARTITION_COLORS = {
@@ -128,11 +109,18 @@ function createBipartiteStory(args: BipartiteArgs): HTMLElement {
 
     // Generate bipartite graph
     const generatedGraph = generateBipartiteGraph(leftNodes, rightNodes, edgeProbability, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Get bipartite partition and matching
-    const partition = bipartitePartition(graph);
-    const matching = maximumBipartiteMatching(graph);
+    const partition = isBipartite(graph).bipartite ? true : null;
+    const matched = maximumBipartiteMatching(graph);
+    // Left node id -> right node id of every matched pair
+    const matching = { size: matched.size, matching: new Map<number, number>() };
+    matched.matching.forEach((right, left) => {
+        if (right !== INVALID_INDEX) {
+            matching.matching.set(Number(graph.ids.idOf(left)), Number(graph.ids.idOf(right)));
+        }
+    });
 
     // Create container
     const { container, svg } = createStoryContainer();

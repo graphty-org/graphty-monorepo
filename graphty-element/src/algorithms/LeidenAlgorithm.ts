@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/algorithms";
+import { leiden } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -147,7 +147,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
 
         context.report({ phase: "Refining communities", total: null });
 
-        const result = indexed.leiden(snapshot, {
+        const result = leiden(snapshot, {
             resolution,
             randomSeed,
             maxIterations,

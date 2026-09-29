@@ -134,6 +134,9 @@ export interface CostRates {
  * If a cubic algorithm is ever timed, replace this constant; do not fit an exponent to hide it.
  *
  * `test/session/cost/estimate-against-measured-runs.test.ts` times real runs against these rates.
+ * They were fitted to the object-graph route; the adapters now run the snapshot functions, which are
+ * 10 to 180 times faster, so 12 of that test's rows fail as too pessimistic until the rates are
+ * refitted (issue #604).
  */
 export const DEFAULT_COST_RATES: Readonly<CostRates> = Object.freeze({
     linearElementsPerSecond: 1_000_000,

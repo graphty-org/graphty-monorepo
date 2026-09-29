@@ -1,11 +1,11 @@
 import { GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import type { Graph } from "../../../src/core/graph.js";
 import { betweennessCentrality, edgeBetweennessCentrality, resolveSources } from "../../../src/indexed/betweenness.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
 import { legacyResult } from "../../helpers/golden.js";
+import type { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 

@@ -1,12 +1,12 @@
 import { expandEdges, type GraphSnapshot, maskTest, type NodeMask } from "@graphty/graph-format";
 import { describe, expect, it, vi } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import type { MinCutResult } from "../../../src/indexed/flow.js";
 import { mulberry32 } from "../../../src/indexed/label-propagation.js";
 import { kargerMinCut, stoerWagner } from "../../../src/indexed/min-cut.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
 function exactWeights(s: GraphSnapshot): Float64Array | undefined {

@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/algorithms";
+import { APSP_DEFAULT_MAX_NODES } from "@graphty/algorithms";
 
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
@@ -57,7 +57,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
 
         // The matrix is n * n doubles. Past the bound it is refused here, before a byte of it is
         // allocated, rather than left to run the tab out of memory.
-        const limit = indexed.APSP_DEFAULT_MAX_NODES;
+        const limit = APSP_DEFAULT_MAX_NODES;
         if (snapshot.nodeCount > limit) {
             throw new GraphtyError({
                 code: "E_TOO_LARGE",

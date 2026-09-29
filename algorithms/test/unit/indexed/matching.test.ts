@@ -1,15 +1,15 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskTest } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { isBipartite } from "../../../src/indexed/bipartite.js";
 import {
     type BipartiteMatchingResult,
     greedyBipartiteMatching,
     maximumBipartiteMatching,
 } from "../../../src/indexed/matching.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 /** A seeded bipartite graph: `left` nodes l0.., `right` nodes r0.., `edges` random cross edges. */

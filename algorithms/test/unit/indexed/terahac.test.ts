@@ -1,14 +1,13 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { teraHAC } from "../../../src/indexed/terahac.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { type ClusterNode, type TeraHACConfig } from "../../../src/research/terahac.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId, TeraHACClusterNode as ClusterNode, TeraHACConfig } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 /** The port's dendrogram in the legacy shape, with node indices as ids (the ids legacy was recorded with: the same graph renumbered 0..n-1). */

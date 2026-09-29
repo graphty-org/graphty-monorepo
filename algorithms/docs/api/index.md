@@ -1,185 +1,99 @@
 # API Reference
 
-Complete API documentation for `@graphty/algorithms`.
+Complete API documentation for `@graphty/algorithms`. Every algorithm takes a frozen `GraphSnapshot` from
+`@graphty/graph-format` first and an options object last, and returns typed arrays indexed by node (or edge) index.
+See [Graph Data Structure](../guide/graph.md) for building a snapshot and mapping node ids to indices.
 
-## Core
+[Every function and type in the generated TypeDoc](./generated/index/)
 
-### Graph
+## Traversal
 
-The primary data structure for all algorithms.
+- `breadthFirstSearch()` - BFS; `target` stops early, `maxDepth` bounds the depth, `arcOrder` sets the neighbour order
+- `directionOptimizedBfs()` - BFS that switches to bottom-up steps over `reverse()` on large frontiers
+- `depthFirstSearch()` - DFS in pre- or post-order; takes `target` and `arcOrder`
+- `hasCycle()` - Whether the graph has a cycle
+- `topologicalSort()` - Topological order as node indices, or null on a cycle
+- `isBipartite()` - Bipartiteness and the two sides as a node mask
 
-```typescript
-import { Graph } from "@graphty/algorithms";
+## Components
 
-const graph = new Graph<string>();
-const directed = new Graph<string>({ directed: true });
-```
+- `connectedComponents()` - Components of an undirected graph: a label per node, `count`, `groups()`
+- `weaklyConnectedComponents()` - Components ignoring direction
+- `stronglyConnectedComponents()` - Tarjan, components labelled in completion order
+- `condensation()` - Strongly connected components and the condensed DAG
 
-- [Graph API Reference](./generated/core/graph/classes/Graph.md) - Complete Graph class documentation
+## Shortest Paths
 
-### Types
+- `dijkstra()` - Single-source shortest paths over non-negative weights; `pathTo(target)`
+- `bellmanFord()` - Single-source shortest paths with negative weights, and the negative-cycle flag
+- `bidirectionalDijkstra()` - One shortest path, naming the edges taken
+- `astar()` - A\* search, the heuristic taking node indices
+- `allPairsShortestPath()` - Every pair, as a row-major typed-array matrix (Floyd-Warshall or one search per source)
+- `walkPredArcs()`, `walkPredEdges()` - The arcs or edges of a path from a predecessor array
 
-TypeScript type definitions for algorithm inputs and outputs.
+## Spanning Trees
 
-- [Types Reference](./generated/types/) - All type definitions
+- `kruskalMST()` - Kruskal's minimum spanning tree
+- `primMST()` - Prim's minimum spanning tree from a start node, optionally spanning every component
 
-## Algorithm Categories
+## Centrality
 
-### Traversal
+- `degreeCentrality()` - In-, out- or total degree, optionally normalised
+- `betweennessCentrality()`, `edgeBetweennessCentrality()` - Brandes betweenness, exact or sampled
+- `closenessCentrality()`, `nodeClosenessCentrality()` - Closeness or harmonic closeness, by hops or by weight
+- `eigenvectorCentrality()` - Power iteration; throws `ConvergenceError` when it does not converge
+- `katzCentrality()` - Attenuated walk counts
+- `hits()` - Hub and authority scores
+- `pageRank()`, `personalizedPageRank()` - PageRank, and with a restart vector
+- `DeltaPageRank`, `PriorityDeltaPageRank` - Incremental PageRank engines over a snapshot
 
-Visit nodes in a systematic order.
+## Community Detection
 
-- `bfs()` - Breadth-First Search
-- `dfs()` - Depth-First Search
-- `iterativeDeepeningDfs()` - Iterative Deepening DFS
-- `bidirectionalSearch()` - Bidirectional BFS
-- `topologicalSort()` - Topological ordering (DAG)
-- `indexed.breadthFirstSearch()` - BFS over a snapshot; `target` stops early, `arcOrder` sets the neighbour order
-- `indexed.directionOptimizedBfs()` - Direction-optimising BFS over a snapshot, switching to bottom-up steps over `reverse()`
-- `indexed.depthFirstSearch()` - DFS over a snapshot in pre- or post-order; takes `target` and `arcOrder`
-- `indexed.hasCycle()` - Whether a snapshot has a cycle
-- `indexed.topologicalSort()` - Topological order of a snapshot as node indices, or null on a cycle
-- `indexed.isBipartite()` - Bipartiteness and the two sides as a node mask; `arcs: "out"` follows out-arcs only on a directed snapshot
+- `louvain()`, `leiden()` - Modularity optimisation, seeded
+- `girvanNewman()` - Divisive clustering by edge betweenness, one label vector per level
+- `labelPropagation()`, `labelPropagationSynchronous()`, `labelPropagationSemiSupervised()` - Label propagation
+- `modularity()` - Newman's modularity of a partition
 
-[Traversal functions in the generated TypeDoc](./generated/index/)
+## Clustering
 
-### Shortest Path
+- `kCoreDecomposition()` - Core number of every node
+- `hierarchicalClustering()` - Agglomerative clustering by hop distance; `cut(height)` gives clusters
+- `markovClustering()` - Markov clustering (MCL)
+- `spectralClustering()` - Spectral clustering on the graph Laplacian
+- `teraHAC()`, `syncClustering()`, `grsbm()` - Research clustering algorithms
 
-Find optimal paths between nodes.
+## Flow and Cuts
 
-- `dijkstra()` - Weighted non-negative edges
-- `bellmanFord()` - Handles negative weights
-- `indexed.bellmanFord()` - Bellman-Ford over a snapshot, with the negative-cycle flag
-- `indexed.bidirectionalDijkstra()` - One shortest path over a snapshot, naming the exact edges taken
-- `indexed.astar()` - A\* over a snapshot, the heuristic taking node indices
-- `floydWarshall()` - All pairs shortest paths
-- `indexed.allPairsShortestPath()` - All pairs shortest paths over a snapshot, as a typed-array matrix
-- `aStar()` - Heuristic-guided search
+- `maxFlow()` - Maximum flow (Edmonds-Karp or Ford-Fulkerson), flow per edge and the minimum cut
+- `minSTCut()` - Minimum cut between two nodes
+- `stoerWagner()`, `kargerMinCut()` - Global minimum cut, exact or seeded randomised
+- `bipartiteFlowNetwork()` - The flow network of a bipartite matching problem
 
-[Shortest Path functions in the generated TypeDoc](./generated/index/)
+## Matching and Isomorphism
 
-### Centrality
+- `maximumBipartiteMatching()`, `greedyBipartiteMatching()` - Bipartite matchings
+- `isGraphIsomorphic()`, `findAllIsomorphisms()` - Graph isomorphism, with node and edge match callbacks
 
-Measure node importance.
+## Link Prediction
 
-- `degreeCentrality()` - Connection count
-- `betweennessCentrality()` - Bridge position
-- `closenessCentrality()` - Proximity to all nodes
-- `eigenvectorCentrality()` - Influential connections
-- `pageRank()` - Link analysis
-- `hits()` - Hub/Authority scores
-- `katzCentrality()` - Influence with base score
-- `indexed.degreeCentrality()`, `indexed.closenessCentrality()`, `indexed.nodeClosenessCentrality()` - Degree and closeness over a snapshot, as typed arrays
-- `indexed.betweennessCentrality()`, `indexed.edgeBetweennessCentrality()` - Brandes betweenness over a snapshot, exact or sampled, with an optional alive-edge mask
+- `commonNeighborsScore()`, `commonNeighborsForPairs()`, `commonNeighborsPrediction()`, `getTopCandidatesForNode()`,
+  `evaluateCommonNeighbors()` - Common neighbours
+- `adamicAdarScore()`, `adamicAdarForPairs()`, `adamicAdarPrediction()`, `getTopAdamicAdarCandidatesForNode()`,
+  `evaluateAdamicAdar()`, `compareAdamicAdarWithCommonNeighbors()` - Adamic-Adar
 
-[Centrality functions in the generated TypeDoc](./generated/index/)
+## Acceleration
 
-### Connected Components
+- `accelerated()` - Runs the algorithms through an accelerator such as `@graphty/webgpu-graph-algorithms` where it
+  implements them, and on the CPU otherwise
+- `AlgorithmAccelerator` and the `*Like` result types - The seam an accelerator implements
 
-Find connected subgraphs.
+## Data Structures and Errors
 
-- `connectedComponents()` - Undirected components
-- `stronglyConnectedComponents()` - Directed components
-- `weaklyConnectedComponents()` - Directed (ignoring direction)
-- `isConnected()` - Check connectivity
-- `isStronglyConnected()` - Check strong connectivity
-- `indexed.stronglyConnectedComponents()` - Tarjan over a snapshot, components labelled in completion order
-- `indexed.condensation()` - Strongly connected components and the condensed DAG built by `contract()`
+- `PriorityQueue`, `UnionFind` - General-purpose structures
+- `IndexedMinHeap`, `IntUnionFind`, `arcSourceIn()` - The index-based structures the algorithms share
+- `ConvergenceError`, `PathWalkError` - What an algorithm throws when it cannot finish
 
-[Components functions in the generated TypeDoc](./generated/index/)
+## Deprecated
 
-### Minimum Spanning Tree
-
-Find minimum-weight spanning trees.
-
-- `kruskal()` - Kruskal's algorithm
-- `prim()` - Prim's algorithm
-- `indexed.primMST()` - Prim over a snapshot, optionally spanning every component
-- `minimumSpanningTree()` - Auto-selects best algorithm
-
-[MST functions in the generated TypeDoc](./generated/index/)
-
-### Community Detection
-
-Identify node communities.
-
-- `louvain()` - Fast modularity optimization
-- `girvanNewman()` - Edge betweenness removal
-- `indexed.girvanNewman()` - Girvan-Newman over a snapshot: one typed-array partition and modularity per level
-- `indexed.leiden()` - Leiden over a snapshot: connected communities and their modularity
-- `labelPropagation()` - Near-linear time detection
-- `indexed.labelPropagation()` - Seeded fast label propagation over a snapshot, as a typed-array partition
-- `indexed.labelPropagationSemiSupervised()` - Fast label propagation with some nodes held at a given label
-- `indexed.labelPropagationSynchronous()` - Deterministic label propagation in synchronous passes
-- `kCliqueCommunities()` - Overlapping communities
-- `modularity()` - Partition quality measure
-
-[Community functions in the generated TypeDoc](./generated/index/)
-
-### Clustering
-
-Analyze local graph structure.
-
-- `clusteringCoefficient()` - Local clustering
-- `averageClusteringCoefficient()` - Global average
-- `transitivity()` - Global clustering
-- `triangles()` - Triangle count per node
-- `kCore()` - K-core subgraph
-- `coreNumber()` - Core decomposition
-
-[Clustering functions in the generated TypeDoc](./generated/index/)
-
-### Flow Algorithms
-
-Network flow and cuts.
-
-- `maxFlow()` - Maximum flow
-- `fordFulkerson()` - Augmenting path method
-- `edmondsKarp()` - BFS-based flow
-- `minCut()` - Minimum cut
-- `indexed.maxFlow()` - Maximum flow over a snapshot, with per-edge flows as a typed array
-- `indexed.minSTCut()`, `indexed.stoerWagner()`, `indexed.kargerMinCut()` - s-t, global and seeded randomized minimum cuts over a snapshot
-- `indexed.bipartiteFlowNetwork()` - Builds the unit-capacity matching network as a snapshot
-
-[Flow functions in the generated TypeDoc](./generated/index/)
-
-### Matching
-
-Bipartite matching algorithms.
-
-- `maxBipartiteMatching()` - Maximum matching
-- `hungarianAlgorithm()` - Weighted matching
-- `hopcroftKarp()` - Fast bipartite matching
-- `indexed.maximumBipartiteMatching()` - Maximum bipartite matching over a snapshot, as a typed array of partners; the sides come from `indexed.isBipartite()` or are passed as node masks
-- `indexed.greedyBipartiteMatching()` - Greedy maximal bipartite matching over a snapshot, in node index order
-- `indexed.isGraphIsomorphic()`, `indexed.findAllIsomorphisms()` - VF2 isomorphism search between two snapshots, with node and edge predicates taking indices
-
-[Matching functions in the generated TypeDoc](./generated/index/)
-
-### Link Prediction
-
-Predict missing or future edges.
-
-- `commonNeighbors()` - Shared neighbors
-- `jaccardCoefficient()` - Relative overlap
-- `adamicAdar()` - Weighted common neighbors
-- `preferentialAttachment()` - Degree-based
-- `resourceAllocation()` - Resource distribution
-
-[Link Prediction functions in the generated TypeDoc](./generated/index/)
-
-## Data Structures
-
-Internal data structures available for advanced use.
-
-- `PriorityQueue` - Min/max heap
-- `UnionFind` - Disjoint set union
-- `BitSet` - Efficient boolean array
-
-```typescript
-import { PriorityQueue, UnionFind } from "@graphty/algorithms";
-```
-
-## Generated TypeDoc
-
-For complete TypeScript API documentation including all interfaces, types, and function signatures, see the [Generated TypeDoc](#generated-typedoc) section in the sidebar.
+- `indexed` - The namespace algorithms 2.x offered these functions under; `indexed.pageRank` is `pageRank`. Removed in
+  4.0. The [migration guide](../guide/migrating-to-3.md) lists the replacement for every other 2.x export.

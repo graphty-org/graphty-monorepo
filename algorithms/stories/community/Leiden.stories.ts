@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, leiden } from "@graphty/algorithms";
+import { leiden } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { labelsById, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -33,23 +30,6 @@ interface LeidenArgs {
     graphType: GraphType;
     resolution: number;
     seed: number;
-}
-
-/**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
 }
 
 /**
@@ -74,7 +54,7 @@ function createLeidenStory(args: LeidenArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
 
     // Run Leiden algorithm
     const leidenResult = leiden(graph, { resolution });
@@ -83,7 +63,7 @@ function createLeidenStory(args: LeidenArgs): HTMLElement {
     const communitiesArray: string[][] = [];
     const labelToIndex = new Map<number, number>();
 
-    for (const [nodeId, label] of leidenResult.communities) {
+    for (const [nodeId, label] of labelsById(graph, leidenResult.labels)) {
         let commIndex = labelToIndex.get(label);
         if (commIndex === undefined) {
             commIndex = communitiesArray.length;
@@ -250,7 +230,10 @@ function createLeidenStory(args: LeidenArgs): HTMLElement {
 
         updateLegend();
         updateCommunitiesDisplay();
-        updateStatus(statusPanel, `Found ${result.communities.length} communities (modularity: ${result.modularity.toFixed(4)})`);
+        updateStatus(
+            statusPanel,
+            `Found ${result.communities.length} communities (modularity: ${result.modularity.toFixed(4)})`,
+        );
     }
 
     /**

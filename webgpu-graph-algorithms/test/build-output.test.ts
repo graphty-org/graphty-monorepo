@@ -143,6 +143,10 @@ describe("package.json (contract 2.1)", () => {
         // before (1.x current) and after the 2.0.0 bump.
         expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0 || ^2.0.0");
         expect(packageJson.devDependencies["@graphty/layout"]).toBe("workspace:^");
+        // algorithms 3.0.0 removed the legacy Graph API and kept the accelerator seam, the only thing this package
+        // imports from it, so 1.x, 2.x and 3.x are all accepted; the range holds the current version before and after
+        // the 3.0.0 bump, as nx release requires.
+        expect(packageJson.peerDependencies["@graphty/algorithms"]).toBe("^1.0.0 || ^2.0.0 || ^3.0.0");
         expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
         expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");

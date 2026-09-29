@@ -46,7 +46,7 @@ export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderO
  * @returns The labels, their count and the pop order
  * @throws Error when the graph is undirected
  */
-export function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; count: number; popped: U32 } {
+function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; count: number; popped: U32 } {
     if (!g.directed) {
         throw new Error(
             "Strongly connected components require a directed graph. Use connectedComponents for an undirected one.",

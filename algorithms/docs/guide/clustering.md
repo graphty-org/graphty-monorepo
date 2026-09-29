@@ -13,7 +13,7 @@ the largest k whose k-core contains it.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { kCoreDecomposition } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 // A 4-clique with a tail
@@ -27,7 +27,7 @@ builder.addEdge("d", "e");
 builder.addEdge("e", "f");
 const graph = builder.freeze();
 
-const result = indexed.kCoreDecomposition(graph);
+const result = kCoreDecomposition(graph);
 console.log(result.coreness); // [3, 3, 3, 3, 1, 1]
 console.log(result.maxCore); // 3
 
@@ -50,7 +50,7 @@ Builds a hierarchy of clusters by repeatedly merging the two closest ones, measu
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { hierarchicalClustering } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -58,7 +58,7 @@ builder.addEdge("b", "c");
 builder.addEdge("c", "d");
 const graph = builder.freeze();
 
-const dendrogram = indexed.hierarchicalClustering(graph, {
+const dendrogram = hierarchicalClustering(graph, {
     linkage: "average", // "single", "complete", "average" or "ward"
 });
 console.log(dendrogram.left.length); // 3
@@ -76,7 +76,7 @@ Uses the eigenvectors of the graph Laplacian to split the graph into `k` cluster
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { spectralClustering } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -88,7 +88,7 @@ builder.addEdge("e", "f");
 builder.addEdge("c", "d");
 const graph = builder.freeze();
 
-const result = indexed.spectralClustering(graph, { k: 2, seed: 42 });
+const result = spectralClustering(graph, { k: 2, seed: 42 });
 console.log(result.count); // 2
 console.log(result.labels[0] === result.labels[1], result.labels[0] === result.labels[5]); // true false
 ```
@@ -101,7 +101,7 @@ Simulates random walks: flow is expanded along the edges and then sharpened, unt
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { markovClustering } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -113,12 +113,12 @@ builder.addEdge("e", "f");
 builder.addEdge("c", "d");
 const graph = builder.freeze();
 
-const result = indexed.markovClustering(graph, { expansion: 2, inflation: 2 });
+const result = markovClustering(graph, { expansion: 2, inflation: 2 });
 console.log(result.count); // 2
 console.log(result.converged); // true
 ```
 
-`indexed.teraHAC`, `indexed.grsbm` and `indexed.syncClustering` offer further clustering methods with the same partition
+`teraHAC`, `grsbm` and `syncClustering` offer further clustering methods with the same partition
 result.
 
 ## Practical Example: Finding Cohesive Groups
@@ -127,7 +127,7 @@ result.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { kCoreDecomposition } from "@graphty/algorithms";
 
 // A collaboration network
 const builder = new GraphBuilder({ directed: false });
@@ -141,7 +141,7 @@ builder.addEdge("eve", "frank");
 const colab = builder.freeze();
 
 // Tightly-knit research groups: everyone with a core number of at least 2
-const { coreness } = indexed.kCoreDecomposition(colab);
+const { coreness } = kCoreDecomposition(colab);
 const close = colab.ids.toArray().filter((_, i) => coreness[i] >= 2);
 console.log(close); // ["alice", "bob", "carol", "dave"]
 ```

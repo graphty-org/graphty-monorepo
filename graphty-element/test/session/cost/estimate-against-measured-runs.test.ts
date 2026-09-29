@@ -3,7 +3,7 @@
  *
  * Every other cost test checks the estimate's arithmetic. This one checks that the arithmetic
  * describes the real work: it runs the algorithm the element runs, with the options the element
- * passes, over a graph built by the element's own conversion (`toAlgorithmGraph`, which every run
+ * passes, over the snapshot the element's own input step builds (`input.subgraph()`, which every run
  * pays for), times it, and compares that to `estimateCost`.
  *
  * It replaces the graphty app's `metricCost.test.ts`, deleted with the app's cost model when the
@@ -49,7 +49,6 @@ import {
     closenessCentrality,
     ConvergenceError,
     eigenvectorCentrality,
-    type Graph as AlgorithmGraph,
     louvain,
     pageRank,
 } from "@graphty/algorithms";
@@ -62,7 +61,7 @@ import type { DataManager } from "../../../src/managers/DataManager";
 import { calibrateCost, DEFAULT_COST_RATES, estimateCost, type MachineCalibration } from "../../../src/session/cost";
 import type { CostRates } from "../../../src/session/cost/estimate";
 import type { GraphStatistics } from "../../../src/session/types";
-import { toAlgorithmGraph } from "../../helpers/legacy-algorithm-graph";
+import { referenceSnapshot } from "../../helpers/reference-snapshot";
 
 /**
  * How far UNDER the stopwatch an estimate may sit, as estimate / measured. Carried over from the
@@ -83,7 +82,7 @@ const MAX_PESSIMISM = 4;
 interface Row {
     /** The catalogue key the estimate is made for. */
     readonly key: AlgorithmKey;
-    /** The graph orientation the element's wrapper asks `algorithmGraph` for. */
+    /** The graph orientation the element's adapter asks its input for. */
     readonly mode: "directed" | "undirected";
     /** Node counts to measure at, smallest first. */
     readonly sizes: readonly number[];
@@ -92,7 +91,7 @@ interface Row {
     /** What the graph is, when it is not the default, for the test's name. */
     readonly shapeName?: string;
     /** The work the element's wrapper does after building the graph, with its default options. */
-    readonly run: (graph: AlgorithmGraph, nodes: number) => unknown;
+    readonly run: (graph: GraphSnapshot, nodes: number) => unknown;
     /**
      * Why the pessimism bound is not asserted on this row, when it is not. The optimism bound
      * always is: a row like this exists to prove the estimate stays SAFE on a graph where the
@@ -240,14 +239,13 @@ const cliqueRing: Shape = (nodes) =>
     });
 
 /** Eigenvector centrality with the element's default options. */
-const eigenvector = (graph: AlgorithmGraph): unknown => {
+const eigenvector = (graph: GraphSnapshot): unknown => {
     try {
         return eigenvectorCentrality(graph, {
             normalized: true,
             maxIterations: 1000,
             tolerance: 1e-6,
             mode: "total",
-            endpoints: false,
         });
     } catch (error) {
         // A graph that needs more than the bound runs every pass and then throws, which the element
@@ -261,8 +259,8 @@ const eigenvector = (graph: AlgorithmGraph): unknown => {
 };
 
 /** Louvain with the element's default options. */
-const louvainRun = (graph: AlgorithmGraph): unknown =>
-    louvain(graph, { resolution: 1, maxIterations: 100, tolerance: 1e-6, useOptimized: true });
+const louvainRun = (graph: GraphSnapshot): unknown =>
+    louvain(graph, { resolution: 1, maxIterations: 100, tolerance: 1e-6 });
 
 const ROWS: readonly Row[] = [
     {
@@ -270,11 +268,18 @@ const ROWS: readonly Row[] = [
         mode: "directed",
         sizes: [50_000, 100_000],
         run: (graph, nodes) => {
+            // Each edge's source and target counted off the edge list, as the degree adapter does.
+            const inDegrees = new Uint32Array(nodes);
+            const outDegrees = new Uint32Array(nodes);
+            const { src, dst } = graph.edgeList();
+            for (let edge = 0; edge < graph.edgeCount; edge++) {
+                outDegrees[src[edge]]++;
+                inDegrees[dst[edge]]++;
+            }
             const out: object[] = [];
-            for (let id = 0; id < nodes; id++) {
-                const inDegree = graph.inDegree(id);
-                const outDegree = graph.outDegree(id);
-                out.push({ id, values: { value: inDegree + outDegree, inDegree, outDegree } });
+            for (let node = 0; node < nodes; node++) {
+                const [inDegree, outDegree] = [inDegrees[node], outDegrees[node]];
+                out.push({ id: graph.ids.idOf(node), values: { value: inDegree + outDegree, inDegree, outDegree } });
             }
 
             return out;
@@ -291,13 +296,13 @@ const ROWS: readonly Row[] = [
         sizes: [16_000, 32_000],
         shape: path,
         shapeName: "path",
-        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, useDelta: true }),
+        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10 }),
     },
     {
         key: "pagerank",
         mode: "directed",
         sizes: [4_000, 8_000],
-        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, useDelta: true }),
+        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10 }),
         optimismOnly: "this graph converges in about 20 of the 100 passes the estimate charges",
     },
     {
@@ -410,7 +415,7 @@ const ROWS: readonly Row[] = [
 ];
 
 /**
- * The two methods of the data manager `toAlgorithmGraph` reads, over a fixed snapshot. The
+ * The two methods of the data manager an adapter's input reads, over a fixed snapshot. The
  * undirected view is derived once, as the element's store caches it once per snapshot.
  * @param snapshot - The graph.
  * @returns A stand-in data manager.
@@ -629,7 +634,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));
                 const once = (index: number): unknown =>
-                    row.run(toAlgorithmGraph(graphs[index].data, row.mode), row.sizes[index]);
+                    row.run(referenceSnapshot(graphs[index].data, row.mode), row.sizes[index]);
 
                 once(0); // warm-up, untimed
 

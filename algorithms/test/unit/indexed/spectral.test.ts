@@ -1,10 +1,10 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
-import { exactArcWeights } from "../../../src/indexed/facade.js";
 import { type LaplacianType, spectralClustering } from "../../../src/indexed/spectral.js";
+import { exactArcWeights } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

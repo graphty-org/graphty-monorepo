@@ -9,7 +9,7 @@
  * from a starting node, which can be optionally configured.
  */
 
-import { indexed } from "@graphty/algorithms";
+import { primMST } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -121,7 +121,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
 
         context.report({ phase: "Choosing edges", total: null });
         const { value: tree, precision } = await run((_dispatch, s) =>
-            Promise.resolve(indexed.primMST(s, { start, forest: true })),
+            Promise.resolve(primMST(s, { start, forest: true })),
         );
 
         // Read the remap from the edge the reader declared to the edge the tree chose, which is

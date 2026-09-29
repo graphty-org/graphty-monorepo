@@ -1,13 +1,13 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import {
     labelPropagation,
     labelPropagationSemiSupervised,
     labelPropagationSynchronous,
 } from "../../../src/indexed/label-propagation.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 

@@ -139,7 +139,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.9 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/algorithms` | `algorithms/` | 2.1.2 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) over the graph-format snapshot |
+| `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
 | `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (private, Mantine UI) |
@@ -213,7 +213,6 @@ pnpm run dev:graphty
 pnpm run dev:webgpu-graph-algorithms      # the WebGPU demo page
 pnpm run storybook:graphty-element
 pnpm run storybook:graphty                # HTTPS only
-pnpm run examples:algorithms              # Algorithm demos
 pnpm run docs:dev                         # VitePress docs
 ```
 
@@ -520,7 +519,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
 - `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
-- `algorithms/CLAUDE.md` - The snapshot-based ports, the legacy facades and how they are tested
+- `algorithms/CLAUDE.md` - The package layout, the recorded 2.x results the algorithms are tested against, adding an algorithm
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
 - `graphty/CLAUDE.md` - React app specifics

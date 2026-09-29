@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/algorithms";
+import { girvanNewman } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -126,7 +126,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         context.report({ phase: "Cutting bridges", total: null });
 
         // maxCommunities is only passed on when it was set: 0 means "find the best split".
-        const dendrogram = indexed.girvanNewman(snapshot, {
+        const dendrogram = girvanNewman(snapshot, {
             maxCommunities: maxCommunities > 0 ? maxCommunities : undefined,
             minCommunitySize,
             maxIterations,

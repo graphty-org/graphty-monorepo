@@ -5,7 +5,7 @@
  * in a flow network using the Ford-Fulkerson method.
  */
 
-import { indexed } from "@graphty/algorithms";
+import { maxFlow } from "@graphty/algorithms";
 import { expandEdges, fromEdgeArrays } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -179,7 +179,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         });
 
         context.report({ phase: "Pushing flow", total: null });
-        const result = indexed.maxFlow(network, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
+        const result = maxFlow(network, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
             algorithm: "ford-fulkerson",
             weights: expandEdges(network, capacities),
         });

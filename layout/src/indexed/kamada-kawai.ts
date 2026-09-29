@@ -18,7 +18,7 @@ const START_SEED = 42;
 /** Options of indexed.kamadaKawai. */
 export interface KamadaKawaiOptions extends CommonLayoutOptions {
     /**
-     * The ideal distance of every pair, `n * n` values row by row (for example `indexed.allPairsShortestPath(s).dist`
+     * The ideal distance of every pair, `n * n` values row by row (for example `allPairsShortestPath(s).dist`
      * from `@graphty/algorithms`). The diagonal is read as 0 and a non-finite entry as unreachable (1e6). Absent: the
      * shortest paths of the graph, with its weights read as distances.
      */

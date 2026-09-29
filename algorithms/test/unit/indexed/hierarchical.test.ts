@@ -1,10 +1,10 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { type ClusterNode, type LinkageMethod } from "../../../src/clustering/hierarchical-legacy.js";
-import { Graph } from "../../../src/core/graph.js";
 import { hierarchicalClustering, type HierarchicalResult } from "../../../src/indexed/hierarchical.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { ClusterNode, LinkageMethod } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/algorithms";
+import { connectedComponents, stronglyConnectedComponents } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { ResultElementValues } from "../session/results";
@@ -54,8 +54,8 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
         const { value, precision } = await run((_dispatch, s) =>
             Promise.resolve(
                 s.directed
-                    ? indexed.stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
-                    : indexed.connectedComponents(s),
+                    ? stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
+                    : connectedComponents(s),
             ),
         );
 

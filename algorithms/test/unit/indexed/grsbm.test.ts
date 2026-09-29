@@ -1,14 +1,13 @@
 import { GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { grsbm, type GrsbmOptions, type GrsbmResult } from "../../../src/indexed/grsbm.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { type GRSBMCluster, type GRSBMResult } from "../../../src/research/grsbm-legacy.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { GRSBMCluster, GRSBMResult, NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 const fixtures: FacadeFixture[] = [...undirectedFixtures(), ...directedFixtures()];

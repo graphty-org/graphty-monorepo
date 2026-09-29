@@ -1,7 +1,6 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import {
     adamicAdarForPairs,
     adamicAdarPrediction,
@@ -15,10 +14,9 @@ import {
     getTopCandidatesForNode,
     type LinkPredictionResult,
 } from "../../../src/indexed/link-prediction.js";
-import type * as adamicAdarLegacy from "../../../src/link-prediction/adamic-adar.js";
-import type { LinkPredictionScore } from "../../../src/link-prediction/index.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { LinkPredictionScore, NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -267,7 +265,7 @@ describe("indexed link prediction, against legacy", () => {
                     );
                     const both = compareAdamicAdarWithCommonNeighbors(s, test, non, o);
                     const legacyBoth = legacyResult() as {
-                        adamicAdar: ReturnType<typeof adamicAdarLegacy.evaluateAdamicAdar>;
+                        adamicAdar: { precision: number; recall: number; f1Score: number; auc: number };
                         commonNeighbors: { precision: number; recall: number; f1Score: number; auc: number };
                     };
                     expectMetricsMatch(both.adamicAdar, legacyBoth.adamicAdar, `compare, Adamic-Adar ${at}`);

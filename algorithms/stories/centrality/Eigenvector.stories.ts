@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { ConvergenceError, eigenvectorCentrality, Graph } from "@graphty/algorithms";
+import { ConvergenceError, eigenvectorCentrality } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
     createHeatMapLegend,
@@ -38,23 +35,6 @@ interface EigenvectorArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Create the Eigenvector centrality visualization story.
  */
 function createEigenvectorStory(args: EigenvectorArgs): HTMLElement {
@@ -62,14 +42,14 @@ function createEigenvectorStory(args: EigenvectorArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Calculate eigenvector centrality using actual algorithm
     // A long path or grid under a low cap does not converge, and the algorithm says so by throwing.
     let scores: Record<string, number> = {};
     let failure: string | null = null;
     try {
-        scores = eigenvectorCentrality(graph, { maxIterations, normalized: true });
+        scores = byId(graph, eigenvectorCentrality(graph, { maxIterations, normalized: true }).scores);
     } catch (error) {
         if (!(error instanceof ConvergenceError)) {
             throw error;
@@ -114,7 +94,9 @@ function createEigenvectorStory(args: EigenvectorArgs): HTMLElement {
      */
     function updateScoresDisplay(): void {
         const scoresEl = scoresPanel.querySelector("[data-scores]");
-        if (!scoresEl) {return;}
+        if (!scoresEl) {
+            return;
+        }
 
         scoresEl.innerHTML = "";
 
@@ -144,7 +126,9 @@ function createEigenvectorStory(args: EigenvectorArgs): HTMLElement {
      * Apply centrality visualization.
      */
     function apply(): void {
-        if (isApplied) {return;}
+        if (isApplied) {
+            return;
+        }
         if (failure !== null) {
             updateStatus(statusPanel, failure);
             return;

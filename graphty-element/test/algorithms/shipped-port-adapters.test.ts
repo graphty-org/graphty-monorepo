@@ -1,26 +1,20 @@
 /**
- * @file HITS, Katz, k-core, Louvain and degree over the graph snapshot, against the route they
- * replaced.
+ * @file HITS, Katz, k-core, Louvain and degree over the graph snapshot.
  *
- * Each of the five used to copy the snapshot into an `@graphty/algorithms` object graph and call
- * the reference implementation on it. They now run over the snapshot itself: the first four
- * through the dispatcher, where an attached accelerator may take the work, and degree by counting
- * each edge's source and target off the snapshot's edge list (not its degree views, which on a
- * graph loaded undirected give every node its full degree as both in- and out-degree and so would
- * double the total). What is checked here is that a reader sees the same numbers as
- * before -- scores within 1e-9, identical degrees, the core numbers the reference gives with
- * self-loops removed, and on these fixtures Louvain's modularity within 0.01 of the reference's --
- * and that the routing rules hold on both sides of each floor.
+ * Each of the five used to copy the snapshot into an algorithms 2.x object graph and call the
+ * implementation on it. They now run over the snapshot itself: the first four through the
+ * dispatcher, where an attached accelerator may take the work, and degree by counting each edge's
+ * source and target off the snapshot's edge list (not its degree views, which on a graph loaded
+ * undirected give every node its full degree as both in- and out-degree and so would double the
+ * total). What is checked here is that a reader sees the numbers the `@graphty/algorithms` function
+ * gives over the same snapshot -- scores within 1e-9, identical degrees, the core numbers of the
+ * graph with self-loops removed, and on these fixtures Louvain's modularity within 0.01 of what
+ * algorithms 2.x's Louvain reached (recorded below) -- and that the routing rules hold on both sides
+ * of each floor.
  */
 
-import {
-    Graph as AlgorithmGraph,
-    hits,
-    indexed,
-    katzCentrality,
-    kCoreDecomposition,
-    louvain,
-} from "@graphty/algorithms";
+import { hits, katzCentrality, kCoreDecomposition, modularity } from "@graphty/algorithms";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
@@ -37,8 +31,8 @@ import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/r
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { toAlgorithmGraph } from "../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
+import { byId, referenceSnapshot } from "../helpers/reference-snapshot";
 
 /** A directed graph with a reciprocal pair, a self-loop, a parallel pair and an isolated node. */
 const MIXED: MockGraphOpts = {
@@ -60,6 +54,39 @@ const MIXED: MockGraphOpts = {
  * The fixtures every comparison runs over: the shared 77-node data set, the mixed one above, and
  * the mixed one loaded undirected, where the snapshot's in- and out-degree views are one array.
  */
+/**
+ * The modularity of the partition algorithms 2.x's Louvain found on each fixture, scored by
+ * `modularity` over the snapshot the run reads.
+ */
+const LEGACY_LOUVAIN: Record<string, number> = {
+    data4: 0.5666879833432481,
+    mixed: 0.1171875,
+    "mixed undirected": 0.1790123456790123,
+};
+
+/**
+ * A snapshot with every edge of another, turned around or with its self-loops dropped.
+ * @param s - The snapshot to copy.
+ * @param change - `"reverse"` or `"no self-loops"`.
+ * @returns The copy, over the same nodes.
+ */
+function copyOf(s: GraphSnapshot, change: "reverse" | "no self-loops"): GraphSnapshot {
+    const builder = new GraphBuilder({ directed: s.directed });
+    for (let i = 0; i < s.nodeCount; i++) {
+        builder.addNode(s.ids.idOf(i));
+    }
+    const { src, dst, weights } = s.edgeList();
+    for (let e = 0; e < s.edgeCount; e++) {
+        const [a, b] = [s.ids.idOf(src[e]), s.ids.idOf(dst[e])];
+        if (change === "reverse") {
+            builder.addEdge(b, a, weights === null ? 1 : weights[e]);
+        } else if (src[e] !== dst[e]) {
+            builder.addEdge(a, b);
+        }
+    }
+    return builder.freeze();
+}
+
 const FIXTURES: readonly [string, MockGraphOpts][] = [
     ["data4", { dataPath: "./data4.json" }],
     ["mixed", MIXED],
@@ -111,7 +138,7 @@ async function rejection(work: () => Promise<unknown>): Promise<{ code: string; 
     throw new Error("the run was expected to fail and did not");
 }
 
-describe("the shipped-port adapters give the numbers the reference route gave", () => {
+describe("the shipped-port adapters give the numbers the algorithms give", () => {
     for (const [name, fixture] of FIXTURES) {
         describe(name, () => {
             it("hits: combined, hub and authority scores within 1e-9", async () => {
@@ -123,10 +150,13 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                     // A graph loaded undirected has no direction to read, so each edge is a hub and an
                     // authority link both ways: the reference runs over the undirected graph too.
                     const mode = fixture.directed === false ? "undirected" : "directed";
-                    const reference = hits(toAlgorithmGraph(graph.getDataManager(), mode), { normalized });
+                    const s = referenceSnapshot(graph.getDataManager(), mode);
+                    const reference = hits(s, { normalized });
+                    const hubs = byId(s, reference.hubs);
+                    const authorities = byId(s, reference.authorities);
                     for (const [id, values] of published(graph, run)) {
-                        const hub = reference.hubs[String(id)];
-                        const authority = reference.authorities[String(id)];
+                        const hub = hubs.get(id) as number;
+                        const authority = authorities.get(id) as number;
                         assert.approximately(values.hub as number, hub, 1e-9, `hub of ${String(id)}`);
                         assert.approximately(values.authority as number, authority, 1e-9, `authority of ${String(id)}`);
                         assert.approximately(
@@ -145,14 +175,12 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                     const run = new KatzCentralityAlgorithm(graph, { normalized, alpha: 0.05 });
                     await run.run();
 
-                    const reference = katzCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-                        normalized,
-                        alpha: 0.05,
-                    });
+                    const s = referenceSnapshot(graph.getDataManager(), "undirected");
+                    const reference = byId(s, katzCentrality(s, { normalized, alpha: 0.05 }).scores);
                     for (const [id, values] of published(graph, run)) {
                         assert.approximately(
                             values.value as number,
-                            reference[String(id)],
+                            reference.get(id) as number,
                             1e-9,
                             `score of ${String(id)}`,
                         );
@@ -160,30 +188,20 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                 }
             });
 
-            it("k-core: the reference's core numbers on the graph with its self-loops removed", async () => {
+            it("k-core: the core numbers of the graph with its self-loops removed", async () => {
                 const graph = await createMockGraph(fixture);
                 const run = new KCoreAlgorithm(graph);
                 await run.run();
 
-                /* The reference implementation counted a node's self-loop as one of its own
-                   neighbours, so E -- a self-loop and one edge -- sat in the 2-core. A core number
-                   is defined on the simple graph underneath, as NetworkX defines it, and the port
-                   counts a self-loop not at all. The difference does not stop at the self-looped
-                   node: a neighbour whose core number leaned on it can drop too. What holds is that
-                   the port matches the reference run with every self-loop removed. */
-                const undirected = toAlgorithmGraph(graph.getDataManager(), "undirected");
-                const simple = new AlgorithmGraph({ directed: false });
-                for (const node of undirected.nodes()) {
-                    simple.addNode(node.id);
-                }
-                for (const edge of undirected.edges()) {
-                    if (edge.source !== edge.target) {
-                        simple.addEdge(edge.source, edge.target);
-                    }
-                }
-                const { coreness } = kCoreDecomposition(simple);
+                /* algorithms 2.x counted a node's self-loop as one of its own neighbours, so E -- a
+                   self-loop and one edge -- sat in the 2-core. A core number is defined on the
+                   simple graph underneath, as NetworkX defines it, and a self-loop counts not at
+                   all. The difference does not stop at the self-looped node: a neighbour whose core
+                   number leaned on it can drop too. */
+                const simple = copyOf(referenceSnapshot(graph.getDataManager(), "undirected"), "no self-loops");
+                const coreness = byId(simple, kCoreDecomposition(simple).coreness);
                 for (const [id, values] of published(graph, run)) {
-                    assert.strictEqual(values.value, coreness.get(String(id)), `core number of ${String(id)}`);
+                    assert.strictEqual(values.value, coreness.get(id), `core number of ${String(id)}`);
                 }
                 assert.include(
                     run.result?.summary().caveats.notes ?? [],
@@ -199,10 +217,18 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                 const run = new DegreeAlgorithm(graph);
                 await run.run();
 
-                const reference = toAlgorithmGraph(graph.getDataManager(), "directed");
+                const s = referenceSnapshot(graph.getDataManager(), "directed");
+                const inDegrees = new Map<unknown, number>();
+                const outDegrees = new Map<unknown, number>();
+                const { src, dst } = s.edgeList();
+                for (let e = 0; e < s.edgeCount; e++) {
+                    const [a, b] = [s.ids.idOf(src[e]), s.ids.idOf(dst[e])];
+                    outDegrees.set(a, (outDegrees.get(a) ?? 0) + 1);
+                    inDegrees.set(b, (inDegrees.get(b) ?? 0) + 1);
+                }
                 for (const [id, values] of published(graph, run)) {
-                    const inDegree = reference.inDegree(id);
-                    const outDegree = reference.outDegree(id);
+                    const inDegree = inDegrees.get(id) ?? 0;
+                    const outDegree = outDegrees.get(id) ?? 0;
                     assert.deepInclude(
                         values,
                         { inDegree, outDegree, value: inDegree + outDegree },
@@ -211,17 +237,17 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                 }
             });
 
-            it("louvain: groups that score the modularity it reports, near the reference's on these fixtures", async () => {
+            it("louvain: groups that score the modularity it reports, near algorithms 2.x's on these fixtures", async () => {
                 const graph = await createMockGraph(fixture);
                 const output = await computed(new LouvainAlgorithm(graph));
                 const { nodes } = graph.getDataManager();
 
                 /* Both partitions are scored by one function over the snapshot the run read, so a
                    self-loop counts the same way in each (twice in its node's degree, as NetworkX
-                   counts it; the reference's own figure counts it once). */
+                   counts it; algorithms 2.x's own figure counted it once). */
                 const snapshot = createScopedInput(graph.getDataManager(), "undirected").subgraph();
                 const score = (groupOf: Map<unknown, number>): number =>
-                    indexed.modularity(
+                    modularity(
                         snapshot,
                         Uint32Array.from({ length: snapshot.nodeCount }, (_, index) => {
                             const group = groupOf.get(snapshot.ids.idOf(index));
@@ -234,14 +260,10 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
                 assert.strictEqual(groups.size, nodes.size);
                 assert.approximately(output.graph?.modularity as number, score(groups), 1e-9);
 
-                // The port is not move-for-move identical to the reference, so the two partitions
-                // can differ. On these fixtures it lands within 0.01 of the reference's quality;
+                // The port is not move-for-move identical to algorithms 2.x's Louvain, so the two
+                // partitions can differ. On these fixtures it lands within 0.01 of 2.x's quality;
                 // that is not a bound in general (see the test on a graph where it lands lower).
-                const reference = louvain(toAlgorithmGraph(graph.getDataManager(), "undirected"));
-                const referenceGroups = new Map(
-                    reference.communities.flatMap((members, group) => members.map((id) => [id, group] as const)),
-                );
-                assert.isAtLeast(output.graph?.modularity as number, score(referenceGroups) - 0.01);
+                assert.isAtLeast(output.graph?.modularity as number, LEGACY_LOUVAIN[name] - 0.01);
                 assert.strictEqual(output.caveats.precision, "f64");
             });
         });
@@ -272,7 +294,7 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
 
     it("k-core: a node with no self-loop drops when its core leaned on self-looped neighbours", async () => {
         // D joins three leaves, each with a self-loop. Counting each self-loop as a neighbour, as
-        // the reference did, put every leaf at degree 2 and D in the 2-core; without them the
+        // algorithms 2.x did, put every leaf at degree 2 and D in the 2-core; without them the
         // leaves have degree 1 and D sits in the 1-core, though D itself has no self-loop.
         const graph = await createMockGraph({
             nodes: [{ id: "D" }, { id: "S1" }, { id: "S2" }, { id: "S3" }],
@@ -285,7 +307,6 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
         const run = new KCoreAlgorithm(graph);
         await run.run();
 
-        assert.strictEqual(kCoreDecomposition(toAlgorithmGraph(graph.getDataManager(), "undirected")).coreness.get("D"), 2);
         assert.deepStrictEqual(
             [...published(graph, run)].map(([id, values]) => [id, values.value]),
             [
@@ -297,10 +318,10 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
         );
     });
 
-    it("louvain can land on a lower-modularity partition than the reference: a six-node path", async () => {
-        // Both implementations are deterministic, and the reference's answer depends on the order
-        // it visits nodes and edges, so both are pinned. On the path n1-n2-n3-n0-n4-n5 the port
-        // stops at three pairs (modularity 0.26); the reference merged it into two triples (0.30).
+    it("louvain can land on a lower-modularity partition than algorithms 2.x: a six-node path", async () => {
+        // Both implementations are deterministic, and 2.x's answer depended on the order it
+        // visited nodes and edges. On the path n1-n2-n3-n0-n4-n5 the port stops at three pairs
+        // (modularity 0.26); algorithms 2.x merged it into two triples, n0-n4-n5 and n1-n2-n3 (0.30).
         const graph = await createMockGraph({
             nodes: ["n0", "n1", "n2", "n3", "n4", "n5"].map((id) => ({ id })),
             edges: [
@@ -314,20 +335,12 @@ describe("the shipped-port adapters give the numbers the reference route gave", 
         });
         const output = await computed(new LouvainAlgorithm(graph));
         const groups = new Map(output.nodes?.map((node) => [node.id, node.values.group as number]));
-        const reference = louvain(toAlgorithmGraph(graph.getDataManager(), "undirected"));
 
         assert.approximately(output.graph?.modularity as number, 0.26, 1e-9);
         assert.strictEqual(new Set(groups.values()).size, 3);
         assert.strictEqual(groups.get("n1"), groups.get("n2"));
         assert.strictEqual(groups.get("n3"), groups.get("n0"));
         assert.strictEqual(groups.get("n4"), groups.get("n5"));
-        assert.deepStrictEqual(
-            reference.communities.map((members) => [...members].sort()).sort(),
-            [
-                ["n0", "n4", "n5"],
-                ["n1", "n2", "n3"],
-            ],
-        );
     });
 
     it("louvain refuses useOptimized off: only the optimized implementation remains", async () => {
@@ -368,28 +381,32 @@ describe("the direction and endpoint options", () => {
 
     it("katz reads in-paths for mode in and out-paths for mode out, over the declared direction", async () => {
         const graph = await createMockGraph(MIXED);
-        const directed = toAlgorithmGraph(graph.getDataManager(), "directed");
+        const directed = referenceSnapshot(graph.getDataManager(), "directed");
 
         const inRun = new KatzCentralityAlgorithm(graph, { mode: "in" });
         await inRun.run();
-        const inReference = katzCentrality(directed);
+        const inReference = byId(directed, katzCentrality(directed).scores);
         for (const [id, values] of published(graph, inRun)) {
-            assert.approximately(values.value as number, inReference[String(id)], 1e-9, `in score of ${String(id)}`);
+            assert.approximately(
+                values.value as number,
+                inReference.get(id) as number,
+                1e-9,
+                `in score of ${String(id)}`,
+            );
         }
 
         // Out-paths are the in-paths of the graph with every edge turned around.
-        const reversed = new AlgorithmGraph({ directed: true });
-        for (const node of directed.nodes()) {
-            reversed.addNode(node.id);
-        }
-        for (const edge of directed.edges()) {
-            reversed.addEdge(edge.target, edge.source, edge.weight);
-        }
+        const reversed = copyOf(directed, "reverse");
         const outRun = new KatzCentralityAlgorithm(graph, { mode: "out" });
         await outRun.run();
-        const outReference = katzCentrality(reversed);
+        const outReference = byId(reversed, katzCentrality(reversed).scores);
         for (const [id, values] of published(graph, outRun)) {
-            assert.approximately(values.value as number, outReference[String(id)], 1e-9, `out score of ${String(id)}`);
+            assert.approximately(
+                values.value as number,
+                outReference.get(id) as number,
+                1e-9,
+                `out score of ${String(id)}`,
+            );
         }
         // E points out only, so the two modes disagree about it.
         assert.isAbove(

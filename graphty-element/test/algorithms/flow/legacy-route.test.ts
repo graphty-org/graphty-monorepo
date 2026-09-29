@@ -1,31 +1,28 @@
 /**
  * @file Max flow, min cut, bipartite matching and link prediction against the route they took before
- * they ran on the index-based ports: the same input the adapters read, handed to the legacy
- * `@graphty/algorithms` functions the way the adapters used to hand it over.
+ * they ran on the index-based ports: what the algorithms 2.x functions answered when handed the same
+ * input the adapters read, the way the adapters used to hand it over.
+ *
+ * Those answers are recorded in `legacy-route.golden.json`, one per call, keyed by the test's full
+ * name and the call's position in it; algorithms 3.0.0 removed the functions. The recording is
+ * frozen: renaming a test, or changing a fixture or the random seeds below, breaks the lookup.
  */
 
-import {
-    adamicAdarPrediction,
-    bipartitePartition,
-    commonNeighborsPrediction,
-    fordFulkerson,
-    Graph as LegacyGraph,
-    maximumBipartiteMatching,
-    minSTCut,
-    stoerWagner,
-} from "@graphty/algorithms";
-import { assert, describe, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+import { stoerWagner } from "@graphty/algorithms";
+import { assert, describe, expect, it } from "vitest";
 
 import type { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMatchingAlgorithm";
-import { createScopedInput, scopeEdges, scopeNodeIds } from "../../../src/algorithms/input/ScopedInput";
+import { createScopedInput } from "../../../src/algorithms/input/ScopedInput";
 import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionAlgorithm";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../../src/algorithms/results";
 import type { Graph } from "../../../src/Graph";
-import { toAlgorithmGraph } from "../../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
+import { referenceSnapshot } from "../../helpers/reference-snapshot";
 
 type Edge = MockGraphOpts["edges"] extends (infer E)[] | undefined ? E : never;
 
@@ -158,54 +155,42 @@ function dataManager(graph: Graph): Parameters<typeof createScopedInput>[0] & {
     return graph.getDataManager() as never;
 }
 
-/** What the max-flow adapter published before the port: `fordFulkerson` over a directed legacy Graph. */
-function legacyMaxFlow(graph: Graph, sourceOption?: string | number, sinkOption?: string | number) {
-    const dm = dataManager(graph);
-    const input = createScopedInput(dm, "declared");
-    const graphEdges = scopeEdges(input);
-    const nodeIds = scopeNodeIds(input);
-    const source = String(sourceOption ?? nodeIds[0]);
-    const sink = String(sinkOption ?? nodeIds[nodeIds.length - 1]);
-    const capacityGraph = new LegacyGraph({ directed: true });
-    for (const nodeId of nodeIds) {
-        capacityGraph.addNode(String(nodeId));
-    }
+/** What algorithms 2.x answered, as recorded. */
+const RECORDED = JSON.parse(readFileSync(new URL("./legacy-route.golden.json", import.meta.url), "utf8")) as Record<
+    string,
+    unknown
+>;
+const CALLS = new Map<string, number>();
 
-    const capacityOf = new Map<string, number>();
-    for (const edge of graphEdges) {
-        const [srcId, dstId] = [String(edge.source), String(edge.target)];
-        const key = `${srcId}:${dstId}`;
-        // The old adapter's own capacity rule, written out so it does not share code with the port.
-        const record: Record<string, unknown> = dm.edges.get(edge.id) ?? {};
-        const raw = record.capacity ?? record.value ?? 1;
-        const total = (capacityOf.get(key) ?? 0) + (typeof raw === "number" ? raw : 1);
-        capacityOf.set(key, total);
-        capacityGraph.removeEdge(srcId, dstId);
-        capacityGraph.addEdge(srcId, dstId, total);
-    }
+/**
+ * The next recorded answer of the running test.
+ * @returns The answer, with its maps and sets as arrays of entries and of members.
+ */
+function recorded(): unknown {
+    const name = expect.getState().currentTestName ?? "";
+    const call = CALLS.get(name) ?? 0;
+    CALLS.set(name, call + 1);
+    const value = RECORDED[`${name}#${String(call)}`];
+    assert.isDefined(value, `a recorded answer for ${name}, call ${String(call)}`);
+    return value;
+}
 
-    const result = fordFulkerson(capacityGraph, source, sink);
-    const edges = new Map(
-        graphEdges.map((edge) => {
-            const [srcId, dstId] = [String(edge.source), String(edge.target)];
-            return [
-                edge.id,
-                {
-                    value: result.flowGraph.get(srcId)?.get(dstId) ?? 0,
-                    capacity: capacityOf.get(`${srcId}:${dstId}`) ?? 1,
-                },
-            ];
-        }),
-    );
-    const net = new Map<string, number>();
-    for (const [from, targets] of result.flowGraph) {
-        for (const [to, flow] of targets) {
-            net.set(from, (net.get(from) ?? 0) - flow);
-            net.set(to, (net.get(to) ?? 0) + flow);
-        }
-    }
-
-    return { maxFlow: result.maxFlow, edges, net };
+/**
+ * What the max-flow adapter published before the port: `fordFulkerson` over a directed graph of
+ * the summed capacities (the flow on each declared edge, its capacity, and each node's net flow).
+ * @returns The recorded answer
+ */
+function legacyMaxFlow(): {
+    maxFlow: number;
+    edges: Map<string, { value: number; capacity: number }>;
+    net: Map<string, number>;
+} {
+    const r = recorded() as {
+        maxFlow: number;
+        edges: [string, { value: number; capacity: number }][];
+        net: [string, number][];
+    };
+    return { maxFlow: r.maxFlow, edges: new Map(r.edges), net: new Map(r.net) };
 }
 
 describe("max-flow equals the legacy route", () => {
@@ -214,7 +199,7 @@ describe("max-flow equals the legacy route", () => {
             const graph = await createMockGraph(data);
             const options = source === undefined ? {} : { source, sink };
             const output = await compute(new MaxFlowAlgorithm(graph, options));
-            const expected = legacyMaxFlow(graph, source, sink);
+            const expected = legacyMaxFlow();
 
             assert.strictEqual(output.graph?.maxFlow, expected.maxFlow, "the flow value");
             const edges = byId(output.edges);
@@ -243,41 +228,22 @@ describe("max-flow equals the legacy route", () => {
         });
         const output = await compute(new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }));
 
-        assert.strictEqual(output.graph?.maxFlow, legacyMaxFlow(graph, "s", "t").maxFlow);
+        assert.strictEqual(output.graph?.maxFlow, legacyMaxFlow().maxFlow);
         for (const values of byId(output.edges).values()) {
             assert.isAtMost(values.value as number, values.capacity as number, "no edge carries more than it can hold");
         }
     });
 });
 
-/** What the min-cut adapter published before the port. */
-function legacyMinCut(graph: Graph, source?: string | number, sink?: string | number) {
-    const dm = dataManager(graph);
-    const input = createScopedInput(dm, "undirected");
-    const cutInput = input.subgraph();
-    const { src, dst, weights } = cutInput.edgeList();
-    const map = new Map<string, Map<string, number>>();
-    const legacy = new LegacyGraph({ directed: false });
-    for (const nodeId of scopeNodeIds(input)) {
-        map.set(String(nodeId), new Map());
-        legacy.addNode(String(nodeId));
-    }
-
-    for (let edge = 0; edge < cutInput.edgeCount; edge++) {
-        const [a, b] = [String(cutInput.ids.idOf(src[edge])), String(cutInput.ids.idOf(dst[edge]))];
-        const weight = weights === null ? 1 : weights[edge];
-        map.get(a)?.set(b, weight);
-        map.get(b)?.set(a, weight);
-        legacy.addEdge(a, b, weight);
-    }
-
-    const result = source === undefined ? stoerWagner(map) : minSTCut(legacy, String(source), String(sink));
-    const cut = new Set(result.cutEdges.flatMap((c) => [`${c.from}:${c.to}`, `${c.to}:${c.from}`]));
-    const inCut = new Map(
-        scopeEdges(input).map((edge) => [edge.id, cut.has(`${String(edge.source)}:${String(edge.target)}`)]),
-    );
-
-    return { cutValue: result.cutValue, partition1: result.partition1, inCut };
+/**
+ * What the min-cut adapter published before the port: `stoerWagner`, or `minSTCut` between the
+ * source and the sink, over the undirected input (the cut value, the first side, and whether each
+ * declared edge is in the cut).
+ * @returns The recorded answer
+ */
+function legacyMinCut(): { cutValue: number; partition1: Set<string>; inCut: Map<string, boolean> } {
+    const r = recorded() as { cutValue: number; partition1: string[]; inCut: [string, boolean][] };
+    return { cutValue: r.cutValue, partition1: new Set(r.partition1), inCut: new Map(r.inCut) };
 }
 
 const CUT_FIXTURES: { name: string; data: MockGraphOpts; source?: string | number; sink?: string | number }[] = [
@@ -297,7 +263,7 @@ describe("min-cut equals the legacy route", () => {
             const graph = await createMockGraph(data);
             const options = source === undefined ? {} : { source, sink };
             const output = await compute(new MinCutAlgorithm(graph, options));
-            const expected = legacyMinCut(graph, source, sink);
+            const expected = legacyMinCut();
 
             assert.strictEqual(output.graph?.cutValue, expected.cutValue, "the cut value");
             const edges = byId(output.edges);
@@ -335,7 +301,7 @@ describe("min-cut equals the legacy route", () => {
 
         assert.isAtLeast(
             first.graph?.cutValue as number,
-            legacyMinCut(graph).cutValue,
+            stoerWagner(referenceSnapshot(graph.getDataManager(), "undirected")).cutValue,
             "no lighter than the exact cut",
         );
     });
@@ -364,10 +330,10 @@ describe("bipartite matching equals the legacy route", () => {
             const graph = await createMockGraph(data);
             const output = await compute(new BipartiteMatchingAlgorithm(graph));
             const dm = dataManager(graph);
-            const legacyGraph = toAlgorithmGraph(dm as never, "undirected", createScopedInput(dm, "undirected"));
-            const sides = bipartitePartition(legacyGraph);
-            assert.ok(sides);
-            const expected = maximumBipartiteMatching(legacyGraph, { leftNodes: sides.left, rightNodes: sides.right });
+            // bipartitePartition's two sides and the size of maximumBipartiteMatching between them.
+            const recordedSides = recorded() as { left: unknown[]; right: unknown[]; size: number };
+            const sides = { left: recordedSides.left, right: recordedSides.right };
+            const expected = { size: recordedSides.size };
 
             const nodes = byId(output.nodes);
             for (const id of sides.left) {
@@ -441,7 +407,7 @@ describe("bipartite matching equals the legacy route", () => {
 });
 
 describe("link prediction equals the legacy route", () => {
-    const methods = { "adamic-adar": adamicAdarPrediction, "common-neighbors": commonNeighborsPrediction } as const;
+    const methods = ["adamic-adar", "common-neighbors"] as const;
     const fixtures: { name: string; data: MockGraphOpts }[] = [
         { name: "random 20 nodes, 45 edges", data: randomGraph(20, 45, 41) },
         { name: "random 40 nodes, 70 edges", data: randomGraph(40, 70, 43) },
@@ -449,19 +415,12 @@ describe("link prediction equals the legacy route", () => {
     ];
 
     for (const { name, data } of fixtures) {
-        for (const method of Object.keys(methods) as (keyof typeof methods)[]) {
+        for (const method of methods) {
             it(`${name}, ${method}`, async () => {
                 const graph = await createMockGraph(data);
                 const output = await compute(new LinkPredictionAlgorithm(graph, { method, topK: 25 }));
-                const dm = dataManager(graph);
-                const legacyGraph = toAlgorithmGraph(dm as never, "undirected", createScopedInput(dm, "undirected"));
-                const seen = new Set<string>();
-                const expected = methods[method](legacyGraph)
-                    .filter(({ source, target }) => {
-                        const key = [String(source), String(target)].sort().join("|");
-                        return !seen.has(key) && seen.add(key) !== undefined;
-                    })
-                    .slice(0, 25);
+                // The 2.x prediction over the undirected input, each unordered pair once, the first 25.
+                const expected = recorded() as { source: unknown; target: unknown; score: number }[];
                 const pairs = output.graph?.pairs as { source: unknown; target: unknown; score: number }[];
 
                 assert.strictEqual(pairs.length, expected.length);

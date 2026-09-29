@@ -469,6 +469,16 @@ export class LayoutManager implements Manager {
      */
     restoring: () => boolean = () => false;
 
+    /**
+     * Whether a new layout has been asked for and is waiting its turn. While one is, the frame
+     * loop does not step the engine it will replace: the new engine starts from the arrangement
+     * it finds, so a frame that stepped the old one in between -- or paid the old one's owed
+     * pre-steps -- would make where the new layout starts, and so where it ends, depend on
+     * whether a frame happened to fall between a load landing and the layout being built.
+     * @returns True while one is.
+     */
+    replacing: () => boolean = () => false;
+
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
 
@@ -1559,7 +1569,9 @@ export class LayoutManager implements Manager {
         // Nothing steps while undo, redo, a restore or a rollback is on its way to the position
         // array either: the `arrangement` hook places the restored coordinates, and a step before
         // it has run would move the arrangement being restored. The frames after it step again.
-        if (this.#building > 0 || this.restoring()) {
+        //
+        // Nor while a new layout waits its turn: see `replacing`.
+        if (this.#building > 0 || this.restoring() || this.replacing()) {
             return;
         }
 

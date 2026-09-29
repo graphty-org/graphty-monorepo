@@ -712,6 +712,7 @@ export class Graph implements GraphContext {
             dispatcherOf(this.session).arrangement.rest();
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
+        this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.

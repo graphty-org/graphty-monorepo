@@ -449,7 +449,11 @@ describe("the fixed layout puts nodes where their data says", () => {
         assert.deepStrictEqual(harness.coordsOf(node("b")), { x: -4, y: 0, z: 0 });
         assert.deepStrictEqual(harness.coordsOf(node("c")), { x: 4, y: 0, z: 0 });
 
-        layoutEngineInternals.setNodePosition(harness.layoutManager.layoutEngine as LayoutEngine, node("a"), { x: 12, y: -34, z: 5 });
+        layoutEngineInternals.setNodePosition(harness.layoutManager.layoutEngine as LayoutEngine, node("a"), {
+            x: 12,
+            y: -34,
+            z: 5,
+        });
         const arrival = harness.add("d");
         await harness.layoutManager.updatePositions([arrival]);
         assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 12, y: -34, z: 5 }, "the drag survived a recompute");

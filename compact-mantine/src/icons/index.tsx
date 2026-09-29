@@ -165,7 +165,7 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
                         `light-dark()` value, which resolves in CSS but not
                         reliably in an SVG presentation attribute.
                     */}
-                    <circle cx="5.5" cy="5.5" r="0.75" style={{fill: PANEL_INK.SURFACE}} stroke="none" />
+                    <circle cx="5.5" cy="5.5" r="0.75" style={{ fill: PANEL_INK.SURFACE }} stroke="none" />
                 </>
             );
         }

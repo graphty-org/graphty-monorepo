@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Mock kit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="kit.css">
+<style>
+  /* Style-sheet chrome only (the "doc-" classes). Nothing here belongs to the kit. */
+  html, body { margin: 0; background: var(--k-bg); color: var(--k-text); font: var(--k-text-body); letter-spacing: var(--k-ls-body); }
+  body { padding: 24px 32px 96px; }
+  .doc-top { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  .doc-top h1 { font: var(--k-text-heading-md); margin: 0; flex: 1; }
+  .doc-intro { color: var(--k-text-secondary); max-width: 720px; margin: 0 0 24px; line-height: 16px; }
+  .doc-section { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--k-border); }
+  .doc-section > h2 { font: var(--k-text-heading); letter-spacing: var(--k-ls-heading); margin: 0 0 4px; }
+  .doc-section > p { color: var(--k-text-secondary); margin: 0 0 16px; max-width: 720px; line-height: 16px; }
+  .doc-grid { display: flex; flex-wrap: wrap; gap: 24px 32px; align-items: flex-start; }
+  .doc-item { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .doc-item > .spec { font: 400 10px/14px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; white-space: pre; }
+  .doc-item > .sample { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+  .doc-panel { width: 240px; border: 1px solid var(--k-border); background: var(--k-bg); }
+  .doc-panel-wide { width: 480px; }
+  .doc-swatches { display: grid; grid-template-columns: repeat(6, 200px); gap: 8px 16px; }
+  .doc-swatch { display: flex; align-items: center; gap: 8px; height: 28px; }
+  .doc-swatch i { width: 28px; height: 28px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--k-border-translucent); flex: none; }
+  .doc-swatch span { font: 400 10px/12px var(--k-font-mono); letter-spacing: 0; color: var(--k-text-secondary); }
+  .doc-swatch b { display: block; font: 450 11px/14px var(--k-font); color: var(--k-text); }
+  .doc-frame { width: 1200px; height: 560px; border: 1px solid var(--k-border); position: relative; }
+  .doc-menubg { background: var(--k-canvas); padding: 24px; border-radius: 5px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .doc-type-row { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: baseline; padding: 4px 0; }
+  .doc-type-row .spec { font: 400 10px/14px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; }
+  .doc-box { display: grid; place-items: center; background: var(--k-bg); color: var(--k-text-secondary); font: 400 10px/14px var(--k-font-mono); letter-spacing: 0; }
+  .doc-graph { position: absolute; inset: 0; }
+  .doc-graph circle.n { fill: #b3b3b3; }
+  .doc-graph line { stroke: #b3b3b3; stroke-width: 1; }
+  [data-theme="dark"] .doc-graph circle.n { fill: #757575; }
+  [data-theme="dark"] .doc-graph line { stroke: #5a5a5a; }
+</style>
+</head>
+<body class="k-ui">
+
+<!-- Icon sprite. Glyphs are drawn inside a 24 x 24 box with about 6px of air
+     (a 12px glyph), stroke 1.25, currentColor. Mocks copy this block. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="g-stroke" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"></g>
+  </defs>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M9.5 10.5l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="M9.5 13.5l2.5-2.5 2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M10.5 9l2.5 3-2.5 3" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 16 16"><path d="M6 4.5l4 3.5-4 3.5z" fill="currentColor"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M7 12.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check-16" viewBox="0 0 16 16"><path d="M4 8.5l2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-dash-16" viewBox="0 0 16 16"><path d="M4 8h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M5 12s2.6-4.5 7-4.5 7 4.5 7 4.5-2.6 4.5-7 4.5S5 12 5 12z" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="12" r="2.25" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M6 9.5c1.6 2 3.6 3 6 3s4.4-1 6-3M8.5 12.2l-1 2M12 12.5v2.5M15.5 12.2l1 2" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="7.5" y="11" width="9" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 11V9a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="7.5" y="11" width="9" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 11V9a2.5 2.5 0 014.8-1" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="4.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M14.5 14.5L18 18" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="7" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="17" cy="12" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M7 6l11 5.5-4.6 1.3L11 18z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 12V7.5a1 1 0 012 0V11m0-4.5a1 1 0 012 0V11m0-3a1 1 0 012 0v6.5c0 2.5-2 4-4.5 4S8 16.8 7 14.5L6 12a1 1 0 011.8-.8L9 12.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M6 7h12l-4.5 5.5V17l-3 1v-5.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="9.5" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="15.5" cy="9.5" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="15" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-path" viewBox="0 0 24 24"><circle cx="7" cy="16" r="1.75" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17" cy="8" r="1.75" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M8.3 14.8L11 12l2-1 2.5-2" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-rank" viewBox="0 0 24 24"><path d="M7 17V11M12 17V7M17 17v-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-bridge" viewBox="0 0 24 24"><circle cx="7" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9 12h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1.5 2"/></symbol>
+  <symbol id="i-node" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-set" viewBox="0 0 24 24"><circle cx="10" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="14" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-measure" viewBox="0 0 24 24"><path d="M6 15h12M8 12.5V15M12 10.5V15M16 12.5V15" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-layout" viewBox="0 0 24 24"><circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="16.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="12" cy="16.5" r="1.5" fill="currentColor"/><path d="M9 7.5h6M8.3 9l3 6M15.7 9l-3 6" fill="none" stroke="currentColor" stroke-width="1"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="6" y="7" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M6 10.5h12M6 14h12M11 7v10" fill="none" stroke="currentColor" stroke-width="1"/></symbol>
+  <symbol id="i-data" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="5" ry="2" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M7 8v8c0 1.1 2.2 2 5 2s5-.9 5-2V8M7 12c0 1.1 2.2 2 5 2s5-.9 5-2" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><rect x="6" y="9" width="12" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="13" r="2.25" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 9l1-1.5h3l1 1.5" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-comment" viewBox="0 0 24 24"><path d="M6.5 8.5A1.5 1.5 0 018 7h8a1.5 1.5 0 011.5 1.5v5A1.5 1.5 0 0116 15h-4.5L9 17.5V15H8a1.5 1.5 0 01-1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M12 6.5v2M12 15.5v2M6.5 12h2M15.5 12h2M8.1 8.1l1.4 1.4M14.5 14.5l1.4 1.4M8.1 15.9l1.4-1.4M14.5 9.5l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M9 7.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M16.5 10A5 5 0 007.3 9.5M7.5 14a5 5 0 009.2.5M16.5 6.5V10H13M7.5 17.5V14H11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M12 11v4M12 8.5v.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 6.5l6 10.5H6z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><path d="M12 10.5v3M12 15.5v.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="10" cy="8" r="1" fill="currentColor"/><circle cx="14" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="12" r="1" fill="currentColor"/><circle cx="14" cy="12" r="1" fill="currentColor"/><circle cx="10" cy="16" r="1" fill="currentColor"/><circle cx="14" cy="16" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 6l5.5 3v6L12 18l-5.5-3V9z M12 12l5.5-3M12 12L6.5 9M12 12v6" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-square" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M7 8h10M12 8v9" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <!-- Round-2 additions (the object-first screens): tool and state glyphs. -->
+  <symbol id="i-neighbours" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="6.5" cy="8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17.5" cy="8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="18.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M8 8.8l2.2 1.6M16 8.8l-2.2 1.6M12 14.5V17" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 6l1.4 3.6L17 11l-3.6 1.4L12 16l-1.4-3.6L7 11l3.6-1.4zM17 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9.5 7.5v9M14.5 7.5v9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-step-back" viewBox="0 0 24 24"><path d="M8 7.5v9M16 7.5l-6 4.5 6 4.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-step-fwd" viewBox="0 0 24 24"><path d="M16 7.5v9M8 7.5l6 4.5-6 4.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M10.3 10.3a1.7 1.7 0 113 1.1c-.8.6-1.3 1-1.3 1.9M12 15.3v.4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-snowflake" viewBox="0 0 24 24"><path d="M12 6v12M6.8 9l10.4 6M6.8 15l10.4-6M12 6l-1.5 1.5M12 6l1.5 1.5M12 18l-1.5-1.5M12 18l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M12 9v3.3l2 1.4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-clock-filled" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor"/><path d="M12 9v3.3l2 1.4" fill="none" stroke="var(--k-bg, #fff)" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-number" viewBox="0 0 24 24"><path d="M9.5 6.5L8 17.5M16 6.5l-1.5 11M6.5 10h11M6 14h11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="9.8" cy="9.8" r=".9" fill="currentColor"/><circle cx="14.2" cy="14.2" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M12 5.5V8M12 16v2.5M5.5 12H8M16 12h2.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M10 7h4l-.5 4 2.5 2.5v1H8v-1L10.5 11zM12 14.5V18" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M7.5 18V6.5h9l-2 3 2 3h-9" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-gpu" viewBox="0 0 24 24"><rect x="6" y="8" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9 16v2M12 16v2M15 16v2M9 6v2M12 6v2M15 6v2" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M13.5 9L11 12l2.5 3" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M7 12a5 5 0 105-5H9.5M9.5 7L11 5.5M9.5 7L11 8.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 9.5V12l1.8 1.2" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-tab-close" viewBox="0 0 24 24"><path d="M8 8l8 8M16 8l-8 8" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="doc-top">
+  <h1>Mock kit: the object-first graphty chrome</h1>
+  <span class="k-secondary">Theme</span>
+  <div class="k-seg" style="width:120px" id="theme-seg">
+    <button class="k-seg-opt has-text is-checked" data-set-theme="light">Light</button>
+    <button class="k-seg-opt has-text" data-set-theme="dark">Dark</button>
+  </div>
+</div>
+<p class="doc-intro">
+  Every piece of chrome the mocks are built from, in every state, in light and dark. Measurements
+  come from the Figma study in design/ui/figma/ (components.md and tokens/tokens.json). Each item
+  is labelled with its size and the class that draws it. States that need a pointer (hover,
+  pressed, focus) are shown with a state class (.is-hover, .is-pressed, .is-focus) so they render
+  without one. The stylesheet is kit.css; the icon sprite at the top of this page is copied into
+  each mock. No external fonts: Inter if installed, otherwise the system UI font.
+</p>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>1. Tokens</h2>
+  <p>Colour roles (light value shown in the light theme, dark in dark), the type scale, spacing, radii and shadows. Names are CSS custom properties with a "--k-" prefix.</p>
+
+  <div class="doc-grid" style="margin-bottom:24px">
+    <div class="doc-item"><div class="spec">type: --k-text-body        450 11/16, letter-spacing 0.055px</div><div class="sample">Body: menu items, tooltips, values, buttons, rows</div></div>
+    <div class="doc-item"><div class="spec">type: --k-text-body-strong 550 11/16</div><div class="sample k-strong">Strong body: section titles, active tab, toast</div></div>
+    <div class="doc-item"><div class="spec">type: --k-text-heading     550 13/22, -0.032px</div><div class="sample k-heading">Panel title, file name</div></div>
+    <div class="doc-item"><div class="spec">type: --k-text-heading-md  550 15/25</div><div class="sample k-heading-md">Empty-state heading</div></div>
+    <div class="doc-item"><div class="spec">type: --k-text-caption     500 9/14, +0.27px, secondary</div><div class="sample k-caption">Caption above a field</div></div>
+    <div class="doc-item"><div class="spec">type: --k-text-rail        450 9/14</div><div class="sample" style="font:var(--k-text-rail)">Rail label</div></div>
+    <div class="doc-item"><div class="spec">text colours: --k-text / -secondary / -tertiary / -brand / -danger</div><div class="sample"><span>Primary</span><span class="k-secondary">Secondary</span><span class="k-tertiary">Tertiary</span><span class="k-brand">Brand</span><span style="color:var(--k-text-danger)">Danger</span><span style="color:var(--k-text-success)">Success</span><span style="color:var(--k-text-warning)">Warning</span><span style="color:var(--k-text-component)">Component</span></div></div>
+  </div>
+
+  <div class="doc-swatches" id="swatches"></div>
+
+  <div class="doc-grid" style="margin-top:24px">
+    <div class="doc-item"><div class="spec">spacing: --k-space-1..8 = 4 8 12 16 24 32</div><div class="sample" style="align-items:flex-end">
+      <div class="doc-box" style="width:4px;height:16px;background:var(--k-bg-brand)"></div>
+      <div class="doc-box" style="width:8px;height:16px;background:var(--k-bg-brand)"></div>
+      <div class="doc-box" style="width:12px;height:16px;background:var(--k-bg-brand)"></div>
+      <div class="doc-box" style="width:16px;height:16px;background:var(--k-bg-brand)"></div>
+      <div class="doc-box" style="width:24px;height:16px;background:var(--k-bg-brand)"></div>
+      <div class="doc-box" style="width:32px;height:16px;background:var(--k-bg-brand)"></div>
+    </div></div>
+    <div class="doc-item"><div class="spec">radius: --k-radius-sm 2 / -md 5 / -lg 13 / -full</div><div class="sample">
+      <div class="doc-box" style="width:32px;height:32px;background:var(--k-bg-tertiary);border-radius:var(--k-radius-sm)">2</div>
+      <div class="doc-box" style="width:32px;height:32px;background:var(--k-bg-tertiary);border-radius:var(--k-radius-md)">5</div>
+      <div class="doc-box" style="width:32px;height:32px;background:var(--k-bg-tertiary);border-radius:var(--k-radius-lg)">13</div>
+      <div class="doc-box" style="width:32px;height:32px;background:var(--k-bg-tertiary);border-radius:var(--k-radius-full)">full</div>
+    </div></div>
+    <div class="doc-item"><div class="spec">shadows: --k-shadow-100 thumb / 200 toolbar / 300 tooltip / 400 menu / 500 modal</div><div class="sample" style="gap:24px;padding:12px 0">
+      <div class="doc-box" style="width:56px;height:40px;border-radius:5px;box-shadow:var(--k-shadow-100)">100</div>
+      <div class="doc-box" style="width:56px;height:40px;border-radius:13px;box-shadow:var(--k-shadow-200)">200</div>
+      <div class="doc-box" style="width:56px;height:40px;border-radius:5px;box-shadow:var(--k-shadow-300)">300</div>
+      <div class="doc-box" style="width:56px;height:40px;border-radius:13px;box-shadow:var(--k-shadow-400)">400</div>
+      <div class="doc-box" style="width:56px;height:40px;border-radius:13px;box-shadow:var(--k-shadow-500)">500</div>
+    </div></div>
+    <div class="doc-item"><div class="spec">focus ring: 1px --k-border-selected, keyboard only; +1 outside buttons, -1 inside fields</div><div class="sample">
+      <button class="k-btn k-btn-secondary is-focus">Outside +1</button>
+      <div class="k-input is-focus"><span class="k-input-slot">W</span><span class="k-input-value">Inside -1</span></div>
+      <button class="k-tool is-selected is-focus"><svg class="k-icon"><use href="#i-cursor"/></svg></button>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>2. App frame</h2>
+  <p>.k-app: rail 56 | left panel 240 | canvas | right panel 240, with an optional 24px status bar (.has-statusbar). Panels have no shadow; 1px lines separate them. The floating toolbar is centred on the window, 12px above the bottom. Shown at 1200 x 560.</p>
+  <div class="doc-frame">
+    <div class="k-app has-statusbar">
+      <nav class="k-rail">
+        <button class="k-rail-btn is-active"><span class="k-rail-pill"><svg class="k-icon"><use href="#i-set"/></svg></span><span class="k-rail-label">Objects</span></button>
+        <button class="k-rail-btn"><span class="k-rail-pill"><svg class="k-icon"><use href="#i-data"/></svg></span><span class="k-rail-label">Data</span></button>
+        <button class="k-rail-btn"><span class="k-rail-pill"><svg class="k-icon"><use href="#i-table"/></svg></span><span class="k-rail-label">Table</span></button>
+        <div class="k-rail-sep"></div>
+        <button class="k-rail-btn"><span class="k-rail-pill"><svg class="k-icon"><use href="#i-layout"/></svg></span><span class="k-rail-label">Layout</span></button>
+        <button class="k-rail-btn"><span class="k-rail-pill"><svg class="k-icon"><use href="#i-camera"/></svg></span><span class="k-rail-label">Camera</span></button>
+        <span class="k-rail-spacer"></span>
+        <button class="k-rail-btn"><span class="k-rail-pill" style="position:relative"><svg class="k-icon"><use href="#i-settings"/></svg><span class="k-dot"></span></span><span class="k-rail-label">Settings</span></button>
+      </nav>
+      <aside class="k-panel k-panel-left">
+        <div class="k-panel-header"><span class="k-panel-title"><span class="k-heading" style="font-size:13px">les-miserables.gexf</span></span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-more"/></svg></button></div>
+        <div class="k-divider"></div>
+        <div class="k-panel-header is-hover"><span class="k-panel-title">Objects<svg class="k-icon-16"><use href="#i-caret"/></svg></span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-search"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></div>
+        <div class="k-tree show-carets">
+          <div class="k-tree-row is-top is-expanded is-selected"><span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-group"/></svg></span><span class="k-tree-name">Communities (Louvain)</span><span class="k-tree-meta">7</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+          <div class="k-tree-row is-leaf is-child-selected" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#0d99ff;width:10px;height:10px"></span></span><span class="k-tree-name">Group 1</span><span class="k-tree-meta">31</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+          <div class="k-tree-row is-leaf is-child-selected is-hover" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#f24822;width:10px;height:10px"></span></span><span class="k-tree-name">Group 2</span><span class="k-tree-meta">18</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+          <div class="k-tree-row is-leaf is-child-selected is-last" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#14ae5c;width:10px;height:10px"></span></span><span class="k-tree-name">Group 3</span><span class="k-tree-meta">12</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+          <div class="k-tree-row is-top is-leaf"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><span class="k-tree-name">Valjean to Cosette</span><span class="k-tree-meta">4 hops</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+          <div class="k-tree-row is-top is-leaf"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-rank"/></svg></span><span class="k-tree-name">Betweenness</span><span class="k-tree-meta">77</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+          <div class="k-tree-row is-top is-leaf is-hidden"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-filter"/></svg></span><span class="k-tree-name">degree &gt; 10</span><span class="k-tree-meta">23</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn" style="opacity:0"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye is-on"><svg class="k-icon"><use href="#i-eye-off"/></svg></button></span></div>
+        </div>
+      </aside>
+      <main class="k-canvas">
+        <svg class="doc-graph" viewBox="0 0 660 560" preserveAspectRatio="xMidYMid slice">
+          <line x1="200" y1="200" x2="300" y2="260"/><line x1="300" y1="260" x2="420" y2="220"/><line x1="300" y1="260" x2="330" y2="360"/><line x1="420" y1="220" x2="500" y2="300"/><line x1="330" y1="360" x2="500" y2="300"/><line x1="200" y1="200" x2="180" y2="320"/><line x1="180" y1="320" x2="330" y2="360"/><line x1="420" y1="220" x2="460" y2="120"/>
+          <circle class="n" cx="200" cy="200" r="7"/><circle class="n" cx="300" cy="260" r="10" style="fill:#0d99ff"/><circle class="n" cx="420" cy="220" r="8" style="fill:#0d99ff"/><circle class="n" cx="330" cy="360" r="6" style="fill:#f24822"/><circle class="n" cx="500" cy="300" r="9" style="fill:#f24822"/><circle class="n" cx="180" cy="320" r="5" style="fill:#14ae5c"/><circle class="n" cx="460" cy="120" r="6" style="fill:#0d99ff"/>
+        </svg>
+        <div style="position:absolute;left:274px;top:230px;width:52px;height:52px;border-radius:50%" class="k-hover-outline"></div>
+        <div class="k-toast k-toast-float"><span class="k-toast-msg"><svg class="k-icon-16"><use href="#i-check-16"/></svg>Louvain finished in 1.2 s</span></div>
+        <div class="k-toolbar k-toolbar-float">
+          <div class="k-tool-group"><button class="k-tool is-selected"><svg class="k-icon"><use href="#i-cursor"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-filter"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-group"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-path"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-rank"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <button class="k-tool"><svg class="k-icon"><use href="#i-bridge"/></svg></button>
+          <div class="k-toolbar-divider"></div>
+          <div class="k-mode"><button class="k-mode-opt"><svg class="k-icon"><use href="#i-square"/></svg></button><button class="k-mode-opt is-selected"><svg class="k-icon"><use href="#i-cube"/></svg></button><button class="k-mode-opt"><svg class="k-icon"><use href="#i-play"/></svg></button></div>
+        </div>
+      </main>
+      <aside class="k-panel k-panel-right">
+        <div class="k-panel-type"><span class="k-heading">Communities</span><span class="k-chip k-chip-success"><span class="k-chip-dot"></span>Done</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-refresh"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-more"/></svg></button></div>
+        <div class="k-section">
+          <div class="k-section-header"><span class="k-section-title">Louvain</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-info"/></svg></button></span></div>
+          <div class="k-row-2"><div class="k-row" style="height:auto;padding:0 8px 0 16px"><div class="k-field"><span class="k-caption">Resolution</span><div class="k-input"><span class="k-input-slot"><svg class="k-icon"><use href="#i-settings"/></svg></span><input value="1.0"></div></div><div class="k-field"><span class="k-caption">Weight</span><button class="k-select"><span>weight</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div></div>
+          <div class="k-row"><label class="k-check k-span-3"><input type="checkbox" checked><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Re-run when the data changes</label></div>
+        </div>
+        <div class="k-section">
+          <div class="k-section-header"><span class="k-section-title">Fill</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div>
+          <div class="k-row-flex"><div class="k-paint"><span class="k-swatch" style="--swatch:#0d99ff"></span><span class="k-paint-hex">0d99ff</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div><span class="k-row-actions"><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-minus"/></svg></button></span></div>
+          <div class="k-row-flex"><div class="k-paint"><span class="k-swatch" style="--swatch:#f24822"></span><span class="k-paint-hex">f24822</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div><span class="k-row-actions"><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-minus"/></svg></button></span></div>
+          <div class="k-row-flex"><div class="k-paint"><span class="k-swatch" style="--swatch:#14ae5c"></span><span class="k-paint-hex">14ae5c</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div><span class="k-row-actions"><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-minus"/></svg></button></span></div>
+        </div>
+        <div class="k-section">
+          <div class="k-section-header is-empty"><span class="k-section-title">Size</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div>
+        </div>
+        <div class="k-section">
+          <div class="k-section-header is-empty"><span class="k-section-title">Label</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div>
+        </div>
+      </aside>
+      <footer class="k-statusbar"><span>77 nodes, 254 edges</span><span class="k-divider-v" style="height:12px"></span><span class="k-chip k-chip-brand"><span class="k-chip-dot"></span>GPU</span><span class="k-statusbar-spacer"></span><span>Layout settled</span><span class="k-divider-v" style="height:12px"></span><span>100%</span></footer>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>3. Panel headers and sections</h2>
+  <p>A section is a 40px header, its rows, 12px bottom padding and a 1px line below. Title 11px weight 550 with a 32px line. An empty section is just its header with a secondary title and a "+"; hovering turns them primary over 100ms. The left-panel group header shows its chevron only on hover.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-section-header  240 x 40, padding 0 8 0 16, actions 24px 4 apart</div><div class="doc-panel"><div class="k-section"><div class="k-section-header"><span class="k-section-title">Fill</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-more"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div><div class="k-row"><div class="k-input k-span-2"><span class="k-input-slot">W</span><input value="184"></div><button class="k-icon-btn"><svg class="k-icon"><use href="#i-minus"/></svg></button></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-section-header.is-collapsible  16px caret in the left gutter</div><div class="doc-panel"><div class="k-section"><div class="k-section-header is-collapsible"><span class="k-section-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-section-title">Export</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-section-header.is-empty  title secondary, + only</div><div class="doc-panel"><div class="k-section"><div class="k-section-header is-empty"><span class="k-section-title">Stroke</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-section-header.is-empty.is-hover  everything primary</div><div class="doc-panel"><div class="k-section"><div class="k-section-header is-empty is-hover"><span class="k-section-title">Stroke</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-panel-header  left group header 240 x 40; chevron on hover</div><div class="doc-panel"><div class="k-panel-header"><span class="k-panel-title">Objects<svg class="k-icon-16"><use href="#i-caret"/></svg></span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></div><div class="k-panel-header is-hover"><span class="k-panel-title">Objects<svg class="k-icon-16"><use href="#i-caret"/></svg></span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-panel-type  selection type row 240 x 48 + 1px, title 13/22 550</div><div class="doc-panel"><div class="k-panel-type"><span class="k-heading">Valjean to Cosette</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-refresh"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-more"/></svg></button></div></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>4. Property rows</h2>
+  <p>Every right-panel row sits on one grid: 16 pad | column A 88 | 8 | column B 88 | 8 | icon 24 | 8 pad = 240. Rows are 32 tall with 24px controls; a two-column row with 9px captions is 50 tall. Paint rows put a 156px composite, an eye and a minus in the same width.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-row  32 tall, two 88px fields + 24px icon</div><div class="doc-panel"><div class="k-row"><div class="k-input"><span class="k-input-slot">X</span><input value="120"></div><div class="k-input"><span class="k-input-slot">Y</span><input value="64"></div><button class="k-icon-btn"><svg class="k-icon"><use href="#i-more"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-row > .k-span-2  one 184px control</div><div class="doc-panel"><div class="k-row"><button class="k-select k-span-2"><span>Louvain</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-info"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-row-2  50 tall, .k-caption 9/14 above each field, 3px gap</div><div class="doc-panel"><div class="k-row k-row-2"><div class="k-field"><span class="k-caption">Opacity</span><div class="k-input"><span class="k-input-slot"><svg class="k-icon"><use href="#i-eye"/></svg></span><input value="100%"></div></div><div class="k-field"><span class="k-caption">Radius</span><div class="k-input"><span class="k-input-slot"><svg class="k-icon"><use href="#i-square"/></svg></span><input value="0"></div></div><button class="k-icon-btn" style="align-self:end"><svg class="k-icon"><use href="#i-more"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-row-flex + .k-paint  156 | 8 | eye 24 | 4 | minus 24</div><div class="doc-panel"><div class="k-row-flex"><div class="k-paint"><span class="k-swatch" style="--swatch:#0d99ff"></span><span class="k-paint-hex">0d99ff</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div><span class="k-row-actions"><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-minus"/></svg></button></span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-row + .k-check  checkbox row 32 tall</div><div class="doc-panel"><div class="k-row"><label class="k-check k-span-3"><input type="checkbox"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Directed</label></div></div></div>
+    <div class="doc-item"><div class="spec">.k-row-labeled  popover style: 16 | label 72 | 8 | control | 16</div><div class="doc-panel"><div class="k-row-labeled"><span class="k-label">Source</span><div class="k-input k-w-fill"><input value="Valjean"></div></div><div class="k-row-labeled"><span class="k-label">Algorithm</span><button class="k-select k-w-fill"><span>Dijkstra</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-row + .k-legend  field row 48: 16 legend, 4 gap, 24 controls</div><div class="doc-panel"><div class="k-row" style="height:48px;grid-template-rows:16px 24px;row-gap:4px;align-content:center"><span class="k-legend k-span-3">Position</span><div class="k-input"><span class="k-input-slot">X</span><input value="0"></div><div class="k-input"><span class="k-input-slot">Y</span><input value="0"></div></div></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>5. Inputs (24px)</h2>
+  <p>Every field is filled (#f5f5f5 / #383838) except the select, which is outlined. Hover draws a 1px border, focus a 1px brand ring inside the radius. A leading 24px slot holds a letter or icon and is the scrub handle. Nothing applies until Enter, Tab or blur.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-input  88 x 24, radius 5, slot 24</div><div class="sample"><div class="k-input"><span class="k-input-slot">W</span><input value="240"></div></div></div>
+    <div class="doc-item"><div class="spec">.is-hover  1px --k-border</div><div class="sample"><div class="k-input is-hover"><span class="k-input-slot">W</span><input value="240"></div></div></div>
+    <div class="doc-item"><div class="spec">.is-focus  1px --k-border-selected, value selected</div><div class="sample"><div class="k-input is-focus"><span class="k-input-slot">W</span><input value="240" style="background:var(--k-text-highlight)"></div></div></div>
+    <div class="doc-item"><div class="spec">.is-disabled  white, 1px --k-border-disabled, text 30%</div><div class="sample"><div class="k-input is-disabled"><span class="k-input-slot">W</span><input value="240" disabled></div></div></div>
+    <div class="doc-item"><div class="spec">.is-invalid  1px --k-border-danger-strong</div><div class="sample"><div class="k-input is-invalid"><span class="k-input-slot">W</span><input value="abc"></div></div></div>
+    <div class="doc-item"><div class="spec">.is-mixed  multi-selection</div><div class="sample"><div class="k-input is-mixed"><span class="k-input-slot">W</span><input value="Mixed"></div></div></div>
+    <div class="doc-item"><div class="spec">icon slot  24 x 24 icon, 12px glyph</div><div class="sample"><div class="k-input"><span class="k-input-slot"><svg class="k-icon"><use href="#i-eye"/></svg></span><input value="100%"></div></div></div>
+    <div class="doc-item"><div class="spec">no slot  padding-left 8, placeholder tertiary</div><div class="sample"><div class="k-input k-w-184"><input placeholder="Name"></div></div></div>
+    <div class="doc-item"><div class="spec">.k-input + .k-input-chevron  combo input 88 x 24</div><div class="sample"><div class="k-input"><input value="12" style="padding-left:7px"><span class="k-input-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-input.k-search  156 x 24, 16px magnifier, clear after typing</div><div class="sample"><div class="k-input k-search"><span class="k-input-slot"><svg class="k-icon-16"><use href="#i-search"/></svg></span><input placeholder="Search objects"></div><div class="k-input k-search is-focus"><span class="k-input-slot"><svg class="k-icon-16"><use href="#i-search"/></svg></span><input value="valj"><span class="k-input-end"><svg class="k-icon"><use href="#i-close"/></svg></span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-rename  inline rename 176 x 24, white, 1px brand, text pre-selected</div><div class="sample"><input class="k-rename" value="Communities (Louvain)" style="background:var(--k-bg)"></div></div>
+    <div class="doc-item"><div class="spec">.k-select  88 x 24, outlined, chevron slot 24; .is-focus; .is-disabled</div><div class="sample"><button class="k-select"><span>Regular</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-select is-focus"><span>Regular</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-select is-disabled"><span>Regular</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div>
+    <div class="doc-item"><div class="spec">.k-select.k-w-208  wide select</div><div class="sample"><button class="k-select k-w-208"><span>Betweenness centrality</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div>
+    <div class="doc-item"><div class="spec">.k-paint  156 x 24: chit 14 @5 | hex 77 | 1px | opacity 38 | % 14</div><div class="sample"><div class="k-paint"><span class="k-swatch" style="--swatch:#0d99ff"></span><span class="k-paint-hex">0d99ff</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-paint.is-hover  whole field --k-bg-pressed</div><div class="sample"><div class="k-paint is-hover"><span class="k-swatch" style="--swatch:#0d99ff"></span><span class="k-paint-hex">0d99ff</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-paint.is-focus</div><div class="sample"><div class="k-paint is-focus"><span class="k-swatch" style="--swatch:#0d99ff"></span><span class="k-paint-hex">0d99ff</span><span class="k-paint-divider"></span><span class="k-paint-opacity">50</span><span class="k-input-suffix">%</span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-swatch.is-gradient + .k-name  a measure's scale</div><div class="sample"><div class="k-paint"><span class="k-swatch is-gradient" style="--from:#e5f4ff;--to:#0768cf"></span><span class="k-name">Linear</span><span class="k-paint-divider"></span><span class="k-paint-opacity">100</span><span class="k-input-suffix">%</span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-swatch  14 radius 2; .k-swatch-16 radius 20%; .k-swatch-round; .is-focus</div><div class="sample"><span class="k-swatch" style="--swatch:#0d99ff"></span><span class="k-swatch" style="--swatch:#fff"></span><span class="k-swatch k-swatch-16" style="--swatch:#14ae5c"></span><span class="k-swatch k-swatch-16 k-swatch-round" style="--swatch:#9747ff"></span><span class="k-swatch is-focus" style="--swatch:#f24822"></span></div></div>
+    <div class="doc-item"><div class="spec">.k-seg  icon options share the width (3 in 88 = 29.3); checked face white + 1px inset border</div><div class="sample"><div class="k-seg k-w-88"><button class="k-seg-opt is-checked"><svg class="k-icon"><use href="#i-square"/></svg></button><button class="k-seg-opt"><svg class="k-icon"><use href="#i-cube"/></svg></button><button class="k-seg-opt"><svg class="k-icon"><use href="#i-text"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-seg text options  184 wide, padding 0 8; .is-disabled</div><div class="sample"><div class="k-seg k-w-184"><button class="k-seg-opt has-text">Nodes</button><button class="k-seg-opt has-text is-checked">Edges</button><button class="k-seg-opt has-text">Both</button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-seg.is-disabled</div><div class="sample"><div class="k-seg k-w-184 is-disabled"><button class="k-seg-opt has-text">Nodes</button><button class="k-seg-opt has-text is-checked">Edges</button><button class="k-seg-opt has-text">Both</button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-check  16px face radius 2, label +8; neutral: unchecked / checked / mixed / hover / focus / disabled</div><div class="sample" style="flex-wrap:wrap;gap:16px">
+      <label class="k-check"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Off</label>
+      <label class="k-check is-checked"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>On</label>
+      <label class="k-check is-mixed"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Mixed</label>
+      <label class="k-check is-hover"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Hover</label>
+      <label class="k-check is-checked is-focus"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Focus</label>
+      <label class="k-check is-disabled is-checked"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Disabled</label>
+    </div></div>
+    <div class="doc-item"><div class="spec">.k-check.k-check-blue  dialogs: brand fill, white glyph</div><div class="sample" style="flex-wrap:wrap;gap:16px">
+      <label class="k-check k-check-blue"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Off</label>
+      <label class="k-check k-check-blue is-checked"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>On</label>
+      <label class="k-check k-check-blue is-mixed"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Mixed</label>
+      <label class="k-check k-check-blue is-checked is-pressed"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Pressed</label>
+      <label class="k-check k-check-blue is-checked is-disabled"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Disabled</label>
+    </div></div>
+    <div class="doc-item"><div class="spec">.k-switch  32 x 16 track, 12 x 8 knob: off / on / mixed / focus / disabled off / disabled on</div><div class="sample" style="gap:16px">
+      <span class="k-switch-row"><span class="k-switch"></span>False</span>
+      <span class="k-switch-row"><span class="k-switch is-on"></span>True</span>
+      <span class="k-switch-row"><span class="k-switch is-mixed"></span>Mixed</span>
+      <span class="k-switch-row"><span class="k-switch is-on is-focus"></span>Focus</span>
+      <span class="k-switch-row"><span class="k-switch is-disabled"></span></span>
+      <span class="k-switch-row"><span class="k-switch is-disabled is-on"></span></span>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>6. Buttons</h2>
+  <p>Text buttons are 24 tall with 8px side padding (32 and 12 for the large size), radius 5, 11px weight 450. The secondary button's border is an outline, so it takes no space. Icon buttons are 24 x 24 (32 for the rail and toolbar) and transparent until hovered; an open one (its menu is up) is blue-tinted with a brand icon.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-btn  primary 24: default / hover / pressed / focus / disabled / loading</div><div class="sample"><button class="k-btn">Run</button><button class="k-btn is-hover">Run</button><button class="k-btn is-pressed">Run</button><button class="k-btn is-focus">Run</button><button class="k-btn is-disabled">Run</button><button class="k-btn is-loading"><span>Run</span><span class="k-spinner"></span></button></div></div>
+    <div class="doc-item"><div class="spec">.k-btn.k-btn-lg  32 tall, padding 0 12; with leading icon (-4px inset)</div><div class="sample"><button class="k-btn k-btn-lg">Share</button><button class="k-btn"><svg class="k-icon"><use href="#i-plus"/></svg>Create</button></div></div>
+    <div class="doc-item"><div class="spec">.k-btn-secondary  outline 1px translucent: default / hover / pressed / focus / disabled</div><div class="sample"><button class="k-btn k-btn-secondary">Cancel</button><button class="k-btn k-btn-secondary is-hover">Cancel</button><button class="k-btn k-btn-secondary is-pressed">Cancel</button><button class="k-btn k-btn-secondary is-focus">Cancel</button><button class="k-btn k-btn-secondary is-disabled">Cancel</button></div></div>
+    <div class="doc-item"><div class="spec">.k-btn-ghost  no outline: default / hover / pressed / disabled; with shortcut</div><div class="sample"><button class="k-btn k-btn-ghost">Ghost</button><button class="k-btn k-btn-ghost is-hover">Ghost</button><button class="k-btn k-btn-ghost is-pressed">Ghost</button><button class="k-btn k-btn-ghost is-disabled">Ghost</button><button class="k-btn k-btn-ghost">Undo<span class="k-shortcut">Ctrl+Z</span></button></div></div>
+    <div class="doc-item"><div class="spec">.k-btn-danger / .k-btn-danger-secondary</div><div class="sample"><button class="k-btn k-btn-danger">Delete</button><button class="k-btn k-btn-danger is-hover">Delete</button><button class="k-btn k-btn-danger-secondary">Delete</button><button class="k-btn k-btn-danger-secondary is-hover">Delete</button></div></div>
+    <div class="doc-item"><div class="spec">.k-btn.k-w-208  fill variant inside a 240 panel</div><div class="doc-panel" style="padding:8px 16px"><button class="k-btn k-btn-secondary k-w-208">Export as GEXF</button></div></div>
+    <div class="doc-item"><div class="spec">.k-icon-btn  24: default / hover / pressed / open / open+hover / focus / disabled</div><div class="sample"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button><button class="k-icon-btn is-hover"><svg class="k-icon"><use href="#i-plus"/></svg></button><button class="k-icon-btn is-pressed"><svg class="k-icon"><use href="#i-plus"/></svg></button><button class="k-icon-btn is-open"><svg class="k-icon"><use href="#i-more"/></svg></button><button class="k-icon-btn is-open is-hover"><svg class="k-icon"><use href="#i-more"/></svg></button><button class="k-icon-btn is-focus"><svg class="k-icon"><use href="#i-plus"/></svg></button><button class="k-icon-btn is-disabled"><svg class="k-icon"><use href="#i-plus"/></svg></button></div></div>
+    <div class="doc-item"><div class="spec">.k-icon-btn.k-icon-btn-32  32 x 32</div><div class="sample"><button class="k-icon-btn k-icon-btn-32"><svg class="k-icon"><use href="#i-settings"/></svg></button><button class="k-icon-btn k-icon-btn-32 is-hover"><svg class="k-icon"><use href="#i-settings"/></svg></button><button class="k-icon-btn k-icon-btn-32 is-open"><svg class="k-icon"><use href="#i-settings"/></svg></button></div></div>
+    <div class="doc-item"><div class="spec">.k-toggle-btn  off / off hover / on / on hover / on focus / disabled on</div><div class="sample"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-lock"/></svg></button><button class="k-icon-btn k-toggle-btn is-hover"><svg class="k-icon"><use href="#i-lock"/></svg></button><button class="k-icon-btn k-toggle-btn is-on"><svg class="k-icon"><use href="#i-lock"/></svg></button><button class="k-icon-btn k-toggle-btn is-on is-hover"><svg class="k-icon"><use href="#i-lock"/></svg></button><button class="k-icon-btn k-toggle-btn is-on is-focus"><svg class="k-icon"><use href="#i-lock"/></svg></button><button class="k-icon-btn k-toggle-btn is-on is-disabled"><svg class="k-icon"><use href="#i-lock"/></svg></button></div></div>
+    <div class="doc-item"><div class="spec">.k-toggle-btn.k-eye  never fills; swaps the glyph (.k-icon-off / .k-icon-on)</div><div class="sample"><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon k-icon-off"><use href="#i-eye"/></svg><svg class="k-icon k-icon-on"><use href="#i-eye-off"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye is-on"><svg class="k-icon k-icon-off"><use href="#i-eye"/></svg><svg class="k-icon k-icon-on"><use href="#i-eye-off"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye is-on is-hover"><svg class="k-icon k-icon-off"><use href="#i-eye"/></svg><svg class="k-icon k-icon-on"><use href="#i-eye-off"/></svg></button></div></div>
+    <div class="doc-item"><div class="spec">.k-joined  three 28.7 x 24 buttons in 88, outer radii only, hover --k-bg-pressed</div><div class="sample"><div class="k-joined k-w-88"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-chevron-up"/></svg></button><button class="k-icon-btn is-hover"><svg class="k-icon"><use href="#i-minus"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-tabs / .k-tab  24 tall, padding 0 8, gap 4; selected 550 on the field fill; hover</div><div class="sample"><div class="k-tabs"><button class="k-tab is-selected">Object</button><button class="k-tab">Data</button><button class="k-tab is-hover">History</button></div></div></div>
+    <div class="doc-item"><div class="spec">.k-link  brand, no underline</div><div class="sample"><a class="k-link" href="#">Learn more</a><a class="k-link" href="#">Show more options</a></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>7. Tree rows (the object list)</h2>
+  <p>Rows are 32 tall. From the panel edge: caret 16, type icon 16, name at 40; each level indents 24px (set --depth on the row). Top-level names are weight 600, nested 400. The hover pill is inset 4 8 0 12 (24 tall, radius 5); the selected pill is inset 4 8 4 12. Children of a selected row get a full-width tint from the panel edge; the last child rounds its bottom corners. Lock and eye appear on hover and stay on locked or hidden rows. Carets show only while the pointer is over the list (or the row is expanded); .show-carets forces them.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-tree-row.is-top  default (carets hidden until the list is hovered)</div><div class="doc-panel"><div class="k-tree">
+      <div class="k-tree-row is-top is-expanded"><span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-group"/></svg></span><span class="k-tree-name">Communities (Louvain)</span><span class="k-tree-meta">7</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-leaf" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#0d99ff;width:10px;height:10px"></span></span><span class="k-tree-name">Group 1</span><span class="k-tree-meta">31</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-leaf" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#f24822;width:10px;height:10px"></span></span><span class="k-tree-name">Group 2</span><span class="k-tree-meta">18</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-top is-leaf"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><span class="k-tree-name">Valjean to Cosette</span><span class="k-tree-meta">4 hops</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+    </div></div></div>
+    <div class="doc-item"><div class="spec">.is-hover  pill inset 4 8 0 12, eye and lock revealed; .is-selected  pill inset 4 8 4 12</div><div class="doc-panel"><div class="k-tree show-carets">
+      <div class="k-tree-row is-top is-leaf is-hover"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-rank"/></svg></span><span class="k-tree-name">Betweenness</span><span class="k-tree-meta">77</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-top is-leaf is-selected"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-rank"/></svg></span><span class="k-tree-name">Betweenness</span><span class="k-tree-meta">77</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-top is-leaf is-selected is-hover"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-rank"/></svg></span><span class="k-tree-name">Betweenness (selected + hover)</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+    </div></div></div>
+    <div class="doc-item"><div class="spec">.is-selected.is-expanded + .is-child-selected (.is-last) + child .is-hover</div><div class="doc-panel"><div class="k-tree show-carets">
+      <div class="k-tree-row is-top is-expanded is-selected"><span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-group"/></svg></span><span class="k-tree-name">Communities (Louvain)</span><span class="k-tree-meta">7</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-leaf is-child-selected" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#0d99ff;width:10px;height:10px"></span></span><span class="k-tree-name">Group 1</span><span class="k-tree-meta">31</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-leaf is-child-selected is-hover" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#f24822;width:10px;height:10px"></span></span><span class="k-tree-name">Group 2 (hovered)</span><span class="k-tree-meta">18</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-leaf is-child-selected is-last" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#14ae5c;width:10px;height:10px"></span></span><span class="k-tree-name">Group 3</span><span class="k-tree-meta">12</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-top is-leaf"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><span class="k-tree-name">Valjean to Cosette</span><span class="k-tree-meta">4 hops</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+    </div></div></div>
+    <div class="doc-item"><div class="spec">contiguous multi-selection: .is-run-start / .is-run-mid / .is-run-end (one merged block)</div><div class="doc-panel"><div class="k-tree show-carets">
+      <div class="k-tree-row is-top is-leaf is-selected is-run-start"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><span class="k-tree-name">Path A</span></div>
+      <div class="k-tree-row is-top is-leaf is-selected is-run-mid"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><span class="k-tree-name">Path B</span></div>
+      <div class="k-tree-row is-top is-leaf is-selected is-run-end"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><span class="k-tree-name">Path C</span></div>
+      <div class="k-tree-row is-top is-leaf"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-filter"/></svg></span><span class="k-tree-name">degree &gt; 10</span></div>
+    </div></div></div>
+    <div class="doc-item"><div class="spec">.is-hidden (closed eye stays, text 30%) / .is-locked (lock stays) / .is-component (purple) / nested depth 2</div><div class="doc-panel"><div class="k-tree show-carets">
+      <div class="k-tree-row is-top is-leaf is-hidden"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-filter"/></svg></span><span class="k-tree-name">degree &gt; 10</span><span class="k-tree-meta">23</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn" style="opacity:0"><svg class="k-icon"><use href="#i-unlock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye is-on"><svg class="k-icon"><use href="#i-eye-off"/></svg></button></span></div>
+      <div class="k-tree-row is-top is-leaf is-locked"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-bridge"/></svg></span><span class="k-tree-name">Bridges</span><span class="k-tree-meta">5</span><span class="k-tree-actions"><button class="k-icon-btn k-toggle-btn is-on" style="background:none;color:var(--k-text)"><svg class="k-icon"><use href="#i-lock"/></svg></button><button class="k-icon-btn k-toggle-btn k-eye" style="opacity:0"><svg class="k-icon"><use href="#i-eye"/></svg></button></span></div>
+      <div class="k-tree-row is-top is-leaf is-component"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-set"/></svg></span><span class="k-tree-name">Saved selection</span></div>
+      <div class="k-tree-row is-expanded" style="--depth:1"><span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-filter"/></svg></span><span class="k-tree-name">within Group 1</span></div>
+      <div class="k-tree-row is-leaf" style="--depth:2"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-node"/></svg></span><span class="k-tree-name">Valjean</span></div>
+    </div></div></div>
+    <div class="doc-item"><div class="spec">.is-drop-target (1px brand box) + .k-tree-insert (2px line at the insertion depth) + inline rename</div><div class="doc-panel"><div class="k-tree show-carets">
+      <div class="k-tree-row is-top is-expanded is-drop-target"><span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-group"/></svg></span><span class="k-tree-name">Communities (Louvain)</span></div>
+      <div class="k-tree-insert" style="--depth:1"></div>
+      <div class="k-tree-row is-leaf" style="--depth:1"><span class="k-tree-caret"></span><span class="k-tree-icon"><span class="k-swatch" style="--swatch:#0d99ff;width:10px;height:10px"></span></span><span class="k-tree-name">Group 1</span></div>
+      <div class="k-tree-row is-top is-leaf"><span class="k-tree-caret"></span><span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-path"/></svg></span><input class="k-rename" value="Valjean to Cosette" style="margin-left:0"></div>
+    </div></div></div>
+    <div class="doc-item"><div class="spec">.k-list-row  240 x 32 wrapper around a 224 x 24 pill (pages style): default / hover / current (550, no blue)</div><div class="doc-panel"><div class="k-list-row"><div class="k-list-pill">Les Miserables</div></div><div class="k-list-row is-hover"><div class="k-list-pill">Karate club</div></div><div class="k-list-row is-current"><div class="k-list-pill">Power grid</div></div></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>8. Dark menu</h2>
+  <p>One menu for everything: main menu, flyouts, context menus, select lists. It is #1e1e1e in both themes, radius 13, 8px top and bottom padding, 24px rows with the highlight inset 8px (radius 5) in brand blue. Labels start 16px from the edge (32 with a check column). Shortcuts are right-aligned at 70% white. Separators are 1px at 10% white with 8px above and below. Submenus open with no delay.</p>
+  <div class="doc-menubg">
+    <div class="doc-item"><div class="spec">.k-menu  min 152, hugs content; .is-active row; .k-menu-shortcut; .k-menu-sep; .k-menu-sub</div>
+      <div class="k-menu">
+        <div class="k-menu-item"><span class="k-menu-label">Rename</span><span class="k-menu-shortcut">Ctrl+R</span></div>
+        <div class="k-menu-item is-active"><span class="k-menu-label">Duplicate</span><span class="k-menu-shortcut">Ctrl+D</span></div>
+        <div class="k-menu-item"><span class="k-menu-label">Re-run</span></div>
+        <div class="k-menu-sep"></div>
+        <div class="k-menu-item"><span class="k-menu-label">Combine with</span><span class="k-menu-sub"><svg class="k-icon"><use href="#i-chevron-right"/></svg></span></div>
+        <div class="k-menu-item is-disabled"><span class="k-menu-label">Explain</span><span class="k-menu-shortcut">?</span></div>
+        <div class="k-menu-sep"></div>
+        <div class="k-menu-item is-danger"><span class="k-menu-label">Delete</span><span class="k-menu-shortcut">Del</span></div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">check column: .k-menu-check 16px (hidden when unchecked), .is-checked; .k-menu-heading</div>
+      <div class="k-menu">
+        <div class="k-menu-heading">Combine with</div>
+        <div class="k-menu-item is-checked"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Union</span><span class="k-menu-shortcut">Ctrl+Alt+U</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Intersect</span><span class="k-menu-shortcut">Ctrl+Alt+I</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Subtract</span><span class="k-menu-shortcut">Ctrl+Alt+S</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Exclude</span><span class="k-menu-shortcut">Ctrl+Alt+X</span></div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">toolbar flyout: check 16 @12, 24px icon, label at 60, shortcut</div>
+      <div class="k-menu" style="min-width:234px">
+        <div class="k-menu-item is-checked"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><svg class="k-icon"><use href="#i-group"/></svg><span class="k-menu-label">Louvain communities</span><span class="k-menu-shortcut">L</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><svg class="k-icon"><use href="#i-group"/></svg><span class="k-menu-label">Label propagation</span><span class="k-menu-shortcut">Shift+L</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><svg class="k-icon"><use href="#i-group"/></svg><span class="k-menu-label">Connected components</span><span class="k-menu-shortcut">C</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><svg class="k-icon"><use href="#i-group"/></svg><span class="k-menu-label">k-cores</span><span class="k-menu-shortcut">K</span></div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">select listbox: opens over the trigger, selected option on top of it; .k-kbd key caps; .k-menu-scroll chevron</div>
+      <div class="k-menu" style="min-width:152px">
+        <div class="k-menu-item is-checked is-active"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Louvain</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Leiden</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Girvan-Newman</span></div>
+        <div class="k-menu-item"><span class="k-menu-check"><svg class="k-icon-16"><use href="#i-check-16"/></svg></span><span class="k-menu-label">Press <span class="k-kbd">Esc</span></span></div>
+        <div class="k-menu-scroll"><svg class="k-icon"><use href="#i-chevron-down"/></svg></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>9. Tooltips</h2>
+  <p>24 tall, padding 4 8, radius 5, #1e1e1e in both themes, max width 180. The shortcut sits 12px after the label at 70% white. Arrow 14 x 7 below a trigger, 12 x 6 above, 6 x 12 to the right of the rail. Cold delay 1000ms (500 on the rail), immediate hand-off while one is showing, hides 300ms after the pointer leaves. No fade.</p>
+  <div class="doc-grid" style="padding:16px 0">
+    <div class="doc-item"><div class="spec">.k-tooltip.k-tip-below  (under a control)</div><div class="sample" style="padding-top:8px"><span class="k-tooltip k-tip-below">Add fill</span></div></div>
+    <div class="doc-item"><div class="spec">with .k-shortcut</div><div class="sample" style="padding-top:8px"><span class="k-tooltip k-tip-below">Align left<span class="k-shortcut">Alt+A</span></span></div></div>
+    <div class="doc-item"><div class="spec">.k-tip-above  (over the toolbar)</div><div class="sample"><span class="k-tooltip k-tip-above">Find groups<span class="k-shortcut">G</span></span></div></div>
+    <div class="doc-item"><div class="spec">.k-tip-right  (rail)</div><div class="sample" style="padding-left:8px"><span class="k-tooltip k-tip-right">Objects<span class="k-shortcut">Alt+1</span></span></div></div>
+    <div class="doc-item"><div class="spec">.is-wrap  two lines, 40 tall</div><div class="sample" style="padding-top:8px"><span class="k-tooltip k-tip-below is-wrap">Modularity 0.42. Higher is a cleaner split into groups.</span></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>10. Bottom floating toolbar</h2>
+  <p>48 tall, radius 13, padding 8, gap 8 between groups, centred on the window 12px above the bottom. A tool is 32 x 32 with a 24px icon; its 16 x 32 chevron opens a flyout and sits 1px away. The selected tool is brand blue with a white icon. A 1px full-height divider separates the tools from the mode switch, whose selected option is a white thumb with a small shadow.</p>
+  <div class="doc-menubg" style="flex-direction:column">
+    <div class="doc-item"><div class="spec">.k-toolbar  default: selected tool, hovered tool, hovered chevron, open chevron, mode switch (.k-mode)</div>
+      <div class="k-toolbar">
+        <div class="k-tool-group"><button class="k-tool is-selected"><svg class="k-icon"><use href="#i-cursor"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-tool-group"><button class="k-tool is-hover"><svg class="k-icon"><use href="#i-filter"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-group"/></svg></button><button class="k-tool-chevron is-hover"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-path"/></svg></button><button class="k-tool-chevron is-open"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-rank"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <button class="k-tool"><svg class="k-icon"><use href="#i-bridge"/></svg></button>
+        <button class="k-tool"><svg class="k-icon"><use href="#i-comment"/></svg></button>
+        <div class="k-toolbar-divider"></div>
+        <div class="k-mode"><button class="k-mode-opt"><svg class="k-icon"><use href="#i-square"/></svg></button><button class="k-mode-opt is-selected"><svg class="k-icon"><use href="#i-cube"/></svg></button><button class="k-mode-opt is-hover"><svg class="k-icon"><use href="#i-play"/></svg></button></div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">.k-tool.is-selected.is-focus  double ring on the blue fill; .k-tool.is-focus  ring at -1</div>
+      <div class="k-toolbar">
+        <button class="k-tool is-selected is-focus"><svg class="k-icon"><use href="#i-cursor"/></svg></button>
+        <button class="k-tool is-focus"><svg class="k-icon"><use href="#i-hand"/></svg></button>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">.k-toolbar.k-toolbar-secondary  contextual bar 40 tall (8px above the main one): 24px buttons, labelled buttons, selected blue</div>
+      <div class="k-toolbar k-toolbar-secondary">
+        <button class="k-btn k-btn-ghost" style="padding-left:0"><svg class="k-icon" style="margin:0"><use href="#i-node"/></svg>Valjean</button>
+        <div class="k-toolbar-divider"></div>
+        <button class="k-btn k-btn-ghost" style="padding-left:0"><svg class="k-icon" style="margin:0"><use href="#i-node"/></svg>Choose target</button>
+        <div class="k-toolbar-divider"></div>
+        <button class="k-btn">Done</button>
+        <button class="k-btn k-btn-ghost">Cancel<span class="k-shortcut">Esc</span></button>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">tooltip above a tool: bubble edge 6px above the button</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span class="k-tooltip k-tip-above">Path<span class="k-shortcut">P</span></span><div class="k-toolbar"><button class="k-tool is-hover"><svg class="k-icon"><use href="#i-path"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>11. Popover and dialog</h2>
+  <p>A light popover is a 240px panel with radius 13 and the menu shadow: a 40px header (title 11px 550 at x+16, a 24px close button 8px from the edge, a 1px inset line) and 32px rows with a 16px inset. It opens to the left of the right panel, top-aligned with the row that opened it, one at a time. A modal dialog is the same shell at 480 (320 for confirmations) with a 40px footer holding Cancel then the primary action 8px apart.</p>
+  <div class="doc-menubg">
+    <div class="doc-item"><div class="spec">.k-popover 240: header 40, rows .k-row-labeled, 16px bottom</div>
+      <div class="k-popover">
+        <div class="k-popover-header"><span class="k-title">Path settings</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-close"/></svg></button></div>
+        <div class="k-popover-body">
+          <div class="k-row-labeled"><span class="k-label">Algorithm</span><button class="k-select k-w-fill"><span>Dijkstra</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-row-labeled"><span class="k-label">Weight</span><button class="k-select k-w-fill"><span>None</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-row-labeled"><span class="k-label">Direction</span><div class="k-seg k-w-fill"><button class="k-seg-opt has-text is-checked">Any</button><button class="k-seg-opt has-text">Out</button><button class="k-seg-opt has-text">In</button></div></div>
+          <div class="k-row-labeled"><span class="k-label">Max hops</span><div class="k-input k-w-88"><input value="8"></div></div>
+          <div class="k-row-labeled"><span></span><label class="k-check k-check-blue is-checked"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Include edges</label></div>
+        </div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">.k-popover with pill tabs in the header slot (colour picker style)</div>
+      <div class="k-popover">
+        <div class="k-popover-header" style="padding-left:8px"><div class="k-tabs"><button class="k-tab is-selected">Custom</button><button class="k-tab">Palettes</button></div><span class="k-title"></span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-close"/></svg></button></div>
+        <div style="padding:16px 16px 8px"><div style="height:120px;border-radius:5px;background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,#0d99ff)"></div></div>
+        <div class="k-row-flex" style="padding:0 16px"><button class="k-select" style="width:60px"><span>Hex</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><div class="k-input" style="width:84px;border-radius:5px 0 0 5px"><input value="0D99FF"></div><div class="k-input" style="width:54px;border-radius:0 5px 5px 0;margin-left:-8px"><input value="100"><span class="k-input-suffix">%</span></div></div>
+        <div style="height:8px"></div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">.k-dialog 480: header 40, body 16, footer 40 (Cancel + primary); .k-dialog-sm 320</div>
+      <div class="k-dialog">
+        <div class="k-dialog-header"><span class="k-title">Import data</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-close"/></svg></button></div>
+        <div class="k-dialog-body">
+          <div class="k-row-labeled" style="padding:0"><span class="k-label">Source</span><div class="k-seg k-w-fill"><button class="k-seg-opt has-text is-checked">File</button><button class="k-seg-opt has-text">URL</button><button class="k-seg-opt has-text">Neo4j</button></div></div>
+          <div class="k-row-labeled" style="padding:0"><span class="k-label">URL</span><div class="k-input k-w-fill"><input placeholder="https://"></div></div>
+          <div class="k-row-labeled" style="padding:0"><span class="k-label">Format</span><button class="k-select k-w-fill"><span>Detect from contents</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+          <div class="k-row-labeled" style="padding:0"><span></span><label class="k-check k-check-blue"><span class="k-check-box"><svg class="k-check-tick"><use href="#i-check-16"/></svg><svg class="k-check-dash"><use href="#i-dash-16"/></svg></span>Replace the current graph</label></div>
+        </div>
+        <div class="k-dialog-footer"><button class="k-btn k-btn-secondary">Cancel</button><button class="k-btn is-disabled">Import</button></div>
+      </div>
+    </div>
+    <div class="doc-item"><div class="spec">.k-dialog.k-dialog-sm  confirmation with a danger button</div>
+      <div class="k-dialog k-dialog-sm">
+        <div class="k-dialog-header"><span class="k-title">Delete "Communities"?</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-close"/></svg></button></div>
+        <div class="k-dialog-body" style="padding:8px 16px"><p style="margin:0;color:var(--k-text-secondary)">Two filters use this object. They will be deleted too.</p></div>
+        <div class="k-dialog-footer"><button class="k-btn k-btn-secondary">Cancel</button><button class="k-btn k-btn-danger">Delete</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>12. Toast</h2>
+  <p>A 40px pill, radius 13, #2c2c2c in both themes, centred over the toolbar 16px above it. Message 11px weight 550 with 8px padding and an optional 16px icon. An action button is 24 tall with a 10% white outline; a dismiss X is a 33px segment with a left border. Short messages last about 3 s, long ones 6 s, toasts with an action never auto-dismiss. Only one exists at a time.</p>
+  <div class="doc-menubg">
+    <div class="doc-item"><div class="spec">.k-toast</div><span class="k-toast"><span class="k-toast-msg">Zoom to selection</span></span></div>
+    <div class="doc-item"><div class="spec">with 16px icon</div><span class="k-toast"><span class="k-toast-msg"><svg class="k-icon-16"><use href="#i-check-16"/></svg>Louvain finished in 1.2 s</span></span></div>
+    <div class="doc-item"><div class="spec">.k-toast-btn action (never auto-dismisses)</div><span class="k-toast"><span class="k-toast-msg">Path exported</span><button class="k-toast-btn">Copy link</button></span></div>
+    <div class="doc-item"><div class="spec">.k-toast-btn.is-hover + .k-toast-close</div><span class="k-toast"><span class="k-toast-msg">Layout did not converge</span><button class="k-toast-btn is-hover">Keep running</button><button class="k-toast-close"><svg class="k-icon"><use href="#i-close"/></svg></button></span></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>13. Empty states</h2>
+  <p>An empty section is only its header: a secondary title and a "+" whose click adds the first item (hover turns both primary). A larger empty state is a 15px heading, a secondary line and one primary button, all left-aligned with 16px padding.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-section-header.is-empty  empty-state row with "+"</div><div class="doc-panel"><div class="k-section"><div class="k-section-header is-empty"><span class="k-section-title">Stroke</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div></div><div class="k-section"><div class="k-section-header is-empty"><span class="k-section-title">Label</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-empty  heading 15/25, body secondary, primary button</div><div class="doc-panel"><div class="k-empty"><h3 class="k-heading-md">No objects yet</h3><p>Run an algorithm or a filter from the toolbar to make one. The graph itself stays as it is.</p><button class="k-btn"><svg class="k-icon"><use href="#i-plus"/></svg>Find groups</button></div></div></div>
+    <div class="doc-item"><div class="spec">empty tree with the panel header</div><div class="doc-panel"><div class="k-panel-header"><span class="k-panel-title">Objects</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></div><div class="k-row-flex" style="color:var(--k-text-secondary)">Nothing here yet.</div></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>14. Status chips and dots</h2>
+  <p>A chip is 16 tall with 4px side padding, radius 5 and a 1px border in the divider colour (the "Beta" badge). Tinted variants use a role's light background with its strong text and no border. .k-chip-md is 24 tall with 8px padding for a status bar. A notification dot is 5px brand with a 2px ring of the surface.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-chip  outline / -brand / -success / -warning / -danger / -component / -solid</div><div class="sample"><span class="k-chip">Beta</span><span class="k-chip k-chip-brand">Live</span><span class="k-chip k-chip-success">Done</span><span class="k-chip k-chip-warning">Stale</span><span class="k-chip k-chip-danger">Failed</span><span class="k-chip k-chip-component">Saved</span><span class="k-chip k-chip-solid">GPU</span></div></div>
+    <div class="doc-item"><div class="spec">with .k-chip-dot 6px</div><div class="sample"><span class="k-chip k-chip-success"><span class="k-chip-dot"></span>Done</span><span class="k-chip k-chip-warning"><span class="k-chip-dot"></span>Running</span><span class="k-chip"><span class="k-chip-dot"></span>Idle</span></div></div>
+    <div class="doc-item"><div class="spec">.k-chip.k-chip-md  24 tall</div><div class="sample"><span class="k-chip k-chip-md">77 nodes</span><span class="k-chip k-chip-md k-chip-brand"><span class="k-chip-dot"></span>GPU</span><span class="k-chip k-chip-md k-chip-success">Layout settled</span></div></div>
+    <div class="doc-item"><div class="spec">.k-dot  on a 32px icon pill</div><div class="sample"><span class="k-rail-pill" style="position:relative;display:inline-grid"><svg class="k-icon"><use href="#i-settings"/></svg><span class="k-dot"></span></span></div></div>
+    <div class="doc-item"><div class="spec">.k-size-badge  canvas overlay 16 tall, radius 2</div><div class="sample"><span class="k-size-badge">77 x 254</span><span class="k-size-badge">Group 2, 18 nodes</span></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc-section">
+  <h2>15. Progress and loading</h2>
+  <p>Figma has no progress bar (its chrome is instant), so this one follows the field track: 4px tall, radius full, the pressed grey behind a brand fill. Set --value for a determinate bar; .is-indeterminate slides a 40% segment. The spinner is a 16px ring; a loading button keeps its size and colours and fades its label out.</p>
+  <div class="doc-grid">
+    <div class="doc-item"><div class="spec">.k-progress  --value: 35%</div><div class="sample" style="width:208px"><div class="k-progress"><div class="k-progress-bar" style="--value:35%"></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-progress.is-indeterminate</div><div class="sample" style="width:208px"><div class="k-progress is-indeterminate"><div class="k-progress-bar"></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-progress.is-success / .is-danger</div><div class="sample" style="width:208px;flex-direction:column;align-items:stretch"><div class="k-progress is-success"><div class="k-progress-bar" style="--value:100%"></div></div><div class="k-progress is-danger"><div class="k-progress-bar" style="--value:60%"></div></div></div></div>
+    <div class="doc-item"><div class="spec">.k-progress-row  label + bar + value in a 24px row (208 wide)</div><div class="sample" style="width:208px"><div class="k-progress-row" style="width:100%"><span class="k-secondary">Layout</span><div class="k-progress"><div class="k-progress-bar" style="--value:72%"></div></div><span class="k-secondary">72%</span></div></div></div>
+    <div class="doc-item"><div class="spec">.k-spinner  16px; .k-btn.is-loading</div><div class="sample"><span class="k-spinner"></span><span class="k-spinner k-brand"></span><button class="k-btn is-loading"><span>Running</span><span class="k-spinner"></span></button><button class="k-btn k-btn-secondary is-loading"><span>Running</span><span class="k-spinner"></span></button></div></div>
+    <div class="doc-item"><div class="spec">a running object in a panel row: chip + progress + cancel</div><div class="doc-panel"><div class="k-panel-type"><span class="k-heading">Betweenness</span><span class="k-chip k-chip-warning"><span class="k-chip-dot"></span>Running</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-close"/></svg></button></div><div class="k-row-flex"><div class="k-progress-row k-grow"><div class="k-progress"><div class="k-progress-bar" style="--value:45%"></div></div><span class="k-secondary">45%</span></div></div></div></div>
+  </div>
+</section>
+
+<script>
+  // Theme: ?theme=dark or ?theme=light wins; then the saved choice; then the OS.
+  (function () {
+    var root = document.documentElement;
+    var q = new URLSearchParams(location.search).get("theme");
+    var saved = null;
+    try { saved = localStorage.getItem("k-theme"); } catch (e) {}
+    var theme = q || saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    apply(theme);
+    document.querySelectorAll("[data-set-theme]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        apply(b.dataset.setTheme);
+        try { localStorage.setItem("k-theme", b.dataset.setTheme); } catch (e) {}
+      });
+    });
+    function apply(t) {
+      root.dataset.theme = t;
+      document.querySelectorAll("[data-set-theme]").forEach(function (b) { b.classList.toggle("is-checked", b.dataset.setTheme === t); });
+    }
+  })();
+
+  // Colour token swatches: every colour token in kit.css, shown with its
+  // current (light or dark) value. The list is written out because a page
+  // opened from file:// cannot read a linked stylesheet's rules.
+  (function () {
+    var names = [
+      "--k-bg",
+      "--k-bg-secondary",
+      "--k-bg-hover",
+      "--k-bg-pressed",
+      "--k-bg-tertiary",
+      "--k-bg-transparent-hover",
+      "--k-bg-transparent-pressed",
+      "--k-bg-selected",
+      "--k-bg-selected-hover",
+      "--k-bg-selected-secondary",
+      "--k-bg-brand",
+      "--k-bg-brand-hover",
+      "--k-bg-brand-pressed",
+      "--k-bg-disabled",
+      "--k-bg-menu",
+      "--k-bg-menu-selected",
+      "--k-bg-toast",
+      "--k-bg-mode",
+      "--k-bg-mode-hover",
+      "--k-bg-danger",
+      "--k-bg-danger-hover",
+      "--k-bg-danger-pressed",
+      "--k-bg-danger-tertiary",
+      "--k-bg-success",
+      "--k-bg-success-tertiary",
+      "--k-bg-warning",
+      "--k-bg-warning-tertiary",
+      "--k-bg-info",
+      "--k-bg-component-tertiary",
+      "--k-canvas",
+      "--k-text",
+      "--k-text-secondary",
+      "--k-text-tertiary",
+      "--k-text-disabled",
+      "--k-text-brand",
+      "--k-text-onbrand",
+      "--k-text-onbrand-secondary",
+      "--k-text-ondisabled",
+      "--k-text-danger",
+      "--k-text-success",
+      "--k-text-warning",
+      "--k-text-component",
+      "--k-text-menu",
+      "--k-text-menu-secondary",
+      "--k-text-menu-disabled",
+      "--k-border",
+      "--k-border-translucent",
+      "--k-border-translucent-strong",
+      "--k-border-selected",
+      "--k-border-selected-strong",
+      "--k-border-disabled",
+      "--k-border-danger",
+      "--k-border-danger-strong",
+      "--k-border-success",
+      "--k-border-warning",
+      "--k-scrollbar"
+    ];
+    var host = document.getElementById("swatches");
+    function render() {
+      host.innerHTML = "";
+      var cs = getComputedStyle(document.documentElement);
+      names.forEach(function (n) {
+        var v = cs.getPropertyValue(n).trim();
+        var d = document.createElement("div"); d.className = "doc-swatch";
+        d.innerHTML = '<i style="background:' + v + '"></i><span><b>' + n + '</b>' + v + '</span>';
+        host.appendChild(d);
+      });
+    }
+    render();
+    new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  })();
+</script>
+</body>
+</html>

@@ -18,3 +18,7 @@ graph-io/test/conformance/schemas/** -text -diff
 # (visual-baselines/**/*.json) stay plain git. Without git-lfs, run `git lfs install` first
 # (visual-review/README.md, "Setup").
 visual-baselines/**/*.png filter=lfs diff=lfs merge=lfs -text
+
+# The design mocks' screenshots are Git LFS objects for the same reason as the visual baselines; the
+# HTML beside each one is the source and regenerates it.
+design/ui/**/*.png filter=lfs diff=lfs merge=lfs -text

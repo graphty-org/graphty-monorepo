@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://graphty.app/schema/documents/graphty-data-plan/v1.json",
+    "$id": "https://graphty.app/schema/documents/drafts/graphty-data-plan/v1.json",
     "title": "graphty data plan, version 1",
     "description": "Normative for what a conforming writer produces. Unknown members of the top level and of knownFields refuse the plan (data-plan.md, Applying rule 5; every legitimate addition there carries a feature name, README Versioning rule 8), which is why both are closed here; attribute declarations and joins are validated one by one.",
     "type": "object",
@@ -22,10 +22,10 @@
             "type": "string"
         },
         "fingerprint": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fingerprint"
         },
         "generator": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/generator"
         },
         "format": {
             "type": "string",
@@ -128,7 +128,7 @@
             }
         },
         "extensions": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/extensions"
         },
         "id": {
             "type": "string",
@@ -162,7 +162,7 @@
                         "minLength": 1
                     },
                     "term": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/iri"
                     },
                     "element": {
                         "enum": ["node", "edge"]
@@ -180,12 +180,12 @@
     },
     "$defs": {
         "fieldPath": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
         },
         "nullableFieldPath": {
             "oneOf": [
                 {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                 },
                 {
                     "type": "null"
@@ -200,7 +200,7 @@
                     "enum": ["node", "edge"]
                 },
                 "name": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                 },
                 "rename": {
                     "type": "string",
@@ -240,7 +240,7 @@
                     "type": "string"
                 },
                 "extensions": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/extensions"
                 },
                 "constraints": {
                     "type": "object",
@@ -306,7 +306,7 @@
                     "required": ["from", "transform"],
                     "properties": {
                         "from": {
-                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                         },
                         "transform": {
                             "enum": ["one-minus", "reciprocal", "neg-log"]
@@ -314,7 +314,7 @@
                     }
                 },
                 "term": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/iri"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/iri"
                 },
                 "idNamespace": {
                     "type": "string",
@@ -338,7 +338,7 @@
                     }
                 },
                 "features": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/features"
                 }
             },
             "if": {
@@ -368,7 +368,7 @@
                     "required": ["path"],
                     "properties": {
                         "path": {
-                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                         }
                     },
                     "additionalProperties": false
@@ -400,7 +400,7 @@
                 "key": {
                     "anyOf": [
                         {
-                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                         },
                         {
                             "const": ""
@@ -409,7 +409,7 @@
                     "description": "The key column of the joined table; the empty string names a column whose header is empty."
                 },
                 "on": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                 },
                 "match": {
                     "enum": ["exact", "case-insensitive"]
@@ -420,7 +420,7 @@
                 "columns": {
                     "type": "array",
                     "items": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fieldPath"
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fieldPath"
                     }
                 },
                 "type": {
@@ -428,14 +428,14 @@
                     "minLength": 1
                 },
                 "features": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/features"
                 }
             }
         }
     },
     "allOf": [
         {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/metadata"
         }
     ],
     "unevaluatedProperties": false

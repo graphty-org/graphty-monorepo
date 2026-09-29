@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://graphty.app/schema/documents/graphty-annotations/v1.json",
+    "$id": "https://graphty.app/schema/documents/drafts/graphty-annotations/v1.json",
     "title": "graphty annotations, version 1",
     "description": "Normative for what a conforming writer produces. A reader validates notes one by one; a note that fails is kept verbatim, unbound, and written back (annotations.md); only a failure of the top level refuses the document.",
     "type": "object",
@@ -19,10 +19,10 @@
             "type": "string"
         },
         "fingerprint": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fingerprint"
         },
         "generator": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/generator"
         },
         "notes": {
             "type": "array",
@@ -31,10 +31,10 @@
             }
         },
         "extensions": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/extensions"
         },
         "dataDigest": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/digest"
         },
         "binding": {
             "enum": ["exact-data", "by-id"],
@@ -43,10 +43,10 @@
     },
     "$defs": {
         "nodeId": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/nodeId"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/nodeId"
         },
         "timestamp": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/timestamp"
         },
         "target": {
             "oneOf": [
@@ -65,7 +65,7 @@
                     "required": ["edge"],
                     "properties": {
                         "edge": {
-                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/edgeMember"
+                            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/edgeMember"
                         },
                         "check": {
                             "oneOf": [
@@ -109,7 +109,7 @@
                             "required": ["run", "value", "members"],
                             "properties": {
                                 "run": {
-                                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+                                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/runId"
                                 },
                                 "field": {
                                     "type": "string",
@@ -170,7 +170,7 @@
                     "required": ["run"],
                     "properties": {
                         "run": {
-                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+                            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/runId"
                         },
                         "recipe": {
                             "type": "string",
@@ -247,7 +247,7 @@
                 "cites": {
                     "type": "array",
                     "items": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/runId"
                     }
                 },
                 "orphaned": {
@@ -266,7 +266,7 @@
                     "type": "object"
                 },
                 "extensions": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/extensions"
                 },
                 "status": {
                     "type": "string",
@@ -274,7 +274,7 @@
                     "description": "open, confirmed, cleared, escalated, retracted; an open enumeration"
                 },
                 "digest": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/digest"
                 },
                 "revisions": {
                     "type": "array",
@@ -289,13 +289,13 @@
                                 "type": "string"
                             },
                             "updatedAt": {
-                                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+                                "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/timestamp"
                             },
                             "author": {
                                 "type": "string"
                             },
                             "digest": {
-                                "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+                                "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/digest"
                             },
                             "target": {
                                 "$ref": "#/$defs/target"
@@ -319,16 +319,16 @@
                     }
                 },
                 "importedFrom": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/importChain"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/importChain"
                 },
                 "runsAt": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/digest"
                     }
                 },
                 "features": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/features"
                 },
                 "confidence": {
                     "type": "string",
@@ -340,7 +340,7 @@
     },
     "allOf": [
         {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/metadata"
         }
     ]
 }

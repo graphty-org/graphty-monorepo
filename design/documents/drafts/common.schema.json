@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://graphty.app/schema/documents/common/v1.json",
+    "$id": "https://graphty.app/schema/documents/drafts/common/v1.json",
     "title": "graphty documents: shared definitions, version 1",
     "description": "Definitions every graphty document schema refers to. Behaviour is specified in README.md.",
     "$defs": {
@@ -347,10 +347,10 @@
                         "minLength": 1
                     },
                     "digest": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/digest"
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/digest"
                     },
                     "at": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/timestamp"
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/timestamp"
                     },
                     "by": {
                         "type": "string",

@@ -1,0 +1,130 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-document/v1.json",
+    "title": "graphty document, version 1",
+    "description": "The one JSON file every graphty document is (container.md). Normative for what a writer produces. A member whose kind and version this schema knows is checked against that kind's own schema; a member of any other kind or version is checked only for its kind and version, so a file carrying a member from a later release is still a valid version 1 document. A reader follows container.md for what fails.",
+    "type": "object",
+    "required": ["kind", "version", "members"],
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "For editors only. A reader never fetches it and never makes validity depend on it."
+        },
+        "kind": {
+            "const": "graphty-document",
+            "description": "The fixed value that identifies a graphty document."
+        },
+        "version": {
+            "const": 1
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "generator": {
+            "$ref": "#/$defs/generator"
+        },
+        "members": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+                "$ref": "#/$defs/member"
+            }
+        },
+        "extensions": {
+            "$ref": "#/$defs/extensions"
+        }
+    },
+    "$defs": {
+        "generator": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                }
+            },
+            "description": "The software that wrote the file, for example graphty-element and its version."
+        },
+        "extensions": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            },
+            "description": "Data for other software, under reverse-domain names (org.example.tool). The name graphty and names starting graphty. are reserved for graphty-element. A reader keeps what it does not understand and never interprets it."
+        },
+        "member": {
+            "type": "object",
+            "required": ["kind", "version"],
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-style"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-style/v1.json"
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-recipe"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-recipe/v1.json"
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-data"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-data/v1.json"
+                    }
+                }
+            ]
+        }
+    }
+}

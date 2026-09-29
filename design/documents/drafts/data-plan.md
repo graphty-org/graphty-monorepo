@@ -1,7 +1,16 @@
 # Data plan
 
+> **Draft -- not part of version 1.** Version 1 of the graphty document formats is the style and
+> recipe documents in one JSON container ([../README.md](../README.md)). This page is kept as the
+> starting point for a later version and is not a specification anyone implements today. It was
+> written against an earlier, larger draft of this directory: where it cites "README", `style.md`,
+> `recipe.md` or open decisions by number, it means that earlier draft, which is in the git history
+> of this directory at commit `a78c4114` (`design/documents/README.md`). Its schema is published
+> nowhere and uses the `https://graphty.app/schema/documents/drafts/` prefix so it can never be
+> mistaken for a version 1 schema.
+
 `kind: "graphty-data-plan"`, version 1. Schema: [data-plan.schema.json](data-plan.schema.json)
-(normative for what a writer produces). Shared conventions are in [README.md](README.md).
+(normative for what a writer produces). Shared conventions are in [README.md](../README.md).
 
 ## Purpose
 
@@ -17,7 +26,7 @@ A data plan **never spends compute**. It carries no algorithm runs. This changes
 design, whose `DataPlan` has a `runOnLoad` list (`design/element-api/element-api-design.md`,
 section 12): the reason the 1.x template was split was that importing one part "can silently
 rewrite column roles, spend compute", and a column-roles document that starts runs reintroduces
-it. Load-time runs belong in a recipe ([recipe.md](recipe.md)), as the migration register's
+it. Load-time runs belong in a recipe ([recipe.md](../recipe.md)), as the migration register's
 template-split codemod already assumes (`design/element-api/element-api-migration.md`). The
 owner's approval of run options on load-time algorithms (2026-09-23: "`{ algorithm:
 "graphty:pagerank", style: { size: true } }` ... that's fine, add it") is kept: those options are

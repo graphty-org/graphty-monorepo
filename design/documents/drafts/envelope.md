@@ -1,9 +1,22 @@
 # Envelope
 
+> **Draft -- not part of version 1.** Version 1 of the graphty document formats is the style and
+> recipe documents in one JSON container ([../README.md](../README.md)). This page is kept as the
+> starting point for a later version and is not a specification anyone implements today. It was
+> written against an earlier, larger draft of this directory: where it cites "README", `style.md`,
+> `recipe.md` or open decisions by number, it means that earlier draft, which is in the git history
+> of this directory at commit `a78c4114` (`design/documents/README.md`). Its schema is published
+> nowhere and uses the `https://graphty.app/schema/documents/drafts/` prefix so it can never be
+> mistaken for a version 1 schema.
+>
+> The version 1 container ([../container.md](../container.md)) replaces this envelope. What is
+> still useful here is the project content a later version will need: run records, import records,
+> positions, the active filter, kept sets and stored results.
+
 `kind: "graphty-document"`, version 1. Schema: [envelope.schema.json](envelope.schema.json)
 (normative for what a writer produces; it checks each member only as `{ kind, version }` and
 dispatches to the member's own schema for version 1, so an envelope holding a newer member is
-still a valid envelope). Shared conventions are in [README.md](README.md).
+still a valid envelope). Shared conventions are in [README.md](../README.md).
 
 ## Purpose
 

@@ -1,74 +1,58 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-style/v1.json",
-    "title": "graphty style document, version 1",
-    "description": "Normative for what a conforming writer produces. A reader applies it per unit and follows style.md for what fails (a failing layer is added disabled; an unknown channel entry is dropped from its layer); only a failure of the top level refuses the document.",
+    "title": "graphty style member, version 1",
+    "description": "A portable stack of style layers (style.md). Normative for what a writer produces. A reader applies it per layer: a layer that fails is added disabled with its reason, and only a failure of the member's own top level refuses the member. Every style document graphty-element 2.x writes is a valid version 1 style once kind is added, except a layer selecting edges by session edge id (style.md, 'Selectors').",
     "type": "object",
-    "required": ["version", "layers"],
+    "required": ["kind", "version", "layers"],
     "properties": {
-        "$schema": {
-            "type": "string"
-        },
         "kind": {
             "const": "graphty-style",
-            "description": "Optional in version 1 because graphty-element 2.x writes the document without it. Writers conforming to this specification MUST write it."
+            "description": "Required in a document. A file holding only a 2.x style with no kind is read as a style of version 1 (container.md, 'Reading a file')."
         },
         "version": {
             "const": 1
         },
         "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1024
         },
         "description": {
-            "type": "string"
-        },
-        "fingerprint": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/fingerprint"
-        },
-        "generator": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/generator"
+            "type": "string",
+            "maxLength": 65536
         },
         "layers": {
             "type": "array",
+            "maxItems": 1000,
             "items": {
                 "$ref": "#/$defs/layer"
             }
         },
         "palettes": {
             "type": "array",
+            "maxItems": 100,
             "items": {
                 "$ref": "#/$defs/palette"
             }
         },
         "extensions": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
-        },
-        "requires": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/attributeSlot"
-                    }
-                }
-            }
+            "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
         }
     },
     "$defs": {
         "path": {
-            "allOf": [
-                {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/expression"
-                }
-            ],
-            "description": "A field path over the expression root {data, results} (README, Paths)."
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "A path over {data, results}: data.<column> or results.<run id>.<field> (style.md, 'Paths')."
         },
         "runId": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/runId"
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "maxLength": 128
         },
         "nodeId": {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/nodeId"
+            "type": ["string", "number"]
         },
         "layer": {
             "type": "object",
@@ -76,10 +60,14 @@
             "properties": {
                 "id": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[^\\u0000-\\u001f]+$",
+                    "description": "An authored key for the layer, unique within the member and stable across saves. graphty-element stores it on the layer and writes it back."
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 1024
                 },
                 "target": {
                     "enum": ["node", "edge"]
@@ -104,12 +92,6 @@
                 },
                 "userData": {
                     "type": "object"
-                },
-                "extensions": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/extensions"
-                },
-                "features": {
-                    "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/features"
                 }
             },
             "anyOf": [
@@ -136,7 +118,7 @@
                             "const": "expression"
                         },
                         "where": {
-                            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/expression"
+                            "$ref": "#/$defs/expression"
                         }
                     },
                     "required": ["where"]
@@ -161,16 +143,14 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/$defs/nodeId"
-                            }
-                        },
-                        "edges": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/$defs/nodeId"
                             },
-                            "description": "Version 1 holds what graphty-element 2.x accepts: session edge ids, which a reader disables with E_UNSTABLE_EDGE_ID. Stable EdgeMember references are a style version 2 value (style.md, Selectors)."
+                            "maxItems": 100000
                         }
-                    }
+                    },
+                    "not": {
+                        "required": ["edges"]
+                    },
+                    "description": "Particular nodes, by id. Edges are not selected by id in version 1: the edge ids graphty-element 2.x writes are session counters that name a different edge after a reload."
                 },
                 {
                     "properties": {
@@ -273,7 +253,8 @@
                             "$ref": "#/$defs/runId"
                         },
                         "algorithm": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 256
                         },
                         "params": {
                             "type": "object"
@@ -776,11 +757,12 @@
                     }
                 }
             }
+        },
+        "expression": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "A predicate in graphty-element's JMESPath dialect over {data, results}; at most 1024 characters and 32 levels of nesting."
         }
-    },
-    "allOf": [
-        {
-            "$ref": "https://graphty.app/schema/documents/common/v1.json#/$defs/metadata"
-        }
-    ]
+    }
 }

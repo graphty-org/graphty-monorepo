@@ -1,0 +1,96 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-data/v1.json",
+    "title": "graphty data member, version 1",
+    "description": "The graph itself inside a graphty document (container.md, 'The data member'): either embedded as one of graph-io's JSON dialects, or a reference to a file in any format graphty-element reads. Normative for what a writer produces.",
+    "type": "object",
+    "required": ["kind", "version", "format"],
+    "properties": {
+        "kind": {
+            "const": "graphty-data"
+        },
+        "version": {
+            "const": 1
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "format": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9.:_-]*$",
+            "maxLength": 128,
+            "description": "A format id from graphty-element's format catalogue: json, csv, graphml, gexf, gml, dot, pajek, or one a plugin registered. Embedded data is always json."
+        },
+        "dialect": {
+            "enum": ["node-link", "d3", "jgf", "cytoscape", "graphology", "vis"],
+            "description": "The graph-io JSON dialect of embedded data. Required with graph."
+        },
+        "graph": {
+            "type": ["object", "array"],
+            "description": "The graph, embedded as a JSON value in the named dialect, written with that dialect's own member names."
+        },
+        "href": {
+            "type": "string",
+            "format": "uri-reference",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Where the data file is: a path relative to the document, or an https: URL. Never fetched without the caller's consent."
+        },
+        "options": {
+            "type": "object",
+            "propertyNames": {
+                "enum": ["dialect", "delimiter", "variant", "idColumn", "nodeIdPath", "edgeSource", "edgeTarget"]
+            },
+            "description": "Import options of a referenced file, spelled as graphty-element's format catalogue publishes them."
+        },
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "The SHA-256 of the referenced file's bytes, lower-case hex."
+        },
+        "extensions": {
+            "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
+        }
+    },
+    "oneOf": [
+        {
+            "required": ["graph", "dialect"],
+            "properties": {
+                "format": {
+                    "const": "json"
+                }
+            },
+            "not": {
+                "anyOf": [
+                    {
+                        "required": ["href"]
+                    },
+                    {
+                        "required": ["options"]
+                    },
+                    {
+                        "required": ["sha256"]
+                    }
+                ]
+            }
+        },
+        {
+            "required": ["href"],
+            "not": {
+                "anyOf": [
+                    {
+                        "required": ["graph"]
+                    },
+                    {
+                        "required": ["dialect"]
+                    }
+                ]
+            }
+        }
+    ]
+}

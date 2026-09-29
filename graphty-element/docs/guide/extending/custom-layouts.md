@@ -130,8 +130,9 @@ A failure is reported on the element's `error` event with `context: "layout"`; t
 graphty-element 3.x, registered with `LayoutEngine.register` as before. Moving one over is
 mechanical: the body of `doLayout` becomes `compute`, `this.graph` becomes `input.graph`,
 `this.sourceGraph` becomes `input.stored`, `this.startPositions(dim)` becomes `input.initial` when
-`input.added` is set, and the answer is returned in scene units instead of being multiplied by
-`scalingFactor`.
+`input.added` is set, `this.pairWeights(edges)` (the summed weight of the parallel edges between
+two nodes, also deprecated) becomes a sum you take over `input.stored.edgeList().weights`, and the
+answer is returned in scene units instead of being multiplied by `scalingFactor`.
 
 ## A live simulation
 

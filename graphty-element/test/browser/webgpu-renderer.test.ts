@@ -15,7 +15,7 @@
 
 import "../../src/graphty-element";
 
-import { Mesh, Tools, WebGPUEngine } from "@babylonjs/core";
+import { EngineStore, Mesh, Tools, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands } from "vitest/browser";
 
@@ -241,6 +241,42 @@ describe("the renderer a graph is drawn with", () => {
         }, /chosen once/);
         // Setting the renderer it already has is not a change.
         graph.setRenderer("webgl");
+    });
+
+    it("refuses a change while the renderer is still opening", async () => {
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        mounted.push({ graph, container });
+
+        graph.setRenderer("webgpu");
+        const init = graph.init();
+        assert.throws(() => {
+            graph.setRenderer("webgl");
+        }, /chosen once/);
+        await init;
+        assert.equal(graph.rendererRequest, "webgpu");
+        assert.equal(graph.rendererStatus?.requested, "webgpu");
+    });
+
+    it("opens nothing when shut down while the renderer is still opening", async () => {
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        const webgpuEngines = (): number => EngineStore.Instances.filter((e) => e instanceof WebGPUEngine).length;
+        const before = webgpuEngines();
+
+        try {
+            graph.setRenderer("webgpu");
+            const init = graph.init();
+            graph.shutdown();
+            await init;
+            assert.isFalse(graph.initialized);
+            assert.equal(webgpuEngines(), before, "a WebGPU engine was left open");
+            assert.notInstanceOf(graph.engine, WebGPUEngine);
+        } finally {
+            container.remove();
+        }
     });
 
     it.skipIf(GPU_LANE)("draws with WebGL and says why when WebGPU is asked for and absent", async () => {

@@ -367,6 +367,8 @@ export class Graph implements GraphContext {
     #rendererRequest: RendererRequest = "webgl";
     /** Which renderer is drawing, set by {@link Graph.init}; null before it. */
     #rendererStatus: RendererStatus | null = null;
+    /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
+    #rendererChosen = false;
     private dataManager: DataManager;
     private layoutManager: LayoutManager;
     private statsManager: StatsManager;
@@ -1177,10 +1179,10 @@ export class Graph implements GraphContext {
             throw new TypeError(`renderer must be "webgl", "webgpu" or "auto", not ${JSON.stringify(request)}`);
         }
 
-        if (this.#rendererStatus !== null && request !== this.#rendererRequest) {
+        if (this.#rendererChosen && request !== this.#rendererRequest) {
             throw new Error(
-                `the renderer is chosen once, when the graph is first drawn; it is ${this.#rendererStatus.active} ` +
-                    `and cannot become "${request}" now`,
+                `the renderer is chosen once, when the graph is first drawn; "${this.#rendererRequest}" was ` +
+                    `asked for and it cannot become "${request}" now`,
             );
         }
 
@@ -1211,6 +1213,7 @@ export class Graph implements GraphContext {
      */
     private async openRenderer(): Promise<void> {
         const requested = this.#rendererRequest;
+        this.#rendererChosen = true;
         if (requested === "webgl") {
             this.#rendererStatus = { requested, active: "webgl", reason: null };
             return;
@@ -1218,6 +1221,15 @@ export class Graph implements GraphContext {
 
         const canvas = this.createCanvas();
         const opened = await openWebGPUEngine(canvas);
+        // Shut down while the engine was opening: nothing will ever dispose it but this.
+        if (this.#teardown.signal.aborted) {
+            if (typeof opened !== "string") {
+                opened.dispose();
+            }
+
+            return;
+        }
+
         if (typeof opened === "string") {
             this.#rendererStatus = { requested, active: "webgl", reason: opened };
             return;
@@ -1310,6 +1322,10 @@ export class Graph implements GraphContext {
         try {
             // The renderer is chosen before anything is drawn, and never again.
             await this.openRenderer();
+            // Shut down while the renderer was opening: there is nothing left to initialise.
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {

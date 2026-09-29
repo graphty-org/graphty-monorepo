@@ -28,20 +28,20 @@ A recipe holds three commands in version 1: filters, algorithm runs and a layout
 a session does is left out, each for a stated reason, because a command that names a particular
 node, a place on the screen or a file means nothing on the next dataset.
 
-| Session action                                                                | In a recipe | Why                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Filter the graph by a rule over columns (`graph.filter`)                      | yes         | Keeping the edges scoring 0.4 or more, or the nodes of one type, is a rule over columns, so it means the same thing on any graph. Every later command sees only what the filter keeps                       |
-| Run an algorithm (`algo.run`)                                                 | yes         | The core of an analysis. It names the algorithm by catalogue key, its options by value and its scope by rule, so it means the same thing on any graph                                                       |
-| Set the layout (`layout.set`)                                                 | yes         | A layout is an algorithm over the whole graph whose options name no element. Recording it with its seed makes the replayed picture similar, which is part of reading the result                             |
-| Run an algorithm while a filter hides part of the graph                       | converted   | The filter is recorded as `graph.filter` commands before the run when it is made of rules over columns ("Recording" rule 3); a filter by particular nodes, a kept set or a neighbourhood leaves the run out |
-| Run an algorithm with an option that names a node or a set of nodes           | no          | A shortest path from one chosen account, a search from one start node: the chosen node exists only in the data it was chosen from. Version 1 has no way to choose a node by a rule                          |
-| Run an algorithm on the selection, on a listed set of nodes, or on a kept set | no          | Each names particular elements. A run on the whole graph, the largest component, or the elements a predicate over columns matches is recorded instead                                                       |
-| A run that was cancelled, failed, or stopped partway (a time box, `partial`)  | no          | Its numbers are not what the command computes when it runs to the end                                                                                                                                       |
-| Load or import data                                                           | no          | The data is what changes between replays. The caller supplies it, or the document's data member does (container.md)                                                                                         |
-| Select, hover, drag or pin nodes                                              | no          | One-off actions on particular elements and positions                                                                                                                                                        |
-| Move the camera, change the view mode or the dimension (2D or 3D)             | no          | Presentation, not analysis. A replayed layout draws in the reader's current dimension                                                                                                                       |
-| Add, edit or remove style layers                                              | no          | Appearance travels in a style member, which the same file can carry. Two places for appearance would let them disagree. A run's own suggested colouring is kept, as the run's `style` option                |
-| Define a kept set, compute a column, randomise, fetch                         | no          | Not in version 1. A later version may add commands for them; an older reader stops at a command it does not know ("Replaying" rule 4)                                                                       |
+| Session action                                                                | In a recipe | Why                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Filter the graph by a rule over columns (`graph.filter`)                      | yes         | Keeping the edges scoring 0.4 or more, or the nodes of one type, is a rule over columns, so it means the same thing on any graph. Every later command sees only what the filter keeps                                          |
+| Run an algorithm (`algo.run`)                                                 | yes         | The core of an analysis. It names the algorithm by catalogue key, its options by value and its scope by rule, so it means the same thing on any graph                                                                          |
+| Set the layout (`layout.set`)                                                 | yes         | A layout is an algorithm over the whole graph whose options name no element. Recording it with its seed makes the replayed picture similar, which is part of reading the result                                                |
+| Run an algorithm while a filter hides part of the graph                       | converted   | The filter is recorded as `graph.filter` commands before the run when it is made of rules over columns ("Recording" rule 3); a filter by particular nodes, a kept set or a neighbourhood, or a time window, leaves the run out |
+| Run an algorithm with an option that names a node or a set of nodes           | no          | A shortest path from one chosen account, a search from one start node: the chosen node exists only in the data it was chosen from. Version 1 has no way to choose a node by a rule                                             |
+| Run an algorithm on the selection, on a listed set of nodes, or on a kept set | no          | Each names particular elements. A run on the whole graph, the largest component, or the elements a predicate over columns matches is recorded instead                                                                          |
+| A run that was cancelled, failed, or stopped partway (a time box, `partial`)  | no          | Its numbers are not what the command computes when it runs to the end                                                                                                                                                          |
+| Load or import data                                                           | no          | The data is what changes between replays. The caller supplies it, or the document's data member does (container.md)                                                                                                            |
+| Select, hover, drag or pin nodes                                              | no          | One-off actions on particular elements and positions                                                                                                                                                                           |
+| Move the camera, change the view mode or the dimension (2D or 3D)             | no          | Presentation, not analysis. A replayed layout draws in the reader's current dimension                                                                                                                                          |
+| Add, edit or remove style layers                                              | no          | Appearance travels in a style member, which the same file can carry. Two places for appearance would let them disagree. A run's own suggested colouring is kept, as the run's `style` option                                   |
+| Define a kept set, compute a column, randomise, fetch                         | no          | Not in version 1. A later version may add commands for them; an older reader stops at a command it does not know ("Replaying" rule 4)                                                                                          |
 
 ## Data model
 
@@ -56,10 +56,21 @@ interface RecipeMember {
     namespace?: string; // preferred namespace for its run ids: ^[a-z][a-z0-9_]{0,31}$
     directed?: boolean; // the direction of the graph it was recorded on
     parallelEdges?: boolean; // whether that graph held more than one edge between a pair of nodes
-    table?: { edgeSource?: string; edgeTarget?: string; idColumn?: string }; // "Table data"
+    table?: TableReading; // "Table data"
     generator?: { name: string; version: string }; // the release that recorded it; record() writes it
     commands: RecipeCommand[]; // replayed in order; at most 1,000
     extensions?: Record<string, unknown>;
+}
+
+interface TableReading {
+    // the import options of container.md, "Import options", used as defaults when a table is
+    // imported for this recipe
+    edgeSource?: string;
+    edgeTarget?: string;
+    idColumn?: string;
+    delimiter?: string; // one character
+    variant?: string; // the CSV shape
+    repeatedEdges?: "keep" | "first" | "last" | "sum" | "min" | "max" | "error";
 }
 
 type RecipeCommand = GraphFilter | AlgoRun | LayoutSet; // "op" is an open list: see "Replaying" rule 4
@@ -68,7 +79,7 @@ interface GraphFilter {
     op: "graph.filter";
     where: string; // a predicate over the columns of one table
     on?: "nodes" | "edges"; // default "nodes"
-    dropIsolated?: boolean; // also drop the nodes left with no edge; default false
+    dropIsolated?: boolean; // also drop every node left with no edge; default false
     description?: string;
 }
 
@@ -78,10 +89,11 @@ interface AlgoRun {
     as: string; // this run's name in the recipe: ^[a-z][a-z0-9_]*$, at most 64, no "__", unique
     params?: Record<string, unknown>; // option values by catalogue option name; see "Commands" rule 4
     scope?: "graph" | "largest-component" | { where: string; on?: "nodes" | "edges" }; // default "graph"
-    seed?: number; // integer
+    seed?: number; // integer, 0 to 2147483647
     sample?: number; // integer, the sample size of an approximate method
     exact?: boolean; // refuse to approximate
     recordedCapSeconds?: number; // advisory: the cost cap it was recorded under ("Running" rule 2)
+    recordedPrecision?: "single" | "double"; // advisory: the precision it was recorded in
     style?: boolean | { size?: boolean | [number, number] }; // what the run paints; default true
     description?: string; // why this command is here; shown to people
 }
@@ -104,7 +116,11 @@ is graphty-element's `LayoutSetCommand` (`graphty-element/src/session/commands/l
 restricted the same way: no `scope`, because a layout draws the recipe's whole graph, and the seed
 where the catalogue declares it, among the engine's `options`. `GraphFilter` is graphty-element's
 visibility filter restricted to rules over columns: a `where` on nodes is its `expression` rule, on
-edges its `edges` rule, and `dropIsolated` its `degree` rule with a minimum of 1.
+edges its `edges` rule. `dropIsolated` has no rule in graphty-element 2.x: its `degree` rule counts
+a node's edges in the whole graph, never the edges the filter kept, so a node whose every edge was
+filtered out still passes it. A rule that drops the nodes left with no edge, evaluated after the
+filter's other rules, is one of the graphty-element changes recipes need (README, "Where this lives
+in the packages").
 
 ## Commands
 
@@ -115,8 +131,11 @@ edges its `edges` rule, and `dropIsolated` its `degree` rule with a minimum of 1
    separates a namespace from a name. graphty-element names an unnamed run from its algorithm and
    its scope, which resolves differently on other data, so a recipe always names its runs. A later
    command and a style refer to a run by its `as`.
-3. **Options.** `params` (and a layout's `options`) are checked against the option descriptors
-   graphty-element publishes for the algorithm or layout: an unknown name skips the command with
+3. **Options.** `params` are checked against the option descriptors graphty-element publishes for
+   the algorithm, and a layout's `options` against those of the engine that will draw it -- the
+   `engine` the command names, else the layout's default engine -- as that engine's entry in
+   `layoutEntry(id).implementations` publishes them, not the one list `catalog.layouts()` gives
+   for the layout's default engine. An unknown name skips the command with
    `E_UNKNOWN_OPTION`, a value out of range with `E_OPTION_RANGE`. An option not given takes the
    published default, and the replay report lists every effective value. Because a recipe relies on
    defaults, graphty-element treats changing an option's default, renaming an option or removing one
@@ -157,8 +176,9 @@ edges its `edges` rule, and `dropIsolated` its `degree` rule with a minimum of 1
     where the table has none the command is skipped with `E_BAD_COMMAND`, because it would name
     particular nodes. Any other scope skips the command with `E_BAD_COMMAND`. The applier MUST pass
     the scope to graphty-element explicitly -- the recipe's kept graph for `"graph"` -- because
-    graphty-element's own default is the visible graph, and a replay must not depend on what the
-    reader had filtered before it started.
+    graphty-element's own default is the visible graph, which the reader's filter and time window
+    narrow, and a replay must not depend on what the reader had filtered or windowed before it
+    started. A recipe's scopes ignore the reader's time window.
 
     A predicate that compares an earlier run's result with a literal selects by a number of one
     dataset: a community number (``results.modules.group == `3` ``) names another community, or
@@ -180,15 +200,20 @@ edges its `edges` rule, and `dropIsolated` its `degree` rule with a minimum of 1
    path analysis needs a distance column in the imported file, computed before import (README,
    "What version 1 does not cover"). The algorithms that take `weight` are those whose catalogue
    descriptor lists an option `weight` of type `attribute` ("Finding algorithms and their
-   options"). graphty-element 2.x reads the one weight fixed at import in every weighted
-   algorithm, whether or not it is asked to; building a per-run weight array from the named
+   options"). In graphty-element 2.x, Louvain and the other weighted algorithms read the one
+   weight fixed at import whether or not they are asked to, and PageRank's `weight` option asks
+   for that same weight whatever column it names; building a per-run weight array from the named
    column is one of the graphty-element 3.0.0 changes (README, "Where this lives in the packages").
 7. **`seed`, `sample`, `exact`** mean what they mean on graphty-element's run command. Whether an
    algorithm is randomised is a fact of its catalogue descriptor; `seed` feeds its own seed option
    (label propagation's `randomSeed`), so a recipe never sets that option in `params`. A
-   randomised or sampled command with no `seed` runs with a seed graphty-element draws, reported in
-   the command's caveats and as a notice, because replaying it gives different numbers every
-   time. A deterministic algorithm (Louvain as graphty-element implements it) ignores a `seed`,
+   randomised or sampled command with no `seed` runs with its seed option's published default when
+   the descriptor has one (label propagation's 42), so it replays the same every time. Only when
+   the option has no default does graphty-element draw a seed, reported in the command's caveats
+   and as a notice, because replaying it then gives different numbers every time. A preview shows
+   no drawn seed, because none is drawn until the command runs; its entry says one will be. A
+   `seed` above an algorithm's own seed range fails with `E_OPTION_RANGE`; the schema's maximum,
+   2,147,483,647, is the smallest range among graphty-element's algorithms. A deterministic algorithm (Louvain as graphty-element implements it) ignores a `seed`,
    and the report says so. An algorithm that can approximate says so in its descriptor
    (`approximable`, with its default sample size), and the plan's `method` says, before anything
    runs, whether a command will sample.
@@ -215,7 +240,9 @@ edges its `edges` rule, and `dropIsolated` its `degree` rule with a minimum of 1
 11. An empty scope is not a success: a command whose scope matches no element is skipped with
     `E_SCOPE_EMPTY`, and its dependants with `E_DEPENDENCY_SKIPPED`.
 12. **Layouts.** A `layout.set` replaces the layout, so only the last one in a recipe decides the
-    picture. It follows rules 3, 4 and 9, and names its `engine` when the layout was drawn by one
+    picture. The application's `remove()` puts back the layout, and the positions, in force before
+    the recipe's first `layout.set`, when the recipe's layout is still the one in force; the plan's
+    entry for a `layout.set` says so. It follows rules 3, 4 and 9, and names its `engine` when the layout was drawn by one
     other than the catalogue's default, because another engine's seed means something else. The
     applier dispatches it over the recipe's kept graph, because graphty-element's `layout.set`
     without a scope keeps whatever layout scope the reader's session holds. A seed
@@ -229,13 +256,23 @@ edges its `edges` rule, and `dropIsolated` its `degree` rule with a minimum of 1
       ``{ "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true }``,
       and a `"largest-component"` run after it runs on the largest component of that core.
 
-    A second filter narrows what the first kept; a recipe never widens its filter again. The kept
-    graph is shown as the session's filter, replacing the reader's own for as long as the
-    application lasts, so the reader sees what the later commands saw; the report names the filter
-    it replaced, and `remove()` puts it back. A filter binds its columns as a scope does, may read
-    an earlier run's result, and is planned with how many elements it keeps out of how many. One
-    that keeps nothing is skipped with `E_SCOPE_EMPTY`, and every later command with
-    `E_DEPENDENCY_SKIPPED` (rule 10).
+    `dropIsolated: true` drops every node that has no edge once this filter's rule has applied,
+    including a node that had none before; on `on: "nodes"` it drops the matched nodes that are
+    left with no edge between them. Isolated nodes that stay count in every later command: each
+    has degree 0 and core number 0, and Louvain makes each a community of its own, so an analysis
+    of an edge-filtered network usually wants `dropIsolated: true`.
+
+    A second filter narrows what the first kept; a recipe never widens its filter again. A
+    recipe's filters narrow only its own commands: two recipes applied together do not see each
+    other's filters. The kept graph of the recipe applied last is shown as the session's filter,
+    replacing what was shown, so the reader sees what that recipe's commands saw; the report names
+    the filter it replaced. `remove()` puts that filter back only when this application's filter
+    is still the one shown; when a later application has replaced it, `remove()` hands the filter
+    it replaced to that later application, which puts it back on its own `remove()`. So removing
+    applications in any order ends at the reader's own filter. A filter binds its columns as a
+    scope does, may read an earlier run's result, and is planned with how many elements it keeps
+    out of how many. One that keeps nothing is skipped with `E_SCOPE_EMPTY`, and every later
+    command with `E_DEPENDENCY_SKIPPED` (rule 10).
 
 ## How commands name columns
 
@@ -256,30 +293,64 @@ columns a table keeps its structure in, for the import ("Table data").
 ## Table data
 
 A file that marks its structure itself -- GraphML, GEXF, GML, DOT, Pajek, JSON -- says which fields
-are an edge's ends and a node's id. A table does not: a CSV (a Neo4j export is read as the CSV
-variant `neo4j`) says so only through its headers, and a header can be anything: STRING's
-`protein1` and `protein2`, a pull-down's `bait` and `prey`. So a recipe for table data names those
-columns itself, the way it names a weight:
+are an edge's ends and a node's id, and usually its direction. A table does not: a CSV says so only
+through its headers, and a header can be anything: STRING's `protein1` and `protein2`, a pull-down's
+`bait` and `prey`. How a table is split into columns, and what its repeated rows mean, is not in it
+either. So a recipe for table data says how its table is read, the way it names a weight:
 
 ```jsonc
-"table": { "edgeSource": "protein1", "edgeTarget": "protein2" }
+"table": { "edgeSource": "protein1", "edgeTarget": "protein2", "delimiter": " ", "repeatedEdges": "max" }
 ```
 
 1. The names are the import options of container.md, "Import options" (`edgeSource`,
-   `edgeTarget`, `idColumn`), and mean what they mean there. Each is optional.
-2. They are used when table data is imported for the recipe with no endpoint or id option of its
-   own: the file's own data member, when it references a table, and data imported while the recipe
-   is held because no graph was loaded (README, "Applying a style and a recipe to new data" rule
-   5). An option the caller or the data member gives wins, and a difference is reported with
-   `W_TABLE_COLUMNS_DIFFER`. When two held recipes name different columns for one import, the first
-   in file order is used and the difference is reported.
-3. When the graph was already loaded from a table, the applier compares the columns that import
-   read the ends and the id from with the recipe's, and reports a difference with
-   `W_TABLE_COLUMNS_DIFFER` before anything runs. The commands still run: the data was loaded as
-   the caller chose.
-4. On data that marks its own structure, `table` is not used and not reported.
-5. The recorder writes `table` when the session's graph came from one table import: the columns
-   that import read, whether it was given them or found them by itself ("Recording" rule 5).
+   `edgeTarget`, `idColumn`, `delimiter`, `variant`, `repeatedEdges`), and mean what they mean
+   there. Each is optional. The recipe's own `directed` is read with them as the `directed` import
+   option.
+2. **When they are used.** A table is read for a recipe in two ways only: through the
+   application's `import(source, options)` (below), and as the file's own data member when it
+   references a table (container.md, "The data member" rule 9). A plain `session.data.import`
+   never takes anything from a recipe, held or not, so opening a file never changes how the
+   caller's later imports are read.
+3. **Defaults, not orders.** Each value is a default: an option the caller or the data member
+   gives wins, and a difference is reported with `W_TABLE_COLUMNS_DIFFER`. The endpoint and id
+   columns, the delimiter and the variant are used only when the file's first line, read with the
+   recipe's delimiter, holds the recipe's endpoint columns (or, for a node table, its
+   `idColumn`); otherwise the file is read by the importer's own rules, as if the recipe named
+   none of them, and `W_TABLE_COLUMNS_DIFFER` says which columns were used instead. So a
+   colleague's `edges.csv` headed `Source,Target,Weight` is read as the importer reads it, never
+   broken by another member's names. `directed` and `repeatedEdges` are used whenever the caller
+   gives none. None of them is given to a `neo4j`-variant import, whose header types its own
+   structure (`:START_ID`, `:END_ID`, `:ID`) and which is always directed.
+4. **Filtering while reading.** The recipe's leading `graph.filter` commands on `on: "edges"` --
+   those before its first other command -- whose `where` reads only `data.` columns are applied to
+   each row while the table is read, before it is typed, a numeric comparison reading numeric
+   text as a number (README, "What every importer produces" rule 4). A row they drop is not
+   imported, but its two endpoints are, as nodes, so the graph is the one the filter would keep.
+   The report says which filters were applied while reading and how many rows each dropped; the
+   commands themselves still run and bind as usual, and are not reported as matching every edge.
+   A table far larger than the page can hold is read down to what the recipe keeps (README,
+   "Limits").
+5. On data that marks its own structure, `table` is not used and not reported; `directed` is
+   compared as "Binding to a new graph" rule 5 says.
+6. When the graph was already loaded from a table without the recipe, the applier compares the
+   columns that import read the ends and the id from with the recipe's, and reports a difference
+   with `W_TABLE_COLUMNS_DIFFER` before anything runs. The commands still run: the data was loaded
+   as the caller chose.
+7. **Unknown members.** `table` is a closed object. When it holds a member this reader does not
+   know, every table import for the recipe is refused with `E_UNKNOWN_OPTION` at that member's
+   pointer, because reading the table while ignoring an instruction about how to read it would
+   give another graph; the importer's own guesses are never used instead. The commands are not
+   affected.
+8. The recorder writes `table` when the session's graph came from one table import: the endpoint
+   and id columns that import read, whether it was given them or found them by itself, and its
+   delimiter, variant and repeated-edges option when they were not the defaults ("Recording"
+   rule 5).
+
+`application.import(source, options)` ("Applying a recipe") takes what `session.data.import` takes,
+with `options.mode` `"replace"` (the default) or `"merge"`, so a node table and an edge table are
+two calls. It reads with the recipe's `table` and `directed` as defaults (rules 3 and 4), binds and
+plans, and resolves with the bound plan, which is the application's `report` from then on. It runs
+nothing.
 
 So a recipe does not depend on which header names each importer recognises without options
 (README, "What every importer produces"); it replays on a table whose headers no importer would
@@ -306,17 +377,21 @@ Before anything runs, the applier binds every column a command names to the curr
    as `"0.01"` in a column an importer typed as text because one cell held `NA`. Any other value --
    `NA`, empty text, a list -- is not a number: it never matches such a comparison and is not read
    as a weight, and the report carries `W_COLUMN_TYPE` with the column and how many elements hold
-   one. The command still runs. A style's numeric scale reads a column the same way (README, "What
+   one. The command still runs. The report's `columns` give, for each column, how many elements of
+   its table have a value there out of how many, and a column held by fewer than half of them
+   carries `W_FEW_VALUES`: an identifier mismatch upstream shows as a column that bound but is
+   mostly empty. A style's numeric scale reads a column the same way (README, "What
    every importer produces" rule 4).
 5. When the recipe carries `directed` and the graph's direction differs (or is mixed), the report
    carries `W_DIRECTION_DIFFERS`, naming both, before anything runs. The commands run on the graph
    as it is; a recipe cannot change a graph's direction, which is the `directed` import option's
    work (container.md, "Import options"). A hand-written recipe SHOULD carry `directed`, so that a
-   difference is reported. Likewise, when the recipe carries `parallelEdges: false` and the graph
-   holds more than one edge between some pair of nodes, the report carries `W_PARALLEL_EDGES` with
-   the number of such pairs, suggesting the `repeatedEdges` import option: a STRING download
-   imported undirected with the default `repeatedEdges: "keep"` holds every interaction twice, and
-   doubles every degree.
+   difference is reported. Likewise, the report carries `W_PARALLEL_EDGES` with the number of such
+   pairs, suggesting the `repeatedEdges` import option, when the recipe carries
+   `parallelEdges: false` and the graph holds more than one edge between some pair of nodes, and
+   also -- whatever the recipe records -- when more than half of an undirected graph's connected
+   pairs are held by two or more edges: a STRING download imported undirected with the default
+   `repeatedEdges: "keep"` holds every interaction twice, and doubles every degree and core number.
 6. Binding happens when the recipe is applied, before the first command runs, so the report can say
    what a recipe needs before it spends anything. Each command is checked again as it starts, and
    a column an earlier command of the recipe produces counts as a dependency of the commands that
@@ -334,9 +409,12 @@ Before anything runs, the applier binds every column a command names to the curr
 
 The algorithm keys, their options with types and defaults, their result fields and whether they
 can sample are graphty-element's catalogue, published by every release. The layouts, their
-engines and options are there too. List them in a browser console or in Node:
+engines and options are there too. List them in a browser console, or in Node with
+`createGraphSession()` from `@graphty/graphty-element/session` in place of `element.session`:
 
 ```js
+import { layoutEntry } from "@graphty/graphty-element/catalog";
+
 for (const a of element.session.catalog.algorithms()) {
     console.log(
         a.key,
@@ -346,13 +424,19 @@ for (const a of element.session.catalog.algorithms()) {
     );
 }
 for (const l of element.session.catalog.layouts()) {
-    console.log(
-        l.id,
-        l.engine,
-        l.options.map((o) => o.name),
-    );
+    for (const e of layoutEntry(l.id)?.implementations ?? []) {
+        console.log(
+            l.id,
+            e.engine,
+            e.isDefault ? "(default)" : "",
+            e.options.map((o) => o.name),
+        );
+    }
 }
 ```
+
+A layout's options differ by engine, so a `layout.set` is checked against its engine's own list
+("Commands" rule 3), not the default engine's list that `catalog.layouts()` carries.
 
 The guide pages at `https://graphty.app/docs/graphty-element/` describe the same algorithms and
 layouts in prose.
@@ -377,7 +461,8 @@ twice, never overwrite each other's results.
 
 1. The namespace is the caller's `namespace` option; else the recipe's `namespace`; else one derived
    from the last segment of `id` (after its last `.`, `/` or `:`), in this order: lower-cased; each
-   run of characters other than letters and digits replaced by one `_`; leading characters up to
+   run of characters other than the ASCII letters `a`-`z` and digits `0`-`9` replaced by one `_`
+   (an accented letter is such a character); leading characters up to
    the first letter removed; cut to 30 characters; a trailing `_` removed; `recipe` when nothing is
    left. `org.example.team-overview` gives `team_overview`.
 2. When that namespace is already used by another application in the session, `2`, `3` and so on is
@@ -407,19 +492,34 @@ session.recipes.apply(recipe: RecipeMember, options?: {
 }): Promise<RecipeApplication>
 
 interface RecipeApplication {
-    readonly report: RecipeReport; // "The replay report"
+    /**
+     * "The replay report". Replaced, never edited, whenever the recipe is planned again: when data
+     * arrives for a held recipe (before that import's promise resolves), when the graph's columns
+     * change before it has run, and as commands run.
+     */
+    readonly report: RecipeReport;
     /** The runs in progress, when they were started (run: true, or run()); null before. */
     readonly running: Run<RecipeReport> | null;
-    /** Runs the commands not yet run; calling it again after a cancel resumes. */
+    /** Imports table data for this recipe, then binds and plans ("Table data"). */
+    import(source: DataSourceInput, options?: ImportOptions): Promise<RecipeReport>;
+    /** Binds against the graph as it is now and runs the commands not yet run; after a cancel, resumes. */
     run(options?: { capSeconds?: number; budget?: { totalSeconds?: number } }): Run<RecipeReport>;
     cancel(): void;
-    /** Removes every run this application made, the layers those runs painted, and its filter. */
+    /**
+     * Removes every run this application made and the layers those runs painted, and restores the
+     * filter and the layout it replaced ("Commands" rules 12 and 13). One undoable step.
+     */
     remove(): void;
 }
 ```
 
 `openDocument(src, { run: true })` applies each recipe of a file this way with `run: true`, and
 returns the applications (container.md, "Applying a file").
+
+**Undo.** Applying a recipe (or opening a file) is one undoable step, each `run()` is one, and so is
+`remove()`. Undoing a run takes back its runs and their colouring, as undoing `batch` takes back
+every member it recorded. `remove()` after a partial undo removes and restores only what is still
+in force, and reports what it found already gone.
 
 **Repeat application.** When a recipe with the same `id` has already been applied to the same data
 in this session and ran at least one command, a second application follows `onRepeat`: `"refuse"`
@@ -456,18 +556,30 @@ never start (container.md, "Applying a file" rule 5).
    none -- counts as past the cap and is skipped with `E_CAP_EXCEEDED`, never as free; every layout
    engine publishing an estimate, and every iteration count in a layout's options having a maximum,
    is a precondition of releasing recipes.
-3. **The total budget.** One application has a total budget of 300 seconds by default (ten times the
+3. **Stopping at the cap, not only refusing.** An estimate can be wrong, so the cap also holds
+   while a command runs: a command still running when it reaches the cap is stopped, its partial
+   result discarded, and reported with `E_CAP_EXCEEDED`; its dependants are skipped. This needs
+   every command a recipe can run to be stoppable -- run where the applier can terminate it, or
+   checking its cancellation signal inside its inner loop -- which graphty-element's algorithms
+   are not today (a Brandes betweenness pass is one uninterruptible call). And it needs every
+   algorithm's cost class to be an upper bound that counts each option multiplying the work:
+   Girvan-Newman repeats an edge-betweenness pass up to `maxIterations` times, so its bound is
+   n x m x min(m, `maxIterations`), not one pass. An algorithm whose descriptor does not meet both
+   is marked `unbounded` in the catalogue, and a recipe command naming it is skipped with
+   `E_CAP_EXCEEDED` before anything runs. Both are preconditions of releasing recipes.
+4. **The total budget.** One application has a total budget of 300 seconds by default (ten times the
    default cap). A recipe whose planned total is over the budget does not start: `run()` fails with
    `E_CAP_EXCEEDED` and the estimate, and the caller may run it with a larger `budget`. A recipe that
    reaches its budget while running stops, keeping the commands that finished. `openDocument`
    holds all the recipes of one file to one budget together, so a file of many recipes cannot
    spend many budgets (container.md, "Applying a file").
-4. Cancelling keeps the results of the commands that finished; `run()` again runs the rest.
+5. Cancelling keeps the results of the commands that finished; `run()` again runs the rest.
 
 ## Same data, same results
 
 Replaying a recipe on the same data gives the same numbers when all of these hold. The replay report
-shows the first five; it cannot show the sixth, or whether the data is the same:
+shows the first five; it cannot show the sixth. Whether the data is the same it shows only for a
+file whose data member records a `sha256` (container.md, "The data member" rule 5):
 
 1. **The same release** of graphty-element. The report names the release that recorded the recipe
    (its own `generator`, else the document's) and the one replaying it, and carries
@@ -477,7 +589,11 @@ shows the first five; it cannot show the sixth, or whether the data is the same:
 3. **The same method**: exact, or the same sample size. The recorder writes what the run used.
 4. **The same precision.** graphty-element computes in single precision on a WebGPU accelerator and
    in double precision on the CPU, so the same run on two machines can differ in the seventh digit,
-   and nearly tied nodes can swap rank. `caveats.precision` shows which was used.
+   and nearly tied nodes can swap rank. `caveats.precision` shows which was used, and the recorder
+   writes it as the command's advisory `recordedPrecision`; when a replay's precision differs from
+   it, the report carries `W_PRECISION_DIFFERS` before anything runs where the plan knows the
+   precision, and on the command once it has run otherwise. `recordedPrecision` records what
+   happened; it never asks for a precision.
 5. **The same direction** (`W_DIRECTION_DIFFERS`, "Binding to a new graph" rule 5).
 6. **The same node order**, for algorithms whose result depends on the order nodes are visited
    (Louvain, label propagation). The same network read from two file types, or two releases of one
@@ -489,12 +605,29 @@ A layout gives a similar picture, not an identical one ("Commands" rule 12). A c
 is a label, not a measure: two replays that find the same communities can number them differently,
 so compare which nodes share a community, not the numbers.
 
-A report does not compare results (README, "What version 1 does not cover"). To check that a
-colleague's replay reproduced yours, both of you export the graph with its results as columns
-(export-mapping.md, "Results as columns") and compare the two files, allowing for the precision
-each run's caveats name. On one machine, apply the recipe twice with `onRepeat: "add"`, export
-with names for the two applications' runs (export-mapping.md, "Results as columns" rule 2: the
-second application's `hubs` as `hubs_again`, say), and compare the columns.
+A report does not compare results (README, "What version 1 does not cover"). Each run's results are
+read in the session with `session.results.get(runId)`, the `runId` each command's entry in the
+report names. On one machine, apply the recipe twice and compare:
+
+```js
+const recipe = JSON.parse(text).members[0];
+const first = await element.session.recipes.apply(recipe, { run: true });
+await first.running;
+const again = await element.session.recipes.apply(recipe, { run: true, onRepeat: "add" });
+await again.running;
+const a = element.session.results.get(first.report.commands[0].runId);
+const b = element.session.results.get(again.report.commands[0].runId);
+for (const { id, value } of a.ranking("value")) {
+    if (b.node(id)?.value !== value) console.log(id, value, b.node(id)?.value);
+}
+```
+
+The same works in a script or a nightly job with `createGraphSession()` from
+`@graphty/graphty-element/session` in place of `element.session`: the session runs in Node with no
+page, and imports, applies and runs a recipe there. A `layout.set` changes no result, so a
+comparison of results never depends on whether anything was drawn. To compare with a colleague's replay, both of you export the graph with its results
+as columns (export-mapping.md, "Results as columns") and compare the two files, allowing for the
+precision each run's caveats name.
 
 ## The replay report
 
@@ -505,6 +638,9 @@ interface RecipeReport {
         readonly recipeVersion?: string;
         readonly name?: string;
         readonly description?: string; // the author's own account, shown first in a preview
+        /** How the recipe expects a table to be read, as written; filled in an unbound plan too. */
+        readonly table?: TableReading;
+        readonly parallelEdges?: boolean;
     };
     /** The release that recorded it (its `generator`, else the document's) and the one running it. */
     readonly release: { readonly recorded: string | null; readonly running: string };
@@ -518,6 +654,8 @@ interface RecipeReport {
         readonly table: "node" | "edge";
         readonly boundTo: string | null; // the data's column; null when missing
         readonly renamedByCaller: boolean;
+        readonly withValue: number | null; // elements of its table with a value there; null when unbound
+        readonly of: number | null; // elements of its table
         readonly usedBy: readonly number[]; // command indexes
         readonly suggestions: readonly string[]; // nearest existing names, never used
     }[];
@@ -538,6 +676,8 @@ interface RecipeReport {
                 | { readonly where: string; readonly on: "nodes" | "edges"; readonly dropIsolated?: boolean };
             readonly matched: number | null; // null when the plan is unbound
             readonly of: number | null;
+            /** A leading edge filter applied while a table was read ("Table data" rule 4). */
+            readonly appliedWhileReading?: { readonly rowsDropped: number };
         };
         readonly state: "planned" | "running" | "done" | "skipped" | "failed" | "cancelled";
         readonly problem?: Problem; // container.md, "The report"
@@ -546,13 +686,15 @@ interface RecipeReport {
         readonly method?: { readonly exact: true } | { readonly exact: false; readonly sample: number };
         /** Before the run: the weight column and how the algorithm reads it. */
         readonly weight?: { readonly column: string; readonly readAs: "distance" | "strength" };
-        readonly seed?: number; // the seed it runs with, drawn when the command had none
+        /** The seed it runs with: the command's, else the published default; absent when one will be drawn at run time. */
+        readonly seed?: number;
+        readonly recordedPrecision?: "single" | "double"; // as the command records it
         readonly style: boolean; // whether it will paint its suggested colouring
         /** The channels that colouring writes; a notice when an enabled layer already writes one. */
         readonly paints: readonly string[];
         readonly fields: readonly string[]; // the result fields it publishes, as results.<runId>.<field>
         readonly estimateSeconds: number | null;
-        readonly caveats?: Caveats; // once run: exact or sampled, seed, precision, direction, weight read
+        readonly caveats?: Caveats; // once run: exact or sampled, the seed used, precision, direction, weight read
     }[];
     readonly totalEstimateSeconds: number | null; // null when any command has no estimate
     readonly capSeconds: number; // the per-command cap this application runs under
@@ -574,7 +716,7 @@ weight was read with what meaning.
 
 ```ts
 session.recipes.record(options: RecordOptions): {
-    readonly recipe: RecipeMember;
+    readonly recipe: RecipeMember | null; // null when rule 8 refused
     readonly leftOut: readonly Problem[]; // every run not recorded, with the reason
     readonly notices: readonly Problem[]; // conversions, renames
 };
@@ -588,6 +730,7 @@ interface RecordOptions {
     runs?: readonly string[]; // run ids; default every completed run the session holds, with the filters they ran under
     layout?: boolean; // default true: record the last layout set
     explicitDefaults?: boolean; // default false: write every effective option value, defaults too
+    dropUnrun?: boolean; // default false: see rule 8
 }
 ```
 
@@ -596,7 +739,10 @@ document beside the style. The recorder:
 
 1. **Chooses runs.** It writes the `algo.run` commands of the runs selected, each at the position of
    its latest start (a re-run or a retune moves a run to when it last started), and the last layout
-   set. Runs that failed, were cancelled, or resolved `partial` are left out. A run that read another
+   set, at the position of when it was set, as a run is. A layout set under a filter that the next
+   recorded command's filter does not extend is left out and reported, as such a run is (rule 3),
+   because the layout draws the recipe's kept graph at its position; so is a layout whose session
+   scope was a kept set or the selection. Runs that failed, were cancelled, or resolved `partial` are left out. A run that read another
    run's result -- a `results.` path in its scope or its filter, or a `{ "result" }` option -- which
    was re-run or retuned after it is stale: its recorded numbers came from inputs the recipe no
    longer holds, so it is left out too. So is a run that reads a run the caller's `runs` left out,
@@ -607,23 +753,50 @@ document beside the style. The recorder:
    rewrites such a run into something it was not: a run on the selection is not recorded as a run
    on the whole graph.
 3. **Converts filters and scopes.** The filter a run ran under is the one its record kept from
-   when it started, never the filter active at recording; a run on the visible graph whose record
-   kept none is left out. A filter made of rules over columns -- an expression, a range or a set of
-   categories on one column, over nodes or over edges, and hiding the nodes left without an edge --
-   is written as `graph.filter` commands, one per rule, each rule written as the equivalent
-   expression, and the conversion is reported. Filters are written where they change, in start
-   order: a run whose filter adds rules to the previous run's gets the extra `graph.filter`
-   commands before it. A run whose filter is not the previous one plus more rules (the person
-   loosened the filter between two runs) cannot follow in the same recipe, because a recipe never
-   widens its filter, so it is left out and reported. A filter by anything else (particular nodes,
-   a kept set, a neighbourhood, one community) leaves out every run made under it. The run itself
-   is then written with its own scope: `"graph"` for the whole or the visible graph,
-   `"largest-component"` for the largest component -- of what the filters keep, as it was when it
-   ran -- and a `where` scope as it is. Any other scope leaves the run out (rule 2).
+   when it started, never the filter active at recording.
+    - **Which runs.** A run on the visible graph whose record does not say which filter was in
+      force (a record made before this was kept) is left out; a run made on the visible graph with
+      no filter active counts as running under no filter. A run whose record shows a time window
+      (`caveats.windowScope`, or the window kept in its record) is left out and reported, as a
+      filter over particular nodes is: a recipe has no time window. A run started explicitly on
+      the whole graph while a filter was shown counts as running under no filter: it is written
+      before the first `graph.filter` when every run it reads came before that filter too;
+      otherwise it is left out and reported as "ran on the whole graph after a filter; a recipe
+      cannot widen its filter".
+    - **Which filters convert.** A filter whose rule tree is an `all` of leaves, each a rule over
+      columns, converts: an `expression` leaf as its expression; an `edges` leaf as its `where` on
+      `on: "edges"`; a `range` leaf as `>=` and `<=` comparisons (the session's range matches only
+      numbers where the recipe's comparison also reads numeric text, and the conversion says so
+      when the column holds text); a `categories` leaf as `==` comparisons joined with `||`, each
+      value compared both as its text and, when it reads as a number, as that number, because the
+      session's categories compare a value's text; and the new rule that drops the nodes left
+      with no edge as `dropIsolated`. A leaf reading a run's result (`results.<id>.<field>`)
+      converts like a leaf over a column, rewritten to that run's recorded `as`; it depends on
+      that run and is written after it, with the notice of "Commands" rule 5 about comparing a
+      result with a literal. A filter holding `any` or `not`, a `degree`, `component` or
+      `neighborhood` leaf, or any other leaf with no exact equivalent leaves out every run made
+      under it, reported. So does a filter by particular nodes, a kept set, or one community.
+    - **Order.** The leaves are written as `graph.filter` commands, one per leaf, node leaves
+      first, then edge leaves, each group in the order the rule tree lists them; the rule that
+      drops isolated nodes is folded into `dropIsolated: true` on the last edge filter, or on the
+      last node filter when there is no edge leaf. Filters are written where they change, in start
+      order: a run whose filter adds leaves to the previous run's gets the extra `graph.filter`
+      commands before it. A run whose filter is not the previous one plus more leaves (the person
+      loosened the filter between two runs) cannot follow in the same recipe, because a recipe
+      never widens its filter, so it is left out and reported. Every conversion is reported.
+    - **The run's scope.** The run itself is then written with its own scope: `"graph"` for the
+      visible graph under a converted filter or for the whole graph under the rules above,
+      `"largest-component"` for the largest component -- of what the filters keep, as it was when
+      it ran -- and a `where` scope as it is. A scope defined inline as a rule set
+      (`{ define: { kind: "rule", where, reading } }`) whose rule tree is one leaf over columns is
+      written as a `where` scope: an `expression` leaf with the `induced` reading on nodes, an
+      `edges` leaf with the `clipped` reading on edges. Any other scope leaves the run out
+      (rule 2).
 4. **Names every run.** A run keeps its explicit name, with a namespace removed (a run
    `team_overview__influence` from an applied recipe is written `influence`); a run without one is
    named from its algorithm key. Every name is then made a valid `as`: lower-cased, every run of
-   characters other than letters and digits replaced by one `_`, a leading and a trailing `_`
+   characters other than the ASCII letters `a`-`z` and digits `0`-`9` replaced by one `_` (so
+   `Centralite` spelled with an accented final e becomes `centralit`), a leading and a trailing `_`
    removed, the algorithm key used instead when nothing is left, `r_` put in front when it would
    not start with a letter, and cut to 60 characters (`Hubs 2024` becomes `hubs_2024`,
    `label-propagation` becomes `label_propagation`, `2024` becomes `r_2024`); each change is
@@ -642,12 +815,20 @@ document beside the style. The recorder:
    descriptor has a seed option -- drawn and reported when the person set none -- so the recorded
    layout starts from the same positions on every replay. `directed` and `parallelEdges` from the
    graph; `table` when the graph came from one table import ("Table data"); and `generator` naming
-   the running release.
+   the running release. `recordedPrecision` from each run's `caveats.precision`. A layout engine
+   with no seed option (d3's force) is recorded without a seed, with a notice that its picture
+   differs on every replay.
 6. **Writes `style`** from the run record's `RunStyle` (a run started from the interface paints by
    default, so this is usually `true`), except that it writes `false` when the style saved beside
    the recipe holds that run's layers. A run record that does not keep its `RunStyle` is a gap
    graphty-element closes before recipes ship (README, "Where this lives in the packages").
 7. Takes `id`, and `name`, `recipeVersion` and `namespace` if wanted, from the caller.
+8. **Recording under an applied recipe's id.** When `id` is the id of a recipe applied in this
+   session, and some of that recipe's commands did not run here -- an unknown `op`, an unknown
+   algorithm, a skipped command -- the recorder refuses by default: it returns no recipe, and
+   `leftOut` lists each command that did not run with its reason, so a colleague's commands are
+   never dropped by a save. `dropUnrun: true` records anyway. `saveDocument` then writes the
+   opened recipe back as it was read (container.md, "Writing a file" rule 3).
 
 ## The overview recipe
 
@@ -695,85 +876,113 @@ The rules for a file from another release or a hand-written file:
 
 ## Conformance
 
-| Input                                                                                                                                                  | Required result                                                                                                                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| an `algo.run` without `as`                                                                                                                             | skipped, `E_BAD_COMMAND` (it fails the schema); dependants skipped                                                                                          |
-| `as: "hubs__score"`                                                                                                                                    | skipped: `__` is reserved                                                                                                                                   |
-| a command with `op: "column.compute"` after two `algo.run`                                                                                             | the two runs run; it and every later command skipped, `E_UNKNOWN_COMMAND`                                                                                   |
-| a command with `op: "algo.Run"`                                                                                                                        | refused by the schema; a reader skips it and every later command, `E_UNKNOWN_COMMAND`, suggesting `algo.run`                                                |
-| ``{ "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true }``, then `louvain` on `"largest-component"`    | Louvain runs on the largest component of the high-confidence core; the nodes left without an edge are gone from it; the session shows the core              |
-| a `graph.filter` that keeps nothing                                                                                                                    | skipped, `E_SCOPE_EMPTY`; every later command skipped, `E_DEPENDENCY_SKIPPED`                                                                               |
-| a recipe with a `graph.filter`, applied while the reader has a filter of their own                                                                     | the reader's filter replaced (`replacedFilter: true`); `remove()` puts it back                                                                              |
-| a scope ``{ "where": "data.w > `1`", "on": "edges", "dropIsolated": true }``                                                                           | it and every later command skipped, `E_UNKNOWN_OPTION`: a scope does not drop nodes; a filter does                                                          |
-| `{ "op": "algo.run", "algorithm": "betweenness", "as": "b", "sed": 7 }`                                                                                | it and every later command skipped, `E_UNKNOWN_OPTION`, suggesting `seed`                                                                                   |
-| a scope `"selection"` or `{ "nodes": ["TP53"] }`                                                                                                       | skipped, `E_BAD_COMMAND`                                                                                                                                    |
-| a `shortest-path` run with `params: { "source": "A" }`                                                                                                 | skipped, `E_BAD_COMMAND`: the option names a node                                                                                                           |
-| a command with no scope, replayed while a filter hides half the graph                                                                                  | runs on every node                                                                                                                                          |
-| `betweenness` with ``{ "where": "data.combined_score >= `700`", "on": "edges" }``                                                                      | runs on every node and the edges scoring 700 or more                                                                                                        |
-| the same predicate with no `on`, on a graph whose nodes have no `combined_score`                                                                       | skipped, `E_UNKNOWN_ATTRIBUTE`: the node table has no such column                                                                                           |
-| `"largest-component"` on a graph with two components of 500 nodes and 800 edges each                                                                   | the component holding the node whose id sorts first, whatever the file order                                                                                |
-| a `where` scope reading `data.padj` on data whose column is `FDR`                                                                                      | skipped, `E_UNKNOWN_ATTRIBUTE` naming `padj`; the report suggests `FDR`; nothing is renamed                                                                 |
-| the same, applied with `columns: { "padj": "FDR" }`                                                                                                    | runs over `FDR`; the report records the rename                                                                                                              |
-| a `where` scope reading `data.Score` on data whose column is `score`                                                                                   | skipped, `E_UNKNOWN_ATTRIBUTE`: names are compared exactly                                                                                                  |
-| a recipe reading `data.type` on nodes and on edges, applied with `nodeColumns: { "type": "category" }, edgeColumns: { "type": "predicate" }`           | the node reads bind to `category`, the edge reads to `predicate`; the report records both renames with their tables                                         |
-| `table: { "edgeSource": "protein1", "edgeTarget": "protein2" }`, opened with no graph, then a CSV with those headers imported with no endpoint options | the import reads its ends from `protein1` and `protein2`; the recipe binds and plans                                                                        |
-| the same, with the CSV imported by the caller with `edgeSource: "node1"`                                                                               | `W_TABLE_COLUMNS_DIFFER` naming both before anything runs; the commands run                                                                                 |
-| the same recipe replayed on a GraphML file                                                                                                             | `table` not used and not reported                                                                                                                           |
-| `parallelEdges: false`, replayed on an undirected import holding 500 pairs twice                                                                       | `W_PARALLEL_EDGES` with the count, suggesting `repeatedEdges`, before anything runs                                                                         |
-| `"where": "data.rel == 'SUPPLIES'"` on edges whose `rel` values are lower case                                                                         | skipped, `E_SCOPE_EMPTY`; the plan lists the most frequent `rel` values                                                                                     |
-| ``"where": "data.padj < `0.05`"`` over a column typed as text, holding `"0.01"`, `"0.2"` and `"NA"`                                                    | matches the `"0.01"` elements; `W_COLUMN_TYPE` counts the `NA`                                                                                              |
-| an exact `betweenness` planned at 45 s under the default cap, with a dependant                                                                         | planned with `E_CAP_EXCEEDED` and the cap; the dependant `E_DEPENDENCY_SKIPPED`; `wouldStart` true                                                          |
-| the same command with `recordedCapSeconds: 120`                                                                                                        | the `E_CAP_EXCEEDED` problem quotes 120 s; the cap stays 30 s                                                                                               |
-| a planned `louvain` command                                                                                                                            | a notice that its result depends on node order                                                                                                              |
-| `params: { "weight": "weight" }`, replayed on a GML file and on a Pajek file with weights                                                              | runs on both: each importer names the weight `weight`                                                                                                       |
-| `params: { "weight": "combined_score" }` on a graph with no such edge column                                                                           | skipped, `E_UNKNOWN_ATTRIBUTE`; dependants skipped; other commands run                                                                                      |
-| `params: { "weight": "constructor" }` on a graph with no such column                                                                                   | skipped, `E_UNKNOWN_ATTRIBUTE`                                                                                                                              |
-| ``"where": "data.padj < `0.05`"`` where `padj` holds numbers and `NA`                                                                                  | runs on the nodes whose number is below 0.05; `W_COLUMN_TYPE` naming `padj` and the count of `NA`                                                           |
-| `label-propagation` with no `seed`, replayed twice                                                                                                     | each replay draws and reports a seed; a notice says the results will differ                                                                                 |
-| `louvain` with `seed: 7`                                                                                                                               | runs; a notice says Louvain is deterministic and ignores the seed                                                                                           |
-| a recipe with `"directed": false` replayed on a CSV import (directed)                                                                                  | `W_DIRECTION_DIFFERS` before anything runs; the commands run                                                                                                |
-| a `where` scope reading `results.modules.group`, where `modules` is a later command                                                                    | skipped, `E_BAD_COMMAND`                                                                                                                                    |
-| a command reading `results.modules.group` after the `modules` command was skipped                                                                      | skipped, `E_DEPENDENCY_SKIPPED`                                                                                                                             |
-| a `where` scope that matches no node                                                                                                                   | skipped, `E_SCOPE_EMPTY`; dependants skipped                                                                                                                |
-| algorithm key `scc`                                                                                                                                    | runs `components` with `{ "strength": "strong" }`; the report names the current key                                                                         |
-| algorithm key `org.example:motif-census`, not registered                                                                                               | skipped, `E_UNKNOWN_ALGORITHM`; dependants skipped                                                                                                          |
-| opened with no instruction to run                                                                                                                      | nothing runs; every command planned, with its estimate, `style`, `fields` and the total                                                                     |
-| a recipe planned at twice the total budget, `run()`                                                                                                    | not started, `E_CAP_EXCEEDED` with the estimate                                                                                                             |
-| a `sample` whose sampled estimate is past the cap                                                                                                      | skipped, `E_CAP_EXCEEDED`                                                                                                                                   |
-| a `layout.set` whose engine publishes no estimate                                                                                                      | skipped, `E_CAP_EXCEEDED`                                                                                                                                   |
-| the same `id` applied twice to the same data                                                                                                           | the second refused, `E_REPEAT_APPLICATION`; with `onRepeat: "add"`, ids `ns__x` and `ns2__x`                                                                |
-| the same `id` applied after a `data.import` that merged a file                                                                                         | refused, `E_REPEAT_APPLICATION`: merging is the same data                                                                                                   |
-| the same `id` applied after new data replaced the graph                                                                                                | runs; not a repeat                                                                                                                                          |
-| recipe versions `1.9.0` and `1.10.0`                                                                                                                   | `1.10.0` is newer                                                                                                                                           |
-| a session with a run on the current selection, recorded                                                                                                | that run left out and reported; the other runs recorded                                                                                                     |
-| a run on the visible graph under the filter ``data.combined_score >= `700` `` on edges, recorded                                                       | recorded as a `graph.filter` with that rule `on: "edges"`, then the run with scope `"graph"`; the conversion reported                                       |
-| PageRank as `hubs`, degree scoped to ``results.hubs.value > `0.01` ``, then `hubs` re-run, recorded                                                    | `hubs` recorded; the degree run left out as stale and reported                                                                                              |
-| a sampled betweenness run (sample size 2000, seed 11), recorded                                                                                        | recorded with `"sample": 2000, "seed": 11`                                                                                                                  |
-| a run that resolved `partial` under a time box, recorded                                                                                               | left out and reported                                                                                                                                       |
-| runs `a__influence` and `b__influence` from two applied recipes, recorded                                                                              | written `influence` (the earlier start) and `influence_2`                                                                                                   |
-| a PageRank run that painted, saved with its style by default                                                                                           | the recipe says `"style": false`; reopening shows the layer once                                                                                            |
-| a recipe whose `id` is `graphty.overview`, `Graphty.overview` or `https://graphty.app/recipes/overview`, in a document                                 | skipped, `E_BAD_DOCUMENT`: the id is reserved                                                                                                               |
-| ``{ "where": "data.combined_score >= `0.7`", "on": "edges" }`` on scores from 0 to 1000                                                                | planned; the scope matches every edge, and a notice says so                                                                                                 |
-| a scope matching no edge, opened with `apply: false`                                                                                                   | `E_SCOPE_EMPTY` in the plan                                                                                                                                 |
-| `betweenness` with `params: { "weight": "weight" }`, planned                                                                                           | the plan says the weight is read as a distance, with a notice                                                                                               |
-| a planned command                                                                                                                                      | its entry carries `algorithm`, `scope` with `matched` and `of`, `method` and `description`                                                                  |
-| `louvain` as `modules`, then an option of type `partition` given `{ "result": "modules.group" }`                                                       | runs, reading the namespaced run; skipped with `E_DEPENDENCY_SKIPPED` if `modules` was                                                                      |
-| a `partition` given as a list of node ids                                                                                                              | skipped, `E_BAD_COMMAND`                                                                                                                                    |
-| a `where` scope reading `data.id` on nodes that have no column `id`                                                                                    | skipped, `E_BAD_COMMAND`: it would read node ids                                                                                                            |
-| a `layout.set` replayed while the reader's layout scope is a kept set                                                                                  | the layout draws the whole graph                                                                                                                            |
-| a directed import where 80 percent of the edges have a reverse twin                                                                                    | `W_DIRECTION_DIFFERS` suggesting `directed: false`                                                                                                          |
-| a run on the largest component while the edge filter ``data.combined_score >= `700` `` hid the nodes left without an edge, recorded                    | recorded as ``{ "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true }`` and the run on `"largest-component"` |
-| a run on the visible graph under `>= 700`, the filter then changed to `>= 400`, recorded                                                               | recorded with the `>= 700` the run started under                                                                                                            |
-| a run under `>= 700`, then the filter loosened to `>= 400` and a second run, recorded                                                                  | the first run recorded after its filter; the second left out and reported: a recipe never widens its filter                                                 |
-| a run whose `partition` option reads `{ "result": "modules.group" }`, then `modules` re-run, recorded                                                  | the dependant left out as stale and reported                                                                                                                |
-| `record({ runs: ["significant_degree"] })` where that run's scope reads `results.hubs.value`                                                           | left out and reported, naming `hubs`                                                                                                                        |
-| two runs both named with the same 70-character label, recorded                                                                                         | written as the first 60 characters and that name with `_2`                                                                                                  |
-| runs named `2024` and `!!!` (a PageRank run), recorded                                                                                                 | written `r_2024` and `pagerank`                                                                                                                             |
-| a force layout set with no seed, recorded                                                                                                              | its `options` carry the seed the engine drew; the report says it was drawn                                                                                  |
-| a run named `Hubs 2024`, recorded                                                                                                                      | written `hubs_2024`; the rename reported                                                                                                                    |
-| a PageRank run started from the interface (it painted), recorded without a style                                                                       | the recipe says `"style": true` or omits it                                                                                                                 |
-| `recipe.record()` output, applied on a later major release that changed a default it relied on                                                         | `W_RELEASE_DIFFERS`, and the option whose default changed named                                                                                             |
-| a recipe planned at 340 s under the default budget, previewed                                                                                          | `wouldStart: false`, `budgetSeconds: 300`                                                                                                                   |
+| Input                                                                                                                                                                                                                                | Required result                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ----------------------------------------------------- |
+| an `algo.run` without `as`                                                                                                                                                                                                           | skipped, `E_BAD_COMMAND` (it fails the schema); dependants skipped                                                                                                                    |
+| `as: "hubs__score"`                                                                                                                                                                                                                  | skipped: `__` is reserved                                                                                                                                                             |
+| a command with `op: "column.compute"` after two `algo.run`                                                                                                                                                                           | the two runs run; it and every later command skipped, `E_UNKNOWN_COMMAND`                                                                                                             |
+| a command with `op: "algo.Run"`                                                                                                                                                                                                      | refused by the schema; a reader skips it and every later command, `E_UNKNOWN_COMMAND`, suggesting `algo.run`                                                                          |
+| ``{ "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true }``, then `louvain` on `"largest-component"`                                                                                  | Louvain runs on the largest component of the high-confidence core; the nodes left without an edge are gone from it; the session shows the core                                        |
+| a `graph.filter` that keeps nothing                                                                                                                                                                                                  | skipped, `E_SCOPE_EMPTY`; every later command skipped, `E_DEPENDENCY_SKIPPED`                                                                                                         |
+| a recipe with a `graph.filter`, applied while the reader has a filter of their own                                                                                                                                                   | the reader's filter replaced (`replacedFilter: true`); `remove()` puts it back                                                                                                        |
+| a scope ``{ "where": "data.w > `1`", "on": "edges", "dropIsolated": true }``                                                                                                                                                         | it and every later command skipped, `E_UNKNOWN_OPTION`: a scope does not drop nodes; a filter does                                                                                    |
+| `{ "op": "algo.run", "algorithm": "betweenness", "as": "b", "sed": 7 }`                                                                                                                                                              | it and every later command skipped, `E_UNKNOWN_OPTION`, suggesting `seed`                                                                                                             |
+| a scope `"selection"` or `{ "nodes": ["TP53"] }`                                                                                                                                                                                     | skipped, `E_BAD_COMMAND`                                                                                                                                                              |
+| a `shortest-path` run with `params: { "source": "A" }`                                                                                                                                                                               | skipped, `E_BAD_COMMAND`: the option names a node                                                                                                                                     |
+| a command with no scope, replayed while a filter hides half the graph                                                                                                                                                                | runs on every node                                                                                                                                                                    |
+| `betweenness` with ``{ "where": "data.combined_score >= `700`", "on": "edges" }``                                                                                                                                                    | runs on every node and the edges scoring 700 or more                                                                                                                                  |
+| the same predicate with no `on`, on a graph whose nodes have no `combined_score`                                                                                                                                                     | skipped, `E_UNKNOWN_ATTRIBUTE`: the node table has no such column                                                                                                                     |
+| `"largest-component"` on a graph with two components of 500 nodes and 800 edges each                                                                                                                                                 | the component holding the node whose id sorts first, whatever the file order                                                                                                          |
+| a `where` scope reading `data.padj` on data whose column is `FDR`                                                                                                                                                                    | skipped, `E_UNKNOWN_ATTRIBUTE` naming `padj`; the report suggests `FDR`; nothing is renamed                                                                                           |
+| the same, applied with `columns: { "padj": "FDR" }`                                                                                                                                                                                  | runs over `FDR`; the report records the rename                                                                                                                                        |
+| a `where` scope reading `data.Score` on data whose column is `score`                                                                                                                                                                 | skipped, `E_UNKNOWN_ATTRIBUTE`: names are compared exactly                                                                                                                            |
+| a recipe reading `data.type` on nodes and on edges, applied with `nodeColumns: { "type": "category" }, edgeColumns: { "type": "predicate" }`                                                                                         | the node reads bind to `category`, the edge reads to `predicate`; the report records both renames with their tables                                                                   |
+| `table: { "edgeSource": "protein1", "edgeTarget": "protein2" }`, opened with no graph, then a CSV with those headers imported through the application's `import()` with no options                                                   | the import reads its ends from `protein1` and `protein2`; the recipe binds and plans; `report` is the bound plan; nothing runs                                                        |
+| the same, with `edgeSource: "node1"` passed in `config`                                                                                                                                                                              | `W_TABLE_COLUMNS_DIFFER` naming both before anything runs; the ends read from `node1`                                                                                                 |
+| the same recipe replayed on a GraphML file                                                                                                                                                                                           | `table` not used and not reported                                                                                                                                                     |
+| `parallelEdges: false`, replayed on an undirected import holding 500 pairs twice                                                                                                                                                     | `W_PARALLEL_EDGES` with the count, suggesting `repeatedEdges`, before anything runs                                                                                                   |
+| `"where": "data.rel == 'SUPPLIES'"` on edges whose `rel` values are lower case                                                                                                                                                       | skipped, `E_SCOPE_EMPTY`; the plan lists the most frequent `rel` values                                                                                                               |
+| ``"where": "data.padj < `0.05`"`` over a column typed as text, holding `"0.01"`, `"0.2"` and `"NA"`                                                                                                                                  | matches the `"0.01"` elements; `W_COLUMN_TYPE` counts the `NA`                                                                                                                        |
+| an exact `betweenness` planned at 45 s under the default cap, with a dependant                                                                                                                                                       | planned with `E_CAP_EXCEEDED` and the cap; the dependant `E_DEPENDENCY_SKIPPED`; `wouldStart` true                                                                                    |
+| the same command with `recordedCapSeconds: 120`                                                                                                                                                                                      | the `E_CAP_EXCEEDED` problem quotes 120 s; the cap stays 30 s                                                                                                                         |
+| a planned `louvain` command                                                                                                                                                                                                          | a notice that its result depends on node order                                                                                                                                        |
+| `params: { "weight": "weight" }`, replayed on a GML file and on a Pajek file with weights                                                                                                                                            | runs on both: each importer names the weight `weight`                                                                                                                                 |
+| `params: { "weight": "combined_score" }` on a graph with no such edge column                                                                                                                                                         | skipped, `E_UNKNOWN_ATTRIBUTE`; dependants skipped; other commands run                                                                                                                |
+| `params: { "weight": "constructor" }` on a graph with no such column                                                                                                                                                                 | skipped, `E_UNKNOWN_ATTRIBUTE`                                                                                                                                                        |
+| ``"where": "data.padj < `0.05`"`` where `padj` holds numbers and `NA`                                                                                                                                                                | runs on the nodes whose number is below 0.05; `W_COLUMN_TYPE` naming `padj` and the count of `NA`                                                                                     |
+| `label-propagation` with no `seed`, replayed twice                                                                                                                                                                                   | both replays run with `randomSeed` 42, its published default, and find the same communities                                                                                           |
+| `louvain` with `seed: 7`                                                                                                                                                                                                             | runs; a notice says Louvain is deterministic and ignores the seed                                                                                                                     |
+| a recipe with `"directed": false` replayed on a CSV import (directed)                                                                                                                                                                | `W_DIRECTION_DIFFERS` before anything runs; the commands run                                                                                                                          |
+| a `where` scope reading `results.modules.group`, where `modules` is a later command                                                                                                                                                  | skipped, `E_BAD_COMMAND`                                                                                                                                                              |
+| a command reading `results.modules.group` after the `modules` command was skipped                                                                                                                                                    | skipped, `E_DEPENDENCY_SKIPPED`                                                                                                                                                       |
+| a `where` scope that matches no node                                                                                                                                                                                                 | skipped, `E_SCOPE_EMPTY`; dependants skipped                                                                                                                                          |
+| algorithm key `scc`                                                                                                                                                                                                                  | runs `components` with `{ "strength": "strong" }`; the report names the current key                                                                                                   |
+| algorithm key `org.example:motif-census`, not registered                                                                                                                                                                             | skipped, `E_UNKNOWN_ALGORITHM`; dependants skipped                                                                                                                                    |
+| opened with no instruction to run                                                                                                                                                                                                    | nothing runs; every command planned, with its estimate, `style`, `fields` and the total                                                                                               |
+| a recipe planned at twice the total budget, `run()`                                                                                                                                                                                  | not started, `E_CAP_EXCEEDED` with the estimate                                                                                                                                       |
+| a `sample` whose sampled estimate is past the cap                                                                                                                                                                                    | skipped, `E_CAP_EXCEEDED`                                                                                                                                                             |
+| a `layout.set` whose engine publishes no estimate                                                                                                                                                                                    | skipped, `E_CAP_EXCEEDED`                                                                                                                                                             |
+| the same `id` applied twice to the same data                                                                                                                                                                                         | the second refused, `E_REPEAT_APPLICATION`; with `onRepeat: "add"`, ids `ns__x` and `ns2__x`                                                                                          |
+| the same `id` applied after a `data.import` that merged a file                                                                                                                                                                       | refused, `E_REPEAT_APPLICATION`: merging is the same data                                                                                                                             |
+| the same `id` applied after new data replaced the graph                                                                                                                                                                              | runs; not a repeat                                                                                                                                                                    |
+| recipe versions `1.9.0` and `1.10.0`                                                                                                                                                                                                 | `1.10.0` is newer                                                                                                                                                                     |
+| a session with a run on the current selection, recorded                                                                                                                                                                              | that run left out and reported; the other runs recorded                                                                                                                               |
+| a run on the visible graph under the filter ``data.combined_score >= `700` `` on edges, recorded                                                                                                                                     | recorded as a `graph.filter` with that rule `on: "edges"`, then the run with scope `"graph"`; the conversion reported                                                                 |
+| PageRank as `hubs`, degree scoped to ``results.hubs.value > `0.01` ``, then `hubs` re-run, recorded                                                                                                                                  | `hubs` recorded; the degree run left out as stale and reported                                                                                                                        |
+| a sampled betweenness run (sample size 2000, seed 11), recorded                                                                                                                                                                      | recorded with `"sample": 2000, "seed": 11`                                                                                                                                            |
+| a run that resolved `partial` under a time box, recorded                                                                                                                                                                             | left out and reported                                                                                                                                                                 |
+| runs `a__influence` and `b__influence` from two applied recipes, recorded                                                                                                                                                            | written `influence` (the earlier start) and `influence_2`                                                                                                                             |
+| a PageRank run that painted, saved with its style by default                                                                                                                                                                         | the recipe says `"style": false`; reopening shows the layer once                                                                                                                      |
+| a recipe whose `id` is `graphty.overview`, `Graphty.overview` or `https://graphty.app/recipes/overview`, in a document                                                                                                               | skipped, `E_BAD_DOCUMENT`: the id is reserved                                                                                                                                         |
+| ``{ "where": "data.combined_score >= `0.7`", "on": "edges" }`` on scores from 0 to 1000                                                                                                                                              | planned; the scope matches every edge, and a notice says so                                                                                                                           |
+| a scope matching no edge, opened with `apply: false`                                                                                                                                                                                 | `E_SCOPE_EMPTY` in the plan                                                                                                                                                           |
+| `betweenness` with `params: { "weight": "weight" }`, planned                                                                                                                                                                         | the plan says the weight is read as a distance, with a notice                                                                                                                         |
+| a planned command                                                                                                                                                                                                                    | its entry carries `algorithm`, `scope` with `matched` and `of`, `method` and `description`                                                                                            |
+| `louvain` as `modules`, then an option of type `partition` given `{ "result": "modules.group" }`                                                                                                                                     | runs, reading the namespaced run; skipped with `E_DEPENDENCY_SKIPPED` if `modules` was                                                                                                |
+| a `partition` given as a list of node ids                                                                                                                                                                                            | skipped, `E_BAD_COMMAND`                                                                                                                                                              |
+| a `where` scope reading `data.id` on nodes that have no column `id`                                                                                                                                                                  | skipped, `E_BAD_COMMAND`: it would read node ids                                                                                                                                      |
+| a `layout.set` replayed while the reader's layout scope is a kept set                                                                                                                                                                | the layout draws the whole graph                                                                                                                                                      |
+| a directed import where 80 percent of the edges have a reverse twin                                                                                                                                                                  | `W_DIRECTION_DIFFERS` suggesting `directed: false`                                                                                                                                    |
+| a run on the largest component while the edge filter ``data.combined_score >= `700` `` hid the nodes left without an edge, recorded                                                                                                  | recorded as ``{ "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true }`` and the run on `"largest-component"`                           |
+| a run on the visible graph under `>= 700`, the filter then changed to `>= 400`, recorded                                                                                                                                             | recorded with the `>= 700` the run started under                                                                                                                                      |
+| a run under `>= 700`, then the filter loosened to `>= 400` and a second run, recorded                                                                                                                                                | the first run recorded after its filter; the second left out and reported: a recipe never widens its filter                                                                           |
+| a run whose `partition` option reads `{ "result": "modules.group" }`, then `modules` re-run, recorded                                                                                                                                | the dependant left out as stale and reported                                                                                                                                          |
+| `record({ runs: ["significant_degree"] })` where that run's scope reads `results.hubs.value`                                                                                                                                         | left out and reported, naming `hubs`                                                                                                                                                  |
+| two runs both named with the same 70-character label, recorded                                                                                                                                                                       | written as the first 60 characters and that name with `_2`                                                                                                                            |
+| runs named `2024` and `!!!` (a PageRank run), recorded                                                                                                                                                                               | written `r_2024` and `pagerank`                                                                                                                                                       |
+| a force layout set with no seed, recorded                                                                                                                                                                                            | its `options` carry the seed the engine drew; the report says it was drawn                                                                                                            |
+| a run named `Hubs 2024`, recorded                                                                                                                                                                                                    | written `hubs_2024`; the rename reported                                                                                                                                              |
+| a PageRank run started from the interface (it painted), recorded without a style                                                                                                                                                     | the recipe says `"style": true` or omits it                                                                                                                                           |
+| `recipe.record()` output, applied on a later major release that changed a default it relied on                                                                                                                                       | `W_RELEASE_DIFFERS`, and the option whose default changed named                                                                                                                       |
+| a recipe planned at 340 s under the default budget, previewed                                                                                                                                                                        | `wouldStart: false`, `budgetSeconds: 300`                                                                                                                                             |
+| the recipe of README "Replaying a recipe on your own table" (`delimiter: " "`, `repeatedEdges: "max"`, `directed: false`), then STRING's `9606.protein.links.v12.0.txt` imported through `import({ type: "csv", config: { file } })` | read space-separated and undirected, each pair one edge with the larger score; the filter applied while reading, `appliedWhileReading` giving the rows dropped; no `W_PARALLEL_EDGES` |
+| the same file imported through `import()` with `delimiter: ","` in `config`                                                                                                                                                          | `W_TABLE_COLUMNS_DIFFER` naming the delimiter; the header read as one column, and the import fails, `E_PARSE_FAILED`, naming `delimiter: " "` as the one that finds `protein1`        |
+| the same recipe, then a Gephi `edges.csv` headed `Source,Target,Weight` imported through `import()`                                                                                                                                  | read by the importer's own rules (`Source`, `Target`, comma); `W_TABLE_COLUMNS_DIFFER` naming the columns used                                                                        |
+| the same recipe, then a neo4j-admin import CSV imported through `import()` with `variant: "neo4j"`                                                                                                                                   | its ends read from `:START_ID` and `:END_ID`; the recipe's endpoint columns not given to it                                                                                           |
+| a recipe with `table`, opened, then a CSV imported with plain `session.data.import`                                                                                                                                                  | the import takes nothing from the recipe; the recipe binds and plans against what it built                                                                                            |
+| a recipe with no `parallelEdges`, replayed on an undirected import holding every pair twice                                                                                                                                          | `W_PARALLEL_EDGES` with the count, suggesting `repeatedEdges`, before anything runs                                                                                                   |
+| a recipe held with no graph loaded, then a node table imported through `import()`, then an edge table through `import(source, { mode: "merge" })`, then `run()`                                                                      | planned after each import, the edge columns bound after the second; the runs start only at `run()`                                                                                    |
+| a command whose column is present on 40 of 280 nodes                                                                                                                                                                                 | `columns` gives `withValue: 40, of: 280`; `W_FEW_VALUES`                                                                                                                              |
+| `params: { "maxIterations": 10000 }` on `girvan-newman` while its descriptor is marked `unbounded`                                                                                                                                   | skipped, `E_CAP_EXCEEDED`, before anything runs                                                                                                                                       |
+| a command still running when it reaches the cap                                                                                                                                                                                      | stopped; its partial result discarded; `E_CAP_EXCEEDED`; dependants skipped                                                                                                           |
+| a command with `recordedPrecision: "single"`, replayed on the CPU                                                                                                                                                                    | `W_PRECISION_DIFFERS` naming both                                                                                                                                                     |
+| `seed: 3000000000`                                                                                                                                                                                                                   | refused by the schema; a reader skips it, `E_OPTION_RANGE`                                                                                                                            |
+| a `layout.set` with `engine: "d3"` and `options: { "alphaDecay": 0.02 }`                                                                                                                                                             | checked against the d3 engine's options, not the default engine's; runs                                                                                                               |
+| a recipe ending in a `layout.set`, run, then `remove()` while its layout is still in force                                                                                                                                           | the layout and the positions in force before it are restored                                                                                                                          |
+| two applications A then B of recipes with filters, the reader's filter F0 before them; `A.remove()`, then `B.remove()`                                                                                                               | after `A.remove()` B's filter still shown; after `B.remove()` F0 shown                                                                                                                |
+| a node filter `data.padj < 0.05`, an edge filter `data.weight >= 0.4` and the rule dropping isolated nodes, one session filter, recorded                                                                                             | written as the node `graph.filter`, then the edge `graph.filter` with `dropIsolated: true`                                                                                            |
+| PageRank as `hubs`, the session filtered to `results.hubs.value > 0.001`, then Louvain, recorded                                                                                                                                     | `hubs`, then `graph.filter` on `results.hubs.value > 0.001` with a notice about the literal, then Louvain                                                                             |
+| a run under a session filter `{ kind: "categories", attribute: "data.code", values: ["3"] }` on a numeric column, recorded                                                                                                           | written ``data.code == '3'                                                                                                                                                            |     | data.code == `3` ``; matches the same nodes on replay |
+| a run under a session filter `any(expression, edges)`, recorded                                                                                                                                                                      | left out and reported: `any` has no recipe equivalent                                                                                                                                 |
+| a run on the visible graph under a time window and no filter, recorded                                                                                                                                                               | left out and reported                                                                                                                                                                 |
+| a run on the visible graph with no filter active, recorded                                                                                                                                                                           | recorded with scope `"graph"`, before any `graph.filter`                                                                                                                              |
+| an edge filter, Louvain on the visible graph, then betweenness started on the whole graph with the filter still shown, recorded                                                                                                      | betweenness written before the `graph.filter`; if it read Louvain's result, left out and reported                                                                                     |
+| a force layout set with seed 42 on the whole graph, then an edge filter and a Louvain run, recorded                                                                                                                                  | the `layout.set` written before the `graph.filter`                                                                                                                                    |
+| a layout set while the session's layout scope was a kept set, recorded                                                                                                                                                               | the layout left out and reported                                                                                                                                                      |
+| a run scoped to ``{ define: { kind: "rule", where: { kind: "edges", where: "data.w > `1`" }, reading: "clipped" } }``, recorded                                                                                                      | written with scope ``{ "where": "data.w > `1`", "on": "edges" }``                                                                                                                     |
+| a run named `Centralite` with an accented final e, recorded                                                                                                                                                                          | written `centralit`; the rename reported                                                                                                                                              |
+| a file's recipe [`algo.run`, `column.compute`, `algo.run`] run on a reader that does not know `column.compute`, then `record({ id: <the same id> })`                                                                                 | no recipe; `leftOut` lists the two commands that did not run; with `dropUnrun: true`, recorded                                                                                        |
+| a randomised command with no `seed`, whose algorithm's seed option has no published default, previewed                                                                                                                               | no `seed` in its entry; a notice that one will be drawn when it runs                                                                                                                  |
 
 ## Worked example
 

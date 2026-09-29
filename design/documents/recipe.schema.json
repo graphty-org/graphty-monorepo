@@ -65,9 +65,26 @@
                 },
                 "idColumn": {
                     "$ref": "#/$defs/tableColumn"
+                },
+                "delimiter": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1,
+                    "description": "The character that separates columns; the importer's own detection when absent."
+                },
+                "variant": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "description": "The CSV shape, as graphty-element's catalogue names it (edge-list, node-list, ...). Never used for the endpoints of a neo4j-variant file, whose header types its own structure."
+                },
+                "repeatedEdges": {
+                    "enum": ["keep", "first", "last", "sum", "min", "max", "error"],
+                    "description": "What a second edge between the same two nodes becomes."
                 }
             },
-            "description": "For data read from a table (CSV, including a Neo4j export): the columns that hold an edge's two ends and a node's id, by the import option names of container.md, 'Import options'. Used when such data is imported for this recipe without those options (recipe.md, 'Table data'). Ignored for formats that mark endpoints themselves."
+            "description": "For data read from a table (CSV): how it is read, by the import option names of container.md, 'Import options' -- the columns holding an edge's two ends and a node's id, the delimiter, the CSV shape and what repeated rows become. Defaults for a table imported for this recipe through its application's import() or as the file's own data member; the caller's options win, and the endpoint columns, delimiter and variant are used only when the file's first line holds the recipe's endpoint columns (recipe.md, 'Table data'). Ignored for formats that mark endpoints themselves."
         },
         "generator": {
             "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/generator",
@@ -93,25 +110,50 @@
                     "type": "string"
                 }
             },
-            "oneOf": [
-                {
-                    "$ref": "#/$defs/graphFilter"
+            "if": {
+                "properties": {
+                    "op": {
+                        "const": "graph.filter"
+                    }
+                }
+            },
+            "then": {
+                "$ref": "#/$defs/graphFilter"
+            },
+            "else": {
+                "if": {
+                    "properties": {
+                        "op": {
+                            "const": "algo.run"
+                        }
+                    }
                 },
-                {
+                "then": {
                     "$ref": "#/$defs/algoRun"
                 },
-                {
-                    "$ref": "#/$defs/layoutSet"
-                },
-                {
-                    "$ref": "#/$defs/laterCommand"
+                "else": {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "layout.set"
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "#/$defs/layoutSet"
+                    },
+                    "else": {
+                        "$ref": "#/$defs/laterCommand"
+                    }
                 }
-            ]
+            },
+            "description": "Dispatched on op, so a validator reports only the errors of the command kind named."
         },
         "tableColumn": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 1024
+            "maxLength": 256,
+            "description": "A column name, looked up as a plain name, never evaluated."
         },
         "predicate": {
             "type": "string",
@@ -139,13 +181,13 @@
                 },
                 "dropIsolated": {
                     "type": "boolean",
-                    "description": "Also drop every node the filter leaves with no edge. Default false."
+                    "description": "Also drop every node left with no edge once this filter's rule has applied, including one that had none before. Default false."
                 },
                 "description": {
                     "$ref": "#/$defs/description"
                 }
             },
-            "description": "Narrows the graph every later command of the recipe sees, and shows it as the session's filter (recipe.md, 'Commands' rule 5)."
+            "description": "Narrows the graph every later command of the recipe sees, and shows it as the session's filter (recipe.md, 'Commands' rule 13)."
         },
         "as": {
             "type": "string",
@@ -218,7 +260,8 @@
                 "seed": {
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 4294967295
+                    "maximum": 2147483647,
+                    "description": "The run's seed. Its maximum is the smallest seed range among graphty-element's algorithms. Absent: the algorithm's published default seed, or one drawn at run time when it has none (recipe.md, 'Commands' rule 7)."
                 },
                 "sample": {
                     "type": "integer",
@@ -231,6 +274,10 @@
                     "type": "number",
                     "exclusiveMinimum": 0,
                     "description": "Advisory: the per-command cost cap the run was recorded under, when it was above the default. A replay never raises its cap from it; the report quotes it beside E_CAP_EXCEEDED so the person replaying knows what to pass (recipe.md, 'Running' rule 2)."
+                },
+                "recordedPrecision": {
+                    "enum": ["single", "double"],
+                    "description": "Advisory: the precision the run was recorded in, from its caveats. A replay in the other precision is reported (W_PRECISION_DIFFERS); it never asks for a precision."
                 },
                 "style": {
                     "oneOf": [

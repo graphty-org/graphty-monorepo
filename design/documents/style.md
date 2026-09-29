@@ -27,9 +27,12 @@ The style member is the `StyleDocument` graphty-element 2.x already publishes
    graphty-element 2.3.0 and `member` from 2.6.0; an earlier 2.x release refuses a whole style
    holding one. The channel names, selector kinds, scales, layer kinds and the value lists of the
    enumerated channels (node shapes, line patterns, arrows) grow within version 1: a release that
-   adds one adds it to the version 1 schema, and a reader that does not know it fails that layer or
-   that channel alone, as the table below says, never the whole style. Changing what an existing
-   name or value means needs style version 2 (container.md, "Versions"). What 2.x refuses, with the
+   adds one adds it to its copy of the version 1 schema, and a reader that does not know it drops
+   that one channel entry, or fails that one layer for an unknown selector kind, scale or layer
+   kind, as "Reading and applying" rules 2 and 3 say, never the whole style. Every style 2.x
+   wrote is a version 1 style; not every version 1 style is one 2.x reads, because 2.x refuses a
+   whole style for a value it does not know. Changing what an existing name or value means needs
+   style version 2 (container.md, "Versions"). What 2.x refuses, with the
    code it reports (a version 1 reader handles each as "Reading and applying" rules 2 and 3 say):
 
 | 2.x refuses                                                                                  | Code                                               |
@@ -152,8 +155,11 @@ path       := name ( "." name )*
 3. **No functions, projections, slices, pipes, wildcards or multi-selects.** `contains()`,
    `starts_with()` and `length()` are refused, so no expression tests whether a list holds a value.
 4. **Comparisons.** `==` and `!=` compare JSON values exactly and structurally, so a number never
-   equals text and a list never equals a string. `<`, `<=`, `>` and `>=` are true only between two
-   numbers; any other pair gives null, which is false. A comparison does not chain.
+   equals text and a list never equals a string. `<`, `<=`, `>` and `>=` read each side as a
+   number when it is one or is text that reads as a decimal number (`"0.01"`), and give null,
+   which is false, for every other pair (README, "What every importer produces" rule 4). 2.x
+   compares only two numbers, so reading numeric text is a graphty-element 3.0.0 change. A
+   comparison does not chain.
 5. **Truth.** A value is false when it is `false`, `null`, missing, an empty string, an empty list or
    an empty object; zero is true. `!` binds tighter than a comparison, so `!data.flag` is written
    `!(data.flag)` when the path has more than one segment.
@@ -172,6 +178,20 @@ point); the plan of a recipe lists them per command (recipe.md, "The replay repo
 A selector or binding naming a field the run does not publish leaves the layer switched off, like a
 missing column. A node outside a run's scope has no value for its fields: a `has` selector does not
 match it, and an encoding leaves it to the layers beneath.
+
+In a file that also carries the recipe, a path names the run by the recipe's plain `as`
+(`results.groups.group`); the reader rewrites it to the namespaced run id and switches the layer
+on when the run completes (recipe.md, "Run ids and namespaces"). Colouring nodes by a Louvain run
+named `groups`, with `"style": false` on that command so its own colouring does not paint over
+this layer:
+
+```jsonc
+{
+    "name": "Colour by community",
+    "selector": { "match": "has", "path": "results.groups.group" },
+    "encode": { "node.color": { "by": "results.groups.group", "scale": "ordinal", "overflow": "other" } },
+}
+```
 
 ### Selectors
 
@@ -252,7 +272,11 @@ other channel `passthrough`. For the numeric scales:
    (`bins`) or equal count (`quantile`) the values are sorted into (default 4, at most 256).
 7. A value that is not a number (text such as `NA` in a CSV column) is treated as missing, and the
    report counts it with `W_COLUMN_TYPE`, as a recipe's numeric comparison does (README, "What
-   every importer produces" rule 4).
+   every importer produces" rule 4). So is a value the scale cannot transform: a negative number
+   under `log`, `neglog10` or `sqrt`. Zero under `log` or `neglog10` is placed at the end the
+   transform tends to -- position 0 for `log`, position 1 for `neglog10`, where the smallest
+   p-values belong -- and is left out of the `"auto"` domain's extent, so an adjusted p-value
+   that underflowed to 0 draws as the most significant, and the others keep their spread.
 
 For `ordinal`, which maps categories:
 
@@ -367,8 +391,11 @@ apart; the number of colours for a categorical palette, `null` for a continuous 
 unsafe). All are required, as in graphty-element 2.x's `PaletteDescriptor`. A sequential or diverging palette's
 colours are spaced evenly from position 0 to 1, so a diverging palette with an odd number of colours
 has its middle colour at the binding's `midpoint`. A page that wants its brand palette everywhere
-registers it once with graphty-element's `registerPalette` and names it in its styles; a carried
-palette is for a style travelling to pages that do not have it.
+registers it once, with `registerPalette(descriptor)` from `@graphty/graphty-element/extend` and a
+descriptor of the shape below, and names it in its styles; a carried palette is for a style
+travelling to pages that do not have it. Register on your own page, carry in files that travel. A
+registered palette wins over a carried one of the same id, so update the registered copy when the
+brand changes.
 
 ```json
 {
@@ -458,22 +485,27 @@ palette is for a style travelling to pages that do not have it.
 1. A style member whose top level fails (not an object, `layers` not an array) is skipped
    (container.md, "Reading a file" rule 13).
 2. **A layer that cannot be applied fails alone.** A layer that fails any rule of the table under
-   "Compatible with graphty-element 2.x" other than an unknown channel, fails its schema, exceeds a
+   "Compatible with graphty-element 2.x" other than an unknown channel or an unknown value of an
+   enumerated channel (rule 3), fails its schema, exceeds a
    limit, or throws while it is checked MUST be added to the stack switched off, with its code and a
    reason, and reported. It MUST NOT be dropped, and MUST NOT stop the other layers. Such a
    **refused layer** is kept as it was read, beside the compiled stack: it has a `LayerId`, is
    listed with `enabled: false` and its problem, is written back unchanged, and is checked again by
    `update(id, patch)`, which compiles it only when it now passes.
-3. **Unknown channels.** A channel entry naming an unknown channel is dropped from its layer and
-   reported (`E_UNKNOWN_CHANNEL`); the layer's other channels apply, and the dropped entry is
-   written back on save. A layer left with no channel is a refused layer with `E_UNKNOWN_CHANNEL`.
-   This rule, not container.md's `W_UNKNOWN_MEMBER`, governs the keys of `set` and `encode`.
+3. **Unknown channels and values.** A channel entry naming an unknown channel is dropped from its
+   layer and reported (`E_UNKNOWN_CHANNEL`); so is an entry giving an enumerated channel a value
+   this reader does not know (a node shape a later release added), reported `E_OPTION_RANGE`. The
+   layer's other channels apply, and the dropped entry is written back on save. A layer left with
+   no channel is a refused layer with that code. A number outside a channel's range, or a value of
+   the wrong type, still refuses the whole layer (rule 2). This rule, not container.md's
+   `W_UNKNOWN_MEMBER`, governs the keys of `set` and `encode`.
 4. A valid layer that reads a path nothing in the session answers -- a column no element has, a run
    the session does not hold, a kept set it does not have -- is added switched off with the paths it
    needs and up to three existing columns with the nearest names as suggestions, which the applier
-   never uses. This is how a style reports what is missing on new data. When the data is replaced
-   or the run completes, the applier MUST check such a layer again and switch it on when it binds,
-   reporting it. A layer waiting for a run the file's own recipe will make has the state
+   never uses. This is how a style reports what is missing on new data. When the graph's columns
+   change -- an import replaces the graph or is merged into it, or elements gain a column no element
+   had -- or the run completes, the applier MUST check such a layer again and switch it on when it
+   binds, reporting it (README, "Applying a style and a recipe to new data" rule 5). A layer waiting for a run the file's own recipe will make has the state
    `waiting` in the report, naming the command, so a preview tells it apart from a layer that
    will never paint. A `results.` path that names a run by a plain `as` of a command in a recipe of
    the same file never binds to a run of the reader's own that happens to have that name: when
@@ -486,12 +518,18 @@ palette is for a style travelling to pages that do not have it.
    registered one; a difference in colours is reported. A layer naming a palette that is neither
    registered nor carried is switched off with `E_UNKNOWN_PALETTE`.
 6. Layers are added above every layer already present, in document order. Replacing the whole
-   stack is an explicit choice of the caller, never the default.
+   stack is an explicit choice of the caller, never the default. A layer that will paint a channel
+   one of the reader's own enabled layers already paints carries `W_PAINTS_OVER`, naming that
+   layer, in a preview too.
 7. **Imported layers are stamped.** Every layer added from a document gets
    `source: { by: "template", templateId }`, where `templateId` is the caller's choice, else the
-   rule of container.md, "Writing a file" rule 7. A `source.by: "run"` is kept only when its `runId`
-   names a run in this session, after the rewrite of recipe.md, "Run ids and namespaces" rule 3. A
-   document cannot make its layers look like the reader's own. A style `id` starting `graphty.` or
+   rule of container.md, "Writing a file" rule 7. A `source.by: "run"` is kept only when its
+   `runId`, after the rewrite of recipe.md, "Run ids and namespaces" rule 3, names a command of a
+   recipe applied in this same opening -- planned, held or run -- and the layer is tied to that
+   run when it starts, so it is removed with the run and with the application. Any other
+   `by: "run"` -- one naming a run the reader made, or no run at all -- is stamped
+   `{ by: "template", templateId }` and the replaced source is reported. A document cannot make its
+   layers look like the reader's own. A style `id` starting `graphty.` or
    `graphty:`, in any case, or a URL on `graphty.app`, is reserved for graphty-element: it is ignored and reported, and the fallbacks of
    container.md name the layers.
    `session.styles.removeBySource((s) => s.by === "template" && s.templateId === id)` removes
@@ -534,6 +572,9 @@ interface StyleReport {
         readonly reads: readonly {
             readonly path: string;
             readonly bound: boolean;
+            /** Elements of the layer's target with a value at the path, out of `of`; null when unbound. */
+            readonly withValue: number | null;
+            readonly of: number | null;
             readonly suggestions: readonly string[]; // nearest existing names when unbound; never used
         }[];
         readonly writes: readonly string[]; // channel names
@@ -555,7 +596,10 @@ interface StyleReport {
     readonly replaced: readonly LayerId[];
     /** The layers added switched off because they failed a check (rule 2). New. */
     readonly refused: readonly { layer: LayerId; name: string; id?: string; code: GraphtyErrorCode; reason: string }[];
-    /** Palettes registered for this session, channels dropped, ignored members. New. */
+    /**
+     * Palettes registered for this session, channels dropped, ignored members, W_PAINTS_OVER, and
+     * W_FEW_VALUES for a path fewer than half of the layer's target have a value at. New.
+     */
     readonly notices: readonly Problem[];
 }
 ```
@@ -589,60 +633,67 @@ data settings change how every later import is read (container.md, "Reading a fi
 
 ## Conformance
 
-| Input                                                                                                                                                         | Required result                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| a layer with neither `set` nor `encode`                                                                                                                       | added switched off, `E_BAD_LAYER`; the other layers apply                                                                 |
-| a binding with both `domain` and `clamp`                                                                                                                      | that layer switched off, `E_BAD_LAYER`                                                                                    |
-| `node.shape: "star"`                                                                                                                                          | that layer switched off, `E_OPTION_RANGE`                                                                                 |
-| a layer writing `"node.colour": "#f00"` and `"node.size": 2`                                                                                                  | `node.colour` dropped, `E_UNKNOWN_CHANNEL`; the layer applies its size; `node.colour` written back on save                |
-| a layer writing only `"node.colour": "#f00"`                                                                                                                  | refused, `E_UNKNOWN_CHANNEL`; listed switched off; written back unchanged                                                 |
-| `"edge.patternCount": 2147483647`                                                                                                                             | that layer switched off, `E_OPTION_RANGE`                                                                                 |
-| a layer reading `data.logFC` on data whose column is `log2FoldChange`                                                                                         | added switched off; `unbound` suggests `log2FoldChange`                                                                   |
-| a layer colouring by `data.logFC` where `logFC` holds numbers and `NA`                                                                                        | the numbers painted; `NA` treated as missing; `W_COLUMN_TYPE` with the count                                              |
-| an ordinal colour layer over `team` with groups of 5, 3 and 3 elements                                                                                        | the largest group takes the palette's first colour; the tied groups by name                                               |
-| the same style opened twice                                                                                                                                   | the second opening replaces the first's layers (`replaced` lists them)                                                    |
-| opened with no graph loaded, then data loaded that has the columns                                                                                            | layers switched off, then switched on and reported when the data arrives                                                  |
-| a layer switched off for a missing column, saved                                                                                                              | written with its authored `enabled` (true), not `false`                                                                   |
-| `"node.color": "red\" onload=\"x"`                                                                                                                            | does not parse as a colour; layer switched off, `E_BAD_LAYER`                                                             |
-| a layer reading `data.logFC` on a graph with no `logFC` column                                                                                                | added switched off; `unbound` names `data.logFC`                                                                          |
-| ``where: "data.adj.P.Val < `0.05`"`` on a graph with a column `adj.P.Val`                                                                                     | matches the elements whose `adj.P.Val` is below 0.05                                                                      |
-| an edge layer with `ids: { "edges": ["17"] }`                                                                                                                 | added switched off, `E_BAD_LAYER`                                                                                         |
-| a layer naming palette `lab-reds`, carried, not registered                                                                                                    | registered for this session only and reported; the layer paints                                                           |
-| a layer naming palette `lab-reds`, neither carried nor registered                                                                                             | switched off, `E_UNKNOWN_PALETTE`                                                                                         |
-| a carried descriptor under the id `viridis`                                                                                                                   | ignored and reported; the built-in palette is used                                                                        |
-| a layer with `source: { "by": "user" }` from a document                                                                                                       | stored as `{ "by": "template", "templateId": ... }`                                                                       |
-| two layers with `id: "size"`                                                                                                                                  | the second switched off, `E_DUPLICATE_ID`                                                                                 |
-| a `top` selector with `n: 10` whose values run 1 to 8, then three tied at 9                                                                                   | 8 elements painted; the report says 3 were left out at the tie                                                            |
-| a binding `"overflw": "other"` (misspelt)                                                                                                                     | ignored, `W_UNKNOWN_MEMBER` at its pointer; the schema refuses it                                                         |
-| an ordinal colour over `mutation_count` holding the number 1, with `map: { "1": "#fdae61" }`                                                                  | the node painted `#fdae61`, whether the column came from GraphML (int) or CSV                                             |
-| `map` pins `Supplier` and `OEM` to the palette's first two colours; an unmapped `Distributor` is largest                                                      | `Distributor` takes the palette's third colour                                                                            |
-| a `map` key `Supplier` on data whose values are `supplier`                                                                                                    | the key reported as matching no value                                                                                     |
-| an ordinal colour over a JSON array column (`"aliases": ["TP53", "p53"]`)                                                                                     | the lists treated as missing; `W_COLUMN_TYPE` with the count                                                              |
-| an ordinal colour over a Neo4j export's node `label`                                                                                                          | a node labelled `Supplier` is the category `Supplier`; one labelled `Supplier;Company` is the category `Supplier;Company` |
-| `"node.label": { "by": "data.id", "scale": "passthrough" }` on a CSV edge list                                                                                | every node labelled by its id; on graphty-element 2.x, switched off and reported                                          |
-| the same on JSON nodes that carry an attribute `id` besides their node id                                                                                     | labelled by the attribute: a real column wins, on 2.x and on a version 1 reader alike                                     |
-| `{ "by": "team" }` (no prefix)                                                                                                                                | read as `data.team`                                                                                                       |
-| an edge layer with `where: "data.source == 'TP53'"` on a CSV edge list whose ends were `source,target`                                                        | matches the edges leaving `TP53`; on a file whose edges carry a column `source`, that column is compared                  |
-| label layers `data.id` below `data.name`, opened on a Cytoscape GraphML export and on an edge list                                                            | the export shows `name`; the edge list shows the ids, the `name` layer switched off                                       |
-| a style whose layer reads `data.FDR < 0.05` after opening with `columns: { "padj": "FDR" }`, threshold edited to 0.01, saved                                  | written `data.padj < 0.01`                                                                                                |
-| two files named "Overview" with no style `id`, opened one after the other                                                                                     | the second adds its layers; the first's stay                                                                              |
-| a style whose `id` matches layers already opened, previewed                                                                                                   | `replaced` lists the layers a real opening would replace                                                                  |
-| a layer reading `results.hubs.value` in a file whose recipe has `as: "hubs"`, previewed                                                                       | state `waiting`, `waitsFor` naming `hubs`                                                                                 |
-| a layer reading `results.modules.group` in a file whose recipe has no `modules` and no session run of that name                                               | state `unbound`, naming the path                                                                                          |
-| a file with a recipe `as: "hubs"` and a style reading `results.hubs.value`, opened with `members: ["graphty-style"]` while the session has its own run `hubs` | the layer switched off, naming the recipe left out; the session's `hubs` is not painted                                   |
-| a style saved alone whose layer reads a run started without `as`                                                                                              | the layer left out, `E_UNSTABLE_RUN_ID` in `leftOut`; the rest written                                                    |
-| a node shape a later release added, on a reader that does not know it                                                                                         | that layer switched off, `E_OPTION_RANGE`; the other layers apply                                                         |
-| `"edge.patternCount": { "by": "data.w", "range": [2, 1e12] }`                                                                                                 | values clamped to 1,000; the report counts them                                                                           |
-| a `passthrough` label over a 60 MB text value                                                                                                                 | cut to 1,024 characters; counted                                                                                          |
-| `where: "contains(data.labels, 'Supplier')"`                                                                                                                  | that layer switched off, `E_BAD_SELECTOR`: functions are not in the language                                              |
-| ``where: "data.padj < `0.05`"`` where `padj` holds numbers and `NA`                                                                                           | matches the nodes whose number is below 0.05; `W_COLUMN_TYPE` with the count of `NA`                                      |
-| a layer with `domain: [0.4, 1]` over values from 0 to 1000                                                                                                    | paints; a notice says more than 95 percent of the values fall outside the domain                                          |
-| a style opened with `columns: { "padj": "FDR" }`, then saved                                                                                                  | the layer written with `data.padj`, as read                                                                               |
-| a `member` selector of `"selection"`, opened                                                                                                                  | applied; reported as tied to the session it was written in                                                                |
-| a style `id` of `graphty.default`                                                                                                                             | the id ignored and reported                                                                                               |
-| a style with `apply: false`                                                                                                                                   | `layers` lists each layer's paths, bound state and channels; `applied` is empty                                           |
-| a file whose recipe member is version 2 (skipped) and whose style reads `results.hubs.value`, with a session run named `hubs`                                 | the layer switched off, naming the skipped recipe; the session's `hubs` is not painted                                    |
-| a 1.x template with a skybox background                                                                                                                       | the layers converted; the background reported, not applied, nothing fetched                                               |
+| Input                                                                                                                                                                           | Required result                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| a layer with neither `set` nor `encode`                                                                                                                                         | added switched off, `E_BAD_LAYER`; the other layers apply                                                                 |
+| a binding with both `domain` and `clamp`                                                                                                                                        | that layer switched off, `E_BAD_LAYER`                                                                                    |
+| a layer setting `"node.shape": "star"` and `"node.size": 2`                                                                                                                     | `node.shape` dropped, `E_OPTION_RANGE`; the layer applies its size; the entry written back on save                        |
+| a layer writing `"node.colour": "#f00"` and `"node.size": 2`                                                                                                                    | `node.colour` dropped, `E_UNKNOWN_CHANNEL`; the layer applies its size; `node.colour` written back on save                |
+| a layer writing only `"node.colour": "#f00"`                                                                                                                                    | refused, `E_UNKNOWN_CHANNEL`; listed switched off; written back unchanged                                                 |
+| `"edge.patternCount": 2147483647`                                                                                                                                               | that layer switched off, `E_OPTION_RANGE`                                                                                 |
+| a layer reading `data.logFC` on data whose column is `log2FoldChange`                                                                                                           | added switched off; `unbound` suggests `log2FoldChange`                                                                   |
+| a layer colouring by `data.logFC` where `logFC` holds numbers and `NA`                                                                                                          | the numbers painted; `NA` treated as missing; `W_COLUMN_TYPE` with the count                                              |
+| an ordinal colour layer over `team` with groups of 5, 3 and 3 elements                                                                                                          | the largest group takes the palette's first colour; the tied groups by name                                               |
+| the same style opened twice                                                                                                                                                     | the second opening replaces the first's layers (`replaced` lists them)                                                    |
+| opened with no graph loaded, then data loaded that has the columns                                                                                                              | layers switched off, then switched on and reported when the data arrives                                                  |
+| a layer switched off for a missing column, saved                                                                                                                                | written with its authored `enabled` (true), not `false`                                                                   |
+| `"node.color": "red\" onload=\"x"`                                                                                                                                              | does not parse as a colour; layer switched off, `E_BAD_LAYER`                                                             |
+| a layer reading `data.logFC` on a graph with no `logFC` column                                                                                                                  | added switched off; `unbound` names `data.logFC`                                                                          |
+| ``where: "data.adj.P.Val < `0.05`"`` on a graph with a column `adj.P.Val`                                                                                                       | matches the elements whose `adj.P.Val` is below 0.05                                                                      |
+| an edge layer with `ids: { "edges": ["17"] }`                                                                                                                                   | added switched off, `E_BAD_LAYER`                                                                                         |
+| a layer naming palette `lab-reds`, carried, not registered                                                                                                                      | registered for this session only and reported; the layer paints                                                           |
+| a layer naming palette `lab-reds`, neither carried nor registered                                                                                                               | switched off, `E_UNKNOWN_PALETTE`                                                                                         |
+| a carried descriptor under the id `viridis`                                                                                                                                     | ignored and reported; the built-in palette is used                                                                        |
+| a layer with `source: { "by": "user" }` from a document                                                                                                                         | stored as `{ "by": "template", "templateId": ... }`                                                                       |
+| two layers with `id: "size"`                                                                                                                                                    | the second switched off, `E_DUPLICATE_ID`                                                                                 |
+| a `top` selector with `n: 10` whose values run 1 to 8, then three tied at 9                                                                                                     | 8 elements painted; the report says 3 were left out at the tie                                                            |
+| a binding `"overflw": "other"` (misspelt)                                                                                                                                       | ignored, `W_UNKNOWN_MEMBER` at its pointer; the schema refuses it                                                         |
+| an ordinal colour over `mutation_count` holding the number 1, with `map: { "1": "#fdae61" }`                                                                                    | the node painted `#fdae61`, whether the column came from GraphML (int) or CSV                                             |
+| `map` pins `Supplier` and `OEM` to the palette's first two colours; an unmapped `Distributor` is largest                                                                        | `Distributor` takes the palette's third colour                                                                            |
+| a `map` key `Supplier` on data whose values are `supplier`                                                                                                                      | the key reported as matching no value                                                                                     |
+| an ordinal colour over a JSON array column (`"aliases": ["TP53", "p53"]`)                                                                                                       | the lists treated as missing; `W_COLUMN_TYPE` with the count                                                              |
+| an ordinal colour over a neo4j-admin import CSV's node `labels`                                                                                                                 | a node labelled `Supplier` is the category `Supplier`; one labelled `Supplier;Company` is the category `Supplier;Company` |
+| `"node.label": { "by": "data.id", "scale": "passthrough" }` on a CSV edge list                                                                                                  | every node labelled by its id; on graphty-element 2.x, switched off and reported                                          |
+| the same on JSON nodes that carry an attribute `id` besides their node id                                                                                                       | labelled by the attribute: a real column wins, on 2.x and on a version 1 reader alike                                     |
+| `{ "by": "team" }` (no prefix)                                                                                                                                                  | read as `data.team`                                                                                                       |
+| an edge layer with `where: "data.source == 'TP53'"` on a CSV edge list whose ends were `source,target`                                                                          | matches the edges leaving `TP53`; on a file whose edges carry a column `source`, that column is compared                  |
+| label layers `data.id` below `data.name`, opened on a Cytoscape GraphML export and on an edge list                                                                              | the export shows `name`; the edge list shows the ids, the `name` layer switched off                                       |
+| a style whose layer reads `data.FDR < 0.05` after opening with `columns: { "padj": "FDR" }`, threshold edited to 0.01, saved                                                    | written `data.padj < 0.01`                                                                                                |
+| two files named "Overview" with no style `id`, opened one after the other                                                                                                       | the second adds its layers; the first's stay                                                                              |
+| a style whose `id` matches layers already opened, previewed                                                                                                                     | `replaced` lists the layers a real opening would replace                                                                  |
+| a layer reading `results.hubs.value` in a file whose recipe has `as: "hubs"`, previewed                                                                                         | state `waiting`, `waitsFor` naming `hubs`                                                                                 |
+| a layer reading `results.modules.group` in a file whose recipe has no `modules` and no session run of that name                                                                 | state `unbound`, naming the path                                                                                          |
+| a file with a recipe `as: "hubs"` and a style reading `results.hubs.value`, opened with `members: ["graphty-style"]` while the session has its own run `hubs`                   | the layer switched off, naming the recipe left out; the session's `hubs` is not painted                                   |
+| a style saved alone whose layer reads a run started without `as`                                                                                                                | the layer left out, `E_UNSTABLE_RUN_ID` in `leftOut`; the rest written                                                    |
+| a layer setting a node shape a later release added, with a colour, on a reader that does not know the shape                                                                     | the shape entry dropped, `E_OPTION_RANGE`; the colour paints; the other layers apply                                      |
+| `"edge.patternCount": { "by": "data.w", "range": [2, 1e12] }`                                                                                                                   | values clamped to 1,000; the report counts them                                                                           |
+| a `passthrough` label over a 60 MB text value                                                                                                                                   | cut to 1,024 characters; counted                                                                                          |
+| `where: "contains(data.labels, 'Supplier')"`                                                                                                                                    | that layer switched off, `E_BAD_SELECTOR`: functions are not in the language                                              |
+| ``where: "data.padj < `0.05`"`` where `padj` holds numbers and `NA`                                                                                                             | matches the nodes whose number is below 0.05; `W_COLUMN_TYPE` with the count of `NA`                                      |
+| a layer with `domain: [0.4, 1]` over values from 0 to 1000                                                                                                                      | paints; a notice says more than 95 percent of the values fall outside the domain                                          |
+| a style opened with `columns: { "padj": "FDR" }`, then saved                                                                                                                    | the layer written with `data.padj`, as read                                                                               |
+| a `member` selector of `"selection"`, opened                                                                                                                                    | applied; reported as tied to the session it was written in                                                                |
+| a style `id` of `graphty.default`                                                                                                                                               | the id ignored and reported                                                                                               |
+| a style with `apply: false`                                                                                                                                                     | `layers` lists each layer's paths, bound state and channels; `applied` is empty                                           |
+| a file whose recipe member is version 2 (skipped) and whose style reads `results.hubs.value`, with a session run named `hubs`                                                   | the layer switched off, naming the skipped recipe; the session's `hubs` is not painted                                    |
+| a 1.x template with a skybox background                                                                                                                                         | the layers converted; the background reported, not applied, nothing fetched                                               |
+| a style reading `data.logFC` and `data.padj`, opened on an edge list, then a node table holding both merged with `mode: "merge"`                                                | the two layers switched on when the merge lands, each reported                                                            |
+| `{ "by": "data.padj", "scale": "neglog10", "range": [0.5, 3] }` over values including three `0`                                                                                 | the three drawn at 3 (position 1); the `"auto"` domain spans the other values                                             |
+| `{ "by": "data.x", "scale": "log" }` over values including `-2`                                                                                                                 | `-2` treated as missing; `W_COLUMN_TYPE` counts it                                                                        |
+| a layer reading `data.logFC` on 280 nodes, 40 of which carry it                                                                                                                 | `reads` gives `withValue: 40, of: 280`; `W_FEW_VALUES`                                                                    |
+| a document layer with `source: { "by": "run", "runId": "overview__degree" }` naming a run the reader made                                                                       | stamped `{ "by": "template" }`; the replaced source reported; removing the template removes it                            |
+| a file with a recipe `as: "influence"` and a layer `source: { "by": "run", "runId": "influence" }`, opened without `run: true`, then `run()`, then the application's `remove()` | the layer tied to the run when it starts; removed with it                                                                 |
+| a file's layer writing `node.color` while the reader has an enabled layer colouring by `department`, previewed                                                                  | the file's layer carries `W_PAINTS_OVER` naming the reader's layer                                                        |
 
 ## Worked example
 

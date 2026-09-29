@@ -14,7 +14,9 @@ The owner decided on 2026-09-28 what an export contains: "whatever the format su
 2. Everything the format cannot represent is reported as a loss note before anything is written. It
    is never dropped silently.
 3. The export API is graphty-element's; the writers are graph-io's. This page specifies what an
-   export contains, not the API's name or signature.
+   export contains, not the API's name or signature. Comparing a replay does not wait for it: a
+   run's results are read in the session with `session.results.get(runId)`, which graphty-element
+   2.x already has (recipe.md, "Same data, same results").
 
 ## The export model
 
@@ -106,7 +108,10 @@ graphty-element draws 3D solids; GEXF has `disc`, `square`, `triangle`, `diamond
 ## Per format
 
 "Today" is what graph-io's exporters write now. Where appearance is "no", every painted channel is
-reported with `W_GRAPHTY_CHANNEL`.
+reported with `W_GRAPHTY_CHANNEL`. Every format writes each imported column under its own name,
+and every format with a direction flag (GraphML `edgedefault`, GEXF `defaultedgetype`, GML
+`directed`, DOT `digraph`, Pajek `*Arcs`, the JSON dialects' own flag) writes the graph's
+direction, so a table exported and replayed binds and reads as it did.
 
 | Format                          | Result columns                                         | Drawn appearance today                                                 | Graph-level attributes |
 | ------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- | ---------------------- |
@@ -144,7 +149,10 @@ and the export API SHOULD offer to write a graphty document beside the exported 
 (container.md). That document holds:
 
 - a data member referencing the exported file (`href` relative to the document, `format`, `options`,
-  `sha256`);
+  `sha256`), when the export is one file. A CSV export is two files, `nodes.csv` and `edges.csv`,
+  and a data member names one, so the document beside a CSV export carries no data member; its
+  save report lists both files with the options each is imported with, and the recipe's `table`
+  names the edge table's endpoint columns;
 - the style member, with its rules;
 - the recipe recorded from the session (recipe.md, "Recording"), so the analysis can be run again.
 
@@ -188,5 +196,6 @@ named `modules` and a force layout, exported three ways:
   reported.
 - **CSV**: `nodes.csv` with the attributes and result columns, and `edges.csv`; every appearance
   channel and the positions reported; label cells beginning with `=` prefixed and counted.
-- **Beside each**: `network.graphty.json`, referencing the exported file by `href` and `sha256`,
-  with the style and the recorded recipe.
+- **Beside each**: `network.graphty.json`, with the style and the recorded recipe; beside the GEXF
+  and the GraphML it references the exported file by `href` and `sha256`, and beside the CSV it
+  carries no data member and its report lists both files.

@@ -27,8 +27,11 @@
             "description": "A format id from graphty-element's format catalogue: json, csv, graphml, gexf, gml, dot, pajek, or one a plugin registered. Embedded data is always json."
         },
         "dialect": {
-            "enum": ["node-link", "d3", "jgf", "cytoscape", "graphology", "vis"],
-            "description": "The graph-io JSON dialect of embedded data. Required with graph."
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "The graph-io JSON dialect of embedded data: node-link, d3, jgf, cytoscape, graphology, vis, or one a later graph-io adds. Required with graph. A reader whose graph-io does not read it skips the member with E_UNKNOWN_FORMAT."
         },
         "graph": {
             "type": ["object", "array"],
@@ -48,9 +51,28 @@
             "type": "object",
             "propertyNames": {
                 "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
-                "maxLength": 128
+                "maxLength": 128,
+                "not": {
+                    "enum": [
+                        "url",
+                        "data",
+                        "file",
+                        "format",
+                        "chunkSize",
+                        "errorLimit",
+                        "filename",
+                        "size",
+                        "edgeSrcIdPath",
+                        "edgeDstIdPath",
+                        "__proto__"
+                    ]
+                }
             },
-            "description": "Import options of a referenced file, by the names graphty-element's format catalogue publishes for the named format (container.md, 'Import options'). The list is open and checked against the reading release's catalogue: in version 1, edgeSource, edgeTarget, directed and repeatedEdges for every format, delimiter, variant and idColumn for CSV, nodeIdPath for JSON."
+            "description": "Import options of a referenced file, by the names graphty-element's format catalogue declares for the named format (container.md, 'Import options'). The list is open and checked against the reading release's catalogue: in version 1, edgeSource, edgeTarget, directed and repeatedEdges for every format, delimiter, variant and idColumn for CSV, nodeIdPath for JSON. The keys graphty-element keeps for its own use (url, data, file, ...) are never import options of a document. Column and field names are plain names, never evaluated.",
+            "additionalProperties": {
+                "type": ["string", "number", "boolean"],
+                "maxLength": 256
+            }
         },
         "sha256": {
             "type": "string",

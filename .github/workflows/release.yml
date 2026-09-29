@@ -1,10 +1,10 @@
 name: Release
 
 # Three triggers, one decision. A release needs CI, GPU and (when it ran) Hosts green on the same commit, and
-# those lanes finish in any order, so the completion of each one starts this workflow and the gate below asks
-# whether everything is now green. The last lane to finish is the one that releases; the runs before it find a
-# lane still running and end green without releasing. workflow_dispatch is the manual retry: it re-runs the same
-# gate against the newest commit on master and publishes whatever is versioned but missing from npm.
+# those lanes finish in any order, so the completion of each one starts this workflow and the gate below looks for
+# the newest commit that is now green everywhere. workflow_dispatch is the manual retry: it runs the same gate and
+# releases whatever it finds. To retry a failed publish, re-run the failed Release job: it finds the version commit
+# it already made and publishes what is missing.
 on:
     workflow_run:
         workflows: ["CI", "GPU", "Hosts"]
@@ -25,10 +25,17 @@ jobs:
     # Metal and on D3D12/WARP, WebKit) are separate workflows so an offline runner can never stall a pull request,
     # and this job is where they become required. Hosts is filtered by paths, so a commit that touched none of
     # them has no Hosts run, which counts as nothing to wait for; CI and the GPU lane run on every push to master
-    # and must exist. The gate does not wait: a lane that has not finished will start this workflow again when it
-    # does, so the gate reports it and ends green with release=false.
+    # and must exist.
+    #
+    # The released commit is the NEWEST commit on master's first-parent line, after the last release commit,
+    # whose lanes all succeeded -- not necessarily master's tip. The GPU lane takes about 40 minutes and runs one
+    # commit at a time (a newer push replaces the pending one, which ends cancelled), so when master moves faster
+    # than that its tip is almost never green and waiting for the tip would never release. A commit whose lanes
+    # failed, were cancelled or are still running is passed over, never released. A commit at or before the last
+    # release commit is never a candidate, so a run that finds the newest green commit already released does
+    # nothing, and a release never goes backwards.
     gate:
-        name: Check every lane on the release commit
+        name: Find the newest commit green on every lane
         runs-on: ubuntu-latest
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
         permissions:
@@ -40,47 +47,61 @@ jobs:
             ci_run_id: ${{ steps.lanes.outputs.ci_run_id }}
         env:
             GH_TOKEN: ${{ github.token }}
-            TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
         steps:
-            - name: Require CI, GPU and Hosts to succeed on the newest commit on master
+            # Commit history only (no trees or blobs): the gate reads subjects and parents, never files.
+            - uses: actions/checkout@v4
+              with:
+                  ref: master
+                  fetch-depth: 0
+                  filter: tree:0
+
+            - name: Pick the newest commit since the last release with CI, GPU and Hosts green
               id: lanes
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "release=false" >> "$GITHUB_OUTPUT"; exit 0; }
-                  # The commit to release is the newest one on master that is not itself a release commit (those
-                  # carry [skip ci], so no lane ever runs on them).
-                  SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits?sha=master&per_page=30" \
-                      --jq '[.[] | select(.commit.message | startswith("chore(release): publish") | not)][0].sha')
-                  echo "newest releasable commit on master: ${SHA}"
-                  # A lane that finished on an older commit has nothing to release: master has moved on, and the
-                  # newer commit's own lanes will start this workflow when they finish.
-                  if [ -n "${TRIGGER_SHA}" ] && [ "${TRIGGER_SHA}" != "${SHA}" ]; then
-                      skip "triggered by ${TRIGGER_SHA}, but master has moved on to ${SHA}; that commit's lanes release it"
-                  fi
-                  # the newest run of one workflow for this commit, as "id status conclusion"
-                  latest_run() {
-                      gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs?head_sha=${SHA}&per_page=10" \
-                          --jq '.workflow_runs[0] // empty | "\(.id) \(.status) \(.conclusion // "-")"'
+                  # Candidates, newest first: master's first-parent line down to the last release commit. A
+                  # release commit (nx's "chore(release): publish", or the merge that lands one on a master that
+                  # had moved on) carries [skip ci], so no lane ever runs on it; it is the floor.
+                  candidates=()
+                  while read -r sha subject; do
+                      case "$subject" in "chore(release): publish"*) echo "last release: ${sha} ${subject}"; break ;; esac
+                      candidates+=("$sha")
+                  done < <(git log --first-parent --max-count=200 --format='%H %s' HEAD)
+                  [ "${#candidates[@]}" -gt 0 ] || skip "nothing on master since the last release"
+                  # Every lane's master runs, newest first, as "head_sha id status conclusion". The first line for a
+                  # commit is its newest run (a re-run keeps its id and updates in place).
+                  runs() {
+                      gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs?branch=master&per_page=100" \
+                          --jq '.workflow_runs[] | "\(.head_sha) \(.id) \(.status) \(.conclusion // "-")"'
                   }
-                  pending=0; failed=0; ci_run_id=
-                  for wf in ci.yml gpu.yml hosts.yml; do
-                      latest=$(latest_run "$wf")
-                      if [ -z "$latest" ]; then
-                          if [ "$wf" = hosts.yml ]; then echo "hosts.yml: no run for ${SHA} (its paths did not change)"; continue; fi
-                          echo "$wf: no run yet for ${SHA}"; pending=1; continue
-                      fi
-                      set -- $latest
-                      echo "$wf: run $1 $2 $3"
-                      case "$2 $3" in
-                          "completed success") [ "$wf" != ci.yml ] || ci_run_id=$1 ;;
-                          "completed "*) failed=1 ;;
-                          *) pending=1 ;;
-                      esac
+                  ci_runs=$(runs ci.yml); gpu_runs=$(runs gpu.yml); hosts_runs=$(runs hosts.yml)
+                  newest() { awk -v s="$2" '$1 == s { print $2, $3, $4; exit }' <<< "$1"; }
+                  # The release reuses the CI run's per-package builds (the downloads in the job below), which CI
+                  # keeps for one day.
+                  artifacts_ok() {
+                      local live
+                      live=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1/artifacts?per_page=100" --jq '
+                          [.artifacts[] | select(.expired | not) | .name] as $live
+                          | ["graph-format", "graph-io", "webgpu-graph-algorithms", "graph-samples", "algorithms",
+                             "layout", "graphty", "graphty-element", "remote-logger", "compact-mantine"]
+                          | map("build-" + .) - $live | length')
+                      [ "$live" = 0 ]
+                  }
+                  for sha in "${candidates[@]}"; do
+                      ci=$(newest "$ci_runs" "$sha"); gpu=$(newest "$gpu_runs" "$sha"); hosts=$(newest "$hosts_runs" "$sha")
+                      echo "${sha}: ci=[${ci:-none}] gpu=[${gpu:-none}] hosts=[${hosts:-none (paths did not change)}]"
+                      case "$ci" in *" completed success") ;; *) continue ;; esac
+                      case "$gpu" in *" completed success") ;; *) continue ;; esac
+                      case "$hosts" in "" | *" completed success") ;; *) continue ;; esac
+                      ci_run_id=${ci%% *}
+                      artifacts_ok "$ci_run_id" ||
+                          skip "${sha} is green but CI run ${ci_run_id} no longer holds its builds; a newer green commit releases"
+                      echo "every lane green on ${sha}; CI run ${ci_run_id} holds the build artifacts"
+                      { echo "release=true"; echo "sha=${sha}"; echo "ci_run_id=${ci_run_id}"; } >> "$GITHUB_OUTPUT"
+                      exit 0
                   done
-                  [ "$failed" = 0 ] || { echo "::error::a lane failed on ${SHA}; no release"; exit 1; }
-                  [ "$pending" = 0 ] || skip "a lane on ${SHA} has not finished; its completion starts this workflow again"
-                  echo "every lane green on ${SHA}; CI run ${ci_run_id} holds the build artifacts"
-                  { echo "release=true"; echo "sha=${SHA}"; echo "ci_run_id=${ci_run_id}"; } >> "$GITHUB_OUTPUT"
+                  skip "no commit since the last release is green on every lane yet; the next lane to finish tries again"
 
     release:
         name: Release
@@ -100,22 +121,28 @@ jobs:
             # unaffected: it proves this workflow's identity with the OIDC token (id-token:
             # write above), not with the git credential. GitHub API calls in this job still use
             # GITHUB_TOKEN.
+            #
+            # The checkout is the commit the gate found green, not master's tip: the CI artifacts below are
+            # that commit's build, and the version commit nx makes must sit on the tree those lanes tested.
             - uses: actions/checkout@v4
               with:
-                  ref: master
+                  ref: ${{ needs.gate.outputs.sha }}
                   fetch-depth: 0
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-            # The artifacts below are the CI build of the commit the gate checked. If master gained a commit
-            # since, this checkout is newer than those artifacts and than the lanes that passed; that commit's
-            # own lanes will start this workflow again.
-            - name: Check master still holds the commit the gate checked
+            # A re-run of this job after a failed publish must not version the commit a second time: its
+            # version commit and tags already exist. Find that commit (on master, or only on its tags when
+            # landing it failed) and continue from it.
+            - name: Look for a release commit already made on this commit
+              id: existing
               run: |
-                  head=$(git log -1 --format=%H --invert-grep --grep='^chore(release): publish')
-                  [ "$head" = "${{ needs.gate.outputs.sha }}" ] || {
-                      echo "::error::master moved from ${{ needs.gate.outputs.sha }} to ${head} after the gate; that commit releases itself"
-                      exit 1
-                  }
+                  release=$(git rev-list --parents --max-count=20 --grep='^chore(release): publish' origin/master --tags |
+                      awk -v c="${{ needs.gate.outputs.sha }}" '$2 == c && NF == 2 { print $1; exit }')
+                  if [ -n "$release" ]; then
+                      echo "already versioned as ${release}; publishing from it"
+                      git checkout --detach "$release"
+                  fi
+                  echo "commit=${release}" >> "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
 
@@ -243,7 +270,11 @@ jobs:
                       nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
                       nx-${{ runner.os }}-
 
+            # nx.json's git.pushArgs makes nx push the new tags only (they carry the version commit with
+            # them), not a branch: the version commit sits on the gate's commit, which need not be master's tip
+            # any more. The next step puts it on master.
             - name: Version and Release
+              if: ${{ steps.existing.outputs.commit == '' }}
               run: |
                   echo "npm version: $(npm --version)"
                   echo "node version: $(node --version)"
@@ -270,7 +301,51 @@ jobs:
                   # publishing means there is no prompt to answer. Versioning,
                   # changelog and the GitHub release never consult it.
                   pnpm exec nx release --skip-publish --verbose
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # OIDC trusted publishing - npm will use the GitHub Actions OIDC token
+                  # Requires configuring trusted publishers on npmjs.com
+                  NPM_CONFIG_PROVENANCE: true
+                  # Clear any NODE_AUTH_TOKEN that might interfere with OIDC
+                  NODE_AUTH_TOKEN: ""
+                  # Disable husky hooks - they interfere with release commits
+                  # (prepare-commit-msg tries to open TTY, pre-push runs tests again)
+                  HUSKY: "0"
 
+            # Put the version commit on master without rewriting either side. When master still points at the
+            # gate's commit this is a fast-forward, exactly as before. When master has moved on, it is a merge
+            # commit -- master's newer commits as the first parent, the version commit as the second -- so the
+            # tags stay on the tree the lanes tested and npm ships, and they are reachable from master, which
+            # is where nx looks for the last version (`git tag --merged`) next time. The merge's subject starts
+            # with "chore(release): publish" and carries [skip ci]: no lane runs on it, and the gate treats it
+            # as the last release, so the commits it merged in (newer than the released one, older than the
+            # merge) are released by the first green commit after it. Only package.json version lines and
+            # CHANGELOG.md files differ from the released commit, so the merge conflicts only if a commit on
+            # master edited those same lines; then nothing lands or publishes, the tags are pushed already,
+            # and a person merges the version commit by hand and re-runs this job. A push that loses a race
+            # with a new master commit is retried on the new tip, never forced.
+            - name: Put the version commit on master
+              run: |
+                  release=$(git rev-parse HEAD)
+                  git worktree add --detach "$RUNNER_TEMP/land" >/dev/null
+                  cd "$RUNNER_TEMP/land"
+                  for try in 1 2 3 4 5; do
+                      git fetch --quiet origin +refs/heads/master:refs/remotes/origin/master
+                      if git merge-base --is-ancestor "$release" origin/master; then
+                          echo "master holds ${release}"; exit 0
+                      fi
+                      git checkout --quiet --detach origin/master
+                      git merge --no-verify --no-edit -m "chore(release): publish $(git log -1 --format=%h "$release") onto master [skip ci]" "$release" ||
+                          { echo "::error::the version commit ${release} does not merge cleanly into master; merge it by hand, then re-run this job"; exit 1; }
+                      git push --no-verify origin HEAD:refs/heads/master && { echo "master now holds ${release}"; exit 0; }
+                      echo "try ${try}: master moved during the push; merging again"
+                  done
+                  echo "::error::could not land ${release} on master in five tries"; exit 1
+              env:
+                  HUSKY: "0"
+
+            - name: Publish
+              run: |
                   # The only publish. It is a separate command because `nx release`
                   # publishes only when it versioned something in the same run, so
                   # a release whose publish step fails could never be retried. The
@@ -282,10 +357,10 @@ jobs:
                   #
                   # `nx release publish` does not consult hasNewVersion: it
                   # publishes the versions in the manifests and queries the registry
-                  # per package, skipping any version that is already there. The
-                  # checkout above takes the branch tip, so re-running this job
-                  # after a failed publish picks up the release commit and ships
-                  # whatever is still missing.
+                  # per package, skipping any version that is already there.
+                  # Re-running this job after a failed publish finds the release
+                  # commit already made (the lookup step above), skips versioning,
+                  # and ships whatever is still missing.
                   #
                   # --nxBail=false is nx's default already (it reads NX_BAIL when the flag is absent); it is
                   # spelled out so one package's failed publish never stops the packages behind it.
@@ -303,7 +378,7 @@ jobs:
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
             # dependency failed. So the last word is the registry: every non-private package's version at the
-            # tip of master must be installable. npm takes a little while to serve a fresh version, hence the
+            # version commit must be installable. npm takes a little while to serve a fresh version, hence the
             # bounded poll (10 tries, 30 s apart) against the registry before calling a package missing.
             - name: Check every version is on npm
               run: |

@@ -17,6 +17,7 @@ import { itemKeyOf } from "../../../src/session/sets/captures";
 import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { type Published, publishing } from "../visibility/results";
+import { plant } from "./plant";
 
 /**
  * Nodes to values.
@@ -209,12 +210,9 @@ describe("held-item captures", () => {
         await rerun(harness, "louv");
         assert.deepStrictEqual(heldOf(harness, "louv"), {}, "nothing holds the execution: not carried");
 
-        // Restoring the record (what an undo of the removal does) finds no capture any more.
-        store.transact(() => {
-            if (record !== undefined) {
-                store.put(record);
-            }
-        });
+        // Restoring the record, as an undo of the removal does, finds no capture any more.
+        assert.isDefined(record);
+        plant(store, ...store.list(), record);
         assert.deepStrictEqual(await nodesOf(harness, { set: held }), []);
         assert.deepStrictEqual(harness.session.sets.status({ set: held }), {
             freshness: "current",

@@ -1,15 +1,27 @@
-import { INVALID_INDEX, maskTest, type NodeMask } from "@graphty/graph-format";
+import {
+    type DerivedGraph,
+    type F32,
+    GraphBuilder,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeMask,
+} from "@graphty/graph-format";
+import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
+import { readonlyPositions, writableLane } from "../data/lane";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
-import { GraphtyLogger } from "../logging/GraphtyLogger.js";
-import type { Node, NodeIdType } from "../Node";
+import type { Node } from "../Node";
+import type { ReadonlyElementPositions } from "../session/types";
 
 export interface Position {
     x: number;
@@ -90,34 +102,6 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "spring-electrical",
 ]);
 
-const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
-
-/**
- * The smallest weight either weighted layout is allowed to act on.
- *
- * A record may carry `weight: 0`, and both layout functions in `@graphty/layout` read a weight as
- * `getEdgeData(...) || 1`, which turns a deliberate zero into a FULL-strength edge -- the exact
- * opposite of what the author wrote, with nothing on screen to say so. Clamping here means zero
- * reads as "as close to nothing as the solver allows" in both engines: the weakest possible pull
- * in ForceAtlas2, the largest possible distance in Kamada-Kawai.
- */
-export const WEIGHT_EPSILON = 1e-6;
-
-/**
- * The key an ordered endpoint pair is filed under in a {@link LayoutEngine.pairWeights} map.
- *
- * It names a PAIR, not an edge: two parallel edges between the same two nodes share one key, and
- * that is deliberate -- see {@link LayoutEngine.pairWeights}. JSON is used rather than a separator
- * because a node id is a string or a number and may contain any character at all, so `a:b -> c`
- * and `a -> b:c` would collide under any punctuation, and `"1"` would collide with `1`.
- * @param source - the edge's source node id
- * @param target - the edge's target node id
- * @returns a key unique to that ordered pair
- */
-export function pairWeightKey(source: NodeIdType, target: NodeIdType): string {
-    return JSON.stringify([source, target]);
-}
-
 /**
  * How many times the element steps a simulation to settle nodes that arrived after it started.
  *
@@ -196,6 +180,38 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
 }
 
 /**
+ * The element's own reach into an engine's protected placement members: the hooks that apply the
+ * `positions` and `pins` slices, and the drag. No entry point exports it; a consumer places and
+ * pins nodes through `session.positions`.
+ */
+export const layoutEngineInternals = {} as {
+    /** See `LayoutEngine.setNodePosition`. */
+    setNodePosition(engine: LayoutEngine, n: Node, p: Position): void;
+    /** See `LayoutEngine.pin`. */
+    pin(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.unpin`. */
+    unpin(engine: LayoutEngine, n: Node): void;
+    /** The engine's writable coordinate array; `LayoutEngine.nodePositions` is its read-only view. */
+    positions(engine: LayoutEngine): ElementPositions;
+    /** See `LayoutEngine.addNode`. */
+    addNode(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.addEdge`. */
+    addEdge(engine: LayoutEngine, e: Edge): void;
+    /** See `LayoutEngine.addNodes`. */
+    addNodes(engine: LayoutEngine, nodes: Node[]): void;
+    /** See `LayoutEngine.addEdges`. */
+    addEdges(engine: LayoutEngine, edges: Edge[]): void;
+    /** See `LayoutEngine.removeNode`. */
+    removeNode(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.removeEdge`. */
+    removeEdge(engine: LayoutEngine, e: Edge): void;
+    /** See `LayoutEngine.attachPositions`. */
+    attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
+    /** See `LayoutEngine.edgeProblems`. */
+    edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
+};
+
+/**
  * Base class for all layout engines
  *
  * WHERE A COORDINATE LIVES. Node coordinates belong to ONE stride-3 float array owned by the
@@ -216,7 +232,73 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
  * is inexpressible and a frame allocates once per node. With the coordinates in one shared array,
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
+/**
+ * The edges an engine holds against the edges drawn: each drawn edge held exactly once, and
+ * nothing held that is not drawn.
+ * @param held - What the engine holds.
+ * @param drawn - What the element draws.
+ * @returns One sentence per problem.
+ */
+export function heldEdgeProblems(held: Iterable<Edge>, drawn: ReadonlyMap<string, Edge>): string[] {
+    const problems: string[] = [];
+    const seen = new Set<Edge>();
+    for (const edge of held) {
+        if (seen.has(edge)) {
+            problems.push(`edge ${edge.id} is held twice`);
+        }
+
+        seen.add(edge);
+        if (drawn.get(edge.id) !== edge) {
+            problems.push(`edge ${edge.id} is held but not drawn`);
+        }
+    }
+
+    for (const edge of drawn.values()) {
+        if (!seen.has(edge)) {
+            problems.push(`edge ${edge.id} is drawn but not held`);
+        }
+    }
+
+    return problems;
+}
+
+/** The base every layout engine extends: how the element adds, places, steps and removes. */
 export abstract class LayoutEngine {
+    static {
+        layoutEngineInternals.setNodePosition = (engine, n, p) => {
+            engine.setNodePosition(n, p);
+        };
+        layoutEngineInternals.pin = (engine, n) => {
+            engine.pin(n);
+        };
+        layoutEngineInternals.unpin = (engine, n) => {
+            engine.unpin(n);
+        };
+        layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.edgeProblems = (engine, drawn) => engine.edgeProblems(drawn);
+        layoutEngineInternals.addNode = (engine, n) => {
+            engine.addNode(n);
+        };
+        layoutEngineInternals.addEdge = (engine, e) => {
+            engine.addEdge(e);
+        };
+        layoutEngineInternals.addNodes = (engine, nodes) => {
+            engine.addNodes(nodes);
+        };
+        layoutEngineInternals.addEdges = (engine, edges) => {
+            engine.addEdges(edges);
+        };
+        layoutEngineInternals.removeNode = (engine, n) => {
+            engine.removeNode(n);
+        };
+        layoutEngineInternals.removeEdge = (engine, e) => {
+            engine.removeEdge(e);
+        };
+        layoutEngineInternals.attachPositions = (engine, positions) => {
+            engine.attachPositions(positions);
+        };
+    }
+
     static type: string;
     static maxDimensions: number;
 
@@ -255,7 +337,7 @@ export abstract class LayoutEngine {
      * -- which is what happened to the element's own two force engines. The manager rebuilds from
      * the options it was given instead, and this is now the engine's own business.
      */
-    config?: Record<string, unknown>;
+    protected config?: Record<string, unknown>;
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -289,15 +371,25 @@ export abstract class LayoutEngine {
 
     // basic functionality
     abstract init(): Promise<void>;
-    abstract addNode(n: Node): void;
-    abstract addEdge(e: Edge): void;
+    // The element's to call: the engine follows the graph slice, and a consumer who added or removed
+    // an element here would leave the engine out of step with the graph, with no step to undo.
+    // The element calls these through `layoutEngineInternals`; an engine author implements them.
+    protected abstract addNode(n: Node): void;
+    protected abstract addEdge(e: Edge): void;
     abstract getNodePosition(n: Node): Position;
-    abstract setNodePosition(n: Node, p: Position): void;
+    /**
+     * Place one node, as a drag or a restore does. Protected: the element reaches it through
+     * {@link layoutEngineInternals}, from the hooks that apply the `positions` and `pins` slices,
+     * so a caller cannot place a node without a step.
+     */
+    protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
     // for animated layouts
     abstract step(): void;
-    abstract pin(n: Node): void;
-    abstract unpin(n: Node): void;
+    /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
+    protected abstract pin(n: Node): void;
+    /** Release a held node; protected for the reason {@link LayoutEngine.setNodePosition} is. */
+    protected abstract unpin(n: Node): void;
     // properties
     abstract get nodes(): Iterable<Node>;
     abstract get edges(): Iterable<Edge>;
@@ -307,7 +399,7 @@ export abstract class LayoutEngine {
      * Add multiple nodes to the layout engine
      * @param nodes - Array of nodes to add
      */
-    addNodes(nodes: Node[]): void {
+    protected addNodes(nodes: Node[]): void {
         for (const n of nodes) {
             this.addNode(n);
         }
@@ -317,7 +409,7 @@ export abstract class LayoutEngine {
      * Add multiple edges to the layout engine
      * @param edges - Array of edges to add
      */
-    addEdges(edges: Edge[]): void {
+    protected addEdges(edges: Edge[]): void {
         for (const e of edges) {
             this.addEdge(e);
         }
@@ -333,7 +425,7 @@ export abstract class LayoutEngine {
      * and everything that node references -- for as long as the engine lives.
      * @param _n - the node leaving the graph
      */
-    removeNode(_n: Node): void {
+    protected removeNode(_n: Node): void {
         // An engine that keeps no list of its own has nothing to forget.
     }
 
@@ -341,7 +433,7 @@ export abstract class LayoutEngine {
      * The edge half of {@link LayoutEngine.removeNode}, with the same default and the same reason.
      * @param _e - the edge leaving the graph
      */
-    removeEdge(_e: Edge): void {
+    protected removeEdge(_e: Edge): void {
         // An engine that keeps no list of its own has nothing to forget.
     }
 
@@ -370,7 +462,7 @@ export abstract class LayoutEngine {
      * Release whatever this engine holds. The element calls it when the reader switches layouts
      * and when the graph is torn down, and never uses the engine again afterwards.
      *
-     * Declared with a do-nothing default for the same reason as {@link LayoutEngine.removeNode}:
+     * Declared with a do-nothing default for the same reason as `removeNode`:
      * it was duck-typed, undeclared and unimplemented by every engine here.
      */
     dispose(): void {
@@ -378,13 +470,41 @@ export abstract class LayoutEngine {
     }
 
     /**
-     * The array this engine publishes node coordinates into.
+     * Strict state: what is wrong with this engine's hold on the drawn edges, checked after every
+     * derivation pass. An engine that keeps a copy of the edges must hold every drawn edge once
+     * and nothing else, or a redraw asks it for a position it cannot give. Reads nothing lazily:
+     * the check must not change what it checks.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem; empty when there is none.
+     */
+    protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        return heldEdgeProblems(this.edges, drawn);
+    }
+
+    /**
+     * The coordinates this engine publishes, read-only.
+     *
+     * Read-only because the array is the element's: a write here would move or pin a node with no
+     * undo step. The engine writes through `writeNodePosition`; a consumer
+     * places and pins nodes through `session.positions`.
+     * @returns the coordinates in use, read-only
+     */
+    get nodePositions(): ReadonlyElementPositions {
+        return this.readonlyPositionArray;
+    }
+
+    /** The read-only view {@link LayoutEngine.nodePositions} hands out; reads the array in use now. */
+    private readonly readonlyPositionArray = readonlyPositions(() => this.writablePositions);
+
+    /**
+     * The array this engine publishes node coordinates into, writable.
      *
      * Allocated on demand, so reading it is enough to make an engine that has never been handed an
-     * element's array produce one of its own.
+     * element's array produce one of its own. The element reaches it through
+     * {@link layoutEngineInternals}.
      * @returns the position array in use
      */
-    get nodePositions(): ElementPositions {
+    private get writablePositions(): ElementPositions {
         this.positionArray ??= new ElementPositions(0);
         return this.positionArray;
     }
@@ -397,7 +517,7 @@ export abstract class LayoutEngine {
      * one place and a re-freeze loses none of them.
      * @param positions - the element-owned array
      */
-    attachPositions(positions: ElementPositions): void {
+    protected attachPositions(positions: ElementPositions): void {
         this.positionArray = positions;
         this.positionArrayAttached = true;
     }
@@ -454,6 +574,24 @@ export abstract class LayoutEngine {
         for (const n of this.nodes) {
             const pos = this.getNodePosition(n);
             this.writeNodePosition(n, pos.x, pos.y, pos.z ?? 0);
+        }
+    }
+
+    /**
+     * Take the coordinates in the position array as this engine's own, and stay at rest.
+     *
+     * Undo and redo write where the nodes were into the array and then call this, so the next
+     * drag, add or `setRunning(true)` starts from the restored arrangement instead of the one the
+     * engine was holding. The default hands every placed node back through
+     * `setNodePosition`, which is right for any engine that keeps coordinates of
+     * its own; an engine that can adopt the array in one pass overrides it.
+     */
+    loadArrangement(): void {
+        const at = { x: 0, y: 0, z: 0 };
+        for (const n of this.nodes) {
+            if (this.readNodePosition(n, at)) {
+                this.setNodePosition(n, at);
+            }
         }
     }
 
@@ -552,100 +690,6 @@ export abstract class LayoutEngine {
     }
 
     /**
-     * The weight of every ordered endpoint pair this batch of edges covers, or null when the
-     * graph's weights carry no information.
-     *
-     * WHY A PAIR AND NOT AN EDGE. `@graphty/layout`'s one weight channel is
-     * `graph.getEdgeData(source, target, attr)`, which is asked by endpoint pair, and both layout
-     * functions that read it write the answer into a matrix cell -- `A[i][j]` in ForceAtlas2,
-     * `distances[s][t]` in Kamada-Kawai. There is no cell for a second edge between the same two
-     * nodes, so parallel edges are SUMMED into one number rather than left to last-writer-wins,
-     * where the order the file happened to list them in would decide the arrangement. Summing is
-     * also what the element does when it simplifies a multigraph for an algorithm, so a graph's
-     * weights mean the same thing to a layout and to a metric.
-     *
-     * READ ONCE PER LAYOUT COMPUTATION, not per frame and not per edge: the weights come from the
-     * current snapshot's edge list, indexed by the same logical edge index `Edge.index` holds.
-     *
-     * NULL MEANS "DO NOT ATTACH A CALLBACK". graph-format stores an all-ones graph with no weight
-     * column at all, and a graph whose every weight is 1 carries no information a layout could
-     * arrange by -- so the caller leaves `getEdgeData` off the graph object entirely and the
-     * arrangement is bit-identical to the one the same seed produced before weights existed.
-     *
-     * THIS IS A SLIGHTLY NARROWER QUESTION THAN `statistics().weighted`, deliberately. The status
-     * chip asks whether the SNAPSHOT's weight column carries anything but ones; this asks it of
-     * the edges this engine is actually about to arrange. They answer differently only when the
-     * engine holds a strict subset of the graph's edges whose weights are all 1, and there the
-     * narrower answer is the correct one: a layout cannot be moved by a weight on an edge it is
-     * not laying out. A consumer who sees "weighted" on the status bar and an unmoved arrangement
-     * is looking at that case.
-     * @param edges - the edges this engine is about to lay out
-     * @returns pair key (see {@link pairWeightKey}) to summed weight, or null
-     */
-    protected pairWeights(edges: readonly Edge[]): Map<string, number> | null {
-        if (edges.length === 0) {
-            return null;
-        }
-
-        // Reached the same way `positionsFor` reaches the coordinate array, and guarded the same
-        // way: an engine driven directly by a test, or by a host that keeps no graph, has edges
-        // whose parent answers none of this, and an unweighted arrangement is the right answer
-        // there rather than a throw inside a layout step.
-        const snapshot = edges[0].parentGraph?.getDataManager?.()?.getSnapshot?.();
-        const weights = snapshot?.edgeList().weights ?? null;
-        if (weights === null) {
-            return null;
-        }
-
-        const summed = new Map<string, number>();
-        let informative = false;
-
-        for (const e of edges) {
-            // An edge the graph builder would not take has no row and therefore no weight; 1 is
-            // what `resolveEdgeWeight` answers for a record carrying none, so it is the same
-            // neutral number the rest of the element already uses for "unweighted".
-            const stored = e.index >= 0 && e.index < weights.length ? weights[e.index] : 1;
-            if (stored !== 1) {
-                informative = true;
-            }
-
-            const key = pairWeightKey(e.srcId, e.dstId);
-            summed.set(key, (summed.get(key) ?? 0) + stored);
-        }
-
-        return informative ? summed : null;
-    }
-
-    /**
-     * Say once, per layout computation, how many pairs were clamped off zero.
-     *
-     * ONCE PER RUN AND NOT PER EDGE: a graph whose weights are all zero would otherwise produce
-     * one line per edge, which buries every other message in the run it happened during. It is
-     * reported at all because a clamp changes the picture -- a zero-weight edge is drawn as the
-     * weakest connection the solver can express rather than as no connection -- and the record
-     * that carried the zero is the reader's, not the element's, so they are the one who can fix
-     * it.
-     * @param layout - the layout name, for the message
-     * @param weights - the pair weights about to be handed to the layout function
-     */
-    protected reportClampedWeights(layout: string, weights: ReadonlyMap<string, number>): void {
-        let clamped = 0;
-        for (const weight of weights.values()) {
-            if (weight < WEIGHT_EPSILON) {
-                clamped++;
-            }
-        }
-
-        if (clamped > 0) {
-            logger.warn("Edge weights at or below zero were clamped before the layout read them", {
-                layout,
-                clamped,
-                epsilon: WEIGHT_EPSILON,
-            });
-        }
-    }
-
-    /**
      * The array to use for this node: the one its own graph owns, unless a host attached one.
      *
      * Resolved on every call rather than cached, because the element REPLACES its array when a
@@ -659,13 +703,13 @@ export abstract class LayoutEngine {
         if (!this.positionArrayAttached) {
             // A node built by hand for a unit test, or one belonging to a host that keeps no
             // position array, answers nothing here and the engine keeps its own.
-            const owned: unknown = n.parentGraph?.getDataManager?.()?.positions;
-            if (owned instanceof ElementPositions) {
+            const owned = writableLane(n.parentGraph?.getDataManager?.());
+            if (owned !== undefined) {
                 this.positionArray = owned;
             }
         }
 
-        return this.nodePositions;
+        return this.writablePositions;
     }
 
     /**
@@ -860,16 +904,107 @@ export const SimpleLayoutConfig = z.looseObject({
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
+/** What a static engine reads the graph through: the element's data manager, or nothing. */
+interface GraphSource {
+    getSnapshot(): GraphSnapshot;
+    undirected(snapshot: GraphSnapshot): DerivedGraph;
+}
+
+/** The graph one run of a static engine arranges, and how a node finds its row in it. */
+interface LoadedGraph {
+    /** The undirected graph the layout reads. */
+    readonly snapshot: GraphSnapshot;
+    /** The element's snapshot it was derived from, or null for an engine driven without one. */
+    readonly source: GraphSnapshot | null;
+    /** The element's array, or null for an engine driven without one. */
+    readonly positions: ElementPositions | null;
+    /** A node's row in `snapshot`, or `INVALID_INDEX`. */
+    rowOf(n: Node): number;
+}
+
+/** The freeze a static engine is told about: the snapshot it replaced, the new one, and the renumbering. */
+interface SnapshotReplacement {
+    readonly previous: GraphSnapshot | null;
+    readonly next: GraphSnapshot;
+    readonly report: { readonly nodeRemap: Uint32Array | null };
+}
+
 /**
- * Base class for simple static layout engines that compute positions synchronously
+ * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
+ * no node left, and no edge appeared or disappeared between two nodes that were already there.
+ *
+ * That is what an interactive add looks like -- a new node, perhaps with edges to existing ones --
+ * and it is the one change after which a static layout keeps every existing node where it was
+ * (graph-format design 14.4). Anything else re-arranges the whole graph: edges arriving between
+ * nodes that were already drawn change what a spectral, planar or Kamada-Kawai picture should be,
+ * and holding the old picture would keep it wrong.
+ * @param change - the freeze
+ * @returns one set bit per existing row, or null when the freeze was not an add
+ */
+function existingRows(change: SnapshotReplacement): NodeMask | null {
+    const { previous, next, report } = change;
+    if (previous === null || next.nodeCount <= previous.nodeCount) {
+        return null;
+    }
+
+    const old = makeMask(next.nodeCount);
+    const remap = report.nodeRemap;
+    for (let i = 0; i < previous.nodeCount; i++) {
+        const row = remap === null ? i : remap[i];
+        if (row === INVALID_INDEX) {
+            return null;
+        }
+
+        maskSet(old, row, true);
+    }
+
+    const { src, dst } = next.edgeList();
+    let between = 0;
+    for (let e = 0; e < next.edgeCount; e++) {
+        if (maskTest(old, src[e]) && maskTest(old, dst[e])) {
+            between++;
+        }
+    }
+
+    return between === previous.edgeCount ? old : null;
+}
+
+/**
+ * Base class for static layout engines: an arrangement computed in one pass whenever the graph
+ * changes, rather than stepped frame by frame.
+ *
+ * TWO WAYS TO WRITE ONE. The element's own engines read the protected `graph` -- the
+ * element's undirected graph snapshot, whose row `i` is the node whose `index` is `i` -- and assign
+ * an index-based `@graphty/layout` result to the protected `result` in `doLayout`. An
+ * engine written before that existed fills the id-keyed {@link SimpleLayoutEngine.positions} record
+ * instead, and still works. Either way the base class scales the answer into the element's shared
+ * position array, never over a pinned row.
+ *
+ * AFTER AN ADD, EXISTING NODES STAY PUT. When the graph only grew -- a node added, with or without
+ * edges to the ones already drawn -- and no file is still loading, a re-run of an engine that
+ * reads `graph` places only the new nodes and leaves every existing one where it was. The
+ * existing coordinates are also offered to the layout as its start (`startPositions`), which is
+ * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
  */
 export abstract class SimpleLayoutEngine extends LayoutEngine {
     static type: string;
     protected _nodes: Node[] = [];
     protected _edges: Edge[] = [];
     stale = true;
+    /** What an engine that does not read the protected `graph` computed, keyed by node id, in layout units. */
     positions: Record<string | number, number[]> = {};
+    /** What an engine that reads the protected `graph` computed: row `i` is row `i` of that graph. */
+    protected result: LayoutResult | null = null;
     scalingFactor = 100;
+
+    /** The graph of the run in progress or the last one, once `graph` has been read. */
+    #loaded: LoadedGraph | null = null;
+    /** The last result in scene units, stride 3, in the row order of `#loaded`. */
+    #column: F32 = new Float32Array(0);
+    /** The element snapshot the last run arranged, which is what makes the next freeze an add to it. */
+    #laidOut: GraphSnapshot | null = null;
+    /** The rows the next run leaves where they are, set by an add. */
+    #keep: NodeMask | null = null;
 
     /**
      * Create a simple layout engine
@@ -926,37 +1061,141 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * The graph this run arranges: the element's undirected snapshot, or, for an engine driven
+     * without an element, a graph built from the nodes and edges it was handed, in that order.
+     *
+     * Read it in `doLayout`. Reading it may freeze the element's graph, which is how a node added
+     * since the last run gets a row.
+     * @returns the undirected graph
+     */
+    protected get graph(): GraphSnapshot {
+        this.#loaded ??= this.#load();
+        return this.#loaded.snapshot;
+    }
+
+    /**
+     * The coordinates to start this run from, in layout units, `dim` values per row of
+     * the protected `graph`: the element's current coordinates when the run follows an
+     * add, otherwise null. An unplaced row is NaN.
+     * @param dim - components per row
+     * @returns the start rows, or null
+     */
+    protected startPositions(dim: 2 | 3): F32 | null {
+        const { snapshot, positions } = this.#loaded ?? this.#load();
+        if (this.#keep === null || positions === null) {
+            return null;
+        }
+
+        return fromPositionColumn(positions.view(snapshot.nodeCount), dim, this.scalingFactor, null);
+    }
+
+    /**
+     * The row of a node named in an option, in the protected `graph`.
+     *
+     * A key of an options record is always a string, so a string that misses is tried again as the
+     * number it spells: `{ 1: [...] }` names the node whose id is the number 1.
+     * @param id - the node id, or a record key naming one
+     * @returns the row, or `INVALID_INDEX` when the graph has no such node
+     */
+    protected rowOfId(id: string | number): number {
+        const { ids } = this.graph;
+        const row = ids.indexOf(id);
+        return row === INVALID_INDEX && typeof id === "string" && id.trim() !== "" ? ids.indexOf(Number(id)) : row;
+    }
+
+    /**
+     * {@link SimpleLayoutEngine.rowOfId} for an option that must name a node.
+     * @param id - the node id
+     * @param what - what the option names, for the message
+     * @returns the row
+     * @throws when the graph has no such node
+     */
+    protected requireRow(id: string | number, what: string): number {
+        const row = this.rowOfId(id);
+        if (row === INVALID_INDEX) {
+            throw new Error(`${what} node ${String(id)} is not in the graph`);
+        }
+
+        return row;
+    }
+
+    /**
+     * Rows of an option that gives coordinates by node id, `dim` values per row of
+     * the protected `graph`; a node the record does not give is NaN.
+     * @param record - the coordinates by node id, in layout units, or null
+     * @param dim - components per row
+     * @returns the rows, or null for no record
+     */
+    protected rowsOfRecord(record: Record<string | number, number[]> | null, dim: 2 | 3): F32 | null {
+        if (record === null) {
+            return null;
+        }
+
+        const out = new Float32Array(dim * this.graph.nodeCount).fill(Number.NaN);
+        for (const [id, coords] of Object.entries(record)) {
+            const row = this.rowOfId(id);
+            if (row !== INVALID_INDEX) {
+                for (let k = 0; k < dim; k++) {
+                    out[dim * row + k] = coords[k] ?? 0;
+                }
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * Hear that the element's graph was frozen again.
+     *
+     * The layout is re-run at the next read. When the freeze only added to the graph this engine
+     * last arranged, and the data is not still loading, the re-run keeps every existing node where
+     * it is (see the class comment). A load is excluded because its chunks are one graph arriving,
+     * not a reader adding to a finished one: a circle whose first chunk was held would be drawn as
+     * two overlapping circles.
+     * @param change - the freeze
+     * @param loading - whether a load is still streaming records in
+     */
+    reload(change: SnapshotReplacement, loading: boolean): void {
+        this.stale = true;
+        this.#keep =
+            !loading && this.#laidOut !== null && this.#laidOut === change.previous ? existingRows(change) : null;
+    }
+
+    /**
      * Get the position of a node, computing layout if stale
      *
-     * The coordinates come from the shared position array, which `SimpleLayoutEngine.refresh`
-     * fills from `positions` as soon as the layout is recomputed. They are the same numbers the
-     * record holds, rounded to the f32 the array stores -- so an arrangement never moves, but a
-     * coordinate may differ in its last digit or two from the double the layout function returned.
-     * A node with no row falls back to the record, which is every node in an engine driven by hand.
+     * The coordinates come from the shared position array, rounded to the f32 it stores. A node
+     * with no row there falls back to what the engine computed, which is every node in an engine
+     * driven by hand.
      * @param n - The node to get position for
      * @returns The node's position coordinates
      */
     getNodePosition(n: Node): Position {
         this.refresh();
-        return this.publishedOr(n, n.id);
+        return this.publishedOr(n);
     }
 
     /**
      * Record where the reader has just put a node.
      *
-     * A static layout recomputes every coordinate from scratch, so it has no per-node state a
-     * placement could live in -- which is why this used to do nothing at all, and why a drag
-     * under any of the fourteen static arrangements was discarded by the next `refresh()`. The
-     * placement is written into the SHARED array instead, with `"placement"` intent so that it
-     * lands even on a pinned row, and into the computed record so that a read which falls back to
-     * the record (a node with no row of its own) answers the same.
+     * A static layout has no per-node state a placement could live in, so the placement is
+     * written into the SHARED array, with `"placement"` intent so that it lands even on a pinned
+     * row, and into what the engine computed, so that the next publish of the same answer does
+     * not put the node back.
      * @param n - the node that moved
      * @param p - where it moved to
      */
-    setNodePosition(n: Node, p: Position): void {
+    protected setNodePosition(n: Node, p: Position): void {
         const z = p.z ?? 0;
         this.writeNodePosition(n, p.x, p.y, z, "placement");
         this.positions[n.id] = [p.x / this.scalingFactor, p.y / this.scalingFactor, z / this.scalingFactor];
+
+        const row = this.#loaded?.rowOf(n) ?? INVALID_INDEX;
+        if (row !== INVALID_INDEX && 3 * row + 2 < this.#column.length) {
+            this.#column[3 * row] = p.x;
+            this.#column[3 * row + 1] = p.y;
+            this.#column[3 * row + 2] = z;
+        }
     }
 
     /**
@@ -970,8 +1209,8 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         // Through the same rows the endpoints themselves render at, so an edge cannot be drawn to
         // where a node used to be by reading a second copy of the layout.
         return {
-            src: this.publishedOr(e.srcNode, e.srcId),
-            dst: this.publishedOr(e.dstNode, e.dstId),
+            src: this.publishedOr(e.srcNode),
+            dst: this.publishedOr(e.dstNode),
         };
     }
 
@@ -986,7 +1225,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
             return;
         }
 
-        this.publishRecord();
+        this.publishComputed();
     }
 
     // for animated layouts
@@ -1005,12 +1244,8 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      *
      * WITHOUT THIS the engine holds the removed node -- and through it the node's Babylon mesh,
      * its data record and its endpoints -- for as long as the engine lives, and the frame loop
-     * keeps walking it, so a node the reader deleted still draws at wherever it last was.
-     *
-     * The computed record is left alone and the layout is marked stale instead. Every layout
-     * function here returns a WHOLE new record, which `doLayout` assigns over the old one, and
-     * `refresh()` runs before any read -- so the removed node's entry is gone by the time anything
-     * could read it, without this method having to reach into a keyed object by a computed name.
+     * keeps walking it, so a node the reader deleted still draws at wherever it last was. The
+     * layout is marked stale, so the next read recomputes it without the node.
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
@@ -1040,10 +1275,9 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      *
      * A static layout has nothing of its own to hold still -- it recomputes every position from
      * scratch -- so the pin is kept by the element's position array instead, and
-     * `writeNodePosition` refuses to move a pinned row. That is what makes a
-     * pin mean something under all fourteen of these engines, none of which could hold one.
+     * `writeNodePosition` refuses to move a pinned row.
      */
-    pin(): void {
+    protected pin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
     }
 
@@ -1052,8 +1286,18 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      *
      * The element's position array holds the pin; see {@link SimpleLayoutEngine.pin}.
      */
-    unpin(): void {
+    protected unpin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
+    }
+
+    /**
+     * Keep the arrangement in the array instead of recomputing one: a static layout that was
+     * marked stale by the graph change an undo made would otherwise lay the graph out afresh at
+     * the next read and write over what was restored.
+     */
+    override loadArrangement(): void {
+        this.stale = false;
+        super.loadArrangement();
     }
 
     // properties
@@ -1075,6 +1319,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
     readonly isSettled = true;
 
+    /** Compute the layout: assign the protected `result` from `graph`, or fill `positions`. */
     abstract doLayout(): void;
 
     /**
@@ -1089,23 +1334,97 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
             return;
         }
 
+        this.#loaded = null;
+        this.result = null;
+        if (this._nodes.length === 0) {
+            // Nothing to arrange, and nothing an option such as bfs's `start` names can be in yet:
+            // a layout chosen before the data arrives waits for it instead of failing.
+            this.stale = false;
+            this.#column = new Float32Array(0);
+            return;
+        }
+
         this.doLayout();
         // doLayout() clears this itself in every engine that ships here, but an engine written
         // elsewhere may not, and leaving it set would recompute the whole layout on every read.
         this.stale = false;
-        this.publishRecord();
+
+        const loaded = this.#loaded as LoadedGraph | null;
+        this.#column =
+            this.result === null || loaded === null
+                ? new Float32Array(0)
+                : toPositionColumn(this.result, this.scalingFactor, null);
+        this.#laidOut = loaded?.source ?? null;
+
+        // A held row is dropped from the answer rather than skipped at publish time, so that a
+        // later publish of the same answer cannot move it either: NaN is never written.
+        const keep = this.#keep;
+        this.#keep = null;
+        if (keep !== null) {
+            for (let row = 0; row < this.#column.length / 3; row++) {
+                if (maskTest(keep, row)) {
+                    this.#column.fill(Number.NaN, 3 * row, 3 * row + 3);
+                }
+            }
+        }
+
+        this.publishComputed();
     }
 
     /**
-     * Write the computed record into the shared array, scaled to scene units.
-     *
-     * A node the layout function returned nothing for is LEFT UNPLACED rather than published at
-     * the origin: the two are indistinguishable once stored, and the origin is a place a reader
-     * would draw at.
+     * Read the graph this run arranges. See the protected `graph`.
+     * @returns the loaded graph
      */
-    private publishRecord(): void {
+    #load(): LoadedGraph {
+        // Reached the way `positionsFor` reaches the coordinate array: an engine driven directly,
+        // by a test or by a host that keeps no graph, has nodes whose parent answers none of this.
+        const manager: object | undefined = this._nodes[0]?.parentGraph?.getDataManager?.();
+        const source = manager as Partial<GraphSource> | undefined;
+        if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
+            const store = source.getSnapshot();
+            const { snapshot } = source.undirected(store);
+            return {
+                snapshot,
+                source: store,
+                positions: writableLane(manager) ?? null,
+                rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
+            };
+        }
+
+        const builder = new GraphBuilder({ directed: false, addMissingNodes: true });
         for (const n of this._nodes) {
-            const pos = this.positions[n.id];
+            builder.addNode(n.id);
+        }
+
+        for (const e of this._edges) {
+            builder.addEdge(e.srcId, e.dstId);
+        }
+
+        const snapshot = builder.freeze({ label: "static-layout" });
+        return { snapshot, source: null, positions: null, rowOf: (n) => snapshot.ids.indexOf(n.id) };
+    }
+
+    /**
+     * Write the computed answer into the shared array, scaled to scene units.
+     *
+     * A node the layout left unplaced (a NaN row, or no entry in `positions`) is LEFT UNPLACED
+     * rather than published at the origin: the two are indistinguishable once stored, and the
+     * origin is a place a reader would draw at.
+     */
+    private publishComputed(): void {
+        const loaded = this.#loaded;
+        const column = this.#column;
+        for (const n of this._nodes) {
+            if (loaded !== null && column.length > 0) {
+                const row = loaded.rowOf(n);
+                if (row !== INVALID_INDEX && 3 * row + 2 < column.length) {
+                    this.writeNodePosition(n, column[3 * row], column[3 * row + 1], column[3 * row + 2]);
+                }
+
+                continue;
+            }
+
+            const pos = this.positions[n.id] as number[] | undefined;
             if (!pos || pos.length === 0) {
                 continue;
             }
@@ -1120,36 +1439,44 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * A node's published row, or the computed record when it has no row of its own.
+     * A node's published row, or what the engine computed when it has no row of its own.
      *
      * The fallback is not a rare path: an engine driven directly -- by a test, or by a host that
      * keeps no graph -- has nodes whose index is `INVALID_INDEX`, and none of them is ever
      * published. Both branches produce the same arrangement; only the rounding differs.
      * @param n - the node, when the caller has one
-     * @param id - the node's id, which is how the computed record is keyed
-     * @returns a fresh coordinate triple
+     * @returns a fresh coordinate triple; the origin for a node nothing placed
      */
-    private publishedOr(n: Node | undefined, id: NodeIdType): Coords {
+    private publishedOr(n: Node | undefined): Coords {
         const out = { x: 0, y: 0, z: 0 };
-        if (n !== undefined && this.readNodePosition(n, out)) {
+        if (n === undefined || this.readNodePosition(n, out)) {
             return out;
         }
 
-        return posToCoords(this.positions[id], this.scalingFactor);
+        const row = this.#loaded?.rowOf(n) ?? INVALID_INDEX;
+        const column = this.#column;
+        if (row !== INVALID_INDEX && 3 * row + 2 < column.length && !Number.isNaN(column[3 * row])) {
+            return { x: column[3 * row], y: column[3 * row + 1], z: column[3 * row + 2] };
+        }
+
+        const pos = this.positions[n.id] as number[] | undefined;
+        if (!pos || pos.length === 0) {
+            return out;
+        }
+
+        return {
+            x: pos[0] * this.scalingFactor,
+            y: pos[1] * this.scalingFactor,
+            z: (pos[2] ?? 0) * this.scalingFactor,
+        };
     }
 }
 
-function posToCoords(pos: number[] | undefined, scale: number): Coords {
-    if (!pos || pos.length === 0) {
-        // Return default position if pos is undefined or empty
-        return { x: 0, y: 0, z: 0 };
-    }
-
-    const x = pos[0] * scale;
-    const y = pos[1] * scale;
-    const z = (pos[2] ?? 0) * scale;
-    // const z = pos[0] * scale;
-    // const x = (pos[2] ?? 0) * scale;
-
-    return { x, y, z };
+/**
+ * A dimension option as the index-based layouts take it.
+ * @param dim - the option, a number from a config
+ * @returns 3 for 3, otherwise 2
+ */
+export function layoutDim(dim: number): 2 | 3 {
+    return dim === 3 ? 3 : 2;
 }

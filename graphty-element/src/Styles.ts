@@ -18,14 +18,28 @@ import { StyleSchemaV1, StyleTemplate } from "./config";
  * the element's own properties.
  */
 export class Styles {
-    readonly config: StyleSchemaV1;
+    readonly #read: () => StyleSchemaV1;
 
     /**
-     * Creates a new Styles instance from a configuration document.
-     * @param config - The parsed document.
+     * Creates a new Styles instance from a configuration document, or from a function that reads
+     * one.
+     * @param config - The parsed document, or the reader a graph builds its frozen view with.
      */
-    constructor(config: StyleSchemaV1) {
-        this.config = config;
+    constructor(config: StyleSchemaV1 | (() => StyleSchemaV1)) {
+        this.#read = typeof config === "function" ? config : () => config;
+    }
+
+    /**
+     * The configuration document.
+     *
+     * On a graph it is a FROZEN VIEW: the project settings from the session's `config` slice,
+     * merged with the graph's view settings, rebuilt only when one of them changes. Two reads with
+     * no change between them return the same object, and writing into it throws. Change a setting
+     * through the element's properties, `Graph`'s setters or `session.config.set`.
+     * @returns The document.
+     */
+    get config(): StyleSchemaV1 {
+        return this.#read();
     }
 
     /**

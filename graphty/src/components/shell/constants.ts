@@ -808,16 +808,6 @@ export const STATUS_BAR_DROP_ORDER: readonly StatusBarSlotId[] = ["ai", "layout"
 export const STATUS_BAR_NEVER_DROP: readonly StatusBarSlotId[] = ["counts", "running", "issues"];
 
 /* -------------------------------------------------------------------------- */
-/* Miscellaneous shell facts                                                    */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Undo depth. One history store for the whole application; a new action clears the
- * redo stack. Spec 01 section 1 (SPEC:296); spec 02 section 3.3.
- */
-export const UNDO_DEPTH = 50;
-
-/* -------------------------------------------------------------------------- */
 /* The menu-affordance caret (spec 02 section 8; REGISTER-1.5 section 1.1)      */
 /* -------------------------------------------------------------------------- */
 

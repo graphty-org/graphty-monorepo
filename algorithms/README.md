@@ -23,39 +23,24 @@ A comprehensive TypeScript graph algorithms library with 98 algorithms optimized
 
 ## Performance Optimizations
 
-The library automatically optimizes performance for large graphs (≥10,000 nodes) using:
+The graph functions (`breadthFirstSearch`, `shortestPathBFS`, `connectedComponents`, `kruskalMST`
+and others) run over a compact indexed snapshot of the graph, with typed arrays in Compressed Sparse
+Row form, and return the same results they always have.
 
-- **Direction-Optimized BFS**: Dynamically switches between top-down and bottom-up search strategies, providing up to 42x speedup on large graphs
-- **CSR Graph Format**: Compressed Sparse Row format for cache-efficient memory access
-- **Bit-Packed Data Structures**: 8x memory reduction using bit arrays for boolean data
-
-These optimizations are applied automatically - no configuration needed! Just use the standard API:
+For very large graphs, the direction-optimising BFS is available explicitly over a snapshot. It
+switches between top-down and bottom-up steps, which is fastest on large low-diameter graphs:
 
 ```typescript
-// Automatically uses optimized implementation for large graphs
-const result = breadthFirstSearch(largeGraph, startNode);
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(largeGraph);
+const { order, parent, depth } = indexed.directionOptimizedBfs(s, s.ids.requireIndex(startNode));
 ```
-
-All BFS-based algorithms benefit from these optimizations:
-
-- `breadthFirstSearch`, `shortestPathBFS`, `singleSourceShortestPathBFS`
-- `betweennessCentrality`, `closenessCentrality`
-- Connected component algorithms
-
-### Performance Benchmarks
-
-| Graph Size | Standard BFS | Optimized BFS | Speedup |
-| ---------- | ------------ | ------------- | ------- |
-| 10K nodes  | 4.40ms       | 6.34ms        | 0.69x   |
-| 50K nodes  | 158.64ms     | 44.27ms       | 3.58x   |
-| 100K nodes | 5,370ms      | 126ms         | 42.58x  |
-
-_Note: Optimizations activate automatically for graphs ≥10K nodes to avoid conversion overhead on smaller graphs._
 
 ### Learn More
 
-- 📖 [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
-- 💾 [Memory Optimization](docs/guide/performance.md#memory-optimization) - Making the right choices
+- [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
+- [Memory](docs/guide/performance.md#memory) - What a snapshot costs
 
 ## Installation
 
@@ -65,33 +50,37 @@ npm install @graphty/algorithms
 
 ## Quick Start
 
+Algorithms run over a frozen graph snapshot from [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format)
+and are reached through the `indexed` namespace. Each takes the snapshot first and an options object last, works on
+node indices, and returns typed arrays indexed by node:
+
+<!-- doc-check -->
+
 ```typescript
-import { Graph, breadthFirstSearch, dijkstra } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-// Create a new graph
-const graph = new Graph();
+// Build and freeze a graph; nodes are added on first mention, indices in that order
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("A", "B", 1); // source, target, weight
+builder.addEdge("B", "C", 2);
+const graph = builder.freeze();
 
-// Add nodes and edges
-graph.addNode("A");
-graph.addNode("B");
-graph.addNode("C");
-graph.addEdge("A", "B", 1); // source, target, weight
-graph.addEdge("B", "C", 2);
-
-// Basic graph operations
 console.log(graph.nodeCount); // 3
-console.log(graph.totalEdgeCount); // 2
-console.log(graph.hasEdge("A", "B")); // true
+console.log(graph.edgeCount); // 2
 
-// Run algorithms
-const traversal = breadthFirstSearch(graph, "A");
-console.log(traversal.order); // ['A', 'B', 'C']
+// Run algorithms; ids map to indices and back only at the boundary
+const start = graph.ids.requireIndex("A");
+const traversal = indexed.breadthFirstSearch(graph, start);
+console.log(Array.from(traversal.order.subarray(0, traversal.visitedCount), (i) => graph.ids.idOf(i))); // ["A", "B", "C"]
 
-const shortestPaths = dijkstra(graph, "A");
-// Get distance to C
-const pathToC = shortestPaths.get("C");
-console.log(pathToC?.distance); // 3
+const shortestPaths = indexed.dijkstra(graph, start);
+console.log(shortestPaths.dist[graph.ids.requireIndex("C")]); // 3
 ```
+
+The id-keyed API documented below (the `Graph` class and functions such as `breadthFirstSearch(graph, "A")`) is the
+previous API. It stays available until the next major version; `toSnapshot(graph)` converts one of its graphs to a
+snapshot.
 
 ## API Reference
 
@@ -227,10 +216,7 @@ const result = breadthFirstSearch(graph, startNode, {
 });
 // Returns: TraversalResult { visited: Set<NodeId>, order: NodeId[], tree?: Map<NodeId, NodeId | null> }
 
-// Note: For graphs with ≥10K nodes, BFS automatically uses:
-// - Direction-Optimized BFS (switches between top-down/bottom-up)
-// - CSR graph format for cache efficiency
-// - Bit-packed data structures for memory efficiency
+// For a direction-optimising BFS over a large graph, see indexed.directionOptimizedBfs.
 
 // Find shortest path between two nodes (unweighted)
 const path = shortestPathBFS(graph, source, target);
@@ -328,6 +314,31 @@ const result = hasNegativeCycle(graph);
 // Returns: BellmanFordResult with hasNegativeCycle boolean
 ```
 
+##### Index-based Bellman-Ford and point-to-point paths
+
+```typescript
+import { accelerated, indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const a = s.ids.requireIndex("a");
+const c = s.ids.requireIndex("c");
+
+const bf = indexed.bellmanFord(s, a); // or: await accelerated(acc).bellmanFord(s, a)
+// { dist, predArc, hasNegativeCycle, pathTo(i), pathEdges(i) } -- node and edge indices
+
+const shortest = indexed.bidirectionalDijkstra(s, a, c);
+const guided = indexed.astar(s, a, c, (i, goal) => estimate(i, goal)); // heuristic over node indices
+// { distance, path, edges }; distance is Infinity and both arrays empty when c is unreachable
+```
+
+Bellman-Ford relaxes an undirected edge both ways, so one negative undirected edge is a negative
+cycle. Every path records the edge it took, so of two parallel edges the path names the one used.
+Each takes a per-arc `weights` override for weights other than the snapshot's own.
+
+Where two paths cost the same, a port may take a different one from the legacy function (whose
+choice follows its map and queue order, and changes with graph size in `dijkstraPath`), and a
+distance summed from decimal weights may then differ from legacy's in the last bit.
+
 #### Floyd-Warshall Algorithm
 
 ```typescript
@@ -345,6 +356,28 @@ const path = floydWarshallPath(result, source, target);
 const closure = transitiveClosure(graph);
 // Returns: Map<NodeId, Set<NodeId>>
 ```
+
+##### Index-based all-pairs shortest paths
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const { dist, n } = indexed.allPairsShortestPath(s);
+const i = s.ids.requireIndex("a");
+const j = s.ids.requireIndex("c");
+console.log(dist[i * n + j]); // distance from a to c; +Infinity when unreachable
+```
+
+By default it runs one breadth-first search per source on unweighted graphs, Floyd-Warshall when a
+weight is negative or the graph is dense (n^2 / 3 arcs or more), and one Dijkstra per source
+otherwise; `method: "floyd-warshall"` or `"per-source"` forces a strategy, and `result.method` says
+which ran. Pass `paths: true` to record predecessors, then `pathTo(i, j)` and `pathEdges(i, j)` return
+node and edge indices. It refuses graphs above 5,792 nodes (256 MiB of matrix) unless you raise
+`maxNodes`. A negative cycle gives `hasNegativeCycle: true` and a matrix of `NaN`. On a 512-node graph
+with 5,120 edges it was 69x faster than the Map-of-Maps Floyd-Warshall that `floydWarshall` ran before it
+delegated here, with Floyd-Warshall forced, 201x on weighted input by default, and 775x on unweighted
+input.
 
 ### Centrality Algorithms
 
@@ -419,6 +452,26 @@ const centrality = nodeWeightedClosenessCentrality(graph, nodeId, {
 // Returns: number
 ```
 
+##### Index-based degree, closeness and betweenness
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const degree = indexed.degreeCentrality(s, { normalized: true }); // Float64Array, one score per node index
+const closeness = indexed.closenessCentrality(s, { weighted: true }).scores;
+const one = indexed.nodeClosenessCentrality(s, s.ids.requireIndex("a"));
+const betweenness = indexed.betweennessCentrality(s, { k: 100 }).scores; // 100 sampled sources
+const edges = indexed.edgeBetweennessCentrality(s).scores; // one score per edge index
+```
+
+These return the legacy functions' scores in typed arrays indexed by node (or edge) index. A multigraph
+counts each pair's parallel edges once, and weighted closeness takes the lightest of them. Weighted
+closeness reads the snapshot's f32 weights; pass the f64 weights as `weights` for the exact legacy sums.
+Betweenness takes explicit `sources` or a deterministic draw of `k` of them, and a sampled result is
+the unscaled sum over those sources. `edgeBetweennessCentrality` takes an `alive` edge mask that treats
+the cleared edges as deleted.
+
 #### PageRank
 
 ```typescript
@@ -447,6 +500,15 @@ const topNodes = topPageRankNodes(graph, n, options);
 const centralities = pageRankCentrality(graph, options);
 // Returns: CentralityResult (Record<string, number>)
 ```
+
+Over a `@graphty/graph-format` snapshot, `new indexed.DeltaPageRank(s)` and `new indexed.PriorityDeltaPageRank(s)` are the snapshot
+counterparts of `DeltaPageRank` and `PriorityDeltaPageRank`, with the same state kept between
+calls; `update()` takes node indices and skips any outside the graph. A snapshot stores edge
+weights in single precision, and both engines divide by the weighted out-degree even when
+`weighted` is false, so a graph whose weights are not exact in single precision gives scores that
+differ from the legacy engines in about the seventh significant digit. For the legacy scores to
+full double precision, pass the double-precision weights of every arc as `{ weights }` (arcCount
+long, in arc order); a vector of any other length throws a `RangeError`.
 
 #### Eigenvector Centrality
 
@@ -645,6 +707,11 @@ const mst = primMST(graph, startNode?);
 // Returns: { edges: Edge[], weight: number }
 ```
 
+Over a snapshot, `indexed.primMST(s, { start, forest })` returns `{ edges, totalWeight, predArc }`:
+logical edge indices in the order they joined the tree, and the arc that reached each node. With
+`forest: true` it grows a tree in every component instead of throwing on a disconnected graph.
+Where edge weights tie, it may pick a different tree of the same weight from legacy `primMST`.
+
 ### Community Detection Algorithms
 
 #### Louvain Method
@@ -674,6 +741,10 @@ const communities = leiden(graph, {
 // Returns: { communities: Map<NodeId, number>, modularity: number }
 ```
 
+Over a `@graphty/graph-format` snapshot, `indexed.leiden(s, { resolution, randomSeed, maxIterations, threshold })`
+returns `{ labels, count, groups(), modularity, iterations }` with every community connected. Its
+`maxIterations` caps whole passes (each running every level it needs), not single levels.
+
 #### Label Propagation
 
 ```typescript
@@ -692,6 +763,20 @@ const labels = labelPropagationAsync(graph, options);
 const labels = labelPropagationSemiSupervised(graph, seedLabels, options);
 ```
 
+Over a `@graphty/graph-format` snapshot, `indexed.labelPropagation(toSnapshot(graph), { maxIterations,
+randomSeed, weighted })` runs fast label propagation (FLPA) on typed arrays and returns
+`{ labels, count, groups(), iterations, converged }`. It stops once every label is dominant, so it
+also converges on paths and trees. `labelPropagation` delegates to it, so for the same integer seed both
+return the same partition.
+
+`indexed.labelPropagationSemiSupervised(s, seeds, options)` runs the same kernel with some nodes held:
+`seeds` is a `Uint32Array` with one entry per node, a fixed label or `INVALID_INDEX` for a free node.
+Seeds with equal labels share a community and seeds with different labels never do; the result is
+renumbered, so read a seed's community through `labels[seedNode]`.
+`indexed.labelPropagationSynchronous(s, { maxIterations, weighted })` updates every node at once from
+the previous pass, with no random stream, alternating up and down passes so neighbours cannot swap
+labels for ever.
+
 #### Girvan-Newman Algorithm
 
 ```typescript
@@ -703,6 +788,10 @@ const dendrogram = girvanNewman(graph, {
 });
 // Returns: { levels: Array<{ modularity: number, communities: NodeId[][] }> }
 ```
+
+Over a snapshot, `indexed.girvanNewman(s, { maxCommunities, minCommunitySize, maxIterations })` returns
+`{ levels, modularity }`: one `Uint32Array` partition per level, the uncut graph first, and the
+modularity of each level.
 
 ### Pathfinding Algorithms
 

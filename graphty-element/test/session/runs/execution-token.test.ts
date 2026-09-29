@@ -71,7 +71,7 @@ describe("execution tokens", () => {
         harness.session.dispose();
     });
 
-    it("is read from the result entry, and cleared while a re-run has no result", async () => {
+    it("is read from the result entry, and kept while a re-run has not replaced the result", async () => {
         const harness = session();
         const { results, runs } = harness.session;
         const run = runs.start("degree", undefined, { as: "degree", style: false });
@@ -82,7 +82,11 @@ describe("execution tokens", () => {
         assert.strictEqual(resultExecutionOf(results, run), first, "by run or by id");
 
         const again = run.rerun();
-        assert.isUndefined(resultExecutionOf(results, "degree"), "the re-run holds no result yet");
+        assert.strictEqual(
+            resultExecutionOf(results, "degree"),
+            first,
+            "the re-run has not replaced the result yet, so the token is still the one it was made with",
+        );
         await again;
         assert.notStrictEqual(resultExecutionOf(results, "degree"), first);
         harness.session.dispose();

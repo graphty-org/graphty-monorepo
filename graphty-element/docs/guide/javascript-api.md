@@ -136,22 +136,20 @@ const nodeCount = graph.getNodeCount();
 const edgeCount = graph.getEdgeCount();
 ```
 
-**Listing every node and edge record** -- for a data table, an inspector list or an export --
-goes through the session in two steps: resolve the `"graph"` scope for the ids, then read each
-record by id. Listing is asynchronous because it walks the whole graph; each read is a lookup.
+Records are read through the session: one at a time by id, or every one at once.
 
 ```typescript
 const session = element.session;
 const { nodes, edges } = await session.scope.resolve("graph");
 
-const nodeRecords = [...nodes].map((id) => session.data.node(id)); // { id, ...the file's own keys }
-const edgeRecords = [...edges].map((id) => session.data.edge(id)); // { id, source, target, ...the file's own keys }
+const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
+const everyNode = session.data.nodes(); // [{ id, ...the file's own keys }, ...]
+const everyEdge = session.data.edges(); // [{ id, source, target, ... }, ...]
 ```
 
-A record always carries the id the element stores it under, written after the file's own keys: an
-edge whose file row has its own `id` column still reports the element's edge id, and its `source`
-and `target` are always the element's node ids. Resolve `"visible"` instead of `"graph"` to list
-only what a filter left showing.
+`nodes()` and `edges()` walk the whole graph on each call, so read them when the graph changes
+rather than every frame. Every record is read-only; change the graph through `session.data`'s
+verbs, each of which is one undoable step.
 
 "The edge between two nodes" is plural, because a graph may hold more than one:
 
@@ -347,6 +345,10 @@ const unsubscribe = graph.onAiStatusChange((status) => {
 graph.disableAiControl();
 ```
 
+One message is one undoable step. A command you register with
+`graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
+[Undo and History](./undo#commands-you-register-with-the-ai-assistant).
+
 ### Voice Input
 
 Enable voice commands:
@@ -384,15 +386,44 @@ graph.zoomToFit();
 
 ## Batch Operations
 
-For bulk updates, use batch operations to prevent intermediate renders:
+To make several changes one undoable step, make them through the `tx` the callback receives:
 
 ```typescript
-await graph.batchOperations(async () => {
-    await graph.addNodes(manyNodes);
-    await graph.addEdges(manyEdges);
-    // Layout runs once at the end
+await graph.batchOperations(async (tx) => {
+    await tx.data.addNodes(manyNodes);
+    await tx.data.addEdges(manyEdges);
+    await tx.layout.set("circular");
 });
 ```
+
+One undo takes the whole batch back, and a throw inside the callback rolls it back. A call on
+`graph` itself during the callback is a step of its own, and logs a warning naming the `tx` verb
+to use instead.
+
+## Undo and Redo
+
+Every change a project saves is one undoable step, and the session keeps the history:
+
+```typescript
+const session = graph.getSession();
+
+await session.undo();
+await session.redo();
+session.canUndo; // whether undo() would do anything
+session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
+
+// Several changes as one step, through the tx the callback receives
+await session.transaction("Recolour", async (tx) => {
+    await tx.styles.add(spec);
+    await tx.layout.set("circular");
+});
+
+// Any command in the vocabulary, as data
+await session.execute({ op: "visibility.context", show: false });
+```
+
+See [Undo and History](./undo) for what is and is not undoable, transactions, work still
+running, events and the memory budget.
 
 ## Event Handling
 

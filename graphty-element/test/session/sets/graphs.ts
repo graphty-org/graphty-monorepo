@@ -26,10 +26,10 @@ import {
     resumeEdgeCounter,
 } from "../../../src/data/edgeIdentity";
 import { GraphStore } from "../../../src/data/GraphStore";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../../src/data/ingest";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../../../src/session/sets/SetsApi";
 import type { SetsStore } from "../../../src/session/sets/store";
 import type { SetsApi } from "../../../src/session/sets/types";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../helpers/rawIngest";
 
 /** One edge record: endpoints, weight, and any fields (a file id among them). */
 export interface EdgeRecord {

@@ -18,6 +18,7 @@ import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import type { SetsStore } from "../../../src/session/sets/store";
 import type { SetsApi } from "../../../src/session/sets/types";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
+import { plant } from "../sets/plant";
 
 /**
  * A session's kept sets, their store, and a quiet resolver of one set, as a pass reads it.
@@ -425,15 +426,12 @@ describe("nothing throws or recurses in a pass", () => {
 
         // Then it comes to read "visible", written past the doors (which refuse that cycle) as a
         // stored record arriving would be.
-        sets.store.transact(() => {
-            const next = prepareRedefine(sets.store, {
-                id: "set_later",
-                definition: rule({ kind: "member", of: "visible" }, "clipped"),
-            });
-            if (next !== null) {
-                sets.store.put(next);
-            }
+        const next = prepareRedefine(sets.store, {
+            id: "set_later",
+            definition: rule({ kind: "member", of: "visible" }, "clipped"),
         });
+        assert.isNotNull(next);
+        plant(sets.store, ...sets.store.list().filter((set) => set.id !== "set_later"), next);
         // The graph moves, so the stored filter is re-evaluated against the set that now reads "visible".
         harness.add([{ id: "f" }]);
 

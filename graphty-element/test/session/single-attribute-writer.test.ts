@@ -19,20 +19,20 @@ const WRITER = join("session", "attributes.ts");
  */
 const ALLOWED: readonly (readonly [file: string, line: string, reason: string])[] = [
     [
-        "Node.ts",
-        "this.data = data;",
-        "the constructor: a new node exists only after a freeze, which moves the snapshot serial, and " +
-            "DataManager bumps every field of the ingested record",
-    ],
-    [
-        "Edge.ts",
-        "this.data = data;",
-        "the constructor: as for Node; the store row the edge renders was ingested, and bumped, first",
-    ],
-    [
         join("session", "GraphSession.ts"),
         "this.data = parts.data;",
         "assigns the session's data surface, not a record's attributes",
+    ],
+    [
+        join("session", "GraphSession.ts"),
+        "dispatcher.services.data = headlessDataService(store.store, dispatcher, readData);",
+        "assigns the dispatcher's data service, not a record's attributes; records are written by the " +
+            "graph primitives, which bump every field they change (session/project/graphOps.ts)",
+    ],
+    [
+        join("managers", "DataManager.ts"),
+        "dispatcher.services.data = {",
+        "assigns the dispatcher's data service, not a record's attributes, as above",
     ],
 ];
 

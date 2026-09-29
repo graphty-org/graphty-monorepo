@@ -19,11 +19,7 @@ import type {
     AiStreamChunkEvent,
     AiStreamToolResultEvent,
 } from "../../src/events";
-
-// Helper to create a mock graph for testing
-function createMockGraph(): CommandContext["graph"] {
-    return {} as CommandContext["graph"];
-}
+import { createMessageGraph } from "../helpers/message-graph";
 
 describe("AiController Events", () => {
     let controller: AiController;
@@ -36,7 +32,7 @@ describe("AiController Events", () => {
     beforeEach(() => {
         mockProvider = new MockLlmProvider();
         registry = new CommandRegistry();
-        mockGraph = createMockGraph();
+        mockGraph = createMessageGraph();
         emittedEvents = [];
         emitEvent = vi.fn((event: AiEvent) => {
             emittedEvents.push(event);

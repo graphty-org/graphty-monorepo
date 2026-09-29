@@ -219,6 +219,13 @@ export class AiManager {
 
     /**
      * Register a custom command.
+     *
+     * Each assistant message is one undoable step. A command joins it by writing through
+     * `ctx.tx` (`ctx.tx.styles.add`, `ctx.tx.layout.set`, `ctx.tx.run`): those changes are undone
+     * with the rest of the message, and rolled back if a command throws. A change made through
+     * `ctx.graph` is a step of its own and is not rolled back. A command stops when
+     * `ctx.abortSignal` fires, which happens when the message is cancelled or undone while it is
+     * still going.
      * @param command - The command to register
      */
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void {

@@ -85,6 +85,20 @@ When the element fix genuinely cannot land first -- a release is in flight, the 
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
 record. It is not done until the element is fixed and the workaround is deleted.
 
+### Easy things easy, hard things possible
+
+Every public API and extension point has a simple path and an advanced path. The simple path's
+first working example fits in about 15 lines of author code and names no internal concept: no
+snapshot rows, compressed sparse rows, typed arrays, masks, cost formulas or descriptor
+bookkeeping. The advanced path exposes the machinery for authors who need speed or control, and
+the simple path wraps it, so the parity rule for extension points still holds.
+
+A spec or design for a public API is not reviewed until an author who sees only the published
+docs, and never the repository, has written its canonical example and compiled it against the
+published types. Every review workflow includes a developer-experience lens and the developer
+personas in `design/designloom/personas/`, alongside security, evolution and implementability. A
+spec whose simplest example needs internal knowledge fails review.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -194,7 +208,6 @@ pnpm run dev:webgpu-graph-algorithms      # the WebGPU demo page
 pnpm run storybook:graphty-element
 pnpm run storybook:graphty                # HTTPS only
 pnpm run examples:algorithms              # Algorithm demos
-pnpm run examples:layout                  # Layout demos
 pnpm run docs:dev                         # VitePress docs
 ```
 
@@ -250,12 +263,14 @@ The `tools/` directory contains build scripts:
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
+| `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Its `PENDING` list holds the problems not yet fixed and may only shrink. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 | `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
 | `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
+| `check-legacy-use.mjs` | Fails on a new use of the legacy graph API the graph-format migration replaces (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). Uses not yet migrated are in `legacy-use-baseline.json`; `--update-baseline` rewrites it, `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 
@@ -339,7 +354,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
 
 **graphty:**
-- Browser-based tests (Playwright)
+- `browser` - Browser-based tests (Playwright)
+- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
 - `default` - Node.js tests
@@ -430,23 +446,23 @@ everything.
 ### Algorithm Implementation Pattern
 
 ```typescript
-// All algorithms in @graphty/algorithms follow this pattern:
-export function algorithmName<TNodeId = unknown>(
-    graph: ReadonlyGraph<TNodeId>,
-    options?: AlgorithmOptions,
-): AlgorithmResult<TNodeId> {
-    // Implementation
+// Algorithms in @graphty/algorithms take a frozen @graphty/graph-format snapshot:
+export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
+    // Work over node indices (0..nodeCount-1) and the snapshot's CSR arrays;
+    // return typed arrays indexed by node (or edge) index, plus scalars.
 }
 ```
+
+A required per-call input, such as a source node index, sits between the snapshot and the options
+(`dijkstra(snapshot, source, options?)`). Ids appear only at the boundary: `snapshot.ids.requireIndex(id)`
+on the way in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` on the way out.
 
 ### Layout Function Interface
 
 ```typescript
-// All layouts in @graphty/layout implement:
-type LayoutFunction = (
-    graph: ReadonlyGraph,
-    options?: LayoutOptions,
-) => PositionMap;
+// Layouts in @graphty/layout take a snapshot and return a flat position array:
+type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => LayoutResult;
+// LayoutResult = { positions: Float32Array; dim: 2 | 3; n: number }, row i = node index i
 ```
 
 ### Web Component Architecture (graphty-element)
@@ -498,7 +514,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
 - `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
-- `algorithms/CLAUDE.md` - Algorithm-specific notes (e.g., floyd-warshall hang)
+- `algorithms/CLAUDE.md` - The snapshot-based ports, the legacy facades and how they are tested
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
 - `graphty/CLAUDE.md` - React app specifics
@@ -573,7 +589,6 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - Use `assert` instead of `expect` in layout tests
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
-- Don't increase test coverage for floyd-warshall (causes vitest hang)
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 
 ### Storybook
@@ -585,7 +600,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 ### Visual review
 
-CI screenshots every story of compact-mantine and graphty-element; the owner compares them with
+CI screenshots every story of compact-mantine, graphty-element and layout; the owner compares them with
 the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
 machine (`visual-review/`, design in `design/visual-testing/design.md`). Start the page through
 servherd; its log prints the URL with the session token at every start:
@@ -616,8 +631,9 @@ that starts the same server from the owner's own shell, which is how the owner s
 - To iterate on a story's look before pushing, build its Storybook and capture only that story:
   `node visual-review/trusted/cli.mjs capture --project <p> --out tmp/<task>/<p> --stories <id
   prefix>`, then look at the PNG, or serve it with `--results tmp/<task>`. A local capture is a
-  preview and is never decided. Captures are at device scale factor 2, cropped to the story's
-  content plus 32 px (graphty-element: full width, cropped in height only).
+  preview and is never decided. Captures are at device scale factor 2 and always the whole
+  canvas (the owner's rule): the full 1200 x 900 viewport, or the story's full scroll size when it
+  is larger, never cropped to the content.
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
   behalf.
@@ -645,6 +661,25 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
 - Release workflow reuses CI artifacts (no rebuild)
+
+### Breaking changes and major releases
+
+Every major release costs every consumer a migration, so keep them few: think ahead and group
+breaking changes into as few majors as possible.
+
+- Before adding a breaking (`!`) commit to a published package, find the other breaking changes
+  already planned or in flight for that package -- open pull requests carrying `!` commits,
+  deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
+  in the same major.
+- Release runs on every merge to master, so a group of breaking changes cannot be assembled by
+  merging several pull requests one after another: each merge would publish its own major. Put
+  the grouped changes on one branch (or merge one pull request into the other) and release them
+  with one merge.
+- Prefer deprecating now and removing in the next major that is already planned over a major of
+  its own. A breaking change that can wait for the next grouped major waits.
+- A pull request that will bump a published package's major says so in its description, lists
+  the breaking changes it groups, and names any known breaking change it deliberately leaves for
+  a later major, with the reason.
 
 ### Module System
 

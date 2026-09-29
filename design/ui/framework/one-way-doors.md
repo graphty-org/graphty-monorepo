@@ -39,13 +39,14 @@ is written only once the doors that fix its contents are decided** (door 88), so
 sits in the slice that first autosaves its section. For each slice the owner may accept every
 recommendation at once; the documents are written on them, so accepting changes nothing else, and
 rejecting one changes the documents under its "Depends on it". **The owner is asked now only for
-the next two slices**, 1 and 2; the rest wait until their slice is next.
+the next two slices**, 2b and 3; the rest wait until their slice is next. The doors of slices 1
+and 2 were decided on 2026-09-28 (`decided-doors.md`), except the halves those slices do not need.
 
 | Slice | Doors, in order (titled below) |
 |---|---|
 | 0, open a node | none |
-| 1, open, characterize and the keyboard floor | 33, the half that runs General at load; 48; 87; 47; 65 |
-| 2, find and table | 39, the element selection and the cap; 40; 90, the deprecation half |
+| 1, open, characterize and the keyboard floor | none |
+| 2, find and table | none |
 | 2b, menus and Quick actions | 91 |
 | 3, reopen | 88; 89; 3; 4; 5, its reference half; 95 |
 | 4a, rank | 92; 26; 42; 9; 10; 93; 94; 14, the descriptor-spelling half (options) and the catalog-label half (`displayName`, `family`) and `Run.accelerator` |
@@ -53,7 +54,7 @@ the next two slices**, 1 and 2; the rest wait until their slice is next.
 | 4c, the Assistant | none |
 | 5, sets and paths | 39, object selection; 27 |
 | 6, filters and layout | 12; 13; 22; 25; 86; 75; 17 |
-| 7, recipes, notes and export | 5, the rest (door 2 cites it); 1; 2; 14, the remaining renames; 15; 19; 21; 29; 34, which ships with recipe files; 38; 61 |
+| 7, recipes, notes and export | 33, the replaceable option and its name; 5, the rest (door 2 cites it); 1; 2; 14, the remaining renames; 15; 19; 21; 29; 34, which ships with recipe files; 38; 61 |
 | 8, the modes | 28 |
 
 ## Walked through, and decided
@@ -62,199 +63,6 @@ Doors already shipped, and decisions checked against the test and found reversib
 `decided-doors.md`, so this document lists only what the owner must still decide.
 
 ## Open doors
-
-### Open and characterize (build slice 1)
-
-#### 33. Choosing the overview recipe
-
-**Decision.** How a consumer replaces the overview recipe graphty-element runs at load, and the
-option's published name.
-
-**Why it is a door.** It is a published element option and a published default behavior.
-
-**Options.** Only the shipped General overview; a project setting only; three levels.
-
-**Recommendation: three levels.** graphty-element ships General overview; a consumer configures the
-element's default, which the graphty app sets from a reader preference; a project names its own and
-**embeds** its overview-readings part with its id, version and source, so opening it fetches
-nothing (door 19) and it survives offline; only the reader's default, never saved, may be a URL. A project setting alone cannot serve a lab whose every new
-file should start on its own overview, because a new file has no settings before load. Every level
-keeps the floor. General declares no style layers (`files-and-recipes.md` 2).
-
-**Two halves.** That the element runs General at load is decided before slice 1; the replaceable
-option and its name before slice 7.
-
-**Depends on it.** `files-and-recipes.md` 2; `top-tasks.md`; `user-journeys.md` 4.
-
-#### 48. How the element learns theme and motion
-
-**Decision.** The published properties through which graphty-element follows the host's theme and
-motion preference.
-
-**Why it is a door.** A new published property and its values are API every consumer sets; the
-detection contract decides how every bare embed looks.
-
-**Options.** (a) Read the host's `color-scheme` with no property; (b) a `background: "auto"` value
-in the file; (c) a published set of surface roles with light and dark values.
-
-**Recommendation: (a) plus `colorScheme: "light" | "dark" | "auto"` (default auto) and its sibling
-`reducedMotion: "auto" | "reduce" | "no-preference"`, CSS's own spellings; the element roles
-(grays, label ink, halo, note ink, legend, badges, mark bands, the tooltip surface) stay internal.**
-On auto the element reads the host's computed `color-scheme` and re-reads it on a
-`prefers-color-scheme` change and on attribute changes to `document.documentElement`, `body` and
-the host, because an app's theme toggle usually sets an attribute on `<html>`; the resolution rules
-are `element-contract.md` 15. An explicit `GraphStyle.background` wins. (b) and (c) are additive
-later. The grays themselves are a look-only default (`decided-doors.md`).
-
-**Depends on it.** `canvas-drawing.md` 1, 10.
-
-#### 87. Host names for reader text
-
-**Decision.** The published names of graphty-element's reader-text events, their kind values and
-slot names, and on `GraphtyError` the recovery class values, the chosen-verb field and the cause
-slot names (`element-needs.md`, "Reader text and formatting"; `message-catalog.md`, "Causes").
-
-**Why it is a door.** A host that wants other words, or maps a recovery to its own surface,
-switches on these names; renaming one after a release breaks it. The English `text` is not a door:
-it is an unpublished value any release may change.
-
-**Options.** Publish kinds and slots per event; publish only `text`, so hosts cannot reword; publish
-message keys instead.
-
-**Recommendation: kinds, slots and recovery classes, named as `message-catalog.md` and
-`content-design.md` 4 use them, published with the first release that emits them.** Only `text`
-would force a host that disagrees with a word to parse English; message keys belong to a
-translation that does not exist yet.
-
-**Depends on it.** `message-catalog.md` routes; `state-matrix.md` 2.1.
-
-### The keyboard floor (build slice 1)
-
-#### 47. The canvas marks
-
-**Decision.** Whether `GraphStyle.selection` (today `{ color, scale, opacity }`, a gold halo drawn
-as a tint on nodes only) becomes a two-tone ring on nodes and a two-tone casing on edges, and
-whether graphty-element publishes its other canvas marks (member of a selected set, group or path;
-hover and linked hover; keyboard focus; the highlight mark and its index badge; a path's ends and
-direction of travel; comparison membership; hulls and count badges, including the selection over
-the cap) as one API separate from the style channels, including a way to tell it which set, group
-or path is selected.
-
-**Why it is a door.** The selection style is a published, parsed schema that consumers already set;
-the mark names and the "selected object" input would be new published API a third-party object
-list depends on. Publishing a node-only shape and adding edges later would change it twice.
-
-**Options.** Keep the halo and change only its color; add ring fields beside the old ones; replace
-it with one mark schema, nodes and edges together, whose bands are named by tone (a dark band and a
-light band, each with a width and a dash), never by position.
-
-**Recommendation: one mark schema for nodes and edges, bands named dark and light, and the element
-orders them; old fields read by the tolerant reader and mapped.** The element puts outside the band
-with more contrast against the canvas's own luminance, and gives a lone mark on a background of
-unknown luminance (a skybox, AR passthrough) three bands, light, dark, light. The pass condition is
-that each band clears 3:1 against **both** its neighbors, the fill or band inside and the band or
-canvas outside; WCAG technique C40 covers a band on one solid color only, which is why a fixed
-dark-outside, white-inside pair fails 54 of the 116 shipped colors on the dark canvas while the
-canvas-set order fails none on either (`research/color-checks.md` 9.2). A schema of a fixed "outer
-color, inner color" would publish that failure to every consumer with a custom background. The halo
-measures 1.13:1 on the light canvas and recolors the node it marks; no single color, the accent
-included, clears 3:1 against both canvases and the palettes. The dark band is `#1A1A1A`,
-provisional. Marks outside the style channels keep them from covering an analyst's encoding. The
-schema publishes each band's tone and dash, never its width: widths stay in the internal
-element-roles module until the 3D and XR calibration runs (`canvas-drawing.md` 6).
-
-The register of forms, each with one meaning, is `canvas-drawing.md` 6; the API should carry
-the same split it draws: object marks (kept in export, listed in the legend) and state marks
-(dropped from export).
-
-**Highlights.** The exported highlight pairs (`BLUE_HIGHLIGHT`, `GREEN_SUCCESS`, `ORANGE_WARNING`) lose
-their muted member, which paints elements outside a result, and a highlight is a style layer of
-the highlight kind that feeds the neutral highlight mark, never `node.outline` (formerly door 49).
-
-**Rejected: highlights and comparison as paint**: a highlight hue lands within 15 of 11 shipped
-colors and covers the analyst's encoding (`research/color-checks.md` 9.5), and a path's order and
-ends have no paint form.
-
-**Depends on it.** `canvas-drawing.md` 2, 5, 6, 11, 12; `interaction-pattern-entries.md` 4.1;
-`interaction-pattern-entries.md` 9.2; door 39.
-
-#### 65. The default keymap and tools
-
-**Decision.** Whether graphty-element owns the canvas tools (Select, Lasso, Hand, Path, Note), the
-canvas walk and its Esc rungs (abort a gesture, leave the walk or tool, deselect), and ships a
-default keymap for them and its commands that a host can rebind.
-
-**Why it is a door.** Default keys are published behavior: a host page's users learn them, and a
-host that rebinds names them. Changing a default later changes every embed.
-
-**Options.** Keys only in the app (`bindings.ts` today, so a bare embed cannot deselect with Esc);
-tools and keys in the element with no rebinding; tools and keys in the element with a rebindable
-default keymap.
-
-**Recommendation: in the element, rebindable**, with modifiers written as Mod (Cmd on macOS, Ctrl
-elsewhere), the camera moved off the arrows and Q and E (door 40), and a setting that turns
-single-key shortcuts off (WCAG 2.1.4). While the canvas focus target has focus the element sees a
-key first; elsewhere the app's keymap invokes the element's command by name. **Publish the minimal
-form first:** the default chords as a read-only list, which a host's shortcut sheet and its
-duplicate-chord check read, and no `match(event)` function. Rebinding is added when a consumer asks
-for it; adding it later is additive, while a published matching function would be one more shape
-to keep.
-
-**Depends on it.** `interaction-patterns.md` 3.6, `interaction-pattern-entries.md` 5, `interaction-pattern-entries.md` 9.2 and 9.3; door 40.
-
-### Find and table (build slice 2)
-
-#### 39. Selection as element state, and the cap
-
-**Decision.** The selection's kinds (elements, or one primary object as a whole), the cap, and how
-a selection larger than the cap is represented. Decided in two halves: the element selection and
-the cap before slice 2, the object kind before slice 5.
-
-**Why it is a door.** The kinds and the representation are types every consumer reads; the
-`SelectionCause` values (including the undo design's `"history"`) are matched by name.
-
-**Options.** Truncate at the cap; turn an over-cap selection into an object selection; hold every
-id and draw one selection-banded hull with a count badge above the cap.
-
-**Recommendation: hold every id; above the cap draw one selection-banded hull with a count badge (`canvas-drawing.md` 6).** Storage is
-already one byte per element (`session/selection/SelectionApi.ts`), so the cap limits only highlight
-instances. Truncation makes a later Filter to analyze part of what was chosen, and an object
-selection made from a box has no object behind it. Make the cap configurable, as the documented
-`config.selectionCap` promises (today `GraphSession.ts` never passes it). The undo design's rule
-that an over-cap step leaves the selection unchanged is revisited when the cap changes.
-
-**Depends on it.** `interaction-patterns.md` 3.1 and `interaction-pattern-entries.md` 4.1; `state-matrix.md`; `conceptual-model.md` 2.
-
-#### 40. The focused node and its event
-
-**Decision.** A published "focused node" state on the canvas, distinct from the selection, with a
-change event, which the arrow keys move between neighbors.
-
-**Why it is a door.** A published name and event that assistive layers and consumers bind to.
-
-**Options.** No focused node (keyboard users cannot explore the drawing); a focused node in the app
-(a bare embed has no keyboard access); a focused node in the element.
-
-**Recommendation: in the element**, with neighbor order stable and not spatial. It also requires
-the plain arrow keys to stop moving the camera (`cameras/OrbitInputController.ts:164-176`,
-`cameras/TwoDInputController.ts`). That reassignment breaks current behavior: today the arrows
-orbit, and there is no telemetry or interview to say whether readers rely on it. So the walk never
-ships on the arrows while the camera still holds them; the move ships in one release with camera
-step controls and a changelog note, and a keyboard-only task test with screen-reader users
-(`research/study-schedule.md`) is the evidence still owed.
-
-**Depends on it.** `interaction-pattern-entries.md` 9.2 and 9.4.
-
-#### 90. The graph getter and Graph export
-
-**Decision.** The fate of two published internals: the `graph` getter
-(`src/graphty-element.ts:2102`) and `Graph` from the main entry (`index.ts:48`).
-
-**Why it is a door.** Hiding a published name a third party may call is a removal.
-
-**Recommendation: deprecate both when the typed handle ships (slice 2); remove in the next
-major.** Keeping them freezes the internal class as API; removing them now leaves callers no
-replacement.
 
 ### Reopen (build slice 3)
 
@@ -620,6 +428,29 @@ a Color by on edges also colors the arrowheads. Hidden elements are not a layer 
 
 **Depends on it.** `conceptual-model.md` 5.1; `files-and-recipes.md` 1; `element-needs.md`.
 
+### Sets and paths (build slice 5)
+
+#### 39. Selection of one object as a whole
+
+**Decision.** Whether the selection gains a second kind, one primary object as a whole (a set, a
+path or an item), beside the element selection, and its published shape. The element selection
+and the cap are decided (`decided-doors.md`, "Selection over the cap").
+
+**Why it is a door.** The kinds are types every consumer reads; the `SelectionCause` values
+(including the undo design's `"history"`) are matched by name.
+
+**Options.** Elements only, with an object's members standing for it; a separate object selection
+beside the elements; one selection whose kind is elements or one object.
+
+**Recommendation: one selection whose kind is elements or one object.** A found path, a set and an
+item are acted on as wholes (Enter goes to their members, `interaction-pattern-entries.md` 4.2),
+and an object selection made from a box has no object behind it, so a box always selects
+elements. The undo design's rule that an over-cap step leaves the selection unchanged is revisited
+when the cap changes.
+
+**Depends on it.** `interaction-patterns.md` 3.1; `interface-specification.md` 4.0;
+`conceptual-model.md` 2.
+
 ### Filters (build slice 6)
 
 #### 12. The expression language
@@ -800,6 +631,24 @@ ignores the start and records that it did.
 **Depends on it.** Door 17; `task-flows.md` 3.1; `element-needs.md`.
 
 ### Save, notes and recipes (build slice 7)
+
+#### 33. Choosing the overview recipe
+
+**Decision.** The published name of the option through which a consumer replaces the overview
+recipe graphty-element runs at load. The three levels are decided (`decided-doors.md`, "The
+overview recipe's three levels"): General overview shipped and run at load, a consumer's default,
+and a project's own, embedded.
+
+**Why it is a door.** It is a published element option.
+
+**Options.** One option naming a registered recipe id; one option taking the recipe itself; both.
+
+**Recommendation: one option naming a registered recipe id**, with the reader's default, never
+saved, the only level that may be a URL, and a project's own overview embedded in its file with
+its id, version and source, so opening it fetches nothing (door 19, The recipe profile and how it
+binds). Every level keeps the floor. General declares no style layers (`files-and-recipes.md` 2).
+
+**Depends on it.** `files-and-recipes.md` 2; `top-tasks.md`; `user-journeys.md` 4.
 
 #### 1. The file's container and media type
 

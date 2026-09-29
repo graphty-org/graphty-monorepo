@@ -30,6 +30,22 @@ describe("BetweennessCentralityOptions sources / k", () => {
         expect(() => edgeBetweennessCentrality(g, { sources: [0] })).toThrow(/node INDICES/);
     });
 
+    it("points at the two entry points that take them, and both exist", async () => {
+        const message = (() => {
+            try {
+                betweennessCentrality(path(), { k: 1 });
+            } catch (error) {
+                return (error as Error).message;
+            }
+            return "";
+        })();
+        expect(message).toMatch(/indexed\.betweennessCentrality\(snapshot, options\)/);
+        expect(message).toMatch(/accelerated\(accelerator\)\.betweennessCentrality\(snapshot, options\)/);
+        const pkg = await import("../../../src/index.js");
+        expect(typeof pkg.indexed.betweennessCentrality).toBe("function");
+        expect(typeof pkg.accelerated(null).betweennessCentrality).toBe("function");
+    });
+
     it("leaves the existing three members working exactly as before", () => {
         const g = path();
         expect(betweennessCentrality(g, { normalized: false }).b).toBe(1);

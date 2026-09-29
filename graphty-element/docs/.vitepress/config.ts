@@ -54,6 +54,7 @@ export default defineConfig({
                     items: [
                         { text: "Getting Started", link: "/guide/getting-started" },
                         { text: "Installation", link: "/guide/installation" },
+                        { text: "Migrating to 3.0", link: "/guide/migrating-to-3" },
                     ],
                 },
                 {
@@ -69,6 +70,7 @@ export default defineConfig({
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
+                        { text: "Undo & History", link: "/guide/undo" },
                         { text: "Camera", link: "/guide/camera" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },

@@ -2,38 +2,39 @@
 
 ## Package Manager
 
-Install `@graphty/algorithms` using your preferred package manager:
+Install `@graphty/algorithms` and `@graphty/graph-format`, which provides the graph snapshot every algorithm runs over,
+using your preferred package manager:
 
 ::: code-group
 
 ```bash [npm]
-npm install @graphty/algorithms
+npm install @graphty/algorithms @graphty/graph-format
 ```
 
 ```bash [pnpm]
-pnpm add @graphty/algorithms
+pnpm add @graphty/algorithms @graphty/graph-format
 ```
 
 ```bash [yarn]
-yarn add @graphty/algorithms
+yarn add @graphty/algorithms @graphty/graph-format
 ```
 
 :::
 
 ## Browser (CDN)
 
-You can also use the library directly in the browser via CDN:
+You can also use the library directly in the browser via a CDN:
 
 ```html
 <script type="module">
-  import { Graph, bfs, dijkstra } from "https://esm.sh/@graphty/algorithms";
+    import { GraphBuilder } from "https://esm.sh/@graphty/graph-format";
+    import { indexed } from "https://esm.sh/@graphty/algorithms";
 
-  const graph = new Graph();
-  graph.addNode("a");
-  graph.addNode("b");
-  graph.addEdge("a", "b");
+    const builder = new GraphBuilder({ directed: false });
+    builder.addEdge("a", "b");
+    const graph = builder.freeze();
 
-  console.log(bfs(graph, "a"));
+    console.log(indexed.breadthFirstSearch(graph, 0).visitedCount);
 </script>
 ```
 
@@ -41,11 +42,17 @@ You can also use the library directly in the browser via CDN:
 
 The library is written in TypeScript and includes full type definitions. No additional `@types` package is needed.
 
-```typescript
-import type { Graph, NodeId, Edge } from "@graphty/algorithms";
+<!-- doc-check -->
 
-// Full IntelliSense support
-const graph: Graph<string> = new Graph();
+```typescript
+import type { GraphSnapshot } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
+
+// Full IntelliSense support: every option and result is typed
+function rank(graph: GraphSnapshot): indexed.PageRankResult {
+    return indexed.pageRank(graph, { dampingFactor: 0.85 });
+}
+console.log(typeof rank); // function
 ```
 
 ## ES Modules
@@ -56,11 +63,6 @@ The library is distributed as ES modules. It works with:
 - Node.js 18.19.0+
 - Bundlers (Vite, Webpack, Rollup, esbuild)
 
-```typescript
-// ES module import
-import { Graph, bfs } from "@graphty/algorithms";
-```
-
 ## Requirements
 
 - **Node.js**: 18.19.0 or higher (for Node.js usage)
@@ -68,14 +70,16 @@ import { Graph, bfs } from "@graphty/algorithms";
 
 ## Verifying Installation
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph, bfs } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-const graph = new Graph();
-graph.addNode("a");
-graph.addNode("b");
-graph.addEdge("a", "b");
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+const graph = builder.freeze();
 
-const result = bfs(graph, "a");
-console.log("Installation successful!", result.order);
+const result = indexed.breadthFirstSearch(graph, graph.ids.requireIndex("a"));
+console.log("Installation successful!", result.visitedCount); // Installation successful! 2
 ```

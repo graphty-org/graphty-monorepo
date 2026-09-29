@@ -30,6 +30,7 @@ import { MenuCaret } from "../MenuCaret";
 import type { TopBarProps } from "../types";
 import { CommandPalettePill } from "./CommandPalettePill";
 import { HistoryPopover } from "./HistoryPopover";
+import type { HistoryEntry, HistoryRow } from "./historyRows";
 import { TopBarIconButton } from "./topBarControls";
 import {
     DATASET_NAME_FONT_SIZE,
@@ -66,24 +67,21 @@ import {
     sidebarsToggleTitle,
 } from "./topBarStrings";
 import { UndoSplitButton } from "./UndoSplitButton";
-import type { HistoryEntry, HistoryRow } from "./undoStore";
 
 /**
- * What the top bar needs from the one history store to draw the History pop-out.
+ * What the top bar needs from the element's undo history to draw the History pop-out.
  *
  * It is a separate object because `TopBarProps` is the frozen shell-wide contract and
- * carries only the three callbacks: the store itself is application state the
- * integration agent owns. With it absent the pop-out still opens and reads
+ * carries only the three callbacks. With it absent the pop-out still opens and reads
  * "0 entries, 0 undone", which is honest rather than silent.
  *
- * Handed in through {@link TopBarOwnProps.history}: the store is the integration's, so its
- * shape is named here.
+ * Handed in through {@link TopBarOwnProps.history}.
  * @public
  */
 export interface TopBarHistory {
     /** The rows, newest first, from `historyRows`. */
     readonly rows: readonly HistoryRow[];
-    /** How many entries the store holds. */
+    /** How many steps the history holds. */
     readonly entryCount: number;
     /** How many of them have been undone. */
     readonly undoneCount: number;
@@ -99,8 +97,10 @@ export interface TopBarHistory {
  * Props of the top bar region.
  */
 export interface TopBarOwnProps extends TopBarProps {
-    /** The one history store, as the History pop-out reads it. */
+    /** The element's undo history, as the History pop-out reads it. */
     readonly history?: TopBarHistory;
+    /** What the next undo will do, for the Undo tooltip, e.g. "Undo Ran Degree". */
+    readonly undoLabel?: string;
 }
 
 const EMPTY_HISTORY: TopBarHistory = {
@@ -133,6 +133,7 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
         onToggleSidebars,
         onUndo,
         sidebarsShown,
+        undoLabel,
     } = props;
 
     const barRef = useRef<HTMLElement>(null);
@@ -200,6 +201,7 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                 <UndoSplitButton
                     canUndo={canUndo}
                     onUndo={onUndo}
+                    undoLabel={undoLabel}
                     onOpenHistory={toggleHistory}
                     historyOpen={historyOpen}
                     groupRef={splitButtonRef}

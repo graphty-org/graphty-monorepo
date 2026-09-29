@@ -4,20 +4,15 @@
  * Demonstrates ARF (Attractive and Repulsive Forces) layout algorithm.
  * Shows animation from random initial positions to final optimized positions.
  *
- * IMPORTANT: This story uses the actual arfLayout implementation
+ * IMPORTANT: This story uses the actual arf implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { arfLayout } from "@graphty/layout";
+import { arf, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -49,19 +44,15 @@ function createARFStory(args: ARFArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final ARF layout using actual algorithm
-    const finalPositions = arfLayout(
-        layoutGraph,
-        null, // pos
-        scaling, // scaling
-        springStrength, // a (spring strength, must be > 1)
-        iterations, // maxIter
-        seed, // seed
+    const finalPositions = toPositionMap(
+        arf(snapshot, { scaling, a: springStrength, maxIter: iterations, seed }),
+        snapshot.ids,
     );
 
     // Create container
@@ -126,15 +117,7 @@ const meta: Meta<ARFArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         scaling: {
@@ -171,7 +154,7 @@ type Story = StoryObj<ARFArgs>;
 /**
  * ARF layout story - attractive and repulsive forces.
  *
- * This story uses the actual `arfLayout()` function from @graphty/layout.
+ * This story uses the actual `arf()` function from @graphty/layout.
  * The play function animates from random positions to the optimized arrangement.
  */
 export const ARF: Story = {

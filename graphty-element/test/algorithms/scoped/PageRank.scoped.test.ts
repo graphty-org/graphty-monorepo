@@ -17,7 +17,7 @@ describe("pagerank over generated scopes", () => {
     });
 });
 
-describe("pagerank over a scope, on the reference route", () => {
+describe("personalized pagerank over a scope", () => {
     it("a personalized run ranks over the scope, and its ranks sum to 1 across the scope", async () => {
         const graph = new InputGraph(
             ["a", "x", "b", "c"],

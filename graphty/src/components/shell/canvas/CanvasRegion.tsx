@@ -55,7 +55,7 @@
  */
 
 import { type DataTableColumn, PopoutRegion } from "@graphty/compact-mantine";
-import type { AccelerationPolicy } from "@graphty/graphty-element/session";
+import type { AccelerationPolicy, GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
 import { Graphty, type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
@@ -87,22 +87,12 @@ export interface CanvasGraphConfig {
     readonly layers?: LayerItem[];
     /** The element's acceleration policy. */
     readonly acceleration?: AccelerationPolicy;
-    /** The view mode the canvas toolbar's 2D / 3D control sets. */
-    readonly viewMode?: "2d" | "3d" | "ar" | "vr";
-    /** The data source format. */
-    readonly dataSource?: string;
-    /** The data source's own configuration. */
-    readonly dataSourceConfig?: Record<string, unknown>;
-    /** Whether loading replaces the graph rather than adding to it. */
-    readonly replaceExisting?: boolean;
-    /** The layout engine's name. */
-    readonly layout?: string;
-    /** The layout engine's own configuration. */
-    readonly layoutConfig?: Record<string, unknown>;
     /** Selection changed on the canvas. */
     readonly onSelectionChange?: (detail: SelectionChangedDetail) => void;
     /** Style layers changed inside graphty-element. */
     readonly onStylesChange?: (detail: StylesChangedDetail) => void;
+    /** The element's session, handed over once as soon as the element has come up. */
+    readonly onSession?: (session: GraphSession) => void;
 }
 
 /**
@@ -411,14 +401,9 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                         ref={graphRef}
                         layers={graph?.layers ?? NO_LAYERS}
                         acceleration={graph?.acceleration}
-                        viewMode={graph?.viewMode}
-                        dataSource={graph?.dataSource}
-                        dataSourceConfig={graph?.dataSourceConfig}
-                        replaceExisting={graph?.replaceExisting}
-                        layout={graph?.layout}
-                        layoutConfig={graph?.layoutConfig}
                         onSelectionChange={graph?.onSelectionChange}
                         onStylesChange={graph?.onStylesChange}
+                        onSession={graph?.onSession}
                     />
                 </div>
 

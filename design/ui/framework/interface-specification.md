@@ -311,7 +311,7 @@ Figma selection state the inspector copies.
 | Set (fixed or rule), Path (B) | one set or path, selected as a whole: kept, or offered by a run (a group, a found path) | one layer |
 
 A selection never mixes elements and objects (`interaction-patterns.md` 3.1). The (B) kinds are
-absent until the element's object selection lands (door 39, Selection as element state, and the cap; 7.4); until then a found path is kept
+absent until the element's object selection lands (door 39, Selection of one object as a whole; 7.4); until then a found path is kept
 from its row's menu (`implementation-mapping.md` 7). **Focused rows are
 not kinds**: several focused set, path or item rows leave the inspector on the canvas selection,
 and their set operations are in the rows' shared context menu (Figma's Boolean operations split

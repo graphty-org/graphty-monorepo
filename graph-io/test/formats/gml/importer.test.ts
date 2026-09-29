@@ -21,6 +21,7 @@ import {
     REPEATED_KEY_CODE,
     ROLE_TAKEN_CODE,
     SECOND_GRAPH_CODE,
+    STRING_ID_CODE,
     UNKNOWN_ENTITY_CODE,
 } from "../../../src/formats/gml/importer.js";
 import {
@@ -393,7 +394,7 @@ describe("gmlImporter: structure and flags", () => {
 
     it("reports duplicate node ids, duplicate structural keys and non-integer endpoints", async () => {
         const { report, snapshot } = await importGml(
-            'graph [ node [ id 1 ] node [ id 1 ] node [ id 2 id 3 ] edge [ source 1 source 2 target 1 ] edge [ source 1.5 target 1 ] edge [ source 1 target "x" ] ]',
+            "graph [ node [ id 1 ] node [ id 1 ] node [ id 2 id 3 ] edge [ source 1 source 2 target 1 ] edge [ source 1.5 target 1 ] edge [ source 1 target [ x 1 ] ] ]",
         );
         expect(codes(report)).toEqual([
             DUPLICATE_NODE_CODE,
@@ -408,20 +409,61 @@ describe("gmlImporter: structure and flags", () => {
         expect(ids(snapshot)).toEqual([1]);
     });
 
-    it("skips a node without an id and a string or real id", async () => {
+    it("skips a node without an id and a real or record id, and keeps a string id", async () => {
         const { report, snapshot } = await importGml(
-            'graph [ node [ label "a" ] node [ id "n1" ] node [ id 1.5 ] node [ id 4 ] ]',
+            'graph [ node [ label "a" ] node [ id "n1" ] node [ id 1.5 ] node [ id [ x 1 ] ] node [ id 4 ] ]',
         );
-        expect(codes(report)).toEqual([MISSING_ID_CODE, ID_TYPE_CODE, ID_TYPE_CODE]);
+        expect(codes(report)).toEqual([MISSING_ID_CODE, STRING_ID_CODE, ID_TYPE_CODE, ID_TYPE_CODE]);
         expect(report.issues[0].category).toBe("missing-value");
-        expect(report.issues[1].category).toBe("validation-error");
-        expect(report.issues[1].message).toContain('the string "n1"');
-        expect(ids(snapshot)).toEqual([4]);
+        expect(report.issues[2].category).toBe("validation-error");
+        expect(report.issues[2].message).toContain("the real 1.5");
+        expect(ids(snapshot)).toEqual(["n1", 4]);
     });
+
+    it("keys string node ids and endpoints by their value with one warning for the whole file", async () => {
+        const { report, snapshot } = await importGml(
+            'graph [ node [ id "a" ] node [ id "b" ] node [ id 3 ] edge [ source "a" target "b" ] edge [ source "b" target 3 ] ]',
+        );
+        expect(codes(report)).toEqual([STRING_ID_CODE]);
+        expect(report.issues[0]).toMatchObject({ severity: "warning", line: 1 });
+        expect(report.errorCount).toBe(0);
+        expect(ids(snapshot)).toEqual(["a", "b", 3]);
+        expect(edges(snapshot)).toEqual(["a-b", "b-3"]);
+        expect(report.counts).toMatchObject({ nodes: 3, edges: 2, skippedNodes: 0, skippedEdges: 0 });
+    });
+
+    it("maps a string id to its label under nodeIdFrom label, so string endpoints resolve", async () => {
+        const { report, snapshot } = await importGml(
+            'graph [ node [ id "a" label "Alpha" ] node [ id "b" label "Beta" ] edge [ source "a" target "b" ] ]',
+            { nodeIdFrom: "label" },
+        );
+        expect(codes(report).filter((c) => c === STRING_ID_CODE)).toHaveLength(1);
+        expect(ids(snapshot)).toEqual(["Alpha", "Beta"]);
+        expect(edges(snapshot)).toEqual(["Alpha-Beta"]);
+    });
+
+    it.each([
+        ["id", [1, 2], ["1-2"]],
+        ["label", ["a", "b"], ["a-b"]],
+        ["index", [0, 1], ["0-1"]],
+    ] as const)(
+        "resolves an endpoint spelled as a string of an integer node id under nodeIdFrom %s",
+        async (from, want, wantEdges) => {
+            const { snapshot } = await importGml(
+                'graph [ node [ id 1 label "a" ] node [ id 2 label "b" ] edge [ source "1" target 2 ] ]',
+                {
+                    nodeIdFrom: from,
+                },
+            );
+            expect(ids(snapshot)).toEqual(want);
+            expect(edges(snapshot)).toEqual(wantEdges);
+        },
+    );
 });
 
 describe("gmlImporter: edge-level direction and entities", () => {
-    const MIXED = 'graph [ directed 0 node [ id 1 label "caf&eacute;" ] node [ id 2 ] edge [ source 1 target 2 directed 1 ] ]';
+    const MIXED =
+        'graph [ directed 0 node [ id 1 label "caf&eacute;" ] node [ id 2 ] edge [ source 1 target 2 directed 1 ] ]';
 
     it("honours an edge-level directed key instead of storing it as a column", async () => {
         const { snapshot, report } = await importGml(MIXED);

@@ -480,11 +480,23 @@ type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => Layout
 
 ### Plugin System
 
+Every extension point is exported from `@graphty/graphty-element/extend`:
+
 ```typescript
-// Register custom implementations
-LayoutRegistry.register("custom-layout", customLayoutFunction);
-DataSourceRegistry.register("custom-source", CustomDataSource);
-AlgorithmRegistry.register("custom-algo", customAlgorithm);
+import {
+    Algorithm,
+    DataSource,
+    LayoutEngine,
+    registerFormatWriter,
+    registerSnapshotLayout,
+} from "@graphty/graphty-element/extend";
+
+Algorithm.register(MyAlgorithm);                  // a DeclaredAlgorithm subclass
+registerSnapshotLayout({ descriptor, compute });  // a static layout over the snapshot
+LayoutEngine.register(MyIterativeEngine);         // an iterative (step-by-step) layout engine
+DataSource.register(MyDataSource);                // a reader that parses a file itself
+DataSource.register(DataSource.fromImporter(myGraphIoImporter, formatDescriptor)); // a graph-io importer as a reader
+registerFormatWriter({ descriptor, exporter });   // a graph-io exporter as a file writer
 ```
 
 ## Key Files to Understand

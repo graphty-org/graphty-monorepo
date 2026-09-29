@@ -121,3 +121,21 @@ describe("the adapters whose algorithm no accelerator implements run through the
         });
     }
 });
+
+describe("max flow runs over the network it builds", () => {
+    it("reads its input once and derives no second snapshot of a multigraph for the dispatcher", async () => {
+        const graph = await createMockGraph({
+            nodes: SQUARE.nodes,
+            edges: [...(SQUARE.edges ?? []), { srcId: "A", dstId: "B", weight: 1 }],
+        });
+        const algorithm = new MaxFlowAlgorithm(graph, { source: "A", sink: "C" });
+        const input = vi.spyOn(algorithm as unknown as { input: (orientation: string) => unknown }, "input");
+        const output = await algorithm.compute(detachedRunContext());
+
+        assert.isNotNull(output);
+        assert.deepStrictEqual(
+            input.mock.calls.map(([orientation]) => orientation),
+            ["declared"],
+        );
+    });
+});

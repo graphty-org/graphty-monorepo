@@ -178,10 +178,10 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         });
 
         context.report({ phase: "Pushing flow", total: null });
-        // The dispatcher runs over the network built above rather than the snapshot it derives.
-        const { run } = this.accelerated("maxFlow", "directed");
-        const { value: result, precision } = await run((dispatch) =>
-            dispatch.maxFlow(network, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
+        // The dispatcher runs over the network built above, so no snapshot of the input is derived.
+        const { run } = this.accelerated("maxFlow", "directed", { over: network });
+        const { value: result, precision } = await run((dispatch, s) =>
+            dispatch.maxFlow(s, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
                 algorithm: "ford-fulkerson",
                 weights: expandEdges(network, capacities),
             }),

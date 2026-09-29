@@ -43,7 +43,6 @@ export class FixedLayout extends SnapshotLayoutEngine {
     config: FixedLayoutConfigType;
     /** Always three: a node's data carries a z, and a 2D view draws it flat. */
     protected readonly dimensions = 3;
-    #placedFromData = false;
 
     /**
      * Create a fixed layout engine
@@ -89,8 +88,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * @returns the coordinates
      */
     protected compute(input: SnapshotLayoutInput): F32 {
-        const seeds = this.#placedFromData ? null : input.dataPositions();
-        this.#placedFromData = true;
+        const seeds = input.firstRun ? input.dataPositions() : null;
         const { initial } = input;
         const positions = new Float32Array(initial.length);
         for (let i = 0; i < positions.length; i += 3) {

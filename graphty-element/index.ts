@@ -144,6 +144,13 @@ export { Algorithm } from "./src/algorithms/Algorithm";
 export { registerCameraView } from "./src/catalog/cameraRegistry";
 export { registerLogSink } from "./src/catalog/logSinkRegistry";
 export { registerPalette } from "./src/catalog/paletteRegistry";
+export type {
+    SnapshotLayoutAnswer,
+    SnapshotLayoutInput,
+    SnapshotLayoutProgress,
+    SnapshotLayoutRegistration,
+} from "./src/layout/SnapshotLayoutEngine";
+export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 
 // =============================================================================
 // Events

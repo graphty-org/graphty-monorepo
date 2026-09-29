@@ -91,6 +91,7 @@ until it resolves.
 | `dimensions`      | 2 or 3, from the element's view mode or the consumer's `dim` option, capped at `maxDimensions`.                                                          |
 | `options`         | The consumer's options, validated and defaulted against `descriptor.options`.                                                                            |
 | `fixed`           | `rows` (a `NodeMask`) and their current `positions`: pinned nodes, nodes outside a scope, and after an add every node already drawn.                     |
+| `firstRun`        | True until one of this layout's answers has been published since `setLayout` chose it; false for a run that follows a change.                    |
 | `initial`         | Every node's current coordinates, NaN for a node nothing has placed yet.                                                                                 |
 | `added`           | After an add, the new rows (a `NodeMask`); null for a fresh arrangement.                                                                                 |
 | `scope`           | For a layout run over a set with `setLayout(id, opts, { scope })`, the rows it places; null for the whole graph.                                         |

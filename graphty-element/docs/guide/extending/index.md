@@ -46,8 +46,8 @@ All three resolve in Node with no Babylon.js, no Lit and no DOM in their import 
 can be written, type-checked and published without a browser anywhere in the loop.
 
 A page that loads the self-contained `@graphty/graphty-element/bundle` with no build step can
-import `registerPalette`, `registerCameraView`, `registerLogSink`, `Algorithm`, `LayoutEngine` and
-`DataSource` from the bundle itself. Registrations are kept once per page rather than once per
+import `registerPalette`, `registerCameraView`, `registerLogSink`, `registerSnapshotLayout`,
+`Algorithm`, `LayoutEngine` and `DataSource` from the bundle itself. Registrations are kept once per page rather than once per
 copy of the package, so a plugin registered through `./extend` also reaches an element that the
 bundle, or any other copy of graphty-element on the same page, defined.
 
@@ -55,14 +55,23 @@ bundle, or any other copy of graphty-element on the same page, defined.
 
 > Does the element construct the thing?
 
-**It does** for an algorithm, a layout and a file format's reader: the element builds one per run,
-per `setLayout`, per load. Those are classes, and they register through a static `register` on the
-base class you extend.
+**It does** for an algorithm, a live layout and a file format's reader: the element builds one per
+run, per `setLayout`, per load. Those are classes, and they register through a static `register`
+on the base class you extend.
 
 ```ts
 Algorithm.register(MyAlgorithm);
-LayoutEngine.register(MyLayout);
+LayoutEngine.register(MyLiveLayout);
 DataSource.register(MyReader);
+```
+
+A layout computed in one pass is the exception: it is a descriptor and a function from the graph
+to coordinates, registered with `registerSnapshotLayout`, and the element builds the engine around
+it. The element's own one-pass layouts are built the same way. A live layout, stepped frame by
+frame, is still a class extending `LayoutEngine`. See [Custom layouts](./custom-layouts).
+
+```ts
+registerSnapshotLayout({ descriptor, compute });
 ```
 
 **It does not** for a palette, a camera view or a log destination: a palette has no code to run, a

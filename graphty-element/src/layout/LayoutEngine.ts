@@ -930,6 +930,36 @@ interface SnapshotReplacement {
 }
 
 /**
+ * Whether two lists hold the same items in the same order.
+ * @param a - one list
+ * @param b - the other
+ * @returns true when they match item for item
+ */
+function sameItems<T>(a: readonly T[], b: readonly T[]): boolean {
+    return a.length === b.length && a.every((item, i) => item === b[i]);
+}
+
+/**
+ * Rows of a previous snapshot, carried into the next one's row order.
+ * @param rows - the rows, in `change.previous`
+ * @param change - the freeze
+ * @returns the same nodes' rows in `change.next`
+ */
+function carryRows(rows: NodeMask, change: SnapshotReplacement): NodeMask {
+    const { previous, next, report } = change;
+    const out = makeMask(next.nodeCount);
+    const remap = report.nodeRemap;
+    for (let i = 0; i < (previous?.nodeCount ?? 0); i++) {
+        const row = remap === null ? i : remap[i];
+        if (maskTest(rows, i) && row !== INVALID_INDEX) {
+            maskSet(out, row, true);
+        }
+    }
+
+    return out;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1150,6 +1180,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     #laidOut: GraphSnapshot | null = null;
     /** The rows the next run leaves where they are, set by an add. */
     #keep: NodeMask | null = null;
+    /** The element snapshot a run still waiting for its answer arranges; `#keep` is in its rows. */
+    #waitingFor: GraphSnapshot | null = null;
+    /** For an engine driven without an element: the graph last built, and from what. */
+    #built: { readonly nodes: Node[]; readonly edges: Edge[]; readonly loaded: LoadedGraph } | null = null;
 
     /**
      * Create a simple layout engine
@@ -1318,8 +1352,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     reload(change: SnapshotReplacement, loading: boolean): void {
         this.stale = true;
-        this.#keep =
-            !loading && this.#laidOut !== null && this.#laidOut === change.previous ? existingRows(change) : null;
+        const grown = loading ? null : existingRows(change);
+        if (grown !== null && this.#laidOut !== null && this.#laidOut === change.previous) {
+            this.#keep = grown;
+        } else if (grown !== null && this.#keep !== null && this.#waitingFor === change.previous) {
+            // Another add while the answer for the last one is still being computed: the rows that
+            // run keeps are kept still, and the nodes it would have placed are placed with this one's.
+            this.#keep = carryRows(this.#keep, change);
+        } else {
+            this.#keep = null;
+        }
     }
 
     /**
@@ -1519,8 +1561,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // node added meanwhile is laid out with the rest instead of being held unplaced.
         if (this.result === null && simpleLayoutInternals.waiting.has(this)) {
             this.#column = new Float32Array(0);
+            this.#waitingFor = (this.#loaded as LoadedGraph | null)?.source ?? null;
             return;
         }
+
+        this.#waitingFor = null;
 
         const loaded = this.#loaded as LoadedGraph | null;
         this.#column =
@@ -1568,6 +1613,13 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             };
         }
 
+        // The same nodes and edges give back the same snapshot, so that an asynchronous answer can
+        // tell it is still for the graph being arranged.
+        const built = this.#built;
+        if (built !== null && sameItems(built.nodes, this._nodes) && sameItems(built.edges, this._edges)) {
+            return built.loaded;
+        }
+
         const builder = new GraphBuilder({ directed: false, addMissingNodes: true });
         for (const n of this._nodes) {
             builder.addNode(n.id);
@@ -1578,7 +1630,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         }
 
         const snapshot = builder.freeze({ label: "static-layout" });
-        return { snapshot, source: null, positions: null, rowOf: (n) => snapshot.ids.indexOf(n.id) };
+        const loaded: LoadedGraph = {
+            snapshot,
+            source: null,
+            positions: null,
+            rowOf: (n) => snapshot.ids.indexOf(n.id),
+        };
+        this.#built = { nodes: this._nodes.slice(), edges: this._edges.slice(), loaded };
+        return loaded;
     }
 
     /**

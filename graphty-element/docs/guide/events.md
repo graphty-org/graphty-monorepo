@@ -27,6 +27,7 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `data-loading-progress` | A chunk of a load arrived                                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
 | `data-loading-complete` | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
 | `data-loading-error`    | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
+| `layout-progress`       | A layout reported how far its arrangement has got                                  | `{ layoutType, fraction, message? }`                             |
 | `error`                 | Error occurred                                                                     | `{ error, context }`                                             |
 
 `cause` on the three data events is set when undo, redo, a restore or a rolled-back change added

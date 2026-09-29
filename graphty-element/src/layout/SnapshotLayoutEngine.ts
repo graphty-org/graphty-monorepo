@@ -6,7 +6,7 @@ import type { ElementPositions } from "../data/positions";
 import { GraphtyError } from "../errors";
 import type { Node } from "../Node";
 import { readSeedPosition } from "../session/project/ingest";
-import { layoutDim, LayoutEngine, simpleLayoutInternals,StaticLayoutEngine } from "./LayoutEngine";
+import { layoutDim, LayoutEngine, simpleLayoutInternals, StaticLayoutEngine } from "./LayoutEngine";
 
 /** How far an arrangement has got, as a layout reports it. */
 export interface SnapshotLayoutProgress {
@@ -31,6 +31,12 @@ export interface SnapshotLayoutInput {
      * it for what making the graph undirected loses.
      */
     readonly stored: GraphSnapshot;
+    /**
+     * True until an answer of this layout has been published since it was chosen with `setLayout`:
+     * the run that turns the graph into this layout's arrangement, rather than one that keeps it up
+     * to date after a change.
+     */
+    readonly firstRun: boolean;
     /** 2 or 3, from the element's view mode or the consumer's `dim` option. */
     readonly dimensions: 2 | 3;
     /** The consumer's options, validated and defaulted against the descriptor's options. */
@@ -145,6 +151,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     #pending: { readonly controller: AbortController; readonly stored: GraphSnapshot } | null = null;
     /** An asynchronous answer that has arrived and not been published yet. */
     #ready: { readonly stored: GraphSnapshot; readonly positions: F32 } | null = null;
+    /** Whether an answer has been published. */
+    #published = false;
 
     /** How many coordinates a row has, in the input and in the answer. */
     protected abstract readonly dimensions: 2 | 3;
@@ -177,6 +185,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         this.#ready = null;
         if (ready !== null && ready.stored === stored) {
             this.result = this.#resultOf(ready.positions, graph);
+            this.#published = true;
             return;
         }
 
@@ -185,6 +194,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const answer = this.compute(this.#input(graph, stored, controller));
         if (!(answer instanceof Promise)) {
             this.result = this.#resultOf(answer, graph);
+            this.#published = true;
             return;
         }
 
@@ -217,6 +227,16 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 this.#host?.fail(error);
             },
         );
+    }
+
+    /** An emptied graph has nothing to arrange, so an answer still being computed for it is called off. */
+    protected override refresh(): void {
+        if (this.stale && this._nodes.length === 0) {
+            this.#abort();
+            this.#ready = null;
+        }
+
+        super.refresh();
     }
 
     /** Call off an answer still being computed, which aborts its signal. */
@@ -303,6 +323,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         return {
             graph,
             stored,
+            firstRun: !this.#published,
             dimensions: dim,
             options,
             scope,
@@ -320,8 +341,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 nodes.forEach((node, row) => {
                     const seed = node === undefined ? null : readSeedPosition(node.data as Record<string, unknown>);
                     if (seed !== null) {
-                        const scale =
-                            node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1;
+                        const scale = node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1;
                         for (let k = 0; k < dim; k++) {
                             out[dim * row + k] = seed[k] * scale;
                         }

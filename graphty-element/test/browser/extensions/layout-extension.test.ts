@@ -1637,6 +1637,22 @@ describe("a single-pass layout registered on the snapshot contract", () => {
             },
         });
 
+        const scopedLine = lineDescriptor("test-snapshot-scoped");
+        registerSnapshotLayout({
+            descriptor: {
+                ...scopedLine,
+                scoped: true,
+                options: [
+                    ...scopedLine.options,
+                    { name: "by", plainName: "By", description: "The attribute to read.", type: "string", default: "" },
+                ],
+            },
+            compute: (input) => {
+                snapshotInputs.push(input);
+                return line(input);
+            },
+        });
+
         registerSnapshotLayout({
             descriptor: lineDescriptor("test-snapshot-deferred"),
             compute: (input) => {
@@ -1716,6 +1732,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         assert.strictEqual(input.graph.nodeCount, NODES.length, "the layout was snapshotInputs the whole graph");
         assert.strictEqual(input.stored.edgeCount, EDGES.length, "and the graph as stored");
         assert.strictEqual(input.dimensions, 2);
+        assert.isTrue(input.firstRun, "the run that follows setLayout is the first");
         for (const { id } of NODES) {
             const row = input.graph.ids.indexOf(id);
             assert.closeTo(at(id).x, row * 25, 1e-3, `node ${id} is where the layout put it, in scene units`);
@@ -1789,7 +1806,10 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         await waitFor(() => reported.length > 0, "the failure to be reported");
 
         assert.lengthOf(reported, 1, "reported once");
-        assert.isTrue(isGraphtyError(reported[0]) && reported[0].code === "E_UNSUPPORTED", "with the layout's own code");
+        assert.isTrue(
+            isGraphtyError(reported[0]) && reported[0].code === "E_UNSUPPORTED",
+            "with the layout's own code",
+        );
         assert.isTrue(graph.getLayoutManager().isSettled, "and the layout is no longer waiting");
     });
 
@@ -1800,15 +1820,148 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         await graph.addNodes([{ id: "f" }]);
         await operationQueueOf(graph).waitForCompletion();
         await waitFor(() => graph.getLayoutManager().isSettled, "the line to take in the new node");
-        at("f");
 
         const input = snapshotInputs.at(-1);
         assert.isDefined(input);
         assert.isNotNull(input.added, "the run was told it follows an add");
+        assert.isFalse(input.firstRun, "and is not the layout's first");
         assert.isTrue(maskTest(input.added, input.graph.ids.indexOf("f")), "the new node's row is marked");
         assert.isFalse(maskTest(input.added, input.graph.ids.indexOf("a")), "an existing node's is not");
         for (const { id } of NODES) {
             assert.deepStrictEqual(at(id), before[id], `node ${id} stayed where it was`);
         }
+
+        await newcomerDrawnAt("f", input.graph.ids.indexOf("f") * LINE_GAP);
+    });
+
+    /**
+     * Wait until a node added to a line is drawn on it.
+     * @param id - the node
+     * @param x - where on the line it belongs
+     */
+    async function newcomerDrawnAt(id: string, x: number): Promise<void> {
+        await waitFor(() => Math.abs(at(id).x - x) < 1e-3 && Math.abs(at(id).y) < 1e-3, `${id} to be drawn at x=${x}`);
+    }
+
+    /**
+     * Wait for the deferred layout's answer to be asked for, and return what it was handed.
+     * @param count - how many inputs the layouts have been handed by then
+     * @returns the newest input
+     */
+    async function deferredInput(count: number): Promise<SnapshotLayoutInput> {
+        await waitFor(() => snapshotInputs.length === count && deferred.resolve !== null, `compute call ${count}`);
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        return input;
+    }
+
+    /**
+     * Answer the deferred layout's pending run with a line, and wait until it is drawn.
+     * @param input - the pending run's input
+     * @param offset - scene units added to every x
+     */
+    async function answerDeferred(input: SnapshotLayoutInput, offset: number): Promise<void> {
+        const { resolve } = deferred;
+        assert.isNotNull(resolve);
+        deferred.resolve = null;
+        resolve(line(input).map((v, i) => (i % input.dimensions === 0 ? v + offset : v)));
+        const manager = graph.getLayoutManager();
+        await waitFor(() => manager.isSettled && !manager.running, "the answer to be drawn");
+    }
+
+    it("keeps drawn nodes still through two adds made while an answer is out", async () => {
+        await graph.setLayout("test-snapshot-deferred");
+        await answerDeferred(await deferredInput(1), 0);
+        const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+
+        await graph.addNodes([{ id: "f" }]);
+        const first = await deferredInput(2);
+        await graph.addNodes([{ id: "g" }]);
+        const second = await deferredInput(3);
+
+        assert.isTrue(first.signal.aborted, "the graph changing aborted the first add's answer");
+        assert.isNotNull(second.added, "the run after both adds is told it follows an add");
+        for (const id of ["f", "g"]) {
+            assert.isTrue(maskTest(second.added, second.graph.ids.indexOf(id)), `${id} is new`);
+        }
+
+        for (const { id } of NODES) {
+            const row = second.graph.ids.indexOf(id);
+            assert.isFalse(maskTest(second.added, row), `${id} is not new`);
+            assert.isTrue(maskTest(second.fixed.rows, row), `${id} is fixed`);
+        }
+
+        await answerDeferred(second, 1000);
+        for (const { id } of NODES) {
+            assert.deepStrictEqual(at(id), before[id], `node ${id} stayed where it was`);
+        }
+
+        // The answer is carried into the frame the held nodes are drawn in, which undoes the offset.
+        await newcomerDrawnAt("f", second.graph.ids.indexOf("f") * LINE_GAP);
+        await newcomerDrawnAt("g", second.graph.ids.indexOf("g") * LINE_GAP);
+    });
+
+    it("aborts an answer when the graph is emptied", async () => {
+        await graph.setLayout("test-snapshot-deferred");
+        const input = await deferredInput(1);
+
+        await graph.removeNodes(NODES.map(({ id }) => id));
+        await operationQueueOf(graph).waitForCompletion();
+        await waitFor(() => input.signal.aborted, "the answer to be aborted");
+        assert.isTrue(graph.getLayoutManager().isSettled, "and nothing is waiting");
+    });
+
+    it("aborts an answer when the element is disposed", async () => {
+        await graph.setLayout("test-snapshot-deferred");
+        const input = await deferredInput(1);
+
+        graph.dispose();
+
+        assert.isTrue(input.signal.aborted);
+    });
+
+    it("is handed a scope, and the rows outside it stay where they are", async () => {
+        const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+        await graph.setLayout("test-snapshot-scoped", {}, { scope: { nodes: ["a", "b"] } });
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getLayoutManager();
+        await waitFor(() => manager.isSettled && !manager.running, "the scoped line to settle");
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.isNotNull(input.scope);
+        for (const { id } of NODES) {
+            const row = input.graph.ids.indexOf(id);
+            const inside = id === "a" || id === "b";
+            assert.strictEqual(maskTest(input.scope, row), inside, `${id} is ${inside ? "in" : "outside"} the scope`);
+            assert.strictEqual(maskTest(input.fixed.rows, row), !inside, `${id} is ${inside ? "free" : "fixed"}`);
+            if (inside) {
+                assert.closeTo(at(id).x, row * LINE_GAP, 1e-3, `${id} was laid out`);
+            } else {
+                assert.deepStrictEqual(at(id), before[id], `${id} did not move`);
+            }
+        }
+    });
+
+    it("reads the node attribute an option names as a column", async () => {
+        await graph.addNodes([{ id: "f", geo: { lat: 7 } }]);
+        await operationQueueOf(graph).waitForCompletion();
+
+        await useLayout("test-snapshot-scoped", { by: "geo.lat" });
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        const column = input.column("by");
+        assert.isNotNull(column);
+        assert.lengthOf(column, input.graph.nodeCount);
+        assert.strictEqual(column[input.graph.ids.indexOf("f")], 7, "the value at the path");
+        assert.isUndefined(column[input.graph.ids.indexOf("a")], "undefined where a node has none");
+        assert.isNull(input.column("gap"), "an option that is not a path names no column");
+    });
+
+    it("is what the root entry publishes, so a page on the bundle can register one", async () => {
+        const root = await import("../../../index.js");
+
+        assert.strictEqual(root.registerSnapshotLayout, registerSnapshotLayout);
     });
 });

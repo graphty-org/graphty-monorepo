@@ -59,7 +59,7 @@ uses:
 | Point | Unit | Registration |
 |---|---|---|
 | Algorithm | class extending `DeclaredAlgorithm` | `Algorithm.register(MyAlgorithm)` |
-| Layout | class extending `LayoutEngine` or `SimpleLayoutEngine` | `LayoutEngine.register(MyLayout)` |
+| Layout | a descriptor and a `compute` function (one pass), or a class extending `LayoutEngine` (live) | `registerSnapshotLayout({ descriptor, compute })`, `LayoutEngine.register(MyLayout)` |
 | File format | class extending `DataSource` | `DataSource.register(MyReader)` |
 | Palette | a `PaletteDescriptor` | `registerPalette(descriptor)` |
 | Camera | a descriptor plus one pure `compute` function | `registerCameraView({ descriptor, compute })` |
@@ -660,13 +660,35 @@ controller, 100 for its input controller) -- a real bug, noted here, fixed separ
 
 ### Layout
 
-**Unit.** A class extending `LayoutEngine` (a simulation the element steps every frame) or
-`SimpleLayoutEngine` (an arrangement computed in one pass), with `static type`,
-`static maxDimensions`, and now `static descriptor: LayoutDescriptor`. The shape is settled and
-already works end to end; what changes is what else the class declares and what the element does
-with it.
+**Unit.** A class extending `LayoutEngine` (a simulation the element steps every frame), with
+`static type`, `static maxDimensions`, and now `static descriptor: LayoutDescriptor`; or, for an
+arrangement computed in one pass, a descriptor and a function registered with
+`registerSnapshotLayout`. `SimpleLayoutEngine`, the earlier class for a one-pass layout, is
+deprecated in 3.0 and keeps working through 3.x.
 
-**Registration.** `LayoutEngine.register(MyLayout)`, which now also publishes the descriptor,
+**The snapshot contract as built.** `compute(input)` receives the undirected graph snapshot, the
+graph as stored (with its weights), the dimensions, the validated options, the scope, the fixed
+rows with their coordinates, every row's current coordinates, and an abort signal and a progress
+channel; it answers with a `Float32Array` of coordinates in scene units. The element's fourteen
+one-pass layouts subclass the same engine (`SnapshotLayoutEngine`) and read nothing a
+registration is not handed. It departs from the `SnapshotLayoutRegistration` sketch in
+`design/extensions/layout.d.ts` in these ways, each so that a registered function can do what a
+built-in does:
+
+- the answer may be returned directly as well as through a promise, so a synchronous layout is
+  drawn in the frame that asked for it rather than one frame later;
+- `honoursWeights` and `scoped` are optional and default to false, like the class statics they
+  replace;
+- `initial` is always present (NaN for an unplaced row) rather than optional, so a layout never
+  has to branch on its absence;
+- `column(option)` returns `readonly unknown[] | null`, one value per row;
+- `stored` (the graph before it was made undirected, which carries the weights), `added` (the rows
+  an add introduced, every other row being fixed), `firstRun` (the run that follows `setLayout`)
+  and `dataPositions()` (each node's own `position` field) are added: they are what the built-in
+  weighted, incremental and fixed layouts read.
+
+**Registration.** `registerSnapshotLayout(registration)` builds the engine class and registers it
+through `LayoutEngine.register(MyLayout)`, which now also publishes the descriptor,
 refuses a class with no `static type` or no `static descriptor`, refuses a descriptor whose `id`
 differs from `static type`, and refuses a built-in layout id.
 

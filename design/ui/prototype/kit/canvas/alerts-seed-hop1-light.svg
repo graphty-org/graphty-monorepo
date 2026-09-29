@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="ACC-365386 and its 8 counterparties">
+<rect width="1200" height="800" fill="#F5F5F5"/>
+<g stroke="#808080" stroke-width="1" stroke-opacity="0.5" stroke-linecap="round">
+<line x1="593.1" y1="273.3" x2="385.2" y2="531.8"/>
+<line x1="593.1" y1="273.3" x2="369" y2="322.7"/>
+<line x1="593.1" y1="273.3" x2="630.7" y2="517.6"/>
+<line x1="385.2" y1="531.8" x2="630.7" y2="517.6"/>
+<line x1="369" y1="322.7" x2="630.7" y2="517.6"/>
+<line x1="356.1" y1="426" x2="593.1" y2="273.3"/>
+<line x1="356.1" y1="426" x2="630.7" y2="517.6"/>
+<line x1="843.9" y1="316.9" x2="593.1" y2="273.3"/>
+<line x1="843.9" y1="316.9" x2="630.7" y2="517.6"/>
+<line x1="593.1" y1="273.3" x2="513.5" y2="552"/>
+<line x1="593.1" y1="273.3" x2="431.2" y2="56"/>
+<line x1="821.9" y1="456.5" x2="593.1" y2="273.3"/>
+<line x1="369" y1="322.7" x2="513.5" y2="552"/>
+</g>
+
+<g>
+<circle cx="630.7" cy="517.6" r="9" fill="#808080"/>
+<circle cx="513.5" cy="552" r="9" fill="#808080"/>
+<circle cx="431.2" cy="56" r="9" fill="#808080"/>
+<circle cx="821.9" cy="456.5" r="9" fill="#808080"/>
+<polygon points="385.2,518.7 398.2,531.8 385.2,544.8 372.1,531.8" fill="#D55E00"/>
+<polygon points="369,309.6 382,322.7 369,335.7 355.9,322.7" fill="#D55E00"/>
+<polygon points="356.1,412.9 369.2,426 356.1,439 343.1,426" fill="#D55E00"/>
+<polygon points="843.9,303.9 856.9,316.9 843.9,330 830.8,316.9" fill="#D55E00"/>
+<polygon points="593.1,260.2 606.1,273.3 593.1,286.3 580,273.3" fill="#D55E00"/>
+<circle cx="593.1" cy="273.3" r="14.1" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="593.1" cy="273.3" r="16" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+</g>
+<g font-family="Inter Variable, Inter, system-ui, sans-serif" font-size="12" fill="#1A1A1A" stroke="#F5F5F5" stroke-width="3" stroke-linejoin="round" paint-order="stroke">
+<text x="610.1" y="277.3">ACC-365386</text>
+<text x="402.2" y="535.8">ACC-274887</text>
+<text x="386" y="326.7">ACC-898028</text>
+<text x="647.8" y="521.6">ACC-465572</text>
+<text x="373.2" y="430">ACC-796219</text>
+<text x="860.9" y="320.9">ACC-228299</text>
+<text x="530.6" y="556">ACC-597001</text>
+<text x="448.2" y="60">ACC-512219</text>
+<text x="839" y="460.5">ACC-916833</text>
+</g></svg>

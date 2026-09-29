@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes panel</title>
+<!-- Built by screens/notes-panel.gen.mjs from kit/fixtures.json and the protein drawing; edit the script, then run it. -->
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  /* States: one full app per state; the address fragment (#s1 to #s11) picks one, #s1 by default.
+     #s1a to #s11a show the same state with the owner notes on. No script. */
+  body { overflow: hidden; }
+  .sv { display: none; position: relative; width: 100vw; height: 100vh; }
+  .sv:target, .sv:has(:target) { display: block; }
+  body:not(:has(:target)) .sv:first-of-type { display: block; }
+  .sv > .k-app { position: absolute; inset: 0; }
+
+  /* The state switcher and the owner-notes toggle: annotation ink, not product UI */
+  .sw { position: fixed; z-index: 200; top: 8px; left: 748px; transform: translateX(-50%); display: flex; align-items: center; gap: 1px;
+        padding: 3px; border-radius: 14px; background: var(--k-annot-bg); box-shadow: 0 0 0 1px var(--k-annot); font-size: 11px; white-space: nowrap; }
+  .sw a { padding: 2px 6px; border-radius: 11px; color: var(--cm-text); text-decoration: none; }
+  .sw label { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; color: var(--k-annot-ink); font-weight: 600; }
+  .sw input { margin: 0; accent-color: var(--k-annot); }
+  body:not(:has(:target)) .sw a[href="#s1"],
+  body:has(#s1:target, #s1a:target) .sw a[href="#s1"],
+  body:has(#s2:target, #s2a:target) .sw a[href="#s2"],
+  body:has(#s3:target, #s3a:target) .sw a[href="#s3"],
+  body:has(#s4:target, #s4a:target) .sw a[href="#s4"],
+  body:has(#s5:target, #s5a:target) .sw a[href="#s5"],
+  body:has(#s6:target, #s6a:target) .sw a[href="#s6"],
+  body:has(#s7:target, #s7a:target) .sw a[href="#s7"],
+  body:has(#s8:target, #s8a:target) .sw a[href="#s8"],
+  body:has(#s9:target, #s9a:target) .sw a[href="#s9"],
+  body:has(#s10:target, #s10a:target) .sw a[href="#s10"],
+  body:has(#s11:target, #s11a:target) .sw a[href="#s11"] { background: var(--k-annot); color: #fff; font-weight: 600; }
+
+  .an { display: none; }
+  body:has(#owner:checked) .an, .sv:has(.aon:target) .an { display: block; }
+  .k-annot-note b { color: var(--k-annot-ink); }
+  .needs { margin-top: 3px; }
+
+  /* A note row: the leading slot holds the kind glyph of what the note is about; the lines under it
+     indent to the text column */
+  .nt-row { position: relative; padding: 6px 8px 8px 16px; }
+  .nt-row[data-hover], .nt-row[data-focus] { background: var(--cm-bg-hover, var(--cm-bg-secondary)); }
+  .nt-row[aria-selected="true"] { background: var(--cm-bg-selected); }
+  .nt-row[data-focus] { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
+  .nt-row[data-dim] .nt-body, .nt-row[data-dim] .nt-about-t { color: var(--cm-text-secondary); }
+  .nt-about { display: flex; align-items: flex-start; gap: 6px; min-height: 18px; line-height: 16px; }
+  .nt-lead { display: grid; place-items: center; width: 16px; height: 16px; flex: none; color: var(--cm-icon, var(--cm-text-secondary)); }
+  .nt-lead .k-chit { width: 10px; height: 10px; }
+  .nt-about-t { flex: 1 1 auto; min-width: 0; font-weight: 550; }
+  .nt-when { margin: 0 0 0 22px; line-height: 16px; color: var(--cm-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nt-irow .nt-when { margin: 0; }
+  .nt-trail { display: none; flex: none; margin: -3px -4px -3px 0; }
+  .nt-row[data-hover] .nt-trail, .nt-row[data-focus] .nt-trail { display: block; }
+  .nt-body { margin: 2px 0 0 22px; line-height: 16px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .nt-cites { margin: 2px 0 0 22px; line-height: 16px; color: var(--cm-text-secondary); }
+  .nt-mark { display: flex; align-items: center; gap: 6px; margin: 2px 0 0 22px; line-height: 16px; }
+  .nt-state { color: var(--cm-text); font-weight: 550; }
+  .nt-verb { color: var(--cm-text-brand); }
+  .nt-row mark { background: var(--cm-bg-selected); color: inherit; border-radius: 2px; }
+  .nt-explain { margin: 0 0 0 22px; line-height: 16px; color: var(--cm-text-secondary); }
+  .nt-explain.nt-verb { color: var(--cm-text-brand); }
+  .nt-empty .k-btn { margin: 4px 0; }
+  .nt-empty { padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; line-height: 16px; }
+  .nt-caret { display: inline-block; width: 1px; height: 13px; margin-left: 1px; background: var(--cm-text); vertical-align: -2px; }
+  /* The inspector's note rows: time, then the text clamped to two lines */
+  .nt-irow { padding: 4px 8px 6px 16px; line-height: 16px; }
+  .nt-irow[aria-selected="true"] { background: var(--cm-bg-selected); }
+  .nt-irow .nt-body { margin: 0; -webkit-line-clamp: 2; }
+  .vo { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 4px; border-radius: 9px; background: var(--cm-bg-secondary); color: var(--cm-text); font-size: 11px; font-weight: 500; white-space: nowrap; flex: none; }
+  .k-panel-head .k-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .k-panel-head .k-title-line > svg { flex: none; }
+  .tr2 .k-name { overflow: hidden; text-overflow: ellipsis; }
+  .tr2 { display: flex; flex-direction: column; line-height: 16px; min-width: 0; white-space: nowrap; }
+
+  /* The Note editor (as screens/take-a-note.html) */
+  .ne { width: 272px; }
+  .ne-body { padding: 8px 12px 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .ne-about { display: flex; align-items: center; gap: 6px; min-height: 20px; color: var(--cm-text-secondary); }
+  .nt-read { line-height: 16px; }
+  .nt-line { display: flex; align-items: center; gap: 4px; min-height: 24px; flex-wrap: wrap; }
+  .nt-line .k-caption { width: 44px; flex: none; }
+  .ne-text { height: 56px; align-items: flex-start; padding-top: 4px; }
+  .ne .nt-line .k-field { min-width: 0; white-space: nowrap; overflow: hidden; }
+  /* The citation chip carries the cited run's settings under its name (as screens/take-a-note.html) */
+  .nt-cite { height: auto; padding: 2px 6px 2px 3px; align-items: flex-start; flex: 1 1 0; min-width: 0; white-space: normal; line-height: 16px; }
+  .nt-cite > .k-i { margin-top: 2px; }
+
+  /* Nothing-selected inspector rows, as screens/frame-at-rest.html */
+  .sr { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 26px; padding: 4px 8px 4px 16px; }
+  .sr .n { color: var(--cm-text-secondary); white-space: nowrap; }
+  .sr .v { margin-inline-start: auto; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: end; }
+  .sr .ii { color: var(--cm-icon-secondary); width: 12px; height: 12px; stroke-width: 2; flex: none; }
+  .sr .sub { color: var(--cm-text-secondary); flex-basis: 100%; text-align: end; }
+  .k-row .rt { color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+  .bgsw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: none; background: linear-gradient(135deg, #F5F5F5 0 50%, #1E1E1E 50% 100%); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
+
+  /* The legend, as screens/styles-list.html */
+  .k-ramp-measure { background: linear-gradient(90deg, #ef7818, #d85a09, #b84203, #8e3104, #662506); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
+  .ticks { position: relative; height: 16px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+  .ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+  .ticks span:first-child { transform: none; }
+  .ticks .mid::before { content: ""; position: absolute; left: 50%; top: -4px; height: 4px; border-left: 1px solid var(--cm-text-secondary); }
+  .textchip { width: 16px; flex: none; font-size: 11px; line-height: 12px; font-weight: 550; text-align: center; color: var(--cm-text); }
+  .size-marks { display: flex; align-items: flex-end; gap: 6px; padding: 2px 0; }
+  .size-marks div { white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+  .size-marks b { display: block; border-radius: 50%; background: var(--k-node-gray); }
+  .lg-gap { height: 6px; }
+
+  /* Canvas marks over the drawing (canvas-drawing.md 6): ring 5, the one-tone hairline after a 2 px
+     gap (hover, linked hover); the member ring, a thin two-tone band */
+  .rk { position: absolute; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .rk-hover { box-shadow: 0 0 0 2px var(--k-canvas), 0 0 0 3px var(--k-canvas-ink); }
+  .rk-member { box-shadow: 0 0 0 1px var(--k-canvas), 0 0 0 2px var(--k-canvas-ink); }
+  /* Note marker: a callout in note ink (the canvas ink), never a data color; its point on the node */
+  .nm { position: absolute; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px 0 4px; border-radius: 10px 10px 2px 10px;
+        background: var(--k-canvas); color: var(--k-canvas-ink); box-shadow: 0 0 0 1.5px var(--k-canvas-ink); font-size: 11px; font-weight: 600;
+        transform: translate(calc(-100% - 4px), calc(-100% - 4px)); }
+  .lb { position: absolute; transform: translate(calc(-100% - 11px), -50%); font-size: 9px; font-weight: 400; color: var(--k-canvas-ink);
+        -webkit-text-stroke: 2.5px var(--k-canvas); paint-order: stroke fill; white-space: nowrap; }
+  .nm-hot { background: var(--k-canvas-ink); color: var(--k-canvas); }
+</style>
+</head>
+<body>
+
+<nav class="sw" aria-label="States of this mock">
+  <a href="#s1">1 Empty</a><a href="#s2">2 Hover</a><a href="#s3">3 Chosen</a><a href="#s4">4 Row menu</a><a href="#s5">5 Find</a><a href="#s6">6 No hits</a><a href="#s7">7 Out of date</a><a href="#s8">8 Filtered</a><a href="#s9">9 View only</a><a href="#s10">10 About first</a><a href="#s11">11 One author</a>
+  <label><input type="checkbox" id="owner">Owner notes</label>
+</nav>
+
+<!-- ============================ 1 Empty ============================ -->
+<section class="sv" id="s1"><i class="aon" id="s1a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="nt-empty"><div>No notes yet.</div><div>A note can be about a selection, a set, a result or the whole graph.</div><div><span class="k-btn k-btn-secondary"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>Add note...</span></div><div class="k-secondary">Notes are saved in the project and travel in project files and findings reports.</div></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-plain-light.svg" alt="300 human proteins and 1,262 interactions, first render, nothing styled">
+        <img class="k-dark-only" src="../kit/canvas/ppi-plain-dark.svg" alt="300 human proteins and 1,262 interactions, first render, nothing styled">
+        
+      </div>
+      
+      
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Notes<span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:90px;width:240px;height:806px"></span>
+  <div class="k-annot-note" style="left:312px;top:60px;max-width:320px"><b>Empty panel:</b> three sentences, one button, no Find. "No notes yet." says the panel is not loading or broken; "A note can be about a selection, a set, a result or the whole graph." says what a note can be attached to, without implying that something is selected; <b>Add note...</b> opens the Note editor beside the selection, or, with nothing selected, asks first what the note is about (state 10). It is the one command the empty-surface rule allows; there is no Note tool in the toolbar. The third sentence says where notes live and that they leave with the project and its findings reports. Find appears with the first note. Text on the empty surface departs from content-design.md 4 (Empty surface); proposed in framework-changes.md, "Notes panel: the empty panel says what a note is for". <b>Text</b> and a secondary <b>Button</b> in the panel body.</div>
+  <div class="k-annot-note" style="left:312px;top:392px;max-width:320px"><b>Where notes are made</b> (output-homes.md 3.7, Add note): this button, an object's overflow, the graph's type-row menu, Selection in the main menu, and the "+" of a Notes section. All of them open the same Note editor (framework-changes.md, "Take a note: a note is written in the Note editor").</div>
+  <div class="k-annot-note" style="left:312px;top:520px;max-width:320px"><b>Why the sentences.</b> In the user study, all three readers given "You want to remember why TP53 matters for next week's meeting. Record that in graphty." read the blank panel as loading or broken and did not know where the first note goes, or whether notes are saved or exported. The next round measures first click and time on this panel again.</div>
+  <span class="k-annot-box" style="left:1199px;top:534px;width:241px;height:34px"></span>
+  <div class="k-annot-note" style="left:930px;top:560px;max-width:260px"><b>Notes, empty:</b> its header and "+", nothing under it, after the Style stack. state-matrix.md 4.9. The specification hides it until a note exists (interface-specification.md 3); that conflict is resolved in framework-changes.md ("The inspector's Notes section is always there"). <b>ControlSection</b>.<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+  <div class="k-annot-note" style="left:930px;top:100px;max-width:260px"><b>Nothing selected:</b> the graph's own inspector, copied from the main frame at rest. interface-specification.md 4.1, Nothing.</div>
+  <div class="k-annot-note" style="left:900px;top:770px;max-width:250px"><b>No Note tool.</b> The toolbar holds Select and Path only; a note starts from Add note... interface-templates.md 14. <b>ToolButton</b> in <b>ToolGroup</b>.</div>
+</div>
+</section>
+
+<!-- ============================ 2 Hover ============================ -->
+<section class="sv" id="s2"><i class="aon" id="s2a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem" data-hover>
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 27 2026, 16:42</div>
+        
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1; the 33 proteins of TP53 neighborhood carry the hover hairline">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1; the 33 proteins of TP53 neighborhood carry the hover hairline">
+        <i class="rk rk-hover" style="left:39.41%;top:52.02%;width:1.75%"></i><i class="rk rk-hover" style="left:36.07%;top:57.27%;width:1.367%"></i><i class="rk rk-hover" style="left:36.77%;top:54.71%;width:1.033%"></i><i class="rk rk-hover" style="left:36.63%;top:61.58%;width:1.367%"></i><i class="rk rk-hover" style="left:38.89%;top:57.19%;width:1.033%"></i><i class="rk rk-hover" style="left:39.87%;top:57.74%;width:1.367%"></i><i class="rk rk-hover" style="left:35.83%;top:59.51%;width:1.033%"></i><i class="rk rk-hover" style="left:37.38%;top:59.38%;width:1.367%"></i><i class="rk rk-hover" style="left:37.46%;top:56.23%;width:1.367%"></i><i class="rk rk-hover" style="left:40.52%;top:59.01%;width:1.033%"></i><i class="rk rk-hover" style="left:37.35%;top:58.08%;width:1.367%"></i><i class="rk rk-hover" style="left:46.03%;top:63.91%;width:1.367%"></i><i class="rk rk-hover" style="left:54.32%;top:50.19%;width:1.367%"></i><i class="rk rk-hover" style="left:34%;top:57.27%;width:1.367%"></i><i class="rk rk-hover" style="left:52.36%;top:51.19%;width:1.033%"></i><i class="rk rk-hover" style="left:52.16%;top:46.41%;width:1.75%"></i><i class="rk rk-hover" style="left:38.76%;top:59.51%;width:1.033%"></i><i class="rk rk-hover" style="left:30.4%;top:27.16%;width:1.367%"></i><i class="rk rk-hover" style="left:27.65%;top:46.14%;width:1.367%"></i><i class="rk rk-hover" style="left:41.23%;top:23.06%;width:1.033%"></i><i class="rk rk-hover" style="left:33.99%;top:28.21%;width:1.033%"></i><i class="rk rk-hover" style="left:61.5%;top:34.84%;width:1.033%"></i><i class="rk rk-hover" style="left:25.66%;top:47.25%;width:1.033%"></i><i class="rk rk-hover" style="left:50.27%;top:21.66%;width:1.367%"></i><i class="rk rk-hover" style="left:53.82%;top:47.38%;width:1.367%"></i><i class="rk rk-hover" style="left:42.3%;top:40.42%;width:1.75%"></i><i class="rk rk-hover" style="left:27.32%;top:50.59%;width:1.367%"></i><i class="rk rk-hover" style="left:53.61%;top:22.34%;width:1.367%"></i><i class="rk rk-hover" style="left:33.5%;top:26.04%;width:1.367%"></i><i class="rk rk-hover" style="left:66.63%;top:31.36%;width:1.367%"></i><i class="rk rk-hover" style="left:41.44%;top:36.63%;width:1.033%"></i><i class="rk rk-hover" style="left:30.92%;top:41.5%;width:1.367%"></i><i class="rk rk-hover" style="left:47.3%;top:65.81%;width:1.367%"></i><span class="nm nm-hot" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+<span class="k-cursor" style="left:268px;top:160px"></span>
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:124px;width:240px;height:143px"></span>
+  <div class="k-annot-note" style="left:312px;top:40px;max-width:330px"><b>A note row</b> (proposed anatomy, framework-changes.md, "Notes panel: what a note's row shows"): one leading glyph, the kind of what the note is about; "About {targets}"; under it, the author and the full date and time, "Adam Powers, Sep 28 2026, 10:14", recorded automatically from the project's author setting. The name shows only because this project holds notes by two people; with one author the line is the date and time alone (state 11). No avatar: the app has no accounts. Then the text, three lines, and the citation. The row is a <b>Tree</b> row with a multi-line body, which compact-mantine's Tree does not have yet.<br><span class="k-annot-tag needs">Needs compact-mantine work</span></div>
+  <div class="k-annot-note" style="left:700px;top:40px;max-width:300px"><b>The citation carries the run's settings:</b> "Cites Betweenness (full graph, exact, unweighted)", the same words as that run's column header in the table, so a reader can tell which Betweenness the note relied on without opening anything. In the fourth study a note citing only "PageRank, full graph" left readers unable to say which damping, weight or direction it meant. The line wraps rather than cutting the settings off.</div>
+  <div class="k-annot-note" style="left:312px;top:296px;max-width:330px"><b>Hovered:</b> the row's background, and its overflow at the end of the About line (Edit note, Delete note; state 4); the date line under it is never covered. On the canvas, the linked hover: each of the 33 proteins carries the ring-5 hairline and the note's marker turns solid, so the reader sees where the note points before clicking. canvas-drawing.md 6 (ring 5, "hover, linked hover").<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+  <div class="k-annot-note" style="left:312px;top:470px;max-width:330px"><b>Rows about a definition</b> -- a run, a style layer, the graph -- light nothing on the canvas, because they have no place there. When the note is about a run and cites the same run, the row folds the two into its About line, which keeps the run's settings ("About Betweenness (full graph, exact, unweighted)").</div>
+  <div class="k-annot-note" style="left:700px;top:520px;max-width:250px"><b>Note markers</b> in note ink, never a data color, one per note target: at CDK1, and for the 33-protein set at its anchor member, the member with the most edges inside the set (here TP53, joined to all 32). Proposed (framework-changes.md, "Where a set's note marker sits"). canvas-drawing.md 6 and 12.<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+  <div class="k-annot-note" style="left:930px;top:640px;max-width:250px"><b>The graph's own note</b> in the nothing-selected inspector's Notes section. output-homes.md 3 ("the graph's own notes"). <b>Tree</b> row in a <b>ControlSection</b>.</div>
+  <div class="k-annot-note" style="left:700px;top:240px;max-width:300px"><b>Keyboard:</b> Tab goes Find, then the list (one tab stop; arrows move between rows), then the focused row's overflow. Enter on a row does what a click does. interface-templates.md 4 ("Tab order: field; list"); interaction-pattern-entries.md 9.</div>
+</div>
+</section>
+
+<!-- ============================ 3 Chosen ============================ -->
+<section class="sv" id="s3"><i class="aon" id="s3a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem" aria-selected="true">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 27 2026, 16:42</div>
+        
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness; the 33 proteins of TP53 neighborhood selected, each with the member ring; the note open to the right">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness; the 33 proteins of TP53 neighborhood selected, each with the member ring; the note open to the right">
+        <i class="rk rk-member" style="left:39.41%;top:52.02%;width:1.75%"></i><i class="rk rk-member" style="left:36.07%;top:57.27%;width:1.367%"></i><i class="rk rk-member" style="left:36.77%;top:54.71%;width:1.033%"></i><i class="rk rk-member" style="left:36.63%;top:61.58%;width:1.367%"></i><i class="rk rk-member" style="left:38.89%;top:57.19%;width:1.033%"></i><i class="rk rk-member" style="left:39.87%;top:57.74%;width:1.367%"></i><i class="rk rk-member" style="left:35.83%;top:59.51%;width:1.033%"></i><i class="rk rk-member" style="left:37.38%;top:59.38%;width:1.367%"></i><i class="rk rk-member" style="left:37.46%;top:56.23%;width:1.367%"></i><i class="rk rk-member" style="left:40.52%;top:59.01%;width:1.033%"></i><i class="rk rk-member" style="left:37.35%;top:58.08%;width:1.367%"></i><i class="rk rk-member" style="left:46.03%;top:63.91%;width:1.367%"></i><i class="rk rk-member" style="left:54.32%;top:50.19%;width:1.367%"></i><i class="rk rk-member" style="left:34%;top:57.27%;width:1.367%"></i><i class="rk rk-member" style="left:52.36%;top:51.19%;width:1.033%"></i><i class="rk rk-member" style="left:52.16%;top:46.41%;width:1.75%"></i><i class="rk rk-member" style="left:38.76%;top:59.51%;width:1.033%"></i><i class="rk rk-member" style="left:30.4%;top:27.16%;width:1.367%"></i><i class="rk rk-member" style="left:27.65%;top:46.14%;width:1.367%"></i><i class="rk rk-member" style="left:41.23%;top:23.06%;width:1.033%"></i><i class="rk rk-member" style="left:33.99%;top:28.21%;width:1.033%"></i><i class="rk rk-member" style="left:61.5%;top:34.84%;width:1.033%"></i><i class="rk rk-member" style="left:25.66%;top:47.25%;width:1.033%"></i><i class="rk rk-member" style="left:50.27%;top:21.66%;width:1.367%"></i><i class="rk rk-member" style="left:53.82%;top:47.38%;width:1.367%"></i><i class="rk rk-member" style="left:42.3%;top:40.42%;width:1.75%"></i><i class="rk rk-member" style="left:27.32%;top:50.59%;width:1.367%"></i><i class="rk rk-member" style="left:53.61%;top:22.34%;width:1.367%"></i><i class="rk rk-member" style="left:33.5%;top:26.04%;width:1.367%"></i><i class="rk rk-member" style="left:66.63%;top:31.36%;width:1.367%"></i><i class="rk rk-member" style="left:41.44%;top:36.63%;width:1.033%"></i><i class="rk rk-member" style="left:30.92%;top:41.5%;width:1.367%"></i><i class="rk rk-member" style="left:47.3%;top:65.81%;width:1.367%"></i><span class="nm nm-hot" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      <div class="k-popover ne" style="left:618px;top:118px">
+        <div class="k-popover-head">Note<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ne-body">
+          <div class="ne-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About TP53 neighborhood, 33 proteins</span></div>
+          <div class="k-secondary">Adam Powers, Sep 28 2026, 10:14</div>
+          <div class="nt-read">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">Betweenness</span><br><span class="k-secondary">full graph, exact, unweighted</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill"><span class="k-id">TP53</span>&nbsp;betweenness 0.114</span></div>
+        </div>
+      </div>
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow tr2"><span class="k-name">TP53 neighborhood</span><span class="k-secondary">Frozen set</span></span>
+      <span class="k-icon-btn" title="Select members"><svg class="k-i"><use href="../kit/icons.svg#target"/></svg></span><span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn" title="Add to set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span><span class="k-icon-btn" title="Set menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-row"><span class="k-secondary" style="width:88px">Created from</span><span class="k-grow">Neighbors of <span class="k-id">TP53</span></span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">proteins</span><span class="k-big">33</span></div><div class="k-metric"><span class="k-secondary">interactions</span><span class="k-big">59</span></div></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">33</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">TP53</span><span class="k-value">degree 32</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">UBC</span><span class="k-value">degree 21</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">RPS8</span><span class="k-value">degree 17</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">BRCA1</span><span class="k-value">degree 13</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">WRN</span><span class="k-value">degree 13</span></div>
+        <div class="k-row k-secondary">28 more</div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow" aria-selected="true"><div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div><div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <div class="k-annot-note" style="left:312px;top:40px;max-width:290px"><b>A click on the row</b> selects the note's targets and brings them into view: the set is the selection, the inspector shows it, and its Notes section shows this note, highlighted. output-homes.md 4 ("selecting a note selects its targets"). Selecting is not an undo step.</div>
+  <div class="k-annot-note" style="left:312px;top:176px;max-width:290px"><b>The note opens beside its targets</b> in the Note editor, clear of them, with the full text, its citation and its quoted value. The citation chip names the run and, under it, its settings; a click on it opens that run's details. interaction-patterns.md 2, note [c]. <b>PopoutPanel</b>.</div>
+  <div class="k-annot-note" style="left:312px;top:600px;max-width:290px"><b>The 33 proteins carry the member ring,</b> the precedence rule's form when no hull is drawn: a hull around members spread over half the canvas would cross most of the graph. canvas-drawing.md 6, Precedence.<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+  <div class="k-annot-note" style="left:930px;top:640px;max-width:250px"><b>Set inspector:</b> Created from, Statistics, Members (five by degree, then the rest), Notes. interface-specification.md 4.1, Set.</div>
+  <div class="k-annot-note" style="left:930px;top:380px;max-width:250px"><b>Other rows go elsewhere:</b> a run's note opens that run's editor at its Notes row; a style layer's, the layer's editor; the graph's, nothing selected. output-homes.md 4.</div>
+</div>
+</section>
+
+<!-- ============================ 4 Row menu ============================ -->
+<section class="sv" id="s4"><i class="aon" id="s4a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem" data-hover>
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" aria-pressed="true" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 27 2026, 16:42</div>
+        
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1; the 33 proteins of TP53 neighborhood carry the hover hairline">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1; the 33 proteins of TP53 neighborhood carry the hover hairline">
+        <i class="rk rk-hover" style="left:39.41%;top:52.02%;width:1.75%"></i><i class="rk rk-hover" style="left:36.07%;top:57.27%;width:1.367%"></i><i class="rk rk-hover" style="left:36.77%;top:54.71%;width:1.033%"></i><i class="rk rk-hover" style="left:36.63%;top:61.58%;width:1.367%"></i><i class="rk rk-hover" style="left:38.89%;top:57.19%;width:1.033%"></i><i class="rk rk-hover" style="left:39.87%;top:57.74%;width:1.367%"></i><i class="rk rk-hover" style="left:35.83%;top:59.51%;width:1.033%"></i><i class="rk rk-hover" style="left:37.38%;top:59.38%;width:1.367%"></i><i class="rk rk-hover" style="left:37.46%;top:56.23%;width:1.367%"></i><i class="rk rk-hover" style="left:40.52%;top:59.01%;width:1.033%"></i><i class="rk rk-hover" style="left:37.35%;top:58.08%;width:1.367%"></i><i class="rk rk-hover" style="left:46.03%;top:63.91%;width:1.367%"></i><i class="rk rk-hover" style="left:54.32%;top:50.19%;width:1.367%"></i><i class="rk rk-hover" style="left:34%;top:57.27%;width:1.367%"></i><i class="rk rk-hover" style="left:52.36%;top:51.19%;width:1.033%"></i><i class="rk rk-hover" style="left:52.16%;top:46.41%;width:1.75%"></i><i class="rk rk-hover" style="left:38.76%;top:59.51%;width:1.033%"></i><i class="rk rk-hover" style="left:30.4%;top:27.16%;width:1.367%"></i><i class="rk rk-hover" style="left:27.65%;top:46.14%;width:1.367%"></i><i class="rk rk-hover" style="left:41.23%;top:23.06%;width:1.033%"></i><i class="rk rk-hover" style="left:33.99%;top:28.21%;width:1.033%"></i><i class="rk rk-hover" style="left:61.5%;top:34.84%;width:1.033%"></i><i class="rk rk-hover" style="left:25.66%;top:47.25%;width:1.033%"></i><i class="rk rk-hover" style="left:50.27%;top:21.66%;width:1.367%"></i><i class="rk rk-hover" style="left:53.82%;top:47.38%;width:1.367%"></i><i class="rk rk-hover" style="left:42.3%;top:40.42%;width:1.75%"></i><i class="rk rk-hover" style="left:27.32%;top:50.59%;width:1.367%"></i><i class="rk rk-hover" style="left:53.61%;top:22.34%;width:1.367%"></i><i class="rk rk-hover" style="left:33.5%;top:26.04%;width:1.367%"></i><i class="rk rk-hover" style="left:66.63%;top:31.36%;width:1.367%"></i><i class="rk rk-hover" style="left:41.44%;top:36.63%;width:1.033%"></i><i class="rk rk-hover" style="left:30.92%;top:41.5%;width:1.367%"></i><i class="rk rk-hover" style="left:47.3%;top:65.81%;width:1.367%"></i><span class="nm nm-hot" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+<div class="k-menu" style="left:268px;top:152px;width:180px" role="menu">
+  <div class="k-menu-item" data-hover><span class="k-check-col"></span>Edit note</div>
+  <div class="k-menu-item"><span class="k-check-col"></span>Delete note<span class="k-shortcut">Delete</span></div>
+</div><span class="k-cursor" style="left:392px;top:176px"></span>
+<div class="an">
+  <div class="k-annot-note" style="left:470px;top:120px;max-width:300px"><b>The row's overflow</b> holds the note's two verbs, as Figma's comment row offers Edit and Delete: <b>Edit note</b> opens the note in the Note editor with its text focused; <b>Delete note</b> (also the Delete key on a focused row) removes it as one undo step, "Delete note", with no confirmation. Proposed (framework-changes.md, "Notes panel: a row's overflow holds Edit note and Delete note"). <b>ActionIcon</b> opening a <b>Menu</b>.<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+</div>
+</section>
+
+<!-- ============================ 5 Find ============================ -->
+<section class="sv" id="s5"><i class="aon" id="s5a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-focus><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg><span>Betweenness</span><span class="nt-caret"></span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by <mark>betweenness</mark> (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites <mark>Betweenness</mark> (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About <mark>Betweenness</mark> (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <span class="nm" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:90px;width:240px;height:30px"></span>
+  <div class="k-annot-note" style="left:312px;top:60px;max-width:320px"><b>Find</b> matches a note's text, the names of what it is about and the runs it cites, so "Betweenness" finds the note about the run and the note that cites it. The list narrows in place, newest first; matches are marked. interface-templates.md 4. <b>SearchInput</b>.</div>
+  <div class="k-annot-note" style="left:312px;top:210px;max-width:320px"><b>No kind filter.</b> Typing a run's, a set's or a protein's name already narrows the list by what notes are about, at the few dozen notes a project holds. A separate filter by kind is withdrawn until a study session shows readers failing to find notes by kind at 50 or more (framework-changes.md, "Notes panel: the target filter's choices").</div>
+</div>
+</section>
+
+<!-- ============================ 6 No hits ============================ -->
+<section class="sv" id="s6"><i class="aon" id="s6a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-focus><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg><span>MDM2</span><span class="nt-caret"></span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <span class="nm" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:124px;width:240px;height:772px"></span>
+  <div class="k-annot-note" style="left:312px;top:130px;max-width:320px"><b>No hits:</b> the list is blank. No sentence, no "No results": the query in the field is the explanation, and its x clears it. content-design.md 4 (Empty surface); interaction-pattern-entries.md 6.8.</div>
+</div>
+</section>
+
+<!-- ============================ 7 Out of date ============================ -->
+<section class="sv" id="s7"><i class="aon" id="s7a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        <div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">Earlier run</span><span class="nt-verb">Add current value</span></div>
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        <div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">Earlier run</span><span class="nt-verb">Add current value</span></div>
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 27 2026, 16:42</div>
+        
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About DNA repair, 30 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 11:47</div>
+        <div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">Detached</span></div><div class="nt-explain">The set this note pointed to was changed.</div><div class="nt-explain nt-verb">Bring back DNA repair (30 proteins, as kept Sep 24)</div>
+        <div class="nt-body">Rule set on module = DNA repair: the candidate list for the replicate screen.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <span class="nm" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <div class="k-annot-note" style="left:312px;top:40px;max-width:330px"><b>Betweenness was re-run</b> with confidence as the weight, so the run both notes relied on is no longer current. Both citations still read "unweighted", so the reader sees at once that the current run (weighted by confidence) is not the one relied on. The first note's Cites line carries the mark; the second note is about that same run, so the mark sits under its folded About line. The mark is the glossary's "Earlier run" (glossary.md 10); its one verb is Add current value, which adds the current run's citation beside the earlier one and keeps the earlier run and the value it quoted, as one undo step, "Edit note". It never rewrites what the note relied on (framework-changes.md, "Renamed strings on published keys"). (The canvas still shows the unweighted drawing; the kit has no weighted one.)<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+  <div class="k-annot-note" style="left:700px;top:40px;max-width:300px"><b>The quoted value</b> (TP53 betweenness 0.114) is not on the row; the Note editor marks it "now {value}" when the live value differs (screens/take-a-note.html, state 8). The row's text stays as written: a note is evidence and is never rewritten.</div>
+  <span class="k-annot-box" style="left:58px;top:710px;width:240px;height:172px"></span>
+  <div class="k-annot-note" style="left:312px;top:410px;max-width:330px"><b>A changed target keeps its note.</b> The rule set "DNA repair" now picks different members than when the note was written; its note is marked "Detached", the line under it says what happened, "The set this note pointed to was changed.", and the verb says exactly what it brings back: "Bring back DNA repair (30 proteins, as kept Sep 24)", the members as they were when the note was written. The note still says what it was about. conceptual-model.md 6; glossary.md 10; framework-changes.md, "Notes panel: Detached says what happened, and every time gives its full date". When a row has several marks it shows the most urgent one; a mark sits under the line it qualifies.<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+</div>
+</section>
+
+<!-- ============================ 8 Filtered ============================ -->
+<section class="sv" id="s8"><i class="aon" id="s8a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Filtered: 33 of 300 nodes<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem" data-dim>
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 27 2026, 16:42</div>
+        <div class="nt-mark"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#funnel"/></svg><span class="nt-state">filtered out, Neighbors of TP53</span></div>
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="img/notes-ppi-tp53-light.svg" alt="The protein graph filtered to TP53 and its 32 neighbors, colored by module; a note marker at TP53">
+        <img class="k-dark-only" src="img/notes-ppi-tp53-dark.svg" alt="The protein graph filtered to TP53 and its 32 neighbors, colored by module; a note marker at TP53">
+        <span class="nm" style="left:50.6%;top:47.1%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span>
+      </div>
+      
+      
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">33</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">59</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-stack"><span class="k-chit" style="background:#009E73"></span><span class="k-chit" style="background:#56B4E9"></span><span class="k-chit" style="background:#D55E00"></span></span><span class="k-ellipsis">Module color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:54px;width:240px;height:30px"></span>
+  <div class="k-annot-note" style="left:312px;top:40px;max-width:330px"><b>The filter chip scopes the graph, not the list.</b> Every note stays listed whatever the filter; a note whose element targets the filter leaves out entirely carries the glossary's mark "filtered out", naming the step, and reads in secondary ink. Its click opens the note; its marker is not drawn. Proposed (framework-changes.md, "Notes panel: the filter chip does not hide notes").</div>
+  <div class="k-annot-note" style="left:312px;top:220px;max-width:330px">Notes about definitions (a run, a style layer, the graph) are never filtered out. A set partly left out keeps no mark: here all 33 are kept.</div>
+  <div class="k-annot-note" style="left:930px;top:520px;max-width:250px">The inspector's Statistics read the filtered graph, 33 proteins and 59 interactions, as every number on screen does under the chip (interface-templates.md 7). Its other readings are left out of this mock.</div>
+</div>
+</section>
+
+<!-- ============================ 9 View only ============================ -->
+<section class="sv" id="s9"><i class="aon" id="s9a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><span class="vo">View only</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem" data-hover>
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 27 2026, 16:42</div>
+        
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span></div>
+        <div class="nt-when k-num">Lin Chen, Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span></div>
+        <div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1; the 33 proteins of TP53 neighborhood carry the hover hairline">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1; the 33 proteins of TP53 neighborhood carry the hover hairline">
+        <i class="rk rk-hover" style="left:39.41%;top:52.02%;width:1.75%"></i><i class="rk rk-hover" style="left:36.07%;top:57.27%;width:1.367%"></i><i class="rk rk-hover" style="left:36.77%;top:54.71%;width:1.033%"></i><i class="rk rk-hover" style="left:36.63%;top:61.58%;width:1.367%"></i><i class="rk rk-hover" style="left:38.89%;top:57.19%;width:1.033%"></i><i class="rk rk-hover" style="left:39.87%;top:57.74%;width:1.367%"></i><i class="rk rk-hover" style="left:35.83%;top:59.51%;width:1.033%"></i><i class="rk rk-hover" style="left:37.38%;top:59.38%;width:1.367%"></i><i class="rk rk-hover" style="left:37.46%;top:56.23%;width:1.367%"></i><i class="rk rk-hover" style="left:40.52%;top:59.01%;width:1.033%"></i><i class="rk rk-hover" style="left:37.35%;top:58.08%;width:1.367%"></i><i class="rk rk-hover" style="left:46.03%;top:63.91%;width:1.367%"></i><i class="rk rk-hover" style="left:54.32%;top:50.19%;width:1.367%"></i><i class="rk rk-hover" style="left:34%;top:57.27%;width:1.367%"></i><i class="rk rk-hover" style="left:52.36%;top:51.19%;width:1.033%"></i><i class="rk rk-hover" style="left:52.16%;top:46.41%;width:1.75%"></i><i class="rk rk-hover" style="left:38.76%;top:59.51%;width:1.033%"></i><i class="rk rk-hover" style="left:30.4%;top:27.16%;width:1.367%"></i><i class="rk rk-hover" style="left:27.65%;top:46.14%;width:1.367%"></i><i class="rk rk-hover" style="left:41.23%;top:23.06%;width:1.033%"></i><i class="rk rk-hover" style="left:33.99%;top:28.21%;width:1.033%"></i><i class="rk rk-hover" style="left:61.5%;top:34.84%;width:1.033%"></i><i class="rk rk-hover" style="left:25.66%;top:47.25%;width:1.033%"></i><i class="rk rk-hover" style="left:50.27%;top:21.66%;width:1.367%"></i><i class="rk rk-hover" style="left:53.82%;top:47.38%;width:1.367%"></i><i class="rk rk-hover" style="left:42.3%;top:40.42%;width:1.75%"></i><i class="rk rk-hover" style="left:27.32%;top:50.59%;width:1.367%"></i><i class="rk rk-hover" style="left:53.61%;top:22.34%;width:1.367%"></i><i class="rk rk-hover" style="left:33.5%;top:26.04%;width:1.367%"></i><i class="rk rk-hover" style="left:66.63%;top:31.36%;width:1.367%"></i><i class="rk rk-hover" style="left:41.44%;top:36.63%;width:1.033%"></i><i class="rk rk-hover" style="left:30.92%;top:41.5%;width:1.367%"></i><i class="rk rk-hover" style="left:47.3%;top:65.81%;width:1.367%"></i><span class="nm nm-hot" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Adam Powers, Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <div class="k-annot-note" style="left:312px;top:40px;max-width:330px"><b>View only</b> (an earlier data version, or a shared read-only project): the chip beside the name, and no edit affordances. Gone, not disabled: the Path tool from the toolbar, the "+" of the Style stack and Notes sections, Run layout and the Overview's Replace, and the row's overflow with Edit note and Delete note. Rows still open their notes and select their targets. state-matrix.md, Notes panel, Read-only; framework-changes.md, "the canvas shows the project without editing tools".</div>
+</div>
+</section>
+
+<!-- ============================ 10 About first ============================ -->
+<section class="sv" id="s10"><i class="aon" id="s10a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="nt-empty"><div>No notes yet.</div><div>A note can be about a selection, a set, a result or the whole graph.</div><div><span class="k-btn k-btn-secondary"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>Add note...</span></div><div class="k-secondary">Notes are saved in the project and travel in project files and findings reports.</div></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-plain-light.svg" alt="300 human proteins and 1,262 interactions, nothing selected; a new note asks what it is about">
+        <img class="k-dark-only" src="../kit/canvas/ppi-plain-dark.svg" alt="300 human proteins and 1,262 interactions, nothing selected; a new note asks what it is about">
+        
+      </div>
+      <div class="k-popover ne" style="left:617px;top:56px">
+        <div class="k-popover-head">New note<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ne-body">
+          <div class="nt-line"><span class="k-caption">About:</span><span class="k-field k-grow" data-focus><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg>The graph<span class="k-grow"></span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+          <div class="k-field ne-text" data-placeholder>Write a note</div>
+        </div>
+      </div>
+      <div class="k-menu" style="left:625px;top:150px;width:272px" role="listbox" aria-label="About">
+        <div class="k-menu-item" role="option" aria-selected="true" data-hover><span class="k-check-col"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#check"/></svg></span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg>The graph</div>
+        <div class="k-menu-sep" role="presentation"></div>
+        <div class="k-menu-label" role="presentation">Kept sets</div>
+        <div class="k-menu-item" role="option" aria-selected="false"><span class="k-check-col"></span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>TP53 neighborhood<span class="k-shortcut">33 proteins</span></div>
+        <div class="k-menu-item" role="option" aria-selected="false"><span class="k-check-col"></span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>DNA repair<span class="k-shortcut">30 proteins</span></div>
+        <div class="k-menu-sep" role="presentation"></div>
+        <div class="k-menu-item" role="option" aria-selected="false" aria-disabled="true"><span class="k-check-col"></span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#mouse-pointer-2"/></svg>Select something first</div>
+      </div>
+      
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Notes<span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <div class="k-annot-note" style="left:312px;top:60px;max-width:330px"><b>Add note... with nothing selected</b> opens the Note editor at the canvas's top right with focus on <b>About:</b> and its list open, before a word is typed: the whole graph, each kept set with its member count, and <b>Select something first</b>, which closes the editor and leaves the canvas to pick from. Arrow keys and Enter choose; Tab moves on to the text with the graph kept. A note meant for a set therefore cannot land on the whole graph unseen. <b>Popover</b> with a <b>Select</b> (its dropdown grouped: the graph, Kept sets, the escape).<br><span class="k-annot-tag needs">Needs graphty-element work</span></div>
+  <div class="k-annot-note" style="left:312px;top:300px;max-width:330px"><b>The next Add note... keeps the same subject.</b> After a note about TP53 neighborhood is added, the next Add note... with nothing selected opens with About: already reading TP53 neighborhood, focus still on it, so a run of notes about one set costs one choice. A selection always wins over the remembered subject. Proposed in framework-changes.md, "Notes: Add a note with nothing selected asks what the note is about".</div>
+  <div class="k-annot-note" style="left:312px;top:470px;max-width:330px"><b>Why.</b> In the third study the empty panel's button, read with nothing selected, wrote a note about the whole graph for 1 of 2 first-click participants, and another pinned his reason to one member when he meant the kept set. "Kept sets" uses the same word as the rest of the app: a set is kept, and a frozen set is one kind of kept set.</div>
+</div>
+</section>
+
+<!-- ============================ 11 One author ============================ -->
+<section class="sv" id="s11"><i class="aon" id="s11a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div>
+    <div class="k-rail-sep"></div>
+    <div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div>
+    <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
+  </nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span></div>
+    <div class="k-scroll" role="tree" aria-label="Notes, newest first">
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg></span><span class="nt-about-t">About TP53 neighborhood, 33 proteins</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Sep 28 2026, 10:14</div>
+        
+        <div class="nt-body">TP53 is the only DNA repair protein in the top five by betweenness (0.114, after MAPK1). Its 32 partners are the knockdown panel.</div>
+        <div class="nt-cites">Cites Betweenness (full graph, exact, unweighted)</div>
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg></span><span class="nt-about-t">About Betweenness (full graph, exact, unweighted)</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Sep 28 2026, 10:09</div>
+        
+        <div class="nt-body">Unweighted. 10 proteins score 0, including the 2 isolated ones.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg></span><span class="nt-about-t k-id">About CDK1</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Sep 27 2026, 16:42</div>
+        
+        <div class="nt-body">Most down-regulated of the ten best-connected proteins (log2 fold change -1.92). Check against the second replicate before it goes in the figure.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><span class="k-chit" style="background:#D55E00"></span></span><span class="nt-about-t">About Module color</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Sep 24 2026, 11:30</div>
+        
+        <div class="nt-body">Okabe-Ito in module order, so DNA repair stays vermilion in every figure of the paper.</div>
+        
+        
+      </div>
+      <div class="nt-row" role="treeitem">
+        <div class="nt-about"><span class="nt-lead"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg></span><span class="nt-about-t">About the graph Human protein interactions</span><span class="nt-trail"><span class="k-icon-btn" title="Note menu"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></div>
+        <div class="nt-when k-num">Sep 24 2026, 09:05</div>
+        
+        <div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div>
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/ppi-betweenness-light.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <img class="k-dark-only" src="../kit/canvas/ppi-betweenness-dark.svg" alt="300 proteins colored by betweenness, the 12 hubs labeled; note markers at TP53 and CDK1">
+        <span class="nm" style="left:39.41%;top:52.02%" title="1 note, about TP53 neighborhood"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="nm" style="left:48.63%;top:26.45%" title="1 note, about CDK1"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="lb" style="left:48.63%;top:26.45%">CDK1</span>
+      </div>
+      
+      <div class="k-legend-card" style="width:236px"><div class="k-lg-title">Betweenness color <span class="k-secondary">betweenness</span></div>
+          <span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div>
+          <div class="k-secondary">Log scale over x / 0.000077; the 10 proteins at 0 take the lightest color.</div><div class="lg-gap"></div><div class="k-lg-title">Hub labels</div>
+          <div class="k-lg-row"><span class="textchip">Aa</span>Labels on degree 17 to 34<span class="k-value">12</span></div><div class="lg-gap"></div><div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow"><span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li><li class="k-item"><span class="textchip">Aa</span><span class="k-ellipsis">Hub labels</span></li><li class="k-item"><span class="k-ramp k-ramp-measure" style="width:16px"></span><span class="k-ellipsis">Betweenness color</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note..."><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-irow"><div class="nt-body">ppi-core-300.graphml. Edge scores are combined confidence, already cut at 0.4 upstream.</div><div class="nt-when k-num">Sep 24 2026, 09:05</div></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:112px;width:240px;height:560px"></span>
+  <div class="k-annot-note" style="left:312px;top:60px;max-width:330px"><b>One author: no names.</b> The same notes in a project where every note was written under the same author setting. Each row's second line is the date and time alone, "Sep 28 2026, 10:14", and so is the inspector's. The name appears on every row as soon as a note by a second author arrives, for example when a colleague's project file is merged or a shared project is edited under another author setting. A note written with no author setting counts as a blank author, so a project with only blank authors shows no names either.</div>
+  <div class="k-annot-note" style="left:312px;top:330px;max-width:330px"><b>Where the name is always seen:</b> the Note editor says "Saving as: {author}. Change..." while a note is written (screens/take-a-note.html), so the writer can check the setting without every row repeating one name. Owner decision, 2026-09-28 (owner-feedback.md): each note records its author and time from the project's author setting as given, and the author is shown only when a project holds more than one.</div>
+</div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undo and ways back</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  body { min-width: 1440px; margin: 0; }
+  .u-bar { width: 1440px; margin: 0 auto; box-sizing: border-box; padding: 12px 20px 8px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; }
+  .u-bar h1 { font-size: 15px; line-height: 25px; font-weight: 600; margin: 0 8px 0 0; }
+  .u-bar .k-tabs .k-tab { cursor: pointer; }
+  .u-bar label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .u-bar select { font: inherit; }
+  .u-frame { width: 1440px; margin: 0 auto; box-shadow: 0 0 0 1px var(--cm-border); }
+  .u-app { width: 1440px; height: 900px; position: relative; }
+  .u-notes { width: 1440px; margin: 0 auto; box-sizing: border-box; padding: 16px 20px 48px; font-size: 13px; line-height: 20px; color: var(--cm-text-secondary); }
+  .u-notes p, .u-notes li { max-width: 120ch; margin: 0 0 8px; }
+  .u-mock-msg { color: var(--cm-text-secondary); flex-basis: 100%; min-height: 20px; }
+  .u-app .k-menu-item, .u-app .k-chip, .u-app .k-toast-action, .u-app .k-rail-btn, .u-app .u-act, .u-app .k-stage img, .u-app .k-check { cursor: pointer; }
+  .u-app .k-menu-item[aria-disabled="true"] { cursor: default; }
+  .u-app .k-scope { display: flex; align-items: center; gap: 8px; }
+  .u-app .k-scope .k-btn { height: 20px; padding: 0 6px; }
+  .u-app .k-typerow .k-icon-btn:first-of-type { margin-inline-start: auto; }
+  /* The canonical steps row, copied unchanged from screens/filter-chip.html (same classes, same markup):
+     checkbox, rule, overflow on hover; then what the step took out and left; then, when the step reads a
+     graph earlier steps changed, one neutral line saying what it keeps. Keep the two in step. */
+  .fc-pop { left: 306px; top: 8px; }
+  .fc-pop .k-popover-head .k-icon-btn { cursor: pointer; }
+  .fc-step { cursor: default; gap: 4px; padding-right: 4px; height: auto; flex-wrap: wrap; padding-top: 4px; padding-bottom: 6px; row-gap: 0; align-items: flex-start; }
+  .fc-step:focus-visible { outline: none; }
+  .fc-step:focus-visible::before { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+  .fc-step[aria-selected="true"]::before { background: var(--cm-bg-selected); }
+  .fc-cb { display: grid; place-items: center; width: 16px; height: 24px; margin-left: -2px; margin-right: 2px; cursor: pointer; touch-action: none; }
+  .fc-text { display: flex; gap: 4px; min-width: 0; flex: 1; }
+  .fc-out { color: var(--cm-text-secondary); flex: none; line-height: 16px; padding: 4px 0; }
+  .fc-rule { min-width: 0; line-height: 16px; padding: 4px 0; }
+  .fc-tail { display: flex; align-items: center; margin-left: auto; flex: none; width: 24px; height: 24px; }
+  .fc-count, .fc-note { flex-basis: 100%; padding-left: 20px; line-height: 16px; }
+  .fc-count { color: var(--cm-text); }
+  .fc-note { color: var(--cm-text-secondary); }
+  .fc-step[data-off] .fc-count { color: var(--cm-text-secondary); }
+  .fc-step[data-off] .fc-note { display: none; }
+  .fc-more { visibility: hidden; cursor: pointer; }
+  .fc-step:hover .fc-more, .fc-step:focus-within .fc-more, .fc-step:focus .fc-more, .fc-more[aria-expanded="true"] { visibility: visible; }
+  .fc-add { display: flex; align-items: center; gap: 8px; height: 32px; margin: 0 8px; padding: 0 8px; border-radius: 5px; color: var(--cm-text-secondary); cursor: pointer; }
+  .u-app .k-check:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -5px; }
+  .u-app .k-toast-action:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  body.study .u-bar, body.study .u-notes, body.study .u-proposed, html[data-study] .u-bar, html[data-study] .u-notes, html[data-study] .u-proposed { display: none; }
+  body:not(:has(#annot:checked)) .k-annot-note, body:not(:has(#annot:checked)) .k-annot-box, body.study .k-annot-note, body.study .k-annot-box { display: none; }
+</style>
+</head>
+<body>
+<div class="u-bar">
+  <h1>Undo and ways back</h1>
+  <span class="k-tabs" role="tablist" id="tabs">
+    <span class="k-tab" role="tab" data-state="s0">0. Before the stray click</span>
+    <span class="k-tab" role="tab" data-state="s3">1. After the wrong step</span>
+    <span class="k-tab" role="tab" data-state="restore">1b. Ctrl+Z: selection back</span>
+    <span class="k-tab" role="tab" data-state="notice">1n. The line only (other arm)</span>
+    <span class="k-tab" role="tab" data-state="s2">2. One undo</span>
+    <span class="k-tab" role="tab" data-state="list">2b. Show in steps</span>
+    <span class="k-tab" role="tab" data-state="s1">3. Two undos: the good step off too</span>
+    <span class="k-tab" role="tab" data-state="tick">3b. Good step ticked again</span>
+    <span class="k-tab" role="tab" data-state="off">4. Wrong step off</span>
+    <span class="k-tab" role="tab" data-state="fix">5. Done</span>
+  </span>
+  <label><input type="checkbox" id="left" checked> Left panel open</label>
+  <label><input type="checkbox" id="menu"> Edit menu open</label>
+  <label>Arm <select id="arm"><option value="undo">The line, and Ctrl+Z restores</option><option value="notice">The line only</option></select></label>
+  <label><input type="checkbox" id="annot" checked> Annotations</label>
+  <label>Theme <select id="theme"><option value="">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+  <a href="#study" id="studylink">Participant view</a>
+  <span class="u-mock-msg" id="msg" aria-live="polite"></span>
+</div>
+<div class="u-frame"><div class="k-app u-app" id="app"></div></div>
+<div class="u-notes">
+  <p><b>For the facilitator only; never show this part to a participant.</b> Les Miserables (<span data-fx="datasets.lesmis.nodes">77</span> characters) has been narrowed in three filter steps: keep characters with at least 2 connections, keep characters with at least 5 connections, leave out group 8 (the students at the barricade). The middle step is the mistake; the first and last are work to keep. A stray click on empty canvas has also just cleared a hand-built selection of Valjean and the <span data-fx="datasets.lesmis.filterSteps.valjeanNeighborsAfterStep3">17</span> characters beside him. The table was on its Selected scope, so its rows stay, marked as the selection just cleared.</p>
+  <p><b>How a cleared selection comes back.</b> Clearing a selection (Esc, or a click on empty canvas) keeps it in one slot and says so on the undo line: "Selection cleared (<span class="u-nsel">18</span> nodes)" with <b>Bring it back</b>. While the slot holds it and nothing undoable has happened since, Ctrl+Z brings it back instead of undoing a filter step, and Edit &gt; Undo says so: "Undo Restore selection (<span class="u-nsel">18</span> nodes)". The line then reads "Selection restored (<span class="u-nsel">18</span> nodes)". Restoring never touches the undo or Redo lists, so a Redo waiting before the stray click is still there, and Ctrl+Shift+Z never clears the selection again. Any new selection or any undoable change (a tick, a delete, an Undo or a Redo) empties the slot. There is no separate command or key for it. Both lines are the undo line's own message with a parameter, and the slot belongs to graphty-element's history, so every page that embeds the graph gets the same behavior. <b>The other arm</b> (Arm: the line only) draws the same line and Bring it back, but Ctrl+Z always undoes the last filter step; the next study compares the two in separate sessions.</p>
+  <p><b>How undo works here.</b> Undo never removes a filter step. Undoing a step unticks it: its row stays in the steps list, turned off, and ticking it again brings it back at any time, even after Redo is gone. Only Delete step, on a row's menu, removes a step. Ticking a step on or off is an ordinary undoable change, and like any change it clears Redo; nothing is lost, because the row stays. Every Undo and Redo shows one line in the notice area above the toolbar, "Undone: Filter out group 8" with <b>Show in steps</b>, whether or not the filter chip is in view. The line is announced politely and never takes focus; its action opens the steps list with focus on that step's row. It stays until the next change (a tick, a delete, a selection change or Show in steps), never on a timer, and Undos in a row add to it: after two it reads "Undone: Filter out group 8 and Filter to degree &gt;= 5". The steps list is the filter chip's own list, row for row.</p>
+  <p><b>Participant view.</b> No bar, no notes, no annotations, starting in state 1. Give the task aloud, in these words: "After your last few actions the numbers changed in a way you did not expect. Get back to where you were, without losing work you meant to keep." Do not name any menu, button or key.</p>
+  <p><b>What to record.</b> Whether the selection comes back first (Ctrl+Z or Bring it back) or after a filter change, which empties the slot and loses it; the first thing they reach for (the undo key, Edit, the chip, the table's scope line, the rail); whether they read the line after the first Undo and see that it names <b>Filter out group 8</b>, the step worth keeping; whether they find the steps list, and how (the chip or the line's action); whether they tick group 8 back on or press Redo; and the end state. Done is state 5: <b><span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes, 2 of 3 steps</b> (the degree step off, group 8 on) with the same characters selected again. Also run once with the left panel closed.</p>
+  <p><b>Keys.</b> Ctrl+Z undo (Cmd+Z on a Mac). Redo is Ctrl+Shift+Z, and also Ctrl+Y off macOS (Cmd+Shift+Z on a Mac). While a cleared selection is held, Ctrl+Z restores it first; the next Ctrl+Z undoes the last filter step. Esc closes a menu, then the steps list, then clears the selection; a click on empty canvas clears it too. In the steps list, Up and Down move between steps and Space turns the focused step off or on. The line stays until the next change. Turning off the first step (degree &gt;= 2) is not drawn in this mock.</p>
+  <p>Related: <a href="../flows/undo-and-ways-back.html">Undo and the other ways back</a> (the flow), <a href="filter-chip.html">the filter chip and its steps</a>, <a href="filter-steps-and-undo.html">Filter steps and the ways back</a> (static states) and <a href="inspector.html">the inspector</a>.</p>
+</div>
+<script>
+const I = (n, c = "k-i") => `<svg class="${c}"><use href="../kit/icons.svg#${n}"/></svg>`;
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = MAC ? "Cmd" : "Ctrl";
+const STEPS = [
+  { kind: "Filter to", rule: "degree &gt;= 2", name: "Filter to degree &gt;= 2" },
+  { kind: "Filter to", rule: "degree &gt;= 5", name: "Filter to degree &gt;= 5", reads: 5 },
+  { kind: "Filter out", rule: "group 8", name: "Filter out group 8" },
+];
+const C = { 1: "#0072B2", 2: "#E69F00", 3: "#D55E00", 4: "#009E73", 5: "#CC79A7", 8: "#56B4E9" };
+// Every number below is read from kit/fixtures.json (datasets.lesmis.filterSteps) when the page
+// loads; nothing is typed here. FS: per state, nodes, edges, components, density, and rows as
+// [label, group, degree on the filtered graph, full-graph degree, betweenness (full-graph run)].
+let FS, LEGEND, SEL_GROUPS, SELECTED, NSEL, NN;
+function fromFixtures(L) {
+  const F = L.filterSteps;
+  const rows = (list) => list.map((r) => [r.label, r.group, r.degree, r.fullDegree, r.betweenness]);
+  const st = (b) => ({ n: b.nodes, e: b.edges, c: b.components, d: b.density, top: rows(b.top), sel: rows(b.selection) });
+  FS = { 1: st(F.byStep[0]), 2: st(F.byStep[1]), 3: st(F.byStep[2]), off: st(F.step2OffStats) };
+  // Legends: the four largest groups, then "N more".
+  const legend = (groups) => {
+    const g = Object.entries(groups).map(([k, n]) => [+k, n]).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    return [...g.slice(0, 4), ...(g.length > 4 ? [`${g.length - 4} more`] : [])];
+  };
+  LEGEND = { 1: legend(F.byStep[0].groups), 2: legend(F.byStep[1].groups), 3: legend(F.byStep[2].groups), off: legend(F.step2OffStats.groups) };
+  SEL_GROUPS = Object.entries(F.selectionGroups).map(([k, n]) => [+k, n]).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+  SELECTED = new Set(FS[3].sel.map((r) => r[0]));
+  NSEL = F.valjeanNeighborsAfterStep3 + 1;
+  NN = L.nodes;
+  const first = F.steps[0].replace(/^Filter to /, "").replace(/>/g, "&gt;");
+  Object.assign(STEPS[0], { rule: first, name: `Filter to ${first}`, reads: Number(first.match(/\d+$/)[0]) });
+}
+const DRAWING = { 1: "step1", 2: "step2", 3: "step3", off: "step2off" };
+
+// The model. steps: the filter list, in order, each on or off; undo never removes a row. hist and
+// redo: undo entries, each "add" (a filter step was added; undoing it unticks the row), "toggle"
+// (a step's checkbox) or "del" (Delete step, the only way a row leaves). sel: whether the hand-built
+// selection is on; slot: true while a cleared selection is held (graphty-element's history, outside
+// the undo and Redo lists); back: it was restored. arm: "undo" (Ctrl+Z restores from the slot) or
+// "notice" (only the line's Bring it back does). notice: the undo line, {verb, names, is, text,
+// action}; shown: the steps the line named.
+const S = { steps: [], hist: [], redo: [], sel: false, slot: false, back: false, scope: "sel", notice: null, rmenu: null, menu: false, hmenu: false, pop: false, left: true, arm: "undo", tab: null, focus: null, shown: null };
+
+// Which fixture state the on steps make; null when the first step is off (not drawn in this mock).
+function keyOf(steps) {
+  const on = steps.filter((s) => s.on).map((s) => s.i).join(",");
+  return { "0,1,2": "3", "0,1": "2", "0": "1", "0,2": "off" }[on] ?? null;
+}
+const label = (e) => e.t === "add" ? STEPS[e.i].name : e.t === "del" ? `Delete step ${STEPS[e.i].name}` : `Turn ${e.off ? "off" : "on"} step ${STEPS[e.i].name}`;
+// Ctrl+Z restores only in the "undo" arm, only while the slot holds a cleared selection.
+const restoring = () => S.arm === "undo" && S.slot && !S.sel;
+function say(t) { document.getElementById("msg").textContent = t; }
+
+// Undoing "add" unticks the row and Redo ticks it again; the row never leaves the list.
+function apply(e, forward) {
+  if (e.t === "del") { if (forward) S.steps.splice(e.at, 1); else S.steps.splice(e.at, 0, { i: e.i, on: e.on }); return; }
+  const s = S.steps.find((x) => x.i === e.i);
+  s.on = e.t === "add" ? forward : forward ? !e.off : e.off;
+}
+// One line on every undo and redo, whether or not the chip or the list is in view. Polite; it never
+// takes focus. It stays until the next change (a tick, a delete, a selection change, Show in steps),
+// never on a timer. Undos in a row add to it, so a second Undo names both steps instead of replacing
+// the first message unread (framework-changes.md, "the undo line stays until the next change").
+const joinNames = (a) => a.length < 2 ? a[0] : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`;
+function notice(verb, es) {
+  const keep = S.notice?.verb === verb ? S.notice : { verb, names: [], is: [] };
+  S.notice = { verb, names: [...keep.names, ...es.map(label)], is: [...keep.is, ...es.map((e) => e.i)] };
+  S.notice.text = `${verb}: ${joinNames(S.notice.names)}`;
+  S.notice.action = "Show in steps"; S.notice.act = "show";
+  say(`Heard, politely: "${S.notice.text.replace(/&gt;/g, ">")}. Show in steps"`);
+}
+// The same line (graphty.undo.done) with the selection as its parameter: cleared, or restored.
+function selNotice(verb) {
+  S.notice = verb === "cleared"
+    ? { verb, names: [], is: [], text: `Selection cleared (${NSEL} nodes)`, action: "Bring it back", act: "restore" }
+    : { verb, names: [], is: [], text: `Selection restored (${NSEL} nodes)` };
+  // Spoken as on every page: the key, not the button's words ("Selection cleared (3 nodes). Ctrl+Z brings it back.").
+  say(`Heard, politely: "${S.notice.text}.${verb === "cleared" ? ` ${MOD}+Z brings it back.` : ""}"`);
+}
+
+const act = {
+  undo(k = 1, fromHistory = false) {
+    // While a cleared selection is held, Ctrl+Z (and Edit > Undo) brings it back and nothing else.
+    if (!fromHistory && restoring()) return act.restore();
+    const es = S.hist.slice(-k).reverse();
+    if (es.some((e) => e.t === "add" && e.i === 0)) { say(`This mock stops at one step: undoing ${STEPS[0].name.replace("&gt;", ">")} is not drawn.`); return false; }
+    es.forEach((e) => { S.hist.pop(); apply(e, false); S.redo.push(e); });
+    S.slot = false;
+    notice("Undone", es);
+    return true;
+  },
+  redo() {
+    if (!S.redo.length) return false;
+    const e = S.redo.pop(); apply(e, true); S.hist.push(e);
+    S.slot = false;
+    notice("Redone", [e]);
+    return true;
+  },
+  toggle(i) { // a new undoable change: clears Redo
+    if (i === 0) return false;
+    const s = S.steps.find((x) => x.i === i);
+    s.on = !s.on; S.hist.push({ t: "toggle", i, off: !s.on }); S.redo = []; S.shown = null; S.slot = false; S.focus = i; S.notice = null;
+    return true;
+  },
+  del(i) { // Delete step: the only way a row leaves; one undo entry
+    if (i === 0) return false;
+    const at = S.steps.findIndex((x) => x.i === i), s = S.steps[at];
+    const e = { t: "del", i, at, on: s.on }; apply(e, true); S.hist.push(e); S.redo = []; S.shown = null; S.slot = false;
+    S.focus = S.steps[Math.min(at, S.steps.length - 1)].i;
+    return true;
+  },
+  show() { // the line's action: open the steps list, focus on the first step it named; every named row marked
+    const is = S.notice.is.filter((i) => S.steps.some((x) => x.i === i));
+    S.left = true; S.pop = true; S.shown = is; S.focus = is[0]; S.notice = null;
+    return true;
+  },
+  restore() { // from the one slot; never touches the undo or Redo lists
+    if (!S.slot || S.sel) return false;
+    S.sel = true; S.slot = false; S.back = true;
+    selNotice("restored");
+    return true;
+  },
+  clear() { // Esc or a click on empty canvas: the selection goes into the slot
+    if (!S.sel) return false;
+    S.sel = false; S.slot = true; S.back = false;
+    selNotice("cleared");
+    return true;
+  },
+  filtered() { S.scope = "filtered"; return true; },
+};
+function run(name, arg, arg2) {
+  say("");
+  if (!act[name](arg, arg2)) { render(); return; }
+  S.menu = false; S.hmenu = false; S.rmenu = null; S.tab = null;
+  if (!["undo", "redo", "restore", "clear"].includes(name)) S.notice = null; // any other change ends the line (go() calls act directly)
+  render();
+}
+
+function menuHtml() {
+  const u = restoring() ? ` Restore selection (${NSEL} nodes)` : S.hist.length ? " " + label(S.hist[S.hist.length - 1]) : null, r = S.redo.length ? label(S.redo[S.redo.length - 1]) : null;
+  const chev = `<span class="k-sub">${I("chevron-right", "k-i k-i-sm")}</span>`;
+  const sub = (t, x = "") => `<div class="k-menu-item"${x}><span class="k-check-col"></span>${t}${chev}</div>`;
+  // Newest first; choosing one reverses it and every newer one, and says how many.
+  const hist = S.hist.map((e, j) => ({ e, k: S.hist.length - j })).reverse().map(({ e, k }) => {
+    const stop = e.t === "add" && e.i === 0;
+    return `<div class="k-menu-item" role="menuitem" data-described data-act="undo" data-k="${k}" data-hist${stop ? " data-not-in-mock" : ""}><span class="k-check-col"></span><span>${label(e)}</span></div>`;
+  }).join("");
+  return `<div class="k-menu" style="left:52px;top:36px;min-width:200px" role="menu" aria-label="Main menu">
+<div class="k-menu-item" role="menuitem" data-not-in-mock><span class="k-check-col"></span>Quick actions...<span class="k-shortcut">${MOD}+K</span></div><div class="k-menu-sep"></div>
+${sub("File", " data-not-in-mock")}${sub("Edit", " data-hover")}${["View", "Selection", "Algorithms", "Recipes", "Preferences", "Help"].map((t) => sub(t, " data-not-in-mock")).join("")}</div>
+<div class="k-menu" id="editmenu" style="left:256px;top:101px;min-width:320px" role="menu" aria-label="Edit">
+<div class="k-menu-item" role="menuitem" data-act="undo"${u ? "" : ' aria-disabled="true"'}><span class="k-check-col"></span>${u ? "Undo" + u : "Undo"}<span class="k-shortcut">${MOD}+Z</span></div>
+<div class="k-menu-item" role="menuitem" data-act="redo"${r ? "" : ' aria-disabled="true"'}><span class="k-check-col"></span>${r ? "Redo " + r : "Redo"}<span class="k-shortcut">${MOD}+Shift+Z</span></div>
+<div class="k-menu-item" role="menuitem" data-act="hist" aria-haspopup="menu" aria-expanded="${S.hmenu}"${S.hmenu ? " data-hover" : ""}><span class="k-check-col"></span>Undo history${chev}</div>
+<div class="k-menu-sep"></div>
+<div class="k-menu-item" role="menuitem" data-not-in-mock><span class="k-check-col"></span>Select all<span class="k-shortcut">${MOD}+A</span></div>
+<div class="k-menu-item" role="menuitem"${S.sel ? " data-not-in-mock" : ' aria-disabled="true"'}><span class="k-check-col"></span>Copy ids</div></div>
+${S.hmenu ? `<div class="k-menu" style="left:580px;top:165px;min-width:260px" role="menu" aria-label="Undo history">${hist}</div>` : ""}`;
+}
+
+// The steps list in the canonical row of screens/filter-chip.html: checkbox, "Filter to" and the rule,
+// the row menu on hover; under it what the step took out and what is left; under that, for a step that
+// reads connections on a graph earlier steps changed, the plain line saying what it keeps.
+function popHtml() {
+  let prev = NN;
+  const n = S.steps.length;
+  const rows = S.steps.map((s, j) => {
+    const k = s.on ? keyOf(S.steps.slice(0, j + 1)) : null;
+    const left = k ? FS[k].n : null, took = k ? prev - left : null, input = prev;
+    if (k) prev = left;
+    const first = s.i === 0, st = STEPS[s.i];
+    const note = k && st.reads && input < NN ? `keeps only nodes with at least ${st.reads} neighbors among the ${input} it reads` : "";
+    const count = k ? `took out ${took} &middot; ${left} left` : "off &middot; takes nothing out";
+    const name = `Step ${j + 1} of ${n}: ${st.name.replace(/&gt;= /g, "at least ")}, ${k ? `took out ${took}, ${left} left` : "off"}${note ? ". " + note : ""}`;
+    return `<div class="k-item fc-step" role="row" tabindex="-1" data-step="${s.i}"${s.on ? "" : " data-off"}${S.shown?.includes(s.i) ? ' aria-selected="true"' : ""} aria-label="${name}">` +
+      `<span class="fc-cb" role="gridcell"><span class="k-check" role="checkbox" data-tog="${s.i}" aria-checked="${s.on}" aria-label="Step on" data-tip="${first ? "Turning off this step is not drawn in this mock" : s.on ? "Turn off step" : "Turn on step"}"${first ? " data-not-in-mock" : ""}></span></span>` +
+      `<span class="fc-text" role="gridcell"><span class="fc-out">${st.kind}</span><span class="fc-rule">${st.rule}</span></span>` +
+      `<span class="fc-tail" role="gridcell"><span class="k-icon-btn fc-more" role="button" data-act="rowmenu" data-i="${s.i}" aria-haspopup="menu" aria-expanded="${S.rmenu === s.i}" aria-label="More" data-tip="More">${I("ellipsis")}</span></span>` +
+      `<span class="fc-count k-num" aria-hidden="true">${count}</span>` +
+      (note ? `<span class="fc-note" aria-hidden="true">${note}</span>` : "") + `</div>`;
+  }).join("");
+  return `<div class="k-popover fc-pop" role="dialog" aria-label="Filter steps"><div class="k-popover-head">Filter steps<span class="k-grow"></span><span class="k-icon-btn" role="button" data-act="pop" aria-label="Close" data-tip="Close">${I("x")}</span></div>` +
+    `<div class="k-popover-body"><div class="k-list" role="treegrid" aria-label="Filter steps, in the order they apply">${rows}</div><div class="fc-add" role="button" data-not-in-mock>${I("plus")}Add step</div></div></div>${S.rmenu != null ? rowMenuHtml(S.rmenu) : ""}`;
+}
+// The row menu: the filter chip's commands in its order. Turn off and Delete work here.
+function rowMenuHtml(i) {
+  const s = S.steps.find((x) => x.i === i), j = S.steps.indexOf(s), first = i === 0;
+  const item = (t, key, x) => `<div class="k-menu-item" role="menuitem"${x}><span class="k-check-col"></span>${t}${key ? `<span class="k-shortcut">${key}</span>` : ""}</div>`;
+  const top = 8 + 32 + 4 + j * 42 + 24;
+  return `<div class="k-menu" style="left:560px;top:${top}px;min-width:220px" role="menu" aria-label="Step menu">` +
+    item("Edit rule...", "Enter", " data-not-in-mock") +
+    item(s.on ? "Turn off step" : "Turn on step", "Space", first ? " data-not-in-mock" : ` data-tog="${i}"`) +
+    `<div class="k-menu-sep"></div>` +
+    item("Move up", "Ctrl+]", j === 0 ? ' aria-disabled="true"' : " data-not-in-mock") +
+    item("Move down", "Ctrl+[", j === S.steps.length - 1 ? ' aria-disabled="true"' : " data-not-in-mock") +
+    `<div class="k-menu-sep"></div>` + item("Create rule set from step", "", " data-not-in-mock") +
+    `<div class="k-menu-sep"></div>` + item("Delete step", "Delete", first ? " data-not-in-mock" : ` data-act="del" data-i="${i}"`) + `</div>`;
+}
+
+const note = (l, t, w, html) => `<div class="k-annot-note" style="left:${l}px;top:${t}px;max-width:${w}px">${html}</div>`;
+const cite = (t) => `<br><span class="k-secondary">${t}</span>`;
+function annots(key) {
+  const a = [], b = []; // a: placed on the frame; b: stacked down the inspector's empty lower half
+  const g8 = S.steps.find((s) => s.i === 2), deg = S.steps.find((s) => s.i === 1);
+  if (S.left && !S.menu && !S.pop) a.push(note(64, 520, 200, `The filter chip, a button with a caret: the scope every count reads, and how many steps are on. On Undo it changes at once; the line above the toolbar says which step.` + cite(`interface-templates.md 7; interaction-patterns.md 3.5, level 1; framework-changes.md (the chip as a button). Built with: compact-mantine Button, default variant, funnel leftSection and chevron rightSection, as a Popover trigger (as screens/filter-chip.html).`)));
+  if (!S.menu && !S.pop) a.push(note(S.left ? 320 : 80, S.left ? 170 : 120, 260, `Degree is read on the filtered graph; the full-graph degree shows beside it where the two differ. Betweenness is a result and keeps the scope it was run on, the full graph.` + cite(`conceptual-model.md 3 (live attributes). Built with: Mantine DataTable.`)));
+  if (S.pop && S.left && !S.menu) b.push(`<b>Filter steps</b>, the same row as the filter chip's list: what each step took out and what is left, and under a step that counts connections on a graph earlier steps changed, what it keeps ("keeps only nodes with at least 5 neighbors among the ${FS[1].n} it reads"). Undo never removes a row: an undone step is unticked in place. Only Delete step, on the row's menu, removes one. A tick is one undo step ("Turn off step Filter to degree &gt;= 5") and clears Redo like any change; nothing is lost, because the row stays.` + cite(`output-homes.md 3 (Turn off step); interaction-pattern-entries.md 6.1, 6.9; framework-changes.md (undoing a step unticks it; a step's note says what it keeps). Built with: compact-mantine Popover, Tree rows (treegrid), CompactCheckboxIcon, Menu.`));
+  if (S.shown?.length && S.pop && !S.menu) b.push(`<b>Show in steps</b> opened the list with focus on the first row the line named, ${STEPS[S.shown[0]].name}, now off; ${S.shown.length > 1 ? "every row it named is marked" : "the row is marked"} until the list closes. Focus moves only because the reader chose it.` + cite(`framework-changes.md (the undo line for a filter step).`));
+  if (key === "off" && !S.menu) b.push(`<b>The fix.</b> The wrong step off, group 8 on: ${FS.off.n} of ${NN}, "2 of 3 steps". Both rows stay.` + cite(`conceptual-model.md 6.1 (filter steps); interface-templates.md 7.`));
+  if (!S.sel && S.scope === "sel" && !S.menu && !S.shown?.length) b.push(`<b>Selection lost, rows kept.</b> The ${NSEL} rows stay, marked as the selection just cleared; the scope line offers Show filtered graph.` + cite(`interaction-patterns.md 3.1; message-catalog.md graphty.table.scope. Built with: DataTable; Button, subtle.`));
+  if (S.notice?.verb === "cleared" && !S.menu) b.push(`<b>The selection line</b>, at the moment of loss: the undo line's own message with the selection as its parameter. ${S.arm === "undo" ? `Ctrl+Z brings the ${NSEL} back first, before any filter step, and never touches Redo;` : `In this arm Ctrl+Z still undoes the last filter step;`} Bring it back does the same from the line. Any new selection or undoable change empties the slot.` + cite(`framework-changes.md (Ctrl+Z restores a cleared selection); message-catalog.md graphty.undo.done. Owned by graphty-element's history. Built with: compact-mantine Notification (toast), one action, autoClose off.`));
+  if (S.notice?.verb === "restored" && !S.menu) b.push(`<b>Selection restored.</b> Nothing entered the undo list and Redo is as it was; Ctrl+Shift+Z never clears the selection again. The next Ctrl+Z undoes the last filter step.` + cite(`framework-changes.md (Ctrl+Z restores a cleared selection); message-catalog.md graphty.undo.done.`));
+  if (g8 && !g8.on && !S.menu) b.push(`<b>Undo unticks.</b> The first press unticked <b>Filter out group 8</b>, the step worth keeping${deg.on ? "" : ", the second the wrong step"}; ${deg.on ? "it stays" : "both stay"} in the list. Redo ticks again until the next change; after that, the checkbox still does.` + cite(`interaction-patterns.md 3.4; conceptual-model.md 1; framework-changes.md (undoing a step unticks it; Redo keys).`));
+  if (S.notice?.act === "show" && !S.menu) b.push(`<b>The undo line</b>, on every Undo and Redo, chip in view or not: it names the step, and Show in steps opens the list at its row. Announced politely; never takes focus. It stays until the next change, with no timer, and Undos in a row add to it: after two it names both steps, so the good step taken by the second press is never replaced unread.` + cite(`message-catalog.md graphty.undo.done, graphty.redo.done; framework-changes.md (the undo line stays until the next change). Built with: compact-mantine Notification (toast), one action, autoClose off.`));
+  if (S.menu) {
+    b.push(`Edit &gt; Undo names what the next press does${restoring() ? `: while a cleared selection is held, "Undo Restore selection (${NSEL} nodes)", ahead of the filter steps` : ""}. There is no Undo button and no separate command for a lost selection. Redo: ${MOD}+Shift+Z, and Ctrl+Y off macOS.` + cite(`interaction-patterns.md 3.4; message-catalog.md graphty.undo.label; framework-changes.md (Redo keys; Ctrl+Z restores a cleared selection). Built with: Mantine Menu, dark.`));
+    if (S.hmenu) b.push(`Undo history, interim: newest first, each entry named as its step is; a cleared selection is never an entry. To take out one filter step, delete it on the filter chip.` + cite(`interaction-patterns.md 3.4; figma-crosswalk.md 4.3; framework-changes.md. Built with: Mantine Menu, submenu.`));
+  }
+  if (S.sel && !S.menu) b.push((!S.back ? `The hand-built selection, ${NSEL} nodes, before the stray click. Click empty canvas or press Esc to lose it.` : `${NSEL} nodes selected again; the chip is unchanged and nothing entered the undo history.`) + ` The inspector is cut to its first sections here.` + cite(`interaction-pattern-entries.md 4.4; interface-templates.md 8. Built with: DataTable selected rows; the inspector.`));
+  return a.join("") + `<div style="position:absolute;left:1206px;top:${S.sel && !S.menu ? 630 : 250}px;width:228px;display:flex;flex-direction:column;gap:8px">${b.map((h) => `<div class="k-annot-note" style="position:static;max-width:none">${h}</div>`).join("")}</div>`;
+}
+
+function render() {
+  const before = document.activeElement?.dataset?.step;
+  const key = keyOf(S.steps), D = FS[key];
+  const total = S.steps.length, on = S.steps.filter((s) => s.on).length;
+  const steps = on === total ? `${total} step${total > 1 ? "s" : ""}` : `${on} of ${total} steps`;
+  const drawing = `${DRAWING[key]}${S.sel ? "-selset" : ""}`;
+  const lg = LEGEND[key].map((r) => typeof r === "string" ? `<div class="k-lg-row k-secondary">${r}</div>` : `<div class="k-lg-row"><span class="k-chit" style="background:${C[r[0]]}"></span>${r[0]}<span class="k-value k-num">${r[1]}</span></div>`).join("");
+  const list = S.scope === "sel" ? D.sel : D.top;
+  const mark = (k) => S.sel && SELECTED.has(k) ? ' aria-selected="true"' : !S.sel && S.scope === "sel" ? " data-member" : "";
+  const rows = list.map(([k, g, d, f, bt]) => `<tr${mark(k)}><td class="k-id">${k}</td><td><span class="k-chit" style="background:${C[g] || "#000000"}"></span>${g}</td><td class="k-n">${d}</td><td class="k-n k-secondary">${f !== d ? f : ""}</td><td class="k-n">${bt.toFixed(3)}</td></tr>`).join("");
+  const scope = S.scope === "filtered" ? `Filtered graph: ${D.n} of ${NN} nodes. Sorted by degree.`
+    : S.sel ? `Selected: ${NSEL} of ${D.n} nodes. Sorted by degree.`
+    : `Selected: none, showing the selection just cleared<span class="k-btn k-btn-ghost u-act" data-act="filtered">Show filtered graph</span>`;
+  const t = S.notice;
+  const toast = t ? `<div class="k-toast" role="status" aria-live="polite">${t.text}${t.action ? `<span class="k-toast-action" role="button" tabindex="0" data-act="${t.act}">${t.action}</span>` : ""}</div>` : "";
+  // The chip drops "Filtered:" when the longer "2 of 3 steps" would not fit (as screens/filter-chip.html).
+  const insp = S.sel
+    ? `<div class="k-typerow">${I("circle-dot")}<span class="k-name k-num">${NSEL} nodes</span><span class="k-secondary">Nodes</span><span class="k-icon-btn" aria-label="Filter to" data-not-in-mock>${I("funnel")}</span><span class="k-icon-btn" aria-label="Create set" data-not-in-mock>${I("group")}</span></div>
+<div class="k-scroll"><section class="k-section"><div class="k-section-head">Appearance</div>
+<div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:${C[2]}"></span>group</span></span></div></div>
+<div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill">degree</span></span></div></div></section>
+<section class="k-section"><div class="k-section-head">Selection colors</div>${SEL_GROUPS.map(([g, c]) => `<div class="k-data"><span class="k-name"><span class="k-chit" style="background:${C[g]}"></span> group ${g}</span><span class="k-value k-num">${c}</span></div>`).join("")}</section>
+<section class="k-section" data-empty><div class="k-section-head">Export<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add export" data-not-in-mock>${I("plus")}</span></div></section></div>`
+    : `<div class="k-typerow">${I("network")}<span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div><div class="k-scroll"><section class="k-section"><div class="k-section-head">Statistics</div><div class="k-prose k-secondary">${I("funnel", "k-i k-i-sm")} On: filtered graph, <span class="k-num">${D.n} of ${NN}</span> nodes</div><div class="k-data"><span class="k-name">edges</span><span class="k-value k-num">${D.e}</span></div><div class="k-data"><span class="k-name">components</span><span class="k-value k-num">${D.c}</span></div><div class="k-data"><span class="k-name">density</span><span class="k-value k-num">${D.d.toFixed(3)}</span></div></section><section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a style layer" data-not-in-mock>${I("plus")}</span></div>
+<ul class="k-list" role="tree" aria-label="Style stack"><li class="k-item" data-not-in-mock><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
+<li class="k-item" data-not-in-mock><span class="k-chit" style="background:conic-gradient(#E69F00 0 25%,#56B4E9 0 50%,#009E73 0 75%,#0072B2 0)"></span><span class="k-ellipsis">Group color</span></li>
+<li class="k-item" data-not-in-mock><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section></div>`;
+  const rail = (ic, tx, x = "") => `<div class="k-rail-btn"${x}><span class="k-rail-pill">${I(ic)}</span>${tx}</div>`;
+  const alt = `Les Miserables, ${D.n} of ${NN} characters drawn after ${steps}${S.sel ? `, Valjean and ${NSEL - 1} others selected` : ""}`;
+  const app = document.getElementById("app");
+  if (S.left) delete app.dataset.left; else app.dataset.left = "closed";
+  app.innerHTML = `
+<nav class="k-rail" aria-label="Main"><div role="button" class="k-rail-btn" data-act="menu" aria-label="Main menu"${S.menu ? ' aria-pressed="true"' : ""}><span class="k-rail-pill">${I("menu")}</span></div><div class="k-rail-sep"></div>
+${rail("network", "Graph", ` data-act="left" aria-pressed="${S.left}"`)}${rail("database", "Data", " data-not-in-mock")}${rail("flask-conical", "Results", " data-not-in-mock")}${rail("sticky-note", "Notes", " data-not-in-mock")}<div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences" data-not-in-mock>Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+<aside class="k-panel" aria-label="Graph"><div class="k-panel-head"><div class="k-title-line"><span class="k-project">Les Miserables</span>${I("chevron-down", "k-i k-i-sm k-secondary")}</div><a class="k-privacy" data-not-in-mock>Nothing has been sent from this project</a><span class="k-chip k-chip-btn" role="button" tabindex="0" data-act="pop" aria-expanded="${S.pop}" data-tip="Filtered: ${D.n} of ${NN} nodes &middot; ${steps}">${I("funnel", "k-i k-i-sm")}<span class="k-num">${on === total ? "Filtered: " : ""}${D.n} of ${NN} nodes &middot; ${steps}</span>${I("chevron-down", "k-i k-i-sm k-caret")}</span></div>
+<div class="k-scroll"><section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" aria-label="Find a graph" data-not-in-mock>${I("search")}</span><span class="k-icon-btn" aria-label="Add a graph" data-not-in-mock>${I("plus")}</span></div>
+<ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">${NN} nodes</span></li></ul></section>
+<section class="k-section"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a set or path" data-not-in-mock>${I("plus")}</span></div>
+<ul class="k-list"><li class="k-item" data-not-in-mock>${I("group")}<span class="k-ellipsis">The barricade</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">13</span></span></li></ul></section>
+</div></aside>
+<main class="k-main"><div class="k-canvas"><div class="k-stage">
+<img class="k-light-only" data-act="clear" src="../kit/canvas/lesmis-${drawing}-light.svg" alt="${alt}">
+<img class="k-dark-only" data-act="clear" src="../kit/canvas/lesmis-${drawing}-dark.svg" alt="${alt}"></div>
+<div class="k-legend-card"><div class="k-lg-title">Group color <span class="k-secondary">group</span></div>${lg}</div>
+<div class="k-toolbar-dock">${toast}<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true" aria-label="Move">${I("mouse-pointer-2", "k-i k-i-lg")}</span><span class="k-tool" aria-label="Path" data-not-in-mock>${I("route", "k-i k-i-lg")}</span><span class="k-tool" aria-label="Note" data-not-in-mock>${I("sticky-note", "k-i k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool" aria-label="Quick actions" data-not-in-mock>${I("zap", "k-i k-i-lg")}</span></div></div>
+<span class="k-help" data-not-in-mock>${I("circle-help")}</span></div>
+<section class="k-dock" aria-label="Table"><div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab" data-not-in-mock>Edges</span><span class="k-grow"></span><span class="k-icon-btn" aria-label="Search the table" data-not-in-mock>${I("search")}</span><span class="k-icon-btn" aria-label="Table options" data-not-in-mock>${I("ellipsis")}</span></div>
+<div class="k-scope" role="status">${scope}</div>
+<div class="k-table-wrap"><table class="k-table"><thead><tr><th>label</th><th>group</th><th class="k-n">degree, filtered</th><th class="k-n">full graph</th><th class="k-n">betweenness, full graph</th></tr></thead><tbody>${rows}</tbody></table></div></section></main>
+<aside class="k-right" aria-label="Inspector"><div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num" data-not-in-mock>100%${I("chevron-down", "k-i k-i-sm")}</span></div>${insp}</aside>
+${S.pop && S.left ? popHtml() : ""}${S.menu ? menuHtml() : ""}${annots(key)}`;
+  document.getElementById("menu").checked = S.menu;
+  document.getElementById("left").checked = S.left;
+  document.querySelectorAll("#tabs .k-tab").forEach((x) => x.setAttribute("aria-selected", x.dataset.state === S.tab));
+  // Focus survives the re-render: the step that had it, or the one B's action points to.
+  const f = S.focus ?? before;
+  S.focus = null;
+  if (f != null && S.pop) app.querySelector(`.fc-step[data-step="${f}"]`)?.focus();
+  // The row menu opens under its More button.
+  const rm = S.rmenu != null && app.querySelector('.k-menu[aria-label="Step menu"]');
+  if (rm) {
+    const b = app.querySelector(`.fc-more[data-i="${S.rmenu}"]`).getBoundingClientRect(), a = app.getBoundingClientRect();
+    rm.style.left = `${b.left - a.left}px`; rm.style.top = `${b.bottom - a.top + 2}px`;
+  }
+}
+
+// Named states, held on screen (no timeout), for the tabs and for #s1&menu style links used by shots.
+function go(state) {
+  say("");
+  if (state === "notice") { S.arm = "notice"; $("arm").value = "notice"; }
+  Object.assign(S, { steps: [0, 1, 2].map((i) => ({ i, on: true })), hist: [0, 1, 2].map((i) => ({ t: "add", i })), redo: [], sel: true, slot: false, back: false, scope: "sel", notice: null, pop: false, rmenu: null, shown: null, tab: state });
+  if (state !== "s0") act.clear();
+  // Every state past the stray click brings the selection back first, except "off": fixing the
+  // filter first is an undoable change, which empties the slot and loses the selection.
+  if (!["s0", "s3", "notice", "off"].includes(state)) act.restore();
+  if (state === "s2" || state === "list") act.undo();
+  if (state === "list") act.show();
+  if (state === "s1" || state === "tick") { act.undo(); act.undo(); }
+  if (state === "tick") { act.show(); act.toggle(2); say(""); }
+  if (state === "off" || state === "fix") { act.toggle(1); S.pop = true; }
+  say("");
+  render();
+}
+const $ = (id) => document.getElementById(id);
+$("tabs").addEventListener("click", (e) => { const t = e.target.closest("[data-state]"); if (t) { S.menu = false; go(t.dataset.state); } });
+$("menu").addEventListener("change", (e) => { S.menu = e.target.checked; S.hmenu = false; render(); });
+$("left").addEventListener("change", (e) => { S.left = e.target.checked; render(); });
+$("arm").addEventListener("change", (e) => { S.arm = e.target.value; render(); });
+$("theme").addEventListener("change", (e) => { if (e.target.value) document.documentElement.dataset.theme = e.target.value; else delete document.documentElement.dataset.theme; });
+$("studylink").addEventListener("click", () => setTimeout(() => location.reload(), 0));
+function activate(t) {
+  if (!t || t.getAttribute("aria-disabled") === "true" || t.hasAttribute("data-not-in-mock")) return false;
+  if (t.dataset.tog != null) { run("toggle", Number(t.dataset.tog)); return true; }
+  const a = t.dataset.act;
+  if (!a) return false;
+  if (a === "menu") { S.menu = !S.menu; S.hmenu = false; render(); }
+  else if (a === "hist") { S.hmenu = !S.hmenu; render(); }
+  else if (a === "pop") { S.pop = !S.pop; S.shown = null; S.rmenu = null; render(); if (!S.pop) $("app").querySelector(".k-chip").focus(); }
+  else if (a === "rowmenu") { const i = Number(t.dataset.i); S.rmenu = S.rmenu === i ? null : i; render(); }
+  else if (a === "del") run("del", Number(t.dataset.i));
+  else if (a === "left") { S.left = !S.left; render(); }
+  else if (a === "undo") run("undo", Number(t.dataset.k || 1), t.hasAttribute("data-hist"));
+  else run(a);
+  return true;
+}
+$("app").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-act], [data-tog]");
+  if (!activate(t) && (S.menu || S.rmenu != null) && !e.target.closest(".k-menu")) { S.menu = false; S.hmenu = false; S.rmenu = null; render(); }
+});
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  // In the steps list: Up and Down move between steps, Space toggles. Enter or Space on a
+  // role="button" (the chip, the notice's action) activates it.
+  if (t.dataset?.step != null && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    const all = [...$("app").querySelectorAll("[data-step]")], i = all.indexOf(t) + (e.key === "ArrowDown" ? 1 : -1);
+    if (all[i]) { e.preventDefault(); all[i].focus(); }
+    return;
+  }
+  if (e.key === " " && t.dataset?.step != null) { e.preventDefault(); run("toggle", Number(t.dataset.step)); return; }
+  if (e.key === "Delete" && t.dataset?.step != null) { e.preventDefault(); run("del", Number(t.dataset.step)); return; }
+  if ((e.key === "Enter" || e.key === " ") && (t.getAttribute?.("role") === "button" || t.getAttribute?.("role") === "menuitem")) { e.preventDefault(); activate(t); return; }
+  if (e.key === "Escape") {
+    if (S.rmenu != null) { e.preventDefault(); const i = S.rmenu; S.rmenu = null; render(); $("app").querySelector(`.fc-step[data-step="${i}"]`)?.focus(); }
+    else if (S.menu) { S.menu = false; S.hmenu = false; render(); }
+    else if (S.pop) { S.pop = false; S.shown = null; render(); $("app").querySelector(".k-chip")?.focus(); }
+    else run("clear");
+    return;
+  }
+  if (!(e.ctrlKey || e.metaKey)) return;
+  // e.code, not e.key: with Option held on a Mac, or AltGr on Windows, e.key is another character.
+  if (e.altKey) return;
+  if (e.code === "KeyY" && !MAC && !e.shiftKey && !e.altKey) { e.preventDefault(); run("redo"); return; }
+  if (e.code === "KeyZ") { e.preventDefault(); run(e.shiftKey ? "redo" : "undo"); }
+});
+// Read synchronously, so the page is drawn before kit.js gives it roles and keys, as when its numbers
+// were typed in.
+const fixturesRequest = new XMLHttpRequest();
+fixturesRequest.open("GET", "../kit/fixtures.json", false);
+fixturesRequest.send();
+fromFixtures(JSON.parse(fixturesRequest.responseText).datasets.lesmis);
+const h = new URLSearchParams(location.hash.slice(1));
+if (h.has("study")) document.body.classList.add("study");
+S.menu = h.has("menu"); S.hmenu = h.has("hist"); S.left = !h.has("closed");
+if (h.has("notice")) S.arm = "notice";
+$("arm").value = S.arm;
+document.querySelectorAll(".u-nsel").forEach((x) => { x.textContent = NSEL; });
+// Older links (flows/undo-and-ways-back.html) name states in words; their "b" (a retired version) is ignored.
+const ALIAS = { "three-steps": "s3", "selection-lost": "s3", "edit-undo": "s3", "undo-once": "s2", "undo-twice": "s1", "turn-off": "off", "selection-back": "fix", good: "fix" };
+if (h.has("edit-undo")) S.menu = true;
+const start = ["s0", "s3", "restore", "notice", "s2", "list", "s1", "tick", "off", "fix", ...Object.keys(ALIAS)].find((k) => h.has(k)) || "s3";
+go(ALIAS[start] || start);
+if (h.has("pop")) { S.pop = true; render(); }
+</script>
+</body>
+</html>

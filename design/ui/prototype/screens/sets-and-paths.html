@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sets, paths and dated neighbors</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  /* States: open with #s1 ... #s9 (add "a" for annotations on: #s4a). No script. */
+  .anchor { position: fixed; top: 0; left: 0; width: 0; height: 0; }
+  body:not(:has(.anchor:target)) [data-on]:not([data-on~="1"]),
+  body:has(#s1:target, #s1a:target) [data-on]:not([data-on~="1"]),
+  body:has(#s2:target, #s2a:target) [data-on]:not([data-on~="2"]),
+  body:has(#s3:target, #s3a:target) [data-on]:not([data-on~="3"]),
+  body:has(#s4:target, #s4a:target) [data-on]:not([data-on~="4"]),
+  body:has(#s5:target, #s5a:target) [data-on]:not([data-on~="5"]),
+  body:has(#s6:target, #s6a:target) [data-on]:not([data-on~="6"]),
+  body:has(#s7:target, #s7a:target) [data-on]:not([data-on~="7"]),
+  body:has(#s8:target, #s8a:target) [data-on]:not([data-on~="8"]),
+  body:has(#s9:target, #s9a:target) [data-on]:not([data-on~="9"]) { display: none !important; }
+
+  /* The mock's own controls: annotation ink, so nobody reads them as product UI */
+  .m-bar { position: fixed; z-index: 200; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 8px; background: var(--k-annot-bg); border: 1px solid var(--k-annot); font-size: 11px; white-space: nowrap; }
+  .m-bar a { padding: 2px 8px; border-radius: 5px; color: var(--cm-text); text-decoration: none; }
+  body:not(:has(.anchor:target)) .m-bar a[href="#s1"],
+  body:has(#s1:target, #s1a:target) .m-bar a[href="#s1"], body:has(#s2:target, #s2a:target) .m-bar a[href="#s2"],
+  body:has(#s3:target, #s3a:target) .m-bar a[href="#s3"], body:has(#s4:target, #s4a:target) .m-bar a[href="#s4"],
+  body:has(#s5:target, #s5a:target) .m-bar a[href="#s5"], body:has(#s6:target, #s6a:target) .m-bar a[href="#s6"],
+  body:has(#s7:target, #s7a:target) .m-bar a[href="#s7"], body:has(#s8:target, #s8a:target) .m-bar a[href="#s8"],
+  body:has(#s9:target, #s9a:target) .m-bar a[href="#s9"] { background: var(--k-annot); color: #fff; }
+  .m-bar label { display: flex; align-items: center; gap: 4px; margin-inline-start: 8px; color: var(--k-annot-ink); font-weight: 600; }
+  .an { display: none; }
+  body:has(#annot:checked) .an, body:has(.anchor[id$="a"]:target) .an { display: block; }
+  .an.k-annot-note { position: fixed; font-size: 11px; line-height: 15px; }
+  .an.k-annot-note b { color: var(--k-annot-ink); }
+  .an.k-annot-box { position: fixed; }
+  .gap { outline: 1.5px dashed var(--k-annot); outline-offset: 1px; }
+
+  /* Overlay marks on the whole-graph drawing (states 3 and 6), canvas-drawing section 6 */
+  .mk { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; width: 8px; height: 8px; background: #808080; }
+  .mk-sel { box-shadow: 0 0 0 2px var(--k-canvas-ink), 0 0 0 4px var(--k-canvas); }
+  .mk-flag { background: #D55E00; }
+  .mk-hover { box-shadow: 0 0 0 2px var(--k-canvas), 0 0 0 3px var(--k-canvas-ink); }
+  .mk-label { position: absolute; transform: translate(10px, -50%); white-space: nowrap; font-size: 12px; line-height: 14px; color: var(--k-canvas-ink); text-shadow: 0 0 2px var(--k-canvas), 0 0 2px var(--k-canvas), 0 0 3px var(--k-canvas); }
+
+  /* The type row as interface-specification 4.2 draws it: line 1 glyph and name; line 2 the kind
+     word and count, three ActionIcons, the overflow */
+  .tr2 { flex-direction: column; align-items: stretch; gap: 0; height: auto; padding: 8px 8px 4px 16px; }
+  .tr2 .l1 { display: flex; align-items: center; gap: 8px; min-width: 0; height: 20px; }
+  .tr2 .l1 .k-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tr2 .l2 { display: flex; align-items: center; gap: 2px; height: 28px; padding-inline-start: 24px; }
+  .tr2 .l2 .kw { color: var(--cm-text-secondary); margin-inline-end: auto; white-space: nowrap; }
+  .split { display: inline-flex; }
+  .split .k-icon-btn:last-child { width: 24px; /* the whole 24 px target (WCAG 2.5.8), not a 14 px sliver */ border-radius: 0 5px 5px 0; }
+  .split .k-icon-btn:first-child { border-radius: 5px 0 0 5px; }
+  .kfocus { outline: 2px solid var(--cm-border-selected); outline-offset: 0; }
+
+  /* Focused set rows get a visible bar with the set operations */
+  .focusbar { display: flex; align-items: center; gap: 2px; height: 32px; margin: 0 8px 4px; padding: 0 4px 0 8px; border-radius: 5px; background: var(--cm-bg-selected-secondary); }
+  .focusbar .txt { margin-inline-end: auto; color: var(--cm-text); }
+  .focusbar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--cm-border); }
+  .focusrow::before { background: var(--cm-bg-selected-secondary) !important; }
+  .venn { width: 16px; height: 16px; }
+
+  /* The Path tool's bar: two lines, a third while it has something to say */
+  .pbar { display: flex; flex-direction: column; gap: 4px; width: 404px; padding: 8px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
+  .pbar-row { display: flex; align-items: center; gap: 8px; height: 24px; }
+  .pbar .k-field { min-width: 0; }
+  .pbar .lbl { color: var(--cm-text-secondary); width: 40px; flex: none; }
+  .pbar-state { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 4px 0 0 4px; border-top: 1px solid var(--cm-border); }
+
+  .txrows td { background: var(--cm-bg-selected-secondary); }
+  body:has(#s2:target, #s2a:target) .txrows td, body:has(#s7:target, #s7a:target) .txrows td { background: var(--cm-bg-selected); }
+  body:has(#s3:target, #s3a:target) .txrows td, body:has(#s6:target, #s6a:target) .txrows td { background: none; }
+  body:has(#s6:target, #s6a:target) .txrows tr:first-child td { background: var(--cm-bg-selected); }
+  .disc { display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 16px; color: var(--cm-text-secondary); }
+  .lead { padding: 8px 16px 4px; font-weight: 550; }
+
+  /* Dated Neighbors (states 8 and 9): the Neighbors menu with Direction and From, and the table's
+     footer line, which splits the selection total in two. No new widget: a menu, a scope-style line. */
+  .dia { display: inline-block; width: 8px; height: 8px; margin: 0 2px; flex: none; background: #D55E00; transform: rotate(45deg); }
+  .nbmenu, .nbsub { position: fixed; z-index: 50; }
+  .nbmenu .k-secondary, .nbsub .k-secondary { margin-inline-start: auto; padding-inline-start: 16px; }
+  .tfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-height: 32px; padding: 4px 16px; border-top: 1px solid var(--cm-border); background: var(--cm-bg); }
+  .tfoot b { font-weight: 550; }
+  .tfoot .sum { white-space: nowrap; }
+</style>
+</head>
+<body>
+<!-- Set-operation glyphs (two overlapping circles), as Figma's boolean-operation icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <clipPath id="vB"><circle cx="10" cy="8" r="4.5"/></clipPath>
+    <mask id="vNotB"><rect width="16" height="16" fill="#fff"/><circle cx="10" cy="8" r="4.5" fill="#000"/></mask>
+  </defs>
+  <symbol id="venn-union" viewBox="0 0 16 16"><path d="M1.5 8a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0M5.5 8a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0" fill="currentColor"/></symbol>
+  <symbol id="venn-subtract" viewBox="0 0 16 16"><circle cx="6" cy="8" r="4.5" fill="currentColor" mask="url(#vNotB)"/><circle cx="10" cy="8" r="4.5" fill="none" stroke="currentColor"/></symbol>
+  <symbol id="venn-intersect" viewBox="0 0 16 16"><circle cx="6" cy="8" r="4.5" fill="currentColor" clip-path="url(#vB)"/><circle cx="6" cy="8" r="4.5" fill="none" stroke="currentColor"/><circle cx="10" cy="8" r="4.5" fill="none" stroke="currentColor"/></symbol>
+  <symbol id="venn-exclude" viewBox="0 0 16 16"><path d="M1.5 8a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0M5.5 8a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0" fill="currentColor" fill-rule="evenodd"/></symbol>
+</svg>
+
+<span class="anchor" id="s1"></span><span class="anchor" id="s2"></span><span class="anchor" id="s3"></span><span class="anchor" id="s4"></span><span class="anchor" id="s5"></span><span class="anchor" id="s6"></span><span class="anchor" id="s7"></span><span class="anchor" id="s8"></span><span class="anchor" id="s9"></span>
+<span class="anchor" id="s1a"></span><span class="anchor" id="s2a"></span><span class="anchor" id="s3a"></span><span class="anchor" id="s4a"></span><span class="anchor" id="s5a"></span><span class="anchor" id="s6a"></span><span class="anchor" id="s7a"></span><span class="anchor" id="s8a"></span><span class="anchor" id="s9a"></span>
+
+<div class="m-bar" aria-label="Mock states">
+  <a href="#s1">1 Two sets focused</a><a href="#s2">2 Intersected</a><a href="#s3">3 Path tool</a><a href="#s4">4 Found path</a><a href="#s5">5 What amount means</a><a href="#s6">6 No path</a><a href="#s7">7 Frozen copy</a><a href="#s8">8 Dated Neighbors</a><a href="#s9">9 Money in, money out</a>
+  <label><input type="checkbox" id="annot"> Annotations</label>
+</div>
+
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+
+  <!-- Left panel -->
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project" data-on="1 2 3 4 5 6 7">March transfers</span><span class="k-project" data-on="8 9">August alerts</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" data-on="1 2 7 8"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      <span class="k-chip k-num" data-on="3 4 5 6"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Filtered: 1,071 of 3,000 nodes</span>
+      <span class="k-chip k-num" data-on="9"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Filtered: 9 of 3,000 nodes</span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <!-- 1: two set rows focused: the bar with the four set operations and Select members -->
+        <div class="focusbar" data-on="1" role="toolbar" aria-label="2 sets focused">
+          <span class="txt k-num">2 focused</span>
+          <span class="k-icon-btn" title="Union"><svg class="venn"><use href="#venn-union"/></svg></span>
+          <span class="k-icon-btn" title="Subtract"><svg class="venn"><use href="#venn-subtract"/></svg></span>
+          <span class="k-icon-btn" data-hover title="Intersect"><svg class="venn"><use href="#venn-intersect"/></svg></span>
+          <span class="k-icon-btn" title="Exclude"><svg class="venn"><use href="#venn-exclude"/></svg></span>
+          <span class="sep"></span>
+          <span class="k-icon-btn" title="Select members"><svg class="k-i"><use href="../kit/icons.svg#target"/></svg></span>
+        </div>
+        <ul class="k-list" data-on="8 9">
+          <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Alerts</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"><span class="dia"></span></span><span class="k-num">50</span></span></li>
+        </ul>
+        <ul class="k-list" data-on="1 2 3 4 5 6 7">
+          <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li>
+          <li class="k-item focusrow" data-on="1"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">143</span></span></li>
+          <li class="k-item" data-on="2 3 4 5 6 7"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">143</span></span></li>
+          <li class="k-item" aria-selected="true" data-on="1"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Paid ACC-893168</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">37</span></span></li>
+          <li class="k-item" data-on="2 3 4 5 6 7"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Paid ACC-893168</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">37</span></span></li>
+          <li class="k-item" aria-selected="true" data-on="2"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis gap">High risk and Paid ACC-893168</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">16</span></span></li>
+          <li class="k-item" data-on="3 4 5 6 7"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk and Paid ACC-893168</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">16</span></span></li>
+          <li class="k-item" aria-selected="true" data-on="7"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Sep 28: High risk and Paid ACC-893168</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">16</span></span></li>
+          <li class="k-item" data-on="3 4 5 6"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Sep 28: High risk and Paid ACC-893168</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">16</span></span></li>
+        </ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">0</span></div></section>
+    </div>
+  </aside>
+
+  <!-- Canvas and dock -->
+  <main class="k-main">
+    <div class="k-canvas">
+      <!-- 1: Paid ACC-893168 selected (its hull in the selection band); both focused sets hover-marked -->
+      <div class="k-stage" data-on="1">
+        <img class="k-light-only" src="../kit/canvas/transactions-sets-focus-light.svg" alt="3,000 accounts as density; the 37 payers of ACC-893168 inside the selection hull; all 164 members of the two focused sets inside the hover hairline">
+        <img class="k-dark-only" src="../kit/canvas/transactions-sets-focus-dark.svg" alt="3,000 accounts as density; the 37 payers of ACC-893168 inside the selection hull; all 164 members of the two focused sets inside the hover hairline">
+      </div>
+      <!-- 2 and 7: a 16-member set selected, inside its hull -->
+      <div class="k-stage" data-on="2 7">
+        <img class="k-light-only" src="../kit/canvas/transactions-sets-intersect-light.svg" alt="3,000 accounts as density, the 16 members of the selected set inside its hull, the two unflagged ones labeled">
+        <img class="k-dark-only" src="../kit/canvas/transactions-sets-intersect-dark.svg" alt="3,000 accounts as density, the 16 members of the selected set inside its hull, the two unflagged ones labeled">
+      </div>
+      <!-- 3 and 6: the whole graph as density, the Path tool's endpoints marked -->
+      <div class="k-stage" data-on="3 6">
+        <img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt="3,000 accounts drawn as density">
+        <img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt="3,000 accounts drawn as density">
+        <span class="mk mk-sel" style="left:57.5%;top:53.5%" data-on="3"></span><span class="mk-label" style="left:57.5%;top:53.5%" data-on="3">ACC-271813</span>
+        <span class="mk mk-flag mk-hover" style="left:60.8%;top:41.4%" data-on="3"></span>
+        <div class="k-tooltip k-id" style="left:60.8%;top:41.4%;transform:translate(12px,-120%)" data-on="3"><b>ACC-233575</b><br><span class="k-secondary">personal, riskScore 98</span></div>
+        <span class="mk mk-flag mk-sel" style="left:60.8%;top:41.4%" data-on="6"></span><span class="mk-label" style="left:60.8%;top:41.4%" data-on="6">ACC-233575</span>
+        <span class="mk mk-hover" style="left:57.5%;top:53.5%" data-on="6"></span><span class="mk-label" style="left:57.5%;top:53.5%" data-on="6">ACC-271813</span>
+      </div>
+      <!-- 4 and 5: the found path, selected, zoomed to 300% -->
+      <div class="k-stage" data-on="4 5">
+        <img class="k-light-only" src="../kit/canvas/transactions-path-light.svg" alt="The found path from ACC-271813 to ACC-233575, 3 hops, selected, zoomed to 300%">
+        <img class="k-dark-only" src="../kit/canvas/transactions-path-dark.svg" alt="The found path from ACC-271813 to ACC-233575, 3 hops, selected, zoomed to 300%">
+      </div>
+
+      <!-- 8: the whole August graph, ACC-365386 selected -->
+      <div class="k-stage" data-on="8">
+        <img class="k-light-only" src="../kit/canvas/alerts-density-light.svg" alt="3,000 August accounts as density, the 50 alerted as orange diamonds, ACC-365386 selected">
+        <img class="k-dark-only" src="../kit/canvas/alerts-density-dark.svg" alt="3,000 August accounts as density, the 50 alerted as orange diamonds, ACC-365386 selected">
+        <span class="mk mk-flag mk-sel" style="left:51.9%;top:51%"></span><span class="mk-label" style="left:51.9%;top:51%">ACC-365386</span>
+      </div>
+      <!-- 9: the step's 9 accounts -->
+      <div class="k-stage" data-on="9">
+        <img class="k-light-only" src="../kit/canvas/alerts-seed-hop1-light.svg" alt="ACC-365386 and its 8 counterparties from Aug 3, ACC-365386 selected">
+        <img class="k-dark-only" src="../kit/canvas/alerts-seed-hop1-dark.svg" alt="ACC-365386 and its 8 counterparties from Aug 3, ACC-365386 selected">
+      </div>
+
+      <div class="k-legend-card" data-on="8 9">
+        <div class="k-lg-title">Alerts</div>
+        <div class="k-lg-row"><span class="dia"></span>alert is true<span class="k-value k-num" data-on="8">50</span><span class="k-value k-num" data-on="9">5</span></div>
+      </div>
+      <div class="k-legend-card" data-on="1 2 3 4 5 6 7">
+        <div class="k-lg-title">Flagged</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>false<span class="k-value k-num">2,986</span></div>
+      </div>
+
+      <div class="k-tooltip" style="position:fixed;left:188px;top:226px" data-on="1">Intersect<br><span class="k-secondary">members in both sets</span></div>
+      <div class="k-toolbar-dock">
+        <!-- 3: Path tool armed; From is outside the filtered graph -->
+        <div class="pbar" data-on="3">
+          <div class="pbar-row">
+            <span class="lbl">From</span><span class="k-field k-id" style="width:140px">ACC-271813</span>
+            <span class="lbl">To</span><span class="k-field k-id" data-focus style="width:140px">ACC-233575</span>
+            <span class="k-btn" aria-disabled="true">Run</span>
+          </div>
+          <div class="pbar-row">
+            <span class="lbl">Scope</span><span class="k-field" data-warn style="width:110px"><span class="k-warn-glyph">!</span>Filtered graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+            <span class="lbl">Weight</span><span class="k-field" style="width:162px">amount, not used yet<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          </div>
+          <div class="pbar-state"><span class="k-grow">From is outside the filtered graph. Set Scope to Full graph to search it.</span></div>
+        </div>
+        <!-- 6: no directed path -->
+        <div class="pbar" data-on="6">
+          <div class="pbar-row">
+            <span class="lbl">From</span><span class="k-field k-id" style="width:140px">ACC-233575</span>
+            <span class="lbl">To</span><span class="k-field k-id" style="width:140px">ACC-271813</span>
+            <span class="k-btn">Run</span>
+          </div>
+          <div class="pbar-row">
+            <span class="lbl">Scope</span><span class="k-field" style="width:110px">Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+            <span class="lbl">Weight</span><span class="k-field" style="width:162px">amount, not used yet<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          </div>
+          <div class="pbar-state"><span class="k-grow">No directed path; one exists ignoring direction</span><span class="k-btn k-btn-secondary">Ignore direction</span></div>
+        </div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" data-on="1 2 4 5 7 8 9" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span>
+          <span class="k-tool" data-on="3 6"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" data-on="3 6" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool" data-on="1 2 4 5 7 8 9"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+
+    <section class="k-dock" aria-label="Table">
+      <div class="k-dock-tabs">
+        <span class="k-tab" data-on="1 2 3 6 7" aria-selected="true">Nodes</span><span class="k-tab" data-on="4 5 8 9">Nodes</span>
+        <span class="k-tab" data-on="1 2 3 6 7">Edges</span><span class="k-tab" data-on="4 5 8 9" aria-selected="true">Edges</span>
+        <span class="k-grow"></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span>
+      </div>
+      <div class="k-scope k-num" data-on="1">Members of Paid ACC-893168: 37 nodes. Sorted by riskScore.</div>
+      <div class="k-scope k-num" data-on="2 7">Selected: 16 nodes. Sorted by riskScore.</div>
+      <div class="k-scope k-num" data-on="3 6">Filtered graph: 1,071 of 3,000 nodes. Sorted by riskScore.</div>
+      <div class="k-scope k-num" data-on="4 5">Selected: 3 edges, in path order.</div>
+      <div class="k-scope k-num" data-on="8">Edges of the selection, ACC-365386: 8 of 9,171 edges. Sorted by time.</div>
+      <div class="k-scope k-num" data-on="9">Step ACC-365386 and neighbors: 13 edges, from Aug 3. 4 selected. Sorted by time.</div>
+      <div class="k-table-wrap">
+        <table class="k-table" data-on="1 2 3 6 7">
+          <thead><tr><th>id</th><th>kind <span class="k-profile">3 values</span></th><th>country <span class="k-profile">12 values</span></th><th class="k-n">riskScore <span class="k-profile">0 to 98</span></th><th>flagged <span class="k-profile">14 true</span></th></tr></thead>
+          <tbody class="txrows">
+            <tr><td class="k-id">ACC-233575</td><td>personal</td><td>US</td><td class="k-n">98</td><td><span class="k-chit" style="background:#D55E00"></span>true</td></tr>
+            <tr><td class="k-id">ACC-782213</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td></tr>
+            <tr><td class="k-id">ACC-577269</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td></tr>
+            <tr><td class="k-id">ACC-642959</td><td>personal</td><td>NG</td><td class="k-n">96</td><td><span class="k-chit" style="background:#D55E00"></span>true</td></tr>
+            <tr><td class="k-id">ACC-753261</td><td>personal</td><td>BR</td><td class="k-n">95</td><td><span class="k-chit" style="background:#D55E00"></span>true</td></tr>
+            <tr><td class="k-id">ACC-946224</td><td>personal</td><td>US</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td></tr>
+          </tbody>
+        </table>
+        <table class="k-table" data-on="4 5">
+          <thead><tr><th class="k-n">step</th><th>source</th><th>target</th><th>time (UTC)</th><th class="k-n">amount <span class="k-profile">$5.00 to $9,895.21</span></th></tr></thead>
+          <tbody>
+            <tr aria-selected="true"><td class="k-n">1</td><td class="k-id">ACC-271813</td><td class="k-id">ACC-946224</td><td class="k-num">Mar 4 18:23</td><td class="k-n">$3,530.28</td></tr>
+            <tr aria-selected="true"><td class="k-n">2</td><td class="k-id">ACC-946224</td><td class="k-id">ACC-242954</td><td class="k-num">Mar 7 13:27</td><td class="k-n">$9,782.05</td></tr>
+            <tr aria-selected="true"><td class="k-n">3</td><td class="k-id">ACC-242954</td><td class="k-id">ACC-233575</td><td class="k-num">Mar 8 20:29</td><td class="k-n">$9,616.72</td></tr>
+          </tbody>
+        </table>
+        <table class="k-table" data-on="8">
+          <thead><tr><th>source</th><th>target</th><th>time (UTC) <span class="k-profile">Aug 3 to Aug 30</span></th><th class="k-n">amount (USD) <span class="k-profile">90.81 to 9,863.99</span></th></tr></thead>
+          <tbody>
+            <tr data-member><td class="k-id">ACC-365386</td><td class="k-id">ACC-597001</td><td class="k-num">Aug 3 07:21</td><td class="k-n">90.81</td></tr>
+            <tr data-member><td class="k-id">ACC-916833</td><td class="k-id">ACC-365386</td><td class="k-num">Aug 5 09:09</td><td class="k-n">3,479.70</td></tr>
+            <tr data-member><td class="k-id">ACC-365386</td><td class="k-id">ACC-274887</td><td class="k-num">Aug 6 15:21</td><td class="k-n">9,260.78</td></tr>
+            <tr data-member><td class="k-id">ACC-365386</td><td class="k-id">ACC-898028</td><td class="k-num">Aug 6 15:44</td><td class="k-n">9,662.37</td></tr>
+            <tr data-member><td class="k-id">ACC-365386</td><td class="k-id">ACC-465572</td><td class="k-num">Aug 6 17:42</td><td class="k-n">9,139.58</td></tr>
+            <tr data-member><td class="k-id">ACC-796219</td><td class="k-id">ACC-365386</td><td class="k-num">Aug 17 12:43</td><td class="k-n">9,863.99</td></tr>
+            <tr data-member><td class="k-id">ACC-228299</td><td class="k-id">ACC-365386</td><td class="k-num">Aug 24 13:28</td><td class="k-n">9,326.81</td></tr>
+            <tr data-member><td class="k-id">ACC-365386</td><td class="k-id">ACC-512219</td><td class="k-num">Aug 30 07:44</td><td class="k-n">168.28</td></tr>
+          </tbody>
+        </table>
+        <table class="k-table" data-on="9">
+          <thead><tr><th>source</th><th>target</th><th>time (UTC) <span class="k-profile">Aug 3 to Aug 30</span></th><th class="k-n">amount (USD) <span class="k-profile">90.81 to 9,863.99</span></th></tr></thead>
+          <tbody>
+            <tr><td class="k-id">ACC-365386</td><td class="k-id">ACC-597001</td><td class="k-num">Aug 3 07:21</td><td class="k-n">90.81</td></tr>
+            <tr aria-selected="true"><td class="k-id">ACC-916833</td><td class="k-id">ACC-365386</td><td class="k-num">Aug 5 09:09</td><td class="k-n">3,479.70</td></tr>
+            <tr aria-selected="true"><td class="k-id">ACC-365386</td><td class="k-id">ACC-274887</td><td class="k-num">Aug 6 15:21</td><td class="k-n">9,260.78</td></tr>
+            <tr aria-selected="true"><td class="k-id">ACC-365386</td><td class="k-id">ACC-898028</td><td class="k-num">Aug 6 15:44</td><td class="k-n">9,662.37</td></tr>
+            <tr aria-selected="true"><td class="k-id">ACC-365386</td><td class="k-id">ACC-465572</td><td class="k-num">Aug 6 17:42</td><td class="k-n">9,139.58</td></tr>
+            <tr><td class="k-id">ACC-898028</td><td class="k-id">ACC-597001</td><td class="k-num">Aug 8 22:17</td><td class="k-n">157.72</td></tr>
+            <tr><td class="k-id">ACC-796219</td><td class="k-id">ACC-365386</td><td class="k-num">Aug 17 12:43</td><td class="k-n">9,863.99</td></tr>
+            <tr><td class="k-id">ACC-796219</td><td class="k-id">ACC-465572</td><td class="k-num">Aug 17 13:35</td><td class="k-n">9,782.28</td></tr>
+            <tr><td class="k-id">ACC-274887</td><td class="k-id">ACC-465572</td><td class="k-num">Aug 19 16:56</td><td class="k-n">9,815.97</td></tr>
+            <tr><td class="k-id">ACC-898028</td><td class="k-id">ACC-465572</td><td class="k-num">Aug 21 17:39</td><td class="k-n">9,707.38</td></tr>
+            <tr><td class="k-id">ACC-228299</td><td class="k-id">ACC-365386</td><td class="k-num">Aug 24 13:28</td><td class="k-n">9,326.81</td></tr>
+            <tr><td class="k-id">ACC-228299</td><td class="k-id">ACC-465572</td><td class="k-num">Aug 24 14:09</td><td class="k-n">9,616.35</td></tr>
+            <tr><td class="k-id">ACC-365386</td><td class="k-id">ACC-512219</td><td class="k-num">Aug 30 07:44</td><td class="k-n">168.28</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tfoot k-num" data-on="9">
+        <span class="sum">4 selected:</span>
+        <span class="sum">Money in before Aug 6 15:21 <b>3,479.70</b> (1 transfer)</span>
+        <span class="sum">Money out after <b>28,062.73</b> (3 transfers)</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Inspector -->
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num"><span data-on="1 2 3 6 7 8 9">100%</span><span data-on="4 5">300%</span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+
+    <!-- 1: the fixed set stays the selection while two rows are focused -->
+    <div data-on="1">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-name">Paid ACC-893168</span></div>
+        <div class="l2"><span class="kw k-num">Frozen set, 37</span>
+          <span class="k-icon-btn" title="Select members"><svg class="k-i"><use href="../kit/icons.svg#target"/></svg></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Add to set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">Created from</div>
+        <div class="k-data"><span class="k-name">Selection</span><span class="k-value k-id">Neighbors of ACC-893168</span></div>
+        <div class="k-data"><span class="k-name">Direction</span><span class="k-value">Money in</span></div>
+        <div class="k-data"><span class="k-name">Scope</span><span class="k-value k-num">Full graph, 3,000</span></div></section>
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-data"><span class="k-name">kind</span><span class="k-value">personal 35, business 2</span></div>
+        <div class="k-data"><span class="k-name">flagged</span><span class="k-value">true 14, false 23</span></div></section>
+      <section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">37</span><span class="k-grow"></span><span class="k-secondary">riskScore</span></div>
+        <div class="k-row k-id">ACC-233575<span class="k-grow"></span><span class="k-secondary k-num">98</span></div>
+        <div class="k-row k-id">ACC-782213<span class="k-grow"></span><span class="k-secondary k-num">97</span></div>
+        <div class="k-row k-id">ACC-577269<span class="k-grow"></span><span class="k-secondary k-num">97</span></div>
+        <div class="k-row k-secondary">34 more</div></section>
+    </div>
+
+    <!-- 2: the intersection, a rule set naming both operands (live form waits on the element) -->
+    <div data-on="2">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-name">High risk and Paid ACC-893168</span></div>
+        <div class="l2"><span class="kw k-num">Rule set, 16</span>
+          <span class="k-icon-btn" title="Select members"><svg class="k-i"><use href="../kit/icons.svg#target"/></svg></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Freeze"><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">Rule</div>
+        <div class="k-row gap"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow">Intersect: High risk, Paid ACC-893168</span></div></section>
+      <section class="k-section"><div class="k-section-head">Created from</div>
+        <div class="k-data"><span class="k-name">High risk</span><span class="k-value">rule set, 143</span></div>
+        <div class="k-data"><span class="k-name">Paid ACC-893168</span><span class="k-value">frozen set, 37</span></div></section>
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-data"><span class="k-name">flagged</span><span class="k-value">true 14, false 2</span></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">75 to 98</span></div></section>
+      <section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">16</span><span class="k-grow"></span><span class="k-secondary">riskScore</span></div>
+        <div class="k-row k-id">ACC-233575<span class="k-grow"></span><span class="k-secondary k-num">98</span></div>
+        <div class="k-row k-id">ACC-982215<span class="k-grow"></span><span class="k-secondary k-num">77</span></div>
+        <div class="k-row k-id">ACC-437087<span class="k-grow"></span><span class="k-secondary k-num">75</span></div>
+        <div class="k-row k-secondary">13 more</div></section>
+    </div>
+
+    <!-- 7: Freeze made a new fixed set; the rule set is unchanged -->
+    <div data-on="7">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-name">Sep 28: High risk and Paid ACC-893168</span></div>
+        <div class="l2"><span class="kw k-num">Frozen set, 16</span>
+          <span class="k-icon-btn" title="Select members"><svg class="k-i"><use href="../kit/icons.svg#target"/></svg></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Add to set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">Created from</div>
+        <div class="k-data"><span class="k-name">Frozen from</span><span class="k-value">rule set, 16</span></div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow k-ellipsis">High risk and Paid ACC-893168</span></div>
+        <div class="k-data"><span class="k-name">Frozen on</span><span class="k-value k-num">Sep 28 2026</span></div></section>
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-data"><span class="k-name">flagged</span><span class="k-value">true 14, false 2</span></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">75 to 98</span></div></section>
+      <section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">16</span><span class="k-grow"></span><span class="k-secondary">riskScore</span></div>
+        <div class="k-row k-id">ACC-233575<span class="k-grow"></span><span class="k-secondary k-num">98</span></div>
+        <div class="k-row k-id">ACC-982215<span class="k-grow"></span><span class="k-secondary k-num">77</span></div>
+        <div class="k-row k-id">ACC-437087<span class="k-grow"></span><span class="k-secondary k-num">75</span></div>
+        <div class="k-row k-secondary">13 more</div></section>
+    </div>
+
+    <!-- 3 and 6: a node is the selection -->
+    <div data-on="3">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">ACC-271813</span></div>
+        <div class="l2"><span class="kw">Node</span>
+          <span class="split"><span class="k-icon-btn" title="Neighbors"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span><span class="k-icon-btn"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Pin"><svg class="k-i"><use href="../kit/icons.svg#pin"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">kind</span><span class="k-value">business</span></div>
+        <div class="k-data"><span class="k-name">country</span><span class="k-value">MX</span></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">1</span></div>
+        <div class="k-data"><span class="k-name">flagged</span><span class="k-value">false</span></div>
+        <div class="k-data"><span class="k-name">Links (count)</span><span class="k-value">14</span></div></section>
+      <section class="k-section"><div class="k-section-head">Filter</div>
+        <div class="k-data"><span class="k-name">Left out by</span><span class="k-value">riskScore 20 or more</span></div></section>
+    </div>
+    <div data-on="6">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">ACC-233575</span></div>
+        <div class="l2"><span class="kw">Node</span>
+          <span class="split"><span class="k-icon-btn" title="Neighbors"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span><span class="k-icon-btn"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Pin"><svg class="k-i"><use href="../kit/icons.svg#pin"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">kind</span><span class="k-value">personal</span></div>
+        <div class="k-data"><span class="k-name">country</span><span class="k-value">US</span></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">98</span></div>
+        <div class="k-data"><span class="k-name">flagged</span><span class="k-value">true</span></div>
+        <div class="k-data"><span class="k-name">Links (count)</span><span class="k-value">8</span></div></section>
+      <section class="k-section"><div class="k-section-head">Memberships</div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow">Flagged</span><span class="k-secondary">rule</span></div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow k-ellipsis">High risk and Paid ACC-893168</span><span class="k-secondary">rule</span></div></section>
+    </div>
+
+    <!-- 8: the flagged August account, its Neighbors menu open -->
+    <div data-on="8">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">ACC-365386</span></div>
+        <div class="l2"><span class="kw">Node</span>
+          <span class="split"><span class="k-icon-btn" title="Neighbors"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span><span class="k-icon-btn" data-hover aria-expanded="true"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Pin"><svg class="k-i"><use href="../kit/icons.svg#pin"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">kind</span><span class="k-value">personal</span></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">92</span></div>
+        <div class="k-data"><span class="k-name">alertId</span><span class="k-value k-id">AL-40122</span></div>
+        <div class="k-data"><span class="k-name">alertTime</span><span class="k-value">Aug 7 02:17 UTC</span></div></section>
+      <section class="k-section"><div class="k-section-head">Connections</div>
+        <div class="k-row"><span class="k-grow"><span class="k-num">8</span> neighbors</span><span class="k-secondary k-num">In 3, Out 5</span></div></section>
+      <section class="k-section"><div class="k-section-head">Results</div>
+        <div class="k-data"><span class="k-name">Bridges</span><span class="k-value">Not on a bridge edge</span></div></section>
+    </div>
+
+    <!-- 9: four transfers selected inside the dated step -->
+    <div data-on="9">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#spline"/></svg><span class="k-name">4 edges</span></div>
+        <div class="l2"><span class="kw k-num">Selection, 4 edges</span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn" title="Add to set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <section class="k-section"><div class="k-section-head">In step</div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg><span class="k-grow k-ellipsis">ACC-365386 and neighbors</span></div>
+        <div class="k-data"><span class="k-name">Hops</span><span class="k-value">1</span></div>
+        <div class="k-data"><span class="k-name">Direction</span><span class="k-value">Money in and out</span></div>
+        <div class="k-data"><span class="k-name">From</span><span class="k-value k-num">Aug 3 00:00 UTC</span></div></section>
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-data"><span class="k-name">time</span><span class="k-value k-num">Aug 5 09:09 to Aug 6 17:42</span></div>
+        <div class="k-data"><span class="k-name">amount</span><span class="k-value k-num">3,479.70 to 9,662.37</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">1 in, 3 out of ACC-365386</span></div></section>
+    </div>
+
+    <!-- 4 and 5: the found path, offered until Keep path keeps it -->
+    <div data-on="4 5">
+      <div class="k-typerow tr2">
+        <div class="l1"><svg class="k-i"><use href="../kit/icons.svg#waypoints"/></svg><span class="k-name">Found path</span><span class="k-secondary">(unweighted)</span></div>
+        <div class="l2"><span class="kw k-num">3 hops</span>
+          <span class="k-icon-btn kfocus" title="Keep path" data-on="4"><svg class="k-i"><use href="../kit/icons.svg#bookmark"/></svg></span>
+          <span class="k-icon-btn" title="Keep path" data-on="5"><svg class="k-i"><use href="../kit/icons.svg#bookmark"/></svg></span>
+          <span class="k-icon-btn" title="Select members"><svg class="k-i"><use href="../kit/icons.svg#target"/></svg></span>
+          <span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span>
+          <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      </div>
+      <div class="k-tooltip" style="position:fixed;left:1300px;top:152px" data-on="4">Keep path</div>
+      <section class="k-section"><div class="k-section-head">Created from</div>
+        <div class="k-data"><span class="k-name">Query</span><span class="k-value">Shortest path</span></div>
+        <div class="k-data"><span class="k-name">Scope</span><span class="k-value k-num">Full graph, 3,000</span></div>
+        <div class="k-data" data-on="4"><span class="k-name">Weight</span><span class="k-value">amount, not used yet</span></div>
+        <div class="k-data" data-on="5" style="background:var(--cm-bg-selected)"><span class="k-name">Weight</span><span class="k-value">amount, not used yet</span></div>
+        <div class="k-prose">Paths ignore amount: hops were counted, not dollars.</div>
+        <div class="k-data"><span class="k-name">Direction</span><span class="k-value">follows transfers</span></div>
+        <div class="k-data"><span class="k-name">Ties</span><span class="k-value gap">1 of 2 as short</span></div></section>
+      <section class="k-section"><div class="k-section-head">Endpoints</div>
+        <div class="k-row k-id"><span class="k-badge">start</span>ACC-271813<span class="k-grow"></span><span class="k-secondary gap">outside filter</span></div>
+        <div class="k-row k-id"><span class="k-badge">end</span>ACC-233575</div></section>
+      <section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">4</span><span class="k-grow"></span><span class="k-secondary">riskScore</span></div>
+        <div class="k-row k-id">ACC-271813<span class="k-grow"></span><span class="k-secondary k-num">1</span></div>
+        <div class="k-row k-id">ACC-946224<span class="k-grow"></span><span class="k-secondary k-num">93</span></div>
+        <div class="k-row k-id">ACC-242954<span class="k-grow"></span><span class="k-secondary k-num">92</span></div>
+        <div class="k-row k-id">ACC-233575<span class="k-grow"></span><span class="k-secondary k-num">98</span></div></section>
+    </div>
+  </aside>
+</div>
+
+<!-- 5: the found path's editor, opened from its Weight row. The meaning of a weight belongs to
+     the run, not the column. Dashed: the meaning as a run option waits on graphty-element. -->
+<div class="k-popover gap" style="position:fixed;left:950px;top:236px" data-on="5">
+  <div class="k-popover-head">Found path<span class="k-grow"></span><span class="k-btn k-btn-secondary">Re-run</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-popover-body">
+    <div class="k-fieldrow"><span class="k-legend">Weight</span><div class="k-fields"><span class="k-field k-span">amount<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+    <div class="k-fieldrow"><span class="k-legend">In this run, a bigger amount means:</span><div class="k-fields"><span class="k-field k-span" data-focus>a closer or stronger link<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+    <div class="k-prose">Distance = 1 / amount. The path prefers big transfers.</div>
+  </div>
+</div>
+
+<!-- 8: the Neighbors menu with its two dated options; Direction's submenu open -->
+<div class="k-menu nbmenu" style="right:8px;top:118px;width:280px" role="menu" data-on="8">
+  <div class="k-menu-label">Hops from ACC-365386</div>
+  <div class="k-menu-item" role="menuitemradio" aria-checked="true"><span class="k-check-col">&#10003;</span><span class="k-grow">1 hop</span><span class="k-secondary k-num">9 nodes, 13 edges</span></div>
+  <div class="k-menu-item" role="menuitemradio"><span class="k-check-col"></span><span class="k-grow">2 hops</span><span class="k-secondary k-num gap">counted when chosen</span></div>
+  <div class="k-menu-item" role="menuitemradio"><span class="k-check-col"></span><span class="k-grow">3 hops</span><span class="k-secondary k-num gap">counted when chosen</span></div>
+  <div class="k-menu-sep"></div>
+  <div class="k-menu-item" data-hover role="menuitem"><span class="k-check-col"></span><span class="k-grow">Direction</span><span class="k-secondary">Money in and out</span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span><span class="k-grow">From</span><span class="k-secondary k-num">Aug 3</span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></div>
+  <div class="k-menu-sep"></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span><span class="k-grow">Filter to neighbors, 1 hop</span><span class="k-shortcut">Shift+N</span></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span><span class="k-grow">Select neighbors, 1 hop</span></div>
+</div>
+<div class="k-menu nbsub" style="right:296px;top:224px;width:196px" role="menu" data-on="8">
+  <div class="k-menu-item" role="menuitemradio" aria-checked="true"><span class="k-check-col">&#10003;</span><span class="k-grow">Money in and out</span></div>
+  <div class="k-menu-item" role="menuitemradio"><span class="k-check-col"></span><span class="k-grow">Money in</span><span class="k-secondary k-num">3 transfers</span></div>
+  <div class="k-menu-item" role="menuitemradio"><span class="k-check-col"></span><span class="k-grow">Money out</span><span class="k-secondary k-num">5 transfers</span></div>
+</div>
+
+<!-- Annotation layer: framework section and compact-mantine component behind each element -->
+<div data-on="1">
+  <span class="an k-annot-box" style="left:64px;top:190px;width:228px;height:130px"></span>
+  <div class="an k-annot-note" style="left:320px;top:110px"><b>Focused rows, visible operations.</b> Shift+click on a second set row focuses it; the selection stays one object (interaction-patterns 3.1). The bar above the rows says how many are focused and holds Union, Subtract, Intersect, Exclude and Select members, where Figma shows its boolean operations once two layers are selected. The rows' context menu is the second route; Shift+F10 opens it. ActionIcon with TooltipShortcut, in a ControlSection header slot. A proposal: framework-changes.</div>
+  <div class="an k-annot-note" style="left:320px;top:330px"><b>Hover mark on the union.</b> While rows are focused the canvas draws the hover hairline around all 164 members of both sets; the selected set, Paid ACC-893168, keeps its hull in the selection band (canvas-drawing 6, the hull rows; 12). Drawn by graphty-element.</div>
+  <div class="an k-annot-note" style="left:940px;top:120px"><b>Inspector unchanged</b> while rows are focused. Type row: kind word and count, then Select members, Filter to, Add to set as ActionIcons, then the overflow (interface-specification 4.2). Created from as DataRows (conceptual-model 4).</div>
+</div>
+<div data-on="2">
+  <span class="an k-annot-box" style="left:64px;top:286px;width:228px;height:32px"></span>
+  <div class="an k-annot-note" style="left:320px;top:250px"><b>The new rule set</b> is appended and becomes the selection (interaction-pattern-entries 6.1). Its name joins the operands with "and". Tree row. Undo: "Intersect High risk and Paid ACC-893168".</div>
+  <div class="an k-annot-note" style="left:940px;top:120px"><b>Trust check:</b> Created from names both operands with kind and count; the count 16 is on the row and on line 2 (task-flows 10.1). DataRow.</div>
+  <div class="an k-annot-note" style="left:940px;top:300px"><b>Dashed = not yet possible.</b> graphty-element's combine writes a frozen set today; a rule set that follows its operands waits on "A live set operation" (element-needs).</div>
+  <div class="an k-annot-note" style="left:560px;top:430px"><b>The hull alone</b> marks the selected set; members get the thin member ring only where no hull is drawn (canvas-drawing 6, Precedence). The two unflagged members, ACC-982215 and ACC-437087, are the new leads.</div>
+</div>
+<div data-on="7">
+  <span class="an k-annot-box" style="left:64px;top:318px;width:228px;height:32px"></span>
+  <div class="an k-annot-note" style="left:320px;top:280px"><b>Freeze</b> keeps today's 16 members as a new frozen set, named with the day it was frozen; the rule set above it is unchanged (glossary, Freeze). Undo: "Freeze High risk and Paid ACC-893168".</div>
+  <div class="an k-annot-note" style="left:940px;top:170px"><b>Created from</b> names the rule set and the rule it was frozen from, as DataRows.</div>
+</div>
+<div data-on="3">
+  <span class="an k-annot-box" style="left:544px;top:422px;width:410px;height:112px"></span>
+  <div class="an k-annot-note" style="left:560px;top:250px"><b>The Path tool's bar</b>: From, To, Run; Scope and Weight on a second line (interface-templates 14). Scope is the one control for where the search runs, Filtered graph by default (interaction-pattern-entries 6.9). The state line names the endpoint outside it; Run waits until Scope says Full graph. SecondaryToolbar, SearchInput, StyleSelect.</div>
+  <div class="an k-annot-note" style="left:940px;top:350px"><b>Why From is outside:</b> the inspector's Filter row names the step that leaves it out. DataRow.</div>
+  <div class="an k-annot-note" style="left:320px;top:420px"><b>Weight in the bar</b> reads "amount, not used yet" before the run: no measure reads it, so paths count hops (glossary 11).</div>
+</div>
+<div data-on="4">
+  <span class="an k-annot-box" style="left:1328px;top:116px;width:28px;height:28px"></span>
+  <div class="an k-annot-note" style="left:960px;top:60px"><b>Focus lands on Keep path</b> when the run hands back; being next is shown by focus, not by a primary color (interface-specification 4.2: an offered path leads with its keep verb). ActionIcon.</div>
+  <div class="an k-annot-note" style="left:940px;top:330px"><b>Trust check:</b> the Weight row states the reading; an unanswered weight means paths count hops, and the name carries "(unweighted)" (glossary 11; graph-conventions 1). DataRow.</div>
+  <div class="an k-annot-note" style="left:940px;top:450px"><b>Dashed:</b> the tie count and the endpoint outside the filter wait on graphty-element ("A shortest-path query that reports how many equally short paths exist"; "Ordered filter steps").</div>
+  <div class="an k-annot-note" style="left:320px;top:80px"><b>The found path</b> is selected and handed back (interaction-pattern-entries 5): the selection casing, chevrons for travel, start and end badges (canvas-drawing 6). Flagged accounts keep their fill. Drawn by graphty-element.</div>
+</div>
+<div data-on="5">
+  <div class="an k-annot-note" style="left:640px;top:236px"><b>The meaning belongs to this run.</b> The path's editor asks "In this run, a bigger amount means:"; the column claims no meaning and no other result changes. The line under the answer names the conversion. Re-run is the one verb; the old path stays until then. Dashed: the meaning as a run option waits on graphty-element. Popout, FieldRow, Select.</div>
+</div>
+<div data-on="8">
+  <div class="an k-annot-note" style="left:640px;top:120px;width:280px"><b>Dated Neighbors: two options, both graphty-element's.</b> Direction (money in and out, in, or out, the word the transfers use rather than "Follow") and From, a date on the edges' time column; only transfers from that date on are followed. The window and the ordering are graph logic, so the element does them and counts each hop with them; the app only shows the menu. Dashed: counting hops inside a window waits on graphty-element. SplitButton; Menu with checkable rows and two submenus; From opens a DatePicker.</div>
+  <div class="an k-annot-note" style="left:960px;top:560px;width:260px"><b>"Not on a bridge edge"</b> replaces "on no bridge", which people read as the tool contradicting itself. DataRow in Results.</div>
+</div>
+<div data-on="9">
+  <div class="an k-annot-note" style="left:320px;top:420px;width:300px"><b>The footer splits the selection's total in two:</b> money into the account before its first transfer out, and money out from then on. Here 3,479.70 came in on Aug 5 and 28,062.73 went out the next afternoon: every participant tracing this account worked that out by hand. The sums are computed by graphty-element over the selected edges and the step's direction; the table shows them as one line, no new widget. DataTable footer.</div>
+  <div class="an k-annot-note" style="left:960px;top:420px;width:260px"><b>In step</b> names the step and the options it ran with, so the From date is never hidden. DataRows.</div>
+</div>
+<div data-on="6">
+  <div class="an k-annot-note" style="left:320px;top:250px"><b>An empty result keeps the tool armed</b>, and the bar offers the one change that would find a route (interaction-pattern-entries 5). The line is the message catalog's graphty.query.noPath, reason direction.</div>
+</div>
+</body>
+</html>

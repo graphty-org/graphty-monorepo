@@ -1,0 +1,163 @@
+{
+  "about": "The term sheet kit/check.mjs reads. It is checked against the RENDERED page. A retired string fails anywhere on it, design prose included (prose that describes a retired control as current misleads the owner too); a required string counts only inside product frames in the participant view (?study), so a design note cannot satisfy it. A frame marked data-frame=\"before\" is skipped. 'retired' fails any page that shows the text; 'required' fails the named state when the text is missing, or when the state does not exist yet (a state to draw). Each entry gives its reason. The frame rules (the rail, one right panel, no avatar, no top-right Export) and the two-homes rules are code in check.mjs, named in 'rules' so the sheet lists every gate in one place.",
+  "exempt": [
+    "study/index.html"
+  ],
+  "exemptWhy": "The study's own record of past rounds, which quotes retired terms as history.",
+  "retired": [
+    {
+      "text": "Export files",
+      "why": "Export... is in the project-name menu and the File list; there is no top-right Export files button (owner review item 1)."
+    },
+    {
+      "re": "\\bstyle files?\\b",
+      "flags": "i",
+      "label": "Style files / style file",
+      "why": "Recipe is the one noun for a saved style or workflow file."
+    },
+    {
+      "text": "Undo back to here",
+      "why": "Deleted: each filter step's own delete on the filter chip covers it."
+    },
+    {
+      "text": "Previous selection key",
+      "why": "Deleted: Ctrl+Z restores a cleared selection."
+    },
+    {
+      "text": "Ctrl+Alt+Z",
+      "label": "the Previous selection key (Ctrl+Alt+Z)",
+      "why": "Deleted with the Previous selection command: Ctrl+Z restores a cleared selection."
+    },
+    {
+      "text": "Default for new runs",
+      "why": "Deleted: the meaning of a weight is chosen for each run, with nothing preselected."
+    },
+    {
+      "why": "The walk's readout names its column: amount 0.98.",
+      "re": "\\bweight 0\\.98\\b",
+      "flags": "i",
+      "label": "'weight 0.98' (the walk's readout names its column)"
+    },
+    {
+      "re": "within\\b.{0,60}?\\bof 0\\b.{0,20}?drawn as no change",
+      "flags": "i",
+      "label": "the Print look's 'within ... of 0 drawn as no change' sentence",
+      "why": "No band that nobody set: the Print look's no-change band is removed."
+    },
+    {
+      "re": "\\bresults?\\s*(?:[:=]|is|was|of)\\s*[~-]?\\s*\\d*\\.\\d|\\b[A-Z][A-Za-z0-9-]*'s results?\\b|\\bresults? for (?:the |this |that |each |every )?(?:node|account|protein|character|patent|gene)s?\\b",
+      "label": "'result' used to mean a value",
+      "why": "Results is the place, a run is the object, a value is a number on a node."
+    },
+    {
+      "re": "Shift\\+Enter,? (?:starts )?(?:a )?new line",
+      "flags": "i",
+      "label": "Shift+Enter for a new line in a note",
+      "why": "In a note, Enter starts a new line and Ctrl+Enter adds it."
+    },
+    {
+      "re": "Selection (?:cleared on canvas|restored:)",
+      "label": "'Selection cleared on canvas' / 'Selection restored: N'",
+      "why": "One message shape: 'Selection cleared (N nodes). Ctrl+Z brings it back.' and 'Selection restored (N nodes).'"
+    },
+    {
+      "text": "Undo: restore",
+      "why": "Edit > Undo names every entry the same way: 'Undo Restore selection (N nodes)'."
+    }
+  ],
+  "required": [
+    {
+      "page": "screens/take-a-note.html",
+      "states": [
+        "s2",
+        "s4",
+        "s6"
+      ],
+      "text": [
+        "Ctrl+Enter"
+      ],
+      "why": "In a note, Enter starts a new line and Ctrl+Enter posts, with a hint under the box."
+    },
+    {
+      "page": "screens/table-dock.html",
+      "states": [
+        "ranked"
+      ],
+      "text": [
+        "Near tie"
+      ],
+      "why": "Near ties are marked in the rank column, with one line stating the tie rule."
+    },
+    {
+      "page": "screens/results-panel.html",
+      "states": [
+        "refused"
+      ],
+      "text": [
+        "Not run:"
+      ],
+      "why": "A refused run reads 'Not run: would take about <estimate>', with no failure mark."
+    },
+    {
+      "page": "screens/run-and-read.html",
+      "states": [
+        "refused"
+      ],
+      "text": [
+        "Not run:"
+      ],
+      "why": "A refused run reads 'Not run: would take about <estimate>', with no failure mark."
+    },
+    {
+      "page": "screens/table-dock.html",
+      "states": [
+        "large",
+        "selected"
+      ],
+      "text": [
+        "Money in",
+        "Links in (count)"
+      ],
+      "why": "On the transfers, weighted degree is Money in / Money out, and a link count is Links in (count), so a ranking by link count never looks like money."
+    },
+    {
+      "page": "screens/run-and-read.html",
+      "states": [
+        "money"
+      ],
+      "text": [
+        "Money in",
+        "Links in (count)"
+      ],
+      "why": "Weighted degree in the catalog and Quick actions under the money words; link-count measures labelled as counts. A state to draw: the transfers' catalog."
+    },
+    {
+      "page": "screens/undo.html",
+      "states": [
+        "restore"
+      ],
+      "text": [
+        "Selection restored"
+      ],
+      "why": "After Ctrl+Z restores a cleared selection, the undo line reads 'Selection restored (18 nodes)'. A state to draw."
+    },
+    {
+      "page": "screens/results-panel.html",
+      "states": [
+        "filtered"
+      ],
+      "re": "\\bon [0-9][0-9,]* of [0-9][0-9,]*\\b",
+      "label": "a subset scope such as 'on 60 of 77'",
+      "why": "Every value computed on a subset carries its scope ('0.419, on 60 of 77')."
+    }
+  ],
+  "rules": {
+    "frame": "Every product k-app: the rail reads main menu, Graph, Data, Results, Notes, Assistant; one right column; no avatar; no Export button in a header row; no Styles section in the Graph panel. kit/shell.mjs draws it.",
+    "counts": "A count or statistic that kit/fixtures.json does not hold, a bound number that differs from its fixture, or two pages that show one fixture value differently.",
+    "twoHomes": [
+      "a Results section in the inspector with nothing selected (runs live on the Results rail place)",
+      "a Previous selection command (Ctrl+Z restores a cleared selection)",
+      "an Apply dialog without 'Use these styles' (a second Apply dialog)"
+    ]
+  }
+}

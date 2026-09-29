@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export dialog</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+.x-top { max-width: 1440px; margin: 0 auto; padding: 24px 24px 8px; box-sizing: border-box; }
+.x-top h1 { font-size: 24px; line-height: 32px; font-weight: 600; margin: 0 0 4px; }
+.x-top p { max-width: 100ch; color: var(--cm-text-secondary); margin: 4px 0; }
+.x-top nav { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 8px 0; }
+.x-top nav a { display: inline-flex; align-items: center; min-height: 24px; }
+.x-top a, .x-annkey a { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; }
+.x-ctl { display: flex; gap: 20px; align-items: center; margin-top: 6px; }
+.x-state-h { width: 1440px; max-width: 100%; margin: 32px auto 8px; padding: 0 24px; box-sizing: border-box; }
+.x-state-h h2 { font-size: 15px; line-height: 25px; margin: 0; }
+.x-state-h p { margin: 0; max-width: 110ch; color: var(--cm-text-secondary); }
+.x-frame { position: relative; width: 1440px; height: 900px; margin: 0 auto; overflow: hidden; box-shadow: 0 0 0 1px var(--cm-border); }
+.x-frame .k-app { height: 100%; }
+.x-frame .k-backdrop { position: absolute; }
+.x-trigger[data-focus] { outline: 2px solid var(--cm-text-brand); outline-offset: 2px; }
+.x-frame .k-menu { position: absolute; z-index: 60; min-width: 232px; }
+
+/* the Data panel's header: its title and the one Export... button */
+.x-dhead { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); font-weight: 550; flex: none; }
+.x-srow { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px 0 16px; }
+.x-srow .k-ellipsis { flex: 1 1 auto; min-width: 0; }
+.x-sub2 { padding: 0 8px 4px 40px; color: var(--cm-text-secondary); margin-top: -4px; }
+.x-new { background: var(--cm-bg-selected, var(--cm-bg-secondary)); }
+
+/* the dialog: the window less 24 each side, at most 1392; the list and preview scroll, the footer stays */
+.x-modal { width: min(1392px, calc(100% - 48px)); height: calc(100% - 40px); max-height: none; max-width: none; }
+.x-scope { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.x-scope-label { color: var(--cm-text-secondary); width: 44px; }
+.x-scope-f { width: 220px; }
+.x-state { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 16px; border-bottom: 1px solid var(--cm-border); background: var(--cm-bg-secondary); flex: none; }
+.x-body { flex: 1 1 auto; display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+.x-kinds { overflow: auto; border-right: 1px solid var(--cm-border); padding-bottom: 8px; }
+.x-sec { padding: 4px 0; border-bottom: 1px solid var(--cm-border); }
+.x-sec:last-child { border-bottom: 0; }
+.x-sec-head { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 16px; font-weight: 550; }
+.x-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px 0 16px; }
+.x-item[aria-selected="true"] { background: var(--cm-bg-selected, var(--cm-bg-secondary)); }
+.x-item .x-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.x-item .x-ext { color: var(--cm-text-secondary); }
+.x-item[data-disabled] .x-name, .x-item[data-disabled] .x-ext { color: var(--cm-text-disabled); }
+.x-note { padding: 0 16px 4px 40px; margin-top: -3px; color: var(--cm-text-tertiary); }
+.x-note b { font-weight: 550; color: var(--cm-text-secondary); }
+.x-sum { flex: none; color: var(--cm-text-secondary); }
+/* the selected output's settings, joined to its row (master-detail) */
+.x-detail { margin: 2px 8px 6px 40px; padding: 6px 8px 8px 10px; border-left: 2px solid var(--cm-bg-brand); background: var(--cm-bg-selected, var(--cm-bg-secondary)); display: grid; grid-template-columns: 72px 1fr; gap: 6px 8px; align-items: center; }
+.x-detail { grid-template-columns: 72px minmax(0, 1fr); }
+.x-detail .k-field { min-width: 0; width: auto; box-sizing: border-box; }
+.x-detail .x-full { grid-column: 1 / -1; }
+.x-detail .x-hint { grid-column: 2; color: var(--cm-text-tertiary); margin-top: -3px; }
+.x-lab { display: flex; gap: 6px; align-items: center; }
+.x-lab .k-field:first-child { flex: 1 1 auto; }
+.x-n { width: 40px; flex: none; }
+.x-hidden { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.x-hidden button { font: inherit; color: var(--cm-text-brand); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.x-hidden ul { flex-basis: 100%; margin: 2px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.x-hidden li { display: flex; gap: 8px; }
+.x-hidden li .k-num { color: var(--cm-text-secondary); }
+.x-wait { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--k-annot-bg); color: var(--k-annot-ink); font-size: 11px; font-weight: 550; white-space: nowrap; }
+.x-wait-line { padding: 0 16px 4px 40px; }
+.x-hidden li { display: block; }
+.x-hidden .x-hrow { display: flex; width: 100%; gap: 8px; align-items: center; min-height: 24px; padding: 0 6px; margin: 0 -6px; border-radius: 4px; color: var(--cm-text); text-decoration: none; }
+.x-hidden .x-hrow:hover { background: var(--cm-bg-secondary); }
+.x-hnote { flex-basis: 100%; color: var(--cm-text-secondary); }
+.x-look-what { color: var(--cm-text); flex: none; margin-top: -4px; }
+.x-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; flex: none; padding-left: 24px; }
+.x-step { display: inline-flex; align-items: center; gap: 3px; }
+.x-sw { width: 12px; height: 12px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+
+.x-preview { min-height: 0; overflow: auto; padding: 0 20px 12px; display: flex; flex-direction: column; gap: 8px; }
+.x-p-title { display: flex; align-items: center; gap: 8px; height: 36px; font-weight: 550; flex: none; }
+.x-p-title .k-secondary { font-weight: 400; }
+.x-look { display: flex; align-items: center; gap: 10px; min-height: 24px; flex: none; }
+.x-look .k-seg button { cursor: pointer; }
+.x-look .k-seg > [aria-checked="true"] { background: var(--cm-bg); color: var(--cm-text); box-shadow: inset 0 0 0 1px var(--cm-segment-edge); }
+.x-look b { font-weight: 550; }
+/* the figure, on its own white ground whatever the app theme: this is the file */
+.x-paper { flex: none; background: #fff; box-shadow: 0 0 0 1px var(--cm-border), var(--cm-elevation-200); border-radius: 2px; line-height: 0; }
+.x-paper svg { display: block; height: auto; }
+.x-pair { display: flex; gap: 16px; flex: none; align-items: flex-start; }
+.x-pair figure { margin: 0; display: grid; gap: 4px; }
+.x-pair figcaption { color: var(--cm-text-secondary); }
+.x-pair figcaption b { color: var(--cm-text); font-weight: 550; }
+.x-check { display: flex; align-items: center; gap: 8px; flex: none; }
+.x-check .k-btn { flex: none; }
+.x-lower { display: grid; grid-template-columns: 340px 1fr; gap: 20px; flex: none; }
+.x-files { display: grid; align-content: start; gap: 4px; }
+.x-files > div { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.x-files .k-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.x-h5 { font-weight: 550; margin: 0 0 4px; }
+.x-pre { margin: 0; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); font: 11px/16px var(--cm-font-family-mono); white-space: pre-wrap; }
+.x-nodata { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; background: var(--cm-bg-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); flex: none; }
+.x-nodata b { display: block; font-size: 13px; line-height: 20px; }
+.x-cols { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 16px; flex: none; }
+.x-cols .k-data { padding-left: 0; padding-right: 0; }
+.x-col-h { display: flex; align-items: center; gap: 6px; font-weight: 550; height: 28px; border-bottom: 1px solid var(--cm-border); margin-bottom: 2px; }
+.x-runs { padding: 4px 0 2px; }
+.x-runs ul { margin: 2px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.x-runs li span { color: var(--cm-text-secondary); }
+.x-quote { margin: 2px 0 4px; padding: 4px 8px; border-left: 2px solid var(--cm-border-strong); }
+.x-pages { display: grid; grid-template-columns: 240px 1fr; gap: 20px; min-height: 0; }
+.x-pages ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; align-content: start; }
+.x-pages li span { display: block; color: var(--cm-text-secondary); }
+.x-sheet { background: #fff; color: #1a1a1a; border-radius: 2px; padding: 14px 16px; box-shadow: 0 0 0 1px var(--cm-border); font: 11px/15px Inter, sans-serif; font-feature-settings: "tnum"; }
+.x-sheet h3 { margin: 0; font-size: 13px; }
+.x-sheet p { margin: 2px 0 8px; color: #555; }
+.x-sheet table { border-collapse: collapse; width: 100%; }
+.x-sheet th, .x-sheet td { text-align: left; padding: 2px 8px 2px 0; border-bottom: 1px solid #e3e3e3; }
+.x-sheet th { font-weight: 600; }
+.x-sheet th small { display: block; font-weight: 400; color: #555; font-size: 10px; line-height: 13px; }
+.x-sheet .n { text-align: right; }
+
+/* annotation layer: off by default; the checkbox, or #annotated in the address, turns it on */
+.ann, .x-annkey { display: none; }
+body:has(#ann-toggle:checked) .ann, body:has(#annotated:target) .ann { display: inline-grid; margin-left: 6px; vertical-align: middle; }
+body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey { display: block; }
+.x-annkey { max-width: 1440px; margin: 24px auto 48px; padding: 0 24px; box-sizing: border-box; }
+.x-annkey table { border-collapse: collapse; }
+.x-annkey td, .x-annkey th { border-bottom: 1px solid var(--cm-border); padding: 6px 12px 6px 0; text-align: start; vertical-align: top; }
+</style>
+</head>
+<body>
+<span id="annotated"></span>
+<header class="x-top">
+  <h1>Export dialog</h1>
+  <p>Everything that leaves graphty is written by one Export dialog. There are three ways to open it: Export... in the project-name menu, the Export... button in the Data panel's header, and Export table... in the table, which opens it with Table already chosen. Ctrl+Shift+E opens it from anywhere. The dialog lists what can be written, each row named with its file type -- Figure (.svg), Image (.png), Table (.csv), Findings report (.html) -- and previews the checked row exactly as it will be written. A figure is previewed at its print size on a white ground, with its legend, the footer that says how the numbers were computed, and the text at 8 pt; in the Print look the preview shows the file beside the same file printed in gray. Every file that carries data is written with a methods file beside it.</p>
+  <p>Shown on Maren's stress-response study (300 proteins, colored by log2 fold change and sized by degree), on a bank's mule-ring case, and on a lab's shared setup. The route with its branches is <a href="../flows/export.html">the export flow</a>.</p>
+  <nav><a href="#ways-in">1. Three ways in</a><a href="#ways-in-menu">1b. The project-name menu</a><a href="#figure">2. A figure</a><a href="#figure-grey">3. The figure in the Print look</a><a href="#table">4. A table</a><a href="#recipe">5. The setup, without data</a><a href="#evidence">6. The evidence file</a><a href="#done">7. Written</a><a href="#first-release">8. The first release</a></nav>
+  <div class="x-ctl">
+    <label><input type="checkbox" id="ann-toggle"> Show annotations (framework section and compact-mantine component for each numbered element; key at the bottom)</label>
+    <label>Theme <select id="theme"><option value="">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+  </div>
+</header>
+
+<div class="x-state-h" id="ways-in"><h2>1. Three ways in</h2><p>Maren's project at rest, with the Data panel open and the table dock showing. The Data panel's header holds Export..., and the table dock holds Export table.... There is no Export button in the top right. Below, the third way in: the project-name menu, where Export... sits with its shortcut, Ctrl+Shift+E. All three open the same dialog.</p></div>
+<div class="x-frame" data-kit-frame data-state="ways-in"></div>
+<div class="x-state-h" id="ways-in-menu"><h2>1b. The project-name menu</h2><p>The same project with the menu under the project's name open. Export... here, the Data panel's Export... and Ctrl+Shift+E all open the dialog with the current view's figure chosen.</p></div>
+<div class="x-frame" data-kit-frame data-state="ways-in-menu"></div>
+
+<div class="x-state-h" id="figure"><h2>2. A figure, with its legend and methods text</h2><p>Opened from the menu. Figure (.svg) is checked and selected, and its settings open under it: which view, the width (174 mm, a two-column journal figure), a white background, and the labels, here the top 10 by the layer's own value, the size of the change. Two of the ten would overlap, so they are hidden, and the dialog says so with the list one click away. The preview is the file at print size: the legend beside the drawing, and under it the footer that says degree is exact and not normalized and that no weight was used. Look, for this file only, reads Screen, with one line saying what it does; under the preview the dialog says values near 0 would print as the same gray, with Use Print look beside it. Click Print to switch the preview and the file together.</p></div>
+<div class="x-frame" data-kit-frame data-state="figure"></div>
+
+<div class="x-state-h" id="figure-grey"><h2>3. The same figure in the Print look</h2><p>After Use Print look. The preview now shows two things side by side: the file as it will be written, and the same file as a gray printer will print it. In Print, shape carries the sign (a triangle up for every value above 0, down for every value below) and darkness carries the size of the change in four gray steps, the same steps on both sides, so the largest decreases print as dark as the largest increases. Nothing is grouped as "no change": the counts are the Screen legend's, 148 below 0 and 152 above. The line under Look says what Print does to categories, none of which print alike, and the check prints the value each gray step stands for. The hidden-label list is open: MRE11 and RPL17. Each row selects its node, and the inspector's Show label anyway puts that label in the figure.</p></div>
+<div class="x-frame" data-kit-frame data-state="figure-grey"></div>
+
+<div class="x-state-h" id="table"><h2>4. A table, from the table's Export table...</h2><p>Sarah needs the mule ring's accounts as rows for the case system. In the table dock, filtered to the ring, she clicks Export table.... The same dialog opens with Table (.csv) checked and selected. It states the rows first, "14 of 3,000 rows, filtered", names the filter step, and previews the file's first lines with the file's own ids. The methods file beside it is always written, whichever way the dialog was opened.</p></div>
+<div class="x-frame" data-kit-frame data-state="table"></div>
+
+<div class="x-state-h" id="recipe"><h2>5. Share the setup, without data</h2><p>Maren Holt shares the lab's expression overlay with a partner lab. She checks Recipe. Every row that would carry her data turns off and is disabled, with one line saying why. The first thing the preview says is that no data is inside; then what travels (each run with its settings, the layout as its method and seed, the full text of a note that travels), what the recipient supplies, and what is not included.</p></div>
+<div class="x-frame" data-kit-frame data-state="recipe"></div>
+
+<div class="x-state-h" id="evidence"><h2>6. The evidence file</h2><p>Sarah refers the case. Findings report (.html), scoped to the filter step, is the case's evidence file: one HTML file that opens offline and prints to PDF from the browser. The boundary and its 14 accounts come first, then the saved views as pages with their notes, then the methods.</p></div>
+<div class="x-frame" data-kit-frame data-state="evidence"></div>
+
+<div class="x-state-h" id="done"><h2>7. Written</h2><p>After state 3. The dialog closes and focus returns to where it was opened from, here the project name. A toast names both files and the look. The Data panel's Sent and saved list gains the export at its top, so "what left this project, and when" has an answer. An export changes nothing in the project and has no undo entry.</p></div>
+<div class="x-frame" data-kit-frame data-state="done"></div>
+
+<div class="x-state-h" id="first-release"><h2>8. The first release</h2><p>State 2 as the first release draws it: Graph file and Findings report are absent until graphty-element can write them. Figure (.svg) and Image (.png) are there from the start. Nothing is shown disabled for a format that does not exist yet.</p></div>
+<div class="x-frame" data-kit-frame data-state="first-release"></div>
+
+<section class="x-annkey" data-kit-note><h2>Annotation key</h2><table><thead><tr><th>#</th><th>Element</th><th>Framework</th><th>compact-mantine</th></tr></thead><tbody>
+<tr><td><span class="k-step">1</span></td><td>Export... in the project-name menu, with Ctrl+Shift+E. Focus returns to the project name on close</td><td>framework-changes.md, "Output homes: data's new homes, and export's starting places"; figma-crosswalk.md 4 (Figma's file menu has Export...)</td><td>Menu (dark) with Menu.Item and its shortcut</td></tr>
+<tr><td><span class="k-step">2</span></td><td>Export... in the Data panel's header: the panel lists sources, versions and what was sent and saved, so writing a file starts where data is managed</td><td>framework-changes.md, "Output homes: data's new homes, and export's starting places"</td><td>Panel header with Button (default variant)</td></tr>
+<tr><td><span class="k-step">3</span></td><td>Export table... in the table dock opens the same dialog with Table (.csv) checked and selected, set to the current tab and the table's scope</td><td>interface-templates.md 16; framework-changes.md, "Export table... and the dock's tab row" and "Export: one dialog, three ways in"</td><td>Button (subtle) in the dock's tab row</td></tr>
+<tr><td><span class="k-step">4</span></td><td>The one Export dialog. Nothing leaves graphty any other way, so two routes can never write two different files</td><td>interface-templates.md 20 (Export...); interaction-pattern-entries.md 6.11; task-flows.md 9</td><td>Modal (1392 wide at 1440, proposed) with ModalFooter</td></tr>
+<tr><td><span class="k-step">5</span></td><td>One scope for the whole export, defaulting to the filter chip's</td><td>files-and-recipes.md 3 (each output takes a scope)</td><td>FieldRow with StyleSelect</td></tr>
+<tr><td><span class="k-step">6</span></td><td>The outputs, each a checkbox row named with its file type: Figure (.svg), Image (.png), Table (.csv), Findings report (.html), Graph file, Recipe, Project file. Several can be written at once. No row for a format that does not exist yet</td><td>interface-templates.md 20; framework-changes.md, "Export: the dialog's rows are checkboxes, not a segmented choice" and "Authorship on notes and recipes, and the other decisions now in force" (HTML report; SVG now, PDF later)</td><td>ControlSection of ToggleRows (Checkbox)</td></tr>
+<tr><td><span class="k-step">7</span></td><td>The selected figure's settings under its row: which view, width in mm, background (White by default; also Canvas, Transparent), legend placement</td><td>framework-changes.md, "Export dialog: a figure is written on a white ground with its legend beside the drawing"; canvas-drawing.md 13</td><td>FieldRows with StyleSelect</td></tr>
+<tr><td><span class="k-step">8</span></td><td>Labels: "Top N by this layer's value" or "Above a threshold"; when overlap hides some, "N labels hidden to avoid overlap: show list", the list in place with each value. A row selects its node; the inspector's Show label anyway writes to the "Labels shown anyway" layer</td><td>framework-changes.md, "Export: labels by the layer's value, and the hidden ones named"; canvas-drawing.md 9 (labels culled by collision)</td><td>StyleSelect with NumberInput; Button (subtle) opening a DataRow list</td></tr>
+<tr><td><span class="k-step">9</span></td><td>Look, labeled "for this file only": Screen, Print, High contrast. It drives the preview and the written file together, never the canvas. The line beside it names the look the file is written with, and the line under it says what the look does, counting the categories that cannot be told apart in gray</td><td>canvas-drawing.md 4a (Looks); glossary.md (Look); framework-changes.md, "Export: one Look drives the preview and the file (replaces View as)"</td><td>SegmentedControl with a visible label; Text</td></tr>
+<tr><td><span class="k-step">10</span></td><td>The preview is the file, at print size in the Screen look: white ground, legend beside the drawing, all text 8 pt at the figure's physical width. The preview's size line says so</td><td>canvas-drawing.md 13; task-flows.md 9 (trust check: legend and scope drawn in); framework-changes.md, "Export: figure text is 8 pt at print size"</td><td>none: graphty-element's figure preview (proposed)</td></tr>
+<tr><td><span class="k-step">11</span></td><td>The legend's footer: how the size was computed (exact, not normalized, on which graph), the weight answer in its element wording, and the look</td><td>framework-changes.md, "Content design: every number names what it counts and its scope" and "Export: the legend's footer carries normalization and the weight answer"</td><td>part of the element's figure</td></tr>
+<tr><td><span class="k-step">12</span></td><td>In the Print look, the file as written beside the same file printed in gray, both at the same scale, so the gray check can be seen, not only read</td><td>framework-changes.md, "Canvas drawing: the Print look carries sign with shape" and "Export: the Print look previews the file and its gray print side by side"</td><td>two element previews in a Group</td></tr>
+<tr><td><span class="k-step">13</span></td><td>The gray check, computed by graphty-element: every pair of bins on opposite sides of the midpoint. Fail names what collides and offers Use Print look; pass says increases and decreases stay apart and prints the value each gray step stands for. No values are grouped as "no change"</td><td>framework-changes.md, "Message catalog: new published keys" (the gray check's verdicts)</td><td>DataRow with the warning or check glyph; Button (secondary)</td></tr>
+<tr><td><span class="k-step">14</span></td><td>The files the export writes, by name. Every file that carries data has a methods file beside it: scope, load choices, how each number was computed, the weight answer, labels hidden, the graphty-element version</td><td>files-and-recipes.md 3; output-homes.md 3.1; framework-changes.md, "Export: every data file gets its methods file"</td><td>DataRow list; CodeBlock (monospace ProseBlock)</td></tr>
+<tr><td><span class="k-step">15</span></td><td>The footer says where the files go and that nothing is uploaded; the commit counts the files</td><td>framework-changes.md, "Alert triage: the Export dialog's footer says where files go"; content-design.md (verbs name the result)</td><td>Text in ModalFooter's left slot; Button (filled)</td></tr>
+<tr><td><span class="k-step">16</span></td><td>A table states its rows first ("14 of 3,000 rows, filtered"), the tab and the filter step by name, then order and columns; the preview is the CSV's first lines with ids as written, no comment lines</td><td>interface-templates.md 16; content-design.md 5 (ids are not quantities); framework-changes.md, "File formats (one-way doors, proposed)"</td><td>DataRows; SegmentedControl for the tab; CodeBlock</td></tr>
+<tr><td><span class="k-step">17</span></td><td>Recipe: every row that carries data turns off and is disabled, with one line saying why; the preview's first line is "No data inside"</td><td>framework-changes.md, "Sharing the setup without data removes figures and tables" and "Export: Scope is disabled while only definition outputs are checked"</td><td>ToggleRows, disabled; DataRow with the lock glyph</td></tr>
+<tr><td><span class="k-step">18</span></td><td>Findings report (.html): one self-contained file, pages in order (boundary, views with their notes, methods), scoped to the filter step</td><td>files-and-recipes.md 3; output-homes.md 2; framework-changes.md, "Authorship on notes and recipes, and the other decisions now in force"</td><td>ToggleRow; the report preview is graphty-element's (proposed)</td></tr>
+<tr><td><span class="k-step">19</span></td><td>Scripting (writing these same files from code) is not yet available. The dialog draws no entry for it, as it draws no PDF row: a disabled control is a promise and a dead Tab stop. When graphty-element publishes the calls, the methods file ends with a line naming their documentation</td><td>framework-changes.md, "Where a scripting path starts (not in the Export dialog)"; output-homes.md 4</td><td>none (not drawn)</td></tr>
+<tr><td><span class="k-step">20</span></td><td>After a write: a toast names the files and the look; the Data panel's Sent and saved list gains the export at its top; no undo entry</td><td>interaction-pattern-entries.md 6.11 (feedback in the polite region); framework-changes.md, "Output homes: data's new homes, and export's starting places" (the sent-and-saved log)</td><td>Toast (Notification), polite; list row</td></tr>
+<tr><td><span class="k-step">21</span></td><td>A pink tag names the graphty-element capability a part waits on. It is a note for the builders, not UI: until the capability lands the part is absent (state 8)</td><td>interface-specification.md 7.4; implementation-mapping.md 7 (no fallbacks)</td><td>none</td></tr>
+</tbody></table></section>
+
+<script>
+const I = (n, c = "") => `<svg class="k-i ${c}"><use href="../kit/icons.svg#${n}"/></svg>`;
+const A = (n) => `<span class="ann k-step">${n}</span>`;
+const caret = I("chevron-down", "k-i-sm k-caret");
+const sel = (v, c = "") => `<span class="k-field ${c}">${v}${caret}</span>`;
+const chk = (on, dis) => `<span class="k-check" aria-checked="${on}"${dis ? ' aria-disabled="true"' : ""}></span>`;
+const toolbar = `<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span></div>`;
+let FIX, FIG, SVG = {};
+
+// ---- the app behind the dialog: rail Graph, Data, Notes, Assistant; no top-right Export button
+function app(s) {
+  const rb = (icon, label, on) => `<div class="k-rail-btn"${on ? ' aria-pressed="true"' : ""}><span class="k-rail-pill">${I(icon)}</span>${label}</div>`;
+  const rail = `<nav class="k-rail" aria-label="Main">
+    <div class="k-rail-btn" aria-label="Main menu"><span class="k-rail-pill">${I("menu")}</span></div><div class="k-rail-sep"></div>
+    ${rb("network", "Graph", s.panel !== "data")}${rb("database", "Data", s.panel === "data")}${rb("flask-conical", "Results")}${rb("sticky-note", "Notes")}
+    <div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>`;
+  const head = `<div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div>
+    <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>`;
+  const panel = s.panel === "data" ? dataPanel(s) : `<aside class="k-panel" aria-label="Graph">${head}
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graphs</div><ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">${s.graph}</span><span class="k-trail k-num">${s.count}</span></li></ul></section>
+      <section class="k-section"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a set">${I("plus")}</span></div><ul class="k-list">${s.sets.map(([n, c]) => `<li class="k-item">${I("group")}<span class="k-ellipsis">${n}</span><span class="k-kind">frozen</span><span class="k-trail k-num">${c}</span></li>`).join("")}</ul></section>
+      <section class="k-section"><div class="k-section-head">Views <span class="k-count k-num">${s.views.length}</span></div><ul class="k-list">${s.views.map((v) => `<li class="k-item">${I("bookmark")}<span class="k-ellipsis">${v}</span></li>`).join("")}</ul></section>
+    </div></aside>`;
+  const stage = s.canvas ? `<div class="k-stage"><img class="k-light-only" src="../kit/canvas/${s.canvas}-light.svg" alt="${s.alt}"><img class="k-dark-only" src="../kit/canvas/${s.canvas}-dark.svg" alt="${s.alt}"></div>` : "";
+  const dock = s.dock ? `<section class="k-dock" aria-label="Table" style="flex-basis:30%"><div class="k-dock-tabs">
+      <span role="tablist" aria-label="Table" style="display:contents"><span class="k-tab" role="tab" aria-selected="true">Nodes</span><span class="k-tab" role="tab" aria-selected="false">Edges</span></span>
+      <span class="k-grow"></span><span class="k-icon-btn" aria-label="Find in table">${I("search")}</span><span class="k-btn k-btn-ghost x-trigger"${s.focusTable ? " data-focus" : ""}>Export table...${s.ways || s.focusTable ? A(3) : ""}</span></div>
+      <div class="k-scope">${s.dock.scope}</div>
+      <div class="k-table-wrap"><table class="k-table"><thead><tr>${s.dock.head.map((h, k) => `<th${k > 0 && k === s.dock.head.length - 1 ? ' class="k-n"' : ""}>${h}</th>`).join("")}</tr></thead>
+      <tbody>${s.dock.rows.map((r) => `<tr>${r.map((c, k) => `<td class="${k === 0 ? "k-id" : /^-?[\d.,]+$/.test(c) ? "k-n" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>` : "";
+  const main = `<main class="k-main"><div class="k-canvas">${stage}
+    <div class="k-legend-card">${s.legend}</div>
+    <div class="k-toolbar-dock">${s.toast || ""}${toolbar}</div>
+    <span class="k-help">${I("circle-help")}</span></div>${dock}</main>`;
+  const right = `<aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%${I("chevron-down", "k-i-sm")}</span></div>
+    <div class="k-typerow">${I("network")}<span class="k-name">${s.graph}</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Overview</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num">${s.n}</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">${s.e}</span></div></div></section>
+      <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-secondary">Look</span>&nbsp;<span class="k-field" style="width:72px">Screen${caret}</span></div>
+        <ul class="k-list">${s.styles.map(([sw, n]) => `<li class="k-item">${sw}<span class="k-ellipsis">${n}</span></li>`).join("")}</ul></section>
+    </div></aside>`;
+  const menu = s.menu ? `<div class="k-menu" role="menu" style="left:66px;top:40px">
+    <div class="k-menu-item"><span class="k-check-col"></span>Open...<span class="k-shortcut">Ctrl+O</span></div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Update with new data...</div>
+    <div class="k-menu-item" data-hover><span class="k-check-col"></span>Export...<span class="k-shortcut">Ctrl+Shift+E</span></div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Download project file</div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Version history</div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Project info...</div>
+    <div class="k-menu-sep"></div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Rename</div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Duplicate</div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Close</div></div>` : "";
+  return `<div class="k-app">${rail}${panel}${main}${right}</div>${menu}`;
+}
+function dataPanel(s) {
+  return `<aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div>
+      <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>
+    <div class="x-dhead">Data<span class="k-grow"></span><span class="k-btn k-btn-secondary x-trigger">Export...</span>${s.ways ? A(2) : ""}</div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Sources</div>
+        <div class="x-srow">${I("file")}<span class="k-ellipsis k-id">ppi-core-300.graphml</span></div>
+        <div class="x-sub2"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</div>
+        <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">nodes, number</span></div>
+        <div class="k-data"><span class="k-name">confidence</span><span class="k-value">not used yet</span></div>
+        <div class="x-srow"><span class="k-btn k-btn-secondary">Update with new data...</span></div></section>
+      <section class="k-section"><div class="k-section-head">Versions <span class="k-count k-num">1</span></div>
+        <div class="x-srow">${I("history")}<span class="k-ellipsis">Loaded</span><span class="k-secondary k-num">2026-09-22</span></div></section>
+      <section class="k-section"><div class="k-section-head">Sent and saved</div>
+        ${s.sent ? `<div class="x-srow x-new">${I("download")}<span class="k-ellipsis k-id">stress-response-study_figure.svg</span>${A(20)}</div><div class="x-sub2 x-new">and its methods file, Print look. Today 19:12, to Downloads</div>` : ""}
+        <div class="x-srow">${I("download")}<span class="k-ellipsis k-id">stress-response-study_nodes.csv</span></div><div class="x-sub2">and its methods file. 2026-09-24, to Downloads</div></section>
+    </div></aside>`;
+}
+
+// ---- data behind the dialog
+const fcLegend = `<div class="k-lg-title">Fold change color <span class="k-secondary">log2FoldChange</span></div><span class="k-ramp k-ramp-wide" style="background:linear-gradient(90deg,#67001f,#fddbc7 40%,#f7f7f7 44.4%,#d1e5f0 50%,#2166ac)"></span><div class="k-lg-row k-secondary k-num">-2.52 to 3.15, 0 is white</div>`;
+const ppiApp = { project: "Stress response study", chip: "Full graph", graph: "Interactions", count: "300 nodes", n: "300", e: "1,262",
+  sets: [["TP53 and neighbors", 33]], views: ["Stress response", "DNA repair close-up"],
+  canvas: "ppi-foldchange-degree", alt: "300 proteins colored by log2 fold change, sized by degree", legend: fcLegend,
+  styles: [[`<span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#b2182b,#f7f7f7,#2166ac)"></span>`, "Fold change color"], [`<svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>`, "Size: degree"]],
+  results: [["Degree", "exact, full graph"]] };
+const txApp = { project: "Mule ring, case ACC-233575", chip: "Filtered: 14 nodes", graph: "Transfers, March 2026", count: "3,000 nodes", n: "3,000", e: "9,113",
+  sets: [["Mule ring suspects", 14]], views: ["Ring overview", "Cash-out route"],
+  canvas: "transactions-flagged", alt: "3,000 accounts as density, 14 flagged accounts drawn over it",
+  legend: `<div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div><div class="k-notdrawn">2,986 nodes drawn as density. <a>Narrow the graph...</a></div>`,
+  styles: [[`<span class="k-chit" style="background:#D55E00"></span>`, "Flagged"]], results: [["PageRank", "exact, full graph"]] };
+
+// ---- the list of outputs
+// rows: figure, png, table, report, graph, recipe, project; each { on, sel, dis }
+const ROW = {
+  figure: ["Figure", ".svg", "Vector, with real text. For a paper or slides"],
+  png: ["Image", ".png", "Pixels, for a web page or a chat"],
+  table: ["Table", ".csv", "The rows of a table tab, with its methods file"],
+  report: ["Findings report", ".html", "One file: views as pages, notes, tables and methods. Opens offline; prints to PDF"],
+  graph: ["Graph file", "", "Nodes, edges and attributes, for Gephi, Cytoscape or a script"],
+  recipe: ["Recipe", ".graphty", "Readable text (JSON) with styles, steps and layout. It never holds your data"],
+  project: ["Project file", "", "Everything, with the data"],
+};
+function row(k, d) {
+  const r = d.rows[k] || {}, [name, ext, note] = ROW[k];
+  const dis = r.dis || (d.noData && k !== "recipe");
+  const on = !!r.on && !dis;
+  return `<div class="x-item"${r.sel ? ' aria-selected="true"' : ""}${dis ? ' data-disabled aria-disabled="true"' : ""}>${chk(on, dis)}<span class="x-name">${name} <span class="x-ext">${ext ? `(${ext})` : ""}</span></span>${on && r.sum ? `<span class="x-sum">${r.sum}</span>` : ""}${r.ann ? A(r.ann) : ""}</div>
+    <div class="x-note">${note}</div>${r.sel && d.detail ? d.detail(d) : ""}`;
+}
+const WAIT = (need) => `<div class="x-wait-line"><span class="x-wait">waits on graphty-element: ${need}</span>${A(21)}</div>`;
+function kinds(d) {
+  const has = (k) => !(d.release && (k === "graph" || k === "report"));
+  return `<div class="x-kinds">
+    <section class="x-sec"><div class="x-sec-head">Figures${A(6)}</div>${row("figure", d)}${row("png", d)}</section>
+    <section class="x-sec"><div class="x-sec-head">Rows</div>${row("table", d)}</section>
+    ${has("report") ? `<section class="x-sec"><div class="x-sec-head">Report</div>${row("report", d)}${d.rows.report?.on ? WAIT("findings report") : ""}</section>` : ""}
+    ${has("graph") ? `<section class="x-sec"><div class="x-sec-head">Graph data</div>${row("graph", d)}${WAIT("graph-file export")}</section>` : ""}
+    <section class="x-sec"><div class="x-sec-head">Share the setup, without data${d.noData ? A(17) : ""}</div>${row("recipe", d)}</section>
+    <section class="x-sec"><div class="x-sec-head">Project</div>${row("project", d)}</section>
+  </div>`;
+}
+
+// the selected figure's settings: view, width, background, labels, legend
+const figDetail = (d) => {
+  const L = FIG.labels, open = d.labelsOpen;
+  return `<div class="x-detail" role="group" aria-label="Figure settings">
+    <span class="k-secondary">View${A(7)}</span>${sel("Current view")}
+    <span class="k-secondary">Width</span>${sel("174 mm, two columns")}
+    <span class="x-hint">Also: 85 mm, one column; 254 mm, a slide</span>
+    <span class="k-secondary">Background</span>${sel("White")}
+    <span class="k-secondary">Legend</span>${sel("Beside, right")}
+    <span class="k-secondary">Labels${A(8)}</span>${sel("Top N by this layer's value")}
+    <span class="k-secondary">N</span><span class="x-lab"><span class="k-field x-n k-num">${L.n}</span><span class="k-tertiary">by |log2 fold change|</span></span>
+    <span class="x-hint">Also: Above a threshold</span>
+    <div class="x-hidden" data-wired><span>${L.hidden.length} labels hidden to avoid overlap:</span><button type="button" data-labels aria-expanded="${!!open}">${open ? "hide list" : "show list"}</button>
+      ${open ? `<ul>${L.hidden.map((h) => `<li><button type="button" class="x-hrow" title="Select ${h.id}"><span class="k-id">${h.id}</span><span class="k-num">${h.log2FoldChange > 0 ? "+" : ""}${h.log2FoldChange}</span><span class="k-grow"></span><span class="k-secondary">Select</span></button></li>`).join("")}</ul>
+      <span class="x-hnote">Select closes the dialog, keeping its settings, and selects the node. Its inspector has Show label anyway, which puts the label in this figure.</span>` : ""}</div>
+  </div>`;
+};
+
+function dialog(d) {
+  const n = d.files.length;
+  const foot = n ? `${n} ${n === 1 ? "file goes" : "files go"} to your Downloads folder. Nothing is uploaded.` : "Nothing is checked.";
+  return `<div class="k-backdrop"><div class="k-modal x-modal" role="dialog" aria-label="Export">
+    <div class="k-modal-head">Export${A(4)}<span class="k-grow"></span><span class="k-icon-btn" aria-label="Close">${I("x")}</span></div>
+    <div class="x-scope"><span class="x-scope-label">Scope${A(5)}</span>${d.scope}<span class="k-secondary">${d.scopeNote}</span></div>
+    ${d.stateLine || ""}
+    <div class="x-body">${kinds(d)}<div class="x-preview">${d.preview(d)}</div></div>
+    <div class="k-modal-foot"><span class="k-secondary">${foot}${A(15)}</span>
+      <span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn"${n ? "" : ' aria-disabled="true"'}>${n ? `Export ${n} ${n === 1 ? "file" : "files"}` : "Export"}</span></div>
+  </div></div>`;
+}
+
+// ---- the figure preview: the file itself (the generator's SVGs), inlined so its text is text
+const PT = 96 / 72; // CSS px per pt: at 100% the preview is the print size on a 96 dpi screen
+const paper = (key, scale) => `<div class="x-paper">${SVG[key].replace("<svg ", `<svg style="width:${Math.round(FIG.widthPt * PT * scale)}px" `)}</div>`;
+const files = (names) => `<div class="x-files"><div class="x-h5">Files${A(14)}</div>${names.map((f) => `<div>${I("file")}<span class="k-id">${f}</span></div>`).join("")}</div>`;
+const LOOKS = {
+  screen: "Screen: the colors as on the canvas, a red-to-blue ramp with no categories.",
+  print: () => `Print: sign as a triangle, size of the change as ${FIG.steps.length} gray steps a side. No two of its ${FIG.steps.length * 2} categories print as the same gray.`,
+};
+const lookRow = (look) => `<div class="x-look"><span class="k-secondary">Look, for this file only</span>
+  <span class="k-seg" role="radiogroup" aria-label="Look">${[["screen", "Screen"], ["print", "Print"], ["contrast", "High contrast"]].map(([k, t]) => `<button type="button" role="radio" aria-checked="${look === k}"${k === "contrast" ? "" : ` data-look="${k}"`}>${t}</button>`).join("")}</span>${A(9)}
+  <span>File is written with: <b>${look === "print" ? "Print" : "Screen"} look</b></span></div>
+  <div class="x-look-what">${look === "print" ? LOOKS.print() : LOOKS.screen}</div>`;
+const figMethods = (look) => {
+  const L = FIG.labels;
+  return `<div><div class="x-h5">stress-response-study_figure-methods.txt</div><pre class="x-pre">Figure: stress-response-study_figure.svg, 174 mm wide, text 8 pt, white ground.
+Data: ppi-core-300.graphml, 300 proteins, 1,262 interactions, undirected,
+loaded 2026-09-22. Scope: full graph.
+Color: log2FoldChange (from the file), linear, diverging at 0, -2.52 to +3.15;
+${FIG.down} below 0, ${FIG.up} above. ${look === "print" ? `Print look: shape is the sign (a triangle up above 0,
+down below 0); darkness is the distance from 0 in ${FIG.steps.length} gray steps, the same steps
+for both sides: ${FIG.steps.slice().reverse().map((t) => `${t.from} to ${t.to}`).join(", ")}.` : "Screen look: red below 0, blue above."}
+Size: degree (number of interactions), exact, not normalized, full graph.
+Weight: confidence, not used yet; no measure in this figure reads a weight.
+Labels: top ${L.n} by |log2FoldChange|; ${L.shown.length} drawn, ${L.hidden.length} hidden to avoid overlap
+(${L.hidden.map((h) => h.id).join(", ")}).
+Drawn with graphty-element 2.6.2.</pre></div>`;
+};
+const figFiles = files(["stress-response-study_figure.svg", "stress-response-study_figure-methods.txt"]);
+const figurePreview = (d) => {
+  const print = d.look === "print";
+  const title = `<div class="x-p-title">Figure, as it will be written${A(10)}<span class="k-grow"></span><span class="k-secondary k-num">174 &times; ${Math.round(FIG.heightPt[d.look] / 72 * 25.4)} mm, SVG, white; text 8 pt. Shown at ${print ? "76%" : "100%"} of print size</span></div>`;
+  const body = print
+    ? `<div class="x-pair"><figure>${paper("print", 0.76)}<figcaption><b>The file</b>, as written</figcaption></figure><figure>${paper("print-gray", 0.76)}<figcaption><b>Printed in gray</b>, the same file${A(12)}</figcaption></figure></div>`
+    : `<div style="display:flex;gap:4px;align-items:flex-start">${paper("screen", 1)}${A(11)}</div>`;
+  const check = print
+    ? `<div class="x-check" role="status">${I("circle-check")}<span>Increases and decreases stay apart in gray (${FIG.down} below 0, ${FIG.up} above): the triangle carries the sign.</span>${A(13)}</div>
+      <div class="x-steps" aria-label="Gray steps, as printed">${FIG.steps.map((t) => `<span class="x-step"><span class="x-sw" style="background:${t.grayDown}"></span><span class="x-sw" style="background:${t.grayUp}"></span><span class="k-num">${t.from} to ${t.to}</span></span>`).join("")}<span class="k-secondary">|log2 fold change| at each gray step, down and up</span></div>`
+    : `<div class="x-check" role="status"><span class="k-warn-glyph">!</span><span class="k-fact">Values just above and below 0 print as the same gray.</span><button type="button" class="k-btn k-btn-secondary" data-look="print">Use Print look</button>${A(13)}</div>`;
+  return `${title}${lookRow(d.look)}${body}${check}<div class="x-lower">${figFiles}${figMethods(d.look)}</div>`;
+};
+
+// ---- the table
+function tablePreview() {
+  const acc = [...FIX.datasets.transactions.flaggedAccounts].sort((a, b) => b.riskScore - a.riskScore || a.id.localeCompare(b.id));
+  const csv = [`id,kind,country,riskScore,"degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)"`, ...acc.slice(0, 6).map((a) => `${a.id},${a.kind},${a.country},${a.riskScore},${a.degree},${a.pagerank}`)].join("\n");
+  return `<div class="x-p-title">Table, as it will be written${A(16)}</div>
+    <div class="x-lower" style="grid-template-columns:1fr 1fr">
+      <div><div class="x-h5">case-acc-233575_nodes.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+        <p class="k-secondary" style="margin:6px 0 0">The first column is the file's own id, written as it came in. The CSV holds only the header and the rows.</p></div>
+      <div><div class="x-h5">Beside it: case-acc-233575_nodes-methods.txt</div><pre class="x-pre">Rows: 14 of 3,000 accounts (Nodes), filtered by 1 step:
+in Mule ring suspects, a frozen set of 14 accounts.
+Order: riskScore, highest first.
+Data: transfers-2026-03.csv, 3,000 accounts, 9,113 transfers,
+directed. Load: nodes from from_account and to_account;
+amount read as currency (USD); timestamp kept as text.
+riskScore: from accounts-2026-03.csv, not computed by graphty.
+Weight: amount, not used yet; no measure here reads a weight.
+degree: exact, full graph, not normalized.
+pagerank: exact (power iteration, damping 0.85), full graph,
+unweighted, normalized to sum to 1.
+graphty-element 2.6.2</pre></div></div>
+    ${files(["case-acc-233575_nodes.csv", "case-acc-233575_nodes-methods.txt"])}`;
+}
+const tableDetail = () => `<div class="x-detail" role="group" aria-label="Table settings">
+  <span class="k-secondary">Tab</span><span class="k-seg k-seg-fill"><span aria-pressed="true">Nodes</span><span>Edges</span></span>
+  <span class="k-secondary">Rows</span><span class="k-fact k-num">14 of 3,000 rows, filtered</span>
+  <span class="k-secondary">From</span><span>1 filter step: in Mule ring suspects</span>
+  <span class="k-secondary">Order</span><span>riskScore, highest first</span>
+  <span class="k-secondary">Columns</span><span class="k-num">6, hidden ones included</span>
+  <span class="k-secondary">Methods</span><span>Always written beside it</span></div>`;
+
+// ---- the recipe
+const recipePreview = () => `<div class="x-p-title">What the recipe holds</div>
+  <div class="x-nodata">${I("circle-check", "k-i-lg")}<div><b>No data inside.</b><span class="k-secondary">No genes, interactions, fold-change values, positions or notes on genes. Only how to build the analysis again on someone else's data.</span></div></div>
+  <div class="x-cols">
+    <div><div class="x-col-h">${I("share", "k-i-sm")}Travels</div>
+      <div class="x-runs"><b>3 runs</b><ul>
+        <li>PageRank <span>damping 0.85, weighted by confidence, used as similarity</span></li>
+        <li>Louvain <span>resolution 1, seed 7, weighted by confidence</span></li>
+        <li>Degree <span>exact, not normalized</span></li></ul></div>
+      <div class="k-data"><span class="k-name">style layers: fold change, module</span><span class="k-value k-num">2</span></div>
+      <div class="k-data"><span class="k-name">filter: confidence 0.7 or more</span><span class="k-value k-num">1</span></div>
+      <div class="k-data"><span class="k-name">layout: force-directed, its settings and seed</span><span class="k-value k-num">1</span></div>
+      <div class="k-data"><span class="k-name">view, its camera and its Look</span><span class="k-value k-num">1</span></div>
+      <div class="x-runs"><b>1 note, on the confidence filter</b>
+        <div class="x-quote">Confidence is STRING's combined score, version 12.0. 0.7 is STRING's high-confidence cut: build your network from the same release.</div></div></div>
+    <div><div class="x-col-h">${I("link", "k-i-sm")}You supply</div>
+      <div class="k-data"><span class="k-name">gene symbols, to join a table</span><span class="k-value">text</span></div>
+      <div class="k-data"><span class="k-name">a fold change, above and below 0</span><span class="k-value">signed</span></div>
+      <div class="k-data"><span class="k-name">a confidence per interaction</span><span class="k-value">number</span></div></div>
+    <div><div class="x-col-h">${I("lock", "k-i-sm")}Not included</div>
+      <div class="k-data"><span class="k-name">300 proteins, 1,262 interactions</span><span class="k-value">data</span></div>
+      <div class="k-data"><span class="k-name">300 fold-change values</span><span class="k-value">data</span></div>
+      <div class="k-data"><span class="k-name">Knockdown hits (38, frozen)</span><span class="k-value">set</span></div>
+      <div class="k-data"><span class="k-name">positions (drawn again from the layout)</span><span class="k-value">layout</span></div>
+      <div class="k-data"><span class="k-name">4 notes on genes</span><span class="k-value">notes</span></div></div>
+  </div>
+  ${files(["expression-overlay.graphty"])}
+  <p class="k-secondary" style="margin:0">Opens in graphty or any app with graphty-element.</p>`;
+
+// ---- the evidence file
+function evidencePreview() {
+  const acc = [...FIX.datasets.transactions.flaggedAccounts].sort((a, b) => b.riskScore - a.riskScore);
+  return `<div class="x-p-title">The evidence file, page by page${A(18)}</div>
+  <div class="x-pages">
+    <ol>
+      <li><b>Boundary</b><span>1 filter step and its 14 accounts</span></li>
+      <li><b>Ring overview</b><span>view, its caption, 2 notes</span></li>
+      <li><b>Cash-out route</b><span>view, the 4-account path with each transfer's date, 1 note</span></li>
+      <li><b>Other notes</b><span>2 notes with their quotes and citations</span></li>
+      <li><b>Methods</b><span>transfers-2026-03.csv: 3,000 accounts, 9,113 transfers, directed. PageRank, exact, on the full graph</span></li>
+    </ol>
+    <div class="x-sheet"><h3>Page 1. Boundary</h3><p>Filter step: in Mule ring suspects (a frozen set of 14 accounts), from transfers-2026-03.csv, written 2026-09-28 by Sarah Okafor.</p>
+      <table><thead><tr><th>account</th><th>kind</th><th>country</th><th class="n">riskScore<small>from the file</small></th><th class="n">degree</th><th class="n">PageRank<small>full graph</small></th></tr></thead><tbody>
+      ${acc.map((a) => `<tr><td class="k-id">${a.id}</td><td>${a.kind}</td><td>${a.country}</td><td class="n">${a.riskScore}</td><td class="n">${a.degree}</td><td class="n">${a.pagerank.toFixed(6)}</td></tr>`).join("")}
+      </tbody></table></div>
+  </div>
+  ${files(["case-acc-233575_evidence_2026-09-28.html"])}`;
+}
+
+// ---- states
+const figDlg = (look, extra = {}) => ({ scope: sel("Full graph: 300 nodes", "x-scope-f"), scopeNote: "The filter chip's scope, until you change it here",
+  look, rows: { figure: { on: true, sel: true, sum: "174 mm" } }, detail: figDetail, preview: figurePreview,
+  files: ["figure.svg", "figure-methods.txt"], ...extra });
+const S = {
+  "ways-in-menu": { app: { ...ppiApp, panel: "data", menu: true } },
+  "ways-in": { app: { ...ppiApp, panel: "data", ways: true, dock: { scope: "Full graph: 300 nodes. Sorted by |log2FoldChange|.", head: ["id", "log2FoldChange"], rows: [["CHEK1", "3.15"], ["WRN", "2.61"], ["SNRNP70", "2.58"], ["RPS6", "-2.52"], ["MAPK10", "-2.42"]] } } },
+  figure: { app: { ...ppiApp, focusProject: true }, dlg: figDlg("screen") },
+  "figure-grey": { app: { ...ppiApp, focusProject: true }, dlg: figDlg("print", { labelsOpen: true }) },
+  table: { app: { ...txApp, focusTable: true, dock: { scope: "Filtered: 14 of 3,000 rows. Sorted by riskScore.", head: ["id", "kind", "riskScore", "degree"], rows: [] } },
+    dlg: { scope: sel("Filtered: 14 nodes", "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
+      rows: { table: { on: true, sel: true, sum: "Nodes" } }, detail: tableDetail, preview: tablePreview, files: [1, 2] } },
+  recipe: { app: { ...ppiApp, project: "Expression overlay", chip: "Filtered: 1,059 of 1,262 edges", sets: [["Knockdown hits", 38]], views: ["Hits by module"] },
+    dlg: { scope: sel("Whole project", "x-scope-f").replace('class="k-field', 'data-disabled class="k-field'), scopeNote: "A recipe takes definitions, not a scope of data",
+      stateLine: `<div class="x-state">${I("lock")}<span class="k-fact">Figures, images, tables, the report, graph data and the project file are off: they would carry your data.</span></div>`,
+      noData: true, rows: { figure: { on: true }, recipe: { on: true, sel: true } }, detail: () => `<div class="x-detail"><span class="k-secondary">Name</span><span class="k-field">Expression overlay</span></div>`,
+      preview: recipePreview, files: [1] } },
+  evidence: { app: txApp,
+    dlg: { scope: sel("Filtered: 14 nodes", "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
+      rows: { report: { on: true, sel: true, ann: 18 } }, detail: () => `<div class="x-detail"><span class="k-secondary">Pages</span><span>Boundary, 2 saved views, notes, methods</span><span class="k-secondary">Methods</span><span>Inside the report</span></div>`,
+      preview: evidencePreview, files: [1] } },
+  done: { app: { ...ppiApp, panel: "data", sent: true, focusProject: true,
+    toast: `<div class="k-toast" role="status">Exported stress-response-study_figure.svg and its methods file, in the Print look${A(20)}</div>` } },
+  "first-release": { app: { ...ppiApp, focusProject: true }, dlg: figDlg("screen", { release: true }) },
+};
+
+function render() {
+  for (const el of document.querySelectorAll(".x-frame")) {
+    const s = S[el.dataset.state];
+    el.innerHTML = app(s.app) + (s.dlg ? dialog(s.dlg) : "");
+  }
+}
+document.addEventListener("click", (e) => {
+  const t = e.target.closest?.("[data-look], [data-labels]");
+  if (!t) return;
+  const d = S[t.closest(".x-frame").dataset.state].dlg;
+  if (t.dataset.look) d.look = t.dataset.look; else d.labelsOpen = !d.labelsOpen;
+  render();
+});
+const keys = ["screen", "print", "print-gray"];
+Promise.all([fetch("../kit/fixtures.json").then((r) => r.json()), fetch("img/export-figure.json").then((r) => r.json()), ...keys.map((k) => fetch(`img/export-figure-${k}.svg`).then((r) => r.text()))]).then(([f, fig, ...t]) => {
+  FIX = f; FIG = fig;
+  keys.forEach((k, i) => { SVG[k] = t[i].replace(/^<\?xml[^>]*>/, "").replaceAll('id="rb', `id="rb-${k}`).replaceAll("url(#rb", `url(#rb-${k}`); });
+  render();
+});
+const theme = document.getElementById("theme");
+theme.addEventListener("change", () => { if (theme.value) document.documentElement.setAttribute("data-theme", theme.value); else document.documentElement.removeAttribute("data-theme"); });
+</script>
+</body>
+</html>

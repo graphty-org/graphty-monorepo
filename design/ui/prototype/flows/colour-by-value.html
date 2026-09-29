@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color or size by a value</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .k-doc { max-width: 1160px; }
+  .facts th { width: 150px; color: var(--cm-text-secondary); font-weight: 450; }
+  .facts td, .steps td, .steps th { font-size: 12px; line-height: 18px; }
+  .steps { width: 100%; }
+  .steps th { color: var(--cm-text-secondary); font-weight: 550; }
+  .steps td:first-child { font-weight: 550; white-space: nowrap; }
+  .flow-wrap { overflow-x: auto; margin: 8px 0 8px; padding: 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); background: var(--cm-bg); }
+  .flow-svg { display: block; max-width: 100%; height: auto; margin: 0 auto; font-family: var(--cm-font-family); }
+  .fn { fill: var(--cm-bg); stroke: var(--cm-border-strong); stroke-width: 1.25; }
+  .fn-check { fill: var(--cm-bg-secondary); }
+  .fn-commit { fill: var(--cm-bg-selected); }
+  .fn-decision { fill: var(--cm-bg); }
+  .fn-gap { stroke-dasharray: 5 4; }
+  .fn-branch { stroke: var(--k-annot); stroke-width: 1.75; }
+  .flow-svg a:hover .fn { stroke: var(--cm-border-selected); stroke-width: 2; }
+  .flow-svg a .ft { text-decoration: underline; text-decoration-color: var(--cm-border-strong); }
+  .ft { font-size: 12px; fill: var(--cm-text); }
+  .fe { fill: none; stroke: var(--cm-text-secondary); stroke-width: 1.25; }
+  .fe-back { stroke-dasharray: 4 3; }
+  .fa { fill: var(--cm-text-secondary); }
+  /* Edge labels carry a halo in the diagram's background, so a label that crosses its own line stays readable. */
+  .fl { font-size: 11px; fill: var(--cm-text-secondary); paint-order: stroke; stroke: var(--cm-bg); stroke-width: 4px; stroke-linejoin: round; }
+  .key { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 4px 0 8px; font-size: 12px; color: var(--cm-text-secondary); }
+  .key svg { vertical-align: middle; margin-inline-end: 6px; }
+  .stack { display: grid; grid-template-columns: 250px repeat(3, 1fr); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); overflow: hidden; font-size: 12px; margin: 8px 0 16px; max-width: 820px; }
+  .stack > [role="row"] { display: contents; }
+  .stack > [role="row"] > div { padding: 8px 12px; border-bottom: 1px solid var(--cm-border); display: flex; align-items: center; gap: 8px; }
+  .stack .h { color: var(--cm-text-secondary); font-weight: 550; background: var(--cm-bg-secondary); }
+  .stack .win { font-weight: 550; }
+  .stack .none, .stack .lose { color: var(--cm-text-tertiary); }
+  /* The proposed default diverging palette, blue below 0 to orange above, over the fixture's domain -2.52 to 3.15: 0 sits at 44.4%. */
+  .fc-ramp { background: linear-gradient(90deg, #1f5b99 0%, #2f74c0 11.1%, #5a93dc 22.2%, #a7b4c4 33.3%, #bfae5a 44.4%, #d0973f 58.3%, #c77a22 72.2%, #ad5a0f 86.1%, #8f3f06 100%); }
+  .dashchip { display: inline-block; width: 16px; height: 6px; border-radius: 1px; background: repeating-linear-gradient(90deg, var(--k-canvas-ink) 0 5px, var(--k-canvas) 5px 8px); box-shadow: 0 0 0 1px var(--k-canvas-ink); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 16px; }
+  .pair figure { margin: 0; }
+  .pair .shot { position: relative; aspect-ratio: 3 / 2; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); }
+  .pair img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pair figcaption { margin-top: 6px; font-size: 12px; line-height: 18px; }
+  .pair .bad figcaption b { color: var(--cm-text-danger); }
+  .screens { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 8px 0 16px; }
+  .screens a { text-decoration: none; color: inherit; }
+  .screens .k-frame-shot { aspect-ratio: 16 / 10; }
+  .screens figcaption { font-size: 12px; line-height: 18px; margin-top: 6px; }
+  .diff li { margin-bottom: 4px; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 8px 0 16px; }
+  .keys figure { margin: 0; }
+  .keys .k-legend-card { position: static; max-width: none; width: 100%; box-sizing: border-box; }
+  .keys .k-size-marks { gap: 14px; min-height: 42px; }
+  .keys .k-size-marks b[data-on] { box-shadow: 0 0 0 2px var(--k-mark-in), 0 0 0 4px var(--k-mark-out); }
+  .keys .readout { display: flex; align-items: center; gap: 8px; }
+  .keys .readout b { display: inline-block; border-radius: 50%; background: #808080; flex: none; }
+  .keys figcaption { margin-top: 6px; font-size: 12px; line-height: 18px; }
+  @media (max-width: 800px) { .keys { grid-template-columns: 1fr; } }
+  @media (max-width: 800px) { .pair, .screens { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <h1>Color or size by a value</h1>
+  <p class="k-lede">A researcher wants fold change to show as color and connectivity as size, then marks a shortest path on top, and must be able to say exactly what each color and size means. This page traces that task through the real places of the app: the four ways in, how an attribute that does not fit is refused before it can be chosen, where the legend reads the result back, how a binding goes back to one value, and what happens on every error and cancel. The mocks for each step are on the <a href="../screens/colour-by-value.html">screens page</a>.</p>
+
+  <table class="facts">
+    <tr><th>Task</th><td>Color or size by a value; paint a set or a selection with one color, or bind it to a value. The eighth of the top tasks.</td></tr>
+    <tr><th>Serves</th><td>The weekly return, its Publish stage: Friday's figure and its methods.</td></tr>
+    <tr><th>Who</th><td>Dr. Chen, a computational biologist, on the kit's 300-protein network: 1,262 interactions, log2 fold change from -2.52 to 3.15, eight modules and 26 unassigned proteins.</td></tr>
+    <tr><th>Starts from</th><td>Rest (the graph's inspector, nothing selected), a result, an attribute (a table column header, a node's value row in the inspector, or an attribute row in the Graph panel), the Styles list, or a set or several selected nodes.</td></tr>
+    <tr><th>Scale</th><td>The same at every graph size. Past the edge drawing limit an edge channel binds but is not drawn, and the legend says so.</td></tr>
+    <tr><th>Figma's route</th><td>Select the object, the Fill section's four-dot button (Figma's "Apply styles and variables"), a variable: 2 steps, 1 travel. graphty's Styles route is the same count. The result and attribute routes are 1 step shorter, a departure listed below.</td></tr>
+    <tr><th>What she can claim</th><td>"Color encodes log2 fold change on a linear scale diverging at 0, blue below and orange above; no protein lacks a value; size is degree, the number of interaction partners with each partner counted once, with circle area proportional to degree; the key shows degree 4, 6, 8, 12 and 34 at their true size; the path from TP53 to SMAD3 is marked and nothing else was repainted."</td></tr>
+    <tr><th>What reproduces it</th><td>Each layer's undo entry and its encoding: attribute, scale, palette, domain and midpoint, and for size the mapping (area or linear) and whether repeats count, all named in the legend in the words above.</td></tr>
+  </table>
+
+  <h2>Key</h2>
+  <div class="key">
+    <span><svg width="28" height="16"><rect class="fn" x="1" y="2" width="26" height="12" rx="2"/></svg>a place in the app</span>
+    <span><svg width="28" height="16"><rect class="fn" x="1" y="2" width="26" height="12" rx="6"/></svg>a popover, picker or menu</span>
+    <span><svg width="28" height="16"><polygon class="fn" points="14,1 27,8 14,15 1,8"/></svg>a decision</span>
+    <span><svg width="28" height="16"><polygon class="fn fn-check" points="6,2 22,2 27,8 22,14 6,14 1,8"/></svg>a trust check: what must be visible before a number is believed</span>
+    <span><svg width="28" height="16"><polygon class="fn fn-commit" points="6,2 27,2 22,14 1,14"/></svg>a committed change: one undo step</span>
+    <span><svg width="28" height="16"><rect class="fn fn-gap" x="1" y="2" width="26" height="12" rx="2"/></svg>waits on graphty-element, or on an owner decision</span>
+  </div>
+  <p class="k-secondary">Shapes with an underlined label open the screen mock of that step. In the counts, a <b>step</b> is a command given or a choice made; <b>travel</b> is a click that only opens something (a menu, a popover, a section). In the tables, <b>Built by</b> says who does the work: <b>Element</b> (graphty-element alone), <b>App</b> (the app's own chrome) or <b>Surfaced</b> (graphty-element does it, and the app shows its control). The <b>four-dot button</b> is the section header's "Apply styles and variables" button, as in Figma.</p>
+
+  <h2 id="value">1. Color or size by a value</h2>
+  <p>Four doors lead in, and each one shows only what fits before anything is chosen. The Styles list's "+" adds an empty layer, and its Fill section's four-dot button opens the attribute picker: attributes that fit the channel first, the rest listed below, disabled, each with the reason. A result's editor offers only the verbs its result allows. An attribute's menu, opened from a table column header, a node's value row in the inspector or an attribute row in the Graph panel, offers Color by and Size by, with a verb the attribute's level refuses shown disabled with the reason. So whichever door is used, the attribute's measurement level decides what can be chosen and which scale it gets; nothing is refused after the choice.</p>
+  <div class="flow-wrap">
+<svg class="flow-svg" id="flow-a" viewBox="0 0 1060 840" width="1060" role="group" aria-labelledby="flow-a-t"><title id="flow-a-t">Color or size by a value: from the Styles list, a result's Appearance or an attribute's menu, to a bound layer, its legend, tuning or fixing it, and reading it back</title>
+<defs><marker id="arr-flow-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fa"/></marker></defs>
+<polyline class="fe" points="150,66 150,114" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="156" y="94">Add style layer</tspan></text>
+<polyline class="fe" points="150,166 150,224" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="156" y="199">Fill's four-dot button</tspan></text>
+<polyline class="fe fe-back" points="260,240 330,200 250,150" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="300" y="184">Esc: no binding;</tspan><tspan x="300" y="197">the empty layer stays</tspan></text>
+<polyline class="fe" points="260,262 414,262" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="286" y="280">an attribute that fits</tspan></text>
+<polyline class="fe" points="520,66 520,230" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="526" y="132">Color by, Size by: only the</tspan><tspan x="526" y="145">verbs its result allows</tspan></text>
+<polyline class="fe" points="890,72 890,256 620,256" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="896" y="130">Color by, Size by: a verb the</tspan><tspan x="896" y="143">attribute's level refuses is</tspan><tspan x="896" y="156">disabled, with the reason</tspan></text>
+<polyline class="fe" points="600,282 632,320 761,320" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="650" y="338">only if a run's layer</tspan><tspan x="650" y="351">writes this channel</tspan></text>
+<polyline class="fe" points="520,282 520,354" marker-end="url(#arr-flow-a)"/>
+<polyline class="fe" points="520,406 520,454" marker-end="url(#arr-flow-a)"/>
+<polyline class="fe" points="520,518 520,544" marker-end="url(#arr-flow-a)"/>
+<polyline class="fe" points="520,596 520,644" marker-end="url(#arr-flow-a)"/>
+<polyline class="fe" points="620,680 780,680" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="632" y="658">yes: the bound row's</tspan><tspan x="632" y="671">settings button</tspan></text>
+<polyline class="fe" points="1000,670 1030,670 1030,486 645,486" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="660" y="468">Scale, palette, Reverse, steps:</tspan><tspan x="660" y="481">each one undo step; legend repaints</tspan></text>
+<polyline class="fe" points="890,706 890,774" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="896" y="744">Fix at &lt;value&gt;</tspan></text>
+<polyline class="fe" points="774,800 645,800" marker-end="url(#arr-flow-a)"/>
+<polyline class="fe" points="520,716 520,774" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="526" y="749">no</tspan></text>
+<polyline class="fe" points="395,800 270,800" marker-end="url(#arr-flow-a)"/><text class="fl"><tspan x="282" y="778">the header's</tspan><tspan x="282" y="791">encoding chit</tspan></text>
+<a href="../screens/colour-by-value.html#choose"><rect class="fn" x="50" y="14" width="200" height="52" rx="4"/><text class="ft" text-anchor="middle"><tspan x="150" y="44">Styles list</tspan></text></a>
+<a href="../screens/colour-by-value.html#size"><rect class="fn" x="420" y="14" width="200" height="52" rx="4"/><text class="ft" text-anchor="middle"><tspan x="520" y="44">Result editor: Appearance</tspan></text></a>
+<a href="../screens/colour-by-value.html#categories"><rect class="fn fn-gap" x="770" y="8" width="240" height="64" rx="4"/><text class="ft" text-anchor="middle"><tspan x="890" y="29">An attribute: table header,</tspan><tspan x="890" y="44">inspector value row, or</tspan><tspan x="890" y="59">Graph panel attribute row</tspan></text></a>
+<a href="../screens/colour-by-value.html#choose"><polygon class="fn fn-commit" points="62,114 256,114 238,166 44,166"/><text class="ft" text-anchor="middle"><tspan x="150" y="136.5">Empty layer added on top,</tspan><tspan x="150" y="151.5">its editor open</tspan></text></a>
+<a href="../screens/colour-by-value.html#refused"><rect class="fn" x="40" y="224" width="220" height="68" rx="34"/><text class="ft" text-anchor="middle"><tspan x="150" y="245">Attribute picker: fitting</tspan><tspan x="150" y="260">rows first, the rest disabled</tspan><tspan x="150" y="275">with the reason</tspan></text></a>
+<a href="../screens/colour-by-value.html#numbers"><polygon class="fn fn-commit" points="432,230 626,230 608,282 414,282"/><text class="ft" text-anchor="middle"><tspan x="520" y="252.5">Style layer on top,</tspan><tspan x="520" y="267.5">channel bound</tspan></text></a>
+<a href="../screens/colour-by-value.html#size"><polygon class="fn fn-check fn-gap" points="775,290 1005,290 1019,320 1005,350 775,350 761,320"/><text class="ft" text-anchor="middle"><tspan x="890" y="309">The run's editor reads</tspan><tspan x="890" y="324">"Color set by &lt;layer&gt;",</tspan><tspan x="890" y="339">with Apply anyway</tspan></text></a>
+<polygon class="fn fn-check fn-gap" points="409,354 631,354 645,380 631,406 409,406 395,380"/><text class="ft" text-anchor="middle"><tspan x="520" y="376.5">Scale named from the level:</tspan><tspan x="520" y="391.5">categories, numbers, or diverging at 0</tspan></text>
+<a href="../screens/colour-by-value.html#numbers"><rect class="fn" x="395" y="454" width="250" height="64" rx="4"/><text class="ft" text-anchor="middle"><tspan x="520" y="475">Canvas legend: the scale in</tspan><tspan x="520" y="490">words, true-size circles for</tspan><tspan x="520" y="505">size, no-value count</tspan></text></a>
+<polygon class="fn fn-check" points="409,544 631,544 645,570 631,596 409,596 395,570"/><text class="ft" text-anchor="middle"><tspan x="520" y="566.5">No value counted, drawn as</tspan><tspan x="520" y="581.5">the layers beneath</tspan></text>
+<polygon class="fn fn-decision" points="520,644 620,680 520,716 420,680"/><text class="ft" text-anchor="middle"><tspan x="520" y="684">Tune it?</tspan></text>
+<a href="../screens/colour-by-value.html#numbers"><rect class="fn" x="780" y="654" width="220" height="52" rx="26"/><text class="ft" text-anchor="middle"><tspan x="890" y="676.5">Encoding popover: scale,</tspan><tspan x="890" y="691.5">palette, Reverse, steps</tspan></text></a>
+<a href="../screens/colour-by-value.html#numbers"><polygon class="fn fn-commit" points="792,774 1006,774 988,826 774,826"/><text class="ft" text-anchor="middle"><tspan x="890" y="796.5">One value kept: the row is</tspan><tspan x="890" y="811.5">a constant, its legend gone</tspan></text></a>
+<a href="../screens/colour-by-value.html#categories"><rect class="fn" x="395" y="774" width="250" height="52" rx="4"/><text class="ft" text-anchor="middle"><tspan x="520" y="796.5">Inspector value row and table</tspan><tspan x="520" y="811.5">header read the paint back</tspan></text></a>
+<a href="../screens/colour-by-value.html#path"><rect class="fn" x="40" y="774" width="230" height="52" rx="26"/><text class="ft" text-anchor="middle"><tspan x="155" y="796.5">Style-layer editor: what it</tspan><tspan x="155" y="811.5">applies to and what it reads</tspan></text></a>
+</svg>
+  </div>
+  <p class="k-secondary">The dashed hexagon at the right follows the recommended answer to an open owner decision: whether a finished run repaints the graph. Until that is decided and graphty-element reports, per run, which layer held each channel, the message cannot be shown.</p>
+
+  <table class="steps">
+    <thead><tr><th>Step</th><th>Place</th><th>Command</th><th>Pattern</th><th>Undo label</th><th>Trust check</th><th>Built by</th><th>Element need</th><th>Screen</th></tr></thead>
+    <tbody>
+      <tr><td>add a layer</td><td>the Styles list's "+"</td><td>Add style layer</td><td>Add with defaults, configure after</td><td>"Add style layer"</td><td>the new layer sits on top of the Styles list, its editor open</td><td>Surfaced</td><td><code>session.styles.add</code></td><td><a href="../screens/colour-by-value.html#choose">1</a></td></tr>
+      <tr><td>bind</td><td>the layer's Fill four-dot button; the attribute picker</td><td>an attribute</td><td>Bind a property to an attribute</td><td>"Color Style layer 1 by log2FoldChange" (the layer is then named "log2FoldChange color")</td><td>refused attributes stay listed, disabled, with the reason</td><td>Surfaced</td><td><code>session.styles.update</code>; the filtered list is <b>missing</b>: "Channels that cannot be bound flagged on their descriptor"</td><td><a href="../screens/colour-by-value.html#choose">1</a>, <a href="../screens/colour-by-value.html#refused">6</a></td></tr>
+      <tr><td>add by a verb</td><td>a result editor's Appearance; an attribute's menu (table header, inspector value row, Graph panel row)</td><td>Color by; Size by</td><td>Add with defaults, configure after; Context menu, overflow and tooltips (the attribute's menu)</td><td>"Add log2FoldChange color"; "Add Size: degree"</td><td>the new layer on top; a verb the level refuses is disabled with the reason</td><td>Surfaced</td><td><code>session.styles.encode</code> (result); from an attribute, <b>missing</b>: "One scale default on both write paths" and "encoding a data attribute, keyed so a repeated verb edits its earlier layer"</td><td><a href="../screens/colour-by-value.html#size">3</a>, <a href="../screens/colour-by-value.html#categories">4</a></td></tr>
+      <tr><td>check the scale</td><td>the bound pill; the legend</td><td>--</td><td>Encoding kinds follow the measurement level</td><td>no undo entry</td><td>the scale in words: "one color per value"; "linear, diverging at 0, blue below, orange above"; "area proportional to degree; each partner counted once", over five true-size circles</td><td>Surfaced</td><td><b>missing</b>: "A declared measurement level"</td><td><a href="../screens/colour-by-value.html#numbers">2</a></td></tr>
+      <tr><td>yield (only if a run's layer writes this channel)</td><td>that run's editor, Appearance</td><td>Apply anyway (optional)</td><td>Edit in the inspector and one popover (an automatic layer)</td><td>"Apply Degree color anyway"</td><td>"Color set by log2FoldChange color"</td><td>Surfaced</td><td><b>missing</b>: "A per-run outcome for each suggested channel"; the suppression check itself has a defect, <b>missing</b>: "Automatic paint suppressed only for elements a higher authored layer paints" (<a href="https://github.com/graphty-org/graphty-monorepo/issues/551">issue #551</a>)</td><td><a href="../screens/colour-by-value.html#size">3</a></td></tr>
+      <tr><td>tune the scale</td><td>the encoding popover, from the bound row's settings button</td><td>scale, palette, Reverse, midpoint, steps</td><td>Edit in the inspector and one popover</td><td>"Change palette of log2FoldChange color"</td><td>the legend repaints with the new sentence</td><td>Surfaced</td><td><code>session.styles.update</code></td><td><a href="../screens/colour-by-value.html#numbers">2</a></td></tr>
+      <tr><td>fix at one value</td><td>the encoding popover's header</td><td>Fix at &lt;value&gt; ("Fix at 5.1 px, the median, degree 8")</td><td>Bind a property to an attribute (Fix at)</td><td>"Fix Size: degree at 5.1 px"</td><td>the row shows a constant and the legend block disappears</td><td>Surfaced</td><td><code>StylesApi.resolveToStatic</code>; naming the value before pressing, <b>missing</b>: "a preview of a static resolution"</td><td><a href="../screens/colour-by-value.html#numbers">2</a></td></tr>
+      <tr><td>read back</td><td>canvas legend; inspector value row; table header and chits</td><td>--</td><td>From a painted value to its layer and its datum</td><td>no undo entry</td><td>all three read the resolved paint, never recompute it</td><td>Surfaced</td><td><code>session.styles.legend()</code>, <code>session.styles.explain</code>; the table's chits, <b>missing</b>: "A bulk read of encoded values for a column of the table"</td><td><a href="../screens/colour-by-value.html#categories">4</a></td></tr>
+      <tr><td>back to the layer</td><td>the table header's encoding chit</td><td>opens the style-layer editor</td><td>From a painted value to its layer and its datum</td><td>no undo entry</td><td>the editor's Applies to row and the attribute it reads</td><td>Surfaced</td><td><code>session.styles.explain</code></td><td><a href="../screens/colour-by-value.html#path">5</a></td></tr>
+    </tbody>
+  </table>
+  <p><b>Steps from rest.</b> From the Styles list: 2 steps ("+", the attribute) and 1 travel (the four-dot button), the same as Figma's. From a result: 1 step (Size: degree) and 1 travel (the result's row). From an attribute: 1 step (Color by) and 1 travel (its menu). Tuning adds 1 travel (the settings button) and 1 step per change; Fix at is 1 step after the same travel.</p>
+
+
+  <h3 id="size-key">The size key</h3>
+  <p>A size layer has one name everywhere: "Size: degree" on its Styles row, as its legend block's title, in its editor's header and in its undo labels. Its key draws five circles at the size they are on the canvas at the current zoom, at round values taken from the data's own spread: degree 4, 6, 8 and 12 (the 10th, 25th, 50th and 90th percentiles of the 300 proteins) and 34, the largest. Under them it says, in words, whether size maps to area (the default: circle area proportional to the value) or is linear (diameter proportional to the value), and whether repeated connections count. Hovering or selecting a protein adds its own value to the key, "MAPK1: degree 34", and the canvas tooltip carries the same words. Proteins with degree 0 or 1 (10 of 300) are drawn at the smallest size the canvas allows, and the key says so only when such proteins exist.</p>
+  <div class="keys">
+    <figure>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Size: degree <span class="k-secondary">number of connections</span></div>
+        <div class="k-size-marks">
+          <div><b style="width:7.2px;height:7.2px"></b>4</div><div><b style="width:8.8px;height:8.8px"></b>6</div><div><b style="width:10.2px;height:10.2px"></b>8</div><div><b style="width:12.5px;height:12.5px"></b>12</div><div><b style="width:21px;height:21px"></b>34</div>
+        </div>
+        <div class="k-secondary">Area proportional to degree. Each partner counted once.</div>
+        <div class="k-secondary">10th, 25th, 50th, 90th percentile and the largest.</div>
+      </div>
+      <figcaption><b>At rest.</b> Five true-size circles; the two lines under them say what size means and which values the circles stand for.</figcaption>
+    </figure>
+    <figure>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Size: degree <span class="k-secondary">number of connections</span></div>
+        <div class="k-size-marks">
+          <div><b style="width:7.2px;height:7.2px"></b>4</div><div><b style="width:8.8px;height:8.8px"></b>6</div><div><b style="width:10.2px;height:10.2px"></b>8</div><div><b style="width:12.5px;height:12.5px"></b>12</div><div><b data-on style="width:21px;height:21px"></b>34</div>
+        </div>
+        <div class="k-secondary">Area proportional to degree. Each partner counted once.</div>
+        <div class="k-secondary">10th, 25th, 50th, 90th percentile and the largest.</div>
+        <div class="readout"><b style="width:21px;height:21px"></b><span><span class="k-id">MAPK1</span>: degree 34</span></div>
+      </div>
+      <figcaption><b>Hovering MAPK1.</b> Its circle matches the largest one, which is ringed, and the key reads its value.</figcaption>
+    </figure>
+    <figure>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Size: degree <span class="k-secondary">number of connections</span></div>
+        <div class="k-size-marks">
+          <div><b style="width:7.2px;height:7.2px"></b>4</div><div><b style="width:8.8px;height:8.8px"></b>6</div><div><b style="width:10.2px;height:10.2px"></b>8</div><div><b style="width:12.5px;height:12.5px"></b>12</div><div><b style="width:21px;height:21px"></b>34</div>
+        </div>
+        <div class="k-secondary">Area proportional to degree. Each partner counted once.</div>
+        <div class="k-secondary">10th, 25th, 50th, 90th percentile and the largest.</div>
+        <div class="readout"><b style="width:20.4px;height:20.4px"></b><span><span class="k-id">TP53</span>: degree 32</span></div>
+      </div>
+      <figcaption><b>TP53 selected.</b> A value between two circles is drawn at its own true size beside its number, so she never has to guess between steps.</figcaption>
+    </figure>
+  </div>
+  <p class="k-secondary">Switching the encoding popover's Scale to Linear changes the first line to "Diameter proportional to degree. Each partner counted once." On data with repeated edges between the same pair, the second clause reads "Repeats counted" or "Each partner counted once", as graphty-element computed the degree.</p>
+
+  <h2 id="set">2. Paint a set or a selection, or bind it to a value</h2>
+  <p>A kept set's Appearance writes to the set's own layer, so a second color revises that layer instead of growing the stack. Several selected nodes are painted straight away, as in Figma, with no question first. A color goes into Overrides at once, the layer that holds hand-set constants. A value opens the attribute picker, whose first choice makes the set and its layer in one step, and whose lower group colors every node instead. Keeping the selection as a set is offered by the picker's labels and, afterwards, on the Overrides row; it is never asked up front.</p>
+  <div class="flow-wrap">
+<svg class="flow-svg" id="flow-b" viewBox="0 0 1100 760" width="1100" role="group" aria-labelledby="flow-b-t"><title id="flow-b-t">Paint a set or several selected nodes with a constant, or bind it to a value</title>
+<defs><marker id="arr-flow-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fa"/></marker></defs>
+<polyline class="fe" points="230,66 230,113" marker-end="url(#arr-flow-b)"/>
+<polyline class="fe" points="192,178 127,249" marker-end="url(#arr-flow-b)"/><text class="fl" text-anchor="end"><tspan x="150" y="206">a constant:</tspan><tspan x="150" y="219">the fill swatch</tspan></text>
+<polyline class="fe" points="268,178 333,249" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="312" y="206">a value: the</tspan><tspan x="312" y="219">four-dot button</tspan></text>
+<polyline class="fe" points="127,301 189,368" marker-end="url(#arr-flow-b)"/>
+<polyline class="fe" points="333,301 271,368" marker-end="url(#arr-flow-b)"/>
+<polyline class="fe" points="191,432 126,504" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="164" y="474">no</tspan></text>
+<polyline class="fe" points="272,432 342,504" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="318" y="474">yes</tspan></text>
+<polyline class="fe" points="100,556 170,674" marker-end="url(#arr-flow-b)"/>
+<polyline class="fe" points="370,556 300,674" marker-end="url(#arr-flow-b)"/>
+<polyline class="fe" points="740,66 740,113" marker-end="url(#arr-flow-b)"/>
+<polyline class="fe" points="700,176 580,249" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="560" y="200">a constant: the</tspan><tspan x="560" y="213">fill swatch</tspan></text>
+<polyline class="fe" points="780,176 850,249" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="826" y="200">a value: the</tspan><tspan x="826" y="213">four-dot button</tspan></text>
+<polyline class="fe" points="560,301 560,374" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="566" y="342">a color</tspan></text>
+<polyline class="fe" points="850,301 780,374" marker-end="url(#arr-flow-b)"/><text class="fl" text-anchor="end"><tspan x="806" y="332">Create set and color</tspan><tspan x="806" y="345">by &lt;attribute&gt;</tspan></text>
+<polyline class="fe" points="900,301 970,374" marker-end="url(#arr-flow-b)"/><text class="fl"><tspan x="944" y="332">Color by &lt;attribute&gt;</tspan><tspan x="944" y="345">(all nodes)</tspan></text>
+<polyline class="fe" points="560,426 560,700"/>
+<polyline class="fe" points="770,426 770,700"/>
+<polyline class="fe" points="980,426 980,700 379,700" marker-end="url(#arr-flow-b)"/>
+<a href="../screens/inspector.html#set"><rect class="fn" x="120" y="14" width="220" height="52" rx="4"/><text class="ft" text-anchor="middle"><tspan x="230" y="44">Inspector, set: Appearance</tspan></text></a>
+<polygon class="fn fn-decision" points="230,113 350,150 230,187 110,150"/><text class="ft" text-anchor="middle"><tspan x="230" y="146.5">A constant, or</tspan><tspan x="230" y="161.5">follow a value?</tspan></text>
+<rect class="fn" x="15" y="249" width="170" height="52" rx="26"/><text class="ft" text-anchor="middle"><tspan x="100" y="279">Color picker</tspan></text>
+<rect class="fn" x="275" y="249" width="170" height="52" rx="26"/><text class="ft" text-anchor="middle"><tspan x="360" y="279">Attribute picker</tspan></text>
+<polygon class="fn fn-decision" points="230,368 370,400 230,432 90,400"/><text class="ft" text-anchor="middle"><tspan x="230" y="396.5">Does this set's own layer</tspan><tspan x="230" y="411.5">already write this channel?</tspan></text>
+<polygon class="fn fn-commit" points="21,504 201,504 183,556 3,556"/><text class="ft" text-anchor="middle"><tspan x="100" y="526.5">Style layer added,</tspan><tspan x="100" y="541.5">scoped to the set</tspan></text>
+<polygon class="fn fn-commit fn-gap" points="287,504 471,504 453,556 269,556"/><text class="ft" text-anchor="middle"><tspan x="370" y="534">That layer revised</tspan></text>
+<polygon class="fn fn-check" points="95,674 365,674 379,700 365,726 95,726 81,700"/><text class="ft" text-anchor="middle"><tspan x="230" y="696.5">The value row and the legend name</tspan><tspan x="230" y="711.5">the layer; the filter counts do not move</tspan></text>
+<a href="../screens/inspector.html#mixed"><rect class="fn" x="615" y="14" width="250" height="52" rx="4"/><text class="ft" text-anchor="middle"><tspan x="740" y="44">Inspector, several nodes: Appearance</tspan></text></a>
+<polygon class="fn fn-decision" points="740,113 860,150 740,187 620,150"/><text class="ft" text-anchor="middle"><tspan x="740" y="146.5">A constant, or</tspan><tspan x="740" y="161.5">follow a value?</tspan></text>
+<rect class="fn" x="485" y="249" width="150" height="52" rx="26"/><text class="ft" text-anchor="middle"><tspan x="560" y="279">Color picker</tspan></text>
+<rect class="fn" x="775" y="249" width="200" height="52" rx="26"/><text class="ft" text-anchor="middle"><tspan x="875" y="271.5">Attribute picker for</tspan><tspan x="875" y="286.5">a selection</tspan></text>
+<polygon class="fn fn-commit fn-gap" points="477,374 663,374 645,426 459,426"/><text class="ft" text-anchor="middle"><tspan x="561" y="396.5">Overrides written; its</tspan><tspan x="561" y="411.5">row offers Create set</tspan></text>
+<polygon class="fn fn-commit fn-gap" points="687,374 873,374 855,426 669,426"/><text class="ft" text-anchor="middle"><tspan x="771" y="396.5">Set and its layer added;</tspan><tspan x="771" y="411.5">the set's name in rename</tspan></text>
+<polygon class="fn fn-commit" points="897,374 1083,374 1065,426 879,426"/><text class="ft" text-anchor="middle"><tspan x="981" y="396.5">Layer added for</tspan><tspan x="981" y="411.5">all nodes, and says so</tspan></text>
+</svg>
+  </div>
+  <table class="steps">
+    <thead><tr><th>Step</th><th>Place</th><th>Command</th><th>Pattern</th><th>Undo label</th><th>Trust check</th><th>Built by</th><th>Element need</th><th>Screen</th></tr></thead>
+    <tbody>
+      <tr><td>open</td><td>a set's, or several nodes', Appearance</td><td>the fill swatch; the four-dot button</td><td>Edit in the inspector and one popover</td><td>no undo entry</td><td>the value, or "Mixed"</td><td>Surfaced</td><td><code>session.styles.explain</code></td><td><a href="../screens/inspector.html#set">set</a>, <a href="../screens/inspector.html#mixed">several</a></td></tr>
+      <tr><td>first write on a set</td><td>color picker; attribute picker</td><td>a color; an attribute</td><td>Bind a property to an attribute</td><td>"Add DNA repair hubs color"; "Add Size: degree on DNA repair hubs"</td><td>the layer appears on top, named for the set</td><td>Surfaced</td><td><code>session.styles.add</code> with a member selector on the set</td><td>none yet</td></tr>
+      <tr><td>later writes on a set</td><td>color picker</td><td>a color</td><td>Bind a property to an attribute</td><td>"Change color of DNA repair hubs color"</td><td>the value row names the layer being edited</td><td>Surfaced</td><td><code>session.styles.update</code>; finding the set's layer, <b>missing</b>: "encoding a data attribute, keyed so a repeated verb edits its earlier layer"</td><td>none yet</td></tr>
+      <tr><td>paint a selection</td><td>several nodes' Appearance; color picker</td><td>a color</td><td>Commit, the write rule and Mixed</td><td>"Override color of 6 nodes"</td><td>the Overrides row counts them and offers Create set</td><td>Surfaced</td><td><b>missing</b>: "The Overrides layer"</td><td>none yet</td></tr>
+      <tr><td>bind a selection</td><td>several nodes' Appearance; attribute picker</td><td>Create set and color by degree</td><td>Bind a property to an attribute</td><td>"Create set and color by degree"</td><td>the new set's name opens in rename, and its layer is on top</td><td>Surfaced</td><td>one element command that makes the set and its layer, <b>missing</b>: "encoding a data attribute, keyed so a repeated verb edits its earlier layer" (the same key serves a set's Appearance)</td><td>none yet</td></tr>
+      <tr><td>bind every node</td><td>attribute picker, lower group</td><td>Color by degree (all nodes)</td><td>Bind a property to an attribute</td><td>"Add degree color"</td><td>the row says "all nodes", not the selection</td><td>Surfaced</td><td><code>session.styles.add</code> with an encoding</td><td>none yet</td></tr>
+    </tbody>
+  </table>
+  <p class="k-secondary">The inspector mock shows a set's Appearance and a mixed selection's; the color picker, the attribute picker for a selection and the Overrides row have no mock yet.</p>
+  <p><b>Steps from rest.</b> A constant on a set or a selection: 2 steps (the set or the nodes; the color) and 1 travel (the fill swatch), the same as Figma's. A binding: 2 steps (the set or the nodes; the attribute) and 1 travel (the four-dot button); from a selection that one choice also makes the set.</p>
+
+  <h2 id="stack">3. Top wins, and a run paints only its result</h2>
+  <p>Style layers stack. Each style layer writes some channels, and for each channel the highest enabled layer that writes it wins. That is why the fold-change layer "paints nothing" once Module color sits above it, and why it comes back the moment Module color's eye is switched off. It is also why a run's own layer must write only to what the run found: a shortest-path layer that painted every other protein gray would win color everywhere and erase the fold change beneath it.</p>
+  <div class="stack" role="table" aria-label="Which layer wins each channel, in the stack of screen 5">
+    <div role="row"><div class="h" role="columnheader">Layer, top first</div><div class="h" role="columnheader">Color</div><div class="h" role="columnheader">Size</div><div class="h" role="columnheader">Highlight mark</div></div>
+    <div role="row"><div role="rowheader"><span class="dashchip"></span>Shortest path TP53 to SMAD3 <span class="k-secondary">run</span></div><div role="cell" class="none">writes nothing</div><div role="cell" class="none">writes nothing</div><div role="cell" class="win">wins on 4 proteins, 3 interactions</div></div>
+    <div role="row"><div role="rowheader" class="k-tertiary">Module color <span>switched off</span></div><div role="cell" class="none">off, kept</div><div role="cell" class="none">--</div><div role="cell" class="none">--</div></div>
+    <div role="row"><div role="rowheader"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>Size: degree</div><div role="cell" class="none">--</div><div role="cell" class="win">wins on all 300</div><div role="cell" class="none">--</div></div>
+    <div role="row"><div role="rowheader"><span class="k-ramp fc-ramp" style="width:16px"></span>log2FoldChange color</div><div role="cell" class="win">wins on all 300</div><div role="cell" class="none">--</div><div role="cell" class="none">--</div></div>
+    <div role="row"><div role="rowheader">Base style</div><div role="cell" class="lose">covered by the layers above</div><div role="cell" class="lose">covered by the layers above</div><div role="cell" class="none">--</div></div>
+  </div>
+  <div class="pair">
+    <figure>
+      <div class="shot"><img class="k-light-only" src="../kit/canvas/ppi-foldchange-bo-path-light.svg" alt="Fold-change colors, blue below 0 and orange above, intact; the path TP53, MSH2, UBB, SMAD3 is marked with a dashed two-tone band"><img class="k-dark-only" src="../kit/canvas/ppi-foldchange-bo-path-dark.svg" alt="Fold-change colors, blue below 0 and orange above, intact; the path TP53, MSH2, UBB, SMAD3 is marked with a dashed two-tone band"></div>
+      <figcaption><b>The rule.</b> The run's layer selects only proteins and interactions on the path and writes only the highlight mark. The other 296 proteins keep the fold-change color and the size by degree that the layers beneath gave them. <a href="../screens/colour-by-value.html#path">Screen 5</a></figcaption>
+    </figure>
+    <figure class="bad">
+      <div class="shot"><img class="k-light-only" src="../kit/canvas/ppi-path-overpaint-light.svg" alt="What the rule prevents: path proteins blue, every other protein light gray, fold change gone"><img class="k-dark-only" src="../kit/canvas/ppi-path-overpaint-dark.svg" alt="What the rule prevents: path proteins blue, every other protein light gray, fold change gone"></div>
+      <figcaption><b>What the rule prevents.</b> A layer that matches every protein and paints "not on the path" as gray #CCCCCC wins color on all 300 and erases the analysis beneath it. Dimming what a run did not find is a reader's choice, made with Fade others, never shipped in a run's layers.</figcaption>
+    </figure>
+  </div>
+  <p><b>The default diverging palette</b> is blue below 0 and orange above, with a mid-tone sand at 0: no end reads as "up" or "down" in any field, and the midpoint is neither the canvas color nor either gray, so a protein with almost no change still reads as a value. The legend states the direction in words ("blue below 0, orange above"), and Reverse sits beside the palette in the encoding popover. The screens page still draws the palette graphty-element ships today, red to blue.</p>
+
+  <h2 id="figma">4. Where this differs from Figma</h2>
+  <p>Each difference below has a graph reason; the full list is the departures ledger in <code>design/ui/framework/figma-crosswalk.md</code>, section 4.</p>
+  <ul class="diff">
+    <li><b>A bound row keeps a settings button</b> that opens the encoding popover, where Figma's bound row has only a hover Detach. A binding carries a scale (domain, palette, steps) that a Figma variable does not.</li>
+    <li><b>Fix at &lt;value&gt; replaces Detach</b>, and names the value it keeps. A bound channel paints a different value on every node, so there is no single value to keep until one is chosen.</li>
+    <li><b>The value row and the legend name the painting layer</b> ("Color -- log2FoldChange color"), where a Figma bound field shows only its variable. Appearance is written only through layers, so the reader must see which layer an edit changes.</li>
+    <li><b>Color by and Size by sit on a result, a column header, a value row and an attribute row</b>, where Figma binds only from the property row. Analysts start from an attribute or a result, not from a layer.</li>
+    <li><b>A run's automatic layer yields to an authored one</b> and says "Color set by &lt;layer&gt;", where creating a Figma variable paints nothing. A re-run must not overwrite paint the analyst chose.</li>
+    <li><b>Painting several selected nodes writes into the Overrides layer</b>, not into the nodes. Every hand edit must stay visible, reorderable and removable in the stack.</li>
+  </ul>
+
+  <h2 id="branches">5. Errors, refusals and cancellations</h2>
+  <table class="steps">
+    <thead><tr><th>When</th><th>What the analyst sees</th><th>Where it is decided</th></tr></thead>
+    <tbody>
+      <tr><td>Esc in the attribute picker (Styles route)</td><td>The picker closes with no binding. The empty layer "+" made stays in the list, writing nothing, one undo step away; focus returns to the four-dot button.</td><td>Add with defaults, configure after</td></tr>
+      <tr><td>Esc in an attribute's menu or a result's verbs</td><td>Nothing is added; focus returns to the header, row or result that opened it.</td><td>Context menu, overflow and tooltips</td></tr>
+      <tr><td>Esc in the encoding popover</td><td>It closes; each change already made in it stays, each its own undo step. Focus returns to the bound row's settings button.</td><td>Edit in the inspector and one popover</td></tr>
+      <tr><td>Undo after a verb</td><td>"Undo Add log2FoldChange color" removes the layer, and its legend block disappears. No notice, because the change was in sight.</td><td>Undo instead of asking</td></tr>
+      <tr><td>Undo after Fix at</td><td>"Undo Fix Size: degree at 5.1 px" puts the binding back, with its scale and its key.</td><td>Bind a property to an attribute</td></tr>
+      <tr><td>An attribute that does not fit the channel</td><td>In the picker it stays listed below the rest, disabled, with the reason under the row: "Shape takes categories; bin log2FoldChange first". <a href="../screens/colour-by-value.html#refused">Screen 6</a></td><td>graphty-element's channel descriptor; message <code>graphty.style.cannotBind</code></td></tr>
+      <tr><td>Color by on a text column (the gene symbol, 300 different values)</td><td>In the header menu, Color by is disabled with the reason: "Color takes up to 256 values; id (gene symbol) has 300". Filter to and the other verbs stay available.</td><td>graphty-element's unique-value cap (256); message <code>graphty.style.cannotBind</code></td></tr>
+      <tr><td>Size by on a signed value (log2FoldChange)</td><td>Offered, and sized by the size of the change, ignoring its sign. The pill and the legend say "by magnitude, sign not shown", and the encoding popover offers Color by to carry the sign.</td><td>message <code>graphty.legend.signNotShown</code>; <b>missing</b>: "signed values on magnitude channels"</td></tr>
+      <tr><td>A size key on a filtered graph</td><td>The circles are recomputed at the percentiles of what is drawn, and the key says "of the filtered graph (56 of 300)"; a degree says whether it is of the filtered or the full graph.</td><td>graphty-element's legend</td></tr>
+      <tr><td>The level was guessed</td><td>The pill says "treated as numbers" and offers Treat as categories. Community ids never land on a ramp once levels are declared.</td><td>message <code>graphty.style.levelGuessed</code>; <b>missing</b>: "A declared measurement level"</td></tr>
+      <tr><td>Every value is the same</td><td>One color for everything, and the legend says so instead of drawing a ramp with no width: "all 300 values 0.42" (proposed wording).</td><td>graphty-element's legend; a new message, proposed</td></tr>
+      <tr><td>A heavily skewed value (betweenness, 10 zeros, most proteins near 0)</td><td>The default compresses the tail on log(1 + x), so the zeros are painted too; the popover also offers linear, and the legend names the scale in force.</td><td><b>missing</b>: "log(1 + x) and log-axis bins"</td></tr>
+      <tr><td>The attribute is gone after Update with new data or a rename</td><td>The layer is kept and marked unbound: its row names the attribute it needs, it paints nothing, and activating it opens the binding step.</td><td>message <code>graphty.style.unbound</code></td></tr>
+      <tr><td>More categories than colors</td><td>The rest fold into one Other entry with its count. Moving a placeholder value such as "Unassigned" into Other is proposed, and is tested in the study before any screen shows it as shipped. <a href="../screens/colour-by-value.html#categories">Screen 4</a></td><td>graphty-element's overflow; Move to Other is proposed</td></tr>
+      <tr><td>Some elements have no value</td><td>They are not painted by this layer; the layers beneath show, and the legend counts them. Give these a color adds a constant layer above, scoped to exactly those elements.</td><td>graphty-element's <code>missing: "skip"</code></td></tr>
+      <tr><td>A run's own color is covered</td><td>Only when a run's layer writes the same channel: its Appearance reads "Color set by log2FoldChange color", with Apply anyway. Follows the recommended answer to the open decision on whether a finished run repaints. <a href="../screens/colour-by-value.html#size">Screen 3</a></td><td><b>missing</b>: "A per-run outcome for each suggested channel"; issue #551</td></tr>
+      <tr><td>Edges</td><td>The same flow applies to an edge attribute, such as Width by confidence (0.4 to 0.99). Past the edge drawing limit the channel binds but is not drawn, and the legend's not-drawn line says so.</td><td>graphty-element's drawing limit</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="keyboard">6. Keyboard</h2>
+  <p>Every verb is also a Quick actions command on the focused result, attribute or selection ("Color by...", "Size by...", "Fix at..."). In the Styles list, "+" is a button in the section header's tab stop; the four-dot button follows the section header. The attribute picker is a list box: arrows move, Enter chooses, and a disabled row is announced with its reason; for a selection its first row is "Create set and color by ...". A column header's or value row's menu opens with Shift+F10 or the Menu key. On a bound row, Tab reaches the pill (which reopens the picker) and then the settings button (which opens the encoding popover); Fix at is the popover's header button, the first stop after its title. Esc always closes the innermost popover and returns focus to the control that opened it.</p>
+
+  <h2 id="stalls">7. Where the analyst may stall</h2>
+  <ul>
+    <li><b>"Tell me what an orange protein means in this figure."</b> Observe whether she reads direction from the legend's words or from habit. Hypothesis, not a fact: biologists bring the expression-heatmap habit of red for up-regulated (Eisen and colleagues, PNAS 1998, cluster displays in red and green), and a palette with no red avoids that habit either way. A session that goes the other way is a finding.</li>
+    <li>After adding Module color on top, does she understand why the fold-change layer "paints nothing", and does she reach for the eye rather than deleting it?</li>
+    <li>From the table, does she look for Color by on the column's header menu, and can she find her way back from the layer to the column it reads (the header's encoding chit)?</li>
+  </ul>
+  <p><b>First failure</b>, until levels are declared: coloring by a column of integer ids from the table draws a ramp, because a data column's level is guessed. The pill says "treated as numbers"; Treat as categories fixes it. <b>Re-entry:</b> the legend, or rest.</p>
+
+  <h2 id="screens">8. The screens</h2>
+  <div class="screens">
+    <a href="../screens/colour-by-value.html#choose"><figure class="k-frame"><div class="k-frame-shot"><img class="k-light-only" src="../shots/screens__colour-by-value--choose.png" alt="Screen 1"><img class="k-dark-only" src="../shots/screens__colour-by-value--choose--dark.png" alt="Screen 1"></div><figcaption>1. Choose what a layer follows</figcaption></figure></a>
+    <a href="../screens/colour-by-value.html#numbers"><figure class="k-frame"><div class="k-frame-shot"><img class="k-light-only" src="../shots/screens__colour-by-value--numbers.png" alt="Screen 2"><img class="k-dark-only" src="../shots/screens__colour-by-value--numbers--dark.png" alt="Screen 2"></div><figcaption>2. Numbers: a diverging scale</figcaption></figure></a>
+    <a href="../screens/colour-by-value.html#size"><figure class="k-frame"><div class="k-frame-shot"><img class="k-light-only" src="../shots/screens__colour-by-value--size.png" alt="Screen 3"><img class="k-dark-only" src="../shots/screens__colour-by-value--size--dark.png" alt="Screen 3"></div><figcaption>3. Size from a result</figcaption></figure></a>
+    <a href="../screens/colour-by-value.html#categories"><figure class="k-frame"><div class="k-frame-shot"><img class="k-light-only" src="../shots/screens__colour-by-value--categories.png" alt="Screen 4"><img class="k-dark-only" src="../shots/screens__colour-by-value--categories--dark.png" alt="Screen 4"></div><figcaption>4. Categories: one color per value</figcaption></figure></a>
+    <a href="../screens/colour-by-value.html#path"><figure class="k-frame"><div class="k-frame-shot"><img class="k-light-only" src="../shots/screens__colour-by-value--path.png" alt="Screen 5"><img class="k-dark-only" src="../shots/screens__colour-by-value--path--dark.png" alt="Screen 5"></div><figcaption>5. A run marks only its result</figcaption></figure></a>
+    <a href="../screens/colour-by-value.html#refused"><figure class="k-frame"><div class="k-frame-shot"><img class="k-light-only" src="../shots/screens__colour-by-value--refused.png" alt="Screen 6"><img class="k-dark-only" src="../shots/screens__colour-by-value--refused--dark.png" alt="Screen 6"></div><figcaption>6. A binding the level refuses</figcaption></figure></a>
+  </div>
+
+  <p>Decisions this flow had to make where the design documents are silent or disagree are recorded, with the evidence, in <a href="../framework-changes.md">framework-changes.md</a>.</p>
+</div>
+</body>
+</html>

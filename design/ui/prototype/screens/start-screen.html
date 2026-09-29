@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start screen</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+body { background: var(--cm-bg-secondary); }
+.ss-top { position: sticky; top: 0; z-index: 200; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.ss-top a { color: var(--cm-text-brand); text-decoration: none; }
+.ss-intro { width: 1440px; margin: 16px auto 0; padding: 0 16px; box-sizing: border-box; }
+.ss-intro p { max-width: 100ch; color: var(--cm-text-secondary); margin: 4px 0; }
+.ss-state { width: 1440px; margin: 0 auto; padding: 24px 0 8px; }
+.ss-state > h2 { font-size: 15px; line-height: 25px; margin: 0 16px; }
+.ss-state > p { margin: 0 16px 8px; max-width: 110ch; color: var(--cm-text-secondary); }
+.ss-win { position: relative; display: grid; grid-template-columns: 57px 1fr; width: 1440px; height: 900px; overflow: hidden; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); }
+.ss-win[data-size="1024"] { width: 1024px; height: 768px; }
+
+/* The screen itself: an otherwise empty rail holding the main menu, and one centered column */
+.ss-body { position: relative; overflow: hidden; }
+.ss-col { width: 880px; max-width: calc(100% - 64px); margin: 0 auto; padding: 40px 0 0; }
+.ss-col h1 { font-size: 15px; line-height: 25px; font-weight: 550; margin: 0 0 4px; }
+.ss-privacy { display: flex; gap: 8px; align-items: center; margin: 0; line-height: 20px; color: var(--cm-text-secondary); }
+.ss-privacy + .ss-privacy { margin-top: 2px; }
+.ss-privacy .k-link { margin-left: 4px; white-space: nowrap; }
+.ss-lines { margin: 0 0 20px; }
+.ss-caution { display: flex; gap: 8px; align-items: center; margin: 4px 0 0; line-height: 20px; }
+.ss-h { display: flex; align-items: center; gap: 8px; height: 32px; margin: 8px 0 0; font-size: 11px; font-weight: 550; }
+.ss-row { padding: 0 8px; border-radius: 5px; }
+.ss-row .ss-when { color: var(--cm-text-secondary); width: 96px; text-align: right; }
+.ss-row .ss-size { color: var(--cm-text-secondary); width: 140px; }
+.ss-row[data-focus] { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
+.ss-row[aria-selected="true"] { background: var(--cm-bg-selected); }
+.ss-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.ss-thumb { position: relative; border-radius: 5px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.ss-thumb img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+.ss-thumb-label { display: flex; align-items: center; gap: 6px; padding: 8px; }
+.ss-thumb-label .k-grow { min-width: 0; }
+.ss-thumb[data-hover] { box-shadow: inset 0 0 0 1px var(--cm-border), 0 0 0 2px var(--cm-border-selected); }
+.ss-i { color: var(--cm-text-secondary); }
+.ss-doors { margin: 16px 0 0; }
+.ss-err { display: flex; gap: 8px; align-items: center; min-height: 32px; padding: 0 8px; color: var(--cm-text-danger); }
+.ss-err .k-btn { margin-left: auto; }
+.ss-help { position: absolute; right: 16px; bottom: 16px; }
+.ss-tip { position: absolute; z-index: 50; max-width: 260px; }
+
+/* The recipe waiting for data (a ProseBlock heading the list) */
+.ss-recipe { padding: 8px 16px 16px; margin: 0 0 8px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.ss-recipe .ss-h { margin: 0; }
+.ss-recipe .ss-name { display: flex; align-items: center; gap: 8px; font-weight: 550; margin: 0; }
+.ss-recipe p { margin: 6px 0 0; max-width: 72ch; line-height: 20px; }
+.ss-recipe .ss-privacy { margin-top: 8px; }
+.ss-recipe .ss-need { display: flex; align-items: center; gap: 8px; min-height: 32px; margin: 8px 0 0; padding: 0 8px; border-radius: 5px; background: var(--cm-bg-secondary); }
+.ss-recipe .ss-need .k-secondary { margin-left: 6px; }
+.ss-recipe .ss-acts { display: flex; gap: 8px; align-items: center; margin: 14px 0 0; }
+
+/* The operating system's drag image (not app UI) */
+.ss-osdrag { position: absolute; z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 2px; opacity: .7; font-size: 11px; color: var(--cm-text); pointer-events: none; }
+.ss-osdrag svg { width: 32px; height: 32px; }
+
+/* Annotation layer, off by default */
+.ss-an { display: none; }
+body:has(#ss-annot:checked) .ss-an { display: block; }
+body:has(#ss-annot:checked) [data-annot] { outline: 2px dashed var(--k-annot); outline-offset: 2px; }
+.ss-an i { font-style: normal; font-family: var(--cm-font-family-mono); font-size: 11px; }
+
+/* Opened as screens/start-screen.html#sN (for storyboard frames): that state alone, no page chrome */
+body:has(.ss-state:target) { background: var(--cm-bg); }
+body:has(.ss-state:target) .ss-state:not(:target), body:has(.ss-state:target) .ss-top, body:has(.ss-state:target) .ss-intro, body:has(.ss-state:target) .ss-key, body:has(.ss-state:target) .ss-state > h2, body:has(.ss-state:target) .ss-state > p { display: none; }
+body:has(.ss-state:target) .ss-state { padding: 0; }
+body:has(.ss-state:target) .ss-win { box-shadow: none; }
+
+.ss-key { width: 1440px; margin: 24px auto 48px; padding: 0 16px; box-sizing: border-box; }
+.ss-key table { border-collapse: collapse; width: 100%; font-size: 12px; line-height: 18px; background: var(--cm-bg); }
+.ss-key th, .ss-key td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--cm-border); }
+.ss-key th { font-weight: 550; }
+.ss-key td:first-child { white-space: nowrap; }
+.ss-key p { max-width: 110ch; color: var(--cm-text-secondary); }
+</style>
+</head>
+<body data-any-dataset>
+<div class="ss-top"><b>Start screen</b><span class="k-secondary">What graphty shows before any project is open. Ten states, each 1440 by 900 except the narrow window.</span>
+<span class="k-grow"></span><label><input type="checkbox" id="ss-annot"> Show annotations</label>
+<a href="binding-step.html">The binding step</a><a href="recipe-apply.html">The recipe, applied</a><a href="../index.html">Gallery</a></div>
+
+<div class="ss-intro"><p>Recent projects first, then the samples by name and picture, then Open... and Connect to data source.... A file dropped anywhere on the window opens as Open... would. One line under the title answers the question people ask before they give a tool their data: where does the file go? Turn on annotations to see the design rule and the compact-mantine component behind each part.</p></div>
+
+<!-- ============================================================ 1. First run -->
+<section class="ss-state" id="s1">
+<h2>1. First run: nothing opened yet</h2>
+<p>No recent projects, so that section is absent and the samples lead. Nothing here is first-run-only: a returning person whose recents were cleared sees exactly this screen. App text on this screen: 34 words (title 3, the line about files 15 and its link 4, the line about projects 6, "Samples" 1, Open... 1, Connect to data source... 4), 50 with the sample names and sizes.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" data-annot><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy" data-annot><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs" data-annot>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors" data-annot>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:68px;top:8px;width:240px">Main menu in the rail's top slot, at the same place it has with a project open; the rest of the rail is empty because no project means no places. <i>interface-templates.md 1</i>. compact-mantine <b>Menu</b> (dark) on the rail's <b>RailButton</b>.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:60px;width:240px">Where the file goes and where projects are kept, before any load. People learned that projects live in this browser only from an error, and IT reviewers had nothing to forward, so the lock line links to the forwardable "Where your data goes" page and a second line says where projects are kept. Proposed in <i>framework-changes.md</i>. Mantine <b>Text</b>, secondary ink, lock and database icons; <b>Anchor</b> for the link.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:170px;width:240px">First run: no recents, so the section is absent (not "No recent projects"). <i>interface-templates.md 19</i>; <i>content-design.md 4</i>, Empty surface; <i>principles.md 5</i>, no first-run-only interface. No avatar or account slot anywhere: graphty has no accounts, and a name there reads as signed in. Once a project is open, "Nothing has been sent from this project" sits under its name in the left panel header.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:200px;width:240px">Samples: the element's registered samples in its order, each by name (at most 3 words), its size and a picture of its saved look. The description is under (i), which opens on hover, on keyboard focus of the tile and on tap. Drawn as a thumbnail grid, a departure from the template's rows, proposed in <i>framework-changes.md</i>; built from a thumbnail tile compact-mantine does not have yet (<i>figma-spec.md 11.11</i>). (i) is <b>InfoCircle</b>.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:440px;width:240px">Open..., an <b>ActionRow</b>. A file dropped anywhere on the window counts as Open...; there is no drop box. <i>interface-templates.md 19</i>; <i>interaction-pattern-entries.md 4.5</i>. The formats read are the file picker's accept filter, supplied by the element.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:470px;width:240px">Connect to data source..., an <b>ActionRow</b>. Its (i) says what does leave: "Sends only your query, to the source you name." <i>principles.md</i>, the conflict ledger; proposed in <i>framework-changes.md</i>.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:780px;width:220px">Help, bottom right, as on the canvas. <i>interface-templates.md 13</i>. <b>HelpButton</b>.</div>
+</div>
+</section>
+
+<!-- ============================================================ 2. No recents, browser keeps nothing -->
+<section class="ss-state" id="s2">
+<h2>2. No recents: this browser is not saving projects</h2>
+<p>Site data is blocked for this page, and a test write failed, so there will be no recent projects and no autosave. The screen says so once, in place of "Projects are kept in this browser.", before any work is done. The pointer rests on the (i), which holds the cause and the way to keep work. A private window cannot be detected (browsers hide it), so it gets no warning: its storage works until the window closes.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-caution" data-annot><span class="k-warn-glyph">!</span>This browser is not saving projects.<svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></p></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <div class="k-tooltip ss-tip" style="left:524px;top:128px">Site data is blocked, so nothing is kept after this tab closes. Download project file (File menu) keeps a copy.</div>
+  <span class="k-cursor" style="left:504px;top:98px"></span>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:120px;width:240px">The one forecast of a failed autosave, stated before work starts rather than after an hour of it. Shown only when storage is blocked or a test write fails, the two cases a page can detect. <i>principles.md 5</i> allows "a failed autosave" among things that appear unasked; <i>state-matrix.md 3</i>, Project name, Not saved. Proposed in <i>framework-changes.md</i>. Mantine <b>Text</b> with the warning glyph; <b>InfoCircle</b>.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:200px;width:240px">Whether the browser will keep anything is a fact about the browser, not about a graph, so the app may probe it (<i>CLAUDE.md</i>, the architectural principles: the app must not compute anything about a graph; this is not that).</div>
+</div>
+</section>
+
+<!-- ============================================================ 3. With recents -->
+<section class="ss-state" id="s3">
+<h2>3. With recent projects</h2>
+<p>Four recents, newest first, then "3 more", which lengthens the list in place (state 8). Each opens where it was left. The pointer rests on the Les Miserables sample's (i), which holds its one-line description.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Recent projects</div>
+    <div data-annot>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Knockdown screen, September</span><span class="ss-size k-num">300 proteins</span><span class="ss-when k-num">Yesterday</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Patent citations 1999-2001</span><span class="ss-size k-num">124,318 patents</span><span class="ss-when k-num">Sep 19</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg><span class="k-grow k-secondary">3 more</span></div>
+    </div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb" data-hover><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <div class="k-tooltip ss-tip" style="left:540px;top:470px">Characters who appear in the same chapter of the novel. From Knuth's Stanford GraphBase.</div>
+  <span class="k-cursor" style="left:640px;top:525px"></span>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:150px;width:240px">Recents first, four before "3 more", newest first; each by project name, its graph's size and when it was last opened. <i>interface-templates.md 19</i>; <i>principles.md 5</i>; <i>information-architecture.md 3</i>. <b>ActionRow</b>s; "3 more" is an <b>ActionRow</b> too, and lengthens the list here. They stay rows, not thumbnails, because a recent is found by its name and date.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:150px;width:240px">A recent reopens where it was left, with no load step; the start screen gives way at once and the canvas's first-load card shows progress (<i>state-matrix.md 3</i>). The patent project opens undrawn with its not-drawn line. <i>information-architecture.md 6</i>; <i>task-flows.md</i>, Re-enter. The size is the element's count, read from the saved project.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:560px;width:240px">A sample's description lives under its (i), never on the tile. <i>principles.md 5</i>. Mantine <b>Tooltip</b> from <b>InfoCircle</b>.</div>
+</div>
+</section>
+
+<!-- ============================================================ 4. Recipe pending -->
+<section class="ss-state" id="s4">
+<h2>4. A recipe waiting for data</h2>
+<p>Tom, a lab member, dropped his lab's Expression overlay on the start screen. Nothing is applied yet. The recipe's card sits under the title and takes Open...'s place: what the recipe does, the network it brings (named as the sender's, with Replace...), and the one thing it still needs from Tom: his own table. Add your table... is the main button and has focus; Apply is present but disabled until a table is in, with its reason printed beside it. The sender's own fold-change column is never offered as Tom's. Once the table is added the recipe goes on to the <a href="binding-step.html">binding step</a>, which says what matched and what did not before anything changes. No sample carries a fold-change table, so the Samples section is absent.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-recipe" data-annot>
+      <div class="ss-h">Recipe waiting for your table</div>
+      <p class="ss-name"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Expression overlay</p>
+      <p>Colors your genes by log2 fold change, red for up and blue for down, draws the other proteins in muted module colors, and hides interactions with confidence under 0.7.</p>
+      <div class="ss-need" data-annot><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow">Sender's network: STRING v12 <span class="k-secondary k-num">300 proteins, 1,262 interactions</span></span><span class="k-btn k-btn-secondary">Replace...</span></div>
+      <div class="ss-need" data-annot><svg class="k-i k-secondary"><use href="../kit/icons.svg#table"/></svg><span class="k-grow">Your table: not added yet <span class="k-secondary">It needs a gene id and a fold-change column. The sender's fold change is not used.</span></span></div>
+      <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>This recipe names no server, so graphty contacts none.</p>
+      <div class="ss-acts" data-annot><span class="k-btn" data-focus-ring>Add your table...</span><span class="k-btn" aria-disabled="true" tabindex="0">Apply</span><span class="k-secondary">Waiting for your table</span><span class="k-grow"></span><span class="k-btn k-btn-ghost">Close recipe</span></div>
+    </div>
+
+    <div class="ss-h">Recent projects</div>
+    <div data-annot>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+      <div class="k-row ss-row" data-hover><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Knockdown screen, September</span><span class="ss-size k-num">300 proteins</span><span class="ss-when k-num">Yesterday</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Patent citations 1999-2001</span><span class="ss-size k-num">124,318 patents</span><span class="ss-when k-num">Sep 19</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg><span class="k-grow k-secondary">3 more</span></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-cursor" style="left:560px;top:436px"></span>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:110px;width:240px">With a recipe pending, a binding-summary <b>ProseBlock</b> heads the list, under the title. <i>interface-templates.md 19</i>; <i>state-matrix.md 3</i>; <i>task-flows.md 8</i>. What the recipe does and needs is the element's recipe preview; the app draws it. Its heading is a section header, in sentence case (<i>visual-language.md</i>, emphasis by weight). No author line here: a recipe records who saved it and when, and the author is shown only when a project holds more than one (the owner's decision).</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:170px;width:240px">The network the recipe brings is named as the sender's, with its source and version, and Replace... swaps in your own network file. Your table is the one input still missing; its row says what it needs and that the sender's fold-change column is not used, so no column of the network is ever offered as yours. <i>framework-changes.md</i>, the recipe's "from your data" needs. <b>ActionRow</b> with a secondary <b>Button</b>.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:560px;width:240px">One data line, one sentence. The line above already says files stay here; the card adds only what is true of this recipe. With a source named it reads "This recipe will read from {host} when you confirm." Proposed in <i>framework-changes.md</i>.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:380px;width:240px">Add your table... is the primary <b>Button</b> and takes focus when the card appears. Apply stays in view and in the Tab order but is disabled (<i>aria-disabled</i>, so a screen reader reads it with "Waiting for your table"); the reason is printed beside it, not in a tooltip. Applying lands in a new project, as Open always does (<i>information-architecture.md 6</i>). Close recipe (<b>Button</b>, subtle) is the way out. A table dropped anywhere counts as Add your table.... Proposed in <i>framework-changes.md</i>.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:420px;width:240px">Recents stay, as data to apply the recipe to; choosing one opens it with its own network in place of the sender's and goes to the binding step, which names any slot it cannot fill. Samples show only when the element's recipe preview reports that a sample fills every required input; none does here, so the section is absent. Proposed in <i>framework-changes.md</i>.</div>
+</div>
+</section>
+
+<!-- ============================================================ 5. Dropping a file -->
+<section class="ss-state" id="s5">
+<h2>5. Dropping a file on the window</h2>
+<p>A file dragged anywhere over the window selects the Open... row, which reads "Drop to open" until the drop. Nothing is read before then, and the page cannot tell what kind of file it holds, so the hint is the same for every kind. After the drop a data file goes to the load step, a project opens, and a recipe waits for data (state 4). The file icon under the pointer is the operating system's drag image, not part of graphty.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Recent projects</div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row" aria-selected="true" data-annot><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Drop to open</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <div class="ss-osdrag" style="left:722px;top:336px"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>transfers-2026-03.csv</div>
+  <span class="k-cursor" style="left:716px;top:318px"></span>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:560px;width:240px">The whole window is the drop target; the Open... row takes its selected state and reads "Drop to open", because a drop here always means Open (a new project) and nothing is open to add to. It never names the file or its kind: a page cannot read either until the drop. <i>information-architecture.md 6</i>; <i>interaction-pattern-entries.md 4.5</i>. <b>ActionRow</b>, selected. Proposed in <i>framework-changes.md</i>.</div>
+  <div class="k-annot-note ss-an" style="left:900px;top:300px;width:220px">Not app UI: the operating system draws this drag image.</div>
+</div>
+</section>
+
+<!-- ============================================================ 6. Dropped file unreadable -->
+<section class="ss-state" id="s6">
+<h2>6. A dropped file graphty cannot read</h2>
+<p>Someone drops a spreadsheet workbook. The element reports that it reads no graph from this file type, and the start screen shows that under Open..., with the one verb: Open... again. The line stays until the next open or drop.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="ss-err" data-annot><svg class="k-i"><use href="../kit/icons.svg#circle-x"/></svg><span>Could not open <span class="k-id">accounts-q3.xlsx</span>: Excel workbooks are not a graph format graphty reads</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:560px;width:240px"><i>message-catalog.md</i>, <i>graphty.open.failed</i>: "Could not open {file}: {cause}", its verb the chosen one (Open..., the row above). The cause is the element's (graph-io reports the type it cannot read); the app never words it. Spoken assertively. Mantine <b>Text</b>, danger ink.</div>
+</div>
+</section>
+
+<!-- ============================================================ 7. Recent that no longer opens -->
+<section class="ss-state" id="s7">
+<h2>7. A recent project that no longer opens</h2>
+<p>The patent project's saved copy is gone from this browser (site data was cleared, or the browser evicted it for space). The copy is looked up when the row is chosen, before the start screen gives way, so the failure shows on the row itself, with the one verb that helps: Remove from recents. A recent that does open leaves the start screen at once; its progress is the canvas's first-load card, not a row here.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Recent projects</div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Knockdown screen, September</span><span class="ss-size k-num">300 proteins</span><span class="ss-when k-num">Yesterday</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+    <div class="k-row ss-row" aria-selected="true" data-annot><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Patent citations 1999-2001</span><span class="ss-size k-num">124,318 patents</span><span class="ss-when k-num">Sep 19</span></div>
+    <div class="ss-err" data-annot><svg class="k-i"><use href="../kit/icons.svg#circle-x"/></svg><span>Could not open Patent citations 1999-2001: its saved copy is no longer in this browser</span><span class="k-btn k-btn-secondary">Remove from recents</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg><span class="k-grow k-secondary">3 more</span></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:130px;width:240px"><i>graphty.open.failed</i> under the row that failed; the cause is the app's own (its store), since the project never reached the element. The verb is Remove from recents, a secondary <b>Button</b>; the File menu's Open recent drops the same entry. Proposed in <i>framework-changes.md</i> as the start screen's Error state (<i>state-matrix.md</i> marks it "follow the default").</div>
+</div>
+</section>
+
+<!-- ============================================================ 8. Keyboard, list lengthened -->
+<section class="ss-state" id="s8">
+<h2>8. Keyboard: the recents lengthened in place</h2>
+<p>Pressing Enter on "3 more" lengthens the list to all seven kept recents, in place; the page scrolls if it must. Focus moves to the first of the three new rows. File, Open recent, is the second route to the same list.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Recent projects</div>
+    <div data-annot>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Knockdown screen, September</span><span class="ss-size k-num">300 proteins</span><span class="ss-when k-num">Yesterday</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Patent citations 1999-2001</span><span class="ss-size k-num">124,318 patents</span><span class="ss-when k-num">Sep 19</span></div>
+      <div class="k-row ss-row" data-focus><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Les Miserables, chapter groups</span><span class="ss-size k-num">77 characters</span><span class="ss-when k-num">Sep 12</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Protein modules draft</span><span class="ss-size k-num">300 proteins</span><span class="ss-when k-num">Sep 3</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Karate club, faction split</span><span class="ss-size k-num">34 members</span><span class="ss-when k-num">Aug 28</span></div>
+    </div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:130px;width:240px">Tab order: main menu; recents; samples; Open...; Connect to data source...; Help. Recents and samples are each one Tab stop with roving focus: Up and Down move in the recents, the arrows move across the sample grid, Enter opens. So "the list is one Tab stop" (<i>task-flows.md</i>) reads as "each list", which gives the template's four stops (<i>interface-templates.md 19</i>). Proposed in <i>framework-changes.md</i>. <b>ActionRow</b>'s roving variant.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:300px;width:240px">A focused sample tile opens its (i) description as a tooltip and carries it as the tile's accessible description, so the keyboard and a screen reader get what hover gets; a tap on (i) opens it on touch.</div>
+</div>
+</section>
+
+<!-- ============================================================ 9. Assistant provider set -->
+<section class="ss-state" id="s9">
+<h2>9. An Assistant provider is set</h2>
+<p>Once someone has set an Assistant provider in Preferences, "uploads nothing" is no longer the whole truth, so the line under the title gains a second sentence naming where the Assistant's questions go. Nothing is sent until the Assistant is asked something.</p>
+<div class="ss-win" data-kit-frame>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col">
+    <h1>Open a graph</h1>
+    <div class="ss-lines" data-annot><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sparkles"/></svg>The Assistant sends what you ask it about to Anthropic.</p></div>
+
+    <div class="ss-h">Recent projects</div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+
+  <div class="k-annot-note ss-an" style="left:1180px;top:60px;width:240px">The second sentence of <i>graphty.start.local</i>, shown only while a provider is set; the provider is its name from Preferences. Proposed in <i>framework-changes.md</i>. App text rises to 34 words (not counting recents and samples), within the 50.</div>
+</div>
+</section>
+
+<!-- ============================================================ 10. Narrow window -->
+<section class="ss-state" id="s10">
+<h2>10. A narrow window, 1024 by 768</h2>
+<p>The column keeps 32 px either side and narrows; the four samples shrink with it rather than wrap, so Open... and Connect to data source... still sit above the fold with four recents shown.</p>
+<div class="ss-win" data-kit-frame data-size="1024">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+  <div class="ss-body">
+  <div class="ss-col" style="padding-top:24px">
+    <h1>Open a graph</h1>
+    <div class="ss-lines"><p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
+    <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <div class="ss-h">Recent projects</div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Mule ring review</span><span class="ss-size k-num">3,093 accounts</span><span class="ss-when k-num">Today 09:14</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Knockdown screen, September</span><span class="ss-size k-num">300 proteins</span><span class="ss-when k-num">Yesterday</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">March transfers</span><span class="ss-size k-num">3,000 accounts</span><span class="ss-when k-num">Sep 24</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Patent citations 1999-2001</span><span class="ss-size k-num">124,318 patents</span><span class="ss-when k-num">Sep 19</span></div>
+    <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg><span class="k-grow k-secondary">3 more</span></div>
+
+    <div class="ss-h">Samples</div>
+    <div class="ss-thumbs">
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/karate-plain-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/karate-plain-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Karate club</b><span class="k-secondary k-num">34 members</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Les Miserables</b><span class="k-secondary k-num">77 characters</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Protein interactions</b><span class="k-secondary k-num">300 proteins</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+      <div class="ss-thumb"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">Bank transfers</b><span class="k-secondary k-num">3,000 accounts</span></span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div></div>
+    </div>
+
+    <div class="ss-doors">
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg><span class="k-grow">Open...</span></div>
+      <div class="k-row ss-row"><svg class="k-i"><use href="../kit/icons.svg#plug"/></svg><span class="k-grow">Connect to data source...</span><svg class="k-i k-i-sm ss-i"><use href="../kit/icons.svg#info"/></svg></div>
+    </div>
+  </div>
+  <span class="k-icon-btn ss-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+  </div>
+</div>
+</section>
+
+<div class="ss-key" data-kit-note>
+<h2 style="font-size:15px">What each part is built from</h2>
+<table>
+<thead><tr><th>Part</th><th>Design rule</th><th>compact-mantine component</th></tr></thead>
+<tbody>
+<tr><td>Main menu</td><td>interface-templates.md 1 (the rail's top slot); information-architecture.md 4.1</td><td>Menu (dark) on RailButton</td></tr>
+<tr><td>Title "Open a graph"</td><td>message-catalog.md, graphty.start.empty; content-design.md 4, Empty surface</td><td>Mantine Title</td></tr>
+<tr><td>Where the file goes, where projects are kept</td><td>none yet: proposed in framework-changes.md (evidence so far from the simulated study only)</td><td>Mantine Text, secondary; Anchor to "Where your data goes"</td></tr>
+<tr><td>"Not saving projects"</td><td>principles.md 5 (a failed autosave); state-matrix.md 3, Not saved; start-screen form proposed</td><td>Text with warning glyph, InfoCircle</td></tr>
+<tr><td>Recent projects and "3 more"</td><td>interface-templates.md 19; principles.md 5 (four, then "N more"); information-architecture.md 3</td><td>ActionRow, roving</td></tr>
+<tr><td>Samples</td><td>interface-templates.md 19; principles.md 5 (name at most 3 words, size, (i)); grid proposed in framework-changes.md</td><td>thumbnail tile, to add to compact-mantine (figma-spec.md 11.11); InfoCircle</td></tr>
+<tr><td>Open... and the drop</td><td>interface-templates.md 19; interaction-pattern-entries.md 4.5; information-architecture.md 6</td><td>ActionRow (selected while a file is dragged over)</td></tr>
+<tr><td>Connect to data source...</td><td>principles.md, conflict ledger; information-architecture.md 4.1</td><td>ActionRow; InfoCircle</td></tr>
+<tr><td>Errors on the screen</td><td>message-catalog.md, graphty.open.failed; Remove from recents proposed</td><td>Text, danger; Button (secondary)</td></tr>
+<tr><td>Recipe waiting for data</td><td>interface-templates.md 19 and 13; state-matrix.md 3; task-flows.md 8; information-architecture.md 6, Recipe row</td><td>ProseBlock; ActionRow (sender's network, your table); Button (Add your table..., primary); Button disabled but focusable (Apply); Button variant subtle</td></tr>
+<tr><td>Help</td><td>interface-templates.md 13</td><td>HelpButton</td></tr>
+</tbody>
+</table>
+<p>App text counted against principles.md 5's 50 words for the empty screen (sample names, sizes and recent project names are data and counted separately): state 1, 34 (50 with the samples); state 3, 38; state 9, 44; state 4, 121 with the recipe card, of which 37 are the recipe's own preview (its name, what it does, the network and its size) and 84 the app's. The recipe card is the one state over the budget, as a caveat the recipient needs before giving the recipe data; recorded in framework-changes.md.</p>
+</div>
+</body>
+</html>

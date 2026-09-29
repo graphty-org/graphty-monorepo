@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data versions, Payments network review</title>
+<!-- Built by screens/version-history.gen.mjs from kit/fixtures.json; edit that script and re-run it. -->
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .anchor { position: fixed; top: 0; left: 0; width: 0; height: 0; }
+  body:not(:has(.anchor:target)) .st:not([data-st="1"]) { display: none; }
+  body:has(#s1:target, #s1a:target) .st:not([data-st="1"]) { display: none; }
+  body:has(#s2:target, #s2a:target) .st:not([data-st="2"]) { display: none; }
+  body:has(#s3:target, #s3a:target) .st:not([data-st="3"]) { display: none; }
+  body:has(#s4:target, #s4a:target) .st:not([data-st="4"]) { display: none; }
+  body:has(#s5:target, #s5a:target) .st:not([data-st="5"]) { display: none; }
+  body:has(#s6:target, #s6a:target) .st:not([data-st="6"]) { display: none; }
+  :root:has(#dark:checked) { color-scheme: dark; }
+  :root:has(#dark:checked) .k-light-only { display: none !important; }
+  :root:has(#dark:checked) .k-dark-only { display: revert !important; }
+  body { background: var(--cm-bg); color: var(--cm-text); margin: 0; }
+
+  /* The mock's own controls, in annotation ink so nobody reads them as product UI */
+  .m-bar { position: fixed; z-index: 200; top: 8px; left: 306px; display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-radius: 8px; background: var(--k-annot-bg); border: 1px solid var(--k-annot); font-size: 11px; white-space: nowrap; }
+  .m-bar a { padding: 2px 6px; border-radius: 5px; color: var(--cm-text); text-decoration: none; }
+  body:not(:has(.anchor:target)) .m-bar a[href="#s1"],
+  body:has(#s1:target, #s1a:target) .m-bar a[href="#s1"],
+  body:has(#s2:target, #s2a:target) .m-bar a[href="#s2"],
+  body:has(#s3:target, #s3a:target) .m-bar a[href="#s3"],
+  body:has(#s4:target, #s4a:target) .m-bar a[href="#s4"],
+  body:has(#s5:target, #s5a:target) .m-bar a[href="#s5"],
+  body:has(#s6:target, #s6a:target) .m-bar a[href="#s6"] { background: var(--k-annot); color: #fff; }
+  .m-bar label { display: flex; align-items: center; gap: 4px; margin-inline-start: 8px; color: var(--k-annot-ink); font-weight: 600; }
+
+  /* Annotation layer */
+  .an { display: none; }
+  body:has(#annot:checked) .an, body:has(.anchor[id$="a"]:target) .an { display: block; }
+  body:has(#annot:checked) .an-t, body:has(.anchor[id$="a"]:target) .an-t { outline: 2px dashed var(--k-annot); outline-offset: -2px; }
+  body:has(#annot:checked) .an-t::after, body:has(.anchor[id$="a"]:target) .an-t::after {
+    content: attr(data-n); position: absolute; z-index: 95; top: 2px; right: 2px; display: grid; place-items: center;
+    min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--k-annot); color: #fff;
+    font-size: 11px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .an-r { position: relative; }
+  .an-key { position: fixed; z-index: 150; left: 312px; top: 44px; width: 640px; max-height: 846px; overflow: auto; padding: 10px 14px 12px; border-radius: 8px; background: var(--k-annot-bg); border-inline-start: 3px solid var(--k-annot); box-shadow: var(--cm-elevation-300); font-size: 11px; line-height: 15px; }
+  .an-key h2 { margin: 0 0 4px; font-size: 12px; color: var(--k-annot-ink); }
+  .an-key .blocked { margin: 0 0 6px; padding: 4px 6px; border: 1px solid var(--k-annot); border-radius: 5px; }
+  .an-key ol { margin: 0; padding-inline-start: 22px; }
+  .an-key li { margin: 0 0 4px; }
+  .an-key li::marker { color: var(--k-annot-ink); font-weight: 700; }
+  .an-key i { color: var(--cm-text-secondary); font-style: normal; }
+  .an-key code { font-family: inherit; font-weight: 600; }
+
+  /* Left panel: Data, as screens/data-panel.html draws it */
+  .vh-head .k-title-line { height: auto; }
+  .vh-head .k-project { white-space: normal; overflow-wrap: anywhere; }
+  .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+  .vo { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--cm-bg-secondary); color: var(--cm-text); font-size: 11px; font-weight: 550; white-space: nowrap; }
+  .dp-title { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
+  .dp-title .t { font-size: 13px; line-height: 22px; font-weight: 550; }
+  .dp-list { list-style: none; margin: 0; padding: 0; }
+  .dp-list .k-item { height: auto; min-height: 32px; align-items: flex-start; margin: 0 8px; }
+  .dp-list .k-item::before { inset: 2px 0; }
+  .dp-list .k-item > .fold, .dp-list .k-item > svg { margin-top: 8px; }
+  .dp-list .two { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 16px; padding: 4px 0; }
+  .dp-list .l1 { display: flex; gap: 6px; min-width: 0; align-items: baseline; }
+  .dp-list .l2 { color: var(--cm-text-secondary); font-size: 11px; white-space: normal; }
+  .dp-list .l2.fact { color: var(--cm-text); }
+  .dp-list .fold { display: inline-grid; place-items: center; width: 12px; margin-inline-start: -8px; color: var(--cm-icon-secondary); flex: none; }
+  .dp-list .k-trail { white-space: nowrap; color: var(--cm-text-secondary); margin-top: 4px; }
+  .dp-foot { padding: 2px 8px 8px 8px; font-size: 11px; line-height: 16px; }
+  .dp-acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px 8px 36px; }
+  .dp-state { padding: 2px 8px 4px 16px; font-size: 11px; line-height: 16px; color: var(--cm-text); }
+  .vli { list-style: none; }
+  .vrow[aria-current="true"]::before { background: var(--cm-bg-selected); }
+  .vbody { padding: 0 0 4px; border-bottom: 1px solid var(--cm-border); margin-bottom: 4px; }
+  .wc-head { padding: 2px 8px 2px 36px; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
+  .wc { list-style: none; margin: 0; padding: 0 8px 0 36px; font-size: 11px; line-height: 16px; }
+  .wc li { padding: 4px 0; border-top: 1px solid var(--cm-border); }
+  .wc li:first-child { border-top: 0; }
+  .wc .hd { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; }
+  .wc .sp { color: var(--cm-text); }
+  .wc-large { white-space: nowrap; }
+  .wc.an-t::after { right: auto !important; left: -24px; }
+
+  /* Right column: the past version's report */
+  .k-header1 .zoom { gap: 2px; padding: 0 4px; }
+  .k-header1 .k-tabs { flex: none; }
+  .rep { padding-bottom: 8px; }
+  .rep-src { padding: 4px 8px 2px 16px; color: var(--cm-text-secondary); line-height: 16px; }
+  .rep .k-caption.cap { padding: 8px 16px 0 16px; }
+  .ops .k-item { margin: 0 8px; min-height: 28px; }
+  .ops .two { padding: 6px 0; }
+  .methods { margin: 4px 8px 0 16px; padding: 4px 8px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text); font-size: 11px; line-height: 15px; }
+  .methods p { margin: 0 0 4px; } .methods p:last-child { margin: 0; }
+  .rep-foot { display: flex; gap: 8px; padding: 6px 8px 0 12px; }
+  .rep-act { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin: 8px 8px 8px 16px; line-height: 16px; }
+  .rep-act .k-btn { margin-bottom: 2px; }
+  .rep-act .cost { font-weight: 550; }
+  .rep-act .reason { display: flex; gap: 4px; color: var(--cm-text); }
+  .rep-act .reason .k-i { flex: none; margin-top: 2px; }
+  .rep-act.err { padding: 6px 8px; border-radius: 5px; border: 1px solid var(--cm-border-danger-strong); }
+  .err-head { display: flex; align-items: center; gap: 6px; }
+  .k-legend-card { max-width: 232px; }
+  .k-lg-note { color: var(--cm-text-secondary); font-size: 11px; line-height: 14px; margin: 0 0 2px; }
+</style>
+</head>
+<body data-dataset="transactionsApril">
+<span class="anchor" id="s1"></span><span class="anchor" id="s1a"></span><span class="anchor" id="s2"></span><span class="anchor" id="s2a"></span><span class="anchor" id="s3"></span><span class="anchor" id="s3a"></span><span class="anchor" id="s4"></span><span class="anchor" id="s4a"></span><span class="anchor" id="s5"></span><span class="anchor" id="s5a"></span><span class="anchor" id="s6"></span><span class="anchor" id="s6a"></span>
+<div class="m-bar" aria-label="Mock states">
+  <a href="#s1">1 The list</a><a href="#s2">2 Viewing March</a><a href="#s3">3 Restored</a><a href="#s4">4 Restore failed</a><a href="#s5">5 No storage</a><a href="#s6">6 One version</a>
+  <label><input type="checkbox" id="dark"> Dark</label>
+  <label><input type="checkbox" id="annot"> Annotations</label>
+</div>
+<div class="st" data-st="1">
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head vh-head an-t an-r" data-n="1">
+      <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div>
+    <div class="dp-title"><span class="t">Data</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section" data-collapsed><div class="k-section-head">Sources <span class="k-count k-num">2</span></div></section>
+      <section class="k-section an-t an-r" data-n="2">
+        <div class="k-section-head">Versions</div>
+        <ul class="dp-list" aria-label="Versions"><li class="vli"><div class="k-item vrow an-t an-r" data-n="3" role="button" aria-current="true" aria-expanded="true"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">April data</span><span class="k-kind">current</span></span><span class="l2">May 4, from transfers-2026-04.csv</span></span></div><div class="vbody"><div class="wc-head">What changed, against March data (Apr 2)</div>
+  <ul class="wc an-t an-r" data-n="4"><li><div class="hd"><span class="k-strong k-num">27 components (was 1)</span><span class="k-badge wc-large"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div><div class="sp k-num">26 accounts have no transfers in this version. <a class="k-link">Select</a></div></li><li><div class="hd"><span class="k-strong k-num">65 communities (was 35)</span><span class="k-badge wc-large"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div><div class="sp k-num">26 are single accounts with no transfers in this version.</div></li><li><div class="hd"><span class="k-strong k-num">3,093 accounts (was 3,000)</span></div><div class="sp k-num">2,961 in both, 132 new, 39 not in April. <a class="k-link">List</a></div></li><li><div class="hd"><span class="k-strong k-num">8,370 transfers (was 9,113)</span></div><div class="sp k-num">7,576 in both, 794 new, 1,537 not in April.</div></li><li><div class="hd"><span class="k-strong k-num">Watchlist: 7 of 9</span></div><div class="sp k-num"><span class="k-id">ACC-705989</span> and <span class="k-id">ACC-243731</span> not in April.</div></li><li><div class="hd"><span class="k-strong k-num">Rows dropped at import: 0</span></div></li></ul><div class="dp-acts"><span class="k-btn k-btn-secondary">Show replay report</span><span class="k-btn k-btn-ghost">Compare with...</span></div></div></li><li class="vli"><div class="k-item vrow an-t an-r" data-n="5" role="button"><span class="fold"></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">March data</span></span><span class="l2">Apr 2, from transfers-2026-03.csv</span><span class="l2">The first version: nothing to compare with.</span></span></div></li></ul>
+        <div class="dp-foot"><span class="k-btn k-btn-ghost">Export the operation log...</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Recipes applied <span class="k-count k-num">2</span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Sent and saved from this project</div></section>
+    </div>
+  </aside>
+  <main class="k-main"><div class="k-canvas">
+      <div class="k-stage an-t an-r" data-n="6"><img class="k-light-only" src="../kit/canvas/transactions-april-communities-light.svg" alt="April transfers colored by Louvain community, sized by degree"><img class="k-dark-only" src="../kit/canvas/transactions-april-communities-dark.svg" alt="April transfers colored by Louvain community, sized by degree"></div>
+      <div class="k-legend-card an-t an-r" data-n="7">
+        <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
+        <div class="k-lg-note">Names and colors kept from March data by overlap; 39 new communities numbered 36 to 74</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">359</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">168</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">127</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">126</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">111</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">74</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">58</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 58 communities<span class="k-value">2,070</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 842</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar an-t an-r" data-n="8" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div></main>
+  <aside class="k-right an-t an-r" data-n="9" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Overview</div>
+        <div class="dp-state">Loaded: transfers-2026-04.csv, direction followed, amount used as similarity. <a class="k-link">Change...</a></div>
+        <div class="k-data"><span class="k-name">accounts</span><span class="k-value">3,093</span></div><div class="k-data"><span class="k-name">transfers</span><span class="k-value">8,370</span></div><div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Style stack</div></section>
+      
+    </div>
+  </aside>
+</div>
+<div class="an an-key"><h2>Data > Versions: April data is current; its What changed is open</h2><p class="blocked"><b>Blocked:</b> waits on graphty-element data versions. Every version row, What changed line, large-change mark, report and methods sentence here is read from graphty-element; the app computes none of it. Needed in the element: data versions with import reports and the count split between two versions (element-needs.md; framework-changes.md, "Update with new data").</p><ol><li><b>Left panel header</b> as on every Data panel screen: the project name, the privacy line, the file chip for the current version, the filter chip. No View only: the current version is editable. <i>framework-changes.md, "The Data panel".</i> Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>Data &gt; Versions: every data version, newest first.</b> This is the whole version list; there is no separate Version history column any more. A row names the version (the file's name until Rename..., as "transfers-2026-03.csv" was renamed "March data"), when it was loaded and from what, and marks the latest <i>current</i>. Recipes applied (a recipe that holds only styles among them) keep their own section below; runs are listed in each version's report. Export the operation log... writes the log (runs, loads, restores and every send) as a file. <i>information-architecture.md 3; output-homes.md, the Data panel. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> <code>ControlSection</code>, <code>Tree</code>, <code>ActionRow</code>.</li><li><b>The version row carries What changed.</b> April data against March data: the two jumps (1 to 27 components, 35 to 65 communities) are marked, and each says what the count splits into: 26 accounts have no transfers in this version. Show replay report opens the replay's report; Compare with... opens the comparison. Every line is a count and its split, against the version before, as graphty-element computes it; none states a motive ("not in April", never "closed"). A count that moved by half or more of its earlier value carries the large-change mark, read as part of the line. A closed row keeps one line naming its large changes, so a jump is never hidden by folding. <i>Proposed: framework-changes.md, "Update with new data: ... What changed, the large-change mark".</i> <code>ActionRow</code>, Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>The split lines.</b> Select picks the 26 accounts with no transfers; List opens the accounts in the table with a column for new, in both and not in April. Both are graphty-element's comparison; the app lays it out. <i>framework-changes.md, "Update with new data".</i> <code>DataRow</code>, Mantine <code>Anchor</code>.</li><li><b>A past version.</b> A click (or Enter) opens it read-only in the view-only mode, state 2. The first version has no What changed: "nothing to compare with". <i>interface-templates.md 17; interaction-patterns.md 3.7.</i> <code>ActionRow</code>.</li><li><b>Canvas: April data, the current version.</b> Select, hover, Find, orbit and zoom work. Drawn by graphty-element.</li><li><b>Legend</b> from the version on screen, with how its groups are named: April's 65 communities; 26 keep March's names, 39 are new. Group numbers are matched across data versions by overlap, never renumbered by size on each run (a graphty-element defect today, never an app fix). <i>options-and-encodings.md 6; conceptual-model.md 7.3; framework-changes.md, "Version history: community names are matched across data versions".</i> Drawn by graphty-element.</li><li><b>Toolbar, whole:</b> the current version edits. <code>Toolbar</code>, <code>ToolButton</code>.</li><li><b>The inspector, as usual.</b> Opening Data &gt; Versions does not take over the right column; only reading a past version does. <i>interface-specification.md, the right column.</i> <code>ControlSection</code>, <code>DataRow</code>.</li></ol></div>
+</div>
+<div class="st" data-st="2">
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head vh-head an-t an-r" data-n="1">
+      <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span><span class="vo">View only</span></div>
+    </div>
+    <div class="dp-title"><span class="t">Data</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section" data-collapsed><div class="k-section-head">Sources <span class="k-count k-num">2</span></div></section>
+      <section class="k-section an-t an-r" data-n="2">
+        <div class="k-section-head">Versions</div>
+        <ul class="dp-list" aria-label="Versions"><li class="vli"><div class="k-item vrow an-t an-r" data-n="3" role="button" aria-expanded="false"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">April data</span><span class="k-kind">current</span></span><span class="l2">May 4, from transfers-2026-04.csv</span><span class="l2 fact"><span class="k-warn-glyph">!</span> 2 large changes: components, communities</span></span></div></li><li class="vli"><div class="k-item vrow an-t an-r" data-n="4" role="button" aria-current="true"><span class="fold"></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">March data</span></span><span class="l2">Apr 2, from transfers-2026-03.csv</span><span class="l2">The first version: nothing to compare with.</span></span></div></li></ul>
+        <div class="dp-foot"><span class="k-btn k-btn-ghost">Export the operation log...</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Recipes applied <span class="k-count k-num">2</span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Sent and saved from this project</div></section>
+    </div>
+  </aside>
+  <main class="k-main"><div class="k-canvas">
+      <div class="k-stage an-t an-r" data-n="5"><img class="k-light-only" src="../kit/canvas/transactions-march-communities-light.svg" alt="March transfers colored by Louvain community, sized by degree"><img class="k-dark-only" src="../kit/canvas/transactions-march-communities-dark.svg" alt="March transfers colored by Louvain community, sized by degree"></div>
+      <div class="k-legend-card an-t an-r" data-n="6">
+        <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
+        <div class="k-lg-note">Numbered by size, largest first: the first data version</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">297</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">182</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">147</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">141</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">139</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">123</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">120</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 28 communities<span class="k-value">1,851</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 907</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar an-t an-r" data-n="7" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div></main>
+  <aside class="k-right" aria-label="Past version">
+    <div class="k-header1 an-t an-r" data-n="8"><span class="k-tabs" role="tablist"><span class="k-tab" role="tab" aria-selected="true">Past version</span></span><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-btn k-btn-secondary">Done</span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="k-name">March data</span><span class="k-secondary">Data version</span></div>
+    <div class="k-scroll"><div class="rep an-t an-r" data-n="10">
+      <div class="rep-act an-t an-r" data-n="9">
+    <span class="k-btn k-btn-secondary"><svg class="k-i"><use href="../kit/icons.svg#history"/></svg>Restore version</span>
+    <div class="cost">1 slow result will wait for Re-run</div>
+    <div class="k-secondary">Adds a new version on top; April data stays in Versions.</div>
+  </div>
+      <div class="rep-src">Loaded from <span class="k-id">transfers-2026-03.csv</span>, 2026-04-02 10:12. Read as CSV, directed.</div>
+      <div class="k-caption cap">Accounts and transfers</div>
+      <div class="k-data"><span class="k-name">accounts</span><span class="k-value">3,000</span></div><div class="k-data"><span class="k-name">transfers</span><span class="k-value">9,113</span></div><div class="k-data"><span class="k-name">components</span><span class="k-value">1</span></div><div class="k-data"><span class="k-name">rows dropped</span><span class="k-value">0</span></div>
+      <div class="k-caption cap">Ran on this version</div>
+      <ul class="dp-list ops">
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Degree</span></span></span><span class="k-trail">Apr 2</span></li>
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Louvain communities, 35</span></span></span><span class="k-trail">Apr 2</span></li>
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Modularity vs randomized baseline</span></span></span><span class="k-trail">Apr 3</span></li>
+      </ul>
+      <div class="k-caption cap">Methods, one sentence per run</div>
+      <div class="methods">
+        <p>Degree on Transfers, March data (transfers-2026-03.csv): 3,000 accounts, 9,113 transfers, directed; in plus out, unweighted; 1 to 907. graphty-element 2.0.0, on the CPU.</p>
+        <p>Louvain communities on the same graph: weighted by amount (larger is stronger), direction ignored, resolution 1, seed 11, over the full graph: 35 communities, weighted modularity 0.688. graphty-element 2.0.0, on the CPU.</p>
+        <p>Modularity vs randomized baseline: the Louvain partition's weighted modularity 0.688 against 100 degree-preserving randomizations of the same graph, seed 11; ran 2026-04-03 14:40. graphty-element 2.0.0, on the CPU.</p>
+      </div>
+      <div class="rep-foot"><span class="k-btn k-btn-ghost"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy methods text</span></div>
+    </div></div>
+  </aside>
+</div>
+<div class="an an-key"><h2>Viewing an old version: March data, View only</h2><p class="blocked"><b>Blocked:</b> waits on graphty-element data versions. Every version row, What changed line, large-change mark, report and methods sentence here is read from graphty-element; the app computes none of it. Needed in the element: data versions with import reports and the count split between two versions (element-needs.md; framework-changes.md, "Update with new data").</p><ol><li><b>Left panel header: View only on the chip row, and the file chip names the version on screen.</b> Reading a past version is a mode: the canvas and every panel are view-only until Done. There is no second exit button here; Done in the right column and a click on April data's row both return. <i>interaction-patterns.md 3.7, Read-only; state-matrix.md 2. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> Mantine <code>Badge</code>; filter chip.</li><li><b>Data &gt; Versions: every data version, newest first.</b> This is the whole version list; there is no separate Version history column any more. A row names the version (the file's name until Rename..., as "transfers-2026-03.csv" was renamed "March data"), when it was loaded and from what, and marks the latest <i>current</i>. Recipes applied (a recipe that holds only styles among them) keep their own section below; runs are listed in each version's report. Export the operation log... writes the log (runs, loads, restores and every send) as a file. <i>information-architecture.md 3; output-homes.md, the Data panel. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> <code>ControlSection</code>, <code>Tree</code>, <code>ActionRow</code>.</li><li><b>The version row carries What changed.</b> April's row is closed here and keeps one line: its 2 large changes, named. Every line is a count and its split, against the version before, as graphty-element computes it; none states a motive ("not in April", never "closed"). A count that moved by half or more of its earlier value carries the large-change mark, read as part of the line. A closed row keeps one line naming its large changes, so a jump is never hidden by folding. <i>Proposed: framework-changes.md, "Update with new data: ... What changed, the large-change mark".</i> <code>ActionRow</code>, Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>March data, selected and on screen.</b> The first version, so it has no What changed. A click on a past version's row opens it in the view-only mode; a click on the current row, or Done, closes the mode. <i>interaction-patterns.md 3.7; interface-templates.md 17.</i> <code>ActionRow</code>.</li><li><b>Canvas: March data as it stood, read-only.</b> Select, hover, Find, orbit and zoom work; nothing edits. Drawn by graphty-element.</li><li><b>Legend</b> from the version on screen, with how its groups are named: March was the first data version, so its numbers are by size. Group numbers are matched across data versions by overlap, never renumbered by size on each run (a graphty-element defect today, never an app fix). <i>options-and-encodings.md 6; conceptual-model.md 7.3; framework-changes.md, "Version history: community names are matched across data versions".</i> Drawn by graphty-element.</li><li><b>Toolbar, trimmed.</b> Path is gone because it creates something; Select, Quick actions and the view mode stay. <i>interaction-patterns.md 3.7.</i> <code>Toolbar</code>, <code>ToolButton</code>.</li><li><b>The mode holds the right column.</b> One header row: the mode's tab, zoom (the canvas is still navigable), and Done, the mode's only button exit (Esc moves focus to it). The type row names what the column is about: March data, a data version. <i>interface-templates.md 17; framework-changes.md, "The right column has one header row".</i> Mantine <code>Tabs</code>, <code>Menu</code>, <code>Button</code>.</li><li><b>Restore version, first in the report</b>, with the combined cost of the replay it causes. It appends a new data version (one undo step); April data stays in Versions. The restore is graphty-element's operation. <i>principles.md, "An act that replays runs shows their combined cost first"; output-homes.md 3.</i> Mantine <code>Button</code>.</li><li><b>The version's report</b>, top to bottom: Restore version with its cost, where the data came from, its counts, what ran on it, and one methods sentence per run with Copy. Supplied by graphty-element: the import report, the operation log for this version and the methods text (graphty.record.methods). <i>interface-templates.md 17; output-homes.md 2; message-catalog.md graphty.record.methods.</i> <code>ControlSection</code>, <code>DataRow</code>, <code>ProseBlock</code>, <code>Button</code>.</li></ol></div>
+</div>
+<div class="st" data-st="3">
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head vh-head an-t an-r" data-n="1">
+      <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div>
+    <div class="dp-title"><span class="t">Data</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section" data-collapsed><div class="k-section-head">Sources <span class="k-count k-num">2</span></div></section>
+      <section class="k-section an-t an-r" data-n="2">
+        <div class="k-section-head">Versions</div>
+        <ul class="dp-list" aria-label="Versions"><li class="vli"><div class="k-item vrow an-t an-r" data-n="3" role="button" aria-current="true" aria-expanded="true"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">Restored March data</span><span class="k-kind">current</span></span><span class="l2">Today 09:40, from March data (Apr 2)</span></span></div><div class="vbody"><div class="wc-head">What changed, against April data (May 4)</div>
+  <ul class="wc an-t an-r" data-n="4"><li><div class="hd"><span class="k-strong k-num">1 component (was 27)</span><span class="k-badge wc-large"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div><div class="sp k-num">0 accounts have no transfers in this version.</div></li><li><div class="hd"><span class="k-strong k-num">35 communities (was 65)</span></div><div class="sp k-num">Names and colors as March data had them.</div></li><li><div class="hd"><span class="k-strong k-num">3,000 accounts (was 3,093)</span></div><div class="sp k-num">2,961 in both, 39 new, 132 not in this version. <a class="k-link">List</a></div></li><li><div class="hd"><span class="k-strong k-num">9,113 transfers (was 8,370)</span></div><div class="sp k-num">7,576 in both, 1,537 new, 794 not in this version.</div></li><li><div class="hd"><span class="k-strong k-num">Watchlist: 9 of 9</span></div></li></ul><div class="dp-acts"><span class="k-btn k-btn-secondary">Show replay report</span><span class="k-btn k-btn-ghost">Compare with...</span></div></div></li><li class="vli"><div class="k-item vrow" role="button" aria-expanded="false"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">April data</span></span><span class="l2">May 4, from transfers-2026-04.csv</span><span class="l2 fact"><span class="k-warn-glyph">!</span> 2 large changes: components, communities</span></span></div></li><li class="vli"><div class="k-item vrow an-t an-r" data-n="5" role="button"><span class="fold"></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">March data</span></span><span class="l2">Apr 2, from transfers-2026-03.csv</span><span class="l2">The first version: nothing to compare with.</span></span></div></li></ul>
+        <div class="dp-foot"><span class="k-btn k-btn-ghost">Export the operation log...</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Recipes applied <span class="k-count k-num">2</span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Sent and saved from this project</div></section>
+    </div>
+  </aside>
+  <main class="k-main"><div class="k-canvas">
+      <div class="k-stage an-t an-r" data-n="6"><img class="k-light-only" src="../kit/canvas/transactions-march-communities-light.svg" alt="March transfers colored by Louvain community, sized by degree"><img class="k-dark-only" src="../kit/canvas/transactions-march-communities-dark.svg" alt="March transfers colored by Louvain community, sized by degree"></div>
+      <div class="k-legend-card an-t an-r" data-n="7">
+        <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
+        <div class="k-lg-note">Names and colors as March data had them</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">297</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">182</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">147</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">141</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">139</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">123</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">120</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 28 communities<span class="k-value">1,851</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 907</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toast an-t an-r" data-n="9">March data restored: 2 of 3 results replayed<span class="k-toast-action">Undo</span></div>
+        <div class="k-toolbar an-t an-r" data-n="8" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div></main>
+  <aside class="k-right an-t an-r" data-n="10" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Overview</div>
+        <div class="dp-state">Loaded: transfers-2026-03.csv, direction followed, amount not used yet. <a class="k-link">Change...</a></div>
+        <div class="k-data"><span class="k-name">accounts</span><span class="k-value">3,000</span></div><div class="k-data"><span class="k-name">transfers</span><span class="k-value">9,113</span></div><div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Style stack</div></section>
+      
+    </div>
+  </aside>
+</div>
+<div class="an an-key"><h2>After Restore version: a new current version with its What changed</h2><p class="blocked"><b>Blocked:</b> waits on graphty-element data versions. Every version row, What changed line, large-change mark, report and methods sentence here is read from graphty-element; the app computes none of it. Needed in the element: data versions with import reports and the count split between two versions (element-needs.md; framework-changes.md, "Update with new data").</p><ol><li><b>Left panel header</b> as on every Data panel screen: the project name, the privacy line, the file chip for the current version, the filter chip. No View only: the current version is editable. <i>framework-changes.md, "The Data panel".</i> Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>Data &gt; Versions: every data version, newest first.</b> This is the whole version list; there is no separate Version history column any more. A row names the version (the file's name until Rename..., as "transfers-2026-03.csv" was renamed "March data"), when it was loaded and from what, and marks the latest <i>current</i>. Recipes applied (a recipe that holds only styles among them) keep their own section below; runs are listed in each version's report. Export the operation log... writes the log (runs, loads, restores and every send) as a file. <i>information-architecture.md 3; output-homes.md, the Data panel. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> <code>ControlSection</code>, <code>Tree</code>, <code>ActionRow</code>.</li><li><b>The version row carries What changed.</b> Restored March data against April data: components fall from 27 to 1, a large change; accounts and transfers split the other way round. April data stays below it, no longer current. Every line is a count and its split, against the version before, as graphty-element computes it; none states a motive ("not in April", never "closed"). A count that moved by half or more of its earlier value carries the large-change mark, read as part of the line. A closed row keeps one line naming its large changes, so a jump is never hidden by folding. <i>Proposed: framework-changes.md, "Update with new data: ... What changed, the large-change mark".</i> <code>ActionRow</code>, Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>The split lines.</b> Select picks the 26 accounts with no transfers; List opens the accounts in the table with a column for new, in both and not in this version. Both are graphty-element's comparison; the app lays it out. <i>framework-changes.md, "Update with new data".</i> <code>DataRow</code>, Mantine <code>Anchor</code>.</li><li><b>A past version.</b> A click (or Enter) opens it read-only in the view-only mode, state 2. The first version has no What changed: "nothing to compare with". <i>interface-templates.md 17; interaction-patterns.md 3.7.</i> <code>ActionRow</code>.</li><li><b>Canvas: the restored March data, now the current version.</b> Select, hover, Find, orbit and zoom work. Drawn by graphty-element.</li><li><b>Legend</b> from the version on screen, with how its groups are named: a restore brings back the names and colors the version had, so a figure or note made on March still matches. Group numbers are matched across data versions by overlap, never renumbered by size on each run (a graphty-element defect today, never an app fix). <i>options-and-encodings.md 6; conceptual-model.md 7.3; framework-changes.md, "Version history: community names are matched across data versions".</i> Drawn by graphty-element.</li><li><b>Toolbar, whole:</b> the current version edits. <code>Toolbar</code>, <code>ToolButton</code>.</li><li><b>The notice</b> names what happened and offers Undo. The restore closed the mode: the restored data is current, so everything edits again. <i>message-catalog.md graphty.data.replaced (proposed).</i> <code>Notification</code>.</li><li><b>The inspector, as usual.</b> Opening Data &gt; Versions does not take over the right column; only reading a past version does. <i>interface-specification.md, the right column.</i> <code>ControlSection</code>, <code>DataRow</code>.</li></ol></div>
+</div>
+<div class="st" data-st="4">
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head vh-head an-t an-r" data-n="1">
+      <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span><span class="vo">View only</span></div>
+    </div>
+    <div class="dp-title"><span class="t">Data</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section" data-collapsed><div class="k-section-head">Sources <span class="k-count k-num">2</span></div></section>
+      <section class="k-section an-t an-r" data-n="2">
+        <div class="k-section-head">Versions</div>
+        <ul class="dp-list" aria-label="Versions"><li class="vli"><div class="k-item vrow an-t an-r" data-n="3" role="button" aria-expanded="false"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">April data</span><span class="k-kind">current</span></span><span class="l2">May 4, from transfers-2026-04.csv</span><span class="l2 fact"><span class="k-warn-glyph">!</span> 2 large changes: components, communities</span></span></div></li><li class="vli"><div class="k-item vrow an-t an-r" data-n="4" role="button" aria-current="true"><span class="fold"></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">March data</span></span><span class="l2">Apr 2, from transfers-2026-03.csv</span><span class="l2">The first version: nothing to compare with.</span></span></div></li></ul>
+        <div class="dp-foot"><span class="k-btn k-btn-ghost">Export the operation log...</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Recipes applied <span class="k-count k-num">2</span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Sent and saved from this project</div></section>
+    </div>
+  </aside>
+  <main class="k-main"><div class="k-canvas">
+      <div class="k-stage an-t an-r" data-n="5"><img class="k-light-only" src="../kit/canvas/transactions-march-communities-light.svg" alt="March transfers colored by Louvain community, sized by degree"><img class="k-dark-only" src="../kit/canvas/transactions-march-communities-dark.svg" alt="March transfers colored by Louvain community, sized by degree"></div>
+      <div class="k-legend-card an-t an-r" data-n="6">
+        <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
+        <div class="k-lg-note">Numbered by size, largest first: the first data version</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">297</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">182</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">147</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">141</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">139</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">123</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">120</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 28 communities<span class="k-value">1,851</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 907</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar an-t an-r" data-n="7" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div></main>
+  <aside class="k-right" aria-label="Past version">
+    <div class="k-header1 an-t an-r" data-n="8"><span class="k-tabs" role="tablist"><span class="k-tab" role="tab" aria-selected="true">Past version</span></span><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-btn k-btn-secondary">Done</span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="k-name">March data</span><span class="k-secondary">Data version</span></div>
+    <div class="k-scroll"><div class="rep an-t an-r" data-n="10">
+      <div class="rep-act err an-t an-r" data-n="9">
+    <div class="err-head"><svg class="k-i k-danger"><use href="../kit/icons.svg#circle-x"/></svg><b>Could not restore March data</b></div>
+    <div>The stored copy of March data could not be read from this browser's storage. Nothing changed: April data is still the current version.</div>
+    <span class="k-btn k-btn-secondary">Restore version</span>
+  </div>
+      <div class="rep-src">Loaded from <span class="k-id">transfers-2026-03.csv</span>, 2026-04-02 10:12. Read as CSV, directed.</div>
+      <div class="k-caption cap">Accounts and transfers</div>
+      <div class="k-data"><span class="k-name">accounts</span><span class="k-value">3,000</span></div><div class="k-data"><span class="k-name">transfers</span><span class="k-value">9,113</span></div><div class="k-data"><span class="k-name">components</span><span class="k-value">1</span></div><div class="k-data"><span class="k-name">rows dropped</span><span class="k-value">0</span></div>
+      <div class="k-caption cap">Ran on this version</div>
+      <ul class="dp-list ops">
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Degree</span></span></span><span class="k-trail">Apr 2</span></li>
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Louvain communities, 35</span></span></span><span class="k-trail">Apr 2</span></li>
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Modularity vs randomized baseline</span></span></span><span class="k-trail">Apr 3</span></li>
+      </ul>
+      <div class="k-caption cap">Methods, one sentence per run</div>
+      <div class="methods">
+        <p>Degree on Transfers, March data (transfers-2026-03.csv): 3,000 accounts, 9,113 transfers, directed; in plus out, unweighted; 1 to 907. graphty-element 2.0.0, on the CPU.</p>
+        <p>Louvain communities on the same graph: weighted by amount (larger is stronger), direction ignored, resolution 1, seed 11, over the full graph: 35 communities, weighted modularity 0.688. graphty-element 2.0.0, on the CPU.</p>
+        <p>Modularity vs randomized baseline: the Louvain partition's weighted modularity 0.688 against 100 degree-preserving randomizations of the same graph, seed 11; ran 2026-04-03 14:40. graphty-element 2.0.0, on the CPU.</p>
+      </div>
+      <div class="rep-foot"><span class="k-btn k-btn-ghost"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy methods text</span></div>
+    </div></div>
+  </aside>
+</div>
+<div class="an an-key"><h2>Restore failed: April data is still current</h2><p class="blocked"><b>Blocked:</b> waits on graphty-element data versions. Every version row, What changed line, large-change mark, report and methods sentence here is read from graphty-element; the app computes none of it. Needed in the element: data versions with import reports and the count split between two versions (element-needs.md; framework-changes.md, "Update with new data").</p><ol><li><b>Left panel header: View only on the chip row, and the file chip names the version on screen.</b> Reading a past version is a mode: the canvas and every panel are view-only until Done. There is no second exit button here; Done in the right column and a click on April data's row both return. <i>interaction-patterns.md 3.7, Read-only; state-matrix.md 2. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> Mantine <code>Badge</code>; filter chip.</li><li><b>Data &gt; Versions: every data version, newest first.</b> This is the whole version list; there is no separate Version history column any more. A row names the version (the file's name until Rename..., as "transfers-2026-03.csv" was renamed "March data"), when it was loaded and from what, and marks the latest <i>current</i>. Recipes applied (a recipe that holds only styles among them) keep their own section below; runs are listed in each version's report. Export the operation log... writes the log (runs, loads, restores and every send) as a file. <i>information-architecture.md 3; output-homes.md, the Data panel. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> <code>ControlSection</code>, <code>Tree</code>, <code>ActionRow</code>.</li><li><b>The version row carries What changed.</b> Unchanged: the failed restore added no row. Every line is a count and its split, against the version before, as graphty-element computes it; none states a motive ("not in April", never "closed"). A count that moved by half or more of its earlier value carries the large-change mark, read as part of the line. A closed row keeps one line naming its large changes, so a jump is never hidden by folding. <i>Proposed: framework-changes.md, "Update with new data: ... What changed, the large-change mark".</i> <code>ActionRow</code>, Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>March data, selected and on screen.</b> The first version, so it has no What changed. A click on a past version's row opens it in the view-only mode; a click on the current row, or Done, closes the mode. <i>interaction-patterns.md 3.7; interface-templates.md 17.</i> <code>ActionRow</code>.</li><li><b>Canvas: still March data, read-only.</b> Select, hover, Find, orbit and zoom work; nothing edits. Drawn by graphty-element.</li><li><b>Legend</b> from the version on screen, with how its groups are named: March's. Group numbers are matched across data versions by overlap, never renumbered by size on each run (a graphty-element defect today, never an app fix). <i>options-and-encodings.md 6; conceptual-model.md 7.3; framework-changes.md, "Version history: community names are matched across data versions".</i> Drawn by graphty-element.</li><li><b>Toolbar, trimmed.</b> Path is gone because it creates something; Select, Quick actions and the view mode stay. <i>interaction-patterns.md 3.7.</i> <code>Toolbar</code>, <code>ToolButton</code>.</li><li><b>The mode holds the right column.</b> One header row: the mode's tab, zoom (the canvas is still navigable), and Done, the mode's only button exit (Esc moves focus to it). The type row names what the column is about: March data, a data version. <i>interface-templates.md 17; framework-changes.md, "The right column has one header row".</i> Mantine <code>Tabs</code>, <code>Menu</code>, <code>Button</code>.</li><li><b>The error row</b> takes Restore's place: what failed, the cause, that nothing changed, and its one verb. No new row in Versions; April data keeps <i>current</i>. The failure and its verb are graphty-element's (recovery class "retry"). <i>state-matrix.md, Version history, Error; interaction-pattern-entries.md 8.1; content-design.md 4.</i> <code>Alert</code>, <code>Button</code>.</li><li><b>The version's report</b>, top to bottom: Restore version with its cost, where the data came from, its counts, what ran on it, and one methods sentence per run with Copy. Supplied by graphty-element: the import report, the operation log for this version and the methods text (graphty.record.methods). <i>interface-templates.md 17; output-homes.md 2; message-catalog.md graphty.record.methods.</i> <code>ControlSection</code>, <code>DataRow</code>, <code>ProseBlock</code>, <code>Button</code>.</li></ol></div>
+</div>
+<div class="st" data-st="5">
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head vh-head an-t an-r" data-n="1">
+      <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span><span class="vo">View only</span></div>
+    </div>
+    <div class="dp-title"><span class="t">Data</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section" data-collapsed><div class="k-section-head">Sources <span class="k-count k-num">2</span></div></section>
+      <section class="k-section an-t an-r" data-n="2">
+        <div class="k-section-head">Versions</div>
+        <ul class="dp-list" aria-label="Versions"><li class="vli"><div class="k-item vrow an-t an-r" data-n="3" role="button" aria-expanded="false"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">April data</span><span class="k-kind">current</span></span><span class="l2">May 4, from transfers-2026-04.csv</span><span class="l2 fact"><span class="k-warn-glyph">!</span> 2 large changes: components, communities</span></span></div></li><li class="vli"><div class="k-item vrow an-t an-r" data-n="4" role="button" aria-current="true"><span class="fold"></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">March data</span></span><span class="l2">Apr 2, from transfers-2026-03.csv</span><span class="l2">The first version: nothing to compare with.</span></span></div></li></ul>
+        <div class="dp-foot"><span class="k-btn k-btn-ghost">Export the operation log...</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Recipes applied <span class="k-count k-num">2</span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Sent and saved from this project</div></section>
+    </div>
+  </aside>
+  <main class="k-main"><div class="k-canvas">
+      <div class="k-stage an-t an-r" data-n="5"><img class="k-light-only" src="../kit/canvas/transactions-march-communities-light.svg" alt="March transfers colored by Louvain community, sized by degree"><img class="k-dark-only" src="../kit/canvas/transactions-march-communities-dark.svg" alt="March transfers colored by Louvain community, sized by degree"></div>
+      <div class="k-legend-card an-t an-r" data-n="6">
+        <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
+        <div class="k-lg-note">Numbered by size, largest first: the first data version</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">297</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">182</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">147</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">141</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">139</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">123</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">120</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 28 communities<span class="k-value">1,851</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 907</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar an-t an-r" data-n="7" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div></main>
+  <aside class="k-right" aria-label="Past version">
+    <div class="k-header1 an-t an-r" data-n="8"><span class="k-tabs" role="tablist"><span class="k-tab" role="tab" aria-selected="true">Past version</span></span><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-btn k-btn-secondary">Done</span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="k-name">March data</span><span class="k-secondary">Data version</span></div>
+    <div class="k-scroll"><div class="rep an-t an-r" data-n="10">
+      <div class="rep-act an-t an-r" data-n="9">
+    <span class="k-btn k-btn-secondary" aria-disabled="true" data-focus-ring><svg class="k-i"><use href="../kit/icons.svg#history"/></svg>Restore version</span>
+    <div class="reason"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#info"/></svg>This browser is not keeping versions for this project (a private window, or site storage turned off), so a restored version could not be kept. Download project file saves a copy with its whole history.</div>
+    <span class="k-btn k-btn-secondary"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg>Download project file</span>
+  </div>
+      <div class="rep-src">Loaded from <span class="k-id">transfers-2026-03.csv</span>, 2026-04-02 10:12. Read as CSV, directed.</div>
+      <div class="k-caption cap">Accounts and transfers</div>
+      <div class="k-data"><span class="k-name">accounts</span><span class="k-value">3,000</span></div><div class="k-data"><span class="k-name">transfers</span><span class="k-value">9,113</span></div><div class="k-data"><span class="k-name">components</span><span class="k-value">1</span></div><div class="k-data"><span class="k-name">rows dropped</span><span class="k-value">0</span></div>
+      <div class="k-caption cap">Ran on this version</div>
+      <ul class="dp-list ops">
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Degree</span></span></span><span class="k-trail">Apr 2</span></li>
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Louvain communities, 35</span></span></span><span class="k-trail">Apr 2</span></li>
+        <li class="k-item"><span class="two"><span class="l1"><span class="k-ellipsis">Modularity vs randomized baseline</span></span></span><span class="k-trail">Apr 3</span></li>
+      </ul>
+      <div class="k-caption cap">Methods, one sentence per run</div>
+      <div class="methods">
+        <p>Degree on Transfers, March data (transfers-2026-03.csv): 3,000 accounts, 9,113 transfers, directed; in plus out, unweighted; 1 to 907. graphty-element 2.0.0, on the CPU.</p>
+        <p>Louvain communities on the same graph: weighted by amount (larger is stronger), direction ignored, resolution 1, seed 11, over the full graph: 35 communities, weighted modularity 0.688. graphty-element 2.0.0, on the CPU.</p>
+        <p>Modularity vs randomized baseline: the Louvain partition's weighted modularity 0.688 against 100 degree-preserving randomizations of the same graph, seed 11; ran 2026-04-03 14:40. graphty-element 2.0.0, on the CPU.</p>
+      </div>
+      <div class="rep-foot"><span class="k-btn k-btn-ghost"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy methods text</span></div>
+    </div></div>
+  </aside>
+</div>
+<div class="an an-key"><h2>Storage unavailable: Restore version disabled with its reason</h2><p class="blocked"><b>Blocked:</b> waits on graphty-element data versions. Every version row, What changed line, large-change mark, report and methods sentence here is read from graphty-element; the app computes none of it. Needed in the element: data versions with import reports and the count split between two versions (element-needs.md; framework-changes.md, "Update with new data").</p><ol><li><b>Left panel header: View only on the chip row, and the file chip names the version on screen.</b> Reading a past version is a mode: the canvas and every panel are view-only until Done. There is no second exit button here; Done in the right column and a click on April data's row both return. <i>interaction-patterns.md 3.7, Read-only; state-matrix.md 2. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> Mantine <code>Badge</code>; filter chip.</li><li><b>Data &gt; Versions: every data version, newest first.</b> This is the whole version list; there is no separate Version history column any more. A row names the version (the file's name until Rename..., as "transfers-2026-03.csv" was renamed "March data"), when it was loaded and from what, and marks the latest <i>current</i>. Recipes applied (a recipe that holds only styles among them) keep their own section below; runs are listed in each version's report. Export the operation log... writes the log (runs, loads, restores and every send) as a file. <i>information-architecture.md 3; output-homes.md, the Data panel. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> <code>ControlSection</code>, <code>Tree</code>, <code>ActionRow</code>.</li><li><b>The version row carries What changed.</b> As in state 2. Every line is a count and its split, against the version before, as graphty-element computes it; none states a motive ("not in April", never "closed"). A count that moved by half or more of its earlier value carries the large-change mark, read as part of the line. A closed row keeps one line naming its large changes, so a jump is never hidden by folding. <i>Proposed: framework-changes.md, "Update with new data: ... What changed, the large-change mark".</i> <code>ActionRow</code>, Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>March data, selected and on screen.</b> The first version, so it has no What changed. A click on a past version's row opens it in the view-only mode; a click on the current row, or Done, closes the mode. <i>interaction-patterns.md 3.7; interface-templates.md 17.</i> <code>ActionRow</code>.</li><li><b>Canvas: March data, read-only.</b> Select, hover, Find, orbit and zoom work; nothing edits. Drawn by graphty-element.</li><li><b>Legend</b> from the version on screen, with how its groups are named: March's. Group numbers are matched across data versions by overlap, never renumbered by size on each run (a graphty-element defect today, never an app fix). <i>options-and-encodings.md 6; conceptual-model.md 7.3; framework-changes.md, "Version history: community names are matched across data versions".</i> Drawn by graphty-element.</li><li><b>Toolbar, trimmed.</b> Path is gone because it creates something; Select, Quick actions and the view mode stay. <i>interaction-patterns.md 3.7.</i> <code>Toolbar</code>, <code>ToolButton</code>.</li><li><b>The mode holds the right column.</b> One header row: the mode's tab, zoom (the canvas is still navigable), and Done, the mode's only button exit (Esc moves focus to it). The type row names what the column is about: March data, a data version. <i>interface-templates.md 17; framework-changes.md, "The right column has one header row".</i> Mantine <code>Tabs</code>, <code>Menu</code>, <code>Button</code>.</li><li><b>Restore version, disabled and still focusable</b> (aria-disabled), drawn focused: the browser keeps no versions, so a restore could not be kept. The reason names the way out, Download project file. <i>state-matrix.md, Version history, Unsupported; interaction-patterns.md 3.7, Hide or disable.</i> Mantine <code>Button</code>, <code>Tooltip</code>.</li><li><b>The version's report</b>, top to bottom: Restore version with its cost, where the data came from, its counts, what ran on it, and one methods sentence per run with Copy. Supplied by graphty-element: the import report, the operation log for this version and the methods text (graphty.record.methods). <i>interface-templates.md 17; output-homes.md 2; message-catalog.md graphty.record.methods.</i> <code>ControlSection</code>, <code>DataRow</code>, <code>ProseBlock</code>, <code>Button</code>.</li></ol></div>
+</div>
+<div class="st" data-st="6">
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head vh-head an-t an-r" data-n="1">
+      <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div>
+    <div class="dp-title"><span class="t">Data</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section" data-collapsed><div class="k-section-head">Sources <span class="k-count k-num">1</span></div></section>
+      <section class="k-section an-t an-r" data-n="2">
+        <div class="k-section-head">Versions</div>
+        <ul class="dp-list" aria-label="Versions"><li class="vli"><div class="k-item vrow an-t an-r" data-n="3" role="button" aria-current="true"><span class="fold"></span><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">transfers-2026-03.csv</span><span class="k-kind">current</span></span><span class="l2">Apr 2, the first load</span><span class="l2">The first version: nothing to compare with.</span></span></div></li></ul>
+        <div class="dp-foot"><span class="k-btn k-btn-ghost">Export the operation log...</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Recipes applied <span class="k-count k-num">2</span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Sent and saved from this project</div></section>
+    </div>
+  </aside>
+  <main class="k-main"><div class="k-canvas">
+      <div class="k-stage an-t an-r" data-n="4"><img class="k-light-only" src="../kit/canvas/transactions-march-communities-light.svg" alt="March transfers colored by Louvain community, sized by degree"><img class="k-dark-only" src="../kit/canvas/transactions-march-communities-dark.svg" alt="March transfers colored by Louvain community, sized by degree"></div>
+      <div class="k-legend-card an-t an-r" data-n="5">
+        <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
+        <div class="k-lg-note">Numbered by size, largest first: the first data version</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">297</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">182</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">147</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">141</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">139</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">123</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">120</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 28 communities<span class="k-value">1,851</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 907</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar an-t an-r" data-n="6" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div></main>
+  <aside class="k-right an-t an-r" data-n="7" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Overview</div>
+        <div class="dp-state">Loaded: transfers-2026-03.csv, direction followed, amount not used yet. <a class="k-link">Change...</a></div>
+        <div class="k-data"><span class="k-name">accounts</span><span class="k-value">3,000</span></div><div class="k-data"><span class="k-name">transfers</span><span class="k-value">9,113</span></div><div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Style stack</div></section>
+      
+    </div>
+  </aside>
+</div>
+<div class="an an-key"><h2>One version: a project just loaded</h2><p class="blocked"><b>Blocked:</b> waits on graphty-element data versions. Every version row, What changed line, large-change mark, report and methods sentence here is read from graphty-element; the app computes none of it. Needed in the element: data versions with import reports and the count split between two versions (element-needs.md; framework-changes.md, "Update with new data").</p><ol><li><b>Left panel header</b> as on every Data panel screen: the project name, the privacy line, the file chip for the current version, the filter chip. No View only: the current version is editable. <i>framework-changes.md, "The Data panel".</i> Mantine <code>Badge</code>, <code>Anchor</code>.</li><li><b>Data &gt; Versions: every data version, newest first.</b> This is the whole version list; there is no separate Version history column any more. A row names the version (the file's name until Rename..., as "transfers-2026-03.csv" was renamed "March data"), when it was loaded and from what, and marks the latest <i>current</i>. Recipes applied (a recipe that holds only styles among them) keep their own section below; runs are listed in each version's report. Export the operation log... writes the log (runs, loads, restores and every send) as a file. <i>information-architecture.md 3; output-homes.md, the Data panel. Proposed: framework-changes.md, "Version history: the list moves to Data &gt; Versions".</i> <code>ControlSection</code>, <code>Tree</code>, <code>ActionRow</code>.</li><li><b>One version.</b> No chevron, no What changed ("The first version: nothing to compare with"), nothing to open: it is current. Its name is still the file's. <i>interface-templates.md 17, States: one entry.</i> <code>ActionRow</code>.</li><li><b>Canvas: the only version.</b> Select, hover, Find, orbit and zoom work. Drawn by graphty-element.</li><li><b>Legend</b> from the version on screen, with how its groups are named: numbered by size: the first data version. Group numbers are matched across data versions by overlap, never renumbered by size on each run (a graphty-element defect today, never an app fix). <i>options-and-encodings.md 6; conceptual-model.md 7.3; framework-changes.md, "Version history: community names are matched across data versions".</i> Drawn by graphty-element.</li><li><b>Toolbar, whole:</b> the current version edits. <code>Toolbar</code>, <code>ToolButton</code>.</li><li><b>The inspector, as usual.</b> Opening Data &gt; Versions does not take over the right column; only reading a past version does. <i>interface-specification.md, the right column.</i> <code>ControlSection</code>, <code>DataRow</code>.</li></ol></div>
+</div>
+</body>
+</html>

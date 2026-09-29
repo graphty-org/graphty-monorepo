@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock template: the whole app</title>
+<!-- Copy this file to screens/<id>.html and change ../kit/ paths only if you move deeper. -->
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+</head>
+<body>
+<div class="k-app">
+
+  <!-- Rail -->
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+
+  <!-- Left panel: Graph -->
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Find a graph"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" role="button" aria-label="Add a graph"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list" role="listbox" aria-label="Graphs">
+          <li class="k-item" role="option" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">77 nodes</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="New set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Friends of Valjean</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">36</span></span></li>
+          <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">The barricade</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#56B4E9"></span></span><span class="k-num">13</span></span></li>
+          <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#waypoints"/></svg><span class="k-ellipsis">Fantine to Marius</span><span class="k-kind">path</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">3</span></span></li>
+        </ul>
+      </section>
+      <section class="k-section" data-collapsed>
+        <div class="k-section-head">Views <span class="k-count k-num">2</span></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Canvas and dock -->
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/lesmis-groups-light.svg" alt="Les Miserables colored by group, Valjean selected">
+      <img class="k-dark-only" src="../kit/canvas/lesmis-groups-dark.svg" alt="Les Miserables colored by group, Valjean selected">
+        <!-- A node tooltip anchored to Javert (fixtures.json lesmis.anchors.hover) -->
+        <div class="k-tooltip" style="left:62.9%;top:49%;transform:translate(12px,-120%)"><b>Javert</b><br><span class="k-secondary">group 4, degree 17</span></div>
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Group color <span class="k-secondary">group</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>8<span class="k-value">13</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value">11</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>1<span class="k-value">10</span></div>
+        <div class="k-lg-row k-secondary">6 more</div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar" aria-label="Tools">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select" title="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Path" title="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Note" title="Note"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions" title="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)" title="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+    <section class="k-dock" aria-label="Table">
+      <div class="k-dock-tabs">
+        <span role="tablist" aria-label="Table" style="display:contents"><span class="k-tab" role="tab" aria-selected="true">Nodes</span><span class="k-tab" role="tab" aria-selected="false">Edges</span></span>
+        <span class="k-grow"></span>
+        <span class="k-icon-btn" role="button" aria-label="Find in table"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span>
+        <span class="k-icon-btn" role="button" aria-label="Table options"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span>
+      </div>
+      <div class="k-scope">Full graph: 77 nodes. Sorted by degree.</div>
+      <div class="k-table-wrap">
+        <table class="k-table">
+          <thead><tr><th>label</th><th>group <span class="k-profile">10 values</span></th><th class="k-n">degree <span class="k-profile">1 to 36</span></th><th class="k-n">betweenness <span class="k-profile">0 to 0.57</span></th></tr></thead>
+          <tbody>
+            <tr aria-selected="true"><td class="k-id">Valjean</td><td><span class="k-chit" style="background:#E69F00"></span>2</td><td class="k-n">36</td><td class="k-n" data-fx="datasets.lesmis.rows.11.betweenness">0.57</td></tr>
+            <tr><td class="k-id">Gavroche</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">22</td><td class="k-n" data-fx="datasets.lesmis.rows.48.betweenness">0.165</td></tr>
+            <tr><td class="k-id">Marius</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">19</td><td class="k-n" data-fx="datasets.lesmis.rows.55.betweenness">0.132</td></tr>
+            <tr data-hover><td class="k-id">Javert</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">17</td><td class="k-n" data-fx="datasets.lesmis.rows.27.betweenness">0.054</td></tr>
+            <tr><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">16</td><td class="k-n" data-fx="datasets.lesmis.rows.25.betweenness">0.075</td></tr>
+            <tr><td class="k-id">Fantine</td><td><span class="k-chit" style="background:#D55E00"></span>3</td><td class="k-n">15</td><td class="k-n" data-fx="datasets.lesmis.rows.23.betweenness">0.13</td></tr>
+            <tr><td class="k-id">Enjolras</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">15</td><td class="k-n" data-fx="datasets.lesmis.rows.58.betweenness">0.043</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Right column: header rows and inspector -->
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">Valjean</span><span class="k-secondary">Node</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow">
+          <span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#E69F00"></span>group</span></span></div>
+        </div>
+        <div class="k-fieldrow">
+          <span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>degree</span></span></div>
+        </div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">group</span><span class="k-value">2</span></div>
+        <div class="k-data"><span class="k-name">degree</span><span class="k-value">36</span></div>
+        <div class="k-data"><span class="k-name">betweenness</span><span class="k-value" data-fx="datasets.lesmis.rows.11.betweenness">0.57</span></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Memberships</div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow">Friends of Valjean</span><span class="k-secondary">frozen</span></div>
+      </section>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

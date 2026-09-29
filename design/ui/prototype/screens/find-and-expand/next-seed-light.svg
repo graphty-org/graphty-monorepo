@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="ACC-782213 alone, the next seed">
+<rect width="1200" height="800" fill="#F5F5F5"/>
+<g stroke="#808080" stroke-width="1" stroke-opacity="0.55" stroke-linecap="round">
+</g>
+<g>
+<circle cx="600" cy="400" r="8" fill="#D55E00"/>
+<circle cx="600" cy="400" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="600" cy="400" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+</g>
+<g font-family="Inter Variable, Inter, system-ui, sans-serif" font-size="12" fill="#1A1A1A" stroke="#F5F5F5" stroke-width="3" stroke-linejoin="round" paint-order="stroke">
+<text x="612" y="404">ACC-782213</text>
+</g></svg>

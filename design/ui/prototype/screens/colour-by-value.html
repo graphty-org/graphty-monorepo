@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color or size by a value: screens</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  /* Page furniture: seven states stacked, each a 1440 x 900 frame. Open one state alone with its
+     link (#choose, #numbers, #size, #categories, #path, #refused, #legend). The one script at the
+     end moves between legend rows with the arrow keys and opens state 7 from a swatch. */
+  body { background: var(--cm-bg-secondary); }
+  .pagehead { max-width: 1440px; margin: 0 auto; padding: 24px 0 8px; }
+  .pagehead h1 { font-size: 24px; line-height: 32px; font-weight: 600; margin: 0 0 4px; }
+  .pagehead p { font-size: 13px; line-height: 20px; color: var(--cm-text-secondary); margin: 0 0 8px; max-width: 110ch; }
+  .pagehead nav { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; line-height: 24px; }
+  .pagehead a { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 8px; }
+  .st { width: 1440px; margin: 24px auto 40px; }
+  .st-label { font-size: 15px; line-height: 24px; font-weight: 600; margin: 0 0 8px; }
+  .st-label span { font-weight: 450; color: var(--cm-text-secondary); }
+  .st-frame { position: relative; width: 1440px; height: 900px; overflow: hidden; box-shadow: 0 0 0 1px var(--cm-border); background: var(--cm-bg); }
+  .st-frame .k-app { width: 1440px; height: 900px; }
+  body:has(.st:target) .st:not(:target), body:has(.st:target) .pagehead { display: none; }
+  .st:target { margin: 0; }
+  .st:target .st-label, .st:target .an-list { display: none; }
+  .st:target .st-frame { box-shadow: none; }
+
+  /* Annotation layer: hidden until the toggle is on */
+  .an, .an-list { display: none; }
+  body:has(#annot:checked) .an { display: inline-grid; }
+  body:has(#annot:checked) .an-list { display: block; }
+  .an { position: absolute; z-index: 96; box-shadow: 0 0 0 2px var(--cm-bg); }
+  .an-list { margin: 8px 0 0; padding: 12px 16px 12px 40px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); font-size: 12px; line-height: 18px; }
+  .an-list li { margin: 2px 0; }
+  .an-list li::marker { color: var(--k-annot-ink); font-weight: 600; }
+  .an-list .cm { color: var(--cm-text-secondary); }
+
+  /* Page-local glyphs */
+  .k4 { display: inline-block; width: 12px; height: 12px; background: radial-gradient(circle, currentColor 1.5px, transparent 1.9px) 0 0 / 6px 6px; }
+  .fc-ramp { background: linear-gradient(90deg, #67001f 0%, #b2182b 9.9%, #d6604d 19.7%, #f4a582 29.6%, #fddbc7 39.5%, #f7f7f7 50.6%, #d1e5f0 63%, #92c5de 75.3%, #4393c3 87.6%, #2166ac 100%); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
+  .ticks { position: relative; height: 16px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+  .ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+  .ticks span:first-child { transform: none; }
+  .ticks span:last-child { transform: translateX(-100%); }
+  .ticks .mid::before { content: ""; position: absolute; left: 50%; top: -4px; height: 4px; border-left: 1px solid var(--cm-text-secondary); }
+  .chits3 { position: relative; width: 16px; height: 12px; flex: none; }
+  .chits3 i { position: absolute; top: 0; width: 10px; height: 10px; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-bg); }
+  .sizechip { width: 16px; height: 12px; flex: none; }
+  .dashchip { width: 16px; height: 6px; flex: none; border-radius: 1px; background: repeating-linear-gradient(90deg, var(--k-canvas-ink) 0 5px, var(--k-canvas) 5px 8px); box-shadow: 0 0 0 1px var(--k-canvas-ink); }
+  .size-marks { display: flex; align-items: flex-end; gap: 6px; padding: 2px 0; }
+  .size-marks div { white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+  .size-marks b { display: block; border-radius: 50%; background: var(--k-node-gray); }
+  .th-enc { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: 4px; vertical-align: middle; }
+  .sub { color: var(--cm-text-secondary); padding: 0 8px 4px 16px; }
+  .picker-row { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px 0 16px; }
+  .picker-row[data-hover] { background: var(--cm-bg-hover); }
+  .picker-row[aria-disabled="true"] { color: var(--cm-text-disabled); }
+  .picker-row .k-secondary { margin-inline-start: auto; }
+  .picker-why { padding: 0 12px 4px 40px; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
+  .swatches { display: flex; gap: 4px; padding: 4px 16px 8px; }
+  .swatches .k-chit { width: 16px; height: 16px; }
+  /* Legend value rows: the swatch and the label are two controls, each its own Tab stop */
+  .lg-val { min-height: 24px; gap: 4px !important; }
+  .lg-sw { display: grid; place-items: center; width: 24px; height: 24px; margin-inline-start: -6px; border-radius: 5px; cursor: pointer; flex: none; }
+  .lg-sw:hover, .lg-sw[aria-expanded="true"] { background: var(--cm-bg-hover); }
+  .lg-sw .k-chit { box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); }
+  .lg-lab { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 4px; border-radius: 5px; cursor: pointer; }
+  .lg-lab:hover { background: var(--cm-bg-hover); }
+  .lg-lab .k-value { margin-inline-start: auto; color: var(--cm-text-secondary); }
+  .lg-sub { display: flex; gap: 8px; padding: 0 4px 0 34px; color: var(--cm-text-secondary); }
+  .lg-sub .k-value { margin-inline-start: auto; color: var(--cm-text-secondary); }
+  .lg-flag { display: flex; align-items: flex-start; gap: 6px; padding: 2px 4px 4px 22px; color: var(--cm-text); line-height: 16px; }
+  .lg-flag .k-warn-glyph { margin-top: 1px; }
+  .lg-flag a { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  /* The color picker (as in screens/styles-list.html) */
+  .cp-body { padding: 8px 0 0; }
+  .cp-sb { position: relative; width: 208px; height: 160px; margin: 0 16px; border-radius: 5px; background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(204deg 100% 50%)); }
+  .cp-reticle { position: absolute; left: 67%; top: 12%; width: 12px; height: 12px; margin: -6px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.25); }
+  .cp-slider { position: relative; height: 16px; margin: 8px 16px 0 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); }
+  .cp-hue { background: linear-gradient(90deg, red, yellow, lime, cyan, blue, magenta, red); }
+  .cp-slider span { position: absolute; top: 0; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; box-shadow: inset 0 0 0 4px #fff, 0 0 0 1px rgba(0,0,0,.2); }
+  .cp-val { display: flex; gap: 4px; margin: 8px 8px 0 16px; }
+  .cp-val .k-field { height: 24px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; }
+  .cp-name { padding: 4px 16px 0; color: var(--cm-text); }
+  .cp-sw { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px; }
+  .cp-sw .k-chit { width: 16px; height: 16px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); }
+  .cp-gh { margin-top: 4px; border-top: 1px solid var(--cm-border); padding-top: 4px; }
+  .ro { display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 4px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text-secondary); font-weight: 450; }
+</style>
+</head>
+<body>
+
+<div class="pagehead">
+  <h1>Color or size by a value</h1>
+  <p>Dr. Chen's 300-protein interaction network, from a plain first render to fold change as color, degree as size, modules as categories and a shortest path marked on top. Each state is the whole app at 1440 x 900. The <a href="../flows/colour-by-value.html">flow</a> shows how the states connect. The data is the kit's protein network: 300 proteins, 1,262 interactions, log2 fold change from -2.52 to 3.15.</p>
+  <nav>
+    <a href="#choose">1. Choose what a layer follows</a>
+    <a href="#numbers">2. Numbers: a diverging scale</a>
+    <a href="#size">3. Size from a result</a>
+    <a href="#categories">4. Categories: one color per value</a>
+    <a href="#path">5. A run marks only its result</a>
+    <a href="#refused">6. A value the channel refuses</a>
+    <a href="#legend">7. Change a color from the legend</a>
+  </nav>
+  <label class="toggle"><input type="checkbox" id="annot"> Show annotations: the framework section behind each element and the compact-mantine component it is built with</label>
+</div>
+
+<!-- ============================================================== 1 -->
+<section class="st" id="choose">
+  <h2 class="st-label">1. Choose what a layer follows <span>-- from the inspector's Style stack: "+" adds a layer, Fill's four-dot button lists what color can follow</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+        
+        <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">0</span></div></section>
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-plain-light.svg" alt="300 proteins, unstyled gray"><img class="k-dark-only" src="../kit/canvas/ppi-plain-dark.svg" alt="300 proteins, unstyled gray"></div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll">
+        <section class="k-section"><div class="k-section-head">Statistics</div>
+          <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">1,262</span></div><div class="k-metric"><span class="k-secondary">components</span><span class="k-big">3</span></div><div class="k-metric"><span class="k-secondary">density</span><span class="k-big">0.0281</span></div></div>
+        </section><section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item" aria-selected="true"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Style layer 1</span><span class="k-trail"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+        </section>
+        <section class="k-section"><div class="k-section-head">Attributes</div>
+          <div class="k-data"><span class="k-name">module</span><span class="k-value">9 values</span></div>
+          <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-2.52 to 3.15</span></div>
+          <div class="k-data"><span class="k-name">degree</span><span class="k-value">0 to 34</span></div>
+          <div class="k-data"><span class="k-name">betweenness</span><span class="k-value">0 to 0.138</span></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Style-layer editor, left of the inspector, top-aligned to its Style stack row -->
+  <div class="k-popover" style="left:952px;top:283px">
+    <div class="k-popover-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span>Style layer 1<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span">All nodes<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Shape<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Opacity<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Text<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Fill<span class="k-grow"></span><span class="k-icon-btn" aria-pressed="true" title="Apply styles and variables"><span class="k4"></span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#minus"/></svg></span></div>
+      <div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field"><span class="k-chit" style="background:#808080"></span>808080</span><span class="k-field k-num">100%</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Stroke<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Effects<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+    </div>
+  </div>
+
+  <!-- The nested picker: palette colors, then attributes that fit Color -->
+  <div class="k-popover" style="left:672px;top:467px;width:272px">
+    <div class="k-popover-head">Color: apply a color or a value<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-search" style="padding-left:12px"><span class="k-field"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find an attribute or result</span></div>
+      <div class="k-group-head">Palette colors</div>
+      <div class="swatches"><span class="k-chit" style="background:#E69F00"></span><span class="k-chit" style="background:#56B4E9"></span><span class="k-chit" style="background:#009E73"></span><span class="k-chit" style="background:#0072B2"></span><span class="k-chit" style="background:#D55E00"></span><span class="k-chit" style="background:#CC79A7"></span><span class="k-chit" style="background:#000000"></span><span class="k-chit" style="background:#F0E442"></span></div>
+      <div class="k-group-head">From the data</div>
+      <div class="picker-row" data-hover><svg class="k-i"><use href="../kit/icons.svg#hash"/></svg>log2FoldChange<span class="k-secondary">numbers, -2.52 to 3.15</span></div>
+      <div class="picker-row"><svg class="k-i"><use href="../kit/icons.svg#tag"/></svg>module<span class="k-secondary">categories, 9</span></div>
+      <div class="k-group-head">Computed</div>
+      <div class="picker-row"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg>degree<span class="k-secondary">numbers, 0 to 34</span></div>
+      <div class="picker-row"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg>betweenness<span class="k-secondary">numbers, 0 to 0.138</span></div>
+      <div class="k-group-head">Not computed</div>
+      <div class="picker-row"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg>closeness<span class="k-secondary">a few seconds</span></div>
+    </div>
+  </div>
+  <span class="k-cursor" style="left:818px;top:640px"></span>
+
+  <span class="an k-step" style="left:1194px;top:287px">1</span>
+  <span class="an k-step" style="left:1166px;top:275px">2</span>
+  <span class="an k-step" style="left:1176px;top:476px">3</span>
+  <span class="an k-step" style="left:936px;top:472px">4</span>
+  <span class="an k-step" style="left:936px;top:626px">5</span>
+  <span class="an k-step" style="left:1194px;top:319px">6</span>
+  </div>
+  <ol class="an-list">
+    <li>The inspector's Style stack: new layers go on top, Base style is pinned last. <span class="cm">interface-templates.md 9; interaction-pattern-entries.md 6.1 (style layers go on top). compact-mantine: <code>Tree</code> in a <code>ControlSection</code>.</span></li>
+    <li>Style-layer editor popover, beside its row: eye, Move up, Move down in the header. <span class="cm">interface-templates.md 10; interaction-pattern-entries.md 6.2, 4.7. compact-mantine: <code>Popout.Panel</code> with <code>PopoutHeaderConfig</code>, <code>ToggleIconButton</code>.</span></li>
+    <li>Sections in Figma's order; an unwritten section is its header with "+". "+" on Fill added Color at its default, 808080. <span class="cm">options-and-encodings.md 3. compact-mantine: <code>ControlSection</code> (empty-state variant), <code>FieldRow</code>, <code>CompactColorInput</code>.</span></li>
+    <li>Fill's four-dot "Apply styles and variables" button opens one picker: palette colors, then what fits the channel. <span class="cm">options-and-encodings.md 4; interaction-pattern-entries.md 6.6. compact-mantine: <code>Popout</code> nested picker, <code>SearchInput</code>, <code>ResultRow</code>.</span></li>
+    <li>Each attribute says its level and range, so the scale is predictable before choosing; not-yet-computed results show their cost. <span class="cm">options-and-encodings.md 4, 5; interaction-pattern-entries.md 6.6 (an attribute not yet computed shows its cost). compact-mantine: <code>ResultRow</code>.</span></li>
+    <li>Base style, the floor of the stack, always visible. <span class="cm">conceptual-model.md 5.1; interface-templates.md 9. compact-mantine: <code>Tree</code> row.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 2 -->
+<section class="st" id="numbers">
+  <h2 class="st-label">2. Numbers: a diverging scale <span>-- log2FoldChange chosen; numbers pick a linear scale diverging at 0; legend, table header and chits follow</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+        
+        <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">0</span></div></section>
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-foldchange-light.svg" alt="300 proteins colored by log2 fold change, red below 0, blue above"><img class="k-dark-only" src="../kit/canvas/ppi-foldchange-dark.svg" alt="300 proteins colored by log2 fold change, red below 0, blue above"></div>
+        <div class="k-legend-card" style="width:220px">
+          <div class="k-lg-title">log2FoldChange color <span class="k-secondary">log2FoldChange</span></div>
+          <span class="k-ramp k-ramp-wide fc-ramp" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">-2.52</span><span class="mid" style="left:44.4%">0</span><span style="left:100%">3.15</span></div>
+          <div class="k-secondary">Linear, diverging at 0. The palest color is 0, not missing.</div>
+          <div class="k-lg-row">Below 0<span class="k-value">148</span></div>
+          <div class="k-lg-row">Above 0<span class="k-value">152</span></div>
+          <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>No value or unstyled<span class="k-value">0</span></div>
+        </div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+      
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll">
+        <section class="k-section"><div class="k-section-head">Statistics</div>
+          <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">1,262</span></div><div class="k-metric"><span class="k-secondary">components</span><span class="k-big">3</span></div><div class="k-metric"><span class="k-secondary">density</span><span class="k-big">0.0281</span></div></div>
+        </section><section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item" aria-selected="true"><span class="k-ramp fc-ramp" style="width:16px"></span><span class="k-ellipsis">log2FoldChange color</span><span class="k-trail"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+        </section>
+        <section class="k-section"><div class="k-section-head">Attributes</div>
+          <div class="k-data"><span class="k-name">module</span><span class="k-value">9 values</span></div>
+          <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-2.52 to 3.15</span></div>
+          <div class="k-data"><span class="k-name">degree</span><span class="k-value">0 to 34</span></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div class="k-popover" style="left:952px;top:283px">
+    <div class="k-popover-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="k-ellipsis">log2FoldChange color</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span">All nodes<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Shape<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Opacity<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Text<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Fill<span class="k-grow"></span><span class="k-icon-btn" title="Apply styles and variables"><span class="k4"></span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#minus"/></svg></span></div>
+      <div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-ramp fc-ramp" style="width:16px"></span>log2FoldChange</span></span><span class="k-icon-btn" aria-pressed="true"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Stroke<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Effects<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-data"><span class="k-name">paints</span><span class="k-value">300 of 300 nodes</span></div>
+      <div class="k-data"><span class="k-name">no value</span><span class="k-value">0</span></div>
+      <div class="k-data"><span class="k-name">notes</span><span class="k-value k-secondary">none</span></div>
+    </div>
+  </div>
+
+  <!-- Encoding popover: the nested picker slot, beside the bound row -->
+  <div class="k-popover" style="left:672px;top:496px;width:272px">
+    <div class="k-popover-head">log2FoldChange as color<span class="k-grow"></span><span class="k-btn k-btn-ghost">Fix at current value</span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Scale</span><div class="k-fields"><span class="k-field k-span">linear<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Palette <span class="k-tertiary">-- diverging</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-ramp fc-ramp" style="width:24px"></span>Red to blue<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Reverse"><svg class="k-i"><use href="../kit/icons.svg#arrow-up-down"/></svg></span></div></div>
+      <div class="k-legend" style="padding-left:16px;margin:4px 0 0">Domain</div>
+      <div class="k-hist" style="height:48px;margin-bottom:0"><i style="height:13%"></i><i style="height:24%"></i><i style="height:48%"></i><i style="height:93%"></i><i style="height:100%"></i><i style="height:98%"></i><i style="height:100%"></i><i style="height:80%"></i><i style="height:61%"></i><i style="height:26%"></i><i style="height:7%"></i><i style="height:3%"></i></div>
+      <div style="padding:0 8px 0 16px"><span class="k-ramp k-ramp-wide fc-ramp"></span>
+        <div class="ticks"><span style="left:0">-2.52</span><span class="mid" style="left:44.4%">0</span><span style="left:100%">3.15</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Midpoint</span><div class="k-fields"><span class="k-field k-num">0</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">No value</span><div class="k-fields"><span class="k-field k-span k-secondary">0 nodes, not painted</span></div></div>
+      <div class="k-prose">The palest color sits at 0. Below 0 is red, above is blue: use Reverse for the opposite.</div>
+    </div>
+  </div>
+
+  <span class="an k-step" style="left:1194px;top:287px">1</span>
+  <span class="an k-step" style="left:1186px;top:528px">2</span>
+  <span class="an k-step" style="left:936px;top:501px">3</span>
+  <span class="an k-step" style="left:936px;top:565px">4</span>
+  <span class="an k-step" style="left:936px;top:851px">5</span>
+  <span class="an k-step" style="left:1186px;top:622px">6</span>
+  <span class="an k-step" style="left:296px;top:684px">7</span>
+  </div>
+  <ol class="an-list">
+    <li>The layer takes its name from its first binding while it still has an automatic name ("Style layer 1" becomes "log2FoldChange color"). Proposed. <span class="cm">content-design.md 3 (automatic names); see framework-changes.md. compact-mantine: <code>Tree</code> row with a ramp in the icon slot (canvas-drawing.md 3 chip).</span></li>
+    <li>Bound row: the pill names the attribute and shows the scale glyph; the settings button opens the encoding popover. <span class="cm">interface-specification.md 2.3; options-and-encodings.md 4. compact-mantine: <code>FieldRow</code>, <code>VariablePill</code>, <code>TrailingSlot</code>.</span></li>
+    <li>Fix at current value, until the element can name the value first. <span class="cm">options-and-encodings.md 4 (Fix at). compact-mantine: <code>Button</code> in the <code>Popout</code> header.</span></li>
+    <li>The kind of data picked the scale: signed numbers on color get linear, diverging at 0, on the shipped Red to blue palette. Reverse is the scale's own option. <span class="cm">options-and-encodings.md 5, rule 1; graphty-element scales.ts "Reverse". compact-mantine: <code>StyleSelect</code>, <code>RampRow</code> with <code>GradientEditor</code>, <code>HistogramRow</code>.</span></li>
+    <li>The pale midpoint is named in words, because the shipped palette fails the midpoint rule and 0 can read as gray. <span class="cm">canvas-drawing.md 3. compact-mantine: <code>ProseBlock</code>.</span></li>
+    <li>The layer's reach: what it paints and its No value count, in the layer editor. <span class="cm">interface-templates.md 10 (Style layer body). compact-mantine: <code>DataRow</code>.</span></li>
+    <li>The legend is graphty-element's: ramp with domain and midpoint, the departure sentence, counts, and one "No value or unstyled" entry. <span class="cm">options-and-encodings.md 6; canvas-drawing.md 8. Drawn by graphty-element, hosted by the app.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 3 -->
+<section class="st" id="size">
+  <h2 class="st-label">3. Size from a result <span>-- Degree's Appearance: its own color layer is suppressed by the fold-change layer; Size: degree adds a layer on top</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Results"><div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-typerow" style="padding-left:8px"><span class="k-icon-btn" aria-label="All results (Esc)"><svg class="k-i"><use href="../kit/icons.svg#chevron-left"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span class="k-name k-ellipsis">Degree, Sep 28 10:02</span></div>
+      <div class="k-scroll">
+      <div class="k-prose">on: full graph, 300 nodes. Exact.</div>
+      <div class="k-section-head" style="height:32px">Appearance</div>
+      <div class="k-row" style="min-height:28px"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#ef7818,#662506)"></span><span class="k-grow k-tertiary">Degree color</span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></div>
+      <div class="sub">Color set by log2FoldChange color. <a class="k-link">Apply anyway</a></div>
+      <div class="k-row" style="min-height:28px"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg><span class="k-grow">Color by degree</span></div>
+      <div class="k-row" style="min-height:28px" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-grow">Size: degree</span></div>
+      <div class="k-row" style="min-height:28px"><svg class="k-i"><use href="../kit/icons.svg#type"/></svg><span class="k-grow">Label with degree...</span></div>
+      <div class="k-section-head" style="height:32px">Top nodes</div>
+      <div class="k-data"><span class="k-name k-id">MAPK1</span><span class="k-value">34</span></div>
+      <div class="k-data"><span class="k-name k-id">TP53</span><span class="k-value">32</span></div>
+      <div class="k-data"><span class="k-name k-id">CDK1</span><span class="k-value">25</span></div>
+      <div class="k-data"><span class="k-name k-id">YWHAZ</span><span class="k-value">24</span></div>
+      <div class="k-data"><span class="k-name k-id">AKT1</span><span class="k-value">24</span></div>
+      <div class="k-row" style="min-height:28px"><span class="k-secondary">295 more</span></div>
+    </div></aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-foldchange-degree-light.svg" alt="Colored by fold change, sized by degree in five steps"><img class="k-dark-only" src="../kit/canvas/ppi-foldchange-degree-dark.svg" alt="Colored by fold change, sized by degree in five steps"></div>
+        <div class="k-legend-card" style="width:224px">
+          <div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks">
+            <div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div>
+          </div>
+          <div class="k-secondary">Square root of area, 5 steps</div>
+          <div class="k-lg-title" style="margin-top:6px">log2FoldChange color <span class="k-secondary">log2FoldChange</span></div>
+          <span class="k-ramp k-ramp-wide fc-ramp" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">-2.52</span><span class="mid" style="left:44.4%">0</span><span style="left:100%">3.15</span></div>
+          <div class="k-secondary">The palest color is 0, not missing.</div>
+        </div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll">
+        <section class="k-section"><div class="k-section-head">Statistics</div>
+          <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">1,262</span></div><div class="k-metric"><span class="k-secondary">components</span><span class="k-big">3</span></div><div class="k-metric"><span class="k-secondary">density</span><span class="k-big">0.0281</span></div></div>
+        </section><section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item"><span class="k-ramp fc-ramp" style="width:16px"></span><span class="k-ellipsis">log2FoldChange color</span><span class="k-trail"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+        </section>
+        <section class="k-section"><div class="k-section-head">Attributes</div>
+          <div class="k-data"><span class="k-name">module</span><span class="k-value">9 values</span></div>
+          <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-2.52 to 3.15</span></div>
+          <div class="k-data"><span class="k-name">degree</span><span class="k-value">0 to 34</span></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Encoding popover opened by the verb, beside its row in the run's record: names the layer it writes -->
+  <div class="k-popover" style="left:306px;top:265px;width:272px">
+    <div class="k-popover-head">Size: degree<span class="k-grow"></span><span class="k-secondary" style="font-weight:450">new layer on top</span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Scale</span><div class="k-fields"><span class="k-field k-span">square root<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Steps <span class="k-tertiary">-- cut on log(1 + x), zeros present</span></span><div class="k-fields"><span class="k-field k-num">5</span><span class="k-field">log-spaced<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-data"><span class="k-name">0 to 1</span><span class="k-value">10 nodes</span></div>
+      <div class="k-data"><span class="k-name">2 to 3</span><span class="k-value">11 nodes</span></div>
+      <div class="k-data"><span class="k-name">4 to 7</span><span class="k-value">108 nodes</span></div>
+      <div class="k-data"><span class="k-name">8 to 16</span><span class="k-value">159 nodes</span></div>
+      <div class="k-data"><span class="k-name">17 to 34</span><span class="k-value">12 nodes</span></div>
+      <div class="k-fieldrow"><span class="k-legend">Range <span class="k-tertiary">-- CSS px at zoom 1</span></span><div class="k-fields"><span class="k-field k-num">3</span><span class="k-field k-num">10.5</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">No value</span><div class="k-fields"><span class="k-field k-span k-secondary">0 nodes, not sized</span></div></div>
+    </div>
+  </div>
+
+  <span class="an k-step" style="left:282px;top:85px">1</span>
+  <span class="an k-step" style="left:282px;top:121px">2</span>
+  <span class="an k-step" style="left:172px;top:180px">3</span>
+  <span class="an k-step" style="left:282px;top:243px">4</span>
+  <span class="an k-step" style="left:136px;top:330px">5</span>
+  <span class="an k-step" style="left:562px;top:258px">6</span>
+  <span class="an k-step" style="left:562px;top:330px">7</span>
+  <span class="an k-step" style="left:520px;top:700px">8</span>
+  </div>
+  <ol class="an-list">
+    <li>The Results place: the Degree run opens in place, named by its measure and date; the back arrow (Esc) returns to all results. <span class="cm">interface-templates.md 3, 10; information-architecture.md (Results is a rail place). compact-mantine: <code>ActionRow</code>, <code>SearchInput</code>.</span></li>
+    <li>The state line names the scope. Degree is already computed, so there is nothing to run. <span class="cm">interface-templates.md 10 (Result); content-design.md 3 (scope as "on:"). compact-mantine: <code>Popout.Panel</code>, <code>TrailingSlot</code>, <code>ProseBlock</code>.</span></li>
+    <li>The run's automatic color layer is suppressed because the analyst's layer writes color; the state line says which layer, and Apply anyway puts it above. <span class="cm">interface-templates.md 10; glossary.md 9 (Apply anyway); door 26. compact-mantine: <code>Tree</code>-style row with <code>ToggleIconButton</code>, <code>ProseBlock</code>.</span></li>
+    <li>Encoding verbs the result shape allows. <span class="cm">options-and-encodings.md 4 (Encoding verbs); task-flows.md 5. compact-mantine: <code>ActionRow</code>.</span></li>
+    <li>Top nodes with values; "N more" opens the Nodes tab sorted by this column. <span class="cm">interface-templates.md 10. compact-mantine: <code>DataRow</code>, <code>ActionRow</code>.</span></li>
+    <li>Opened by a verb, the encoding popover names the layer it will write. <span class="cm">interface-templates.md 10 (Encoding). compact-mantine: <code>Popout</code> nested slot.</span></li>
+    <li>Node size is a mesh channel, so it is binned: square root of area, 5 steps cut on log(1 + x) because degree has zeros; the Range states its unit. <span class="cm">options-and-encodings.md 5, rule 4 and the default table. compact-mantine: <code>StyleSelect</code>, <code>StyleNumberInput</code>, <code>DataRow</code>.</span></li>
+    <li>The canvas legend lists blocks in stack order, top first: the new size layer, then fold-change color. <span class="cm">options-and-encodings.md 6, item 7. Drawn by graphty-element.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 4 -->
+<section class="st" id="categories">
+  <h2 class="st-label">4. Categories: one color per value <span>-- Color by module from the table's column; the new layer wins color, so the fold-change layer now paints nothing</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+        
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="img/ppi-modules-lightother-light.svg" alt="Colored by module, Other in light gray, sized by degree, TP53 selected"><img class="k-dark-only" src="img/ppi-modules-lightother-dark.svg" alt="Colored by module, Other in light gray, sized by degree, TP53 selected"></div>
+        <div class="k-legend-card" style="width:208px" role="group" aria-label="Legend: Module color">
+          <div class="k-lg-title">Module color <span class="k-secondary">module</span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Ribosome color: Sky blue. Change color" data-tip="Change color: Sky blue"><span class="k-chit" style="background:#56B4E9"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Ribosome, 56 proteins. Select them" data-tip="Select Ribosome">Ribosome<span class="k-value">56</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Proteasome color: Orange. Change color" data-tip="Change color: Orange"><span class="k-chit" style="background:#E69F00"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Proteasome, 40 proteins. Select them" data-tip="Select Proteasome">Proteasome<span class="k-value">40</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Complex I color: Bluish green. Change color" data-tip="Change color: Bluish green"><span class="k-chit" style="background:#009E73"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Complex I, 35 proteins. Select them" data-tip="Select Complex I">Complex I<span class="k-value">35</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Spliceosome color: Blue. Change color" data-tip="Change color: Blue"><span class="k-chit" style="background:#0072B2"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Spliceosome, 32 proteins. Select them" data-tip="Select Spliceosome">Spliceosome<span class="k-value">32</span></span></div>
+          <div class="k-lg-row k-secondary">4 more</div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Other color: Light gray. Change color" data-tip="Change color: Light gray"><span class="k-chit" style="background:#BDBDBD"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Other, 26 proteins: Unassigned. Select them" data-tip="Select Other">Other<span class="k-value">26</span></span></div>
+          <div class="lg-sub">Unassigned<span class="k-value">26</span></div>
+          <div class="k-lg-row k-secondary">2 more blocks</div>
+        </div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+      <section class="k-dock" aria-label="Table">
+        <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+        <div class="k-scope">Full graph: 300 nodes. Sorted by degree.</div>
+        <div class="k-table-wrap"><table class="k-table">
+          <thead><tr><th>id</th><th>module<span class="th-enc"><span class="chits3"><i style="left:6px;background:#009E73"></i><i style="left:3px;background:#E69F00"></i><i style="left:0;background:#56B4E9"></i></span></span> <span class="k-profile">9 values</span></th><th class="k-n">degree<span class="th-enc"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg></span> <span class="k-profile">0 to 34</span></th><th class="k-n">log2FoldChange <span class="k-profile">-2.52 to 3.15</span></th></tr></thead>
+          <tbody>
+            <tr><td class="k-id">MAPK1</td><td><span class="k-chit" style="background:#000000"></span> MAPK signaling</td><td class="k-n">34</td><td class="k-n">-0.52</td></tr>
+            <tr aria-selected="true"><td class="k-id">TP53</td><td><span class="k-chit" style="background:#D55E00"></span> DNA repair</td><td class="k-n">32</td><td class="k-n">-0.84</td></tr>
+            <tr><td class="k-id">CDK1</td><td><span class="k-chit" style="background:#CC79A7"></span> Cell cycle</td><td class="k-n">25</td><td class="k-n">-1.92</td></tr>
+            <tr><td class="k-id">YWHAZ</td><td><span class="k-chit" style="background:#BDBDBD"></span> Unassigned</td><td class="k-n">24</td><td class="k-n">0.44</td></tr>
+            <tr><td class="k-id">AKT1</td><td><span class="k-chit" style="background:#BDBDBD"></span> Unassigned</td><td class="k-n">24</td><td class="k-n">0.22</td></tr>
+            <tr><td class="k-id">MYC</td><td><span class="k-chit" style="background:#BDBDBD"></span> Unassigned</td><td class="k-n">23</td><td class="k-n">0.34</td></tr>
+            <tr><td class="k-id">HSP90AA1</td><td><span class="k-chit" style="background:#BDBDBD"></span> Unassigned</td><td class="k-n">21</td><td class="k-n">-1.51</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">TP53</span><span class="k-secondary">Node</span></div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Appearance</div>
+          <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Module color</span></span>
+            <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#D55E00"></span>module: DNA repair</span></span></div></div>
+          <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span>
+            <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="8" cy="6" r="5" fill="#808080"/></svg>degree: 32</span></span></div></div>
+        </section>
+        <section class="k-section">
+          <div class="k-section-head">Attributes</div>
+          <div class="k-data"><span class="k-name">module</span><span class="k-value">DNA repair</span></div>
+          <div class="k-data"><span class="k-name">degree</span><span class="k-value">32</span></div>
+          <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-0.84</span></div>
+          <div class="k-data"><span class="k-name">betweenness</span><span class="k-value">0.1139</span></div>
+          <div class="k-data"><span class="k-name">pagerank</span><span class="k-value">0.01137</span></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div class="k-popover" style="left:520px;top:150px;width:272px">
+    <div class="k-popover-head">Module as color<span class="k-grow"></span><span class="k-secondary" style="font-weight:450">writes Module color</span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Scale</span><div class="k-fields"><span class="k-field k-span">one color per value<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Palette <span class="k-tertiary">-- categorical, 8 colors</span></span><div class="k-fields"><span class="k-field k-span">Eight distinct colors<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-legend" style="padding-left:16px;margin:4px 0 0">Values, largest first</div>
+      <div class="k-data"><span class="k-chit" style="background:#56B4E9"></span><span class="k-name">Ribosome</span><span class="k-value">56</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#E69F00"></span><span class="k-name">Proteasome</span><span class="k-value">40</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#009E73"></span><span class="k-name">Complex I</span><span class="k-value">35</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#0072B2"></span><span class="k-name">Spliceosome</span><span class="k-value">32</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#000000"></span><span class="k-name">MAPK signaling</span><span class="k-value">31</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#D55E00"></span><span class="k-name">DNA repair</span><span class="k-value">30</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#CC79A7"></span><span class="k-name">Cell cycle</span><span class="k-value">29</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#F0E442"></span><span class="k-name">TGF-beta</span><span class="k-value">21</span></div>
+      <div class="k-data"><span class="k-chit" style="background:#BDBDBD"></span><span class="k-name">Other: Unassigned <span class="ro">moved</span></span><span class="k-value">26</span></div>
+      <div class="k-fieldrow" style="margin-top:4px"><span class="k-legend">Past 8 colors</span><div class="k-fields"><span class="k-field k-span">fold into Other<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">No value</span><div class="k-fields"><span class="k-field k-span k-secondary">0 nodes, not painted</span></div></div>
+    </div>
+  </div>
+  <div class="k-menu" style="left:716px;top:528px">
+    <div class="k-menu-item"><span class="k-check-col"></span>Change color...</div>
+    <div class="k-menu-item" data-hover><span class="k-check-col"></span>Move to Other</div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Select nodes</div>
+    <div class="k-menu-item"><span class="k-check-col"></span>Create set</div>
+  </div>
+
+  <span class="an k-step" style="left:280px;top:246px">1</span>
+  <span class="an k-step" style="left:280px;top:310px">2</span>
+  <span class="an k-step" style="left:766px;top:196px">3</span>
+  <span class="an k-step" style="left:766px;top:300px">4</span>
+  <span class="an k-step" style="left:905px;top:548px">5</span>
+  <span class="an k-step" style="left:1418px;top:150px">6</span>
+  <span class="an k-step" style="left:466px;top:660px">7</span>
+  <span class="an k-step" style="left:296px;top:380px">8</span>
+  <span class="an k-step" style="left:782px;top:160px">9</span>
+  </div>
+  <ol class="an-list">
+    <li>The new layer went on top, where top means it wins each channel it writes; its chip is three stacked chits, largest category in front. <span class="cm">conceptual-model.md 5.1; interaction-pattern-entries.md 6.1; canvas-drawing.md 3 (Chip). compact-mantine: <code>Tree</code>.</span></li>
+    <li>The fold-change layer is painted over everywhere, so its row says "paints nothing"; nothing reorders. A run of two or more such layers would collapse into one "N layers paint nothing" row; a single one keeps its name (proposed). <span class="cm">interface-templates.md 9; options-and-encodings.md 8 (which layer wins is read, not marked); see framework-changes.md. compact-mantine: <code>Tree</code> row.</span></li>
+    <li>Categorical level: "one color per value" is the only scale offered; a ramp is never offered for categories. <span class="cm">options-and-encodings.md 5 (the option schema refuses a level mismatch). compact-mantine: <code>StyleSelect</code>.</span></li>
+    <li>One swatch row per value with its count, largest first, each overridable. The ninth value folds into Other. <span class="cm">options-and-encodings.md 5 (Categories past the palette). compact-mantine: <code>DataRow</code> with <code>CompactColorInput</code>.</span></li>
+    <li>Proposed: a value row's menu carries Move to Other, so "Unassigned" can take the gray instead of the smallest real module. <span class="cm">See framework-changes.md. compact-mantine: <code>Menu</code>.</span></li>
+    <li>Value to layer and datum: each bound row names the winning layer and the value that drove it. <span class="cm">interaction-pattern-entries.md 4.7; interface-specification.md 2.3. compact-mantine: <code>FieldRow</code> with <code>ControlGroup</code> legend and <code>VariablePill</code>.</span></li>
+    <li>The column's header menu offers Color by beside Filter to and Partition by; the header then shows its encoding. This entry waits on the element's one scale default for both write paths. <span class="cm">task-flows.md 5 (gap on the column route); options-and-encodings.md 4, 5. compact-mantine: <code>DataTable</code> header menu.</span></li>
+    <li>Legend under its height cap: the winning block first, the rest behind "2 more blocks", including the painted-over fold-change block with its sentence. Each value row is two controls: the swatch opens the color picker, the label selects the group (state 7). Other is a light gray, clearly apart from black and from the unstyled gray, and lists what it holds under it. <span class="cm">options-and-encodings.md 6, item 7; canvas-drawing.md 8; framework-changes.md (legend colors can be edited, named and announced). Drawn by graphty-element; the light gray for Other is a change to graphty-element's default palette, not to the app.</span></li>
+    <li>Opened by a verb, the encoding popover sits beside the column header that opened it and names the layer it writes; no layer editor is open, so the one-popover rule holds. <span class="cm">interface-templates.md 10 (Encoding; the encoding popover takes the nested-picker slot); interaction-pattern-entries.md 6.2. compact-mantine: <code>Popout</code>.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 5 -->
+<section class="st" id="path">
+  <h2 class="st-label">5. A run marks only its result <span>-- Shortest path from TP53 to SMAD3: its layer marks 4 proteins and 3 interactions; every other protein keeps the paint beneath</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+        
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-foldchange-path-light.svg" alt="Fold-change colors and degree sizes unchanged; the path TP53, MSH2, UBB, SMAD3 carries a dashed two-tone mark"><img class="k-dark-only" src="../kit/canvas/ppi-foldchange-path-dark.svg" alt="Fold-change colors and degree sizes unchanged; the path TP53, MSH2, UBB, SMAD3 carries a dashed two-tone mark"></div>
+        <div class="k-legend-card" style="width:224px">
+          <div class="k-lg-title">Shortest path TP53 to SMAD3</div>
+          <div class="k-lg-row"><span class="dashchip"></span>3 steps, 4 proteins</div>
+          <div class="k-lg-title" style="margin-top:6px">Size: degree <span class="k-secondary">degree</span></div>
+          <div class="size-marks">
+            <div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div>
+          </div>
+          <div class="k-lg-title" style="margin-top:6px">log2FoldChange color <span class="k-secondary">log2FoldChange</span></div>
+          <span class="k-ramp k-ramp-wide fc-ramp" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">-2.52</span><span class="mid" style="left:44.4%">0</span><span style="left:100%">3.15</span></div>
+        </div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll">
+        <section class="k-section"><div class="k-section-head">Statistics</div>
+          <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">1,262</span></div><div class="k-metric"><span class="k-secondary">components</span><span class="k-big">3</span></div><div class="k-metric"><span class="k-secondary">density</span><span class="k-big">0.0281</span></div></div>
+        </section><section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item" aria-selected="true"><span class="dashchip"></span><span class="k-ellipsis">Shortest path TP53 to SMAD3</span><span class="k-trail"><span class="k-num">4</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item" data-off><span class="chits3" style="opacity:.45"><i style="left:6px;background:#009E73"></i><i style="left:3px;background:#E69F00"></i><i style="left:0;background:#56B4E9"></i></span><span class="k-ellipsis">Module color</span><span class="k-trail"><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#eye-off"/></svg></span></span></li>
+            <li class="k-item"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
+            <li class="k-item"><span class="k-ramp fc-ramp" style="width:16px"></span><span class="k-ellipsis">log2FoldChange color</span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- The automatic layer's editor: read-only, Edit a copy -->
+  <div class="k-popover" style="left:936px;top:283px;width:256px">
+    <div class="k-popover-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="k-ellipsis">Shortest path TP53 to SMAD3</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-row" style="min-height:28px"><span class="ro"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>written by the run</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Edit a copy</span></div>
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3 k-secondary">on this path: 4 nodes, 3 edges</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Highlight</span><div class="k-fields"><span class="k-field k-span3 k-secondary"><span class="dashchip"></span>highlight 1, long dash</span></div></div>
+      <div class="k-data"><span class="k-name">marks</span><span class="k-value">4 of 300 nodes</span></div>
+      <div class="k-prose">This layer writes only to the proteins and interactions on the path. The other 296 proteins keep the paint of the layers beneath it.</div>
+      <div class="k-section-head" style="height:32px">Steps</div>
+      <div class="k-data"><span class="k-name k-id">TP53</span><span class="k-value k-secondary">start</span></div>
+      <div class="k-data"><span class="k-name k-id">MSH2</span><span class="k-value k-secondary">1</span></div>
+      <div class="k-data"><span class="k-name k-id">UBB</span><span class="k-value k-secondary">2</span></div>
+      <div class="k-data"><span class="k-name k-id">SMAD3</span><span class="k-value k-secondary">end, 3</span></div>
+    </div>
+  </div>
+
+  <span class="an k-step" style="left:1194px;top:287px">1</span>
+  <span class="an k-step" style="left:1194px;top:319px">2</span>
+  <span class="an k-step" style="left:1170px;top:308px">3</span>
+  <span class="an k-step" style="left:1170px;top:336px">4</span>
+  <span class="an k-step" style="left:1170px;top:440px">5</span>
+  <span class="an k-step" style="left:760px;top:450px">6</span>
+  <span class="an k-step" style="left:300px;top:640px">7</span>
+  </div>
+  <ol class="an-list">
+    <li>The run's suggested layer, a highlight, on top; its trailing count is how many elements it marks. <span class="cm">canvas-drawing.md 5 (a path is a highlight layer); interface-templates.md 9. compact-mantine: <code>Tree</code> row, <code>TrailingSlot</code>.</span></li>
+    <li>Module color switched off with its eye: kept, not deleted, so fold change shows again. <span class="cm">interaction-pattern-entries.md 6.5. compact-mantine: <code>ToggleIconButton</code>.</span></li>
+    <li>An automatic layer is read-only; Edit a copy puts an analyst layer in its place. <span class="cm">interaction-pattern-entries.md 6.2; glossary.md 9. compact-mantine: <code>Button</code> in an <code>ActionRow</code>.</span></li>
+    <li>Its selector matches only elements carrying the result, so a non-result element is never visited. <span class="cm">conceptual-model.md 5.1 (an algorithm's layers write only to elements carrying its result); root CLAUDE.md, Algorithm Styles. compact-mantine: <code>FieldRow</code>, read-only.</span></li>
+    <li>Proposed: the editor of a run's layer states its reach in one sentence, so the rule is visible where a reader checks it. <span class="cm">See framework-changes.md. compact-mantine: <code>ProseBlock</code>.</span></li>
+    <li>On the canvas the path wears the highlight-1 mark (long dash in a two-tone band); fills and sizes around it are untouched. <span class="cm">canvas-drawing.md 5, 6 (ring 2a). Drawn by graphty-element.</span></li>
+    <li>The legend lists the path's entry first, in stack order; the size and fold-change blocks keep their sentences. <span class="cm">options-and-encodings.md 6, item 9. Drawn by graphty-element.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 6 -->
+<section class="st" id="refused">
+  <h2 class="st-label">6. A value the channel refuses <span>-- Shape takes categories: numbers stay listed, disabled, with the step that would make them fit</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+        
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-foldchange-degree-light.svg" alt="Colored by fold change, sized by degree"><img class="k-dark-only" src="../kit/canvas/ppi-foldchange-degree-dark.svg" alt="Colored by fold change, sized by degree"></div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll"><section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item" aria-selected="true"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span><span class="k-trail"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item"><span class="k-ramp fc-ramp" style="width:16px"></span><span class="k-ellipsis">log2FoldChange color</span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+        </section></div>
+    </aside>
+  </div>
+
+  <div class="k-popover" style="left:952px;top:132px">
+    <div class="k-popover-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span>Size: degree<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span">All nodes<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Shape<span class="k-grow"></span><span class="k-icon-btn" aria-pressed="true" aria-label="Shape: sphere"><span class="k4"></span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#minus"/></svg></span></div>
+      <div class="k-fieldrow"><span class="k-legend">Shape</span><div class="k-fields"><span class="k-field k-span">Sphere<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Size</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>degree</span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
+    </div>
+  </div>
+  <div class="k-popover" style="left:664px;top:228px;width:280px">
+    <div class="k-popover-head">Shape: apply a shape or a value<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-group-head">From the data</div>
+      <div class="picker-row"><svg class="k-i"><use href="../kit/icons.svg#tag"/></svg>module<span class="k-secondary">categories, 9</span></div>
+      <div class="picker-row" aria-disabled="true" data-hover><svg class="k-i"><use href="../kit/icons.svg#hash"/></svg>log2FoldChange<span class="k-secondary">numbers</span></div>
+      <div class="picker-why">Shape takes categories; bin log2FoldChange first</div>
+      <div class="k-group-head">Computed</div>
+      <div class="picker-row" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg>degree<span class="k-secondary">numbers</span></div>
+      <div class="picker-why">Shape takes categories; bin degree first</div>
+    </div>
+  </div>
+
+  <span class="an k-step" style="left:1162px;top:232px">1</span>
+  <span class="an k-step" style="left:936px;top:303px">2</span>
+  <span class="an k-step" style="left:936px;top:351px">3</span>
+  </div>
+  <ol class="an-list">
+    <li>Shape section's four-dot picker: Shape, line pattern and arrow kind take categories only. <span class="cm">options-and-encodings.md 4 (expressiveness). compact-mantine: <code>ControlSection</code>, <code>Popout</code>.</span></li>
+    <li>What fits is listed first and enabled. <span class="cm">options-and-encodings.md 4 (the picker is filtered by level). compact-mantine: <code>ResultRow</code>.</span></li>
+    <li>What does not fit stays listed, disabled, with the element's reason naming the channel's level and the step that would make it fit. Proposed: the reason shows under the row, not only in a tooltip, because a disabled row takes no focus and a touch screen has no hover. <span class="cm">message-catalog.md <code>graphty.style.cannotBind</code>; options-and-encodings.md 4; see framework-changes.md. compact-mantine: <code>ResultRow</code> disabled, with a secondary line.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 7 -->
+<section class="st" id="legend">
+  <h2 class="st-label">7. Change a color from the legend <span>-- the analyst tabbed to Proteasome's swatch and pressed Enter; the picker opens beside it. Her earlier pick, a light blue, is flagged as too close to Ribosome</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+        <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="img/ppi-modules-picked-light.svg" alt="Colored by module, Proteasome in a picked light blue beside Ribosome's sky blue, Other in light gray, TP53 selected"><img class="k-dark-only" src="img/ppi-modules-picked-dark.svg" alt="Colored by module, Proteasome in a picked light blue beside Ribosome's sky blue, Other in light gray, TP53 selected"></div>
+        <div class="k-legend-card" style="width:208px" role="group" aria-label="Legend: Module color">
+          <div class="k-lg-title">Module color <span class="k-secondary">module</span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Ribosome color: Sky blue. Change color" data-tip="Change color: Sky blue"><span class="k-chit" style="background:#56B4E9"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Ribosome, 56 proteins. Select them" data-tip="Select Ribosome">Ribosome<span class="k-value">56</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" data-focus-ring aria-label="Proteasome color: Light blue, picked, too close to Ribosome's Sky blue. Change color" data-tip="Change color: Light blue"><span class="k-chit" style="background:#4AA3DF"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Proteasome, 40 proteins. Select them" data-tip="Select Proteasome">Proteasome<span class="k-value">40</span></span></div>
+          <div class="lg-flag"><span class="k-warn-glyph">!</span><span>Too close to Ribosome's sky blue. <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Complex I color: Bluish green. Change color" data-tip="Change color: Bluish green"><span class="k-chit" style="background:#009E73"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Complex I, 35 proteins. Select them" data-tip="Select Complex I">Complex I<span class="k-value">35</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Spliceosome color: Blue. Change color" data-tip="Change color: Blue"><span class="k-chit" style="background:#0072B2"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Spliceosome, 32 proteins. Select them" data-tip="Select Spliceosome">Spliceosome<span class="k-value">32</span></span></div>
+          <div class="k-lg-row k-secondary">4 more</div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Other color: Light gray. Change color" data-tip="Change color: Light gray"><span class="k-chit" style="background:#BDBDBD"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Other, 26 proteins: Unassigned. Select them" data-tip="Select Other">Other<span class="k-value">26</span></span></div>
+          <div class="lg-sub">Unassigned<span class="k-value">26</span></div>
+        </div>
+        <div class="k-toolbar-dock">
+          <div class="k-toast" role="status">Proteasome is now light blue, was orange. Too close to Ribosome.<span class="k-toast-action">Undo</span></div>
+          <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">TP53</span><span class="k-secondary">Node</span></div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Appearance</div>
+          <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Module color</span></span>
+            <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#D55E00"></span>module: DNA repair</span></span></div></div>
+        </section>
+        <section class="k-section">
+          <div class="k-section-head">Attributes</div>
+          <div class="k-data"><span class="k-name">module</span><span class="k-value">DNA repair</span></div>
+          <div class="k-data"><span class="k-name">degree</span><span class="k-value">32</span></div>
+          <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-0.84</span></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- The color picker, opened from the legend swatch, beside the legend -->
+  <div class="k-popover" role="dialog" aria-label="Proteasome color" style="left:524px;top:396px;width:240px">
+    <div class="k-popover-head" style="gap:4px;padding-inline:8px"><span class="k-tabs" role="tablist"><span class="k-tab" role="tab" aria-selected="true">Custom</span><span class="k-tab" role="tab" aria-selected="false">Libraries</span></span><span class="k-grow"></span><span class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="cp-body">
+      <div class="cp-sb" role="img" aria-label="Saturation and brightness"><span class="cp-reticle"></span></div>
+      <div class="cp-slider cp-hue" role="img" aria-label="Hue"><span style="left:57%"></span></div>
+      <div class="cp-val"><span class="k-field" style="width:55px">Hex<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field k-grow k-id">4AA3DF</span><span class="k-field k-num" style="width:44px">100 %</span></div>
+      <div class="cp-name"><span class="k-chit" style="background:#4AA3DF;vertical-align:-2px"></span> Light blue, picked for Proteasome</div>
+      <div class="k-group-head cp-gh">Not used in this layer</div>
+      <div class="cp-sw"><span class="k-chit" style="background:#E69F00" role="button" tabindex="0" aria-label="Orange, not used"></span></div>
+      <div class="k-group-head">Used in this layer</div>
+      <div class="cp-sw"><span class="k-chit" style="background:#56B4E9" role="button" tabindex="0" aria-label="Sky blue, used by Ribosome"></span><span class="k-chit" style="background:#009E73" role="button" tabindex="0" aria-label="Bluish green, used by Complex I"></span><span class="k-chit" style="background:#0072B2" role="button" tabindex="0" aria-label="Blue, used by Spliceosome"></span><span class="k-chit" style="background:#000000" role="button" tabindex="0" aria-label="Black, used by MAPK signaling"></span><span class="k-chit" style="background:#D55E00" role="button" tabindex="0" aria-label="Vermilion, used by DNA repair"></span><span class="k-chit" style="background:#CC79A7" role="button" tabindex="0" aria-label="Reddish purple, used by Cell cycle"></span><span class="k-chit" style="background:#F0E442" role="button" tabindex="0" aria-label="Yellow, used by TGF-beta"></span><span class="k-chit" style="background:#BDBDBD" role="button" tabindex="0" aria-label="Light gray, used by Other"></span></div>
+    </div>
+  </div>
+
+  <span class="an k-step" style="left:292px;top:668px">1</span>
+  <span class="an k-step" style="left:292px;top:708px">2</span>
+  <span class="an k-step" style="left:504px;top:668px">3</span>
+  <span class="an k-step" style="left:750px;top:400px">4</span>
+  <span class="an k-step" style="left:750px;top:640px">5</span>
+  <span class="an k-step" style="left:292px;top:846px">6</span>
+  <span class="an k-step" style="left:900px;top:790px">7</span>
+  </div>
+  <ol class="an-list">
+    <li>Each value row is two controls, each its own Tab stop: the swatch ("Proteasome color: Light blue. Change color") and the label ("Proteasome, 40 proteins. Select them"). Clicking the label selects the group, as before; clicking the swatch, or Enter on it, opens the picker. Up and Down move to the same control in the next row, so a keyboard reader can run down the swatches or the labels. <span class="cm">framework-changes.md (legend colors can be edited, named and announced). Drawn by graphty-element, which owns the legend and its keyboard model.</span></li>
+    <li>The too-close flag sits on the entry whose color the reader picked, names both colors in words, and is announced. It never fires on the default palette's own pairs: those are graphty-element's to keep apart, which is where the black and dark-gray pair behind this round's clash is fixed. <span class="cm">framework-changes.md (one color-distance function). graphty-element computes the distance; the Print look's gray check calls the same function, so the two can never disagree about whether two colors are distinguishable.</span></li>
+    <li>The swatch that opened the picker keeps a pressed look while the picker is open; Esc closes it and returns focus there. <span class="cm">figma-spec 7.1, 7.2 (the chit opens the picker). compact-mantine: <code>CompactColorInput</code>.</span></li>
+    <li>The picker is the same one the layer editor uses (Custom and Libraries). The value row reads the color back in words, not only as hex. <span class="cm">framework-changes.md (the color picker's Custom and Libraries tabs). compact-mantine: <code>ColorPickerPanel</code>.</span></li>
+    <li>Colors the layer does not use yet come first; used ones follow, each named with the value that has it, so choosing Orange again is one step and choosing a taken color is a visible choice. <span class="cm">compact-mantine: <code>SWATCH_COLORS_HEXA</code>, set by the caller from graphty-element's palette.</span></li>
+    <li>Other is a light gray and lists what it holds, so the reader never has to guess which values were folded. <span class="cm">options-and-encodings.md 5 (Categories past the palette). The gray is graphty-element's default for Other.</span></li>
+    <li>The change is announced once in the notice, with the old color and the flag, and undoes like any edit. The edit is kept against the value Proteasome, so it survives a re-run. <span class="cm">framework-changes.md (legend colors edited on a run's layer survive a re-run). compact-mantine: <code>Notification</code>.</span></li>
+  </ol>
+</section>
+
+<script>
+/* Legend value rows: Up and Down move to the same control (swatch or label) in the next row;
+   a swatch opens state 7, where the picker is drawn open. */
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (!(t instanceof Element) || !t.matches(".lg-sw, .lg-lab") || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+  const list = [...t.closest(".k-legend-card").querySelectorAll(t.classList.contains("lg-sw") ? ".lg-sw" : ".lg-lab")];
+  const next = list[list.indexOf(t) + (e.key === "ArrowDown" ? 1 : -1)];
+  if (next) { next.focus(); e.preventDefault(); }
+});
+document.querySelectorAll("#categories .lg-sw").forEach((s) => s.addEventListener("click", () => { location.hash = "#legend"; }));
+</script>
+
+</body>
+</html>

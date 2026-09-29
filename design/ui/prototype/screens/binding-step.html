@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apply recipe: binding step</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+.x-top { max-width: 1440px; margin: 0 auto; padding: 24px 24px 8px; }
+.x-top h1 { font-size: 24px; line-height: 32px; font-weight: 600; margin: 0 0 4px; }
+.x-top p { max-width: 90ch; color: var(--cm-text-secondary); margin: 4px 0; font-size: 13px; line-height: 20px; }
+.x-top nav { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 4px 0; font-size: 13px; }
+.x-top nav a { display: inline-block; padding: 4px 0; line-height: 16px; } /* 24 px tall: WCAG 2.5.8 target size */
+.x-top a, .x-state-h a, .x-annkey a, .x-study a { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; }
+.x-notfor { display: inline-block; margin: 4px 0; padding: 2px 8px; border-radius: 4px; background: var(--cm-bg-secondary); font-size: 12px; font-weight: 550; }
+.x-toggle { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; }
+.x-state-h { width: 1440px; margin: 32px auto 8px; padding: 0 24px; }
+.x-state-h h2 { font-size: 15px; line-height: 25px; margin: 0; }
+.x-state-h p { margin: 0; max-width: 110ch; color: var(--cm-text-secondary); font-size: 13px; line-height: 20px; }
+.x-frame { position: relative; width: 1440px; height: 900px; margin: 0 auto; overflow: hidden; box-shadow: 0 0 0 1px var(--cm-border); background: var(--cm-bg); }
+.x-frame .k-app { width: 1440px; height: 900px; }
+.x-frame .k-backdrop { position: absolute; }
+.x-insets { width: 1440px; margin: 0 auto; padding: 16px 24px; display: flex; gap: 24px; align-items: flex-start; background: var(--cm-bg-secondary); box-shadow: 0 0 0 1px var(--cm-border); }
+.x-insets figure { margin: 0; }
+.x-insets figcaption { font-size: 12px; line-height: 18px; color: var(--cm-text-secondary); margin-bottom: 8px; max-width: 760px; }
+/* the dialog body: this page is the one source for it (screens/recipe-apply.html links here) */
+.b-modal { width: 760px; max-height: 880px; }
+.b-sec { padding: 12px 16px; border-bottom: 1px solid var(--cm-border); }
+.b-sec:last-child { border-bottom: 0; }
+.b-sec h3 { font-size: 11px; font-weight: 550; margin: 0 0 6px; color: var(--cm-text-secondary); }
+.b-files { display: grid; grid-template-columns: 16px 200px 1fr auto; gap: 4px 8px; align-items: center; min-height: 24px; }
+.b-files .k-btn { height: 20px; font-size: 11px; }
+.b-files .b-add { height: 24px; font-size: 11px; }
+.b-big { display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 25px; font-weight: 550; }
+.b-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
+.b-line .k-btn { height: 20px; font-size: 11px; }
+.b-near { display: flex; align-items: center; gap: 8px; min-height: 22px; white-space: nowrap; }
+.b-near .k-id { width: 64px; flex: none; font-weight: 550; }
+.b-near .k-btn { height: 20px; font-size: 11px; }
+.b-ids { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px 16px; margin: 4px 0; }
+.b-ids > span { display: flex; align-items: center; gap: 6px; min-height: 22px; white-space: nowrap; }
+.b-ids .k-id { font-weight: 550; }
+.b-brings { display: grid; grid-template-columns: 64px 1fr; gap: 2px 8px; margin-top: 8px; }
+.b-brings b { font-weight: 550; }
+.b-grid { display: grid; grid-template-columns: 140px 160px 1fr 150px; gap: 4px 12px; align-items: center; }
+.b-grid .k-field { width: 160px; }
+.b-grp { grid-column: 1 / -1; font-size: 11px; font-weight: 550; color: var(--cm-text-secondary); margin-top: 8px; }
+.b-cand { grid-column: 2 / -1; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; margin-top: -2px; }
+.b-mean { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; margin-top: 0; }
+.b-grid .b-mean .k-field, .b-mean .k-field { width: auto; height: 22px; gap: 4px; }
+.b-menu { position: static; width: 360px; margin-top: 4px; }
+.b-ok { display: flex; align-items: center; gap: 6px; }
+.b-hint { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 4px; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); }
+.b-hint p { margin: 0 0 6px; }
+.b-actions { display: flex; gap: 8px; }
+.b-actions .k-btn { height: 24px; }
+.b-foot-note { color: var(--cm-text-secondary); }
+.b-reason { color: var(--cm-text); font-weight: 550; }
+.b-load { display: flex; align-items: center; gap: 8px; }
+.b-load .k-progress { width: 160px; }
+.b-wait { height: 14px; border-radius: 3px; background: var(--cm-bg-tertiary); }
+/* the sender's side: the Export dialog's preview pane with Recipe checked */
+.s-pane { width: 1080px; max-height: none; }
+.s-body { padding: 12px 16px 16px; }
+.s-title { display: flex; align-items: center; gap: 8px; height: 32px; font-weight: 550; }
+.s-nodata, .s-does { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); margin: 0 0 8px; line-height: 18px; }
+.s-nodata b, .s-does b { display: block; }
+.s-does { box-shadow: inset 0 0 0 1px var(--cm-border-strong); background: transparent; }
+.s-cols { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 16px; margin-top: 8px; }
+.s-cols .k-data { padding-left: 0; padding-right: 0; }
+.s-col-h { display: flex; align-items: center; gap: 6px; font-weight: 550; min-height: 24px; border-bottom: 1px solid var(--cm-border); margin-bottom: 4px; }
+.s-order { color: var(--cm-text-secondary); margin: 2px 0 6px; line-height: 16px; }
+.s-step { display: grid; grid-template-columns: 16px 1fr; gap: 0 6px; margin: 4px 0; line-height: 16px; }
+.s-step > b { font-weight: 550; color: var(--cm-text-secondary); }
+.s-step ul { margin: 2px 0 0; padding-left: 14px; }
+.s-step li span, .s-step .k-secondary { color: var(--cm-text-secondary); }
+.s-det { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.s-det .k-name { color: var(--cm-text-secondary); }
+.s-det-body { margin: 0 0 4px 22px; padding: 4px 8px; border-left: 2px solid var(--cm-border); color: var(--cm-text-secondary); line-height: 16px; }
+.s-quote { margin: 2px 0 0; padding: 4px 8px; border-left: 2px solid var(--cm-border); line-height: 16px; }
+.s-from { font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); color: var(--cm-text-secondary); display: block; }
+.s-file { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--cm-border); }
+/* annotation layer: off by default; the checkbox, or #annotated in the address, turns it on */
+.ann, .x-annkey { display: none; }
+body:has(#ann-toggle:checked) .ann, body:has(#annotated:target) .ann { display: inline-grid; margin-left: 6px; vertical-align: middle; }
+body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey { display: block; }
+.x-annkey, .x-study { max-width: 1440px; margin: 24px auto; padding: 0 24px; font-size: 12px; line-height: 18px; }
+.x-study { font-size: 13px; line-height: 20px; }
+.x-study ol { max-width: 100ch; }
+.x-annkey table { border-collapse: collapse; }
+.x-annkey td, .x-annkey th { border-bottom: 1px solid var(--cm-border); padding: 6px 12px 6px 0; text-align: start; vertical-align: top; }
+</style>
+</head>
+<body data-dataset="ppi">
+<span id="annotated"></span>
+<header class="x-top">
+  <h1>Apply a recipe: what matched, before anything changes</h1>
+  <span class="x-notfor">For the owner and the studio. Not for study participants: the captions describe what the reader does. Session tasks are at the bottom of the page.</span>
+  <p>A recipe is a colleague's saved analysis with no data inside. The person who saves it says which inputs the person applying it must bring from their own table. Applying one opens the Apply recipe dialog, which shows what the recipe adds and what it reads. Until the reader's own table is added, Apply is off and the reason is printed beside it: the sender's network may carry a column of the same name, and it is never used in place of the reader's. Once the table is in, the dialog says how many genes matched, names each one that did not, asks only what it cannot decide, and commits everything with Apply, which one Undo takes back as a whole.</p>
+  <p>The same lab recipe throughout: "Expression overlay", saved by Maren Holt, the lab lead, and applied by Tom, a lab member, on the lab's 300-protein interaction network (ppi-core-300, built from STRING v12). Every number comes from the kit's protein network and Tom's 96-row qPCR table.</p>
+  <p>What a weight means is asked once, on the column, and every measure and the Path tool read that one answer. A recipe carries the answer its runs used; the dialog asks only when your column already has a different answer.</p>
+  <nav><a href="#sender">0. What the sender sees</a><a href="#waiting">1. Waiting for your table</a><a href="#all">2. Every gene matched</a><a href="#some">3. 12 genes did not match</a><a href="#chosen">3b. Mdm2 matched by hand</a><a href="#none">4. Nothing matched</a><a href="#weight">What a weight means</a><a href="#loading">While matching</a><a href="#study">Tasks for a study session</a></nav>
+  <label class="x-toggle"><input type="checkbox" id="ann-toggle"> Show annotations: the framework section behind each numbered element and the compact-mantine component it is built with (the key is at the bottom of the page)</label>
+</header>
+
+<!-- the app behind every dialog; cloned into each frame by the script at the end of the page -->
+<template id="shell"><div class="k-app" data-right="closed"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Graph"><div class="k-panel-head"><div class="k-title-line"><span class="k-project">ppi-core-300</span></div><a class="k-privacy">Nothing has been sent from this project</a><span class="k-chip">Full graph</span></div>
+    <div class="k-scroll"><section class="k-section"><div class="k-section-head">Graphs</div>
+      <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes">300</span> nodes</span></li></ul></section>
+      </div></aside>
+  <main class="k-main"><div class="k-canvas"><div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-plain-light.svg" alt="The protein network, first render, all gray"><img class="k-dark-only" src="../kit/canvas/ppi-plain-dark.svg" alt="The protein network, first render, all gray"></div></div></main><aside class="k-right"></aside></div></template>
+
+<!-- ============================================================ 0. the sender's side -->
+<div class="x-state-h" id="sender"><h2>0. What the sender sees: the same recipe, before it goes</h2><p>Maren shares the overlay from the Export dialog with Recipe checked (<a href="export-dialog.html#recipe">the whole dialog</a>). Its preview is the other side of what Tom will meet. After "No data inside", one line says what her recipient has to do, in the same words Tom's dialog uses. Travels lists the steps in the order they run when applied, the filter first and then the runs, and says the runs read the filtered graph. The layout is named, ForceAtlas2, and its settings sit under Details. Asked for says where each input comes from, the recipient's table or the network. The last column is called Not included: the network is named there, so she can see that the recipe points at it but does not carry it.</p></div>
+<div class="x-insets"><figure><figcaption>The Export dialog's preview pane with Recipe checked, at the dialog's width (the checklist on its left is not drawn)</figcaption>
+  <div class="k-modal s-pane" role="region" aria-label="What the recipe holds"><div class="s-body">
+    <div class="s-title">What the recipe holds<span class="k-grow"></span><span class="k-secondary" style="font-weight:400">Expression overlay, saved by Maren Holt</span></div>
+    <div class="s-nodata"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#circle-check"/></svg><div><b>No data inside.</b><span class="k-secondary">No genes, interactions, fold-change values, positions or notes on genes. Only how to build the analysis again on someone else's data.</span></div></div>
+    <div class="s-does"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#user"/></svg><div><b>What your recipient does: add a table with a gene id and a fold change column, then Apply.<span class="ann k-step">30</span></b><span class="k-secondary">They open the network themselves; graphty tells them which one this recipe was built on.</span></div></div>
+    <div class="s-cols">
+      <div><div class="s-col-h"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#share"/></svg>Travels</div>
+        <div class="s-order">Applied in this order: filter, then runs. The runs read the filtered graph.<span class="ann k-step">31</span></div>
+        <div class="s-step"><b class="k-num">1</b><div>Filter: confidence 0.7 or more<br><span class="k-secondary k-num">on this network keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span> interactions</span></div></div>
+        <div class="s-step"><b class="k-num">2</b><div>3 runs: PageRank, Louvain, degree
+          <ul><li>PageRank <span>damping 0.85, weighted by confidence</span></li>
+          <li>Louvain <span>resolution 1, seed 7, weighted by confidence</span></li>
+          <li>Degree <span>exact</span></li></ul></div></div>
+        <div class="k-data"><span class="k-name">style layers: fold change, module</span><span class="k-value k-num">2</span></div>
+        <div class="s-det"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg><span class="k-name k-grow">layout: ForceAtlas2</span><span class="k-secondary">Details</span><span class="ann k-step">32</span></div>
+        <div class="s-det-body k-num">gravity 1, scaling ratio 2, 100 iterations, seed 7. Positions are drawn again on the recipient's network.</div>
+        <div class="k-data"><span class="k-name">view, its camera and the Look</span><span class="k-value k-num">1</span></div>
+        <div style="margin-top:4px">1 note, on the confidence filter
+          <div class="s-quote">Confidence is STRING's combined score, version 12.0. 0.7 is STRING's high-confidence cut: build your network from the same release.</div></div></div>
+      <div><div class="s-col-h"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#link"/></svg>Asked for when applied<span class="ann k-step">34</span></div>
+        <div class="k-data"><span class="k-name">gene ids, to join a table<span class="s-from">from their table</span></span><span class="k-value">text</span></div>
+        <div class="k-data"><span class="k-name">a fold change, above and below 0<span class="s-from">from their table, named log2FC</span></span><span class="k-value">signed</span></div>
+        <div class="k-data"><span class="k-name">a module per protein<span class="s-from">from the network</span></span><span class="k-value">category</span></div>
+        <div class="k-data"><span class="k-name">a confidence per interaction<span class="s-from">from the network</span></span><span class="k-value">number</span></div></div>
+      <div><div class="s-col-h"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Not included<span class="ann k-step">33</span></div>
+        <div class="k-data"><span class="k-name">300 proteins, 1,262 interactions<span class="s-from">ppi-core-300.graphml, STRING v12: named, not carried</span></span><span class="k-value">data</span></div>
+        <div class="k-data"><span class="k-name">300 fold-change values</span><span class="k-value">data</span></div>
+        <div class="k-data"><span class="k-name">Knockdown hits (frozen set, 38)</span><span class="k-value">set</span></div>
+        <div class="k-data"><span class="k-name">300 positions</span><span class="k-value">layout</span></div>
+        <div class="k-data"><span class="k-name">4 notes on genes</span><span class="k-value">notes</span></div></div>
+    </div>
+    <div class="s-file"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-id">expression-overlay.graphty</span><span class="k-secondary">Readable text (JSON) with styles, steps and layout. It never holds your data.</span></div>
+  </div></div></figure></div>
+
+<!-- ============================================================ 1. waiting for your table -->
+<div class="x-state-h"><h2>1. Waiting for your table: the recipe preview</h2><p>Tom received Expression overlay and, as Maren's email said, opened the lab network from the shared drive. The dialog says first what the recipe brings and what he supplies, in the words Maren saw. The network is labeled as the sender's, with Replace... beside it. His table is the missing piece: "Your table: not added yet", and Add your table... is the main button, with focus. The two inputs that come from his table read "waiting for your table", and one line says the network's own log2FoldChange is not used, even though the recipe's colors could draw it. Apply is visible, reachable with Tab and announced as unavailable, and the reason is printed beside it, not in a tooltip.</p></div>
+<div class="x-frame" id="waiting" data-kit-frame data-shell>
+  <div class="k-backdrop"><div class="k-modal b-modal" role="dialog" aria-label="Apply recipe">
+    <div class="k-modal-head">Apply recipe<span class="ann k-step">1</span><span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-modal-body" style="padding:0">
+      <div class="b-sec"><div class="b-line"><span class="k-secondary" style="width:64px">Recipe</span><span class="k-field" style="width:240px">Expression overlay<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">saved by Maren Holt, Sep 26 2026</span></div>
+        <div class="b-brings"><b>Brings</b><span>2 styles, 1 filter, 3 runs.<span class="ann k-step">21</span></span><b>You supply</b><span>a table with a gene id and a fold change column.</span></div></div>
+      <div class="b-sec"><h3>Files</h3><div class="b-files">
+        <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span>Sender's network: STRING v12</span><span class="k-secondary k-num"><span class="k-id">ppi-core-300.graphml</span>, <span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span class="k-btn k-btn-ghost">Replace...<span class="ann k-step">4</span></span>
+        <svg class="k-i k-secondary"><use href="../kit/icons.svg#table"/></svg><span class="k-secondary">Your table: not added yet</span><span class="k-secondary">The fold change colors come from it.</span><span class="k-btn b-add" data-focus-ring>Add your table...<span class="ann k-step">13</span></span></div></div>
+      <div class="b-sec"><h3>What it adds</h3>
+        <div class="b-line"><span class="k-chit" style="background:linear-gradient(90deg,#2166ac,#f7f7f7,#b2182b)"></span>Fold change color<span class="k-secondary">&nbsp;style layer: blue below 0, red above</span></div>
+        <div class="b-line"><span class="k-stack"><span class="k-chit" style="background:#009E73"></span><span class="k-chit" style="background:#56B4E9"></span><span class="k-chit" style="background:#E69F00"></span></span>Module color<span class="k-secondary">&nbsp;style layer, muted</span></div>
+        <div class="b-line"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg>Confidence filter<span class="k-secondary">&nbsp;filter step: interactions at 0.7 and above; applied first</span></div>
+        <div class="b-line"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg>3 runs: PageRank, Louvain, degree<span class="k-secondary">&nbsp;on the filtered graph; they add results, not styles</span></div></div>
+      <div class="b-sec"><h3>What the recipe reads from the data<span class="ann k-step">2</span></h3><div class="b-grid">
+        <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+        <span class="b-grp" style="margin-top:2px">From your table (2)</span>
+        <span>Genes, to join</span><span class="k-field" data-disabled data-placeholder>gene column</span><span class="k-secondary">waiting for your table</span><span class="k-secondary">Fold change color</span>
+        <span>Fold change</span><span class="k-field" data-disabled data-placeholder>log2FC</span><span class="k-secondary">waiting for your table</span><span class="k-secondary">Fold change color</span>
+        <span class="b-cand">Only your table's fold change is used. The sender's network also has a log2FoldChange column; it is not offered here.<span class="ann k-step">28</span></span>
+        <span class="b-grp">From the sender's network, found by name (3)<span class="ann k-step">3</span></span>
+        <span>Module</span><span class="k-id">module</span><span class="k-num">9 modules</span><span class="k-secondary">Module color</span>
+        <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+        <span>Weight</span><span class="k-id">confidence</span><span class="k-num"><span data-fx="datasets.ppi.louvain.communities">10</span> communities</span><span class="k-secondary">PageRank, Louvain</span>
+        <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field">a closer or stronger link<span class="k-secondary">&nbsp;similarity</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">the recipe's answer</span><span class="ann k-step">23</span></span>
+      </div></div>
+    </div>
+    <div class="b-sec"><h3>How the styles go in: 2 layers, Fold change color and Module color</h3><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your 1; Base style stays.</span></span></div></div><div class="k-modal-foot"><span class="b-reason">Waiting for your table. This recipe needs log2FC from your data.<span class="ann k-step">27</span></span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" aria-disabled="true" tabindex="0">Apply</span></div>
+  </div></div></div>
+
+<!-- ============================================================ 2. every gene matched -->
+<div class="x-state-h"><h2>2. Every gene matched</h2><p>Tom adds the table he keeps of this week's hits that are in the network: 84 genes. The dialog goes on to the binding step, because a table was added and its match report is the check he came for. Every gene matched, and nothing is asked: his table's log2FC has the recipe's name and runs below and above 0, as the recipe's colors do. The row says what it will do on his numbers, 36 up and 48 down, which add up to his 84. Apply is on.</p></div>
+<div class="x-frame" id="all" data-kit-frame data-shell>
+  <div class="k-backdrop"><div class="k-modal b-modal" role="dialog" aria-label="Apply Expression overlay">
+    <div class="k-modal-head"><span role="button" class="k-icon-btn" aria-label="Back to the recipe preview"><svg class="k-i"><use href="../kit/icons.svg#arrow-left"/></svg></span>Apply recipe Expression overlay<span class="ann k-step">6</span><span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-modal-body" style="padding:0">
+      <div class="b-sec"><h3>Files</h3><div class="b-files">
+        <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span>Sender's network: STRING v12</span><span class="k-secondary k-num"><span class="k-id">ppi-core-300.graphml</span>, <span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span class="k-btn k-btn-ghost">Replace...</span>
+        <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-in-network.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.matched">84</span> rows: symbol, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...<span class="ann k-step">7</span></span></div></div>
+      <div class="b-sec"><div class="b-big k-num"><svg class="k-i k-brand"><use href="../kit/icons.svg#circle-check"/></svg><span><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.matched">84</span> genes matched</span><span class="ann k-step">29</span></div>
+        <div class="b-line"><span class="k-secondary">Your table's</span><span class="k-id">symbol</span><span class="k-secondary">against the network's protein names; letter case must match, as the recipe sets.</span><span class="k-btn k-btn-ghost">Change matching...</span><span class="ann k-step">9</span></div>
+        <div class="b-line"><span class="k-secondary">Every gene in your table is in this network. No symbol appears twice. Every matched gene has a log2FC.</span><span class="ann k-step">12</span></div></div>
+      <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+        <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+        <span class="b-grp" style="margin-top:2px">From your table, found by name (2)</span>
+        <span>Genes, to join</span><span class="k-field">symbol<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num"><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.matched">84</span> matched</span><span class="k-secondary">Fold change color</span>
+        <span>Fold change</span><span class="k-field">log2FC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num b-ok"><svg class="k-i k-i-sm k-brand"><use href="../kit/icons.svg#check"/></svg><span data-fx="datasets.ppi.expression.up">36</span> up, <span data-fx="datasets.ppi.expression.down">48</span> down<span class="ann k-step">15</span></span><span class="k-secondary">Fold change color</span>
+        <span class="b-cand k-num">Blue below 0, red above, as the recipe draws it; <span data-fx="datasets.ppi.expression.range">-2.41 to 2.98</span> on your genes.</span>
+        <span class="b-grp">From the sender's network, found by name (3)</span>
+        <span>Module</span><span class="k-id">module</span><span class="k-num">9 modules</span><span class="k-secondary">Module color</span>
+        <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+        <span>Weight</span><span class="k-id">confidence</span><span class="k-num"><span data-fx="datasets.ppi.louvain.communities">10</span> communities</span><span class="k-secondary">PageRank, Louvain</span>
+        <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field">a closer or stronger link<span class="k-secondary">&nbsp;similarity</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">the recipe's answer</span></span>
+      </div></div>
+    </div>
+    <div class="b-sec"><h3>How the styles go in: 2 layers, Fold change color and Module color</h3><div class="k-row" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your 1; Base style stays.</span></span></div></div><div class="k-modal-foot"><span class="b-foot-note">Apply is one step. One Undo takes all of it back.<span class="ann k-step">5</span></span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+  </div></div></div>
+
+<!-- ============================================================ 3. some unmatched -->
+<div class="x-state-h"><h2>3. 12 genes did not match</h2><p>This time Tom adds his full qPCR export, 96 genes. 84 matched a protein; the 12 that did not are named. 11 are not in this network, and two of those look like spreadsheet dates, which one general line explains; there is no one-click repair, because only Tom can say which gene a date was. The recipe matches genes with exact letter case, so Mdm2 is a near miss offered as a hand match. log2FC is found in his table by name and the sender's column is not a candidate, so nothing else is asked and Apply is on. The footer says how many genes stay uncolored.</p></div>
+<div class="x-frame" id="some" data-kit-frame data-shell>
+  <div class="k-backdrop"><div class="k-modal b-modal" role="dialog" aria-label="Apply Expression overlay">
+    <div class="k-modal-head"><span role="button" class="k-icon-btn" aria-label="Back to the recipe preview"><svg class="k-i"><use href="../kit/icons.svg#arrow-left"/></svg></span>Apply recipe Expression overlay<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-modal-body" style="padding:0">
+      <div class="b-sec"><h3>Files</h3><div class="b-files">
+        <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span>Sender's network: STRING v12</span><span class="k-secondary k-num"><span class="k-id">ppi-core-300.graphml</span>, <span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span class="k-btn k-btn-ghost">Replace...</span>
+        <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+      <div class="b-sec"><div class="b-big k-num"><span><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> genes matched</span><span class="ann k-step">8</span></div>
+        <div class="b-line"><span class="k-secondary">Your table's</span><span class="k-id">symbol</span><span class="k-secondary">against the network's protein names; letter case must match, as the recipe sets.</span><span class="k-btn k-btn-ghost">Change matching...</span></div>
+        <div style="margin-top:8px"><b class="k-num"><span data-fx="datasets.ppi.expression.unmatchedCount">12</span> did not match.</b> <span class="k-secondary">They stay in your table and are not colored.</span></div>
+        <div class="b-near"><span class="k-id">Mdm2</span><span class="k-secondary">differs only in letter case from MDM2</span><span class="k-btn k-btn-secondary">Use MDM2</span><span class="ann k-step">11</span></div>
+        <div class="b-line" style="margin-top:6px"><b class="k-num">Not in this network: 11 ids, for example 7-Sep</b><span class="ann k-step">10</span></div>
+        <div class="b-ids"><span><span class="k-id">7-Sep</span><span class="k-secondary">date?</span></span><span><span class="k-id">2-Mar</span><span class="k-secondary">date?</span></span><span><span class="k-id">TP53BP1</span></span><span><span class="k-id">H2AFX</span></span><span><span class="k-id">GAPDH</span></span><span><span class="k-id">ACTB</span></span><span><span class="k-id">VEGFA</span></span><span><span class="k-id">HIF1A</span></span><span><span class="k-id">IL6</span></span><span><span class="k-id">CXCL8</span></span><span><span class="k-id">SERPINE1</span></span></div>
+        <div class="b-hint"><svg class="k-i"><use href="../kit/icons.svg#calendar"/></svg><div><p style="margin:0"><b>2 ids look like spreadsheet dates (SEPT2 -&gt; 2-Sep).</b> A spreadsheet can turn a gene name into a date when the file is opened. Correct them in your table and add it again.<span class="ann k-step">22</span></p></div></div>
+        <div class="b-line"><span class="k-btn k-btn-ghost" style="margin-left:-8px"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy the 12 symbols</span><span class="k-grow"></span><span class="k-secondary">No symbol appears twice in the table.</span></div></div>
+      <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+        <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+        <span class="b-grp" style="margin-top:2px">From your table, found by name (2)</span>
+        <span>Genes, to join</span><span class="k-field">symbol<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num"><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> matched</span><span class="k-secondary">Fold change color</span>
+        <span>Fold change</span><span class="k-field">log2FC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num b-ok"><svg class="k-i k-i-sm k-brand"><use href="../kit/icons.svg#check"/></svg><span data-fx="datasets.ppi.expression.up">36</span> up, <span data-fx="datasets.ppi.expression.down">48</span> down</span><span class="k-secondary">Fold change color</span>
+        <span class="b-cand k-num">Blue below 0, red above, as the recipe draws it; <span data-fx="datasets.ppi.expression.range">-2.41 to 2.98</span> on the matched genes.</span>
+        <span class="b-grp">From the sender's network, found by name (3)</span>
+        <span>Module</span><span class="k-id">module</span><span class="k-num">9 modules</span><span class="k-secondary">Module color</span>
+        <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+        <span>Weight</span><span class="k-id">confidence</span><span class="k-num"><span data-fx="datasets.ppi.louvain.communities">10</span> communities</span><span class="k-secondary">PageRank, Louvain</span>
+        <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field">a closer or stronger link<span class="k-secondary">&nbsp;similarity</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">the recipe's answer</span></span>
+      </div></div>
+    </div>
+    <div class="b-sec"><h3>How the styles go in: 2 layers, Fold change color and Module color</h3><div class="k-row" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your 1; Base style stays.</span></span></div></div><div class="k-modal-foot"><span class="b-foot-note"><span data-fx="datasets.ppi.expression.unmatchedCount">12</span> genes stay uncolored. Apply is one step; one Undo takes all of it back.<span class="ann k-step">5</span></span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+  </div></div></div>
+
+<!-- ============================================================ 3b. one by hand -->
+<div class="x-state-h"><h2>3b. Mdm2 matched by hand</h2><p>Tom presses Use MDM2. The count becomes 85 of 96, the Mdm2 row says it was matched by hand and can be undone on its own, and the fold-change row counts his numbers again: 36 up, 49 down.</p></div>
+<div class="x-frame" id="chosen" data-kit-frame data-shell>
+  <div class="k-backdrop"><div class="k-modal b-modal" role="dialog" aria-label="Apply Expression overlay">
+    <div class="k-modal-head"><span role="button" class="k-icon-btn" aria-label="Back to the recipe preview"><svg class="k-i"><use href="../kit/icons.svg#arrow-left"/></svg></span>Apply recipe Expression overlay<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-modal-body" style="padding:0">
+      <div class="b-sec"><h3>Files</h3><div class="b-files">
+        <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span>Sender's network: STRING v12</span><span class="k-secondary k-num"><span class="k-id">ppi-core-300.graphml</span>, <span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span class="k-btn k-btn-ghost">Replace...</span>
+        <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+      <div class="b-sec"><div class="b-big k-num">85 of 96 genes matched<span class="k-secondary" style="font-size:13px;font-weight:400">&nbsp;1 by hand</span></div>
+        <div class="b-line"><span class="k-secondary">Your table's</span><span class="k-id">symbol</span><span class="k-secondary">against the network's protein names; letter case must match, as the recipe sets.</span><span class="k-btn k-btn-ghost">Change matching...</span></div>
+        <div class="b-near" style="margin-top:8px"><span class="k-id">Mdm2</span><span class="b-ok"><svg class="k-i k-i-sm k-brand"><use href="../kit/icons.svg#check"/></svg>matched by hand to MDM2</span><span class="k-btn k-btn-ghost">Undo match</span><span class="ann k-step">14</span></div>
+        <div class="b-line" style="margin-top:6px"><b class="k-num">Not in this network: 11 ids, for example 7-Sep.</b><span class="k-secondary">They stay in your table and are not colored.</span></div>
+        <div class="b-ids"><span><span class="k-id">7-Sep</span><span class="k-secondary">date?</span></span><span><span class="k-id">2-Mar</span><span class="k-secondary">date?</span></span><span><span class="k-id">TP53BP1</span></span><span><span class="k-id">H2AFX</span></span><span><span class="k-id">GAPDH</span></span><span><span class="k-id">ACTB</span></span><span><span class="k-id">VEGFA</span></span><span><span class="k-id">HIF1A</span></span><span><span class="k-id">IL6</span></span><span><span class="k-id">CXCL8</span></span><span><span class="k-id">SERPINE1</span></span></div>
+        <div class="b-hint"><svg class="k-i"><use href="../kit/icons.svg#calendar"/></svg><div><p style="margin:0"><b>2 ids look like spreadsheet dates (SEPT2 -&gt; 2-Sep).</b> A spreadsheet can turn a gene name into a date when the file is opened. Correct them in your table and add it again.</p></div></div>
+        <div class="b-line"><span class="k-btn k-btn-ghost" style="margin-left:-8px"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy the 11 symbols</span><span class="k-grow"></span><span class="k-secondary">No symbol appears twice. Every matched gene has a log2FC.</span></div></div>
+      <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+        <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+        <span class="b-grp" style="margin-top:2px">From your table, found by name (2)</span>
+        <span>Genes, to join</span><span class="k-field">symbol<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num">85 of 96 matched</span><span class="k-secondary">Fold change color</span>
+        <span>Fold change</span><span class="k-field">log2FC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num b-ok"><svg class="k-i k-i-sm k-brand"><use href="../kit/icons.svg#check"/></svg>36 up, 49 down</span><span class="k-secondary">Fold change color</span>
+        <span class="b-cand k-num">Blue below 0, red above, as the recipe draws it; <span data-fx="datasets.ppi.expression.range">-2.41 to 2.98</span> on the matched genes.</span>
+        <span class="b-grp">From the sender's network, found by name (3)</span>
+        <span>Module</span><span class="k-id">module</span><span class="k-num">9 modules</span><span class="k-secondary">Module color</span>
+        <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+        <span>Weight</span><span class="k-id">confidence</span><span class="k-num"><span data-fx="datasets.ppi.louvain.communities">10</span> communities</span><span class="k-secondary">PageRank, Louvain</span>
+        <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field">a closer or stronger link<span class="k-secondary">&nbsp;similarity</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">the recipe's answer</span></span>
+      </div></div>
+    </div>
+    <div class="b-sec"><h3>How the styles go in: 2 layers, Fold change color and Module color</h3><div class="k-row" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your 1; Base style stays.</span></span></div></div><div class="k-modal-foot"><span class="b-foot-note">11 genes stay uncolored. Apply is one step; one Undo takes all of it back.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+  </div></div></div>
+
+<!-- ============================================================ 4. nothing matched -->
+<div class="x-state-h"><h2>4. Nothing matched</h2><p>This time Tom added the export his qPCR software makes by default, which names genes by a different kind of ID. Not one of its 96 rows matched a protein. The step says so first, as a warning, says why from the shape of the values alone, and offers the two ways out. The join row, the part that failed, has focus. His log2FC was found but has no gene to color, so the fold change colors are kept but switched off. Apply still works for the parts that read the sender's network, and the footer says exactly what it will and will not add, so a network with no fold change colors is never mistaken for his result.</p></div>
+<div class="x-frame" id="none" data-kit-frame data-shell>
+  <div class="k-backdrop"><div class="k-modal b-modal" role="dialog" aria-label="Apply Expression overlay">
+    <div class="k-modal-head"><span role="button" class="k-icon-btn" aria-label="Back to the recipe preview"><svg class="k-i"><use href="../kit/icons.svg#arrow-left"/></svg></span>Apply recipe Expression overlay<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-modal-body" style="padding:0">
+      <div class="b-sec"><h3>Files</h3><div class="b-files">
+        <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span>Sender's network: STRING v12</span><span class="k-secondary k-num"><span class="k-id">ppi-core-300.graphml</span>, <span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span class="k-btn k-btn-ghost">Replace...</span>
+        <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09-ensembl.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: ensembl_id, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+      <div class="b-sec"><div class="b-big k-num"><span class="k-warn-glyph">!</span>None of the 96 genes matched<span class="ann k-step">16</span></div>
+        <div class="b-hint"><svg class="k-i"><use href="../kit/icons.svg#info"/></svg><div><p>Your table's values look like a different kind of ID from the network's protein names: <span class="k-id">ENSG00000170312</span> in your table, <span class="k-id">CDK1</span> in the network. They never match as written.<span class="ann k-step">17</span></p>
+          <div class="b-actions"><span class="k-btn k-btn-secondary">Match through a mapping table...</span><span class="k-btn k-btn-ghost">Change table...</span><span class="ann k-step">18</span></div></div></div>
+        <div class="b-line"><span class="k-btn k-btn-ghost" style="margin-left:-8px"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy all 96 IDs</span></div></div>
+      <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+        <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+        <span class="b-grp" style="margin-top:2px">From your table (2)</span>
+        <span>Genes, to join</span><span class="k-field" data-focus>ensembl_id<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num">0 of 96 matched</span><span class="k-secondary">Fold change color</span>
+        <span>Fold change</span><span class="k-field">log2FC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">no matched gene: kept, switched off<span class="ann k-step">19</span></span><span class="k-secondary">Fold change color</span>
+        <span class="b-grp">From the sender's network, found by name (3)</span>
+        <span>Module</span><span class="k-id">module</span><span class="k-num">9 modules</span><span class="k-secondary">Module color</span>
+        <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+        <span>Weight</span><span class="k-id">confidence</span><span class="k-num"><span data-fx="datasets.ppi.louvain.communities">10</span> communities</span><span class="k-secondary">PageRank, Louvain</span>
+        <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field">a closer or stronger link<span class="k-secondary">&nbsp;similarity</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">the recipe's answer</span></span>
+      </div></div>
+    </div>
+    <div class="b-sec"><h3>How the styles go in: 2 layers, Fold change color and Module color</h3><div class="k-row" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your 1; Base style stays.</span></span></div></div><div class="k-modal-foot"><span class="b-foot-note">Apply adds the module colors, the filter and the 3 runs. Your fold change colors stay off: no gene matched.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+  </div></div></div>
+
+<!-- ============================================================ inset: the weight's meaning -->
+<div class="x-state-h" id="weight"><h2>What a weight means: asked once, on the column</h2><p>The weight row's select is the one question every measure and the Path tool read; it is the same select wherever a column's meaning is set. Left: Tom's own copy of the network, where he once answered that a higher confidence means a longer or costlier step. That disagrees with the recipe's runs, so the row moves under Needs a choice, the select opens with both answers named, and Apply waits. Right: he chose Don't use confidence. The column then reads "confidence, not used", and the two runs that read it are kept but switched off, like any part left unbound.</p></div>
+<div class="x-insets" style="flex-wrap:wrap"><figure><figcaption>The weight row when your column's answer differs from the recipe's (the reads section only)</figcaption>
+  <div class="k-modal b-modal" style="max-height:none"><div class="k-modal-body" style="padding:0"><div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+    <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+    <span class="b-grp" style="margin-top:2px">Needs a choice (1)</span>
+    <span>Weight</span><span class="k-field">confidence<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">the only number column on the edges<span class="ann k-step">24</span></span><span class="k-secondary">PageRank, Louvain</span>
+    <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field" data-focus data-placeholder>Choose<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      <span class="k-menu b-menu" role="listbox" aria-label="For confidence, a higher number means">
+        <span class="k-menu-label">For confidence, a higher number means...</span>
+        <span class="k-menu-item" data-described role="option"><span class="k-check-col"></span><span>a closer or stronger link<span class="k-menu-desc">similarity; the recipe's answer</span></span></span>
+        <span class="k-menu-item" data-described role="option" data-hover><span class="k-check-col"></span><span>a longer or costlier step<span class="k-menu-desc">distance; your answer on this network</span></span></span>
+        <span class="k-menu-item" data-described role="option"><span class="k-check-col"></span><span>more can pass through<span class="k-menu-desc">capacity</span></span></span>
+        <span class="k-menu-sep"></span>
+        <span class="k-menu-item" role="option"><span class="k-check-col"></span><span>Don't use confidence</span></span>
+      </span><span class="ann k-step">25</span></span>
+  </div></div></div>
+  <div class="k-modal-foot"><span class="b-foot-note">Say what a higher confidence means to apply.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" aria-disabled="true" tabindex="0">Apply</span></div></div></figure>
+  <figure><figcaption>After Don't use confidence: the column reads "confidence, not used"</figcaption>
+  <div class="k-modal b-modal" style="max-height:none"><div class="k-modal-body" style="padding:0"><div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+    <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+    <span class="b-grp" style="margin-top:2px">Chosen (1)</span>
+    <span>Weight</span><span class="k-field">confidence<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">kept, switched off</span><span class="k-secondary">PageRank, Louvain</span>
+    <span class="b-cand b-mean">For confidence, a higher number means<span class="k-field">Don't use confidence<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-id">confidence, not used</span><span class="ann k-step">26</span></span>
+  </div></div></div>
+  <div class="k-modal-foot"><span class="b-foot-note">Apply adds the styles, the filter and degree; PageRank and Louvain wait for an answer.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div></div></figure></div>
+
+<!-- ============================================================ inset: while matching -->
+<div class="x-state-h" id="loading"><h2>While matching</h2><p>Matching is graphty-element's work. Until its report arrives, the step shows the files it read and a loading row in place of the report; the rows below wait, and Apply is off. For 96 rows this lasts a moment; for a table of tens of thousands of rows it is visible.</p></div>
+<div class="x-insets"><figure><figcaption>The binding step before the report arrives (dialog only, same size as above)</figcaption>
+  <div class="k-modal b-modal" role="dialog" aria-label="Apply Expression overlay">
+    <div class="k-modal-head"><span role="button" class="k-icon-btn" aria-label="Back to the recipe preview"><svg class="k-i"><use href="../kit/icons.svg#arrow-left"/></svg></span>Apply recipe Expression overlay<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-modal-body" style="padding:0">
+      <div class="b-sec"><h3>Files</h3><div class="b-files">
+        <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span>Sender's network: STRING v12</span><span class="k-secondary k-num"><span class="k-id">ppi-core-300.graphml</span>, <span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span class="k-btn k-btn-ghost">Replace...</span>
+        <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+      <div class="b-sec"><div class="b-load"><svg class="k-i k-secondary"><use href="../kit/icons.svg#loader-circle"/></svg><span class="k-num">Matching 96 genes against 300 proteins...</span><div class="k-progress"><i style="width:35%"></i></div><span class="ann k-step">20</span></div></div>
+      <div class="b-sec"><h3>What the recipe reads from the data</h3>
+        <div class="b-wait" style="width:70%;margin:6px 0"></div><div class="b-wait" style="width:55%;margin:6px 0"></div><div class="b-wait" style="width:62%;margin:6px 0"></div></div>
+    </div>
+    <div class="b-sec"><h3>How the styles go in: 2 layers, Fold change color and Module color</h3><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your 1; Base style stays.</span></span></div></div><div class="k-modal-foot"><span class="b-foot-note">Matching genes</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" aria-disabled="true" tabindex="0">Apply</span></div>
+  </div></figure></div>
+
+<section class="x-study" id="study"><h2>Tasks for a study session</h2>
+<p>Show state 1, then 3 or 4, with the annotations off and without the captions above; show state 0 to a participant playing the sender. Ask these in order and write down the answers before showing anything else. The pass condition, from the framework's pattern for bringing a recipe in, is that the participant can say, before Apply, what each part of the recipe will read and where it comes from.</p>
+<ol>
+  <li>(State 1) Is this recipe ready to use? What is missing, and what would you do next?</li>
+  <li>(State 1) Where did this network come from? Whose fold change will the colors show?</li>
+  <li>Before you press anything: how many of your genes will be colored, and which will not?</li>
+  <li>Pick one gene that will not be colored. Why not, as far as this window tells you? Whose problem is it, yours or the file's?</li>
+  <li>If you press Apply now, what will change on your network, and how would you take it back?</li>
+  <li>(State 4 only) What would you do next to get your genes colored?</li>
+  <li>(State 0, as the sender) What will your colleague have to do to use this? Which of your data leaves with it? Is the layout the same when they open it?</li>
+  <li>(Any state) The recipe groups proteins using confidence. For this network, what does a higher confidence mean, and if a colleague disagreed, where would you change it?</li>
+</ol>
+<p>Record where the participant looks first, any word they stop on, and whether they open anything to answer. In state 1, record whether they reach for Apply.</p></section>
+
+<section class="x-annkey"><h2>Annotation key</h2><table><thead><tr><th>#</th><th>Element</th><th>Framework</th><th>compact-mantine</th></tr></thead><tbody>
+<tr><td><span class="k-step">1</span></td><td>The Apply recipe dialog at its first step: the recipe chosen and what it carries, before anything changes. Esc, the close button and Cancel all close it with nothing applied</td><td>interaction-pattern-entries.md 6.10 (Behavior: "Choosing one shows what it carries before it is applied"); Esc as Cancel is PROPOSED (framework-changes.md, "Esc in a binding step is Cancel; Back is the header's arrow")</td><td>Mantine Modal (760) with ModalFooter; ComboInput for the recipe</td></tr>
+<tr><td><span class="k-step">2</span></td><td>Needs are grouped by where they come from: "From your table" first, then "From the sender's network, found by name". No blanket "everything was found" line, ever</td><td>PROPOSED, framework-changes.md, "A recipe's 'your data' needs: Apply waits with its reason, never the sender's column" and "Recipe binding: the recipe preview waits for your table" (this page)</td><td>DataRow grid with column captions and group labels</td></tr>
+<tr><td><span class="k-step">3</span></td><td>A need found by name is a compact read-only line, still naming its column, its effect and what uses it. PROPOSED departure from Missing Fonts, which lists only what is unresolved</td><td>interface-templates.md 20, Binding step; options-and-encodings.md 10 (unsettled rows first); framework-changes.md, "Binding step: every need shown, unresolved first"</td><td>DataRow (read-only) under a group label</td></tr>
+<tr><td><span class="k-step">4</span></td><td>The network the recipe was built on is labeled as the sender's, with its source and version, and Replace... to use another</td><td>PROPOSED, framework-changes.md, "Recipe binding: the recipe preview waits for your table"; round 3 finding "A shared recipe looks finished before the recipient's own data is in it"</td><td>DataRow; Mantine Button (subtle)</td></tr>
+<tr><td><span class="k-step">5</span></td><td>One step, one Undo; the footer says what stays undone (genes uncolored, parts switched off)</td><td>interaction-pattern-entries.md 6.10 (Undo: one step for the whole application); interaction-patterns.md 3.4</td><td>ModalFooter text; Mantine Button</td></tr>
+<tr><td><span class="k-step">6</span></td><td>The binding step. Its header's back arrow returns to the recipe preview with every choice kept; Esc, the close button and Cancel apply nothing</td><td>interface-templates.md 20 (Binding step, after Figma's Missing Fonts); 6.10; framework-changes.md, "Esc in a binding step is Cancel; Back is the header's arrow"</td><td>Mantine Modal; ActionIcon (back, close)</td></tr>
+<tr><td><span class="k-step">7</span></td><td>A table added in this apply is listed with what it read as; Change... picks another</td><td>framework-changes.md, "when the load step is skipped, and how a network and a table picked together load"</td><td>DataRow; Mantine Button (subtle)</td></tr>
+<tr><td><span class="k-step">8</span></td><td>The matched count leads</td><td>task-flows.md 8 (trust check: matched and unmatched counts; "412 of 430 genes matched; these 18 did not")</td><td>DataRow in a heading size</td></tr>
+<tr><td><span class="k-step">9</span></td><td>What was matched against what, and the case rule, in one line; the key picker and Match case sit behind Change matching... while the count is good</td><td>element-contract.md, "Key matching" (Match case, off by default). The recipe setting exact case is PROPOSED, a one-way door for the owner (framework-changes.md, "a recipe records how its join matches")</td><td>Text; Mantine Button (subtle) opening a Popover with ComboInput and Checkbox</td></tr>
+<tr><td><span class="k-step">10</span></td><td>Every unmatched gene by name under one plain heading, "Not in this network: N ids, for example X"; a date-shaped id is tagged "date?"</td><td>task-flows.md 8 (never skipped silently); PROPOSED wording, framework-changes.md, "A received recipe says what it brings and what you supply; unmatched ids read Not in this network"</td><td>Text heading; SimpleGrid of Text; subtle Button for Copy</td></tr>
+<tr><td><span class="k-step">11</span></td><td>A case-only near miss, sorted first, offered as a one-click hand match. It exists only because the recipe asks for exact case</td><td>element-contract.md, "Key matching"; message-catalog.md graphty.file.report ("matched by hand")</td><td>Mantine Button (default variant, small)</td></tr>
+<tr><td><span class="k-step">12</span></td><td>Duplicates and missing values are always reported, here as none</td><td>element-contract.md, "Key matching" ("one report of matched, unmatched and duplicate keys")</td><td>Text</td></tr>
+<tr><td><span class="k-step">13</span></td><td>"Your table: not added yet", with Add your table... as the dialog's main button, holding focus when the dialog opens</td><td>PROPOSED, framework-changes.md, "Recipe travels: an input the recipient supplies waits for their table" and "Recipe binding: the recipe preview waits for your table"</td><td>DataRow; Mantine Button (filled), autofocus</td></tr>
+<tr><td><span class="k-step">14</span></td><td>A hand match, marked and undoable on its own; the count moves to 85</td><td>message-catalog.md graphty.file.report ("matched by hand")</td><td>Mantine Button (subtle)</td></tr>
+<tr><td><span class="k-step">15</span></td><td>The table's column, found by name, and its effect on the reader's own numbers. Its sign agrees with the recipe's diverging colors, so nothing is asked</td><td>options-and-encodings.md 5, rule 1 (signed values: diverging at 0, from the element's per-column verdict); framework-changes.md, "a signed column is asked about only when it disagrees with the recipe"</td><td>ComboInput; DataRow</td></tr>
+<tr><td><span class="k-step">16</span></td><td>Nothing matched is said first, as a warning. No field carries an error outline</td><td>interaction-patterns.md 3.4 (no modal error); message-catalog.md (warning mark)</td><td>DataRow in a heading size with the warning glyph</td></tr>
+<tr><td><span class="k-step">17</span></td><td>Why, from the values' shape, with one example from each side; no named identifier kinds</td><td>framework-changes.md, "Binding step: when nothing matched, it says why from the values' shape and offers the two ways out"</td><td>InfoCircle ProseBlock</td></tr>
+<tr><td><span class="k-step">18</span></td><td>The two ways out. Match through a mapping table... asks for a two-column table that pairs the two kinds of ID; that step is not drawn yet</td><td>element-contract.md, "Key matching" ("via mapping table"); task-flows.md 8</td><td>Mantine Button (default, subtle)</td></tr>
+<tr><td><span class="k-step">19</span></td><td>A part that would read nothing is kept, switched off, and says why</td><td>options-and-encodings.md 10 ("A layer left unbound stays in the stack, disabled"); framework-changes.md, "The binding step names what an unbound attribute switches off"</td><td>ComboInput; DataRow</td></tr>
+<tr><td><span class="k-step">20</span></td><td>The loading row while graphty-element matches</td><td>interface-templates.md 20 ("a preview not yet available (the body shows its loading row)")</td><td>Loader; Progress</td></tr>
+<tr><td><span class="k-step">21</span></td><td>What a received recipe brings and what the reader supplies, before anything else, in the same words as the sender's "What your recipient does"</td><td>interaction-pattern-entries.md 6.10; PROPOSED wording, framework-changes.md, "Recipe binding: the recipe preview waits for your table"</td><td>Text in a two-column SimpleGrid</td></tr>
+<tr><td><span class="k-step">22</span></td><td>One general line for every date-shaped id, with a known example. No repair button: nothing can know which gene a date was</td><td>PROPOSED, framework-changes.md, "A received recipe says what it brings ..."</td><td>InfoCircle ProseBlock</td></tr>
+<tr><td><span class="k-step">23</span></td><td>A need the recipe reads as a weight. The meaning sits on the column's row as one select, preset to the recipe's answer when your column has none; Apply sets it on the column, inside the one Undo</td><td>graph-conventions.md 1, "Weight roles on the attribute"; task-flows.md 8; PROPOSED, framework-changes.md, "Binding step: a recipe's weight carries its meaning, asked in the column's words"</td><td>Mantine Select with option descriptions (the described option is proposed to compact-mantine)</td></tr>
+<tr><td><span class="k-step">24</span></td><td>The Weight need's column picker is an ordinary select listing the numeric edge columns</td><td>PROPOSED, framework-changes.md, same entry</td><td>Mantine Select</td></tr>
+<tr><td><span class="k-step">25</span></td><td>"For confidence, a higher number means...", with the technical term as secondary text; both conflicting answers named, none preselected, focus on it, Apply waits</td><td>glossary.md 11 (the roles); PROPOSED wording, framework-changes.md, same entry</td><td>Mantine Select, open (Combobox options with a description line)</td></tr>
+<tr><td><span class="k-step">26</span></td><td>A declined meaning reads "{column}, not used", and the runs that need it are kept, switched off</td><td>options-and-encodings.md 10; framework-changes.md, "graphty-element: an unanswered weight meaning is 'not used' by every measure"</td><td>Mantine Select; Text</td></tr>
+<tr><td><span class="k-step">27</span></td><td>Apply is disabled but stays in the Tab order and is announced as unavailable; the reason is printed beside it in body text, not in a tooltip</td><td>PROPOSED, framework-changes.md, "Recipe binding: the recipe preview waits for your table"; interaction-patterns.md 3.4</td><td>ModalFooter; Mantine Button with data-disabled (not the disabled attribute, so it keeps focus)</td></tr>
+<tr><td><span class="k-step">28</span></td><td>The sender's column of the same name is never offered for an input the reader supplies; one line says so</td><td>PROPOSED, framework-changes.md, "Recipe travels: an input the recipient supplies waits for their table, never takes the network's column"</td><td>Text</td></tr>
+<tr><td><span class="k-step">29</span></td><td>Adding a table always shows its match report, even when every gene matched</td><td>task-flows.md 8 (trust check); PROPOSED, framework-changes.md, "Recipe binding: the recipe preview waits for your table"</td><td>DataRow in a heading size</td></tr>
+<tr><td><span class="k-step">30</span></td><td>The sender's side: one line saying what the recipient does, in the words the recipient's dialog uses</td><td>task-flows.md 9 (trust check for a recipe); PROPOSED, framework-changes.md, "Share the setup: the recipient's task, the order of steps, the layout and Not included"</td><td>ProseBlock</td></tr>
+<tr><td><span class="k-step">31</span></td><td>The order the steps run in when applied: filter, then runs, and that the runs read the filtered graph</td><td>files-and-recipes.md 1 (data steps and run specifications); PROPOSED, same entry</td><td>Text; numbered DataRows</td></tr>
+<tr><td><span class="k-step">32</span></td><td>The layout named, with its settings under Details (shown open)</td><td>files-and-recipes.md 1 (layout settings travel); PROPOSED, same entry</td><td>ActionRow with Caret opening a Collapse</td></tr>
+<tr><td><span class="k-step">33</span></td><td>"Not included" (was "Left behind"); the network is named there as not carried</td><td>PROPOSED, same entry</td><td>DataRow</td></tr>
+<tr><td><span class="k-step">34</span></td><td>Each input asked for says where it comes from: their table or the network. The mark is the sender's choice in Export recipe... and a recipe-format field, a one-way door for the owner</td><td>framework-changes.md, "Recipe travels: an input the recipient supplies waits for their table" (For the owner)</td><td>DataRow with a caption line</td></tr>
+</tbody></table></section>
+
+<script>
+// Put the app behind each dialog: one copy of the shell, so the five frames cannot drift apart.
+for (const f of document.querySelectorAll("[data-shell]")) f.prepend(document.getElementById("shell").content.cloneNode(true));
+</script>
+</body>
+</html>

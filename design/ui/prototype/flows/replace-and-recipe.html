@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update with new data, apply a recipe, compare</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+.flowsvg { width: 100%; max-width: 1120px; height: auto; display: block; margin: 8px 0 16px; }
+.flowsvg .n { fill: var(--cm-bg); stroke: var(--cm-text); stroke-width: 1.2; }
+.flowsvg .n.chk { stroke-width: 2; fill: var(--cm-bg-secondary); }
+.flowsvg .n.com { fill: var(--cm-bg-selected); }
+.flowsvg .n.br { stroke: var(--k-annot); }
+.flowsvg a:hover .n { fill: var(--cm-bg-hover); }
+.flowsvg .t { font-size: 12px; fill: var(--cm-text); }
+.flowsvg .l { font-size: 11px; fill: var(--cm-text-secondary); }
+.flowsvg .l.le { fill: var(--k-annot-ink); }
+.flowsvg .e { fill: none; stroke: var(--cm-text-secondary); stroke-width: 1.2; }
+.flowsvg .e.err { stroke: var(--k-annot); stroke-dasharray: 2 3; }
+.flowsvg .ahp { fill: var(--cm-text-secondary); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--cm-text-secondary); }
+.keyrow svg { vertical-align: middle; margin-right: 6px; }
+.wide { max-width: none !important; }
+.k-doc table.steps { font-size: 12px; line-height: 18px; }
+.k-doc .facts th { width: 150px; }
+.k-flow { margin: 8px 0 16px; }
+.cards3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.cards3 .k-flow-step { max-width: none; }
+@media (max-width: 900px) { .cards3 { grid-template-columns: 1fr; } }
+.needs { padding: 12px 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+/* the three product fragments drawn inline */
+.frags { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 12px 0 8px; align-items: start; }
+.frag { background: var(--cm-bg); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); padding: 4px 0 8px; font-size: 11px; line-height: 16px; max-width: 420px; }
+.frag-cap { margin: 4px 0 0; font-size: 12px; color: var(--cm-text-secondary); }
+.frag .k-section-head { padding-inline: 16px; }
+.frag .wc { list-style: none; margin: 0; padding: 0 8px 0 16px; }
+.frag .wc li { padding: 4px 0; border-top: 1px solid var(--cm-border); }
+.frag .wc li:first-child { border-top: 0; }
+.frag .wc .hd { display: flex; gap: 8px; align-items: center; }
+.frag .wc .sp { color: var(--cm-text-secondary); }
+.frag .vrow { display: flex; gap: 8px; align-items: center; padding: 6px 16px; }
+.frag .acts { display: flex; gap: 8px; padding: 8px 16px 0; flex-wrap: wrap; }
+.frag .pin { margin: 4px 8px; padding: 6px 8px; border-radius: 5px; background: var(--cm-bg-secondary); display: flex; gap: 8px; align-items: center; }
+.frag table { border-collapse: collapse; width: 100%; font-size: 11px; }
+.frag th, .frag td { text-align: start; padding: 3px 8px; border-top: 1px solid var(--cm-border); white-space: nowrap; }
+.frag th { color: var(--cm-text-secondary); font-weight: 450; border-top: 0; }
+.frag .opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 16px; }
+</style>
+</head>
+<body>
+<div class="k-doc">
+<p><a href="../index.html">Design gallery</a></p>
+<h1>Update with new data, apply a recipe, compare with the last version</h1>
+<p class="k-lede">Sarah, a fraud analyst, built her mule-ring review on March's <span data-fx="datasets.transactions.nodes">3,000</span> accounts. April's two files arrive with <span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts. She updates the project with new data, which swaps the data under the same analysis, reads what changed and what replayed, re-runs the one result that was too slow to replay on its own, applies her team's recipe and a recipe of the team's colors, and then compares April's communities with March's before she exports the table for her manager. A second telling follows a biologist opening a colleague's recipe that brings its own network and needs his table.</p>
+<p>Every shape with a screen links to the state it shows (<a href="../screens/replace-and-recipe.html">the 12 states of the update and recipe screens</a>, light and dark, with annotations). Counts are the kit's March and April transfer data. The screens still show the earlier command label and the earlier replay report; the three new pieces this flow adds (the version row's What changed, the large-change mark and the export's comparison column) are drawn inline below.</p>
+
+<div class="needs">
+<p><b>Not buildable yet.</b> graphty-element does not have these today, and the app must not stand in for any of them: a load preview before anything changes; data versions and Data &gt; Versions; the count split between two versions (what is in both, new, and not in the newer one) and the large-change flag on it; applying a recipe with its report of what matched; replacing the whole style stack; one undo entry for an update or a recipe; the replay queue, its combined cost and its report; results marked out of date; comparing a partition across two data versions; and the table export's comparison column. The app only shows what graphty-element publishes: it never counts nodes, splits counts or decides that a change is large.</p>
+</div>
+
+<h2>The route: two directions, two endings</h2>
+<p>Update with new data keeps the analysis and swaps the data; Apply recipe keeps the data and brings the analysis. Each opens a binding step only when something did not match. They share that pattern, not their endings: only an update replays results and adds a data version with its What changed summary.</p>
+<p>Update with new data... is one command in two places: the Data panel's header, where the data lives, and the project-name menu, where a weekly user looks first on a reopened project. Both carry the same description under the label: "Replaces nodes and edges. Keeps styles, sets, notes and runs." When the new files have the same columns as the data loaded now, the load step's main button is Replace March data and Enter chooses it; Add to March data is the second button.</p>
+<div class="keyrow">
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="none" stroke="currentColor"/></svg>a place in the app</span>
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="7" fill="none" stroke="currentColor"/></svg>a dialog or picker</span>
+<span><svg width="24" height="18"><polygon points="12,1 23,9 12,17 1,9" fill="none" stroke="currentColor"/></svg>a decision</span>
+<span><svg width="34" height="16"><polygon points="6,1 28,1 33,8 28,15 6,15 1,8" fill="none" stroke="currentColor" stroke-width="2"/></svg>a trust check, on screen without navigating</span>
+<span><svg width="34" height="16"><polygon points="6,1 33,1 28,15 1,15" fill="currentColor" fill-opacity=".15" stroke="currentColor"/></svg>a committed change: one undo entry</span>
+<span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--k-annot)" stroke-dasharray="2 3"/></svg>error, cancellation, the other button or a way back</span>
+</div>
+<svg class="flowsvg" viewBox="0 0 1120 1050" role="group" aria-labelledby="f8-t"><title id="f8-t">Update with new data and Apply recipe: four entries; the data route through the load step with Replace as the main button when the columns match, its binding step, one undo entry, the replay, April's version row with What changed, and re-running what is out of date; the recipe route through its picker or preview, its binding step, one undo entry and the added objects marked</title>
+<defs><marker id="ah-f8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+<!-- entries -->
+<a href="../screens/start-screen.html#s4"><rect class="n" x="16" y="16" width="184" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="36.5">Start screen: Open...,</tspan><tspan x="108" y="51.5">a recipe</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-menu"><rect class="n" x="240" y="16" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="360" y="36.5">Data panel or project-name menu:</tspan><tspan x="360" y="51.5">Update with new data...</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="510" y="18" width="200" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="610" y="36.5">Drop choice step:</tspan><tspan x="610" y="51.5">a data or recipe file</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-pick"><rect class="n" x="830" y="16" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="950" y="36.5">Main menu: Recipes:</tspan><tspan x="950" y="51.5">Apply recipe...</tspan></text></a>
+<!-- row B -->
+<a href="../screens/start-screen.html#s4"><rect class="n" x="16" y="104" width="184" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="122.5">Canvas: recipe pending,</tspan><tspan x="108" y="137.5">waits for your table</tspan></text></a>
+<rect class="n" x="240" y="104" width="240" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="360" y="130">File picker: both April files</tspan></text>
+<a href="../screens/replace-and-recipe.html#s-recipe-pick"><rect class="n" x="560" y="104" width="150" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="635" y="122.5">Recipe preview:</tspan><tspan x="635" y="137.5">carries and needs</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-pick"><rect class="n" x="830" y="104" width="240" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="950" y="122.5">Recipe picker: what</tspan><tspan x="950" y="137.5">it carries and needs</tspan></text></a>
+<!-- data route -->
+<a href="../screens/replace-and-recipe.html#s-load"><rect class="n" x="240" y="188" width="240" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="360" y="208.5">Load step: April beside March,</tspan><tspan x="360" y="223.5">"Same columns as the data loaded"</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-load"><polygon class="n" points="360,262 460,300 360,338 260,300"/><text class="t" text-anchor="middle"><tspan x="360" y="296.5">Could the files</tspan><tspan x="360" y="311.5">be read?</tspan></text></a>
+<rect class="n br" x="16" y="276" width="184" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="296.5">Load step: Could not open</tspan><tspan x="108" y="311.5">{file}: {cause}; Read as...</tspan></text>
+<a href="../screens/replace-and-recipe.html#s-bind-replace"><polygon class="n" points="360,370 485,420 360,470 235,420"/><text class="t" text-anchor="middle"><tspan x="360" y="412.5">Any column not</tspan><tspan x="360" y="427.5">matched by name?</tspan></text></a>
+<a href="../screens/weekly-return.html#adddata"><rect class="n br" x="540" y="326" width="250" height="62" rx="3"/><text class="t" text-anchor="middle"><tspan x="665" y="345">Added on top: 3,132 accounts,</tspan><tspan x="665" y="360">17,483 transfers; the 39 not in</tspan><tspan x="665" y="375">April stay in. One Undo.</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-bind-replace"><rect class="n" x="240" y="510" width="240" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="360" y="530.5">Binding step: one choice per</tspan><tspan x="360" y="545.5">column; Apply reads Replace</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-replaying"><polygon class="n com" points="254,600 480,600 466,644 240,644"/><text class="t" text-anchor="middle"><tspan x="360" y="626">Replaced: one undo entry</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-replaying"><rect class="n" x="240" y="684" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="360" y="704.5">Canvas: April drawn, positions</tspan><tspan x="360" y="719.5">kept; 4 results replay, 1 waits</tspan></text></a>
+<rect class="n br" x="16" y="684" width="184" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="704.5">Replay canceled: unfinished</tspan><tspan x="108" y="719.5">results read Out of date</tspan></text>
+<a href="../screens/replace-and-recipe.html#s-report"><polygon class="n chk" points="256,772 464,772 480,794 464,816 256,816 240,794"/><text class="t" text-anchor="middle"><tspan x="360" y="790.5">Notice: Data updated:</tspan><tspan x="360" y="805.5">4 of 5 results replayed</tspan></text></a>
+<a href="#what-changed"><polygon class="n chk" points="576,766 824,766 840,796 824,826 576,826 560,796"/><text class="t" text-anchor="middle"><tspan x="700" y="785">Data &gt; Versions: April's row,</tspan><tspan x="700" y="800">What changed; the two jumps</tspan><tspan x="700" y="815">marked large change</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-report"><polygon class="n" points="360,860 460,900 360,940 260,900"/><text class="t" text-anchor="middle"><tspan x="360" y="896.5">Anything</tspan><tspan x="360" y="911.5">out of date?</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-rerun"><rect class="n" x="240" y="980" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="360" y="1000.5">Results: Re-run, with its</tspan><tspan x="360" y="1015.5">band; one undo entry</tspan></text></a>
+<a href="#compare"><rect class="n" x="560" y="980" width="220" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="670" y="1000.5">Results: the Louvain row;</tspan><tspan x="670" y="1015.5">Compare with...</tspan></text></a>
+<rect class="n br" x="16" y="960" width="184" height="72" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="982">Any dialog here: Cancel,</tspan><tspan x="108" y="997">Esc or close: nothing</tspan><tspan x="108" y="1012">applied; focus back on</tspan><tspan x="108" y="1027">what opened it</tspan></text>
+<!-- recipe route -->
+<a href="../screens/replace-and-recipe.html#s-bind-recipe"><polygon class="n" points="950,250 1080,300 950,350 820,300"/><text class="t" text-anchor="middle"><tspan x="950" y="296.5">Any need not found in</tspan><tspan x="950" y="311.5">your data by name?</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-bind-recipe"><rect class="n" x="830" y="430" width="240" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="950" y="450.5">Binding step: matched and</tspan><tspan x="950" y="465.5">unmatched; ids not found named</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-applied"><polygon class="n com" points="844,520 1070,520 1056,564 830,564"/><text class="t" text-anchor="middle"><tspan x="950" y="546">Applied: one undo entry</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-applied"><polygon class="n chk" points="846,604 1054,604 1070,634 1054,664 846,664 830,634"/><text class="t" text-anchor="middle"><tspan x="950" y="623">Recipe applied: added sets and</tspan><tspan x="950" y="638">layers marked; unbound ones off;</tspan><tspan x="950" y="653">the notice carries Undo</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-applied"><rect class="n" x="830" y="704" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="950" y="724.5">Results: the recipe's runs queue</tspan><tspan x="950" y="739.5">under the cost rule</tspan></text></a>
+<!-- edges: entries -->
+<polyline class="e" points="108,64 108,104" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="200,126 240,126" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="360,64 360,104" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="360,148 360,188" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="530,62 530,200 480,200" marker-end="url(#ah-f8)"/>
+<text class="l" x="536" y="170" text-anchor="start">Update with</text>
+<text class="l" x="536" y="183" text-anchor="start">new data...</text>
+<polyline class="e" points="660,62 660,104" marker-end="url(#ah-f8)"/>
+<text class="l" x="666" y="88" text-anchor="start">Apply recipe...</text>
+<polyline class="e" points="950,64 950,104" marker-end="url(#ah-f8)"/>
+<!-- edges: data route -->
+<polyline class="e" points="360,236 360,262" marker-end="url(#ah-f8)"/>
+<polyline class="e err" points="260,300 200,300" marker-end="url(#ah-f8)"/>
+<text class="l le" x="214" y="292" text-anchor="start">no</text>
+<polyline class="e err" points="108,276 108,224 240,224" marker-end="url(#ah-f8)"/>
+<text class="l le" x="116" y="252" text-anchor="start">Read as...</text>
+<polyline class="e" points="360,338 360,370" marker-end="url(#ah-f8)"/>
+<text class="l" x="368" y="358" text-anchor="start">yes</text>
+<polyline class="e" points="360,470 360,510" marker-end="url(#ah-f8)"/>
+<text class="l" x="368" y="494" text-anchor="start">yes: Continue to binding</text>
+<polyline class="e" points="235,420 215,420 215,622 247,622" marker-end="url(#ah-f8)"/>
+<text class="l" x="112" y="452" text-anchor="start">no: Replace March</text>
+<text class="l" x="112" y="466" text-anchor="start">data (main button,</text>
+<text class="l" x="112" y="480" text-anchor="start">Enter)</text>
+<polyline class="e err" points="485,420 665,420 665,388" marker-end="url(#ah-f8)"/>
+<text class="l le" x="540" y="412" text-anchor="start">Add to March data</text>
+<polyline class="e err" points="480,534 500,534 500,230 480,230" marker-end="url(#ah-f8)"/>
+<text class="l le" x="506" y="470" text-anchor="start">Back</text>
+<polyline class="e" points="360,558 360,600" marker-end="url(#ah-f8)"/>
+<text class="l" x="368" y="584" text-anchor="start">Apply: Replace March data</text>
+<polyline class="e" points="360,644 360,684" marker-end="url(#ah-f8)"/>
+<polyline class="e err" points="240,708 200,708" marker-end="url(#ah-f8)"/>
+<text class="l le" x="190" y="676" text-anchor="start">Cancel</text>
+<polyline class="e" points="360,732 360,772" marker-end="url(#ah-f8)"/>
+<text class="l" x="368" y="758" text-anchor="start">replay ends</text>
+<polyline class="e" points="480,794 560,796" marker-end="url(#ah-f8)"/>
+<text class="l" x="486" y="786" text-anchor="start">Show report</text>
+<polyline class="e" points="360,816 360,860" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="700,826 700,880 410,880" marker-end="url(#ah-f8)"/>
+<text class="l" x="708" y="856" text-anchor="start">Close</text>
+<polyline class="e err" points="108,732 108,900 260,900" marker-end="url(#ah-f8)"/>
+<text class="l le" x="116" y="818" text-anchor="start">wait for Re-run</text>
+<polyline class="e" points="360,940 360,980" marker-end="url(#ah-f8)"/>
+<text class="l" x="368" y="962" text-anchor="start">yes</text>
+<polyline class="e" points="460,900 670,900 670,980" marker-end="url(#ah-f8)"/>
+<text class="l" x="678" y="945" text-anchor="start">no</text>
+<polyline class="e" points="480,1004 560,1004" marker-end="url(#ah-f8)"/>
+<!-- edges: recipe route -->
+<polyline class="e" points="950,148 950,250" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="635,148 635,275 885,275" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="950,350 950,430" marker-end="url(#ah-f8)"/>
+<text class="l" x="958" y="394" text-anchor="start">yes: Continue to binding</text>
+<polyline class="e" points="820,300 805,300 805,542 837,542" marker-end="url(#ah-f8)"/>
+<text class="l" x="812" y="500" text-anchor="start">no: Apply</text>
+<polyline class="e" points="950,478 950,520" marker-end="url(#ah-f8)"/>
+<text class="l" x="958" y="504" text-anchor="start">Apply</text>
+<polyline class="e err" points="1070,454 1100,454 1100,126 1070,126" marker-end="url(#ah-f8)"/>
+<text class="l le" x="1078" y="446" text-anchor="start">Back</text>
+<polyline class="e" points="950,564 950,604" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="950,664 950,704" marker-end="url(#ah-f8)"/>
+</svg>
+<p class="k-secondary">Back is the arrow in a binding step's header: it returns one step (to the load step, or to the recipe picker or preview) with every choice kept. Esc never goes back; it is Cancel. Add to March data is the load step's second button, drawn dashed because the weekly user rarely means it: it stacks April on March, and the step says so in numbers before she chooses. A recipe opened first from the start screen waits on a blank canvas for data, then takes the file picker and the load step; its whole route is drawn in the <a href="../storyboards/recipe-travels.html">recipe travels storyboard</a>.</p>
+
+<h3>Update with new data, step by step</h3>
+<div class="cards3">
+  <div class="k-flow-step"><h3><span class="k-step">1</span> Update with new data...</h3><p>On the Data panel's header and in the project-name menu. Under the label, in smaller type: "Replaces nodes and edges. Keeps styles, sets, notes and runs." and then the cost, "1 slow result will wait for Re-run". The four quick replays finish in seconds, so they carry no band. <a href="../screens/replace-and-recipe.html#s-menu">Screen 1</a> (drawn on the File menu, under the earlier label)</p></div>
+  <div class="k-flow-step"><h3><span class="k-step">2</span> The load step</h3><p>She picks both April files. "Same columns as accounts-2026-03.csv and transfers-2026-03.csv, the data already loaded." April beside March: <span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts (March: <span data-fx="datasets.transactions.nodes">3,000</span>), <span data-fx="datasets.transactionsApril.edges">8,370</span> transfers (March: <span data-fx="datasets.transactions.edges">9,113</span>), no rows dropped; <span data-fx="datasets.transactionsApril.versionDiff.accountsKept">2,961</span> in both, <span data-fx="datasets.transactionsApril.versionDiff.accountsAdded">132</span> new, <span data-fx="datasets.transactionsApril.versionDiff.accountsRemoved">39</span> not in April. The main button, focused, is Replace March data. Beside it, Add to March data says what it would leave: <span data-fx="datasets.transactionsApril.stackedOnMarch.accounts">3,132</span> accounts and <span data-fx="datasets.transactionsApril.stackedOnMarch.transfers">17,483</span> transfers, the 39 not in April still in. <a href="../screens/replace-and-recipe.html#s-load">Screen 2</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">3</span> Replace, or bind first</h3><p>Every column matched, so Enter replaces: 3 steps. Had April's export renamed riskScore to risk_score, the main button would read Continue to binding, the step would ask one choice per unmatched column (each saying what it feeds), and its Apply would replace. Either way it is one undo entry, "Replace data with the April files". <a href="../screens/replace-and-recipe.html#s-bind-replace">Screen 3, the binding branch</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">4</span> The replay</h3><p>April is drawn at once, arranged positions kept. Four results replay under one notice with Cancel. Cycles up to 6 transfers is not started: it reads Out of date, a few minutes, Re-run. <a href="../screens/replace-and-recipe.html#s-replaying">Screen 4</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">5</span> What changed</h3><p>The notice: "Data updated: 4 of 5 results replayed". Show report opens Data &gt; Versions on April's row. Its What changed lines restate count splits and nothing else: "27 components (was 1): 26 accounts have no transfers in this version", marked large change; "65 communities (was 35): 26 are single accounts with no transfers in this version", marked large change. No line guesses why an account went quiet. <a href="#what-changed">Drawn below</a>; <a href="../screens/replace-and-recipe.html#s-report">Screen 5</a> shows the earlier report</p></div>
+  <div class="k-flow-step"><h3><span class="k-step">6</span> Re-run</h3><p>The out-of-date result is pinned at the top of the Results panel, says what it was computed on ("March data, Apr 3") and is counted on the Results rail button. Re-run starts it with its band; the count clears. <a href="../screens/replace-and-recipe.html#s-rerun">Screen 6</a></p></div>
+</div>
+
+<h3 id="what-changed">The three new pieces, drawn</h3>
+<p>These are small parts of existing places, so they are drawn here at product size instead of as new screens. Every number comes from graphty-element's count split between two data versions (proposed); the app formats it and never adds a reason of its own.</p>
+<div class="frags">
+  <figure style="margin:0">
+  <div class="frag" data-kit-frame>
+    <div class="k-section-head">Versions</div>
+    <div class="vrow" style="background:var(--cm-bg-selected)"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span class="k-strong k-grow">April data</span><span class="k-badge">current</span><span class="k-secondary">May 4, 09:14</span></div>
+    <div class="k-prose" style="padding-top:2px">What changed, against March data (Apr 3)</div>
+    <ul class="wc">
+      <li><div class="hd"><span class="k-strong k-num"><span data-fx="datasets.transactionsApril.stats.components">27</span> components (was <span data-fx="datasets.transactions.stats.components">1</span>)</span><span class="k-grow"></span><span class="k-badge"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div><div class="sp"><span data-fx="datasets.transactionsApril.dormant.count">26</span> accounts have no transfers in this version. <a class="k-link">Select</a></div></li>
+      <li><div class="hd"><span class="k-strong k-num"><span data-fx="datasets.transactionsApril.louvain.april.communities">65</span> communities (was <span data-fx="datasets.transactionsApril.louvain.march.communities">35</span>)</span><span class="k-grow"></span><span class="k-badge"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div><div class="sp">26 are single accounts with no transfers in this version.</div></li>
+      <li><div class="hd"><span class="k-strong k-num">3,093 accounts (was 3,000)</span></div><div class="sp k-num">2,961 in both, 132 new, 39 not in April. <a class="k-link">List</a></div></li>
+      <li><div class="hd"><span class="k-strong k-num">8,370 transfers (was 9,113)</span></div><div class="sp k-num"><span data-fx="datasets.transactionsApril.versionDiff.transfersBoth">7,576</span> in both, <span data-fx="datasets.transactionsApril.versionDiff.transfersAdded">794</span> new, <span data-fx="datasets.transactionsApril.versionDiff.transfersRemoved">1,537</span> not in April.</div></li>
+      <li><div class="hd"><span class="k-strong k-num">Watchlist: <span data-fx="datasets.transactionsApril.watchlist.inCurrentData">7</span> of <span data-fx="datasets.transactionsApril.watchlist.members">9</span></span></div><div class="sp"><span class="k-id">ACC-705989</span> and <span class="k-id">ACC-243731</span> not in April.</div></li>
+      <li><div class="hd"><span class="k-num">Rows dropped at import: 0</span></div></li>
+    </ul>
+    <div class="acts"><span class="k-btn k-btn-secondary">Show replay report</span><span class="k-btn k-btn-ghost">Compare with...</span></div>
+  </div>
+  <figcaption class="frag-cap">April's row in Data &gt; Versions, open. Only counts the element split; the two jumps carry the large-change mark (a count that moved by half or more of its earlier value). "Not in April", never "closed": the data says only that the account had no row this month.</figcaption>
+  </figure>
+
+  <figure style="margin:0">
+  <div class="frag" data-kit-frame>
+    <div class="k-section-head">Results<span class="k-grow"></span><span class="k-secondary k-num">1 out of date</span></div>
+    <div class="pin"><span class="k-warn-glyph">!</span><span class="k-grow"><span class="k-strong">Cycles up to 6 transfers</span><br><span class="k-secondary">Out of date: computed on March data (Apr 3). A few minutes.</span></span><span class="k-btn k-btn-secondary">Re-run</span></div>
+    <div class="k-result" aria-selected="true"><span class="k-grow">Louvain communities</span><span class="k-num"><span data-fx="datasets.transactionsApril.louvain.april.communities">65</span></span><span class="k-badge"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div>
+    <div class="k-prose">Was 35 on March data. 26 are single accounts with no transfers in this version.</div>
+    <div class="k-result"><span class="k-grow">PageRank</span><span class="k-secondary">replayed</span></div>
+    <div class="k-result"><span class="k-grow">Degree</span><span class="k-secondary">replayed</span></div>
+    <div class="k-result"><span class="k-grow">Weakly connected components</span><span class="k-num"><span data-fx="datasets.transactionsApril.stats.components">27</span></span><span class="k-badge"><span class="k-warn-glyph">!</span>&nbsp;large change</span></div>
+  </div>
+  <figcaption class="frag-cap">The Results panel after the replay. The out-of-date result is pinned with what it was computed on and its band; each replayed result carries the same count split and mark as the version row, in the same words, so the two places never disagree.</figcaption>
+  </figure>
+</div>
+
+<h3>Apply recipe, step by step</h3>
+<div class="cards3">
+  <div class="k-flow-step"><h3><span class="k-step">7</span> Apply recipe...</h3><p>The picker shows what Mule ring triage carries (3 sets, 2 runs with their bands, 3 layers, a note) and the 4 attributes it needs from her data; 2 are not in her graph by name. So the button reads Continue to binding. With all 4 found it would read Apply, and each found column would still be listed with what it feeds; there is no blanket "found by name" line. <a href="../screens/replace-and-recipe.html#s-recipe-pick">Screen 7</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">8</span> Matched and unmatched</h3><p>riskScore is bound to risk_score by hand; counterparty_bank has nothing that fits and stays Leave unbound, so its layer will be kept and off. The recipe's Watchlist: 7 of 9 accounts found; ACC-705989 and ACC-243731 are not in this data. <a href="../screens/replace-and-recipe.html#s-bind-recipe">Screen 8</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">9</span> Applied</h3><p>One undo entry added 3 sets and 3 layers, each marked new with "recipe" as its kind. No data changed, nothing replayed and no data version was added. The notice says what arrived and carries Undo; the unbound layer offers Bind.... <a href="../screens/replace-and-recipe.html#s-recipe-applied">Screen 9</a></p></div>
+</div>
+
+<h2 id="recipient">A recipe that brings its own network and needs your table</h2>
+<p>Tom, a biologist, opens Expression overlay, a recipe his colleague Maren sent. It brings the lab's network, "Sender's network: STRING v12" (ppi-core-300.graphml), which carries a log2FoldChange column from an earlier screen, and it asks for a fold change from Tom's own table. The recipe marks that need as supplied by the recipient, so the network's column is never offered for it, even though its name is the one Maren used.</p>
+<svg class="flowsvg" viewBox="0 0 1120 480" role="group" aria-labelledby="f8r-t"><title id="f8r-t">A received recipe that needs the recipient's table: Add your table is the main button and Apply waits, disabled with its reason, until the table is added; the fold-change need lists only the table's columns; a table without the column stops with a request to ask the sender</title>
+<defs><marker id="ah-f8r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+<a href="../screens/start-screen.html#s4"><rect class="n" x="240" y="16" width="240" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="360" y="36.5">Recipe waiting for your table:</tspan><tspan x="360" y="51.5">Sender's network: STRING v12</tspan></text></a>
+<polygon class="n" points="360,96 480,136 360,176 240,136"/><text class="t" text-anchor="middle"><tspan x="360" y="132.5">Your table</tspan><tspan x="360" y="147.5">added yet?</tspan></text>
+<a href="../screens/start-screen.html#s4"><polygon class="n chk" points="576,106 904,106 920,136 904,166 576,166 560,136"/><text class="t" text-anchor="middle"><tspan x="740" y="125">Add your table... is the main button</tspan><tspan x="740" y="140">and has focus; Apply is disabled, its</tspan><tspan x="740" y="155">reason beside it: "Waiting for your table"</tspan></text></a>
+<rect class="n" x="610" y="214" width="260" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="740" y="232.5">File picker: qpcr-hits-2026-09.csv,</tspan><tspan x="740" y="247.5">96 rows; 84 of 96 genes matched</tspan></text>
+<polygon class="n" points="360,216 480,256 360,296 240,256"/><text class="t" text-anchor="middle"><tspan x="360" y="252.5">Your table has</tspan><tspan x="360" y="267.5">a log2FC column?</tspan></text>
+<rect class="n br" x="8" y="222" width="212" height="72" rx="3"/><text class="t" text-anchor="middle"><tspan x="114" y="243">Apply stays disabled:</tspan><tspan x="114" y="258">"Your table has no log2FC</tspan><tspan x="114" y="273">column. Ask the sender which</tspan><tspan x="114" y="288">column they meant."</tspan></text>
+<a href="../screens/recipe-apply.html"><rect class="n" x="240" y="336" width="240" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="360" y="356.5">Binding step: the fold-change row</tspan><tspan x="360" y="371.5">lists only your table's columns</tspan></text></a>
+<a href="../screens/recipe-apply.html"><polygon class="n com" points="254,424 480,424 466,468 240,468"/><text class="t" text-anchor="middle"><tspan x="360" y="450">Applied: one undo entry</tspan></text></a>
+<text class="l" x="500" y="354" text-anchor="start">log2FC: 84 matched values, -2.41 to 2.98, below 0 is down.</text>
+<text class="l" x="500" y="369" text-anchor="start">The sender's fold change is not used; it is never in the list.</text>
+<polyline class="e" points="360,64 360,96" marker-end="url(#ah-f8r)"/>
+<polyline class="e" points="480,136 560,136" marker-end="url(#ah-f8r)"/>
+<text class="l" x="490" y="128" text-anchor="start">no</text>
+<polyline class="e" points="740,166 740,214" marker-end="url(#ah-f8r)"/>
+<text class="l" x="748" y="194" text-anchor="start">Add your table... (Enter)</text>
+<polyline class="e" points="610,236 545,236 545,256 480,256" marker-end="url(#ah-f8r)"/>
+<polyline class="e" points="360,176 360,216" marker-end="url(#ah-f8r)"/>
+<text class="l" x="368" y="200" text-anchor="start">yes</text>
+<polyline class="e err" points="240,256 220,256" marker-end="url(#ah-f8r)"/>
+<text class="l le" x="224" y="248" text-anchor="start">no</text>
+<text class="l le" x="114" y="312" text-anchor="middle">Close recipe: nothing opened;</text>
+<text class="l le" x="114" y="326" text-anchor="middle">ask Maren</text>
+<polyline class="e" points="360,296 360,336" marker-end="url(#ah-f8r)"/>
+<text class="l" x="368" y="320" text-anchor="start">yes</text>
+<polyline class="e" points="360,384 360,424" marker-end="url(#ah-f8r)"/>
+<text class="l" x="368" y="408" text-anchor="start">Apply</text>
+</svg>
+<div class="cards3">
+  <div class="k-flow-step"><h3>Apply waits, and says why</h3><p>Before Tom adds anything, the card reads "Recipe waiting for your table". Add your table... is the main button and takes focus. Apply is disabled but still focusable, so a screen reader reads it with its reason, which is printed beside it, not hidden in a tooltip: "Waiting for your table". Nothing on the page says everything was found: the network's own fold-change column does not count. <a href="../screens/start-screen.html#s4">Start screen, recipe pending</a></p></div>
+  <div class="k-flow-step"><h3>Only his columns</h3><p>He adds qpcr-hits-2026-09.csv (symbol, log2FC, padj); 84 of his 96 genes are in the network. The fold-change row offers the table's columns only: log2FC, 84 matched values, -2.41 to 2.98. The network's log2FoldChange, 300 values, is never listed for a need he supplies. Apply commits one undo entry. <a href="../storyboards/recipe-travels.html">Recipe travels storyboard</a></p></div>
+  <div class="k-flow-step" data-branch><h3>The column is missing</h3><p>A table without log2FC stops the route: "Your table has no log2FC column. Ask the sender which column they meant." Apply stays disabled and no column is proposed in its place, because only Maren knows which of his columns she meant. Close recipe leaves nothing open.</p></div>
+</div>
+
+<h2 id="styles-recipe">A recipe of styles</h2>
+<p>A team's colors arrive as a recipe that holds only style layers. It comes in by a drop, by Main menu &gt; Recipes &gt; Apply recipe..., or by the Style stack's + &gt; From a recipe or file..., and every route opens the same Apply dialog with two choices, neither preselected: Use these styles... (the recipe's layers take the place of each of hers that writes the same property; layers from an algorithm always stay) and Add these styles on top.... A layer whose attribute is not in this graph gets one row in the binding step.</p>
+<svg class="flowsvg" viewBox="0 0 1120 560" role="group" aria-labelledby="f81-t"><title id="f81-t">Apply a recipe of styles: a drop, Apply recipe or the Style stack's +, the file picker, a binding step when a layer did not match, one committed change, the added layers marked</title>
+<defs><marker id="ah-f81" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="60" y="18" width="260" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="190" y="36.5">Drop choice step:</tspan><tspan x="190" y="51.5">a recipe of styles</tspan></text></a>
+<rect class="n" x="430" y="16" width="260" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="560" y="36.5">Main menu: Recipes:</tspan><tspan x="560" y="51.5">Apply recipe...</tspan></text>
+<rect class="n" x="780" y="16" width="300" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="930" y="36.5">Style stack +: From a</tspan><tspan x="930" y="51.5">recipe or file...</tspan></text>
+<rect class="n" x="430" y="104" width="260" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="560" y="130">File picker: a recipe</tspan></text>
+<a href="../screens/replace-and-recipe.html#s-bind-style"><polygon class="n" points="560,210 720,260 560,310 400,260"/><text class="t" text-anchor="middle"><tspan x="560" y="256.5">Every layer's attributes</tspan><tspan x="560" y="271.5">matched by name?</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-bind-style"><rect class="n" x="430" y="380" width="260" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="560" y="400.5">Binding step: one row per</tspan><tspan x="560" y="415.5">unmatched layer</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-style-applied"><polygon class="n com" points="814,380 1060,380 1046,424 800,424"/><text class="t" text-anchor="middle"><tspan x="930" y="406">Styles applied: one undo entry</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-style-applied"><polygon class="n chk" points="776,470 1084,470 1100,499 1084,528 776,528 760,499"/><text class="t" text-anchor="middle"><tspan x="930" y="495.5">Added layers marked in the Style stack;</tspan><tspan x="930" y="510.5">unbound layers listed, switched off</tspan></text></a>
+<rect class="n br" x="60" y="477" width="260" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="190" y="495.5">Styles as before the recipe;</tspan><tspan x="190" y="510.5">nothing kept from it</tspan></text>
+<rect class="n br" x="430" y="477" width="260" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="560" y="495.5">Cancel, Esc or close in either</tspan><tspan x="560" y="510.5">dialog: nothing applied</tspan></text>
+<polyline class="e" points="560,64 560,104" marker-end="url(#ah-f81)"/>
+<polyline class="e" points="930,64 930,126 690,126" marker-end="url(#ah-f81)"/>
+<polyline class="e" points="560,148 560,210" marker-end="url(#ah-f81)"/>
+<text class="l" x="568" y="184" text-anchor="start">the same two choices</text>
+<polyline class="e" points="190,62 190,260 400,260" marker-end="url(#ah-f81)"/>
+<text class="l" x="198" y="110" text-anchor="start">Use these styles, or</text>
+<text class="l" x="198" y="123" text-anchor="start">Add these styles on top</text>
+<text class="l" x="198" y="136" text-anchor="start">(neither preselected)</text>
+<polyline class="e" points="720,260 930,260 930,380" marker-end="url(#ah-f81)"/>
+<text class="l" x="728" y="252" text-anchor="start">yes</text>
+<polyline class="e" points="560,310 560,380" marker-end="url(#ah-f81)"/>
+<text class="l" x="568" y="350" text-anchor="start">no</text>
+<polyline class="e" points="690,404 803,404" marker-end="url(#ah-f81)"/>
+<text class="l" x="712" y="396" text-anchor="start">Apply</text>
+<polyline class="e err" points="430,404 150,404 150,62" marker-end="url(#ah-f81)"/>
+<text class="l le" x="160" y="396" text-anchor="start">Back, after a drop</text>
+<polyline class="e" points="930,424 930,470" marker-end="url(#ah-f81)"/>
+<polyline class="e err" points="776,528 776,545 190,545 190,521" marker-end="url(#ah-f81)"/>
+<text class="l le" x="560" y="541" text-anchor="middle">wrong choice: one Undo</text>
+</svg>
+<div class="cards3">
+  <div class="k-flow-step"><h3><span class="k-step">10</span> The drop</h3><p>fraud-team-colors: "Use these styles..." names the 3 of her layers that go (Risk ramp, Risk color, Mule ring) and the 5 that stay; "Add these styles on top..." adds 4 layers above her 8. Neither is preselected. Chargeback heat is named as unmatched before she chooses, and each row keeps its ellipsis because the binding step follows. <a href="../screens/replace-and-recipe.html#s-style-drop">Screen 10</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">11</span> One layer to bind</h3><p>Three layers matched by name. Chargeback heat reads chargeback_rate, which this graph lacks; no attribute fits, so she leaves it unbound. The row says what that does: kept, switched off, marked, with Bind... on its row. <a href="../screens/replace-and-recipe.html#s-bind-style">Screen 11</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">12</span> The team's styles in use</h3><p>Four layers are new and marked, and the 3 named in the dialog are gone; Chargeback heat is listed, switched off, with the missing-attribute mark and a tooltip naming chargeback_rate. The notice carries Undo. <a href="../screens/replace-and-recipe.html#s-style-applied">Screen 12</a></p></div>
+</div>
+
+<h2 id="compare">Compare with the last version, then hand it on</h2>
+<p>The version row says 65 communities, was 35, and that 26 of them are single accounts with no transfers. Sarah's next question is whether the groups that do hold transfers really changed, or whether Louvain, which is random, would group March differently on a second run anyway. The comparison answers against that yardstick; the export then carries the version comparison into her manager's spreadsheet. The full comparison surface is drawn in <a href="compare-versions.html">Compare with the previous data version</a>.</p>
+<svg class="flowsvg" viewBox="0 0 1120 330" role="group" aria-labelledby="f82-t"><title id="f82-t">Compare with the previous data version: from the Louvain result or April's version row, Compare with..., the March version, the comparison surface with its statistic and a re-run's agreement beside it, then Save comparison, and the table export with a column comparing each account with the March version</title>
+<defs><marker id="ah-f82" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+<a href="#what-changed"><rect class="n" x="16" y="16" width="220" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="126" y="36.5">Results: Louvain, 65 (was 35),</tspan><tspan x="126" y="51.5">large change; or April's row</tspan></text></a>
+<a href="compare-versions.html"><rect class="n" x="290" y="18" width="220" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="400" y="36.5">Compare with...: March data,</tspan><tspan x="400" y="51.5">Apr 3, listed first</tspan></text></a>
+<a href="compare-versions.html"><rect class="n" x="564" y="16" width="220" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="674" y="36.5">Comparison surface: March</tspan><tspan x="674" y="51.5">and April side by side</tspan></text></a>
+<a href="compare-versions.html"><polygon class="n chk" points="836,10 1088,10 1104,40 1088,70 836,70 820,40"/><text class="t" text-anchor="middle"><tspan x="962" y="29">AMI 0.449 over 2,961 accounts in</tspan><tspan x="962" y="44">both; a re-run on March alone:</tspan><tspan x="962" y="59">0.759 to 0.768</tspan></text></a>
+<polygon class="n" points="962,110 1082,150 962,190 842,150"/><text class="t" text-anchor="middle"><tspan x="962" y="146.5">Larger than a</tspan><tspan x="962" y="161.5">re-run's change?</tspan></text>
+<rect class="n br" x="564" y="126" width="220" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="674" y="146.5">Close: nothing kept; the</tspan><tspan x="674" y="161.5">result as it was</tspan></text>
+<polygon class="n com" points="856,232 1090,232 1076,276 842,276"/><text class="t" text-anchor="middle"><tspan x="966" y="258">Save comparison: one undo entry</tspan></text>
+<a href="#export-column"><rect class="n" x="530" y="230" width="254" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="657" y="250.5">Export... Table: the column</tspan><tspan x="657" y="265.5">"Compared with Apr 3" ticked</tspan></text></a>
+<a href="../screens/export-dialog.html#table"><rect class="n" x="16" y="230" width="360" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="196" y="250.5">Written: accounts-2026-04-compared.csv, 3,132 rows,</tspan><tspan x="196" y="265.5">and its methods file naming both versions</tspan></text></a>
+<polyline class="e" points="236,40 290,40" marker-end="url(#ah-f82)"/>
+<polyline class="e" points="510,40 564,40" marker-end="url(#ah-f82)"/>
+<polyline class="e" points="784,40 820,40" marker-end="url(#ah-f82)"/>
+<polyline class="e" points="962,70 962,110" marker-end="url(#ah-f82)"/>
+<polyline class="e err" points="842,150 784,150" marker-end="url(#ah-f82)"/>
+<text class="l le" x="800" y="142" text-anchor="start">no</text>
+<polyline class="e" points="962,190 962,232" marker-end="url(#ah-f82)"/>
+<text class="l" x="970" y="214" text-anchor="start">yes</text>
+<polyline class="e" points="842,254 784,254" marker-end="url(#ah-f82)"/>
+<text class="l" x="790" y="246" text-anchor="start">Export...</text>
+<polyline class="e" points="530,254 376,254" marker-end="url(#ah-f82)"/>
+<text class="l" x="384" y="246" text-anchor="start">Export</text>
+<polyline class="e err" points="126,64 126,200 657,200 657,230" marker-end="url(#ah-f82)"/>
+<text class="l le" x="134" y="190" text-anchor="start">straight to Export..., no comparison</text>
+</svg>
+<div class="cards3">
+  <div class="k-flow-step"><h3><span class="k-step">13</span> Compare with...</h3><p>On the Louvain row, or on April's row in Data &gt; Versions. The picker lists March data, Apr 3 first, because it is the version before this one. Two steps from the result. <a href="compare-versions.html">Compare flow</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">14</span> Read it against a re-run</h3><p>The two months agree at AMI <span data-fx="datasets.transactionsApril.agreement.monthsOnAccountsInBoth" data-fx-digits="3">0.449</span>, over the <span data-fx="datasets.transactionsApril.agreement.accountsInBoth">2,961</span> accounts in both. Beside it, what randomness alone does: re-runs on March agree at <span data-fx="datasets.transactionsApril.agreement.marchRerunRange">0.759 to 0.768</span>, on April at <span data-fx="datasets.transactionsApril.agreement.aprilRerunRange">0.811 to 0.851</span>. The month-to-month change is larger than a re-run's, so it is real. Save comparison keeps it, with its sides and counts.</p></div>
+  <div class="k-flow-step"><h3><span class="k-step">15</span> The export column</h3><p>Export..., Table. Because the project has an earlier data version, the dialog offers one more column, "Compared with Apr 3", ticked. Each account reads new, in both, or no longer present; the 39 no longer present are added as rows with empty April values, so the file has 3,132 rows. Not "dropped": that word already means rows lost at import. <a href="#export-column">Drawn below</a></p></div>
+</div>
+
+<div class="frags" id="export-column">
+  <figure style="margin:0">
+  <div class="frag" data-kit-frame>
+    <div class="k-section-head">Columns</div>
+    <div class="opt"><span class="k-check" aria-checked="true"></span><span><span class="k-strong">Compared with Apr 3</span><br><span class="k-secondary">Each account against March data (transfers-2026-03.csv): new, in both, or no longer present. Adds the 39 no longer present as rows.</span></span></div>
+    <table>
+      <thead><tr><th>id</th><th>community</th><th class="k-num">pagerank</th><th>Compared with Apr 3</th></tr></thead>
+      <tbody>
+        <tr><td class="k-id">ACC-393859</td><td>Community 1</td><td class="k-num">0.069016</td><td>in both</td></tr>
+        <tr><td class="k-id">ACC-697114</td><td>Community 2</td><td class="k-num">0.040018</td><td>in both</td></tr>
+        <tr><td class="k-id">ACC-787890</td><td>Community 33</td><td class="k-num"></td><td>new</td></tr>
+        <tr><td class="k-id">ACC-705989</td><td></td><td></td><td>no longer present</td></tr>
+      </tbody>
+    </table>
+    <div class="k-prose" style="padding-top:6px"><span class="k-num">3,132</span> rows: <span class="k-num">2,961</span> in both, <span class="k-num">132</span> new, <span class="k-num">39</span> no longer present.</div>
+  </div>
+  <figcaption class="frag-cap">The Table export's column list, with a preview of the written rows. The column's values are graphty-element's count split per account (proposed); the header names the version by the date it was loaded, and the methods file names its file.</figcaption>
+  </figure>
+</div>
+
+<h2 id="errors">Errors, ways back and out-of-date results</h2>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>The file cannot be read</h3><p>The load step stays open with "Could not open transfers-2026-04.csv: {cause}" and the one verb the cause needs (Read as... for a wrong format). March is untouched.</p></div>
+  <div class="k-flow-step" data-branch><h3>Cancel, Esc, close</h3><p>In the picker, the load step or a binding step: nothing is applied, no undo entry is made, and focus returns to what opened the dialog. Esc is always Cancel, as in Figma's stepped dialogs.</p></div>
+  <div class="k-flow-step" data-branch><h3>Back</h3><p>Only the arrow in a binding step's header goes back: to the load step, the recipe picker or preview, or a dropped file's choices, with every choice kept. A binding step opened straight from a menu has no arrow.</p></div>
+  <div class="k-flow-step" data-branch><h3>Add when she meant Replace</h3><p>Add to March data is the second button; choosing it stacks April on March (3,132 accounts, 17,483 transfers), as the load step said beside the button. One Undo takes it back, and Update with new data... again replaces.</p></div>
+</div>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>Left unbound</h3><p>Never skipped silently: what the attribute feeds is kept, switched off and marked "missing attribute", listed in the report, with Bind... on its row.</p></div>
+  <div class="k-flow-step" data-branch><h3>Out of date after the replay</h3><p>A result estimated at a few minutes or more is not replayed on its own: it reads Out of date, names the version it was computed on, gives its band and offers Re-run. It stays pinned in the Results panel and counted on the rail button until it runs.</p></div>
+  <div class="k-flow-step" data-branch><h3>The replay is canceled</h3><p>Cancel on the running notice stops the replay only. The data stays replaced; unfinished results read Out of date and wait for Re-run like the slow one. Undo, not Cancel, takes back the data.</p></div>
+  <div class="k-flow-step" data-branch><h3>A replayed run fails</h3><p>Its row reads Failed with Re-run and the cause on its state line; the notice counts it ("Data updated: 3 of 5 results replayed; 1 failed").</p></div>
+</div>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>Undo</h3><p>Undo takes back the newest entry first. After a Re-run, the first Undo discards the re-run result; the second takes back the whole update, and March returns with its results current and April's version row gone. One Undo takes back a whole recipe, styles-only or not.</p></div>
+  <div class="k-flow-step" data-branch><h3>A version with no earlier one</h3><p>A project's first data version has no What changed and the export offers no comparison column: there is nothing to compare with.</p></div>
+</div>
+
+<h2>What these flows claim</h2>
+<table class="facts wide">
+<tr><th>Tasks</th><td>Reuse an analysis on new data (Update with new data); start from a recipe, including one that holds only styles (Apply recipe), including one a colleague sent with its own network; compare with the previous data version.</td></tr>
+<tr><th>Serves</th><td>The weekly return: update with the new files, read what changed, show the manager. A recipe travels: apply it to your own table.</td></tr>
+<tr><th>Starts from</th><td>The graph at rest, with nothing selected; a file dropped on the canvas; or a recipe opened from the start screen.</td></tr>
+<tr><th>Size of graph</th><td>The same route at every size. The command names a result that will wait; the load step counts what replays and gives the waiting result's band.</td></tr>
+<tr><th>How Figma does it</th><td>Apply recipe is Figma's Swap library: 2 steps, matched by name, instances updated in place, a notice with Undo, and no report page. graphty adds one choice per unmatched attribute, after Figma's Missing Fonts dialog. A recipe of styles is Figma's enabling a library: 1 step, adds styles and replaces none; graphty's Apply dialog adds Use these styles, which replaces her layers that write the same property. Update with new data has no Figma counterpart: Figma never swaps content under kept styling. The comparison is Figma's branch review: two states side by side.</td></tr>
+<tr><th>Where it differs from Figma, and why</th><td><ul style="margin:0;padding-inline-start:18px">
+<li>Each data version keeps its What changed and replay report in Data &gt; Versions (Figma's version history holds no reports), so which results replayed on which data, and how the counts moved, can be checked later.</li>
+<li>An out-of-date result stays pinned at the top of Results with a count on the rail button (Figma's toolbar carries no counts), because a result computed on last month's data must stay visible until it is re-run.</li>
+<li>A dropped recipe opens its preview (Figma applies a library without one), because a recipe shows what it carries and needs before Apply; the preview is where Apply sits, so it adds no step.</li>
+<li>Update with new data shows the replay's cost on the command, because it starts runs a style swap never does.</li>
+</ul></td></tr>
+<tr><th>What she can say after</th><td>"March's analysis on April's data: these 4 replayed, this one did not." "27 components, was 1: 26 accounts had no transfers in April; they are in the file, just quiet." "The groups did change: the months agree less than two runs on the same month do." "7 of the recipe's 9 Watchlist accounts are here; these 2 are not." "The colors are my log2FC, not the network's."</td></tr>
+<tr><th>What is kept</th><td>One undo entry per update or recipe; the recipe's name on everything it added; the binding choices; the data version with its What changed and replay report in Data &gt; Versions; a saved comparison; the export's methods file naming both versions.</td></tr>
+<tr><th>Steps</th><td>Update with new data, every column matched: 3 (Update with new data...; the files; Replace March data). With 2 columns to bind: 6 (Update with new data...; the files; Continue to binding; 2 choices; Apply).<br>
+Apply recipe, everything matched: 3 (Apply recipe...; the recipe; Apply). With something to bind: 4 plus one choice per attribute; here 5, since counterparty_bank stays at Leave unbound.<br>
+A dropped recipe: 3 (the drop; Apply recipe...; Apply). A received recipe that needs your table: 4 (Add your table...; the file; the fold-change choice; Apply). A recipe opened first from the start screen: 4 (Open...; the recipe; the data file; Load), plus the binding step once.<br>
+A recipe of styles: 2 by a drop (the drop; Use these styles or Add these styles on top) and 3 from Recipes or the Style stack's + (the command; the recipe; the choice), plus one choice per unmatched layer and Apply.<br>
+Compare: 2 (Compare with...; March data), plus Save comparison. The export with the comparison column: 3 (Export...; Table; Export), the column already ticked.</td></tr>
+<tr><th>First failure</th><td>A recipe coloring the recipient's genes by the sender's column: a confident, wrong figure. A need the recipient supplies lists only the recipient's columns, and Apply waits, with its reason printed, until the table is added. Next: a jump read with an invented reason ("39 accounts closed") and passed to a manager. The version row states only count splits, uses "not in April", and marks the jump so it is not missed.</td></tr>
+<tr><th>Keyboard</th><td>Every command is in Quick actions. The pickers, the load step and the binding steps are dialogs: Tab through the rows, then the footer; Enter commits the main button (Replace March data when the columns match); Esc is Cancel everywhere, including the binding step. The back arrow is the first Tab stop in a binding step's header. The version row's What changed lines are one list, read in order; a large-change mark is read as part of its line. No step needs a pointer: a drop's route is the same commands from the Data panel or Recipes.</td></tr>
+<tr><th>Where she goes next</th><td>A note citing the saved comparison; the <a href="export.html">export flow</a> for the figure.</td></tr>
+</table>
+
+<h2>Questions for the study</h2>
+<p>The design has an intended answer to each; the sessions check it. Tasks are worded so they do not name where to look.</p>
+<table class="steps wide">
+<thead><tr><th>Where she may stall</th><th>Intended</th><th>Task for the session</th></tr></thead>
+<tbody>
+<tr><td>Does she find the update on a reopened project, and replace rather than add?</td><td>Update with new data... in the project-name menu or the Data panel; Enter on Replace March data.</td><td>"This week's files are in. Do what you did last week."</td></tr>
+<tr><td>Can she explain the jump from 1 to 27 components without working it out by hand?</td><td>She reads the marked line on April's row and says the 26 accounts had no transfers, without saying why they went quiet.</td><td>"Your manager asks why the network fell apart this month. What do you tell her?"</td></tr>
+<tr><td>Does the export column go into her spreadsheet as it is?</td><td>She keeps "Compared with Apr 3" ticked and filters on "no longer present".</td><td>"Send your manager a list of the accounts that were here last time and are not now."</td></tr>
+<tr><td>Does she read Esc as going back a step?</td><td>She uses the header's arrow to go back and Esc to leave.</td><td>"You picked the wrong column for the risk score two screens ago. Fix it without starting over."</td></tr>
+</tbody></table>
+<p>What the sessions showed, and what this flow now does about it (<a href="../study/round-3/insights.md">round-3 findings</a>):</p>
+<ul>
+<li><b>Jumps were not explained, or explained wrongly.</b> 35 to 65 communities and 1 to 27 components stood with no reason; one participant built a wrong one from two unrelated 39s, another worked it out by hand. Now: April's version row says what each count splits into ("26 accounts have no transfers in this version") and marks the two jumps large change. It never gives a motive: a count can be checked, a reason cannot.</li>
+<li><b>"Closed" invented a fact.</b> The load step and the comparison called the 39 accounts closed; the data says only that they had no row in April, and one participant would not put the word in front of her manager. Now: "not in April" on every screen, and "no longer present" in the export.</li>
+<li><b>No export marked what was new.</b> Participants would rebuild the week's changes with lookups in a spreadsheet. Now: the Table export's "Compared with Apr 3" column.</li>
+<li><b>The weekly update had no visible home, and Add data was the blue button.</b> Now: Update with new data... on the Data panel and the project-name menu, and Replace is the main button when the columns match.</li>
+<li><b>Kept, because it worked:</b> the load step's counts, which every participant reconciled; the same-columns warning that caught stacking a second month by mistake; the one slow result waiting for Re-run; one undo entry per update or recipe; unbound parts kept and switched off, never dropped; a recipe that waits for the recipient's table.</li>
+</ul>
+
+<h2 id="steps">Steps</h2>
+<table class="steps wide">
+<thead><tr><th>Step</th><th>Where</th><th>What she does</th><th>Undo</th><th>What she can check</th><th>Screen</th></tr></thead>
+<tbody>
+<tr><td>choose</td><td>Data panel; project-name menu; Recipes; a drop; the start screen</td><td>Update with new data...; Apply recipe...; a dropped file's choice; Open...</td><td>none</td><td>the result that will wait, under the command</td><td><a href="../screens/replace-and-recipe.html#s-menu">1</a></td></tr>
+<tr><td>load</td><td>load step</td><td>Replace March data (main when the columns match), Add to March data, or Continue to binding</td><td>part of the entry below</td><td>the preview; counts beside March; what Add would leave; what replays and what waits</td><td><a href="../screens/replace-and-recipe.html#s-load">2</a></td></tr>
+<tr><td>pick</td><td>recipe picker or preview</td><td>a recipe; Continue to binding, or Apply; Add your table... when it waits for one</td><td>none</td><td>what it carries and needs; runs with their bands</td><td><a href="../screens/replace-and-recipe.html#s-recipe-pick">7</a></td></tr>
+<tr><td>bind</td><td>binding step</td><td>one choice per unmatched column, need or layer</td><td>none</td><td>matched and unmatched; accounts not found, named</td><td><a href="../screens/replace-and-recipe.html#s-bind-replace">3</a>, <a href="../screens/replace-and-recipe.html#s-bind-recipe">8</a>, <a href="../screens/replace-and-recipe.html#s-bind-style">11</a></td></tr>
+<tr><td>commit</td><td>load, binding or choice step</td><td>Replace March data; Apply; Use these styles</td><td>"Replace data with the April files"; "Apply recipe Mule ring triage"; "Use styles from fraud-team-colors"</td><td>unbound parts listed, switched off</td><td><a href="../screens/replace-and-recipe.html#s-recipe-applied">9</a>, <a href="../screens/replace-and-recipe.html#s-style-applied">12</a></td></tr>
+<tr><td>replay (an update only)</td><td>canvas; the notice; Results</td><td>nothing, or Cancel</td><td>part of the entry above</td><td>each row's state; the band on the row that waits</td><td><a href="../screens/replace-and-recipe.html#s-replaying">4</a></td></tr>
+<tr><td>read what changed</td><td>Data &gt; Versions, April's row</td><td>Show report</td><td>none</td><td>count splits against March; large-change marks; what replayed; sets and notes carried over</td><td><a href="#what-changed">drawn above</a>; <a href="../screens/replace-and-recipe.html#s-report">5</a></td></tr>
+<tr><td>re-run</td><td>Results, pinned strip</td><td>Re-run</td><td>"Run Cycles up to 6 transfers"</td><td>the version it was computed on; the band before and during</td><td><a href="../screens/replace-and-recipe.html#s-rerun">6</a></td></tr>
+<tr><td>compare</td><td>Louvain row or April's row; comparison surface</td><td>Compare with...; March data; Save comparison</td><td>"Save comparison"</td><td>the statistic; the re-run's agreement beside it; the counts in both and not</td><td><a href="compare-versions.html">compare flow</a></td></tr>
+<tr><td>export</td><td>export dialog, Table</td><td>Export, with "Compared with Apr 3" ticked</td><td>none</td><td>the row count and its split; the methods file</td><td><a href="#export-column">drawn above</a>; <a href="../screens/export-dialog.html#table">export dialog</a></td></tr>
+</tbody></table>
+
+<h2>Where this flow departs from the framework</h2>
+<ul>
+<li><b>Replace data is labeled Update with new data...,</b> on the Data panel's header and in the project-name menu, with one description: "Replaces nodes and edges. Keeps styles, sets, notes and runs." A rename, not a second command. It replaces the earlier proposed label, Update with a new export....</li>
+<li><b>The load step's main button follows the columns:</b> Replace March data when every column matches the data loaded now, Continue to binding when some do not, and Add to March data is always there as the second button with what it would leave.</li>
+<li><b>A data version carries What changed:</b> count splits against the version before it, which graphty-element computes, with a large-change mark when a count moved by half or more of its earlier value. It never states a motive. This replaces the earlier "new single-node groups" line.</li>
+<li><b>"Not in April", never "closed";</b> the export says "no longer present", never "dropped", which already means rows lost at import.</li>
+<li><b>The Table export gains a "Compared with {date}" column</b> whenever an earlier data version exists, with the values new, in both and no longer present.</li>
+<li><b>A recipe marks the needs the recipient supplies.</b> For those, Add your table... is the main button, Apply waits with "Waiting for your table" printed beside it, the picker never lists a column from the recipe's own network, a missing column says to ask the sender, and no column is proposed in its place.</li>
+<li><b>An update and Apply recipe end in different places.</b> The framework joins them at one commit and one report; a recipe changes no data, so only an update replays, reports and adds a version.</li>
+<li><b>Esc in a binding step is Cancel,</b> not "back to the picker"; going back is the header's arrow. This follows Figma's stepped dialogs.</li>
+<li><b>A recipe of styles opens the same Apply dialog as any recipe,</b> with Use these styles and Add these styles on top, neither preselected; there is no separate style-file command.</li>
+<li><b>A dropped recipe opens its preview</b> before the match check, where Apply sits.</li>
+<li><b>The update command names what will wait,</b> the load step counts what replays, a slow result waits for Re-run naming the version it was computed on, Cancel stops only the replay, and a binding row says what it switches off.</li>
+<li><b>Undo order after a replay:</b> the Re-run is taken back before the update.</li>
+</ul>
+<p>Each is written up with its evidence in <a href="../framework-changes.md">framework-changes.md</a>.</p>
+
+<h2>Screens</h2>
+<ul>
+<li><a href="../screens/replace-and-recipe.html">The 12 states of the update and recipe screens</a> at 1440 by 900, light and dark, with an annotation layer (<a href="../screens/replace-and-recipe.html#notes">annotations on</a>) citing the framework section behind each element and the compact-mantine component it would be built with. They still show the File menu label and the earlier report; the version row, the Results rows and the export column are drawn on this page.</li>
+<li><a href="../screens/version-history.html">Version history</a>, <a href="../screens/weekly-return.html">the weekly return</a>, <a href="../screens/start-screen.html#s4">the start screen with a recipe waiting</a> and <a href="../screens/export-dialog.html#table">the table export</a>.</li>
+<li>Renders of this page: <a href="../shots/flows__replace-and-recipe.png">light</a>, <a href="../shots/flows__replace-and-recipe--dark.png">dark</a>.</li>
+</ul>
+</div>
+</body>
+</html>

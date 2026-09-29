@@ -1,0 +1,609 @@
+/* The graphty mock kit: wireframe components drawn with compact-mantine's real tokens.
+   Load cm.css first (the tokens, generated from compact-mantine), then this file.
+   Every class is documented with a snippet in kit/README.md; kit/index.html shows them all.
+   Colors: only var(--cm-*) tokens for chrome, and the canvas roles below for the drawing
+   (design/ui/framework/visual-language.md, canvas-drawing.md). Plain ASCII only. */
+
+/* ---------- theme ---------- */
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+:root {
+    --k-canvas: light-dark(#f5f5f5, #1e1e1e);
+    --k-canvas-ink: light-dark(#1a1a1a, #f0f0f0);
+    --k-node-gray: #808080;
+    --k-other-gray: #505050;
+    /* Annotation ink: storyboard callouts and step numbers. Deliberately NOT a product color, so
+       nobody mistakes an annotation for UI. */
+    --k-annot: #c2185b;
+    --k-annot-bg: light-dark(#fde7ef, #4a1830);
+    /* Annotation TEXT on the page or on --k-annot-bg: #c2185b measures under 3:1 on the dark panel,
+       so dark mode lifts it. Fills and strokes keep --k-annot (white text sits on it). */
+    --k-annot-ink: light-dark(#c2185b, #f48fb1);
+    /* Two accessible-contrast values compact-mantine's AA set does not have yet (proposed in
+       framework-changes.md, "Accessibility: two tokens the AA set is missing"). Danger text is
+       #dc3412 in Figma's light theme, 4.2:1 on a field or a selected row where 4.5:1 is needed;
+       the focus ring is #0c8ce9 in dark, 2.8:1 on a selected row where 3:1 is needed. Both take
+       the next Figma value the library already ships (--cm-bg-danger light, the dark
+       --cm-border-selected-strong). Delete these two lines when compact-mantine adopts them. */
+    --cm-text-danger: light-dark(#bd2915, #fca397);
+    --cm-border-selected: light-dark(#007be5, #7cc4f8);
+    /* Ink on the dark menu and tooltip surface (the same in both themes): secondary and disabled. */
+    --k-menu-ink2: #ffffffb2;
+    --k-menu-ink3: #ffffff66;
+    /* The canvas marks' two-tone band (selection ring, hull, focus bands) and the fill edge a node
+       gets when its fill is under 3:1 on the canvas: the values kit/gen-canvas.mjs draws with, for
+       any mark a page draws in CSS or inline SVG over a drawing. */
+    --k-mark-out: light-dark(#1a1a1a, #ffffff);
+    --k-mark-in: light-dark(#ffffff, #1a1a1a);
+    --k-fill-edge: light-dark(#8a8a8a, #6e6e6e);
+    --k-rail-w: 57px;          /* 56 + 1 px edge */
+    --k-panel-w: 241px;        /* PANEL_GRID.WIDTH 240 + 1 px edge */
+    /* The smallest text the product sets: 11/16, the body size. compact-mantine's 9/14 caption
+       role is not used for anything a reader reads (rail labels, captions over columns, table
+       header summaries, axis figures, counts): round 3's participants lost facts set in it
+       (framework-changes.md, "The smallest product text is 11 px"). A page's own small text
+       uses these two, never a literal 9 or 10. */
+    --k-caption-fs: 11px;
+    --k-caption-lh: 16px;
+}
+/* Theme-dependent images: <img class="k-light-only" src="...-light.svg"> plus a -dark twin. */
+.k-dark-only { display: none !important; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .k-dark-only { display: revert !important; }
+    :root:not([data-theme="light"]) .k-light-only { display: none !important; }
+}
+:root[data-theme="dark"] .k-dark-only { display: revert !important; }
+:root[data-theme="dark"] .k-light-only { display: none !important; }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; } /* the kit's display rules must not undo hidden */
+html, body { margin: 0; }
+body {
+    font-family: var(--cm-font-family);
+    font-size: 11px; line-height: 16px; font-weight: 450; letter-spacing: 0.055px;
+    color: var(--cm-text);
+    background: var(--cm-bg);
+    font-feature-settings: "cv05", "cv08";
+}
+.k-num { font-variant-numeric: tabular-nums; }
+.k-id { font-feature-settings: "zero", "cv05", "cv08", "tnum"; }
+.k-mono { font-family: var(--cm-font-family-mono); font-size: 11px; }
+code, kbd, samp, pre { font-family: var(--cm-font-family-mono); }
+/* Emphasis is by weight 550 (visual-language A4), never the browser's 700 bold. */
+b, strong, th { font-weight: 550; }
+.k-secondary { color: var(--cm-text-secondary); }
+.k-tertiary { color: var(--cm-text-tertiary); }
+/* A fact the reader acts on -- where the data is, the filter chip, a scope suffix, a not-drawn
+   message -- is body-text ink, never caption gray (framework-changes.md, "A fact the reader acts on
+   is never caption gray"). Secondary and tertiary ink are for truly secondary notes. */
+.k-fact { color: var(--cm-text); }
+.k-strong { font-weight: 550; }
+.k-danger { color: var(--cm-text-danger); }
+.k-brand { color: var(--cm-text-brand); }
+.k-grow { flex: 1 1 auto; min-width: 0; }
+.k-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- icons (kit/icons.svg sprite, lucide) ---------- */
+.k-i {
+    width: 16px; height: 16px; flex: none;
+    fill: none; stroke: currentColor; stroke-width: 1.5; /* 1 CSS px at 16 px (A7) */
+    stroke-linecap: round; stroke-linejoin: round;
+    vertical-align: middle;
+}
+.k-i-sm { width: 12px; height: 12px; stroke-width: 2; }
+.k-i-lg { width: 24px; height: 24px; stroke-width: 1; }
+
+/* ---------- the app frame ---------- */
+.k-app {
+    display: grid;
+    grid-template-columns: var(--k-rail-w) var(--k-panel-w) minmax(0, 1fr) var(--k-panel-w);
+    grid-template-rows: minmax(0, 1fr);
+    width: 100vw; height: 100vh; overflow: hidden;
+    background: var(--cm-bg);
+}
+.k-app[data-left="closed"] { grid-template-columns: var(--k-rail-w) 0 minmax(0, 1fr) var(--k-panel-w); }
+.k-app[data-left="closed"] > .k-panel { display: none; }
+.k-app[data-left="closed"] > .k-main { grid-column: 3; }
+.k-app[data-right="closed"] { grid-template-columns: var(--k-rail-w) var(--k-panel-w) minmax(0, 1fr) 0; }
+.k-app[data-right="closed"] > .k-right { display: none; }
+.k-main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+/* Rail */
+.k-rail {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0 16px; border-inline-end: 1px solid var(--cm-border); background: var(--cm-bg);
+}
+.k-rail-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    width: 56px; height: 56px; padding: 4px 0; border: 0; background: none; color: var(--cm-icon);
+    font: inherit; font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); letter-spacing: 0.055px;
+}
+.k-rail-btn .k-rail-pill { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 5px; }
+.k-rail-btn:hover .k-rail-pill { background: var(--cm-bg-hover); }
+.k-rail-btn[aria-pressed="true"] .k-rail-pill { background: var(--cm-bg-selected); color: var(--cm-icon-brand); }
+.k-rail-btn[aria-disabled="true"] { color: var(--cm-icon-disabled); }
+/* The Assistant while off: no icon, its name and "Off. Nothing is sent." (still clickable) */
+.k-rail-btn.k-asst-off { height: auto; min-height: 56px; padding: 8px 2px; gap: 0; text-align: center; color: var(--cm-text-secondary); }
+.k-rail-btn.k-asst-off .k-asst-cap { color: var(--cm-text); }
+.k-rail-sep { width: 16px; height: 1px; background: var(--cm-border); margin: 8px 0 7px; }
+.k-rail-foot { margin-top: auto; }
+
+/* Panels (left panel, inspector) */
+.k-panel, .k-right {
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    width: var(--k-panel-w); background: var(--cm-bg);
+}
+.k-panel { border-inline-end: 1px solid var(--cm-border); }
+.k-right { border-inline-start: 1px solid var(--cm-border); }
+.k-scroll { overflow: auto; min-height: 0; flex: 1 1 auto; }
+.k-split { height: 1px; background: var(--cm-border); cursor: row-resize; flex: none; }
+
+/* Left panel header: project name, chevron, state words, filter chip */
+.k-panel-head { padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.k-panel-head .k-title-line { display: flex; align-items: center; gap: 4px; height: 24px; }
+.k-panel-head .k-project { font-size: 13px; line-height: 22px; font-weight: 550; letter-spacing: -0.032px; }
+/* The privacy line under the project name ("Nothing has been sent from this project"): a fact the
+   reader acts on, so body ink, and a link to Data > Sent and saved, so underlined -- in the
+   border's gray, not the accent, which the hue budget keeps for live state (visual-language A1).
+   One class for every frame: <a class="k-privacy">Nothing has been sent from this project</a> */
+.k-privacy { display: block; margin: 0; padding: 4px 0; /* a 24 px tall target (WCAG 2.5.8) */ font-size: 11px; line-height: 16px; color: var(--cm-text); text-decoration: underline; text-decoration-color: var(--cm-border-strong); text-underline-offset: 2px; cursor: pointer; }
+.k-privacy:hover { text-decoration-color: currentColor; }
+.k-chip {
+    display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; margin-top: 4px;
+    border-radius: 10px; background: var(--cm-bg-secondary); color: var(--cm-text);
+}
+.k-chip[aria-expanded="true"] { background: var(--cm-bg-selected); color: var(--cm-text-brand); }
+/* The filter chip as a button with a caret (round 2: the pill read as a label and was found last).
+   Add k-chip-btn to the filter chip and put <svg class="k-i k-i-sm k-caret"> (chevron-down) last. A file chip stays a plain k-chip. */
+.k-chip.k-chip-btn { height: 24px; border-radius: 5px; padding: 0 4px 0 8px; background: var(--cm-bg); box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
+.k-chip.k-chip-btn:hover { background: var(--cm-bg-hover); }
+.k-chip.k-chip-btn[aria-expanded="true"] { background: var(--cm-bg-selected); color: var(--cm-text); box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
+.k-chip-btn .k-caret { flex: none; color: var(--cm-icon-secondary); }
+/* One line, never wrapped: kit.js drops "Filtered: " when the words do not fit (the chip's rule in screens/filter-chip.html). */
+.k-chip.k-chip-btn { max-width: 100%; white-space: nowrap; }
+.k-chip-btn > .k-num { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Right column header rows */
+.k-header1 { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.k-header2 { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 8px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.k-avatar { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--cm-bg-tertiary); font-size: 11px; }
+
+/* ---------- sections and rows (the panel grid: 16 | 88 | 8 | 88 | 8 | 24 | 8 = 240) ---------- */
+.k-section { border-bottom: 1px solid var(--cm-border); padding-bottom: 12px; }
+.k-section:last-child { border-bottom: 0; }
+.k-section[data-collapsed] { padding-bottom: 0; }
+.k-section-head {
+    display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px 0 16px;
+    font-weight: 550; letter-spacing: normal;
+}
+.k-section[data-empty] .k-section-head { color: var(--cm-text-secondary); }
+.k-section-head .k-count { font-weight: 450; color: var(--cm-text-secondary); }
+
+.k-row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 16px; }
+.k-row:hover, .k-row[data-hover] { background: var(--cm-bg-hover); }
+.k-row[aria-selected="true"] { background: var(--cm-bg-selected); }
+.k-row[data-member] { background: var(--cm-bg-selected-secondary); }
+.k-row[data-off] { color: var(--cm-text-tertiary); }
+
+/* List and tree rows: a 24 pill inside a 32 pitch, one leading mark in the 16 slot (A7) */
+.k-list { list-style: none; margin: 0; padding: 0 8px; }
+.k-item {
+    display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 4px 0 8px;
+    border-radius: 5px; position: relative;
+}
+.k-item::before { content: ""; position: absolute; inset: 4px 0; border-radius: 5px; z-index: 0; }
+.k-item > * { position: relative; z-index: 1; }
+/* A layout-free wrapper kit.js adds for a group of items that shares its parent with other controls. */
+.k-group { display: contents; }
+.k-item:hover::before, .k-item[data-hover]::before { background: var(--cm-bg-hover); }
+.k-item[aria-selected="true"]::before { background: var(--cm-bg-selected); }
+.k-item[data-member]::before { background: var(--cm-bg-selected-secondary); }
+.k-item[data-off] { color: var(--cm-text-tertiary); }
+.k-item[data-level="2"] { padding-inline-start: 24px; }
+.k-item .k-kind { color: var(--cm-text-secondary); }
+.k-item .k-trail { margin-inline-start: auto; display: flex; align-items: center; gap: 2px; color: var(--cm-text-secondary); }
+.k-item .k-show-hover { visibility: hidden; }
+.k-item:hover .k-show-hover, .k-item[data-hover] .k-show-hover { visibility: visible; }
+.k-paint-slot { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+
+/* Field rows */
+.k-fieldrow { padding: 0 8px 4px 16px; }
+.k-legend { display: block; height: 16px; margin-bottom: 4px; color: var(--cm-text-secondary); font-weight: 400; letter-spacing: normal; }
+.k-fields { display: grid; grid-template-columns: 88px 88px 24px; column-gap: 8px; align-items: center; }
+.k-fields > .k-span { grid-column: 1 / span 2; }
+.k-fields > .k-span3 { grid-column: 1 / span 3; }
+.k-fields > .k-trail-slot { grid-column: 3; }
+.k-caption { font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); font-weight: 500; letter-spacing: 0.055px; color: var(--cm-text-secondary); }
+
+/* Controls */
+.k-field {
+    display: flex; align-items: center; gap: 4px; min-width: 0; height: 24px; padding: 0 8px;
+    border-radius: 5px; background: var(--cm-bg-secondary); box-shadow: var(--cm-field-shadow);
+    color: var(--cm-text); white-space: nowrap; overflow: hidden;
+}
+.k-field .k-glyph { color: var(--cm-icon-secondary); width: 16px; flex: none; text-align: center; }
+.k-field[data-placeholder] { color: var(--cm-text-tertiary); }
+.k-field[data-focus] { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; box-shadow: none; }
+.k-field[data-error] { outline: 1px solid var(--cm-border-danger-strong); outline-offset: -1px; }
+/* Read only: a value someone must read but cannot change here (a run's layer, an encoding opened
+   read only). Full ink, no fill: disabled ink is 2.1:1 and is only for a control that is off. */
+.k-field[data-readonly] { background: transparent; color: var(--cm-text); outline: 1px solid var(--cm-border); outline-offset: -1px; box-shadow: none; }
+.k-field[data-disabled] { background: var(--cm-bg); color: var(--cm-text-disabled); outline: 1px solid var(--cm-border-disabled); outline-offset: -1px; box-shadow: none; }
+.k-field .k-caret { margin-inline-start: auto; color: var(--cm-icon-secondary); }
+.k-search { display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px 0 16px; color: var(--cm-text-secondary); }
+.k-search .k-field { flex: 1; background: var(--cm-bg-secondary); }
+
+.k-pill { /* the variable pill: a channel bound to an attribute */
+    display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 3px; max-width: 100%;
+    border-radius: 5px; background: var(--cm-bg); outline: 1px solid var(--cm-border-translucent-strong); outline-offset: -1px;
+}
+.k-chit { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: none; box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
+.k-chit-round { border-radius: 50%; }
+.k-ramp { display: inline-block; width: 40px; height: 12px; border-radius: 2px; flex: none; background: linear-gradient(90deg, #440154, #3b528b, #21918c, #5ec962, #fde725);
+  box-shadow: inset 0 0 0 1px var(--cm-border-translucent); /* RampRow's mini form: both ends stay readable on either theme's panel */ }
+.k-ramp-wide { width: 100%; height: 12px; }
+/* Named ramps, low value first, so every page draws a palette the same way (evenly spaced stops;
+   a page that places 0 on a data domain keeps its own gradient). Measure: graphty-element's
+   YLORBR_COLORS, orange to brown, the default for a measurement. Red to blue: its RED_BLUE_COLORS
+   as shipped (red is the low end). Blue to red: the same reversed. */
+.k-ramp-measure { background: linear-gradient(90deg, #ef7818, #d85a09, #b84203, #8e3104, #662506); }
+.k-ramp-redblue { background: linear-gradient(90deg, #67001f, #b2182b, #d6604d, #f4a582, #fddbc7, #f7f7f7, #d1e5f0, #92c5de, #4393c3, #2166ac); }
+.k-ramp-bluered { background: linear-gradient(90deg, #2166ac, #4393c3, #92c5de, #d1e5f0, #f7f7f7, #fddbc7, #f4a582, #d6604d, #b2182b, #67001f); }
+
+.k-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    height: 24px; padding: 0 8px; border: 0; border-radius: 5px; font: inherit; white-space: nowrap;
+    background: var(--cm-bg-brand); color: var(--cm-text-onbrand); cursor: default;
+}
+.k-btn-secondary { background: transparent; color: var(--cm-text); box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
+.k-btn-ghost { background: transparent; color: var(--cm-text); }
+.k-btn-ghost:hover { background: var(--cm-bg-hover); }
+.k-btn[disabled], .k-btn[aria-disabled="true"] { background: var(--cm-bg-disabled); color: var(--cm-text-ondisabled); box-shadow: none; }
+.k-btn-block { width: 100%; }
+.k-icon-btn {
+    display: inline-grid; place-items: center; width: 24px; height: 24px; border: 0; padding: 0; flex: none;
+    border-radius: 5px; background: transparent; color: var(--cm-icon);
+}
+.k-icon-btn:hover, .k-icon-btn[data-hover] { background: var(--cm-bg-hover); }
+.k-icon-btn[aria-pressed="true"] { background: var(--cm-bg-selected); color: var(--cm-icon-brand); }
+.k-icon-btn.k-secondary { color: var(--cm-icon-secondary); }
+
+/* A 12 px box with a 24 px hit area (WCAG 2.5.8): a transparent 6 px border around it, taken back by
+   the margin, so the layout is the 12 px box's (framework-changes.md, "Accessibility: target size of
+   the tool caret and a row's checkbox"). */
+.k-check { display: inline-grid; place-items: center; width: 24px; height: 24px; margin: -6px; border: 6px solid transparent; background-clip: padding-box; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); flex: none; }
+.k-check[aria-checked="true"] { background-color: var(--cm-bg-brand); box-shadow: none; color: #fff; }
+/* Checked box and on switch in dark: the AA brand fill (#0a6dc2, chosen for white text on it) is
+   2.65:1 on the panel and 2.15:1 on a dialog, under WCAG 1.4.11's 3:1, so they keep the unchecked
+   face's 1px edge on top of the fill (5:1). Proposed to compact-mantine (framework-changes.md). */
+.k-check[aria-checked="true"], .k-switch[aria-checked="true"] { box-shadow: inset 0 0 0 1px light-dark(transparent, var(--cm-border-translucent-strong)); }
+/* The focus ring hugs the 12 px box, not the hit area around it. */
+.k-check:focus-visible, .k-check[data-focus-ring] { outline-offset: -5px !important; }
+.k-check[aria-checked="true"]::after { content: ""; width: 6px; height: 3px; border: solid currentColor; border-width: 0 0 1.5px 1.5px; transform: translateY(-1px) rotate(-45deg); }
+.k-switch { display: inline-block; width: 24px; height: 14px; border-radius: 7px; background: var(--cm-bg-tertiary); box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); position: relative; flex: none; }
+.k-switch::after { content: ""; position: absolute; top: 1px; left: 1px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 .5px rgba(0,0,0,.2); }
+.k-switch[aria-checked="true"] { background: var(--cm-bg-brand); }
+.k-switch[aria-checked="true"]::after { left: 11px; }
+
+.k-seg { display: inline-flex; height: 24px; padding: 0; border-radius: 5px; background: var(--cm-bg-secondary); }
+.k-seg > * { background: none; border: 0; font: inherit; display: grid; place-items: center; min-width: 24px; padding: 0 8px; border-radius: 5px; color: var(--cm-text-secondary); }
+.k-seg > [aria-pressed="true"], .k-seg > [role="radio"][aria-checked="true"], .k-seg > [data-pressed] { background: var(--cm-bg); color: var(--cm-text); box-shadow: inset 0 0 0 1px var(--cm-segment-edge); }
+.k-seg.k-span, .k-seg-fill { display: flex; }
+.k-seg-fill > * { flex: 1; }
+
+.k-tabs { display: flex; gap: 4px; align-items: center; }
+.k-tab { height: 24px; padding: 0 8px; border-radius: 5px; display: inline-flex; align-items: center; color: var(--cm-text-secondary); }
+.k-tab:hover { background: var(--cm-bg-hover); }
+.k-tab[aria-selected="true"] { background: var(--cm-bg-secondary); color: var(--cm-text); font-weight: 550; }
+
+.k-badge { display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 5px; outline: 1px solid var(--cm-border); outline-offset: -1px; }
+.k-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--cm-bg-brand); border: 2px solid var(--cm-bg); }
+.k-kbd { display: inline-block; padding: 0 4px; border-radius: 2px; outline: 1px solid var(--cm-border); outline-offset: -1px; color: var(--cm-text-secondary); font-size: 11px; }
+.k-warn-glyph { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--cm-bg-warning); color: #000; font-weight: 700; font-size: 10px; line-height: 1; flex: none; }
+/* The error form of the same mark (a failed run in a list): the danger fill with white ink, 5.9:1 light and 7:1 dark. Never --cm-text-danger as a fill: in dark it is a light pink. */
+.k-warn-glyph.k-err-glyph { background: var(--cm-bg-danger); color: var(--cm-text-onbrand); }
+
+/* Readings */
+.k-data { display: flex; align-items: baseline; gap: 8px; min-height: 24px; padding: 4px 8px 4px 16px; }
+.k-data .k-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cm-text-secondary); }
+.k-data .k-value { font-variant-numeric: tabular-nums; text-align: end; white-space: nowrap; }
+.k-metric { display: flex; flex-direction: column; padding: 4px 8px 4px 16px; }
+.k-metric .k-big { font-size: 15px; line-height: 25px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.k-metrics { display: grid; grid-template-columns: 1fr 1fr; }
+.k-prose { padding: 4px 8px 4px 16px; color: var(--cm-text-secondary); }
+.k-prose p { margin: 0 0 8px; }
+.k-hist { display: flex; align-items: flex-end; gap: 1px; height: 64px; margin: 4px 8px 4px 16px; }
+.k-hist > i { flex: 1; background: var(--cm-border-translucent-strong); border-radius: 1px 1px 0 0; min-height: 1px; }
+.k-hist > i[data-on] { background: var(--cm-bg-brand); }
+.k-spark { display: flex; align-items: flex-end; gap: 1px; height: 32px; }
+.k-spark > i { flex: 1; background: var(--cm-border-translucent-strong); }
+.k-progress { height: 4px; border-radius: 2px; background: var(--cm-bg-tertiary); overflow: hidden; }
+.k-progress > i { display: block; height: 100%; background: var(--cm-bg-brand); }
+
+/* Type row: two lines (interface-specification.md 4.2). Line 1 is the kind glyph and the name at
+   full width; everything written after the name (kind word, stepper, verbs, overflow) moves to
+   line 2. The ::after is the line break: it sorts between the name and what follows it. A row
+   with nothing after its name stays one line. Same measures as the inspector's own row. */
+.k-typerow { display: flex; flex-wrap: wrap; align-items: center; align-content: center; column-gap: 6px; row-gap: 0; min-height: 48px; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--cm-border); }
+.k-typerow::after { content: ""; order: 1; flex-basis: 100%; height: 0; }
+.k-typerow > .k-name ~ * { order: 2; }
+.k-typerow > .k-name { flex: 1 1 0; min-width: 0; line-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-typerow > .k-name ~ span:not(.k-icon-btn):not(.k-btn) { line-height: 28px; }
+.k-typerow .k-name { font-weight: 550; }
+
+/* ---------- canvas and its furniture ---------- */
+.k-canvas { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; background: var(--k-canvas); container-type: size; }
+/* The stage: the drawing's 3:2 box, fitted and centered in the canvas. Put the drawing and any
+   mark anchored to a node inside it, so fixtures.json anchors (percent of the drawing) land on
+   the node at every canvas size. */
+.k-stage { position: absolute; left: 50%; top: 50%; width: min(100cqw, 150cqh); aspect-ratio: 3 / 2; transform: translate(-50%, -50%); }
+.k-stage > img, .k-stage > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.k-at { position: absolute; transform: translate(-50%, -50%); }
+
+.k-legend-card {
+    position: absolute; left: 12px; bottom: 12px; min-width: 160px; max-width: 240px; padding: 8px 12px;
+    border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200);
+    font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums;
+}
+.k-legend-card .k-lg-title { font-weight: 550; }
+.k-legend-card .k-lg-row { display: flex; align-items: center; gap: 8px; }
+.k-legend-card .k-lg-row .k-value { margin-inline-start: auto; color: var(--cm-text-secondary); }
+.k-legend-card .k-notdrawn { border-top: 1px solid var(--cm-border); margin-top: 4px; padding-top: 4px; color: var(--cm-text); }
+.k-legend-card .k-notdrawn a { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; }
+
+.k-help { position: absolute; right: 12px; bottom: 12px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
+.k-minimap { position: absolute; right: 12px; top: 12px; width: 160px; height: 107px; border-radius: 5px; background: var(--k-canvas); box-shadow: var(--cm-elevation-200); overflow: hidden; }
+
+.k-toolbar-dock { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.k-toolbar { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 8px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
+.k-toolbar-sep { width: 1px; align-self: stretch; margin: -8px 0; background: var(--cm-border); }
+.k-tool { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 5px; color: var(--cm-icon); }
+.k-tool:hover { background: var(--cm-bg-hover); }
+.k-tool[aria-pressed="true"] { background: var(--cm-bg-brand); color: #fff; }
+/* The caret's hit area is 24 wide and starts where its tool ends, the chevron in its first 16
+   (WCAG 2.5.8; framework-changes.md, "Accessibility: target size of the tool caret"). Figma draws
+   it 16 wide overlapping the tool by 7, which puts two targets on the same pixels. */
+.k-tool-caret { display: grid; place-items: center; width: 24px; height: 32px; padding-inline-end: 8px; border-radius: 5px; margin-inline-start: -8px; color: var(--cm-icon-secondary); }
+.k-secondary-bar { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 8px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
+.k-secondary-bar .k-field { min-width: 120px; }
+
+/* The notice (Figma's toast, compact-mantine Toast, figma-spec.md 8.6): dark in both themes, above
+   the toolbar. Pill padding 0 8 plus the message's own 8 = text 16 from the edge; message 11/16 550;
+   the action a transparent 24-tall button with a 1px outline at 450; an optional dismiss X in a 33px
+   segment with a start border (<span class="k-toast-x">), flush with the end. */
+.k-toast {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px 0 16px;
+    border-radius: 13px; background: var(--cm-bg-toolbar); color: var(--cm-text-menu); box-shadow: var(--cm-elevation-toast); color-scheme: dark;
+    font-weight: 550; letter-spacing: 0.055px; white-space: nowrap;
+}
+.k-toast .k-toast-action {
+    display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 5px;
+    color: var(--cm-text-menu); font-weight: 450; box-shadow: inset 0 0 0 1px var(--cm-border-translucent);
+}
+.k-toast:has(.k-toast-x) { padding-inline-end: 0; }
+.k-toast .k-toast-x { display: inline-grid; place-items: center; width: 33px; align-self: stretch; border-inline-start: 1px solid var(--cm-border-translucent); }
+.k-toast .k-progress { width: 120px; background: #444; }
+/* There is no status bar in this design: running work is the notice, what is not drawn is the
+   legend's not-drawn line. .k-status exists for a mock that must show a proposed one. */
+.k-status { display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 12px; border-top: 1px solid var(--cm-border); color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; flex: none; }
+
+/* ---------- overlays ---------- */
+.k-menu {
+    position: absolute; z-index: 40; min-width: 200px; padding: 8px 0; border-radius: 13px;
+    background: #1e1e1e; color: #fff; box-shadow: var(--cm-elevation-400); color-scheme: dark;
+}
+.k-menu-item { position: relative; display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 16px; }
+.k-menu-item::before { content: ""; position: absolute; inset: 0 8px; border-radius: 5px; z-index: -1; }
+.k-menu-item { isolation: isolate; }
+.k-menu-item[data-hover]::before, .k-menu-item:hover::before { background: var(--cm-bg-brand); }
+.k-menu-item[aria-disabled="true"] { color: var(--k-menu-ink3); }
+.k-menu-item .k-check-col { width: 16px; flex: none; text-align: center; }
+.k-menu-item .k-shortcut { margin-inline-start: auto; padding-inline-start: 16px; color: var(--k-menu-ink2); }
+.k-menu-item .k-sub { margin-inline-start: auto; }
+.k-menu-sep { height: 1px; margin: 8px 0; background: #383838; }
+.k-menu-label { height: 24px; padding: 0 16px; display: flex; align-items: center; color: var(--k-menu-ink2); }
+/* Described item: an option whose result needs a second line (a policy with its counts). Proposed
+   to compact-mantine as a Menu.Item / Select option with a description slot. */
+.k-menu-item[data-described] { height: auto; min-height: 24px; padding-top: 4px; padding-bottom: 4px; align-items: flex-start; }
+.k-menu-item[data-described] .k-check-col { line-height: 16px; }
+.k-menu-desc { display: block; color: var(--k-menu-ink2); font-size: 11px; line-height: 16px; }
+
+.k-popover {
+    position: absolute; z-index: 30; width: 240px; border-radius: 13px; background: var(--cm-bg);
+    box-shadow: var(--cm-elevation-400); overflow: hidden;
+}
+.k-popover-head { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); font-weight: 550; }
+.k-popover-body { padding: 8px 0 12px; max-height: 560px; overflow: auto; }
+
+.k-tooltip {
+    position: absolute; z-index: 60; max-width: 220px; padding: 4px 8px; border-radius: 5px;
+    background: #1e1e1e; color: #fff; box-shadow: var(--cm-elevation-300); color-scheme: dark;
+}
+.k-tooltip .k-secondary { color: var(--k-menu-ink2); }
+
+.k-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: var(--cm-modal-backdrop); }
+/* Most Figma dialogs dim nothing behind them: data-clear keeps the placement, drops the dim */
+.k-backdrop[data-clear] { background: transparent; }
+.k-modal { width: 480px; max-width: calc(100vw - 32px); max-height: calc(100vh - 64px); display: flex; flex-direction: column; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-500); overflow: hidden; }
+.k-modal-wide { width: 720px; }
+.k-modal-head { display: flex; align-items: center; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); font-weight: 550; flex: none; }
+.k-modal-body { padding: 8px 0 12px; overflow: auto; }
+.k-modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 48px; padding: 0 16px; border-top: 1px solid var(--cm-border); flex: none; }
+
+/* An issue row: the error slot of a step or dialog (Figma's missing-fonts dialog row; compact-mantine
+   ActionRow). Severity icon, the headline in 550, the cause below in secondary ink, an optional
+   trailing slot. The step's one verb is its footer primary, never a button in the row. */
+.k-issue { display: flex; align-items: flex-start; gap: 8px; min-height: 32px; padding: 6px 8px 8px 16px; }
+.k-issue > .k-i, .k-issue > .k-warn-glyph { margin-top: 2px; flex: none; }
+.k-issue > .k-i { color: var(--cm-text-danger); }
+.k-issue-body { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; line-height: 16px; }
+.k-issue-body > b { font-weight: 550; line-height: 20px; }
+.k-issue-body > .k-secondary { line-height: 16px; }
+
+/* A card on the canvas when there is no drawing (renderer lost, no WebGL). Proposed to
+   compact-mantine (figma-spec.md 11.11 has no card yet); see framework-changes.md. */
+.k-canvas-card { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); width: 320px; padding: 16px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); display: grid; gap: 8px; line-height: 16px; }
+.k-canvas-card-title { display: flex; gap: 8px; align-items: center; font-weight: 550; }
+.k-canvas-card-acts { display: flex; gap: 8px; margin-top: 4px; }
+
+/* A count on a rail button (Mantine Indicator with a label): results that failed or are out of
+   date, on Results. <span class="k-rail-pill">icon<span class="k-rail-badge k-num">1</span></span> */
+.k-rail-pill { position: relative; }
+.k-rail-badge { position: absolute; top: -3px; right: -7px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--cm-bg-brand); color: var(--cm-text-onbrand); font-size: var(--k-caption-fs); line-height: 16px; font-weight: 550; text-align: center; box-shadow: 0 0 0 2px var(--cm-bg); }
+/* A mark on a rail button (Mantine Indicator): <span class="k-rail-pill k-rail-marked"> */
+.k-rail-marked { position: relative; }
+.k-rail-marked::after { content: ""; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--cm-bg-danger); box-shadow: 0 0 0 2px var(--cm-bg); }
+
+.k-quick { position: absolute; z-index: 50; left: 50%; bottom: 72px; transform: translateX(-50%); width: 480px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-400); overflow: hidden; }
+.k-quick-input { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.k-quick-list { padding: 8px 0; max-height: 320px; overflow: auto; }
+.k-result { position: relative; isolation: isolate; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; }
+.k-result::before { content: ""; position: absolute; inset: 4px 8px; border-radius: 5px; z-index: -1; }
+.k-result[aria-selected="true"]::before { background: var(--cm-bg-selected); }
+.k-group-head { height: 24px; padding: 0 16px; display: flex; align-items: center; color: var(--cm-text-secondary); font-weight: 550; }
+
+/* ---------- bottom dock and table ---------- */
+.k-dock { flex: 0 0 34%; display: flex; flex-direction: column; min-height: 160px; border-top: 1px solid var(--cm-border); background: var(--cm-bg); }
+.k-dock-handle { height: 5px; margin-top: -3px; cursor: row-resize; flex: none; }
+.k-dock-tabs { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex: none; }
+.k-scope { padding: 0 16px 4px; color: var(--cm-text); flex: none; }
+.k-table-wrap { overflow: auto; flex: 1 1 auto; min-height: 0; }
+.k-table { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
+.k-table th, .k-table td { height: 32px; padding: 0 8px; border-bottom: 1px solid var(--cm-border); border-inline-end: 1px solid var(--cm-border); white-space: nowrap; text-align: start; }
+.k-table th { position: sticky; top: 0; z-index: 1; background: var(--cm-bg); font-weight: 550; color: var(--cm-text); }
+.k-table th .k-profile { display: block; font-weight: 450; color: var(--cm-text-secondary); font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); }
+.k-table th.k-n, .k-table td.k-n { text-align: end; }
+.k-table tr:hover td, .k-table tr[data-hover] td { background: var(--cm-bg-hover); }
+.k-table tr[aria-selected="true"] td { background: var(--cm-bg-selected); }
+.k-table tr[data-member] td { background: var(--cm-bg-selected-secondary); }
+.k-table td .k-chit { margin-inline-end: 6px; vertical-align: -2px; }
+.k-timeslider { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.k-timeslider .k-track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--cm-bg-tertiary); }
+.k-timeslider .k-window { position: absolute; top: -4px; bottom: -4px; border-radius: 3px; background: var(--cm-bg-selected); outline: 1px solid var(--cm-border-selected); }
+
+/* ---------- start screen ---------- */
+.k-start { max-width: 720px; margin: 0 auto; padding: 48px 16px; }
+.k-start h1 { font-size: 15px; line-height: 25px; font-weight: 550; margin: 0 0 16px; }
+.k-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.k-thumb { border-radius: 5px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.k-thumb img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+.k-thumb .k-thumb-label { padding: 8px; }
+
+/* ---------- storyboards, flows and documents (not product UI) ---------- */
+.k-doc { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; font-size: 13px; line-height: 20px; letter-spacing: -0.003px; }
+.k-doc h1 { font-size: 24px; line-height: 32px; font-weight: 600; margin: 0 0 8px; }
+.k-doc h2 { font-size: 15px; line-height: 25px; font-weight: 600; margin: 32px 0 8px; }
+.k-doc h3 { font-size: 13px; line-height: 22px; font-weight: 600; margin: 16px 0 4px; }
+.k-doc p, .k-doc li { max-width: 72ch; }
+.k-doc a { color: var(--cm-text-brand); }
+.k-doc .k-lede { font-size: 15px; line-height: 24px; color: var(--cm-text-secondary); max-width: 72ch; }
+.k-doc table { border-collapse: collapse; margin: 8px 0 16px; }
+.k-doc th, .k-doc td { border-bottom: 1px solid var(--cm-border); padding: 6px 12px 6px 0; text-align: start; vertical-align: top; }
+.k-doc blockquote { margin: 8px 0; padding: 4px 0 4px 16px; border-inline-start: 3px solid var(--cm-border); color: var(--cm-text-secondary); }
+
+/* A storyboard: a strip of frames, each a scaled screen with a caption */
+.k-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+.k-frame { margin: 0; }
+.k-frame-shot { position: relative; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); aspect-ratio: 16 / 10; }
+.k-frame-shot > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+/* Put a live mock in a frame: <iframe class="k-frame-live" src="../screens/x.html"> scales 1440x900 down */
+.k-frame-live { position: absolute; top: 0; left: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(var(--k-scale, 0.25)); pointer-events: none; }
+.k-frame figcaption { margin-top: 8px; font-size: 13px; line-height: 20px; }
+.k-frame figcaption .k-step { margin-inline-end: 6px; }
+.k-frame figcaption .k-said { display: block; margin-top: 4px; color: var(--cm-text-secondary); font-style: italic; }
+
+/* Annotations: numbered markers and callouts drawn over a mock, in annotation ink */
+.k-step { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--k-annot); color: #fff; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Target size (WCAG 2.5.8): a link that stands alone on a list line or in a flow card, and a step
+   number that is a link, is at least 24 px tall. */
+:is(ol, ul):not(.k-list) > li > a:only-child, .k-flow-step > a { display: inline-block; min-height: 24px; line-height: 24px; }
+a.k-step { min-width: 24px; height: 24px; border-radius: 12px; }
+.k-annot-box { position: absolute; z-index: 90; border: 2px dashed var(--k-annot); border-radius: 6px; pointer-events: none; }
+.k-annot-note b { color: var(--k-annot-ink); }
+.k-annot-note { position: absolute; z-index: 91; max-width: 240px; padding: 6px 10px; border-radius: 6px; background: var(--k-annot-bg); color: var(--cm-text); border-inline-start: 3px solid var(--k-annot); font-size: 12px; line-height: 17px; box-shadow: var(--cm-elevation-200); }
+.k-cursor { position: absolute; z-index: 95; width: 16px; height: 20px; pointer-events: none;
+    background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 20'%3E%3Cpath d='M1 1v15l4-4 3 7 3-1-3-7h6z' fill='%23000' stroke='%23fff' stroke-width='1.2'/%3E%3C/svg%3E"); }
+
+/* A flow: steps left to right with arrows, each a card */
+.k-flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+.k-flow-step { flex: 1 1 200px; padding: 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.k-flow-step h3 { margin: 0 0 4px; }
+.k-flow-arrow { align-self: center; color: var(--cm-text-tertiary); font-size: 18px; }
+.k-flow-step[data-branch] { box-shadow: inset 0 0 0 1px var(--cm-border), inset 3px 0 0 var(--k-annot); }
+
+/* Persona and quote cards for the study */
+.k-card { padding: 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.k-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.k-quote { margin: 8px 0; padding: 8px 12px; border-radius: 6px; background: var(--cm-bg-secondary); }
+.k-quote cite { display: block; margin-top: 4px; font-style: normal; color: var(--cm-text-secondary); font-size: 11px; }
+/* A design note's tag, never product UI: "proposed", "waits on graphty-element", "new". */
+.k-annot-tag { display: inline-block; padding: 0 6px; border-radius: 8px; background: var(--k-annot-bg); color: var(--k-annot-ink); font-size: 11px; line-height: 16px; font-weight: 600; font-style: normal; letter-spacing: 0; white-space: nowrap; vertical-align: 1px; }
+.k-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--cm-bg-secondary); color: var(--cm-text-secondary); font-size: 11px; margin: 0 4px 4px 0; }
+
+/* Keyboard focus drawn in a static mock (compact-mantine's 1px focus ring, spec 2.7) */
+[data-focus-ring] { outline: 1px solid var(--cm-border-selected) !important; outline-offset: 1px; }
+/* Live keyboard focus: the same ring, on anything kit.js made focusable (WCAG 2.4.7). A scroll area
+   and a roving group draw it inside, so a clipped edge never hides it. */
+:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: 1px; }
+/* A link around a picture (a gallery or flow thumbnail) is an inline box of no height, so its own
+   outline does not draw: the ring goes on the picture (WCAG 2.4.7). */
+a:focus-visible > img, a:focus-visible > svg:only-child { outline: 2px solid var(--cm-border-selected); outline-offset: 2px; }
+.k-stage:focus-visible, [role=region]:focus-visible, .k-scroll:focus-visible, .k-table-wrap:focus-visible, [role=option]:focus-visible, .k-menu-item:focus-visible { outline-offset: -1px; }
+/* A rail button spans the rail from the window's edge to the panel, which would cut its ring to two
+   lines. compact-mantine draws it on the pill (figma-spec 2.7, cm-focus-flush); a button with no
+   pill (the Assistant while off) draws it inside its own box. */
+.k-rail-btn:focus-visible, .k-rail-btn[data-focus-ring] { outline-offset: -3px; border-radius: 8px; }
+.k-rail-btn:has(.k-rail-pill):focus-visible, .k-rail-btn:has(.k-rail-pill)[data-focus-ring] { outline: none !important; }
+.k-rail-btn:focus-visible .k-rail-pill, .k-rail-btn[data-focus-ring] .k-rail-pill { outline: 1px solid var(--cm-border-selected); outline-offset: 0; }
+/* Text for a screen reader only (the page heading kit.js adds to a whole-frame screen). */
+.k-sr { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* The frame's first Tab stop: skip to the drawing, and say F6 crosses regions. Shown only while focused. */
+.k-skip { position: absolute; left: 8px; top: 8px; z-index: 50; padding: 4px 8px; border-radius: 5px; background: var(--cm-bg); color: var(--cm-text); box-shadow: 0 0 0 1px var(--cm-border-strong); font-size: 11px; line-height: 16px; text-decoration: underline; text-underline-offset: 2px; }
+.k-skip:not(:focus) { clip-path: inset(50%); width: 1px; height: 1px; padding: 0; overflow: hidden; white-space: nowrap; }
+.k-field[data-focus-ring] { outline-offset: 1px; }
+/* Anchor: an inline text command */
+/* Underlined: next to secondary ink the brand color differs by 1.1:1, so color alone would not
+   mark it as a command (WCAG 1.4.1). */
+.k-link { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; cursor: default; }
+
+/* Layer chips (canvas-drawing.md 3): a categorical layer's stacked chits, largest category in
+   front (last child); a size or width layer's graduated glyph. */
+.k-stack { position: relative; display: inline-block; width: 16px; height: 12px; flex: none; }
+.k-stack > .k-chit { position: absolute; width: 9px; height: 9px; border-radius: 2px; }
+.k-stack > .k-chit:nth-child(1) { left: 7px; top: 0; }
+.k-stack > .k-chit:nth-child(2) { left: 3.5px; top: 1.5px; }
+.k-stack > .k-chit:nth-child(3) { left: 0; top: 3px; }
+.k-sizechip { display: inline-block; width: 16px; height: 12px; flex: none; }
+/* A legend's graduated size marks, each labeled with its value */
+.k-size-marks { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 6px; padding: 2px 0; }
+.k-size-marks > div { white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+.k-size-marks b { display: block; border-radius: 50%; background: var(--k-node-gray, #808080); }
+
+/* ---------- drawn by kit.js ---------- */
+/* The tooltip every icon button shows (Figma's: dark in both themes, one line, below the control or
+   above it in the lower half of the window). */
+.k-tip {
+    position: fixed; z-index: 1000; max-width: 280px; padding: 4px 8px; border-radius: 5px;
+    background: #1e1e1e; color: #fff; box-shadow: var(--cm-elevation-300); color-scheme: dark;
+    font: 450 11px/16px var(--cm-font-family); letter-spacing: 0.055px; white-space: pre;
+}
+/* A control the mock does not wire: annotation ink, so nobody reads the mark as product UI. */
+.k-tip[data-dead] { background: var(--k-annot); }
+[data-not-in-mock], [data-kit-dead] { outline: 1px dashed var(--k-annot); outline-offset: 1px; cursor: not-allowed; }
+html[data-study] [data-not-in-mock], html[data-study] [data-kit-dead] { outline: none; }
+/* A number that disagrees with kit/fixtures.json, or a key that does not exist. */
+[data-kit-problem] { outline: 2px solid var(--k-annot) !important; outline-offset: 1px; }
+
+
+/* The participant view's way out (kit.js, section 5): faint on purpose, so a participant does not
+   notice it and a facilitator can find it; a 32 px touch target in the bottom-right corner. */
+.k-study-exit { position: fixed; right: 0; bottom: 0; transform-origin: 100% 100%; z-index: 2147483647; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; margin: 0; border: 0; background: transparent; color: var(--cm-text-secondary); opacity: .35; cursor: pointer; }
+.k-study-exit:hover, .k-study-exit:focus-visible { opacity: 1; }
+
+/* A frame kept to show what a design replaced: data-frame="before" on it. The kit check skips it
+   (kit/check.mjs, the gate), it is captioned Before in annotation ink, and the participant view
+   never shows it. */
+[data-frame="before"] { position: relative; outline: 1px dashed var(--k-annot); outline-offset: 4px; }
+[data-frame="before"]::before { content: "Before"; position: absolute; left: 0; top: -22px; z-index: 5; padding: 0 6px; border-radius: 8px; background: var(--k-annot-bg); color: var(--k-annot-ink); font: 600 11px/16px var(--cm-font-family); }
+html[data-study] [data-frame="before"] { display: none !important; }

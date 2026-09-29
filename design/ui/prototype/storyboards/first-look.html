@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First look: a file arrives and is worth an afternoon (or not)</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  body { background: var(--cm-bg); }
+  .k-doc { max-width: 1240px; }
+  .sb { display: grid; gap: 48px; margin-top: 24px; }
+  .sb .k-frame { display: grid; grid-template-columns: 720px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .sb figcaption { margin-top: 0 !important; }
+  .sb figcaption h2 { margin: 0 0 8px; font-size: 15px; line-height: 22px; }
+  .sb dl { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 12px; margin: 8px 0; }
+  .sb dt { color: var(--cm-text-secondary); }
+  .sb dd { margin: 0; }
+  .sb .open { display: inline-block; margin-top: 4px; }
+
+  /* A pane: one region of a screen state at (or near) 1:1. --x, --y: the region's top left in the
+     1440 x 900 screen; --s: scale; --w, --h: the pane's size on this page. */
+  .panes { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+  .pcol { display: flex; flex-direction: column; gap: 12px; }
+  .pane { position: relative; overflow: hidden; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); }
+  .pane iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(var(--s)) translate(calc(var(--x) * -1px), calc(var(--y) * -1px)); pointer-events: none; }
+  .pane .k-annot-box { left: calc((var(--bx) - var(--x)) * var(--s) * 1px); top: calc((var(--by) - var(--y)) * var(--s) * 1px); width: calc(var(--bw) * var(--s) * 1px); height: calc(var(--bh) * var(--s) * 1px); box-shadow: 0 0 0 1px #fff8; }
+  .pane-note { font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); margin: 4px 0 0; }
+
+  /* The whole screen, small, with the panes' regions marked */
+  .thumb { position: relative; width: 180px; height: 113px; overflow: hidden; border-radius: 4px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); margin-bottom: 8px; }
+  .thumb iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(0.125); pointer-events: none; }
+  .thumb i { position: absolute; left: calc(var(--rx) * 0.125px); top: calc(var(--ry) * 0.125px); width: calc(var(--rw) * 0.125px); height: calc(var(--rh) * 0.125px); outline: 2px solid var(--k-annot); outline-offset: 0; }
+
+  .intended { display: block; margin: 8px 0; padding: 6px 10px; border-radius: 6px; background: var(--cm-bg-secondary); color: var(--cm-text-secondary); font-style: italic; }
+  .intended::before { content: "Intended reading: "; font-style: normal; font-weight: 550; color: var(--cm-text); }
+  .miss { padding: 12px 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border), inset 3px 0 0 var(--k-annot); max-width: 72ch; }
+  .claim { padding: 12px 16px; border-radius: 8px; background: var(--cm-bg-secondary); max-width: 80ch; }
+  .key { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; color: var(--cm-text-secondary); }
+  .key .k-annot-box { position: static; display: inline-block; width: 28px; height: 14px; vertical-align: -3px; }
+  .key .intended { display: inline-block; margin: 0; }
+  @media (max-width: 1100px) {
+    .sb .k-frame { grid-template-columns: 1fr; }
+    .panes { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <p><a href="../index.html">Design gallery</a></p>
+  <h1>First look: a file arrives and is worth an afternoon (or not)</h1>
+  <p class="k-lede">Elena, a product manager who has never analyzed a network, wants to know whether graphty could say something about her company's export of which customers use which integrations. First she tries it on a network she already knows: the Les Miserables co-appearance file from a tutorial she never finished, which she once round-tripped through a spreadsheet.</p>
+
+  <table>
+    <tr><th>Who</th><td>Elena, first-time graph user. Trackpad, 14-inch laptop, browser at 1440 by 900. No recent projects.</td></tr>
+    <tr><th>Her file</th><td><span class="k-id">miserables.json</span>: 77 characters and 254 links, with a <span class="k-id">value</span> on each link counting shared chapters. It is the published file, plus one change of hers: the spreadsheet export wrote every value as text (<span class="k-mono">"8"</span>, not <span class="k-mono">8</span>), as sheet-to-JSON exporters commonly do.</td></tr>
+    <tr><th>Goal</th><td>"Just show me something interesting", then "who matters most here?"</td></tr>
+    <tr><th>Ends</th><td>She has run at least one analysis and written down why she stopped.</td></tr>
+    <tr><th>Screens</th><td>Every frame is a region of <a href="../screens/first-look.html">the first-look screens</a>, shown at full size (or a little smaller where a region is wide), with the whole screen small beside it. Those screens, 1440 by 900 in light and dark, carry an annotation layer with the design rule, the compact-mantine component, where the screen departs from Figma and why, where keyboard focus is and what a screen reader hears.</td></tr>
+  </table>
+  <p class="key"><span><span class="k-annot-box"></span> marks the moment in each frame; it is not interface.</span> <span class="intended">what the design hopes she thinks.</span> <span>These lines are hypotheses for the study to test, written before any session. They are not quotes from a participant.</span></p>
+
+  <div class="sb">
+
+    <!-- 1 -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:260;--y:80;--s:1;--w:640;--h:470">
+            <iframe src="../screens/first-look.html#s1" title="Start screen, first run" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:276;--by:114;--bw:596;--bh:26"></span>
+            <span class="k-annot-box" style="--bx:282;--by:480;--bw:430;--bh:24"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s1" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:260;--ry:80;--rw:640;--rh:470"></i></div>
+        <h2><span class="k-step">1</span>Before anything loads, the start screen says where her files go</h2>
+        <dl>
+          <dt>Where</dt><dd>The start screen, first visit, so there is no Recent projects section and the samples lead.</dd>
+          <dt>Does</dt><dd>Reads the line under the title, then rests the pointer on the Les Miserables sample (keyboard focus stays on the first card, Karate club; she is using the trackpad).</dd>
+          <dt>Happens</dt><dd>Nothing yet. The line says files stay on this computer; Connect to data source... says what does leave: only a query, to a source she names.</dd>
+        </dl>
+        <span class="intended">"OK, it's not uploading anything. Let me see one of these first."</span>
+        <a class="open" href="../screens/first-look.html#s1">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 2a -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:57;--y:0;--s:0.75;--w:720;--h:450">
+            <iframe src="../screens/first-look.html#s2a" title="The sample open as an unkept copy, a file dragged over it" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:184;--by:7;--bw:74;--bh:26"></span>
+            <span class="k-annot-box" style="--bx:578;--by:412;--bw:340;--bh:96"></span>
+          </div>
+        </div>
+        <p class="pane-note">Shown smaller than full size.</p>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s2a" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:57;--ry:0;--rw:960;--rh:600"></i></div>
+        <h2><span class="k-step">2a</span>She opens the sample, then drags her own file over it</h2>
+        <dl>
+          <dt>Where</dt><dd>The sample project, Graph panel open, nothing selected.</dd>
+          <dt>Does</dt><dd>Clicks the Les Miserables card. It opens in one step, as her own copy: "Not saved" sits beside the name. She looks at the colored groups, then drags <span class="k-id">miserables.json</span> from her Downloads folder onto the canvas.</dd>
+          <dt>Happens</dt><dd>The canvas becomes a drop target: "Drop to choose what happens to this file. The columns are checked before anything loads." It cannot name the file yet: a browser does not reveal a dragged file's name until the drop.</dd>
+        </dl>
+        <span class="intended">"Pretty. Does it work with a file I actually have?"</span>
+        <a class="open" href="../screens/first-look.html#s2a">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 2b -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:470;--y:310;--s:1;--w:500;--h:290">
+            <iframe src="../screens/first-look.html#s2b" title="The drop choice step" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:482;--by:441;--bw:476;--bh:46"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s2b" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:470;--ry:310;--rw:500;--rh:290"></i></div>
+        <h2><span class="k-step">2b</span>The drop asks what the file is for</h2>
+        <dl>
+          <dt>Where</dt><dd>The drop choice step, titled with the file's name, over the sample copy.</dd>
+          <dt>Does</dt><dd>Reads the two choices. The first, Open as a new project, is the safe one and holds focus. She moves to Update with new data... because its line promises the thing she just liked: her file, drawn with this sample's colors and sizes. The other three ways stay folded under More ways.</dd>
+          <dt>Happens</dt><dd>The row commits itself; there is no Continue. The load step opens with "What happens: Update with new data" at its top, where she can still change it. Cancel or Esc leaves the sample copy as it was.</dd>
+        </dl>
+        <span class="intended">"I want mine to look like that one."</span>
+        <a class="open" href="../screens/first-look.html#s2b">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 3a -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:280;--y:120;--s:0.82;--w:720;--h:541">
+            <iframe src="../screens/first-look.html#s3a" title="The load step: value written as text" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:600;--by:216;--bw:548;--bh:92"></span>
+            <span class="k-annot-box" style="--bx:600;--by:312;--bw:548;--bh:116"></span>
+            <span class="k-annot-box" style="--bx:978;--by:470;--bw:168;--bh:196"></span>
+          </div>
+        </div>
+        <p class="pane-note">Shown smaller than full size.</p>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s3a" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:280;--ry:120;--rw:878;--rh:660"></i></div>
+        <h2><span class="k-step">3a</span>The load step flags the weights before anything runs</h2>
+        <dl>
+          <dt>Where</dt><dd>The load step, "Load miserables.json", with "What happens: Update with new data" at its top.</dd>
+          <dt>Does</dt><dd>Reads the first issue, "value is written as text": "All 254 values are whole numbers in quotes ("8"). Read as text, they could not weigh edges." Its choice is already set to "Read as number: 254 weighted edges". The sample rows show the quotes as her file has them.</dd>
+          <dt>Happens</dt><dd>Nothing loads yet. Because every value is a whole number, the default reading keeps them all and Load stays on; the other choice, Keep as text, would load 254 unweighted edges.</dd>
+        </dl>
+        <span class="intended">"Quotes? I probably exported it wrong. OK, it's reading them as numbers."</span>
+        <a class="open" href="../screens/first-look.html#s3a">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 3b -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:280;--y:370;--s:1;--w:640;--h:360">
+            <iframe src="../screens/first-look.html#s3b" title="The load step: what a higher value means" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:290;--by:458;--bw:290;--bh:260"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s3b" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:280;--ry:370;--rw:640;--rh:360"></i></div>
+        <h2><span class="k-step">3b</span>She is asked what a higher value means, and leaves it</h2>
+        <dl>
+          <dt>Where</dt><dd>The same load step, on the value row.</dd>
+          <dt>Does</dt><dd>Opens "For value, a higher number means": a closer or stronger link (similarity), a longer or costlier step (distance), more can pass through (capacity), Don't use value. She leaves it unanswered, so no measure uses value, and presses Replace data.</dd>
+          <dt>Happens</dt><dd>The data is replaced, with value read as a number and its meaning not set. One undo step: "Replace data with miserables.json".</dd>
+        </dl>
+        <span class="intended">"Closer or stronger link? Longer step? Not sure. Leave it."</span>
+        <a class="open" href="../screens/first-look.html#s3b">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 4 -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:57;--y:0;--s:1;--w:460;--h:480">
+            <iframe src="../screens/first-look.html#s4" title="Loaded: the header and the lone dot" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:68;--by:33;--bw:124;--bh:26"></span>
+            <span class="k-annot-box" style="--bx:337;--by:420;--bw:28;--bh:28"></span>
+          </div>
+          <div class="pane" style="--x:1200;--y:230;--s:1;--w:240;--h:490">
+            <iframe src="../screens/first-look.html#s4" title="Loaded: the Statistics" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:1204;--by:392;--bw:232;--bh:46"></span>
+            <span class="k-annot-box" style="--bx:1204;--by:640;--bw:232;--bh:50"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s4" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:57;--ry:0;--rw:460;--rh:480"></i><i style="--rx:1200;--ry:230;--rw:240;--rh:490"></i></div>
+        <h2><span class="k-step">4</span>Her file is loaded; the statistics say what it is</h2>
+        <dl>
+          <dt>Where</dt><dd>The project, nothing selected. From here on the file chip under the project name reads <span class="k-id">miserables.json</span>. "Not saved" stays: putting data from a file she still has into the copy does not keep it.</dd>
+          <dt>Does</dt><dd>Reads the Statistics under "Overview: General": 77 nodes, 254 edges, 1 component, 0 isolated, density 0.0868, average degree 6.6, highest degree 36. Looks for anyone off on their own and finds no one.</dd>
+          <dt>Happens</dt><dd>Nothing ran that she did not ask for; every number was filled at load. The weight row still asks its question: "value -- not used yet", with "Set up value..." beside it.</dd>
+        </dl>
+        <span class="intended">"One piece. Everybody knows somebody."</span>
+        <a class="open" href="../screens/first-look.html#s4">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 5 -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:640;--y:300;--s:1;--w:380;--h:280">
+            <iframe src="../screens/first-look.html#s5" title="Valjean selected on the canvas" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:803;--by:426;--bw:40;--bh:40"></span>
+          </div>
+          <div class="pane" style="--x:1200;--y:88;--s:1;--w:240;--h:200">
+            <iframe src="../screens/first-look.html#s5" title="Valjean in the inspector" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:1204;--by:176;--bw:232;--bh:36"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s5" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:640;--ry:300;--rw:380;--rh:280"></i><i style="--rx:1200;--ry:88;--rw:240;--rh:200"></i></div>
+        <h2><span class="k-step">5</span>She clicks the biggest dot: Valjean</h2>
+        <dl>
+          <dt>Where</dt><dd>The canvas; the inspector follows the selection.</dd>
+          <dt>Does</dt><dd>Clicks the biggest dot. The inspector reads "Valjean, Node": degree 36, "#1 of 77"; group 2; 36 neighbors; Color from Group color, Size from Size: degree.</dd>
+          <dt>Happens</dt><dd>Valjean is selected, with a neutral ring. Nothing is filtered or changed; Esc clears the selection.</dd>
+        </dl>
+        <span class="intended">"The big one. He's the main character, so he's the most important."</span>
+        <p class="miss"><b>The misreading we expect.</b> She reads the biggest dot as the most important character before any measure has run. The size is the sample's Size: degree layer: how many characters he shares a chapter with, nothing more. The legend and the Size row both say "Size: degree", but a first-time reader looks at the dot, not the row. Whether anything later in this story changes that reading is an open question for the sessions, not a step the story scripts.</p>
+        <a class="open" href="../screens/first-look.html#s5">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 6a -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pane" style="--x:490;--y:555;--s:1;--w:520;--h:345">
+            <iframe src="../screens/first-look.html#s6a" title="Quick actions: who matters most" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:514;--by:642;--bw:472;--bh:46"></span>
+            <span class="k-annot-box" style="--bx:769;--by:844;--bw:40;--bh:40"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s6a" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:490;--ry:555;--rw:520;--rh:345"></i></div>
+        <h2><span class="k-step">6a</span>She asks Quick actions "who matters most"</h2>
+        <dl>
+          <dt>Where</dt><dd>Quick actions, opened from the lightning button on the toolbar, which stays pressed while it is open. Valjean is still selected.</dd>
+          <dt>Does</dt><dd>Types "who matters most". Four measures answer, each saying what it answers: Betweenness, who sits between the groups (with a note: value's meaning is not set, so it runs unweighted); PageRank, who is tied to well-tied characters; Closeness, who is near everyone; Degree, "already shown as size". None shows a cost word: on 77 nodes each finishes in under a second. She picks Betweenness and presses Enter.</dd>
+          <dt>Happens</dt><dd>Betweenness runs on the full graph with its defaults, unweighted. One undo step: "Run Betweenness".</dd>
+        </dl>
+        <span class="intended">"What's betweenness? 'Between the groups'... fine, that one."</span>
+        <a class="open" href="../screens/first-look.html#s6a">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 6b -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pcol">
+            <div class="pane" style="--x:57;--y:0;--s:1;--w:240;--h:140">
+              <iframe src="../screens/first-look.html#s6b" title="The Graph panel stays; Not saved is gone" loading="eager"></iframe>
+              <span class="k-annot-box" style="--bx:66;--by:6;--bw:124;--bh:28"></span>
+            </div>
+            <div class="pane" style="--x:590;--y:784;--s:1;--w:320;--h:56">
+              <iframe src="../screens/first-look.html#s6b" title="The notice: the copy is kept" loading="eager"></iframe>
+            </div>
+          </div>
+          <div class="pane" style="--x:905;--y:50;--s:1;--w:292;--h:588">
+            <iframe src="../screens/first-look.html#s6b" title="The Betweenness editor" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:915;--by:125;--bw:272;--bh:42"></span>
+            <span class="k-annot-box" style="--bx:915;--by:242;--bw:272;--bh:142"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s6b" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:57;--ry:0;--rw:240;--rh:140"></i><i style="--rx:590;--ry:784;--rw:320;--rh:56"></i><i style="--rx:905;--ry:50;--rw:292;--rh:588"></i></div>
+        <h2><span class="k-step">6b</span>She reads betweenness 0.57 against its distribution</h2>
+        <dl>
+          <dt>Where</dt><dd>The Betweenness editor, open in the inspector position to the left of the inspector, because Quick actions has no row for it to sit beside. The left panel stays on Graph; nothing switches under her. The inspector, still on Valjean, adds "betweenness (unweighted) 0.57, #1 of 77".</dd>
+          <dt>Does</dt><dd>Reads the state line, "on: full graph, 77 nodes. Exact." and the next, "Unweighted: value's meaning is not set, so paths ignore it", with "Set what value means...". Then the distribution: "47 of 77 characters score 0. Valjean alone scores 0.57; next is Myriel at 0.177." Clicks Myriel, second in Top nodes.</dd>
+          <dt>Happens</dt><dd>Myriel is selected on the canvas; his dot is mid-sized. The run did not repaint size, because Size: degree already writes it, and it says so once, with "Size by betweenness instead". This run was the first thing she made in the copy, so the copy is now kept: "Not saved" is gone and a notice says "Copy of Les Miserables kept in Recent projects".</dd>
+        </dl>
+        <span class="intended">"Is 0.57 a lot? ... Oh, he's out on his own, everyone else is near zero. Unweighted? It said it read them as numbers."</span>
+        <a class="open" href="../screens/first-look.html#s6b">Open this screen full size</a>
+      </figcaption>
+    </figure>
+
+    <!-- 7 -->
+    <figure class="k-frame">
+      <div>
+        <div class="panes">
+          <div class="pcol">
+            <div class="pane" style="--x:790;--y:320;--s:1;--w:340;--h:216">
+              <iframe src="../screens/first-look.html#s7" title="The Note editor beside Valjean" loading="eager"></iframe>
+              <span class="k-annot-box" style="--bx:874;--by:376;--bw:240;--bh:60"></span>
+            </div>
+            <div class="pane" style="--x:600;--y:820;--s:1;--w:300;--h:80">
+              <iframe src="../screens/first-look.html#s7" title="The Note tool on the toolbar" loading="eager"></iframe>
+              <span class="k-annot-box" style="--bx:719;--by:844;--bw:40;--bh:40"></span>
+            </div>
+          </div>
+          <div class="pane" style="--x:1200;--y:540;--s:1;--w:240;--h:140">
+            <iframe src="../screens/first-look.html#s7" title="The note listed in Valjean's inspector" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:1212;--by:592;--bw:224;--bh:74"></span>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <div class="thumb"><iframe src="../screens/first-look.html#s7" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:790;--ry:320;--rw:340;--rh:216"></i><i style="--rx:600;--ry:820;--rw:300;--rh:80"></i><i style="--rx:1200;--ry:540;--rw:240;--rh:140"></i></div>
+        <h2><span class="k-step">7</span>She writes a note and stops</h2>
+        <dl>
+          <dt>Where</dt><dd>The canvas, with Valjean still selected.</dd>
+          <dt>Does</dt><dd>Picks the Note tool on the toolbar and clicks Valjean. A Note editor opens beside him, headed "About Valjean", with its text focused. She types "Valjean connects the groups. Try with our export." and presses Enter. Then she closes the tab.</dd>
+          <dt>Happens</dt><dd>The note is added to Valjean and listed in his inspector's Notes section. It cites nothing, because she quoted no number; Cite a run... would have added Betweenness. One undo step: "Add note". The copy was already kept, so it is in Recent projects next time.</dd>
+        </dl>
+        <span class="intended">"Enough for today."</span>
+        <a class="open" href="../screens/first-look.html#s7">Open this screen full size</a>
+      </figcaption>
+    </figure>
+  </div>
+
+  <h2>If the design works</h2>
+  <div class="claim">
+    <p><b>The claim the study must test:</b> a first-time user who brings a file she knows runs one analysis and reads its number against its distribution, within her first visit, without asking what a word means and without the tool changing her data under her.</p>
+    <p>Counted as decisions she makes (a click, a pick or a key that commits), the path above has twelve: open the sample; drop the file; choose Update with new data; open "For value, a higher number means" and leave it; press Replace data; click Valjean; open Quick actions; choose Betweenness; click Myriel; pick the Note tool; click Valjean; post the note. Two of them also need typing (the question and the note). The first analysis runs at the eighth.</p>
+  </div>
+
+  <h2>What the session must watch</h2>
+  <ul>
+    <li><b>Size read as importance (frames 5 and 6).</b> Does she say the biggest dot is the most important one before any measure runs? After frame 6, what does she say about it? Do the legend's "Size: degree" or Degree's "already shown as size" play any part? Record her words; nothing in the story counts as a correction.</li>
+    <li><b>The weights (frames 3 and 6).</b> Load stays on and the default already reads the numbers, so: does she read the warning at all, and can she say afterwards what "Read as number" did? Does she blame herself for the quotes? Can she answer "For value, a higher number means", or does the question stop her? Does she expect Betweenness to use the weights she just saw read, and what does she make of "Unweighted: value's meaning is not set"? Does she open "Set what value means..."?</li>
+        <li><b>The privacy line (frame 1).</b> Does she mention it unprompted? Does the note under Connect to data source... read as contradicting it? Does it change what she is willing to load next?</li>
+    <li><b>The drop choice and the sample copy (frames 2 to 6).</b> Which choice does she pick? If she picks Open as a new project, does she miss the sample's colors on her gray drawing? What does she think "Not saved" means, and does she notice when the run keeps the copy?</li>
+    <li><b>Finding the note (frame 7).</b> Does she find the Note tool, or Add note in the node's menu? The Notes section does not exist until a note does, so there is nothing to click in the inspector. Does she think to cite the run her note is about?</li>
+    <li><b>Her own data.</b> At the end, ask what she would do with her integrations export. It has two kinds of node, customers and integrations, so a measure like betweenness does not mean the same thing on it until it is projected onto one kind (Bipartite projection...). Does she realise that, or would she run Betweenness on the export as it is?</li>
+  </ul>
+
+  <h2>When this becomes a study task</h2>
+  <p>Give her the goal only: "Find out whether this tool can tell you something about a network you already know", with <span class="k-id">miserables.json</span> in her Downloads folder. Do not mention the sample, the drop, Update with new data or any measure; this path is one of several she might take, and the session records the one she does.</p>
+
+  <h2>Proposals this storyboard draws where the design is silent</h2>
+  <p>Each is in <a href="../framework-changes.md">the proposed framework changes</a> with its evidence. Where no evidence outside this storyboard exists yet, the entry says it is a hypothesis for the study.</p>
+  <ul>
+    <li>The start screen carries one privacy line under its title, and Connect to data source... says what it sends.</li>
+    <li>A sample opens as a copy marked Not saved; the first thing made in it keeps it.</li>
+    <li>On an unkept sample copy, the drop choice step leads with Open as a new project and Update with new data..., the rest under More ways; each row commits.</li>
+    <li>The load step carries the chosen action at its top, so it can be changed without a second drop.</li>
+    <li>The weight's meaning is asked on the value row of the load step, in the column's words with the technical term under each, and nothing is preselected: unanswered, no measure uses the column. (A weight column whose values are all numbers written as text is a warning whose default reads them as numbers, so Load stays on: the entry "which load issues block Load".)</li>
+    <li>A result run unweighted because the weight's meaning is not set says so on its state line, with the verb that sets it.</li>
+    <li>A file chip under the project name says which file the graph was read from.</li>
+    <li>Quick actions lists Degree as "already shown as size" when a style layer already paints it.</li>
+    <li>Small wording changes: "Size by betweenness instead" for Apply anyway; "Change overview..." on hover for the Overview row's Replace; no id row when it equals the label.</li>
+  </ul>
+</div>
+</body>
+</html>

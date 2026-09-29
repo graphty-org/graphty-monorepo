@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loading a transfer export</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+body { background: var(--cm-bg-secondary); margin: 0; }
+:root:has(#lt-th-light:checked) { color-scheme: light; }
+:root:has(#lt-th-dark:checked) { color-scheme: dark; }
+.lt-top { position: sticky; top: 0; z-index: 200; display: flex; gap: 16px; align-items: center; padding: 8px 16px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.lt-top a { color: var(--cm-text-brand); }
+.lt-top label { display: inline-flex; gap: 4px; align-items: center; }
+.lt-toc { display: flex; gap: 12px; }
+.lt-state { padding: 16px 16px 24px; }
+.lt-label { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+.lt-win { position: relative; width: 1440px; height: 900px; overflow: hidden; transform: translateZ(0); box-shadow: 0 0 0 1px var(--cm-border); background: var(--cm-bg); }
+.lt-win .k-backdrop { position: absolute; }
+/* Opened as screens/load-transfers.html#ready (from a flow or storyboard): that state alone */
+body:has(.lt-state:target) { background: var(--cm-bg); }
+body:has(.lt-state:target) .lt-state:not(:target), body:has(.lt-state:target) .lt-top, body:has(.lt-state:target) .lt-label { display: none; }
+body:has(.lt-state:target) .lt-state { padding: 0; }
+body:has(.lt-state:target) .lt-win { box-shadow: none; }
+/* Annotation layer, off by default */
+.lt-an { display: none; z-index: 90; }
+body:has(#lt-annot:checked) .lt-an { display: block; }
+body:has(#lt-annot:checked) [data-annot] { outline: 2px dashed var(--k-annot); outline-offset: 2px; }
+.lt-an i { font-style: normal; font-family: var(--cm-font-family-mono); font-size: 11px; }
+
+.lt-brand { display: flex; gap: 8px; align-items: center; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.lt-h { font-size: 11px; font-weight: 550; margin: 16px 0 8px; }
+
+.lt-modal { width: 980px; max-height: 800px; }
+.lt-modal .k-modal-body { flex: 1 1 auto; padding: 0; display: grid; grid-template-columns: 420px 1fr; min-height: 0; }
+.lt-col { overflow: hidden; padding: 8px 0 12px; }
+.lt-col + .lt-col { border-inline-start: 1px solid var(--cm-border); }
+.lt-sh { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 16px; font-weight: 550; }
+.lt-sh .k-count { font-weight: 450; color: var(--cm-text-secondary); }
+.lt-row { display: grid; grid-template-columns: 112px 1fr; gap: 8px; align-items: center; min-height: 32px; padding: 0 16px; }
+.lt-row > .lt-lg { color: var(--cm-text-secondary); }
+.lt-row .k-field { width: 100%; box-sizing: border-box; }
+.lt-slot { cursor: text; }
+.lt-slot .lt-tc { width: 1px; height: 12px; background: transparent; }
+.lt-cols { display: grid; grid-template-columns: 112px 1fr 1fr; gap: 4px 8px; align-items: center; padding: 0 16px; }
+.lt-cols .k-caption { color: var(--cm-text-secondary); height: 24px; display: flex; align-items: end; padding-bottom: 2px; }
+.lt-cols .lt-cn { display: flex; gap: 6px; align-items: center; height: 32px; }
+.lt-cols .k-field { width: 100%; box-sizing: border-box; }
+.lt-issue { margin: 0 16px 8px; padding: 8px 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border), inset 3px 0 0 var(--cm-bg-warning); display: grid; gap: 6px; }
+.lt-issue-head { display: flex; gap: 8px; align-items: center; }
+.lt-issue-head b { font-weight: 550; }
+.lt-issue .k-secondary { line-height: 16px; }
+.lt-issue .k-field { width: 100%; box-sizing: border-box; }
+.lt-sample { padding: 0 16px; }
+.lt-sample .k-table th, .lt-sample .k-table td { height: 28px; }
+.lt-sample td.lt-mark { box-shadow: inset 3px 0 0 var(--cm-bg-warning); }
+.lt-metrics { padding: 0 8px; grid-template-columns: repeat(3, 1fr) !important; }
+.lt-foot { justify-content: flex-start; }
+.lt-reason { color: var(--cm-text-secondary); display: inline-flex; gap: 6px; align-items: center; }
+/* Keyboard focus: a ring outside any border the control already has, so it never loses to one */
+.lt-focus { outline: 2px solid var(--cm-border-selected-strong) !important; outline-offset: 2px !important; }
+.lt-dd { position: absolute; z-index: 80; width: 360px; padding: 4px; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); }
+.lt-dd .k-row { border-radius: 5px; height: auto; min-height: 32px; padding-top: 4px; padding-bottom: 4px; align-items: flex-start; gap: 8px; }
+.lt-dd .k-check-col { width: 16px; flex: none; }
+.lt-dd .k-row[data-hover] { background: var(--cm-bg-hover); }
+.lt-dd .lt-sub { display: block; color: var(--cm-text-secondary); font-size: 11px; line-height: 14px; }
+.lt-err { display: grid; gap: 8px; padding: 8px 16px 4px; line-height: 18px; }
+.lt-err-head { display: flex; gap: 8px; align-items: flex-start; }
+.lt-err-head svg { color: var(--cm-text-danger); flex: none; margin-top: 1px; }
+.lt-mark-row { color: var(--cm-text); }
+</style>
+</head>
+<body>
+<div class="lt-top"><b>Loading a transfer export</b>
+<nav class="lt-toc"><a href="#ready">Ready, with two issues</a><a href="#amount-policy">The amount policy</a><a href="#not-read">Could not open</a><a href="#loaded">Loaded: the weight's role</a></nav>
+<span class="k-grow"></span>
+<span class="k-secondary">Theme</span><label><input type="radio" name="lt-th" id="lt-th-sys" checked> System</label><label><input type="radio" name="lt-th" id="lt-th-light"> Light</label><label><input type="radio" name="lt-th" id="lt-th-dark"> Dark</label>
+<label><input type="checkbox" id="lt-annot"> Show annotations</label><a href="../flows/load-and-characterize.html">The flow</a><a href="../index.html">Gallery</a></div>
+
+<!-- ===================================================================== 1. READY -->
+<section class="lt-state" id="ready"><h2 class="lt-label">1. Ready: the bank's export writes every amount as currency text and repeats some account pairs; each issue has a default that keeps every value, so Load is on and holds focus</h2>
+<div class="lt-win" data-kit-frame>
+<div class="lt-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="lt-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>February transfers<span class="k-grow"></span><span class="k-secondary">Mar 2</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop"><div class="k-modal lt-modal" role="dialog" aria-label="Open transfers-2026-03.csv">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">transfers-2026-03.csv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="lt-col">
+      <div class="lt-row" data-annot><span class="lt-lg">Format</span><span class="k-field">CSV, comma, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-row" data-annot><span class="lt-lg">Source column</span><span class="k-field k-id lt-slot">from_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-row"><span class="lt-lg">Target column</span><span class="k-field k-id lt-slot">to_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-row"><span class="lt-lg">Id column</span><span class="k-field lt-slot" data-placeholder>None: ids are the account names<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-sh">Other columns <span class="k-count k-num">2</span></div>
+      <div class="lt-cols" data-annot>
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="lt-cn k-id">amount<span class="k-warn-glyph" aria-label="has an issue">!</span></span><span class="k-field">Currency (USD)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Weight<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="lt-cn k-id">timestamp</span><span class="k-field">Date and time<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Time<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+    </div>
+    <div class="lt-col">
+      <div class="lt-sh">Issues <span class="k-count k-num">2</span></div>
+      <div class="lt-issue" data-annot>
+        <div class="lt-issue-head"><span class="k-warn-glyph">!</span><b><span class="k-id">amount</span> is written as currency text</b></div>
+        <span class="k-secondary">All <span class="k-num">9,113</span> values carry a dollar sign ("$349.71"), and amounts over a thousand a comma. Marked in the sample.</span>
+        <span class="k-field">Read as Currency (USD): <span class="k-num">&nbsp;9,113&nbsp;</span> weighted edges<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+      <div class="lt-issue">
+        <div class="lt-issue-head"><span class="k-warn-glyph">!</span><b><span class="k-num">412</span> extra parallel edges</b><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#info"/></svg></div>
+        <span class="k-secondary">Some pairs of accounts made more than one transfer; <span class="k-num">412</span> rows repeat a pair already read.</span>
+        <span class="k-field">Keep all: <span class="k-num">&nbsp;9,113&nbsp;</span> edges<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+      <div class="lt-sh">Sample, first 5 of <span class="k-num">9,113</span> rows</div>
+      <div class="lt-sample" data-annot><table class="k-table"><thead><tr><th>from_account</th><th>to_account</th><th class="k-n">amount <span class="k-profile">as written</span></th><th>timestamp <span class="k-profile">date and time</span></th></tr></thead><tbody>
+        <tr><td class="k-id">ACC-863727</td><td class="k-id">ACC-173956</td><td class="k-n lt-mark">$5.04</td><td class="k-num">2026-03-29 21:09:09</td></tr>
+        <tr><td class="k-id">ACC-789516</td><td class="k-id">ACC-157047</td><td class="k-n lt-mark">$8.97</td><td class="k-num">2026-03-25 21:53:13</td></tr>
+        <tr><td class="k-id">ACC-171252</td><td class="k-id">ACC-393859</td><td class="k-n lt-mark">$44.63</td><td class="k-num">2026-03-11 18:12:38</td></tr>
+        <tr><td class="k-id">ACC-502342</td><td class="k-id">ACC-393859</td><td class="k-n lt-mark">$38.01</td><td class="k-num">2026-03-16 20:25:38</td></tr>
+        <tr><td class="k-id">ACC-281568</td><td class="k-id">ACC-966916</td><td class="k-n lt-mark">$349.71</td><td class="k-num">2026-03-21 07:54:07</td></tr>
+      </tbody></table></div>
+      <div class="lt-sh">What will load</div>
+      <div class="k-metrics lt-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">9,113</span></div><div class="k-metric"><span class="k-secondary">rows dropped</span><span class="k-big k-num">0</span></div></div>
+    </div>
+  </div>
+  <div class="k-modal-foot lt-foot"><span class="lt-reason"></span><span class="k-grow"></span><span class="k-btn k-btn-ghost">Filter at import...</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn lt-focus" data-annot>Load</span></div>
+</div></div>
+<div class="k-annot-note lt-an" style="left:8px;top:64px;width:212px">The load step, a modal: it commits something that cannot be left half set. <i>interface-templates.md 20a</i>. <b>Modal</b>.</div>
+<div class="k-annot-note lt-an" style="left:8px;top:176px;width:212px">Format, detected and changeable. <b>FieldRow</b> + <b>StyleSelect</b>. Source, target and id are type slots: pick a column or type its name. <i>20a</i>. <b>ComboInput</b>. No "each row is" or direction control: a source and a target already make it an edge list, and direction is read on the Edges row after the load.</div>
+<div class="k-annot-note lt-an" style="left:8px;top:400px;width:212px">Each remaining column's kind (Read as) and role. <b>StyleSelect</b> x2. The warning mark on amount routes to its issue. No weight-meaning question here: the role is asked on the Edges row after the load, and again the first time a distance algorithm reads it. <i>information-architecture.md 4</i>; <i>graph-conventions.md 2</i>.</div>
+<div class="k-annot-note lt-an" style="left:1218px;top:112px;width:212px">An issue with a policy carries its policies on the row, each stated in counts; the fix is the select, not a separate button. Neither blocks Load: each has a default that keeps every value. <b>DataRow</b> + <b>StyleSelect</b>. <i>20a</i>; <i>message-catalog.md, graphty.load.parallelEdges</i>.</div>
+<div class="k-annot-note lt-an" style="left:1218px;top:330px;width:212px">The file's own first rows, amounts as the export wrote them, the cells the first issue is about marked. <b>DataTable</b>.</div>
+<div class="k-annot-note lt-an" style="left:1218px;top:720px;width:212px">When the preview arrives with focus still on Cancel, focus moves once: to the first blocking issue's control, else to Load. Here nothing blocks, so Load. Undo label: "Load transfers-2026-03.csv". <b>ModalFooter</b>.</div>
+</div></section>
+
+<!-- ===================================================================== 2. AMOUNT POLICY -->
+<section class="lt-state" id="amount-policy"><h2 class="lt-label">2. The amount issue's policies: read the currency as numbers, or keep the text and load amount as text</h2>
+<div class="lt-win" data-kit-frame>
+<div class="lt-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="lt-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>February transfers<span class="k-grow"></span><span class="k-secondary">Mar 2</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop"><div class="k-modal lt-modal" role="dialog" aria-label="Open transfers-2026-03.csv">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">transfers-2026-03.csv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="lt-col">
+      <div class="lt-row"><span class="lt-lg">Format</span><span class="k-field">CSV, comma, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-row"><span class="lt-lg">Source column</span><span class="k-field k-id">from_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-row"><span class="lt-lg">Target column</span><span class="k-field k-id">to_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-row"><span class="lt-lg">Id column</span><span class="k-field" data-placeholder>None: ids are the account names<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="lt-sh">Other columns <span class="k-count k-num">2</span></div>
+      <div class="lt-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="lt-cn k-id">amount<span class="k-warn-glyph">!</span></span><span class="k-field">Currency (USD)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Weight<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="lt-cn k-id">timestamp</span><span class="k-field">Date and time<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Time<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+    </div>
+    <div class="lt-col">
+      <div class="lt-sh">Issues <span class="k-count k-num">2</span></div>
+      <div class="lt-issue">
+        <div class="lt-issue-head"><span class="k-warn-glyph">!</span><b><span class="k-id">amount</span> is written as currency text</b></div>
+        <span class="k-secondary">All <span class="k-num">9,113</span> values carry a dollar sign ("$349.71"), and amounts over a thousand a comma. Marked in the sample.</span>
+        <span class="k-field lt-focus" data-focus>Read as Currency (USD): <span class="k-num">&nbsp;9,113&nbsp;</span> weighted edges<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+      <div class="lt-issue">
+        <div class="lt-issue-head"><span class="k-warn-glyph">!</span><b><span class="k-num">412</span> extra parallel edges</b><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#info"/></svg></div>
+        <span class="k-secondary">Some pairs of accounts made more than one transfer; <span class="k-num">412</span> rows repeat a pair already read.</span>
+        <span class="k-field">Keep all: <span class="k-num">&nbsp;9,113&nbsp;</span> edges<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+      <div class="lt-sh">Sample, first 5 of <span class="k-num">9,113</span> rows</div>
+      <div class="lt-sample"><table class="k-table"><thead><tr><th>from_account</th><th>to_account</th><th class="k-n">amount <span class="k-profile">as written</span></th><th>timestamp <span class="k-profile">date and time</span></th></tr></thead><tbody>
+        <tr><td class="k-id">ACC-863727</td><td class="k-id">ACC-173956</td><td class="k-n lt-mark">$5.04</td><td class="k-num">2026-03-29 21:09:09</td></tr>
+        <tr><td class="k-id">ACC-789516</td><td class="k-id">ACC-157047</td><td class="k-n lt-mark">$8.97</td><td class="k-num">2026-03-25 21:53:13</td></tr>
+        <tr><td class="k-id">ACC-171252</td><td class="k-id">ACC-393859</td><td class="k-n lt-mark">$44.63</td><td class="k-num">2026-03-11 18:12:38</td></tr>
+        <tr><td class="k-id">ACC-502342</td><td class="k-id">ACC-393859</td><td class="k-n lt-mark">$38.01</td><td class="k-num">2026-03-16 20:25:38</td></tr>
+        <tr><td class="k-id">ACC-281568</td><td class="k-id">ACC-966916</td><td class="k-n lt-mark">$349.71</td><td class="k-num">2026-03-21 07:54:07</td></tr>
+      </tbody></table></div>
+      <div class="lt-sh">What will load</div>
+      <div class="k-metrics lt-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">9,113</span></div><div class="k-metric"><span class="k-secondary">rows dropped</span><span class="k-big k-num">0</span></div></div>
+    </div>
+  </div>
+  <div class="k-modal-foot lt-foot"><span class="lt-reason"></span><span class="k-grow"></span><span class="k-btn k-btn-ghost">Filter at import...</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Load</span></div>
+</div></div>
+<div class="lt-dd" role="listbox" aria-label="amount policies" style="left:676px;top:252px" data-annot>
+  <div class="k-row" aria-selected="true" role="option"><span class="k-check-col">&#10003;</span><span><span class="k-num">Read as Currency (USD): 9,113 weighted edges</span><span class="lt-sub">"$1,240.00" becomes 1240. Total <span class="k-num">$14,156,522.28</span>. Every value kept.</span></span></div>
+  <div class="k-row" data-hover role="option" aria-selected="false"><span class="k-check-col"></span><span><span class="k-num">Keep as text: 9,113 unweighted edges</span><span class="lt-sub">amount stays a text attribute. Measures that use weights treat every transfer as equal.</span></span></div>
+</div>
+<div class="k-annot-note lt-an" style="left:1218px;top:112px;width:212px">The policy list: a <b>StyleSelect</b> whose items carry a second line, as compact-mantine's select items do. Each policy names its result in counts. "Keep as text" is what loading without a weight means, so it is a policy here, not a separate button.</div>
+<div class="k-annot-note lt-an" style="left:8px;top:420px;width:212px">The column's Read as select above shows the same choice: one fact, two routes to it. Choosing Keep as text sets it to Text and the role to None.</div>
+</div></section>
+
+<!-- ===================================================================== 3. COULD NOT OPEN -->
+<section class="lt-state" id="not-read"><h2 class="lt-label">3. Could not open: the export was saved as an Excel workbook, which graphty does not read</h2>
+<div class="lt-win" data-kit-frame>
+<div class="lt-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="lt-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>February transfers<span class="k-grow"></span><span class="k-secondary">Mar 2</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop"><div class="k-modal" role="dialog" aria-label="Open transfers-2026-03.xlsx">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">transfers-2026-03.xlsx</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="lt-err" data-annot>
+      <div class="lt-err-head"><svg class="k-i"><use href="../kit/icons.svg#circle-x"/></svg><span><b>Could not open transfers-2026-03.xlsx:</b> Excel workbooks are not read.</span></div>
+      <span class="k-secondary">In Excel, save the sheet as CSV (File, Save As, "CSV UTF-8"), then open that file. Nothing in graphty has changed.</span>
+    </div>
+  </div>
+  <div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn lt-focus" data-annot>Choose another file...</span></div>
+</div></div>
+<div class="k-annot-note lt-an" style="left:8px;top:64px;width:212px">The error stays in the load step where the preview would be; no separate alert. <i>message-catalog.md, graphty.open.failed</i>: "Could not open {file}: {cause}". Focus on Choose another file....</div>
+<div class="k-annot-note lt-an" style="left:1218px;top:380px;width:212px">No Read as... here: no other format reads a workbook. Read as... appears only when the name and the content disagree (a CSV saved as .txt, a tab-separated file named .csv), where picking the format by hand works. <i>task-flows.md 2</i>.</div>
+</div></section>
+
+<!-- ===================================================================== 4. LOADED -->
+<section class="lt-state" id="loaded"><h2 class="lt-label">4. Loaded: the first render in the element's grays, Statistics with the import checks, and Sarah answering what a higher amount means on the Edges row</h2>
+<div class="lt-win" data-kit-frame>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head" data-annot>
+      <div class="k-title-line"><span class="k-project">transfers-2026-03</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div></section>
+      
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt="3,000 accounts and 9,113 transfers drawn as gray density, nothing selected"><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt="3,000 accounts and 9,113 transfers drawn as gray density, nothing selected"></div>
+      <div class="k-toolbar-dock">
+        <div class="k-toast">transfers-2026-03.csv read: 3,000 nodes, 9,113 edges<span class="k-toast-action">Undo</span></div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Statistics<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+        <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">9,113</span></div><div class="k-metric"><span class="k-secondary">components</span><span class="k-big k-num">1</span></div><div class="k-metric"><span class="k-secondary">isolated</span><span class="k-big k-num">0</span></div></div>
+        <div class="k-data"><span class="k-name">density</span><span class="k-value">0.00101</span></div>
+        <div class="k-data"><span class="k-name">average total degree</span><span class="k-value">6.08</span></div>
+        <div class="k-data"><span class="k-name">highest total degree</span><span class="k-value">907</span></div>
+        <div class="k-row" data-annot><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-grow k-ellipsis">Last import: 9,113 rows, 0 dropped</span></div>
+        <div class="k-row lt-mark-row"><span class="k-warn-glyph">!</span><span class="k-grow k-num">412 parallel edges, kept</span></div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#spline"/></svg><span class="k-grow k-ellipsis">Directed; amount, not used yet</span></div>
+        <div class="k-fieldrow" data-annot><span class="k-legend">For amount, a higher number means</span>
+          <div class="k-fields"><span class="k-field k-span lt-focus" data-focus data-placeholder>Not answered<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-grow">4 attributes</span></div>
+      </section><section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section>
+    </div>
+  </aside>
+</div>
+<div class="lt-dd" role="listbox" aria-label="For amount, a higher number means" style="left:832px;top:548px">
+  <div class="k-row" data-hover role="option" aria-selected="false"><span class="k-check-col"></span><span>a closer or stronger link<span class="lt-sub">similarity</span></span></div>
+  <div class="k-row" role="option" aria-selected="false"><span class="k-check-col"></span><span>a longer or costlier step<span class="lt-sub">distance</span></span></div>
+  <div class="k-row" role="option" aria-selected="false"><span class="k-check-col"></span><span>more can pass through<span class="lt-sub">capacity</span></span></div>
+  <div class="k-row" aria-selected="false" role="option"><span class="k-check-col"></span><span>Don't use amount<span class="lt-sub">no measure reads it, as while unanswered</span></span></div>
+</div>
+<div class="k-annot-note lt-an" style="left:70px;top:150px;width:212px">Left panel header: the project is named after the file; nothing sits beside the name at rest (only Not saved or View only ever do). Sarah renames it here later. <i>interface-specification.md 1.2</i>.</div>
+<div class="k-annot-note lt-an" style="left:330px;top:120px;width:260px">The first paint is final: no style layers, the element's grays. Focus is on the canvas after Load. <i>state-matrix.md 4.3</i>. The notice carries Undo for the load. <b>Notification</b>.</div>
+<div class="k-annot-note lt-an" style="left:560px;top:320px;width:250px">Last import and a mark row for a non-zero count: the import checks no overview removes. <i>task-flows.md 2</i>; <i>principles.md, mark rows</i>. <b>ActionRow</b>.</div>
+<div class="k-annot-note lt-an" style="left:330px;top:600px;width:260px">The weight question in the column's words, the technical term (<i>glossary.md 11</i>) as each item's description; nothing is preselected, and unanswered, no measure uses amount. <b>FieldRow</b> + <b>StyleSelect</b>. Choosing a closer or stronger link records one undo entry, "Set amount's role: similarity". <i>principles.md, ledger</i>.</div>
+</div></section>
+</body>
+</html>

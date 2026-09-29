@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round 6 study plan</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .p-board { grid-template-columns: repeat(3, 340px); margin: 12px 0 8px; }
+  .p-gate { border: 1px solid var(--cm-border); border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--cm-bg-secondary); }
+  .p-gate p { margin: 4px 0; }
+  .k-doc code { font-family: var(--cm-font-family-mono); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <h1>Round 6 study plan</h1>
+  <p class="k-lede">Round 6 measures two decisions round 5 reversed: runs move from the right
+  panel to their own place on the rail, and Ctrl+Z brings back a cleared selection. Each is tested
+  so the before and after can be compared cleanly: one change per arm, each arm in its own
+  session, and the task wording kept exactly as it was. Round 5's lead for the rail place
+  was partly inferred from answers people gave to both designs in one sitting, so it is measured
+  again here without that shortcut.</p>
+  <p>The round's files go in <code>study/round-6/</code>: <code>tree-test.md</code> and its answers,
+  <code>first-click/</code>, <code>sessions/</code>, <code>focus-groups/</code> and
+  <code>insights.md</code>.</p>
+
+  <div class="p-gate">
+    <p><b>Nothing starts until the kit gate passes.</b> No tree test, first click or session runs
+    until <code>node kit/check.mjs --all</code> reports no problem and <code>node kit/prove-gate.mjs</code>
+    shows every rule still failing on its planted violation. A failed gate stops the whole round,
+    not only the tasks it touches. In round 5 the decided design was not yet drawn, and 7
+    of the 18 repeated tasks measured the old mocks instead.</p>
+  </div>
+
+  <h2>What each arm looks like</h2>
+  <div class="k-board p-board">
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2366">
+        <iframe class="k-frame-live" src="navigation.html?frame=new-results&amp;embed" title="Runs listed on the Results place of the rail" loading="lazy"></iframe>
+      </div>
+      <figcaption><span class="k-step">1</span>The main arm: Results is a place on the rail, and the
+      right panel with nothing selected has no Results section. <a href="navigation.html?frame=new-results">Open at full size</a></figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2366">
+        <iframe class="k-frame-live" src="undo.html#notice&amp;study" title="The undo line after a cleared selection, line only" loading="lazy"></iframe>
+      </div>
+      <figcaption><span class="k-step">2</span>Undo, arm one: after a clear, the undo line reads
+      "Selection cleared (18 nodes)" with Bring it back; Ctrl+Z still undoes the last filter
+      step. <a href="undo.html#notice">Open at full size</a></figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2366">
+        <iframe class="k-frame-live" src="undo.html#restore&amp;study" title="The undo line after Ctrl+Z restored the cleared selection" loading="lazy"></iframe>
+      </div>
+      <figcaption><span class="k-step">3</span>Undo, arm two: the same line, and Ctrl+Z first
+      brings back a selection cleared since the last change, leaving Redo as it was. Drawn just
+      after, reading "Selection restored (18 nodes)".
+      <a href="undo.html#restore">Open at full size</a></figcaption>
+    </figure>
+  </div>
+
+  <h2>Tree test: where runs live</h2>
+  <ul>
+    <li><b>Main arm:</b> the tree with Results on the rail, exactly as drawn above.</li>
+    <li><b>Label variant, tasks 1 to 4 only:</b> the same tree with the rail place named "Runs"
+    instead of "Results". Every other branch is word for word the same. These four tasks are the
+    ones that decide where runs live: start a second ranking, see how one node scored, find how a
+    calculation was set up, and read every score highest first.</li>
+    <li><b>Separate sessions:</b> all 16 personas take each arm as its own session with no memory
+    of the other. Half see the main arm first. Nobody answers both arms in one sitting, and no
+    answer in one arm is filled in from the other; a session that does either is run again.</li>
+    <li><b>Which label wins (a studio decision, frozen before the round):</b> "Runs" replaces
+    "Results" only if it earns more than 4 extra direct successes over tasks 1 to 4 (of 64), the
+    same margin round 5 used. Otherwise the label stays "Results".</li>
+    <li><b>Task 12, how the biggest group differs from the rest:</b> the group's or set's own
+    panel now counts as correct, and as direct when reached without going back. In round 5
+    14 of 16 people went there first, and the design now puts Compare with the rest on that
+    panel.</li>
+    <li><b>Task 7 keeps its wording</b> ("A colleague sent you a file of the colors and sizes their
+    team always uses"), so the change to the Style stack's "+" is measured against the same
+    question.</li>
+    <li>The other tasks and the pass bars (70% correct and 55% direct per task) are unchanged.</li>
+  </ul>
+
+  <h2>First click</h2>
+  <ul>
+    <li><b>Prompts 5, 8, 10 and 13 keep their wording:</b> get back a cleared selection, bring in
+    next month's file, find the cheapest route where a bigger transfer costs more, and bring in the
+    lab's colors-and-sizes file.</li>
+    <li>Prompt 5 is shown once in each undo arm, in separate sessions. Ctrl+Z counts as correct
+    only in the arm where it restores the selection.</li>
+    <li>Every still screen is shot again from the current mocks after the gate passes, so no
+    participant sees an older drawing.</li>
+  </ul>
+
+  <h2>Think-aloud sessions</h2>
+  <ul>
+    <li><b>Undo:</b> the get-back task keeps its wording ("After your last few actions the numbers
+    changed in a way you did not expect. Get back to where you were.") and runs in both undo arms,
+    each persona taking each arm in its own session, half in each order.</li>
+    <li><b>Money in against money out</b> runs only on screens that show weighted degree
+    (<a href="run-and-read.html">run and read</a>, <a href="table-dock.html">the table</a>). If
+    the gate finds a money screen without it, the task does not run, rather than running and being
+    thrown out afterwards.</li>
+    <li><b>A figure a reviewer can read</b> runs with Jordan, the marketing network analyst. In round 5
+    that session returned nothing and was dropped; this time a session that returns
+    no transcript is run again, never left out.</li>
+    <li>Every other task from round 5 repeats as it was, so each change shows as a
+    difference between rounds.</li>
+  </ul>
+
+  <h2>Every finding says the participants are simulated</h2>
+  <p>Each table, chart and summary in the round says, on the same page and next to its numbers,
+  that the participants are simulated from the persona files. A failed task is a strong signal; a
+  passed one is a weak signal until real people confirm it.</p>
+
+  <h2>What stays as it is</h2>
+  <p>These worked in round 5 and are not reopened:</p>
+  <ul>
+    <li>One File list in the main menu and the project-name menu: a picture for the paper and next
+    month's file were both found directly by all 16.</li>
+    <li>Data &gt; Sent and saved and the line under the project name for "has anything left this
+    computer".</li>
+    <li>Taking out one filter step with its own delete on the filter chip.</li>
+    <li>Changing a color from the legend.</li>
+    <li>The method: 16 personas, scoring rules frozen before any answer is read, wrong or indirect
+    picks counted separately, and what people did weighed above what they said.</li>
+  </ul>
+
+  <p>See <a href="../study/round-5/insights.md">what round 5 found</a>.</p>
+</div>
+</body>
+</html>

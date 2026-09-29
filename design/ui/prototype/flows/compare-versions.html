@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare data versions</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+.flowsvg { width: 100%; max-width: 1120px; height: auto; display: block; margin: 8px 0 16px; }
+.flowsvg .n { fill: var(--cm-bg); stroke: var(--cm-text); stroke-width: 1.2; }
+.flowsvg .n.chk { stroke-width: 2; fill: var(--cm-bg-secondary); }
+.flowsvg .n.com { fill: var(--cm-bg-selected); }
+.flowsvg .n.br { stroke: var(--k-annot); }
+.flowsvg a:hover .n { fill: var(--cm-bg-hover); }
+.flowsvg .t { font-size: 12px; fill: var(--cm-text); }
+.flowsvg .l { font-size: 11px; fill: var(--cm-text-secondary); }
+.flowsvg .l.le { fill: var(--k-annot-ink); }
+.flowsvg .e { fill: none; stroke: var(--cm-text-secondary); stroke-width: 1.2; }
+.flowsvg .e.err { stroke: var(--k-annot); stroke-dasharray: 2 3; }
+.flowsvg .ahp { fill: var(--cm-text-secondary); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--cm-text-secondary); }
+.keyrow svg { vertical-align: middle; margin-right: 6px; }
+.wide { max-width: none !important; }
+.k-doc table.steps { font-size: 12px; line-height: 18px; }
+.k-doc .facts th { width: 150px; }
+.k-flow { margin: 8px 0 16px; }
+.cards3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.cards3 .k-flow-step { max-width: none; }
+@media (max-width: 900px) { .cards3 { grid-template-columns: 1fr; } }
+.needs { padding: 12px 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+</style>
+</head>
+<body>
+<div class="k-doc">
+<p><a href="../index.html">Design gallery</a></p>
+<h1>Compare with the previous data version</h1>
+<p class="k-lede">After April's transfers replaced March's under the same analysis, the analyst asks the question the swap exists for: did the ring's community really change, or is Louvain, a random algorithm, just grouping the accounts differently this time? She compares the Louvain result on April with the run kept on March and reads the answer beside the numbers that qualify it.</p>
+<p>The screens are the weekly-return mocks, drawn from the kit's March and April data: <a href="../screens/weekly-return.html#compare-pick">Compare with... on the Louvain result</a> and <a href="../screens/weekly-return.html#compare">the comparison surface</a>, which draws both months, each with its own positions and the same community colors. This flow comes after <a href="replace-and-recipe.html">Update with new data, apply a recipe</a>.</p>
+
+<div class="needs">
+<p><b>Not buildable yet.</b> graphty-element does not have these today, and the app must not compute any of them: data versions with the runs kept on each; Compare with... over two runs of one result; a partition-similarity measure (AMI); the seeded re-runs that measure how firmly each group holds; one drawing budget and one color scale across both sides.</p>
+</div>
+
+<h2>The route</h2>
+<div class="keyrow">
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="none" stroke="currentColor"/></svg>a place in the app</span>
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="7" fill="none" stroke="currentColor"/></svg>a dialog or picker</span>
+<span><svg width="24" height="18"><polygon points="12,1 23,9 12,17 1,9" fill="none" stroke="currentColor"/></svg>a decision</span>
+<span><svg width="34" height="16"><polygon points="6,1 28,1 33,8 28,15 6,15 1,8" fill="none" stroke="currentColor" stroke-width="2"/></svg>a trust check, on screen without navigating</span>
+<span><svg width="34" height="16"><polygon points="6,1 33,1 28,15 1,15" fill="currentColor" fill-opacity=".15" stroke="currentColor"/></svg>a committed change: one undo entry</span>
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="none" stroke="currentColor" stroke-dasharray="4 3"/></svg>not designed yet</span>
+<span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--k-annot)" stroke-dasharray="2 3"/></svg>error or cancellation</span>
+</div>
+<svg class="flowsvg" viewBox="0 0 1120 700" role="group" aria-labelledby="c-t"><title id="c-t">Compare with the previous data version: pick the March run, read four trust checks, decide whether the groupings differ more than re-runs do, save or close</title>
+<defs><marker id="ah-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+<a href="../screens/weekly-return.html#compare-pick"><rect class="n" x="40" y="16" width="280" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="180" y="36.5">Results: Louvain communities:</tspan><tspan x="180" y="51.5">Compare with...</tspan></text></a>
+<a href="../screens/weekly-return.html#compare-pick"><rect class="n" x="410" y="18" width="300" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="560" y="36.5">Compare with... picker:</tspan><tspan x="560" y="51.5">the run on March data first</tspan></text></a>
+<rect class="n br" x="800" y="13" width="280" height="54" rx="3" stroke-dasharray="5 4"/><text class="t" text-anchor="middle"><tspan x="940" y="36.5">No earlier run kept:</tspan><tspan x="940" y="51.5">the picker says so</tspan></text>
+<a href="../screens/weekly-return.html#compare"><rect class="n" x="390" y="116" width="340" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="560" y="136.5">Comparison surface: March and April</tspan><tspan x="560" y="151.5">side by side, one selection by id</tspan></text></a>
+<a href="../screens/weekly-return.html#compare"><polygon class="n chk" points="366,205 754,205 770,230 754,255 366,255 350,230"/><text class="t" text-anchor="middle"><tspan x="560" y="226">Statistic named: AMI 0.45, over the</tspan><tspan x="560" y="241">2,961 accounts in both months</tspan></text></a>
+<a href="../screens/weekly-return.html#compare"><polygon class="n chk" points="366,285 754,285 770,310 754,335 366,335 350,310"/><text class="t" text-anchor="middle"><tspan x="560" y="314">Left out of it: 39 only in March, 132 only in April</tspan></text></a>
+<a href="../screens/weekly-return.html#compare"><polygon class="n chk" points="366,365 754,365 770,390 754,415 366,415 350,390"/><text class="t" text-anchor="middle"><tspan x="560" y="386">Baseline: a re-run on the same March</tspan><tspan x="560" y="401">data, another seed, agrees at 0.76</tspan></text></a>
+<a href="../screens/weekly-return.html#compare"><polygon class="n chk" points="366,445 754,445 770,470 754,495 366,495 350,470"/><text class="t" text-anchor="middle"><tspan x="560" y="466">Per group: Community 33, 22 to 32 accounts;</tspan><tspan x="560" y="481">holds together in 5 of 5 re-runs on April</tspan></text></a>
+<a href="../screens/weekly-return.html#compare"><polygon class="n" points="560,530 730,575 560,620 390,575"/><text class="t" text-anchor="middle"><tspan x="560" y="571.5">Differ more than</tspan><tspan x="560" y="586.5">re-runs do?</tspan></text></a>
+<rect class="n" x="40" y="551" width="260" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="170" y="571.5">Results: the Louvain row,</tspan><tspan x="170" y="586.5">unchanged; nothing kept</tspan></text>
+<a href="../screens/weekly-return.html#compare"><polygon class="n com" points="864,553 1070,553 1056,597 850,597"/><text class="t" text-anchor="middle"><tspan x="960" y="579">Comparison saved</tspan></text></a>
+<a href="../screens/weekly-return.html#note"><rect class="n" x="840" y="640" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="960" y="660.5">Create set on the group;</tspan><tspan x="960" y="675.5">a note citing the comparison</tspan></text></a>
+<polyline class="e" points="320,40 410,40" marker-end="url(#ah-c)"/>
+<polyline class="e err" points="710,40 800,40" marker-end="url(#ah-c)"/>
+<text class="l le" x="718" y="32" text-anchor="start">nothing listed</text>
+<polyline class="e" points="560,62 560,116" marker-end="url(#ah-c)"/>
+<text class="l" x="568" y="94" text-anchor="start">the March run</text>
+<polyline class="e" points="560,164 560,205" marker-end="url(#ah-c)"/>
+<polyline class="e" points="560,255 560,285" marker-end="url(#ah-c)"/>
+<polyline class="e" points="560,335 560,365" marker-end="url(#ah-c)"/>
+<polyline class="e" points="560,415 560,445" marker-end="url(#ah-c)"/>
+<polyline class="e" points="560,495 560,530" marker-end="url(#ah-c)"/>
+<polyline class="e err" points="390,575 300,575" marker-end="url(#ah-c)"/>
+<text class="l le" x="306" y="567" text-anchor="start">no: Done</text>
+<polyline class="e" points="730,575 857,575" marker-end="url(#ah-c)"/>
+<text class="l" x="738" y="567" text-anchor="start">yes: Save comparison</text>
+<polyline class="e" points="960,597 960,640" marker-end="url(#ah-c)"/>
+</svg>
+
+<h3>Step by step</h3>
+<div class="cards3">
+  <div class="k-flow-step"><h3><span class="k-step">1</span> Compare with...</h3><p>On the Louvain row, Compare with... lists the run on March data first, because Update with new data kept it for this question; then other partitions on April. Two steps from the result. <a href="../screens/weekly-return.html#compare-pick">Screen</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">2</span> The comparison surface</h3><p>March and April side by side, with one selection matched by account id and one color per community on both sides. Above them: AMI 0.45 over the 2,961 accounts in both months; 39 only in March and 132 only in April, left out of that number; a re-run on the same March data agrees at 0.76. <a href="../screens/weekly-return.html#compare">Screen</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">3</span> The group she cares about</h3><p>Sorted by change, Community 33 grew from 22 to 32 accounts, 7 of them new in April, and it holds together in all 5 re-runs on April. The groupings as a whole differ more than two runs on the same data do, and this group is not one run's accident. Save comparison keeps it; Done keeps nothing. <a href="../screens/weekly-return.html#compare">Screen</a></p></div>
+</div>
+
+<h2 id="errors">Errors and ways out</h2>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>No earlier run to compare</h3><p>If March's run was squashed out of history, the picker's Earlier runs group says none is kept. Not designed yet: whether it also offers re-running Louvain on the March version.</p></div>
+  <div class="k-flow-step" data-branch><h3>Done</h3><p>The surface closes, nothing is kept, and focus returns to the Louvain row's Compare with.... Esc never leaves: it closes the innermost popover or menu, and with none open it moves focus to Done, because leaving discards the pairing.</p></div>
+  <div class="k-flow-step" data-branch><h3>Low agreement between re-runs</h3><p>If re-runs on the same data agree little, the comparison says so before the statistic can be read as change: the grouping itself is unstable, and resolution is the parameter to explore.</p></div>
+</div>
+
+<h2>What this flow claims</h2>
+<table class="facts wide">
+<tr><th>Task</th><td>Read what changed between two data versions of one result.</td></tr>
+<tr><th>Starts from</th><td>A result whose runs were kept across an update with new data.</td></tr>
+<tr><th>Size of graph</th><td>Both sides share one drawing budget, so a large graph is not drawn twice over the limit. Not yet drawn at a large size.</td></tr>
+<tr><th>How Figma does it</th><td>Branch review: 1 step, the two versions side by side. graphty adds the statistic and the baseline beside it, because a random algorithm can move accounts between groups with no change in the data at all.</td></tr>
+<tr><th>What she can say after</th><td>"The April grouping differs from March's more than two runs on the same data do (AMI 0.45 against 0.76). Community 33 grew from 22 to 32 accounts, 7 of them new, and holds together in every re-run."</td></tr>
+<tr><th>Where the numbers come from</th><td>AMI covers only the 2,961 accounts present in both months. The baseline is a re-run of Louvain on March with another seed. Five seeded runs are cheap on 3,000 accounts, so they run with every Louvain result and nobody starts them; they are kept in the result's Details. A partition-level score says nothing about one group, so the per-group line is its own measure: how often the group's members stay together across the re-runs.</td></tr>
+<tr><th>What is kept</th><td>The saved comparison, with its statistic, its sides and what each side left out.</td></tr>
+<tr><th>Steps</th><td>2 (Compare with...; the March run), plus Save comparison when kept.</td></tr>
+<tr><th>First failure</th><td>A change read as real when a re-run on the same data differs as much.</td></tr>
+<tr><th>Keyboard</th><td>Compare with... and Save comparison are commands in Quick actions. The two sides are separate focus regions; Esc moves focus to Done.</td></tr>
+<tr><th>Where she goes next</th><td>A set on the group and a note citing the comparison, or back to the result.</td></tr>
+</table>
+
+<h2>Questions for the study</h2>
+<table class="steps wide">
+<thead><tr><th>Where she may stall</th><th>Intended</th><th>Task for the session</th></tr></thead>
+<tbody>
+<tr><td>Does she look for "what changed" on the result, or in Version history?</td><td>The result: Compare with... on its row. Version history's report says what replayed, not what changed.</td><td>"Tell me whether the ring's community really changed since March."</td></tr>
+<tr><td>Does she read 0.45 against 0.76 as "more change than chance", without being told?</td><td>Yes, from the two numbers on adjacent rows.</td><td>"Your director asks how sure you are. What do you tell her?"</td></tr>
+<tr><td>Does she notice that 171 accounts are left out of the statistic?</td><td>She mentions the new accounts when she explains the growth.</td><td>"Where did the extra accounts in that group come from?"</td></tr>
+</tbody></table>
+<p class="k-secondary">No session has run these yet; the results will link here.</p>
+
+<h2>Where this flow departs from the framework</h2>
+<ul>
+<li><b>The trust checks name their basis:</b> AMI over the accounts in both months, and the baseline as a re-run on the same data. The framework's example claim read "larger than a re-run on the same data produces" for one group; a partition-level score cannot say that of one group, so the claim is split into the partition's and the group's.</li>
+<li><b>A fourth trust check, per group:</b> how firmly each group holds across the re-runs.</li>
+</ul>
+<p>Written up with the evidence in <a href="../framework-changes.md">framework-changes.md</a>.</p>
+</div>
+</body>
+</html>

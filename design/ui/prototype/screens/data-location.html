@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where your data goes</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+body { background: var(--cm-bg-secondary); }
+.dl-top { position: sticky; top: 0; z-index: 200; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.dl-top a { color: var(--cm-text-brand); text-decoration: none; }
+.dl-intro { width: 1440px; margin: 16px auto 0; padding: 0 16px; box-sizing: border-box; }
+.dl-intro p { max-width: 110ch; color: var(--cm-text-secondary); margin: 4px 0; }
+.dl-state { width: 1440px; margin: 0 auto; padding: 24px 0 8px; }
+.dl-state > h2 { font-size: 15px; line-height: 25px; margin: 0 16px; }
+.dl-state > p { margin: 0 16px 8px; max-width: 110ch; color: var(--cm-text-secondary); }
+.dl-win { position: relative; width: 1440px; min-height: 900px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); }
+
+/* The page itself: a plain document, one 720 px column, no app frame */
+.dl-bar { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--cm-border); font-size: 11px; }
+.dl-bar b { font-weight: 550; }
+.dl-bar .k-link { margin-left: auto; }
+.dl-page { padding: 40px 0 64px; font-size: 13px; line-height: 22px; color: var(--cm-text); }
+.dl-row { display: grid; grid-template-columns: 720px; justify-content: center; column-gap: 40px; }
+body:has(#dl-annot:checked) .dl-row { grid-template-columns: 720px 400px; }
+.dl-page h1 { font-size: 24px; line-height: 32px; font-weight: 600; margin: 0 0 8px; }
+.dl-page h2 { font-size: 15px; line-height: 25px; font-weight: 600; margin: 32px 0 8px; }
+.dl-page p { margin: 0 0 8px; }
+.dl-page ul { margin: 0 0 8px; padding-left: 20px; }
+.dl-page li { margin: 0 0 6px; }
+.dl-lede { font-size: 15px; line-height: 24px; }
+.dl-meta { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; }
+.dl-meta .k-grow { color: var(--cm-text-secondary); }
+.dl-short { margin: 24px 0 0; padding: 12px 16px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.dl-short h2 { margin: 0 0 4px; }
+.dl-short li { display: flex; gap: 8px; list-style: none; margin-left: -20px; }
+.dl-short li .k-i { flex: none; margin-top: 3px; }
+.dl-page table { width: 100%; border-collapse: collapse; margin: 4px 0 8px; }
+.dl-page th, .dl-page td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--cm-border); }
+.dl-page th { font-weight: 550; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
+.dl-page td:first-child { font-weight: 550; width: 150px; }
+.dl-page td.dl-none { color: var(--cm-text); }
+.dl-check { margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--cm-border-strong); }
+
+/* An owner decision still open: mock marker, not product UI */
+.dl-open { display: block; margin: 4px 0 8px; padding: 6px 10px; border: 1px dashed var(--k-annot); border-radius: 5px; background: var(--k-annot-bg); color: var(--k-annot-ink); font-size: 12px; line-height: 18px; }
+.dl-open b { font-weight: 600; }
+
+/* Annotation layer, off by default */
+.dl-an { display: none; align-self: start; position: static; width: auto; max-width: none; margin-top: 8px; }
+body:has(#dl-annot:checked) .dl-an { display: block; }
+body:has(#dl-annot:checked) [data-annot] { outline: 2px dashed var(--k-annot); outline-offset: 2px; }
+.dl-an i { font-style: normal; font-family: var(--cm-font-family-mono); font-size: 11px; }
+.dl-fold { position: absolute; left: 0; right: 0; top: 900px; border-top: 2px dashed var(--k-annot); pointer-events: none; }
+.dl-fold span { position: absolute; left: 8px; top: 2px; font-size: 11px; color: var(--k-annot-ink); }
+
+/* Where the page is reached from */
+.dl-entries { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 0 16px; }
+.dl-entry figcaption { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--cm-text-secondary); }
+.dl-crop { position: relative; height: 260px; overflow: hidden; border-radius: 5px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); }
+.dl-crop iframe { position: absolute; border: 0; width: 1440px; height: 900px; transform-origin: 0 0; pointer-events: none; }
+.dl-menu-host { position: relative; height: 260px; border-radius: 5px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; }
+.dl-menu-host .k-rail { position: absolute; left: 0; top: 0; bottom: 0; }
+
+/* Opened as screens/data-location.html#s1: the page alone, no mock chrome */
+body:has(.dl-state:target) { background: var(--cm-bg); }
+body:has(.dl-state:target) .dl-state:not(:target), body:has(.dl-state:target) .dl-top, body:has(.dl-state:target) .dl-intro, body:has(.dl-state:target) .dl-state > h2, body:has(.dl-state:target) .dl-state > p { display: none; }
+body:has(.dl-state:target) .dl-state { padding: 0; }
+
+/* What the app says when something leaves: panel-head crops, the popover and the log */
+.dl-sends { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 16px; align-items: start; }
+.dl-send figcaption { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--cm-text-secondary); }
+.dl-send figcaption b { color: var(--cm-text); font-weight: 550; }
+.dl-card { position: relative; border-radius: 5px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; }
+.dl-card .k-panel-head { border-bottom: 0; }
+.dl-loc { display: flex; align-items: flex-start; gap: 4px; min-height: 20px; line-height: 18px; color: var(--cm-text); }
+.dl-loc .k-i { color: var(--cm-icon-secondary); flex: none; margin-top: 2px; }
+.dl-loc .k-link { margin-left: 4px; white-space: nowrap; }
+.dl-chips { display: flex; gap: 4px; margin-top: 2px; }
+.dl-card .k-popover { position: static; box-shadow: none; border-top: 1px solid var(--cm-border); border-radius: 0; width: auto; }
+.dl-card .k-popover-body p { margin: 0 16px 6px; font-size: 11px; line-height: 16px; }
+.dl-card .k-popover-body .k-caption { margin: 8px 16px 2px; }
+.dl-names { color: var(--cm-text-secondary); }
+.dl-foot { display: flex; gap: 8px; padding: 8px 16px 0; }
+.dl-log .dl-lhead { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--cm-border); font-size: 11px; }
+.dl-log .k-item { min-height: 40px; align-items: center; }
+.dl-log .two { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 16px; }
+.dl-log .l2 { color: var(--cm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+@media print {
+  body { background: #fff; }
+  .dl-top, .dl-intro, .dl-state > h2, .dl-state > p, #s2, #s3, .dl-fold, .dl-an, .dl-meta .k-btn, .dl-bar .k-link { display: none !important; }
+  .dl-win { box-shadow: none; width: auto; min-height: 0; }
+  .dl-row { grid-template-columns: 1fr !important; }
+}
+</style>
+</head>
+<body data-dataset="transactions">
+<div class="dl-top"><b>Where your data goes</b><span class="k-secondary">A plain page to forward to an IT or security reviewer. Light and dark follow the system theme.</span>
+<span class="k-grow"></span><label><input type="checkbox" id="dl-annot"> Show annotations</label>
+<a href="start-screen.html">Start screen</a><a href="data-panel.html#s7">Data &gt; Sent and saved</a><a href="#s3">When something leaves</a><a href="../index.html">Gallery</a></div>
+
+<div class="dl-intro"><p>The start screen says files are read in the browser and not uploaded. People liked that line, but the IT and security reviewers who approve tools could neither check it nor forward it. This page answers them: what stays in the browser, what leaves it and to whom, and what the page does not promise. Its home in the app is Data &gt; Sent and saved, the list of everything this project has sent and written; the privacy line under the project name opens that list, and the list links here. So there is one place that says what left, and one page that says what can. The page now also says how long an Assistant key is kept and how to forget it, and that no password or key ever appears in that list, an exported copy of it, or a project file. Hosting, telemetry, running your own copy and an organization-wide way to turn the Assistant off are not decided yet, nor is where a data-source password is kept; the page marks each one in pink until the owner decides. Section 3 draws what the app itself says, as it happens, when the Assistant or a data-source query sends something. Turn on annotations to see the design rule and the compact-mantine component behind each part.</p></div>
+
+<!-- ============================================================ 1. The page -->
+<section class="dl-state" id="s1">
+<h2>1. The page, at 1440 wide</h2>
+<p>It opens in a new browser tab, so it has its own address that can be pasted into an email, and it needs no project and no graph. The pink dashed line marks where a 900 px tall window ends.</p>
+<div class="dl-win" data-kit-frame>
+  <div class="dl-bar" data-annot><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b><a class="k-link" href="start-screen.html">Open graphty</a></div>
+
+  <article class="dl-page">
+    <div class="dl-row"><div>
+      <h1>Where your data goes</h1>
+      <p class="dl-lede">graphty draws and analyzes graphs inside your web browser. This page says what stays in the browser, what leaves it, when, and to whom. It is written so you can forward it to whoever approves software where you work.</p>
+      <div class="dl-meta" data-annot><span class="k-grow">Describes graphty 2.0. Updated September 28, 2026.</span>
+        <span class="k-btn k-btn-secondary" role="button" tabindex="0" id="dl-copy" data-wired><svg class="k-i k-i-sm"><use href="../kit/icons.svg#link"/></svg>Copy link</span>
+        <span class="k-btn k-btn-secondary" role="button" tabindex="0" id="dl-print" data-wired><svg class="k-i k-i-sm"><use href="../kit/icons.svg#download"/></svg>Print or save as PDF</span></div>
+    </div>
+    <div class="k-annot-note dl-an">A document, not a dialog: a page with its own address opens in a new tab so the link can be forwarded and the page printed. Nothing on it depends on this browser's state, so the reviewer reads exactly what the analyst read. The version and date say which release it describes. The framework has no page like this; proposed in <i>framework-changes.md</i>. Mantine <b>Title</b>, <b>Text</b>; <b>Button</b> (secondary) for Copy link and Print.</div></div>
+
+    <div class="dl-row"><div class="dl-short" data-annot>
+      <h2>In short</h2>
+      <ul>
+        <li><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg><span>Files you open are read by this browser and are not uploaded. graphty has no account and no server that receives your data.</span></li>
+        <li><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg><span>Data leaves the browser only through two features, both off until you turn them on: <b>Connect to data source</b> and the <b>Assistant</b>.</span></li>
+        <li><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span>Projects are kept in this browser, on this computer only.</span></li>
+        <li data-annot><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg><span>No password or key ever appears in the list of what was sent, in an exported copy of that list, or in a project file.</span></li>
+      </ul>
+    </div>
+    <div class="k-annot-note dl-an">The sentences a reviewer can quote, in the same words as the start screen's two lines, so every place that talks about data agrees. The fourth names credentials, because in the study every regulated reviewer asked whether a password could end up in a log or a file that gets forwarded; "the list of what was sent" is Data &gt; Sent and saved, and its exported copy is that list's Export log. That the element keeps secrets out of its operation log and project file is an element need (<i>framework-changes.md</i>, "Where your data goes becomes the home of Sent and saved"). <i>content-design.md 2</i>, voice; the start-screen proposal in <i>framework-changes.md</i>. Mantine <b>Paper</b> with a border, <b>List</b> with icons.</div></div>
+
+    <div class="dl-row"><div>
+      <h2>What stays in this browser</h2>
+      <table data-annot>
+        <thead><tr><th>What</th><th>Where it is kept</th></tr></thead>
+        <tbody>
+          <tr><td>Files you open</td><td>Read from your computer into this browser's memory. CSV, JSON, GraphML, GEXF, GML, DOT and Pajek files are all read the same way. The file is not copied anywhere.</td></tr>
+          <tr><td>Projects</td><td>The graph, its results, styles, sets, views and notes are kept in this browser's storage for graphty, on this computer. They are not synced to another browser or computer. They stay until you delete the project or clear this site's data.</td></tr>
+          <tr><td>Exports</td><td>Figures, tables, recipes and project files are written by your browser's save dialog to the folder you choose. graphty keeps no copy.</td></tr>
+          <tr data-annot><td>An Assistant key</td><td>If you set one, it is kept in this browser and sent only to the provider it belongs to. It stays until you forget it: <b>Forget key</b>, in Preferences &gt; AI provider..., removes it at once, and clearing this site's data removes it too.</td></tr>
+          <tr data-annot><td>Data-source password</td><td>Kept in memory until you close the tab. It is never written to this browser's storage, so a new tab asks for it again. It is sent only to the data source it signs in to.<span class="dl-open"><b>Owner decision open:</b> where a data-source password is kept. Drawn here is the recommended answer, memory only. If the owner chooses to remember it, this row names where and for how long, and how to forget it.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="k-annot-note dl-an">One row per kind of thing a person puts in or takes out. Projects say where they live because round 1 found people learned that only from an error. The file formats are the ones graphty-element reads; the app should take this list from the element, not type it. Where the project is kept is graphty-element's autosave (<i>implementation-mapping.md</i>, the project autosave). The Assistant key row says how long the key is kept and how to forget it; Forget key is a new button in the AI provider dialog (<i>interface-templates.md 20</i>; proposed in <i>framework-changes.md</i>), and the key is graphty-element's to store and forget (<i>element-needs.md</i>, the assistant's provider settings). The data-source password row answers the IT reviewer's first question in round 2 ("Is that password saved? In browser storage? For how long?"); memory only is the recommended default, and the choice is the owner's (<i>framework-changes.md</i>, "Where your data goes: data-source password storage"). Mantine <b>Table</b>.</div></div>
+
+    <div class="dl-row"><div>
+      <h2>What leaves this browser, and only when you ask</h2>
+      <table data-annot>
+        <thead><tr><th>Feature</th><th>What is sent</th><th>To whom</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>Connect to data source...</td><td>The query you write, and any sign-in the source asks for (the password goes only to this source). Its answer comes back to this browser only.</td><td>The source at the address you enter, run by whoever runs it -- not by graphty.</td><td>When you connect, and each time you refresh or run a query.</td></tr>
+          <tr><td>A recipe or project file that names a data source</td><td>Nothing, until you confirm. graphty first shows the address the file names.</td><td>That address, once you confirm.</td><td>Only after you confirm.</td></tr>
+          <tr><td>The Assistant</td><td>Your question; the graph's counts; each column's name with up to 10 of its values or its range; and the names and values of the nodes it looks up to answer you.</td><td>The provider you choose -- Anthropic, OpenAI or Google -- under your own key and that provider's terms.</td><td>Each time you send a question. Off until you set a provider.</td></tr>
+          <tr><td>The Assistant, with a model that runs in the browser</td><td>Nothing from your data.</td><td>The model is downloaded once from its publisher.</td><td>When you first choose that model.</td></tr>
+          <tr><td>Opening graphty</td><td>Nothing from your files. The browser asks for graphty's own code, as for any web page.</td><td>Where graphty is hosted.<span class="dl-open"><b>Owner decision open:</b> who hosts graphty, and where. The page names the host and its country here.</span></td><td>Each time the page loads.</td></tr>
+        </tbody>
+      </table>
+      <p class="dl-check" data-annot><b>The app says when something leaves.</b> The line under the project's name reads "Nothing has been sent from this project" until something is. After a data-source query it reads "Sent to <span data-ex="host">neo4j.internal.example</span>: 1 query. Nothing else."; after questions to the Assistant, "Sent to the Assistant: 2 questions. Nothing else." The line opens <b>Data &gt; Sent and saved</b>, which lists every send with its time and address, and <b>See what was sent</b> on each shows exactly what went. <b>Export log</b> there writes the list to a file you can attach to a review.</p>
+    </div>
+    <div class="k-annot-note dl-an">Every way data can leave, each with what, to whom and when, because the focus group's reviewers stopped at the word "sends" with no answer to "where, and who runs it". A file that names a host fetches nothing until confirmed: <i>interaction-patterns.md 3.4</i>, the network-host question. The Assistant's row describes what graphty-element's Assistant puts in each request today (the question, the graph's counts, a column summary, and what its lookups return); the element should publish that description so this row cannot drift (element need, <i>framework-changes.md</i>). Provider names from the AI provider dialog, <i>interface-templates.md 20</i>. Mantine <b>Table</b>. The last paragraph points from this page back to the app: in round 2 the IT reviewer could not find, in the app, what a query had sent, and had to infer it from this page. It quotes the privacy line's wordings (section 3) and names one record, Data &gt; Sent and saved, where the privacy line leads (<i>framework-changes.md</i>, the Data panel and "Where your data goes becomes the home of Sent and saved"). Mantine <b>Blockquote</b>.</div></div>
+
+    <div class="dl-row"><div>
+      <h2>What graphty does not send</h2>
+      <ul data-annot>
+        <li>No account, and no sign-in to graphty.</li>
+        <li>No file contents, graph data, results or notes, except through the features listed above.</li>
+        <li>No fonts, icons or code from other sites while you work: they come with graphty.</li>
+        <li>Usage statistics and crash reports:<span class="dl-open"><b>Owner decision open:</b> whether graphty collects any. If none, this line reads "None: graphty collects no usage statistics and no crash reports." If some, it lists each, what it contains and where it goes, and how to turn it off.</span></li>
+      </ul>
+      <p class="dl-check"><b>Check it yourself.</b> Open your browser's developer tools, choose the Network tab, and use graphty as usual. Requests go only to graphty's own address, except while you use one of the features listed above.</p>
+    </div>
+    <div class="k-annot-note dl-an">The negatives, stated so they can be checked: a bank investigator in round 1 said she would believe "uploads nothing" only after watching the network tab, so the page tells every reader how to do exactly that. Telemetry is an owner decision (<i>framework-changes.md</i>, Open decisions for the owner). Mantine <b>List</b>; the check is a <b>Blockquote</b>.</div></div>
+
+    <div class="dl-row"><div>
+      <h2>What this page does not promise</h2>
+      <ul data-annot>
+        <li>It does not cover what a data source or an Assistant provider does with data once it reaches them. Their terms, and your agreement with them, apply.</li>
+        <li>It does not keep projects safe from loss. Clearing this site's data, a private window, or a reset or re-imaged computer deletes them. <b>Download project file</b>, in the menu on the project's name, makes a copy you control.</li>
+        <li>It does not protect data from anyone or anything else that can use this browser: other people on the same login, browser extensions, or backups of the computer.</li>
+        <li>It does not follow a file after you export it.</li>
+        <li>It is a description of graphty 2.0, not a certification or a contract. When a later version changes any of this, this page changes with it and its date moves.</li>
+      </ul>
+    </div>
+    <div class="k-annot-note dl-an">Limits said as plainly as the promises, because a page that only reassures reads as marketing to a reviewer. A re-imaged laptop losing Monday's setup was a fraud investigator's worry in the investigators focus group; the way to a copy is the chevron menu's Download project file (<i>information-architecture.md</i>, the left panel header). Mantine <b>List</b>.</div></div>
+
+    <div class="dl-row"><div>
+      <h2>For organizations</h2>
+      <ul data-annot>
+        <li>Running your own copy of graphty, inside your network:<span class="dl-open"><b>Owner decision open:</b> whether graphty can be self-hosted, and under what terms. If yes, this line links to how.</span></li>
+        <li>Turning the Assistant off for everyone in an organization:<span class="dl-open"><b>Owner decision open:</b> whether an organization can switch the Assistant off centrally, and how (a setting of a self-hosted copy, a browser policy, or both). Until then the page says only what is true today: the Assistant is off until each person sets a provider and a key, and nothing turns it on by itself.</span></li>
+        <li>Questions this page does not answer: <span class="k-link">Contact</span><span class="dl-open"><b>Owner decision open:</b> who answers a reviewer's questions, and at what address.</span></li>
+      </ul>
+    </div>
+    <div class="k-annot-note dl-an">The questions regulated reviewers asked that design cannot answer: who runs it, whether a department can host it, and whether the company rather than the person can turn the Assistant off. Each stays visibly open instead of being guessed at, and the page does not ship until each is decided. Recorded as one-way doors in <i>framework-changes.md</i>, Open decisions for the owner. Mantine <b>List</b>, <b>Anchor</b>.</div></div>
+  </article>
+  <div class="dl-fold"><span>900 px: end of the first screen</span></div>
+</div>
+</section>
+
+<!-- ============================================================ 2. Ways in -->
+<section class="dl-state" id="s2">
+<h2>2. Where the page opens from</h2>
+<p>Three ways in, all opening the same page in a new tab: the lock line on the start screen, before anything is opened; Data &gt; Sent and saved once a project is open, the page's home in the app; and Help in the main menu, so it can be found again without starting over.</p>
+<div class="dl-entries">
+  <figure class="dl-entry" style="margin:0">
+    <div class="dl-crop"><iframe src="start-screen.html#s1" title="Start screen, first run" style="transform:scale(.6);left:-178px;top:-14px"></iframe></div>
+    <figcaption>Start screen: "Where your data goes" ends the line about files, before anything is opened.</figcaption>
+  </figure>
+  <figure class="dl-entry" style="margin:0">
+    <div class="dl-crop"><iframe src="data-panel.html#s7" title="Data, Sent and saved" style="transform:scale(1.85);left:-105px;top:0"></iframe></div>
+    <figcaption>Data &gt; Sent and saved, with a project open: the privacy line under the project name opens it, and its first line, "Sent: nothing.", ends in "Where your data goes".</figcaption>
+  </figure>
+  <figure class="dl-entry" style="margin:0">
+    <div class="dl-menu-host" data-annot>
+      <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
+      <div class="k-menu" role="menu" style="left:52px;top:12px;width:170px">
+        <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Recipes<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+        <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Preferences<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+        <div class="k-menu-item" role="menuitem" data-hover><span class="k-check-col"></span>Help<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      </div>
+      <div class="k-menu" role="menu" style="left:226px;top:76px;width:200px">
+        <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Shortcuts</div>
+        <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Documentation</div>
+        <div class="k-menu-item" role="menuitem" data-hover><span class="k-check-col"></span>Where your data goes</div>
+        <div class="k-menu-sep"></div>
+        <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Open sample</div>
+        <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Memory usage</div>
+      </div>
+    </div>
+    <figcaption>Main menu, Help: a new item after Documentation. The menu's top items are left out here.</figcaption>
+  </figure>
+</div>
+<div class="dl-row" style="margin-top:16px"><div class="k-annot-note dl-an" style="grid-column:1 / -1">Help gains one item, "Where your data goes", after Documentation (<i>information-architecture.md</i>, Help: Shortcuts / Documentation / Open sample / Memory usage). compact-mantine <b>Menu</b> (dark), as every main-menu mock. The start-screen link is <i>interface-templates.md 19</i> with its proposed lock line. With a project open, the page's one home is Data &gt; Sent and saved (<i>framework-changes.md</i>, the Data panel); the file popover that used to carry the link is gone, since the file chip now opens Data.</div></div>
+</section>
+
+<!-- ============================================================ 3. When something leaves -->
+<section class="dl-state" id="s3">
+<h2>3. What the app says when something leaves</h2>
+<p>The page above is static. In the app, the privacy line under the project's name says whether anything has left, and opens Data &gt; Sent and saved, the one list of what went, to which address and when. <span data-ex="intro">Shown on a bank analyst's March transfers, loaded by a query to the bank's own graph database, then asked about with the Assistant.</span></p>
+<div class="dl-sends">
+  <figure class="dl-send" style="margin:0">
+    <div class="dl-card" data-annot><div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project" data-ex="project">Transfers, March 2026</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <div class="dl-loc"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#upload"/></svg><a class="k-link" style="margin:0;white-space:normal">Sent to <span data-ex="host">neo4j.internal.example</span>: 1 query. Nothing else.</a></div>
+      <div class="dl-chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#plug"/></svg><span class="k-id" data-ex="host">neo4j.internal.example</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div></div>
+    <figcaption><b>After a data-source query, 13:47.</b> The query went from this browser straight to the address typed in Connect to data source; <span data-fx="datasets.{ds}.nodes">3,000</span> <span data-ex="nodes">accounts</span> and <span data-fx="datasets.{ds}.edges">9,113</span> <span data-ex="edges">transfers</span> came back. The line names the host, never just "a data source".</figcaption>
+  </figure>
+  <figure class="dl-send" style="margin:0">
+    <div class="dl-card" data-annot><div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project" data-ex="project">Transfers, March 2026</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <div class="dl-loc"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#upload"/></svg><a class="k-link" style="margin:0;white-space:normal">Sent: 1 query to <span data-ex="host">neo4j.internal.example</span>, 2 questions to the Assistant. Nothing else.</a></div>
+      <div class="dl-chips"><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#plug"/></svg><span class="k-id" data-ex="host">neo4j.internal.example</span></span><span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div></div>
+    <figcaption><b>After two questions to the Assistant, 14:09.</b> The line counts what went, by where it went, and ends "Nothing else." so the reader does not have to wonder. Clicking it opens the list beside it.</figcaption>
+  </figure>
+  <figure class="dl-send" style="margin:0">
+    <div class="dl-card dl-log" data-annot>
+      <div class="dl-lhead"><span class="k-strong k-grow">Sent and saved from this project</span><span class="k-btn k-btn-ghost">Export log</span></div>
+      <div class="k-caption" style="margin:8px 16px 2px">Sent</div>
+      <ul class="k-list">
+        <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg><span class="two"><span class="k-ellipsis">Question to api.anthropic.com</span><span class="l2">40 node names, 3 statistics &middot; 14:09</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="See what was sent" title="See what was sent"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+        <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg><span class="two"><span class="k-ellipsis">Question to api.anthropic.com</span><span class="l2">12 node names, 2 statistics &middot; 14:02</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="See what was sent" title="See what was sent"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+        <li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg><span class="two"><span class="k-ellipsis">Query to <span data-ex="host">neo4j.internal.example</span></span><span class="l2">1 query &middot; 13:47</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="See what was sent" title="See what was sent"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+      </ul>
+      <div class="k-caption" style="margin:8px 16px 2px">Saved to this computer</div>
+      <p class="k-secondary" style="margin:0 16px 8px;font-size:11px;line-height:16px">Nothing yet. Every file an export writes is listed here.</p>
+      <p style="margin:0 16px 12px;font-size:11px;line-height:16px"><span class="k-secondary">No password or key is shown here or in the exported log.</span> <a class="k-link">Where your data goes</a></p>
+    </div>
+    <figcaption><b>Data &gt; Sent and saved.</b> Every send, newest first, with its address and time; the eye on each row is See what was sent. Export log writes the list to a file for a reviewer, with no password or key in it; the last link opens this page.</figcaption>
+  </figure>
+  <figure class="dl-send" style="margin:0">
+    <div class="dl-card" data-annot>
+    <div class="k-popover" role="dialog" aria-label="What was sent" style="border-top:0">
+      <div class="k-popover-head"><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg>Sent to api.anthropic.com<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-popover-body">
+        <div class="k-data"><span class="k-name">When</span><span class="k-value">Sep 28, 14:09</span></div>
+        <div class="k-data"><span class="k-name">Provider</span><span class="k-value">Anthropic, your key</span></div>
+        <div class="k-caption">Question</div>
+        <p data-ex="question">"Which flagged accounts send money to the same merchants?"</p>
+        <div class="k-caption">40 node names</div>
+        <p class="dl-names" data-ex="names"><span class="k-id" style="white-space:nowrap">ACC-365386</span>, <span class="k-id" style="white-space:nowrap">ACC-946224</span>, <span class="k-id" style="white-space:nowrap">ACC-242954</span>, <span class="k-id" style="white-space:nowrap">ACC-888258</span>, <span class="k-id" style="white-space:nowrap">ACC-309606</span>, <span class="k-id" style="white-space:nowrap">ACC-393859</span> and 34 more</p>
+        <div class="k-caption">3 statistics</div>
+        <div class="k-data"><span class="k-name" data-ex="nodes">accounts</span><span class="k-value" data-fx="datasets.{ds}.nodes">3,000</span></div>
+        <div class="k-data"><span class="k-name" data-ex="edges">transfers</span><span class="k-value" data-fx="datasets.{ds}.edges">9,113</span></div>
+        <div class="k-data"><span class="k-name">density</span><span class="k-value" data-fx="datasets.{ds}.stats.density" data-fx-digits="5">0.00101</span></div>
+        <div class="dl-foot" style="padding-bottom:12px"><span class="k-btn k-btn-secondary"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#copy"/></svg>Copy as text</span></div>
+      </div>
+    </div></div>
+    <figcaption><b>See what was sent.</b> Exactly what the 14:09 question carried: the question, every node name and each statistic. The key it was sent under is named, never shown.</figcaption>
+  </figure>
+</div>
+<div class="dl-row" style="margin-top:16px"><div class="k-annot-note dl-an" style="grid-column:1 / -1">The privacy line under the project name (<i>framework-changes.md</i>, the start screen and header: "Nothing has been sent from this project", then "Sent to the Assistant: 2 questions. Nothing else."), with two wordings the framework does not yet have: after a data-source query, "Sent to {host}: {n} query. Nothing else.", and after both, "Sent: {n} query to {host}, {m} questions to the Assistant. Nothing else." (proposed, <i>framework-changes.md</i>, "Where your data goes becomes the home of Sent and saved"). The line is a Mantine <b>Anchor</b> that opens Data &gt; Sent and saved, the reading home of every output (<i>output-homes.md</i>; the Data panel proposal); each send is one <b>ActionRow</b> naming its host, because the IT reviewer said a line reading only "Sent to: data source" is "useless to me". See what was sent is an <b>Anchor</b> opening a <b>Popover</b> of <b>DataRow</b>s; Export log is a ghost <b>Button</b> in the section head. What a request carried must come from graphty-element's Assistant, which reports each send and keeps secrets out of it; the app only shows it (element need).</div></div>
+</section>
+
+<script>
+// Section 3 follows the page's dataset (?task= or ?dataset=), so a task on the proteins never shows a
+// bank's transfers: the example's words here, its numbers from the fixtures (data-fx {ds}).
+document.addEventListener("kit:fixtures", ({ detail: { get, ds } }) => {
+  if (ds !== "ppi") return;
+  const top = get("datasets.ppi.topByDegree").slice(0, 6).map((r) => r.id);
+  const EX = {
+    intro: "Shown on a lab's protein interaction network, loaded by a query to the lab's own graph database, then asked about with the Assistant.",
+    project: get("datasets.ppi.frame.project"), host: "graphdb.lab.example", nodes: "proteins", edges: "interactions",
+    question: `"Which proteins link the DNA repair module to the cell cycle?"`,
+    names: `${top.map((id) => `<span class="k-id" style="white-space:nowrap">${id}</span>`).join(", ")} and 34 more`,
+  };
+  for (const el of document.querySelectorAll("[data-ex]")) {
+    const v = EX[el.dataset.ex];
+    if (el.dataset.ex === "names") el.innerHTML = v; else el.textContent = v;
+  }
+});
+// The entry-point iframes open other mocks at a #state, which scrolls this page; keep it at its own top.
+const dlTop = () => { if (!location.hash) scrollTo(0, 0); else document.querySelector(location.hash)?.scrollIntoView(); };
+for (const f of document.querySelectorAll(".dl-crop iframe")) f.addEventListener("load", () => setTimeout(dlTop, 50));
+document.getElementById("dl-print").addEventListener("click", () => window.print());
+document.getElementById("dl-copy").addEventListener("click", async (e) => {
+  const b = e.currentTarget;
+  try { await navigator.clipboard.writeText(location.href.split("#")[0]); b.lastChild.textContent = "Link copied"; }
+  catch { b.lastChild.textContent = "Copy failed: use the address bar"; }
+});
+</script>
+</body>
+</html>

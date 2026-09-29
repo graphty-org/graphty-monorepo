@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The rebuilt navigation, before and after</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<!--
+  One page, two modes.
+  - No query: the storyboard. Each frame pairs today's layout with the new one, as live copies of
+    this page scaled down, with the rail's buttons listed underneath and named in the ontology.
+  - ?frame=<state>: one app frame at full size (1440 x 900), with a bar to change state, turn the
+    annotation layer on and switch theme. &embed hides the bar (the storyboard uses it);
+    &annot turns the annotations on; &theme=dark|light forces a theme.
+  States: today, today-results (both kept as Before frames), new, new-node, new-results, new-run,
+  new-menu, new-file, new-prefs, new-data.
+  The new frames follow the shell (kit/template.html, kit/shell.mjs): the rail is main menu, Graph,
+  Data, Results, Notes, Assistant, and the inspector with nothing selected has no Results section.
+  The page builds its markup in script, so kit/shell.mjs cannot rewrite it: keep it on the template
+  by hand.
+-->
+<style>
+  /* ---------- the storyboard ---------- */
+  .nv-rule { margin: 16px 0 8px; padding: 12px 16px; border-radius: 8px; background: var(--cm-bg-secondary); font-size: 15px; line-height: 24px; max-width: none; }
+  .nv-frame { margin: 40px 0 0; }
+  .nv-frame > h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 32px; }
+  .nv-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .nv-side > .nv-label { font-weight: 600; margin: 0 0 6px; }
+  .nv-side > .nv-label a { font-weight: 400; margin-inline-start: 8px; }
+  .nv-ribbon { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  .nv-rb { padding: 6px 6px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--cm-border); font-size: 11px; line-height: 15px; }
+  .nv-rb[data-on] { box-shadow: inset 0 0 0 2px var(--k-annot); }
+  .nv-rb[data-gone] { background: var(--cm-bg-secondary); }
+  .nv-rb b { display: flex; align-items: center; gap: 4px; font-weight: 600; margin-bottom: 2px; }
+  .nv-rb .nv-kind { display: block; color: var(--k-annot-ink); font-weight: 600; }
+  .nv-cap { margin-top: 12px; display: grid; grid-template-columns: 120px 1fr; gap: 4px 16px; font-size: 13px; line-height: 20px; }
+  .nv-cap dt { color: var(--cm-text-secondary); }
+  .nv-cap dd { margin: 0; max-width: 90ch; }
+  .nv-cap .k-said { display: block; color: var(--cm-text-secondary); font-style: italic; }
+  .nv-shot { position: relative; }
+  .nv-outcome { margin-top: 40px; }
+  @media (max-width: 900px) { .nv-pair { grid-template-columns: 1fr; } .nv-ribbon { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+  /* ---------- one frame ---------- */
+  .nv-bar { position: fixed; z-index: 200; top: 8px; left: 314px; right: 257px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 4px; padding: 4px 8px; border-radius: 8px; background: var(--k-annot-bg); border: 1px solid var(--k-annot); font-size: 11px; white-space: nowrap; }
+  .nv-bar a { display: inline-flex; align-items: center; min-height: 24px; box-sizing: border-box; padding: 0 6px; border-radius: 4px; color: var(--k-annot-ink); text-decoration: none; }
+  .nv-bar a[aria-current] { background: var(--k-annot); color: #fff; }
+  .nv-bar label { display: flex; align-items: center; gap: 4px; color: var(--k-annot-ink); font-weight: 600; margin-inline-start: 6px; }
+  .nv-bar button { font: inherit; color: var(--k-annot-ink); background: none; border: 1px solid var(--k-annot); border-radius: 4px; padding: 0 6px; min-height: 24px; }
+  .nv-bar .nv-sep { width: 1px; height: 14px; background: var(--k-annot); margin: 0 4px; }
+  .nv-badge { position: fixed; z-index: 160; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--k-annot); color: #fff; font-size: 11px; line-height: 18px; font-weight: 600; text-align: center; pointer-events: none; }
+  .nv-key { position: fixed; z-index: 150; left: 314px; top: 48px; width: 560px; max-height: 560px; overflow: auto; padding: 10px 14px 12px; }
+  .nv-key h2 { margin: 0 0 6px; font-size: 12px; line-height: 16px; color: var(--k-annot-ink); }
+  .nv-key ol { margin: 0; padding-inline-start: 22px; }
+  .nv-key li { margin: 0 0 4px; }
+  .nv-key li::marker { color: var(--k-annot-ink); font-weight: 700; }
+  .nv-key .nv-cm { color: var(--cm-text-secondary); }
+  /* The privacy line under the project name: body ink, a link to Data > Sent and saved */
+  .nv-panel-title { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); font-weight: 550; }
+  .nv-cap-line { padding: 0 8px 4px 16px; font-size: 11px; line-height: 16px; }
+  .nv-grip { color: var(--cm-icon-secondary); flex: none; }
+  .nv-prefs .k-fieldrow { padding: 4px 16px; }
+  .nv-prefs .k-prose { padding: 0 16px 4px; }
+  /* Results: the run list and a run opened in place */
+  .nv-run { display: grid; grid-template-columns: 16px 1fr auto; gap: 0 8px; align-items: baseline; padding: 6px 8px 6px 16px; }
+  .nv-run:hover, .nv-run[data-hover] { background: var(--cm-bg-hover); }
+  .nv-run > .k-i { align-self: center; }
+  .nv-run .nv-sub { grid-column: 2 / 4; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
+  .nv-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 8px 8px 16px; }
+  .nv-side[data-frame="before"] > .nv-label { text-align: end; }
+  .nv-submenu-caret { margin-inline-start: auto; color: var(--cm-icon-secondary); }
+</style>
+</head>
+<body data-dataset="lesmis">
+<div id="root"></div>
+<script>
+(() => {
+const q = new URLSearchParams(location.search);
+const state = q.get("frame");
+const embed = q.has("embed");
+const theme = q.get("theme");
+if (theme === "dark" || theme === "light") document.documentElement.setAttribute("data-theme", theme);
+const I = (n, cls = "") => `<svg class="k-i ${cls}"><use href="../kit/icons.svg#${n}"/></svg>`;
+const fx = (key, text, digits) => `<span data-fx="${key}"${digits ? ` data-fx-digits="${digits}"` : ""}>${text}</span>`;
+
+/* ---------------- annotations: element key -> [framework section, compact-mantine component] ---------------- */
+const AN = {
+  "rail":       ["The rail lists what a project owns: main menu, Graph, Data, Results, Notes, Assistant (information-architecture.md 5, the navigation rule proposed in framework-changes.md, \"Navigation model\"; 4, \"Places\").", "NavRail"],
+  "rail-menu":  ["Main menu: the app's commands under their own scheme -- File, Edit, View, Selection, Algorithms, Recipes, Preferences, Help. Not a place (information-architecture.md 10, rule 1).", "RailButton + Mantine Menu"],
+  "rail-graph": ["Graph: the collection of graphs, the sets and paths kept on them, and saved views. The rail opens here (information-architecture.md 5; the Graph row of 4).", "RailButton"],
+  "rail-data":  ["Data (new): sources and their columns with each weight's state, versions, Update with new data, Add a table, applied recipes, and what was sent and saved (framework-changes.md, \"Places\"; output-homes.md).", "RailButton"],
+  "rail-notes": ["Notes: every note, newest first (information-architecture.md 4).", "RailButton"],
+  "rail-asst":  ["Assistant: conversations, kept in the app and never in the project. Off until a provider is set; says nothing is sent (information-architecture.md 4 and 11).", "RailButton (the off variant)"],
+  "rail-results": ["Results: every run of a measure, with its settings and date. A run is an object the project keeps, so it has a rail place; a node's value is still read on the node and in the table (framework-changes.md, \"Places\").", "RailButton"],
+  "run-list":   ["The Results panel: every run, newest first, each with its settings and date on a second line; Run a measure... opens the list of algorithms (the main menu's Algorithms). Nothing to run is listed here, only what ran (framework-changes.md, \"Places\").", "ControlSection, ActionRow (two-line)"],
+  "run-record": ["A run opened in place: the back arrow returns to the list; the state line; the record (settings, date, time taken); Re-run and Compare with...; top nodes; Show in table, sorted; Show as style layer. Nothing else in the panel moves (framework-changes.md, \"Interface specification\").", "ControlSection, DataRow, Mantine Button"],
+  "project":    ["Project name and its chevron menu: the File list -- Open..., Update with new data..., Export..., Download project file, Version history, Rename, Duplicate, Close. Stays above every rail panel (interface-specification.md 1.2, left panel header; output-homes.md, the Export... row).", "ActionRow + Mantine Menu"],
+  "privacy":    ["The privacy line replaces nothing: it is where \"what left this project\" is read, one click from Data > Sent and saved (framework-changes.md, \"Interface specification: the rail, the header...\").", "Mantine Anchor (Text size xs)"],
+  "chip":       ["Filter chip: what every number is computed on; its popover holds the filter steps, so steps need no rail place (interface-templates.md 7; information-architecture.md 4).", "filter chip (missing, interface-specification.md 7.3)"],
+  "graphs":     ["Graphs: Figma's Pages slot (interface-specification.md 1.2, Graphs section).", "PageList, PageRow, InlineRename"],
+  "sets":       ["Sets and paths kept on this graph. A set row selects the set, and the inspector shows it (information-architecture.md 4, the Graph panel).", "Tree (level-1 rows)"],
+  "views":      ["Views: saved camera, filter and look, in the findings report's order (information-architecture.md 9).", "Tree (level-1 rows)"],
+  "zoom":       ["The right column's one header row: the zoom and view menu, and a mode's tab while Version history or the comparison holds the column. No Export button, no avatar, no tabs (proposed here; framework-changes.md, \"Navigation: one header row on the right\").", "Mantine Menu; Mantine Tabs in a mode"],
+  "typerow":    ["Type row: what is selected, and nothing else (interface-specification.md 4.0).", "ActionRow"],
+  "overview":   ["Overview with nothing selected: the graph's headline readings, the Last import row, the Edges row (interface-specification.md 4.1, Nothing).", "ControlSection, DataRow, ActionRow"],
+  "stack":      ["Style stack with nothing selected: the whole ordered stack, top wins, drag to reorder, the Look with its label; the legend on the canvas reads it (framework-changes.md, \"Interface specification: ... inspector's sections\"; interface-templates.md 9).", "ControlSection + Tree (treegrid mode), FieldRow + StyleSelect for the Look"],
+  "appearance": ["Appearance on a selection: the same stack, the rows that paint this node highlighted with the property each wins; \"+\" adds a layer for the selection, as Figma's Selection colors does (framework-changes.md, \"Figma crosswalk\").", "ControlSection + Tree (treegrid mode)"],
+  "node-results": ["Results on a node: this node's value and rank in each run; a row opens the table sorted by that column. The runs themselves are listed only on the Results rail place (framework-changes.md, \"Interface specification\").", "ControlSection, DataRow"],
+  "attrs":      ["Attributes of the node (interface-specification.md 4.1, One node).", "ControlSection, DataRow"],
+  "members":    ["Memberships: the kept sets that hold this node (interface-specification.md 4.1).", "ActionRow"],
+  "dock":       ["The bottom dock compares rows: every result is a column here, sortable, with its range in the header (information-architecture.md 8.1).", "Mantine Tabs (pills), DataTable"],
+  "canvas":     ["Canvas: the drawing, the legend and the not-drawn line (information-architecture.md 4).", "graphty-element"],
+  "toolbar":    ["Floating toolbar: Select, Path, Note, Quick actions, view mode (interface-specification.md 1.2).", "Toolbar, ToolGroup, ToolButton"],
+  "menu-export": ["Export... opens the one Export dialog: figure, findings report, tables, project, recipe (output-homes.md, Export... row; Ctrl+Shift+E).", "Mantine Menu.Item + TooltipShortcut"],
+  "file-list":  ["One File list: Main menu > File and the project-name menu are built from one definition and show the same commands in the same order. With a project open, Open... opens the file as a new project; this one stays in Recent (framework-changes.md, \"Output homes\").", "Mantine Menu (submenu)"],
+  "main-recipes": ["Recipes: Apply a recipe... and Save as a recipe... A recipe that holds only styles is still a recipe: one word everywhere (framework-changes.md, \"Content design\").", "Mantine Menu.Item"],
+  "prefs-name": ["The author setting: notes and recipes record it; shown only when a project holds more than one author; blank if unset (owner decision of 2026-09-28).", "FieldRow + TextInput"],
+  "data-sources": ["Sources: each file or query and its columns, a numeric edge column with its weight state in the three agreed wordings; Update with new data... (Replace is the main button when the columns match) and Add a table... (framework-changes.md, \"Content design\").", "ControlSection, Tree, DataRow"],
+  "data-versions": ["Versions: each version of the data, opened to read the graph as it was, and Version history... (framework-changes.md, \"Output homes\").", "ControlSection, ActionRow + TrailingSlot"],
+  "data-recipes": ["Recipes: each recipe applied to this project, a recipe that holds only styles among them; \"+\" opens the one Apply dialog. Their style layers also show in the color picker's Libraries tab (framework-changes.md, \"Interface specification\").", "ControlSection (empty header with +)"],
+  "data-sent": ["Sent and saved: every file written and everything sent, never a password or key (framework-changes.md, \"Output homes\").", "ControlSection, ActionRow"],
+  "data-export": ["Export... in the Data panel's title row: a second starting place for the one Export dialog.", "Mantine Button (secondary, compact)"],
+  "today-styles": ["Before: the style stack sits in the Graph panel, where the owner asked why.", "--"],
+  "today-export": ["Before: an export button in the header.", "--"],
+  "today-avatar": ["Before: an avatar, with no accounts behind it.", "--"],
+  "today-results": ["Before: the Results rail panel mixed what ran with what could run (the catalog).", "--"],
+};
+const an = (k) => ` data-an="${k}"`;
+
+/* ---------------- pieces ---------------- */
+const rb = (key, icon, word, on) => `<div class="k-rail-btn" role="button" aria-pressed="${on ? "true" : "false"}"${an(key)} data-box="${key}"><span class="k-rail-pill">${I(icon)}</span>${word}</div>`;
+const asst = `<div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences"${an("rail-asst")} data-box="rail-asst">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>`;
+const menuBtnOf = (open) => `<div class="k-rail-btn" role="button" aria-label="Main menu" aria-haspopup="menu" aria-expanded="${open ? "true" : "false"}"${open ? ` aria-pressed="true"` : ""}${an("rail-menu")} data-box="rail-menu"><span class="k-rail-pill">${I("menu")}</span></div><div class="k-rail-sep"></div>`;
+const menuBtn = menuBtnOf(false);
+const railToday = (on) => `<nav class="k-rail" aria-label="Main"${an("rail")}>${menuBtn}${rb("rail-graph", "network", "Graph", on === "graph")}${asst}${rb("rail-results", "flask-conical", "Results", on === "results")}${rb("rail-notes", "sticky-note", "Notes", on === "notes")}</nav>`;
+const railNew = (on, menuOpen) => `<nav class="k-rail" aria-label="Main"${an("rail")}>${menuBtnOf(menuOpen)}${rb("rail-graph", "network", "Graph", on === "graph")}${rb("rail-data", "database", "Data", on === "data")}${rb("rail-results", "flask-conical", "Results", on === "results")}${rb("rail-notes", "sticky-note", "Notes", on === "notes")}${asst}</nav>`;
+
+const head = (isNew, menuOpen) => `<div class="k-panel-head">
+  <div class="k-title-line"${isNew ? an("project") : ""} data-box="project"><span class="k-project">Les Miserables</span><span class="k-icon-btn" role="button" aria-label="Project menu" aria-haspopup="menu" aria-expanded="${menuOpen ? "true" : "false"}">${I("chevron-down", "k-i-sm")}</span></div>
+  ${isNew ? `<a class="k-privacy" href="?frame=new-data${embed ? "&embed" : ""}"${an("privacy")}>Nothing has been sent from this project</a>` : ""}
+  <span class="k-chip k-chip-btn" role="button" aria-expanded="false"${an("chip")}>${I("funnel", "k-i-sm")}Full graph${I("chevron-down", "k-i-sm k-caret")}</span>
+</div>`;
+
+const graphsSec = `<section class="k-section"${an("graphs")}>
+  <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Find a graph">${I("search")}</span><span class="k-icon-btn" role="button" aria-label="Add a graph">${I("plus")}</span></div>
+  <ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">${fx("datasets.lesmis.nodes", "77")} nodes</span></li></ul>
+</section>`;
+const setsSec = `<section class="k-section"${an("sets")}>
+  <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="New set">${I("plus")}</span></div>
+  <ul class="k-list">
+    <li class="k-item">${I("group")}<span class="k-ellipsis">Friends of Valjean</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-num">36</span></span></li>
+    <li class="k-item">${I("group")}<span class="k-ellipsis">The barricade</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#56B4E9"></span></span><span class="k-num">13</span></span></li>
+    <li class="k-item">${I("waypoints")}<span class="k-ellipsis">Fantine to Marius</span><span class="k-kind">path</span><span class="k-trail"><span class="k-num">3</span></span></li>
+  </ul>
+</section>`;
+const stackRows = (sel) => `
+    <li class="k-item" role="treeitem"${sel ? " data-member" : ""}>${I("grip-vertical", "k-i-sm nv-grip")}<svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span>${sel ? `<span class="k-kind">size</span>` : ""}</li>
+    <li class="k-item" role="treeitem"${sel ? " data-member" : ""}>${I("grip-vertical", "k-i-sm nv-grip")}<span class="k-stack"><span class="k-chit" style="background:#009E73"></span><span class="k-chit" style="background:#56B4E9"></span><span class="k-chit" style="background:#E69F00"></span></span><span class="k-ellipsis">Group color</span>${sel ? `<span class="k-kind">color</span>` : ""}</li>
+    <li class="k-item" role="treeitem" data-off>${I("grip-vertical", "k-i-sm nv-grip")}<span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Bridges</span><span class="k-kind">off</span><span class="k-trail"><span class="k-icon-btn k-secondary" role="button" aria-label="Show Bridges">${I("eye-off")}</span></span></li>
+    <li class="k-item" role="treeitem"${sel ? " data-member" : ""}>${I("grip-vertical", "k-i-sm nv-grip")}<span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span>${sel ? `<span class="k-kind">shape, label</span>` : ""}</li>`;
+const stylesTodaySec = `<section class="k-section" data-box="today-styles"${an("today-styles")}>
+  <div class="k-section-head">Styles<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Add a style layer">${I("plus")}</span></div>
+  <ul class="k-list">
+    <li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
+    <li class="k-item"><span class="k-stack"><span class="k-chit" style="background:#009E73"></span><span class="k-chit" style="background:#56B4E9"></span><span class="k-chit" style="background:#E69F00"></span></span><span class="k-ellipsis">Group color</span></li>
+    <li class="k-item" data-off><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Bridges</span><span class="k-kind">run</span></li>
+    <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+  </ul>
+</section>`;
+const viewsSec = (open) => open ? `<section class="k-section"${an("views")}>
+  <div class="k-section-head">Views<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Save a view">${I("plus")}</span></div>
+  <ul class="k-list">
+    <li class="k-item">${I("camera")}<span class="k-ellipsis">The whole novel</span></li>
+    <li class="k-item">${I("camera")}<span class="k-ellipsis">Valjean and his neighbors</span></li>
+  </ul>
+</section>` : `<section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">2</span></div></section>`;
+
+const graphPanel = (isNew, menuOpen) => `<aside class="k-panel" aria-label="Graph">${head(isNew, menuOpen)}<div class="k-scroll">${graphsSec}${setsSec}${isNew ? "" : stylesTodaySec}${viewsSec(isNew)}</div></aside>`;
+
+const resultsPanelToday = `<aside class="k-panel" aria-label="Results" data-box="today-results"${an("today-results")}>${head(false)}<div class="k-scroll">
+  <section class="k-section">
+    <div class="k-section-head">In this project<span class="k-grow"></span></div>
+    <div class="k-row">${I("flask-conical")}<span class="k-grow">Betweenness</span><span class="k-secondary">done</span></div>
+    <div class="k-row">${I("flask-conical")}<span class="k-grow">Bridges</span><span class="k-secondary">done</span></div>
+  </section>
+  <section class="k-section">
+    <div class="k-section-head">Catalog<span class="k-grow"></span></div>
+    <div class="k-search"><span class="k-field">${I("search", "k-i-sm")}Find a method</span></div>
+    <div class="k-row"><span class="k-grow">Degree</span><span class="k-secondary">centrality</span></div>
+    <div class="k-row"><span class="k-grow">Betweenness</span><span class="k-secondary">centrality</span></div>
+    <div class="k-row"><span class="k-grow">PageRank</span><span class="k-secondary">centrality</span></div>
+    <div class="k-row"><span class="k-grow">Louvain communities</span><span class="k-secondary">groups</span></div>
+    <div class="k-row"><span class="k-grow">Shortest path</span><span class="k-secondary">paths</span></div>
+  </section>
+</div></aside>`;
+
+const dataPanel = `<aside class="k-panel" aria-label="Data">${head(true)}
+  <div class="nv-panel-title">Data<span class="k-grow"></span><span class="k-btn k-btn-secondary"${an("data-export")}>Export...</span></div>
+  <div class="k-scroll">
+  <section class="k-section"${an("data-sources")}>
+    <div class="k-section-head">Sources<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Add a table">${I("plus")}</span></div>
+    <ul class="k-list" role="tree" aria-label="Sources">
+      <li class="k-item" role="treeitem" aria-expanded="true">${I("file")}<span class="k-grow k-ellipsis k-id">miserables.json</span><span class="k-kind">file</span></li>
+      <li class="k-item" role="treeitem" data-level="2"><span class="k-grow">Nodes: label, group</span><span class="k-trail k-num">${fx("datasets.lesmis.nodes", "77")}</span></li>
+      <li class="k-item" role="treeitem" data-level="2"><span class="k-grow">Edges: value</span><span class="k-trail k-num">${fx("datasets.lesmis.edges", "254")}</span></li>
+    </ul>
+    <div class="nv-cap-line" style="padding-inline-start:40px">Weight: value, not used yet</div>
+    <div class="k-row">${I("refresh-cw")}<span class="k-grow">Update with new data...</span></div>
+    <div class="k-row">${I("plus")}<span class="k-grow">Add a table...</span></div>
+  </section>
+  <section class="k-section"${an("data-versions")}>
+    <div class="k-section-head">Versions<span class="k-grow"></span></div>
+    <div class="k-row" aria-selected="true">${I("history")}<span class="k-grow">Version 1, miserables.json</span><span class="k-secondary">current</span></div>
+    <div class="k-row">${I("history")}<span class="k-grow">Version history...</span></div>
+  </section>
+  <section class="k-section" data-empty${an("data-recipes")}>
+    <div class="k-section-head">Recipes<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Apply a recipe...">${I("plus")}</span></div>
+    <div class="k-prose k-secondary">No recipe applied yet.</div>
+  </section>
+  <section class="k-section"${an("data-sent")}>
+    <div class="k-section-head">Sent and saved<span class="k-grow"></span></div>
+    <div class="k-prose">Nothing has been sent from this project, and no file has been written.</div>
+  </section>
+</div></aside>`;
+
+/* Results: the rail place that holds runs. Every run of a measure, with its settings and date. */
+const resultsPanel = `<aside class="k-panel" aria-label="Results">${head(true)}
+  <div class="nv-panel-title">Results<span class="k-grow"></span><span class="k-btn k-btn-secondary">${I("plus", "k-i-sm")}Run a measure...</span></div>
+  <div class="k-scroll" data-box="run-list"${an("run-list")}>
+  <div class="nv-cap-line k-secondary" style="padding-top:8px">Every run of a measure, with its settings and date.</div>
+  <section class="k-section">
+    <div class="k-section-head">Newest first</div>
+    <div class="nv-run" role="button" data-hover data-box="run-row">${I("flask-conical")}<span class="k-ellipsis">Betweenness</span><span class="k-secondary k-num">today, 14:02</span><span class="nv-sub">Exact, normalized, no weight. Full graph, ${fx("datasets.lesmis.nodes", "77")} nodes.</span></div>
+    <div class="nv-run" role="button">${I("flask-conical")}<span class="k-ellipsis">Bridges</span><span class="k-secondary k-num">27 Sep, 16:40</span><span class="nv-sub">No settings. Full graph, ${fx("datasets.lesmis.nodes", "77")} nodes.</span></div>
+  </section>
+</div></aside>`;
+const top = (i, name, v) => `<div class="k-data"><span class="k-name k-id">${name}</span><span class="k-value k-num" data-fx="datasets.lesmis.rows.${i}.betweenness">${v}</span></div>`;
+const runPanel = `<aside class="k-panel" aria-label="Results">${head(true)}
+  <div class="nv-panel-title" data-box="run-title"><span class="k-icon-btn" role="button" aria-label="Back to Results">${I("arrow-left")}</span>Betweenness<span class="k-grow"></span><span class="k-secondary k-num" style="font-weight:400">today, 14:02</span></div>
+  <div class="k-scroll" data-box="run-record"${an("run-record")}>
+  <div class="nv-cap-line" style="padding-top:8px">Ran on the full graph, ${fx("datasets.lesmis.nodes", "77")} nodes. No weight: every edge counts the same.</div>
+  <section class="k-section">
+    <div class="k-section-head">Settings</div>
+    <div class="k-data"><span class="k-name">method</span><span class="k-value">exact, every node</span></div>
+    <div class="k-data"><span class="k-name">normalized</span><span class="k-value">yes</span></div>
+    <div class="k-data"><span class="k-name">edges</span><span class="k-value">undirected</span></div>
+    <div class="k-data"><span class="k-name">weight</span><span class="k-value">none</span></div>
+    <div class="k-data"><span class="k-name">ran</span><span class="k-value k-num">29 Sep 2026, 14:02</span></div>
+    <div class="nv-acts" data-box="run-acts"><span class="k-btn k-btn-secondary">${I("refresh-cw", "k-i-sm")}Re-run</span><span class="k-btn k-btn-secondary">${I("git-compare-arrows", "k-i-sm")}Compare with...</span></div>
+  </section>
+  <section class="k-section">
+    <div class="k-section-head">Top nodes</div>
+    ${top(11, "Valjean", "0.57")}${top(0, "Myriel", "0.177")}${top(48, "Gavroche", "0.165")}
+    <div class="k-row">${I("table")}<span class="k-grow">Show in table, sorted</span></div>
+    <div class="k-row">${I("layers")}<span class="k-grow">Show as style layer</span></div>
+  </section>
+</div></aside>`;
+
+const legend = `<div class="k-legend-card">
+  <div class="k-lg-title">Group color <span class="k-secondary">group</span></div>
+  <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value">14</span></div>
+  <div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>8<span class="k-value">13</span></div>
+  <div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value">11</span></div>
+  <div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>1<span class="k-value">10</span></div>
+  <div class="k-lg-row k-secondary">6 more</div>
+</div>`;
+const toolbar = `<div class="k-toolbar-dock"${an("toolbar")}><div class="k-toolbar" role="toolbar" aria-label="Tools">
+  <span class="k-tool" role="button" aria-pressed="true" aria-label="Select V">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu">${I("chevron-down", "k-i-sm")}</span>
+  <span class="k-tool" role="button" aria-pressed="false" aria-label="Path">${I("route", "k-i-lg")}</span>
+  <span class="k-tool" role="button" aria-pressed="false" aria-label="Note">${I("sticky-note", "k-i-lg")}</span>
+  <span class="k-toolbar-sep"></span>
+  <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions Ctrl+K">${I("zap", "k-i-lg")}</span>
+  <span class="k-toolbar-sep"></span>
+  <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)">${I("square", "k-i-lg")}</span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu">${I("chevron-down", "k-i-sm")}</span>
+</div></div>`;
+const canvas = (selected) => {
+  const src = selected ? "lesmis-groups" : "lesmis-groups-rest";
+  const alt = selected ? "Les Miserables colored by group, Valjean selected" : "Les Miserables colored by group, sized by number of connections, nothing selected";
+  return `<div class="k-canvas"${an("canvas")}><div class="k-stage">
+  <img class="k-light-only" src="../kit/canvas/${src}-light.svg" alt="${alt}"><img class="k-dark-only" src="../kit/canvas/${src}-dark.svg" alt="${alt}">
+</div>${legend}${toolbar}<span class="k-help" role="button" aria-label="Help and shortcuts">${I("circle-help")}</span></div>`;
+};
+const b = (i) => `data-fx="datasets.lesmis.rows.${i}.betweenness"`;
+// hl: after Betweenness ran, Valjean selected (sorted by betweenness). rest: nothing selected and
+// Betweenness not run, so no betweenness column (a first click must not find the answer in the table).
+// Otherwise the old layout's frame: Valjean selected, betweenness already a column.
+const dock = (hl, rest = false, noSel = false) => rest ? `<section class="k-dock" aria-label="Table"${an("dock")} data-box="dock">
+  <div class="k-dock-tabs"><span role="tablist" aria-label="Table" style="display:contents"><span class="k-tab" role="tab" aria-selected="true">Nodes</span><span class="k-tab" role="tab" aria-selected="false">Edges</span></span><span class="k-grow"></span>
+    <span class="k-icon-btn" role="button" aria-label="Find in table">${I("search")}</span><span class="k-icon-btn" role="button" aria-label="Table options">${I("ellipsis")}</span></div>
+  <div class="k-scope">Full graph: ${fx("datasets.lesmis.nodes", "77")} nodes. Sorted by degree.</div>
+  <div class="k-table-wrap"><table class="k-table">
+    <thead><tr><th>label</th><th>group <span class="k-profile">10 values</span></th><th class="k-n">degree <span class="k-profile">1 to 36</span></th></tr></thead>
+    <tbody>
+      <tr><td class="k-id">Valjean</td><td><span class="k-chit" style="background:#E69F00"></span>2</td><td class="k-n">36</td></tr>
+      <tr><td class="k-id">Gavroche</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">22</td></tr>
+      <tr><td class="k-id">Marius</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">19</td></tr>
+      <tr><td class="k-id">Javert</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">17</td></tr>
+      <tr><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">16</td></tr>
+      <tr><td class="k-id">Fantine</td><td><span class="k-chit" style="background:#D55E00"></span>3</td><td class="k-n">15</td></tr>
+    </tbody></table></div>
+</section>` : `<section class="k-dock" aria-label="Table"${an("dock")} data-box="dock">
+  <div class="k-dock-tabs"><span role="tablist" aria-label="Table" style="display:contents"><span class="k-tab" role="tab" aria-selected="true">Nodes</span><span class="k-tab" role="tab" aria-selected="false">Edges</span></span><span class="k-grow"></span>
+    <span class="k-icon-btn" role="button" aria-label="Find in table">${I("search")}</span><span class="k-icon-btn" role="button" aria-label="Table options">${I("ellipsis")}</span></div>
+  <div class="k-scope">Full graph: ${fx("datasets.lesmis.nodes", "77")} nodes. Sorted by ${hl ? "betweenness" : "degree"}.</div>
+  <div class="k-table-wrap"><table class="k-table">
+    <thead><tr><th>label</th><th>group <span class="k-profile">10 values</span></th><th class="k-n">degree <span class="k-profile">1 to 36</span></th><th class="k-n"${hl ? ` data-box="bcol"` : ""}>betweenness <span class="k-profile">0 to 0.57</span></th></tr></thead>
+    <tbody>${hl ? `
+      <tr${noSel ? "" : ` aria-selected="true"`}><td class="k-id">Valjean</td><td><span class="k-chit" style="background:#E69F00"></span>2</td><td class="k-n">36</td><td class="k-n" ${b(11)}>0.57</td></tr>
+      <tr><td class="k-id">Myriel</td><td><span class="k-chit" style="background:#0072B2"></span>1</td><td class="k-n">10</td><td class="k-n" ${b(0)}>0.177</td></tr>
+      <tr><td class="k-id">Gavroche</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">22</td><td class="k-n" ${b(48)}>0.165</td></tr>
+      <tr><td class="k-id">Marius</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">19</td><td class="k-n" ${b(55)}>0.132</td></tr>
+      <tr><td class="k-id">Fantine</td><td><span class="k-chit" style="background:#D55E00"></span>3</td><td class="k-n">15</td><td class="k-n" ${b(23)}>0.13</td></tr>
+      <tr><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">16</td><td class="k-n" ${b(25)}>0.075</td></tr>` : `
+      <tr${noSel ? "" : ` aria-selected="true"`}><td class="k-id">Valjean</td><td><span class="k-chit" style="background:#E69F00"></span>2</td><td class="k-n">36</td><td class="k-n" ${b(11)}>0.57</td></tr>
+      <tr><td class="k-id">Gavroche</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">22</td><td class="k-n" ${b(48)}>0.165</td></tr>
+      <tr><td class="k-id">Marius</td><td><span class="k-chit" style="background:#56B4E9"></span>8</td><td class="k-n">19</td><td class="k-n" ${b(55)}>0.132</td></tr>
+      <tr><td class="k-id">Javert</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">17</td><td class="k-n" ${b(27)}>0.054</td></tr>
+      <tr><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n">16</td><td class="k-n" ${b(25)}>0.075</td></tr>
+      <tr><td class="k-id">Fantine</td><td><span class="k-chit" style="background:#D55E00"></span>3</td><td class="k-n">15</td><td class="k-n" ${b(23)}>0.13</td></tr>`}
+    </tbody></table></div>
+</section>`;
+
+/* right column */
+const rightToday = `<aside class="k-right" aria-label="Inspector">
+  <div class="k-header1"><span class="k-avatar" data-box="today-avatar"${an("today-avatar")}>M</span><span class="k-grow"></span><span class="k-btn" data-box="today-export"${an("today-export")}>${I("download", "k-i-sm")}Export</span></div>
+  <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%${I("chevron-down", "k-i-sm")}</span></div>
+  <div class="k-typerow">${I("circle-dot")}<span class="k-name k-id">Valjean</span><span class="k-secondary">Node</span></div>
+  <div class="k-scroll">
+    <section class="k-section"><div class="k-section-head">Appearance</div>
+      <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#E69F00"></span>group</span></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill">${I("circle-dot", "k-i-sm")}degree</span></span></div></div>
+    </section>
+    <section class="k-section"><div class="k-section-head">Attributes</div>
+      <div class="k-data"><span class="k-name">group</span><span class="k-value">2</span></div>
+      <div class="k-data"><span class="k-name">degree</span><span class="k-value">36</span></div>
+      <div class="k-data"><span class="k-name">betweenness</span><span class="k-value" ${b(11)}>0.57</span></div>
+    </section>
+    <section class="k-section"><div class="k-section-head">Memberships</div>
+      <div class="k-row">${I("group")}<span class="k-grow">Friends of Valjean</span><span class="k-secondary">frozen</span></div>
+    </section>
+  </div>
+</aside>`;
+const newHeader = `<div class="k-header1"${an("zoom")}><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%${I("chevron-down", "k-i-sm")}</span></div>`;
+const rightNewRest = `<aside class="k-right" aria-label="Inspector">${newHeader}
+  <div class="k-typerow"${an("typerow")}>${I("network")}<span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
+  <div class="k-scroll">
+    <section class="k-section"${an("overview")}><div class="k-section-head">Overview</div>
+      <div class="k-data"><span class="k-name">nodes</span><span class="k-value">${fx("datasets.lesmis.nodes", "77")}</span></div>
+      <div class="k-data"><span class="k-name">edges</span><span class="k-value">${fx("datasets.lesmis.edges", "254")}</span></div>
+      <div class="k-data"><span class="k-name">density</span><span class="k-value">${fx("datasets.lesmis.stats.density", "0.0868", 4)}</span></div>
+      <div class="k-data"><span class="k-name">components</span><span class="k-value">${fx("datasets.lesmis.stats.components", "1")}</span></div>
+    </section>
+    <section class="k-section" data-box="stack"${an("stack")}><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Add a style layer">${I("plus")}</span></div>
+      <div class="nv-cap-line k-secondary">Top wins. Drag to reorder.</div>
+      <ul class="k-list" role="tree" aria-label="Style stack">${stackRows(false)}</ul>
+      <div class="k-fieldrow"><span class="k-legend">Look</span><div class="k-fields"><span class="k-field k-span">Screen${I("chevron-down", "k-i-sm k-caret")}</span></div></div>
+    </section>
+  </div>
+</aside>`;
+const rightNewNode = `<aside class="k-right" aria-label="Inspector">${newHeader}
+  <div class="k-typerow"${an("typerow")}>${I("circle-dot")}<span class="k-name k-id">Valjean</span><span class="k-secondary">Node</span></div>
+  <div class="k-scroll">
+    <section class="k-section" data-box="appearance"${an("appearance")}><div class="k-section-head">Appearance<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Add a style layer for Valjean">${I("plus")}</span></div>
+      <ul class="k-list" role="tree" aria-label="Style stack">${stackRows(true)}</ul>
+    </section>
+    <section class="k-section"${an("attrs")}><div class="k-section-head">Attributes</div>
+      <div class="k-data"><span class="k-name">group</span><span class="k-value">2</span></div>
+      <div class="k-data"><span class="k-name">degree</span><span class="k-value">36</span></div>
+    </section>
+    <section class="k-section" data-box="node-results"${an("node-results")}><div class="k-section-head">Results</div>
+      <div class="k-data"><span class="k-name">betweenness</span><span class="k-value"><span ${b(11)}>0.57</span>, highest</span></div>
+      <div class="k-data"><span class="k-name">bridges</span><span class="k-value">on no bridge</span></div>
+    </section>
+    <section class="k-section"${an("members")}><div class="k-section-head">Memberships</div>
+      <div class="k-row">${I("group")}<span class="k-grow">Friends of Valjean</span><span class="k-secondary">frozen</span></div>
+    </section>
+  </div>
+</aside>`;
+
+/* One File list: Main menu > File and the project-name menu are built from this one definition */
+const fileList = (hoverExport) => `
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Open...<span class="k-shortcut">Ctrl+O</span></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Update with new data...</div>
+  <div class="k-menu-item" role="menuitem"${hoverExport ? " data-hover" : ""}${an("menu-export")}><span class="k-check-col"></span>Export...<span class="k-shortcut">Ctrl+Shift+E</span></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Download project file</div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Version history</div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Project info...</div>
+  <div class="k-menu-sep"></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Rename</div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Duplicate</div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Close</div>`;
+const projectMenu = `<div class="k-menu" role="menu" aria-label="Project" style="left:${57 + 16}px;top:40px;width:232px;z-index:80" data-box="menu"${an("file-list")}>${fileList(true)}
+</div>`;
+const sub = I("chevron-right", "k-i-sm nv-submenu-caret");
+const mainMenu = `<div class="k-menu" role="menu" aria-label="Main menu" style="left:52px;top:8px;width:208px;z-index:80">
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Quick actions...<span class="k-shortcut">Ctrl+K</span></div>
+  <div class="k-menu-sep"></div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu" aria-expanded="true" data-hover data-box="main-file"><span class="k-check-col"></span>File${sub}</div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu"><span class="k-check-col"></span>Edit${sub}</div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu"><span class="k-check-col"></span>View${sub}</div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu"><span class="k-check-col"></span>Selection${sub}</div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu"><span class="k-check-col"></span>Algorithms${sub}</div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu"${an("main-recipes")} data-box="main-recipes"><span class="k-check-col"></span>Recipes${sub}</div>
+  <div class="k-menu-sep"></div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Preferences...</div>
+  <div class="k-menu-item" role="menuitem" aria-haspopup="menu"><span class="k-check-col"></span>Help${sub}</div>
+</div>
+<div class="k-menu" role="menu" aria-label="File" style="left:264px;top:52px;width:232px;z-index:81" data-box="file-sub"${an("file-list")}>${fileList(false)}
+</div>`;
+const prefs = `<div class="k-backdrop"><div class="k-modal nv-prefs" role="dialog" aria-label="Preferences" data-box="prefs">
+  <div class="k-modal-head">Preferences<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Close Preferences">${I("x")}</span></div>
+  <div class="k-modal-body">
+    <div class="k-fieldrow" data-box="prefs-name"${an("prefs-name")}><span class="k-legend">Your name on notes and recipes</span><div class="k-fields"><span class="k-field k-span" data-focus>Mara Lindqvist</span></div></div>
+    <div class="k-prose k-secondary">Saved with each note and recipe you make. Shown only when a project holds work by more than one person. Leave blank to record no name.</div>
+    <div class="k-fieldrow"><span class="k-legend">Theme</span><div class="k-fields"><span class="k-seg k-seg-fill k-span"><span aria-pressed="true">System</span><span>Light</span><span>Dark</span></span></div></div>
+    <div class="k-fieldrow"><span class="k-legend">Assistant provider</span><div class="k-fields"><span class="k-field k-span" data-placeholder>None: the Assistant is off${I("chevron-down", "k-i-sm k-caret")}</span></div></div>
+  </div>
+  <div class="k-modal-foot"><span class="k-btn">Done</span></div>
+</div></div>`;
+
+const STATES = {
+  "today":         { label: "Before", build: () => `<div data-frame="before"><div class="k-app">${railToday("graph")}${graphPanel(false)}<main class="k-main">${canvas(true)}${dock(false)}</main>${rightToday}</div></div>` },
+  "today-results": { label: "Before: Results panel", build: () => `<div data-frame="before"><div class="k-app">${railToday("results")}${resultsPanelToday}<main class="k-main">${canvas(true)}${dock(false)}</main>${rightToday}</div></div>` },
+  "new":           { label: "New: at rest", build: () => `<div class="k-app">${railNew("graph")}${graphPanel(true)}<main class="k-main">${canvas(false)}${dock(false, true)}</main>${rightNewRest}</div>` },
+  "new-node":      { label: "New: Valjean selected", build: () => `<div class="k-app">${railNew("graph")}${graphPanel(true)}<main class="k-main">${canvas(true)}${dock(true)}</main>${rightNewNode}</div>` },
+  "new-results":   { label: "New: Results", build: () => `<div class="k-app">${railNew("results")}${resultsPanel}<main class="k-main">${canvas(false)}${dock(false, false, true)}</main>${rightNewRest}</div>` },
+  "new-run":       { label: "New: a run opened", build: () => `<div class="k-app">${railNew("results")}${runPanel}<main class="k-main">${canvas(false)}${dock(true, false, true)}</main>${rightNewRest}</div>` },
+  "new-menu":      { label: "New: project menu", build: () => `<div class="k-app">${railNew("graph")}${graphPanel(true, true)}<main class="k-main">${canvas(false)}${dock(false, true)}</main>${rightNewRest}${projectMenu}</div>` },
+  "new-file":      { label: "New: main menu, File", build: () => `<div class="k-app">${railNew("graph", true)}${graphPanel(true)}<main class="k-main">${canvas(false)}${dock(false, true)}</main>${rightNewRest}${mainMenu}</div>` },
+  "new-prefs":     { label: "New: Preferences", build: () => `<div class="k-app">${railNew("graph")}${graphPanel(true)}<main class="k-main">${canvas(false)}${dock(false, true)}</main>${rightNewRest}${prefs}</div>` },
+  "new-data":      { label: "New: Data panel", build: () => `<div class="k-app">${railNew("data")}${dataPanel}<main class="k-main">${canvas(false)}${dock(false, true)}</main>${rightNewRest}</div>` },
+};
+
+/* ---------------- one frame at full size ---------------- */
+if (state) {
+  const s = STATES[state] || STATES.new;
+  const annotOn = q.has("annot");
+  let html = s.build();
+  if (!embed) {
+    const link = (k) => { const p = new URLSearchParams(q); p.set("frame", k); return `<a href="?${p}"${k === state ? ` aria-current="page"` : ""}>${STATES[k].label}</a>`; };
+    html += `<div class="nv-bar" data-kit-switcher>${Object.keys(STATES).map(link).join("")}<span class="nv-sep"></span>
+      <label><input type="checkbox" id="nv-annot"${annotOn ? " checked" : ""}> Annotations</label>
+      <button type="button" id="nv-theme">Dark / light</button><a href="navigation.html">The storyboard</a></div>`;
+  }
+  document.getElementById("root").outerHTML = html;
+  const drawAnnot = (on) => {
+    document.querySelectorAll(".nv-badge, .nv-key, .nv-annot-box").forEach((n) => n.remove());
+    if (!on) return;
+    const items = [];
+    document.querySelectorAll(".k-app [data-an], .k-app ~ * [data-an]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !AN[el.dataset.an]) return;
+      items.push(AN[el.dataset.an]);
+      const n = items.length;
+      const box = document.createElement("span");
+      box.className = "k-annot-box nv-annot-box";
+      Object.assign(box.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+      const badge = document.createElement("span");
+      badge.className = "nv-badge k-annot-note";
+      badge.style.cssText = `left:${Math.max(0, r.right - 20)}px;top:${Math.max(0, r.top + 2)}px;padding:0 4px;border:0;box-shadow:none;max-width:none`;
+      badge.textContent = n;
+      document.body.append(box, badge);
+    });
+    const key = document.createElement("div");
+    key.className = "nv-key k-annot-note";
+    key.innerHTML = `<h2>What each numbered part is, the framework section behind it, and its compact-mantine component</h2><ol>${items.map(([t, c]) => `<li>${t} <span class="nv-cm">Component: ${c}.</span></li>`).join("")}</ol>`;
+    document.body.append(key);
+  };
+  addEventListener("load", () => drawAnnot(annotOn));
+  document.getElementById("nv-annot")?.addEventListener("change", (e) => {
+    const p = new URLSearchParams(location.search);
+    e.target.checked ? p.set("annot", "") : p.delete("annot");
+    history.replaceState(null, "", `?${p}`);
+    drawAnnot(e.target.checked);
+  });
+  document.getElementById("nv-theme")?.addEventListener("click", () => {
+    const d = document.documentElement;
+    const dark = d.getAttribute("data-theme") ? d.getAttribute("data-theme") === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    d.setAttribute("data-theme", dark ? "light" : "dark");
+    setTimeout(() => drawAnnot(document.getElementById("nv-annot").checked), 0);
+  });
+  return;
+}
+
+/* ---------------- the storyboard ---------------- */
+const RAIL_TODAY = [
+  ["menu", "Main menu", "Commands", "The app's commands. Not a place."],
+  ["network", "Graph", "Collection", "Graphs, sets and paths, views -- and the style stack, which paints rather than being owned."],
+  ["", "Assistant", "Conversations", "Kept in the app, never in the project."],
+  ["flask-conical", "Results", "Mixed", "What ran beside everything that could run (the catalog)."],
+  ["sticky-note", "Notes", "Collection", "Every note, newest first."],
+];
+const RAIL_NEW = [
+  ["menu", "Main menu", "Commands", "The app's commands: File, Edit, View, Selection, Algorithms, Recipes, Preferences, Help. Not a place."],
+  ["network", "Graph", "Collection", "Graphs, the sets and paths kept on them, and saved views."],
+  ["database", "Data", "Collection (new)", "Sources and columns, versions, recipes, what was sent and saved."],
+  ["flask-conical", "Results", "Collection", "Every run of a measure, with its settings and date."],
+  ["sticky-note", "Notes", "Collection", "Every note, newest first."],
+  ["", "Assistant", "Conversations", "Kept in the app, never in the project. Off until you set a provider."],
+];
+const ribbon = (rows, on) => `<div class="nv-ribbon" data-kit-note>${rows.map(([ic, name, kind, what]) => `<div class="nv-rb"${on === name ? " data-on" : ""}><b>${ic ? I(ic, "k-i-sm") : ""}${name}</b><span class="nv-kind">${kind}</span>${what}</div>`).join("")}</div>`;
+// A live copy of one state, scaled. data-kit-frame: the participant view keeps it as product.
+const shot = (st, box, title) => `<div class="nv-shot" data-kit-frame><div class="k-frame-shot" data-scale-me><iframe class="k-frame-live" src="navigation.html?frame=${st}&embed" title="${title}"></iframe>${box ? box.split(" ").map((k) => `<span class="k-annot-box" data-for="${k}" hidden></span>`).join("") : ""}</div></div>`;
+const openLink = (st) => `<a href="navigation.html?frame=${st}">open at full size</a>`;
+// A side: [state, boxes, label, rail-ribbon highlight]; label "before" makes it a Before frame.
+const side = ([st, box, label, on], title) => {
+  const before = label === "before";
+  return `<div class="nv-side"${before ? ` data-frame="before"` : ""}><p class="nv-label">${before ? "" : label} ${openLink(st)}</p>${shot(st, box, `${before ? "Before" : label}: ${title}`)}${ribbon(before ? RAIL_TODAY : RAIL_NEW, on)}</div>`;
+};
+
+const FRAMES = [
+  { n: 1, title: "The rail as a whole", a: ["today", "rail-menu rail-graph rail-asst rail-results rail-notes", "before", ""], b: ["new", "rail-menu rail-graph rail-data rail-results rail-notes rail-asst", "New", ""],
+    who: "Mara Lindqvist, who has taught Gephi for ten years, opens the Les Miserables sample to decide whether graphty is worth a second session.",
+    does: "She reads the rail top to bottom before clicking anything, the way she would read Gephi's workspace tabs.",
+    sees: "Before, the rail mixed kinds: two collections (Graph, Notes), a conversation, and a Results panel that listed what she had run beside everything she could run. Now every button below the menu is something the project keeps -- its graphs, its data, its runs, its notes -- with the Assistant at the bottom.",
+    said: "",
+    happens: "The rule is written into information-architecture.md: the rail lists what a project owns; the right panel reads and changes the selection; the bottom dock compares rows." },
+  { n: 2, title: "Export and the File list: from a lone top-right button to the project menu", item: "Owner review item 1", a: ["today", "today-export", "before", ""], b: ["new-menu", "menu", "New", ""],
+    who: "Mara wants the figure and the table for her slides.",
+    does: "Before, she clicked a filled export button at the top right. Now she opens the menu under the project name, as she would under a Figma file's name, and chooses Export... (Ctrl+Shift+E).",
+    sees: `The project-name menu is the File list: Open..., Update with new data..., Export..., Download project file, Version history, Rename, Duplicate, Close. <a href="navigation.html?frame=new-file">Main menu &gt; File</a> opens the same list, in the same order. With a project open, Open... opens the file as a new project and keeps this one in Recent, so nothing is replaced by accident.`,
+    said: "",
+    happens: "Export is a verb, so it has starting places and no rail place: the File list, the Data panel's title row, and the table's Export table.... In the last tree test every participant found both a picture for the paper and next month's file directly, and nobody chose Open... for either." },
+  { n: 3, title: "Styles: out of the Graph panel, into the right panel", item: "Owner review item 2", a: ["today", "today-styles", "before", "Graph"], b: ["new", "stack", "New", ""],
+    who: "Mara wants to know why Valjean is orange and large.",
+    does: "Before, she found the Styles list in the left panel, between Sets and paths and Views. Now she clicks empty canvas: the right panel shows the graph, and its Style stack section lists every layer, top wins, with the Look under it.",
+    sees: "With Valjean selected (frame 6), Appearance shows the same stack with the rows that paint him highlighted and the property each wins, and \"+\" adds a layer for the selection, as Figma's Selection colors does. Palettes and the style layers of applied recipes are in the color picker's Libraries tab.",
+    said: "",
+    happens: "A style layer paints the selection, so it lives where the selection is read. The Graph panel keeps only what the project owns." },
+  { n: 4, title: "The \"M\" in the corner: removed", item: "Owner review item 3", a: ["today", "today-avatar", "before", ""], b: ["new-prefs", "prefs-name", "New", ""],
+    who: "Mara, used to cloud tools, looks for her account behind the round \"M\".",
+    does: "Before, the avatar did nothing: graphty has no accounts. Now there is no avatar; the only personal setting is her name on notes and recipes, in Preferences (main menu).",
+    sees: "The header's corner is empty. Her name appears only on work that carries it, and only when a project holds work by more than one person.",
+    said: "",
+    happens: "Nothing replaces the avatar in the header, because nothing in graphty signs in. What left the project is read on the line under the project name, not behind a person icon." },
+  { n: 5, title: "Results: a rail place for runs", item: "Owner review item 4", a: ["today-results", "today-results", "before", "Results"], b: ["new-results", "rail-results run-list", "New", "Results"],
+    who: "Mara ran Betweenness this morning. A colleague asks how she set it up.",
+    does: "She opens Results on the rail. Before, that panel listed what she had run beside the whole catalog of what she could run.",
+    sees: "Every run, newest first, each with its settings and date on a second line: \"Exact, normalized, no weight.\" Nothing to run is listed; Run a measure... in the panel's title row opens the list of algorithms, as the main menu's Algorithms and Quick actions (Ctrl+K) do.",
+    said: "\"I'd have guessed 'Results' means outputs I already have, not 'run a statistic'.\" (a Gephi user in an earlier tree test)",
+    happens: "A run is something the project keeps, so it has a rail place, and the line under the title says what the place holds. Tested both ways with the same twelve people on four tasks about runs, Results on the rail gave 45 direct answers of 48, against 38 with runs listed in the right panel; the gap was in finding how an earlier run was set up (12 of 12 direct, against 4 of 12). The label stays \"Results\", the word that was tested; \"Runs\" is tested against it next." },
+  { n: 6, title: "Opening a run shows its record in place", a: ["new-run", "run-record run-acts", "A run opened", "Results"], b: ["new-node", "node-results bcol", "A node selected", "Graph"],
+    who: "The colleague wants the exact settings, and a second opinion on the ranking.",
+    does: "Mara clicks the Betweenness row. The run opens in the same panel; the back arrow returns to the list.",
+    sees: "What it ran on, then its record: method, normalized, edges, weight, and the date it ran, with Re-run and Compare with... under them. Then its top nodes, Show in table, sorted, and Show as style layer. On the right: with Valjean selected, his value is read on the node -- betweenness 0.57, the highest -- and the table sorts by the new column.",
+    said: "",
+    happens: "The question \"how was this set up?\" is answered where the run is found, without a second place to look. A value stays a fact about its node: read in the inspector and compared in the table." },
+  { n: 7, title: "Data: the place for what comes in and goes out", a: ["today", "rail-menu", "before", ""], b: ["new-data", "rail-data", "New", "Data"],
+    who: "Mara has a corrected edge list and wants to update the project without redoing her colors.",
+    does: "Before, there was no home for this: in a tree test she guessed the hamburger menu. Now she opens Data and finds Update with new data... under Sources, beside the file it replaces (the File list has it too).",
+    sees: "The source file and its columns (value, not used yet as a weight), the one version, Add a table..., Recipes (none applied yet; \"+\" applies one, the same dialog as the main menu's Recipes), and a Sent and saved log that says nothing has left the project.",
+    said: "\"Do my styles and my filter steps survive the new file -- nothing here tells me.\" (a tree-test participant)",
+    happens: "Data is a collection the project owns, so it earns a rail place. A saved set of styles is a recipe like any other: \"Recipes\" is the one word, in the main menu and here." },
+];
+
+const cap = (f) => `<dl class="nv-cap" data-kit-note><dt>Who and where</dt><dd>${f.who}</dd><dt>What she does</dt><dd>${f.does}</dd><dt>What she sees</dt><dd>${f.sees}${f.said ? `<span class="k-said">${f.said}</span>` : ""}</dd><dt>What happens</dt><dd>${f.happens}</dd></dl>`;
+const NEW_STATES = Object.keys(STATES).filter((k) => !k.startsWith("today"));
+
+document.getElementById("root").outerHTML = `<div class="k-doc" style="max-width:1280px">
+  <p><a href="../index.html">Gallery</a></p>
+  <h1>The rebuilt navigation, before and after</h1>
+  <p class="k-lede">The owner asked four questions about the mocks: why Export is a lone button at the top right, why styles sit under Graph, what the "M" avatar is for, and why Results is on the left. The answer is one rule taken from graphty's own ontology, not from Figma's layout. Each frame below puts the earlier layout beside the new one, and names what every rail button is. Results stays on the left, but only as the place for runs: every run of a measure, with its settings and date.</p>
+  <p class="nv-rule"><b>The rail lists what a project owns; the right panel reads and changes the selection; the bottom dock compares rows.</b> A rail button names something the project keeps, never an activity.</p>
+  <p>The new rail, top to bottom: the main menu (commands, not a place), Graph (graphs, sets and paths, views), Data (new), Results (runs), Notes, and the Assistant. Gone: the catalog from the Results panel, Styles in the Graph panel, the header's Export button, and the avatar. The right panel has no tabs: what it shows is chosen by the selection alone. Figma still sets the controls and gestures -- rows, menus, popovers, keys, selection driving the right panel -- but not this structure.</p>
+  <p>Each new screen is also a full-size mock with an annotation layer that cites the framework and names the compact-mantine component: ${NEW_STATES.map((k) => `<a href="navigation.html?frame=${k}&annot">${STATES[k].label.replace(/^New: /, "")}</a>`).join(", ")}.</p>
+  ${FRAMES.map((f) => `<section class="nv-frame">
+    <h2><span class="k-step">${f.n}</span>${f.title}${f.item ? ` <span class="k-annot-tag">${f.item}</span>` : ""}</h2>
+    <div class="nv-pair">${side(f.a, f.title)}${side(f.b, f.title)}</div>
+    ${cap(f)}
+  </section>`).join("")}
+  <section class="nv-outcome">
+    <h2>Outcome</h2>
+    <p>Mara ends with five places she can name -- Graph, Data, Results, Notes, the Assistant -- and one habit: select something and read the right panel; compare many things in the table. Everything the owner flagged has a home that follows from the rule: Export starts from the File list, the Data panel and the table; styles are read about the selection; runs are kept on Results, each with its own record; nothing in the header implies an account.</p>
+    <p>Still open: whether "Runs" names the place better than "Results", tested next as a labelled variant of the same tree. The proposed changes to the framework documents are in <a href="../framework-changes.md">framework-changes.md</a>, under "Places", "Navigation model", "Rules for growth", "Figma crosswalk", "Interface specification" and "Navigation: one header row on the right".</p>
+  </section>
+</div>`;
+
+/* scale each live copy to its box, and draw the boxes on the parts each frame is about */
+const fit = () => document.querySelectorAll("[data-scale-me]").forEach((el) => el.style.setProperty("--k-scale", (el.clientWidth / 1440).toFixed(4)));
+new ResizeObserver(fit).observe(document.body);
+fit();
+const themeOf = () => document.documentElement.getAttribute("data-theme");
+/* A theme set on this page (by shoot.mjs --dark or by hand) reaches the copies without reloading them */
+const pushTheme = (fr) => { const t = themeOf(); const d = fr.contentDocument; if (t && d) d.documentElement.setAttribute("data-theme", t); };
+document.querySelectorAll(".k-frame-shot iframe").forEach((fr) => {
+  fr.addEventListener("load", () => {
+    pushTheme(fr);
+    const doc = fr.contentDocument;
+    fr.parentElement.querySelectorAll("[data-for]").forEach((box) => {
+      const el = doc && doc.querySelector(`[data-box="${box.dataset.for}"]`);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      Object.assign(box.style, { left: `${(r.left / 1440) * 100}%`, top: `${(r.top / 900) * 100}%`, width: `${(r.width / 1440) * 100}%`, height: `${(r.height / 900) * 100}%` });
+      box.hidden = false;
+    });
+  });
+});
+new MutationObserver(() => document.querySelectorAll(".k-frame-shot iframe").forEach(pushTheme)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
+</body>
+</html>

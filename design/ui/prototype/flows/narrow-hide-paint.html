@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Narrow, hide or paint</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .f-diagram { display: block; width: 100%; height: auto; margin: 8px 0 4px; font-family: inherit; }
+  .f-place, .f-commit, .f-check, .f-ask { fill: var(--cm-bg); stroke: var(--cm-text-secondary); stroke-width: 1.25; }
+  .f-commit { fill: var(--cm-bg-secondary); }
+  .f-check { fill: var(--cm-bg-selected); stroke: var(--cm-border-selected-strong); stroke-width: 1.5; }
+  .f-gap { stroke-dasharray: 5 4; }
+  .f-t { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-size: 12px; line-height: 16px; color: var(--cm-text); }
+  .f-t b { font-weight: 600; }
+  .f-t a { color: var(--cm-text-brand); }
+  .f-u { display: block; margin-top: 2px; font-size: 11px; line-height: 14px; color: var(--cm-text-secondary); }
+  .f-edge { fill: none; stroke: var(--cm-text-secondary); stroke-width: 1.25; }
+  /* The recovery route: a double line, so it survives grayscale print. */
+  .f-rec-out { fill: none; stroke: var(--cm-text); stroke-width: 5; }
+  .f-rec-in { fill: none; stroke: var(--cm-bg); stroke-width: 2; }
+  .f-ah { fill: var(--cm-text-secondary); }
+  .f-ah-rec { fill: var(--cm-text); }
+  .f-lbl { font-size: 11px; line-height: 14px; color: var(--cm-text-secondary); font-style: italic; }
+  .f-lbl-t { font-size: 11px; fill: var(--cm-text-secondary); font-style: italic; paint-order: stroke; stroke: var(--cm-bg); stroke-width: 4px; stroke-linejoin: round; }
+  .f-band { fill: var(--cm-bg-secondary); fill-opacity: .45; stroke: none; }
+  .f-band-t { font-size: 11px; font-weight: 600; fill: var(--cm-text-secondary); letter-spacing: .02em; paint-order: stroke; stroke: var(--cm-bg); stroke-width: 5px; stroke-linejoin: round; }
+
+  .f-key { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--cm-text-secondary); font-size: 12px; }
+  .f-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .f-key svg { width: 28px; height: 16px; overflow: visible; }
+
+  .f-glance { width: 100%; }
+  .f-glance th:first-child { width: 130px; color: var(--cm-text-secondary); font-weight: 450; }
+  .f-glance thead th { font-weight: 600; }
+
+  .f-tag { margin-inline-start: 6px; }
+
+  .f-readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 8px 0; }
+  .f-card { border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); overflow: hidden; background: var(--cm-bg); display: flex; flex-direction: column; }
+  .f-card h3 { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--cm-border); font-size: 13px; line-height: 18px; }
+  .f-strip { border-bottom: 1px solid var(--cm-border); }
+  .f-where { display: block; padding: 6px 12px 2px; font-size: 11px; line-height: 16px; font-weight: 550; color: var(--cm-text-secondary); }
+  .f-strip-body { padding: 4px 8px 10px; }
+  .f-card .k-panel-head { padding-left: 4px; padding-right: 4px; }
+  .f-card .k-section { border: 0; }
+  .f-card .k-legend-card { position: static; box-shadow: var(--cm-elevation-200, 0 0 0 1px var(--cm-border)); max-width: none; }
+  .f-card .k-popover { position: static; width: auto; margin: 6px 0 0; box-shadow: var(--cm-elevation-400); }
+  .f-card .k-data { padding: 0 8px; }
+  .f-card .f-foot { margin-top: auto; padding: 8px 12px 12px; color: var(--cm-text-secondary); font-size: 12px; line-height: 18px; }
+  .f-card .f-foot b { color: var(--cm-text); font-weight: 550; }
+  .f-changed { outline: 2px dashed var(--k-annot); outline-offset: 2px; border-radius: 6px; }
+
+  .f-steps { font-size: 12px; line-height: 17px; }
+  .f-steps td, .f-steps th { padding-inline-end: 10px; vertical-align: top; }
+  .f-missing { font-weight: 600; }
+  @media (max-width: 1000px) { .f-readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .f-readouts { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <p><a href="../index.html">graphty design gallery</a> / Flows</p>
+  <h1>Narrow, hide or paint -- which one did you do?</h1>
+  <p class="k-lede">Three moves take a kind of node "out of" a graph, and on the canvas they can look alike. Only one of them changes the numbers. Believing you filtered when you only hid or painted is a likely wrong conclusion -- a hypothesis the user study will test, not a finding yet. This flow shows what each move changes, how it is undone, and the one place that tells you which you did: the filter chip under the project name.</p>
+
+  <p><b>The situation.</b> Sarah, a fraud analyst, has opened <span class="k-id">transfers-2026-03.csv</span>: 3,000 accounts and 9,113 transfers from March 2026. Sixty accounts are merchants, and 5,302 of the transfers have a merchant at one end. The busiest merchant, <span class="k-id">ACC-393859</span>, has 907 transfers and alone sets the graph's maximum degree. She wants statistics that describe people and businesses without the merchants' pull. She starts either from the value <i>merchant</i> in the table's kind column, which is a rule, or from that merchant on the canvas, where Select same value gives her 60 selected nodes, which is a fixed list.</p>
+  <p><b>What she can claim at the end.</b> With Filter out: "these numbers describe the 2,940 accounts that are not merchants." With Hide on canvas: "the merchants are out of the picture, and every number still describes all 3,000 accounts." With paint: "merchants are drawn in their own color by a layer anyone can see, reorder or remove; no number changed." <b>Why the start matters:</b> a step made from the kind value is a rule, so after Update with new data it also catches next month's new merchants; a step made from the 60 selected nodes is a fixed list and does not.</p>
+
+  <h2>The flow</h2>
+  <p>From either start, one question routes the analyst: should the merchants still count in the numbers? Each exit is named by its consequence, and the command's name is on the box it leads to. The double line is the way back when the chip shows the wrong move was made.</p>
+  <div class="f-key" aria-label="Shape key">
+    <span><svg viewBox="0 0 28 16"><rect x="1" y="2" width="26" height="12" rx="2" class="f-place"/></svg>a place in the app</span>
+    <span><svg viewBox="0 0 28 16"><polygon points="14,1 27,8 14,15 1,8" class="f-ask"/></svg>a decision in the analyst's words, or a named failure</span>
+    <span><svg viewBox="0 0 28 16"><polygon points="5,2 27,2 23,14 1,14" class="f-commit"/></svg>a committed change: one undo entry</span>
+    <span><svg viewBox="0 0 28 16"><polygon points="5,1 23,1 27,8 23,15 5,15 1,8" class="f-check"/></svg>a trust check: what to see before believing a number</span>
+    <span><svg viewBox="0 0 28 16"><rect x="1" y="2" width="26" height="12" rx="2" class="f-place f-gap"/></svg>dashed: waits on graphty-element, or its control is not built yet</span>
+    <span><svg viewBox="0 0 28 16"><path class="f-rec-out" d="M1 8 H27"/><path class="f-rec-in" d="M1 8 H27"/></svg>double line: the recovery route</span>
+  </div>
+<!-- SVG START -->
+<svg class="f-diagram" viewBox="0 0 1080 820" role="group" aria-labelledby="f-title">
+<title id="f-title">Router: from the kind value or a canvas selection of 60 merchants, the question whether they should still count splits into Filter out, Hide on canvas, or three ways to paint. Only Filter out moves the chip. After hiding or painting, a failure question sends the analyst back to Filter out when the numbers were meant to leave the merchants out.</title>
+<defs>
+  <marker id="f-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="f-ah" d="M0 0 L10 5 L0 10 z"/></marker>
+  <marker id="f-ah2" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path class="f-ah-rec" d="M0 0 L10 5 L0 10 z"/></marker>
+</defs>
+<rect class="f-band" x="16" y="236" width="292" height="382" rx="8"/><text class="f-band-t" x="28" y="608">Narrow: changes the numbers</text>
+<rect class="f-band" x="320" y="236" width="236" height="382" rx="8"/><text class="f-band-t" x="332" y="608">Hide: changes only the drawing</text>
+<rect class="f-band" x="568" y="236" width="500" height="382" rx="8"/><text class="f-band-t" x="580" y="608">Paint: changes only the look</text>
+
+<path class="f-edge" d="M190 68 L190 76 L436 76 L436 88" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M710 68 L710 76 L436 76"/>
+<path class="f-edge" d="M276 150 L158 150 L158 310" marker-end="url(#f-ah)"/><foreignObject x="24" y="168" width="128" height="60"><div class="f-lbl">leave them out of the numbers and the layout</div></foreignObject>
+<path class="f-edge" d="M436 210 L436 310" marker-end="url(#f-ah)"/><foreignObject x="444" y="246" width="108" height="60"><div class="f-lbl">keep counting them; take them out of the picture</div></foreignObject>
+<path class="f-edge" d="M596 150 L818 150 L818 246" marker-end="url(#f-ah)"/><foreignObject x="826" y="176" width="150" height="32"><div class="f-lbl">only change how they look</div></foreignObject>
+
+<path class="f-edge" d="M158 384 L158 402" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M158 472 L158 638" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M436 378 L436 394" marker-end="url(#f-ah)"/>
+
+<path class="f-edge" d="M648 300 L640 300 L640 428" marker-end="url(#f-ah)"/><foreignObject x="580" y="364" width="56" height="60"><div class="f-lbl" style="text-align:right">every kind, by its value</div></foreignObject>
+<path class="f-edge" d="M818 354 L818 428" marker-end="url(#f-ah)"/><foreignObject x="824" y="364" width="80" height="60"><div class="f-lbl">these 60, kept as a set</div></foreignObject>
+<path class="f-edge" d="M988 300 L996 300 L996 428" marker-end="url(#f-ah)"/><foreignObject x="1002" y="364" width="62" height="60"><div class="f-lbl">these 60, by hand</div></foreignObject>
+<path class="f-edge" d="M640 512 L640 522 L818 522 L818 532" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M818 512 L818 522"/>
+<path class="f-edge" d="M996 512 L996 522 L818 522"/>
+
+<path class="f-edge" d="M436 482 L436 640 L560 640 L560 650" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M818 598 L818 640 L560 640"/>
+<path class="f-edge" d="M710 706 L786 706" marker-end="url(#f-ah)"/><text class="f-lbl-t" x="728" y="698">yes</text>
+<path class="f-rec-out" d="M560 762 L560 786 L312 786 L312 348 L298 348" marker-end="url(#f-ah2)"/><path class="f-rec-in" d="M560 763 L560 786 L312 786 L312 348 L298 348"/>
+<foreignObject x="322" y="792" width="460" height="20"><div class="f-lbl">no, they should not count: Show all if they were hidden, then Filter out</div></foreignObject>
+
+<g id="n-s1"><rect class="f-place" x="60" y="12" width="260" height="56" rx="4"/><foreignObject x="72" y="12" width="236" height="56"><div class="f-t"><span><b>Table, Nodes:</b> the kind column, value merchant (60) -- a rule</span></div></foreignObject></g>
+<g id="n-sel"><rect class="f-place" x="560" y="12" width="300" height="56" rx="4"/><foreignObject x="572" y="12" width="276" height="56"><div class="f-t"><span><b>Canvas:</b> ACC-393859, then Select same value: 60 selected -- a fixed list</span></div></foreignObject></g>
+<g id="n-q"><polygon class="f-ask" points="436,90 596,150 436,210 276,150"/><foreignObject x="346" y="100" width="180" height="100"><div class="f-t"><span>Should the merchants still count in the numbers?</span></div></foreignObject></g>
+
+<g id="n-n"><polygon class="f-commit f-gap" points="42,312 290,312 276,384 28,384"/><foreignObject x="40" y="312" width="238" height="72"><div class="f-t"><span><b>Filter out:</b> a filter step<span class="f-u">undo, from the value: Filter out kind = merchant</span><span class="f-u">from the selection: Filter out 60 nodes</span></span></div></foreignObject></g>
+<g id="n-t1"><polygon class="f-check f-gap" points="44,404 272,404 290,438 272,472 44,472 26,438"/><foreignObject x="48" y="404" width="220" height="68"><div class="f-t"><span>Chip reads <b>Filtered: 2,940 of 3,000 nodes</b></span></div></foreignObject></g>
+<g id="n-ho"><rect class="f-place" x="28" y="640" width="260" height="56" rx="4"/><foreignObject x="40" y="640" width="236" height="56"><div class="f-t"><span><b>Then:</b> <a href="#characterize">Filter, then characterize</a>, the next diagram</span></div></foreignObject></g>
+
+<g id="n-h"><polygon class="f-commit f-gap" points="344,312 540,312 528,378 332,378"/><foreignObject x="344" y="312" width="184" height="66"><div class="f-t"><span><b>Hide on canvas:</b> 60 nodes<span class="f-u">undo: Hide 60 nodes on canvas</span></span></div></foreignObject></g>
+<g id="n-t3"><polygon class="f-check f-gap" points="348,396 524,396 542,439 524,482 348,482 330,439"/><foreignObject x="350" y="396" width="172" height="86"><div class="f-t"><span>Chip still reads <b>Full graph</b>; the legend: 60 nodes, 5,302 edges hidden</span></div></foreignObject></g>
+
+<g id="n-pd"><polygon class="f-ask" points="818,248 988,300 818,354 648,300"/><foreignObject x="716" y="262" width="204" height="76"><div class="f-t"><span>Paint every kind, or just these merchants?</span></div></foreignObject></g>
+<g id="n-p1"><polygon class="f-commit" points="584,430 710,430 698,512 572,512"/><foreignObject x="582" y="430" width="118" height="82"><div class="f-t"><span><b>Color by kind:</b> a layer<span class="f-u">undo: Color by kind</span></span></div></foreignObject></g>
+<g id="n-p2"><polygon class="f-commit" points="752,430 894,430 884,512 742,512"/><foreignObject x="750" y="430" width="136" height="82"><div class="f-t"><span><b>Create set</b>, then a color: a layer on the set<span class="f-u">undo: Add style layer Merchants</span></span></div></foreignObject></g>
+<g id="n-p3"><polygon class="f-commit f-gap" points="932,430 1062,430 1052,512 922,512"/><foreignObject x="928" y="430" width="128" height="82"><div class="f-t"><span><b>Overrides</b> written<span class="f-u">undo: Override color of 60 nodes</span></span></div></foreignObject></g>
+<g id="n-t4"><polygon class="f-check" points="680,534 956,534 974,566 956,598 680,598 662,566"/><foreignObject x="684" y="534" width="268" height="64"><div class="f-t"><span>Chip still reads <b>Full graph</b>; the new layer, or Overrides counting 60, tops Styles</span></div></foreignObject></g>
+
+<g id="n-fd"><polygon class="f-ask" points="560,652 710,706 560,760 410,706"/><foreignObject x="470" y="664" width="180" height="84"><div class="f-t"><span>Did the chip move the way I meant?</span></div></foreignObject></g>
+<g id="n-rest"><rect class="f-place" x="788" y="678" width="276" height="56" rx="4"/><foreignObject x="800" y="678" width="252" height="56"><div class="f-t"><span><b>Rest</b>, or <a href="color-by-value.html">Color or size by a value</a></span></div></foreignObject></g>
+</svg>
+<!-- SVG END -->
+
+  <h2 id="characterize">Filter, then characterize</h2>
+  <p>Where the narrow exit hands off: reading statistics on what is left, and the one named failure, a number from a run made before the filter.</p>
+<svg class="f-diagram" viewBox="0 0 1080 350" role="group" aria-labelledby="f-title2">
+<title id="f-title2">After Filter out, an optional Extract as graph, then Statistics on the filtered graph and its trust check, then a failure question about runs made before the filter.</title>
+<path class="f-edge" d="M282 70 L298 70" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M540 70 L600 70" marker-end="url(#f-ah)"/><text class="f-lbl-t" x="552" y="62">yes</text>
+<path class="f-edge" d="M420 124 L420 168" marker-end="url(#f-ah)"/><text class="f-lbl-t" x="428" y="152">no</text>
+<path class="f-edge" d="M700 106 L700 140 L500 140 L500 168" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M550 198 L604 198" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M772 234 L772 252" marker-end="url(#f-ah)"/>
+<path class="f-edge" d="M622 300 L534 300" marker-end="url(#f-ah)"/><text class="f-lbl-t" x="574" y="292">yes</text>
+<path class="f-edge" d="M922 300 L942 300" marker-end="url(#f-ah)"/><text class="f-lbl-t" x="924" y="292">no</text>
+
+<g><polygon class="f-check f-gap" points="36,36 264,36 282,70 264,104 36,104 18,70"/><foreignObject x="40" y="36" width="220" height="68"><div class="f-t"><span>Chip reads <b>Filtered: 2,940 of 3,000 nodes</b></span></div></foreignObject></g>
+<g><polygon class="f-ask" points="420,16 540,70 420,124 300,70"/><foreignObject x="340" y="30" width="160" height="80"><div class="f-t"><span>Do I need separate positions and runs?</span></div></foreignObject></g>
+<g><polygon class="f-commit f-gap" points="616,34 876,34 862,106 602,106"/><foreignObject x="614" y="34" width="250" height="72"><div class="f-t"><span><b>Extract as graph:</b> Graphs gets a new graph<span class="f-u">undo: Extract filtered graph (2,940 nodes) as graph</span></span></div></foreignObject></g>
+<g><rect class="f-place" x="290" y="170" width="260" height="56" rx="4"/><foreignObject x="302" y="170" width="236" height="56"><div class="f-t"><span><b>Inspector, nothing selected:</b> Statistics</span></div></foreignObject></g>
+<g><polygon class="f-check" points="624,162 920,162 940,198 920,234 624,234 604,198"/><foreignObject x="628" y="162" width="288" height="72"><div class="f-t"><span>Reads <b>3,811 transfers, max degree 14</b> (was 9,113 and 907); the chip is its only scope mark</span></div></foreignObject></g>
+<g><polygon class="f-ask" points="772,254 922,300 772,346 622,300"/><foreignObject x="682" y="266" width="180" height="68"><div class="f-t"><span>Is the number I quote from a run made before the filter?</span></div></foreignObject></g>
+<g><rect class="f-place f-gap" x="272" y="272" width="260" height="56" rx="4"/><foreignObject x="284" y="272" width="236" height="56"><div class="f-t"><span><b>Results:</b> its state line reads on: full graph; Run</span></div></foreignObject></g>
+<g><rect class="f-place" x="944" y="272" width="126" height="56" rx="4"/><foreignObject x="950" y="272" width="114" height="56"><div class="f-t"><span><a href="run-and-read.html">Make the layout readable</a></span></div></foreignObject></g>
+</svg>
+  <p class="k-secondary">"Make the layout readable" is drawn at the end of <a href="run-and-read.html">Run a measure and read it</a>.</p>
+
+  <h2>Which one did you do? What each move leaves on screen</h2>
+  <p>Each card shows the three places that answer the question, where they really are: the left panel's header, the legend at the bottom left of the canvas (drawn by graphty-element), and Statistics in the inspector on the right, with nothing selected. Dashed outlines mark what changed; everything else reads exactly as before. All numbers are from the March transfers.</p>
+  <div class="f-readouts">
+
+    <section class="f-card" aria-label="After Filter out">
+      <h3>After Filter out <span class="k-annot-tag f-tag">waits on graphty-element</span></h3>
+      <div class="f-strip"><span class="f-where">Left panel</span><div class="f-strip-body">
+        <div class="k-panel-head">
+          <div class="k-title-line"><span class="k-project k-ellipsis">Card and transfer transactions, March 2026</span></div>
+          <span class="k-chip f-changed" aria-expanded="true"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Filtered: 2,940 of 3,000 nodes</span></span>
+        </div>
+        <div class="k-popover" role="dialog" aria-label="Filter steps">
+          <div class="k-popover-head">Filter steps</div>
+          <div class="k-popover-body"><ul class="k-list">
+            <li class="k-item f-changed"><span class="k-check" aria-checked="true"></span><span class="k-ellipsis k-grow">Filter out kind = merchant</span><span class="k-trail k-num k-secondary" style="white-space:nowrap">60 out</span></li>
+          </ul></div>
+        </div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Canvas, bottom left: legend</span><div class="f-strip-body">
+        <div class="k-legend-card"><div class="k-lg-row k-secondary">No layer colors by a value</div></div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector: Statistics</span><div class="f-strip-body">
+        <div class="f-changed">
+          <div class="k-data"><span class="k-name">nodes</span><span class="k-value k-num">2,940</span></div>
+          <div class="k-data"><span class="k-name">transfers</span><span class="k-value k-num">3,811</span></div>
+          <div class="k-data"><span class="k-name">max degree</span><span class="k-value k-num">14</span></div>
+        </div>
+      </div></div>
+      <div class="f-foot"><b>Undo:</b> Mod+Z, or the step's checkbox. From the canvas selection the step reads "Filter out 60 nodes".</div>
+    </section>
+
+    <section class="f-card" aria-label="After Hide on canvas">
+      <h3>After Hide on canvas <span class="k-annot-tag f-tag">waits on graphty-element</span></h3>
+      <div class="f-strip"><span class="f-where">Left panel header</span><div class="f-strip-body">
+        <div class="k-panel-head">
+          <div class="k-title-line"><span class="k-project k-ellipsis">Card and transfer transactions, March 2026</span></div>
+          <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+        </div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector, nothing selected</span><div class="f-strip-body">
+        <section class="k-section"><div class="k-section-head">Style stack</div>
+          <ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Canvas, bottom left: legend</span><div class="f-strip-body">
+        <div class="k-legend-card"><div class="k-lg-row k-secondary">No layer colors by a value</div>
+          <div class="k-notdrawn f-changed"><span class="k-num">60 nodes, 5,302 edges hidden.</span><br><a>Select</a> &nbsp;<a>Show all</a></div></div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector: Statistics</span><div class="f-strip-body">
+        <div class="k-data"><span class="k-name">nodes</span><span class="k-value k-num">3,000</span></div>
+        <div class="k-data"><span class="k-name">transfers</span><span class="k-value k-num">9,113</span></div>
+        <div class="k-data"><span class="k-name">max degree</span><span class="k-value k-num">907</span></div>
+      </div></div>
+      <div class="f-foot"><b>Undo:</b> Mod+Z, or Show all. <span class="k-annot-tag f-tag f-test">to test</span> the line ending "; still counted".</div>
+    </section>
+
+    <section class="f-card" aria-label="After Color by kind">
+      <h3>After Color by kind</h3>
+      <div class="f-strip"><span class="f-where">Left panel header</span><div class="f-strip-body">
+        <div class="k-panel-head">
+          <div class="k-title-line"><span class="k-project k-ellipsis">Card and transfer transactions, March 2026</span></div>
+          <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+        </div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector, nothing selected</span><div class="f-strip-body">
+        <section class="k-section"><div class="k-section-head">Style stack</div>
+          <ul class="k-list">
+            <li class="k-item f-changed"><span class="k-chit" style="background:conic-gradient(#E69F00 0 33%,#56B4E9 0 66%,#009E73 0)"></span><span class="k-ellipsis">Color by kind</span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul></section>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Canvas, bottom left: legend</span><div class="f-strip-body">
+        <div class="k-legend-card f-changed"><div class="k-lg-title">Color by kind <span class="k-secondary">kind</span></div>
+          <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>merchant<span class="k-value k-num">60</span></div>
+          <div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>business<span class="k-value k-num">330</span></div>
+          <div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>personal<span class="k-value k-num">2,610</span></div></div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector: Statistics</span><div class="f-strip-body">
+        <div class="k-data"><span class="k-name">nodes</span><span class="k-value k-num">3,000</span></div>
+        <div class="k-data"><span class="k-name">transfers</span><span class="k-value k-num">9,113</span></div>
+        <div class="k-data"><span class="k-name">max degree</span><span class="k-value k-num">907</span></div>
+      </div></div>
+      <div class="f-foot"><b>Undo:</b> Mod+Z ("Color by kind"), or the layer's eye.</div>
+    </section>
+
+    <section class="f-card" aria-label="After coloring the 60 selected by hand">
+      <h3>After a color on the 60 selected <span class="k-annot-tag f-tag">waits on graphty-element</span></h3>
+      <div class="f-strip"><span class="f-where">Left panel header</span><div class="f-strip-body">
+        <div class="k-panel-head">
+          <div class="k-title-line"><span class="k-project k-ellipsis">Card and transfer transactions, March 2026</span></div>
+          <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+        </div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector, nothing selected</span><div class="f-strip-body">
+        <section class="k-section"><div class="k-section-head">Style stack</div>
+          <ul class="k-list">
+            <li class="k-item f-changed"><span class="k-chit" style="background:#E69F00"></span><span class="k-ellipsis">Overrides</span><span class="k-trail k-num">60</span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul></section>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Canvas, bottom left: legend</span><div class="f-strip-body">
+        <div class="k-legend-card"><div class="k-lg-row k-secondary">No layer colors by a value</div></div>
+      </div></div>
+      <div class="f-strip"><span class="f-where">Inspector: Statistics</span><div class="f-strip-body">
+        <div class="k-data"><span class="k-name">nodes</span><span class="k-value k-num">3,000</span></div>
+        <div class="k-data"><span class="k-name">transfers</span><span class="k-value k-num">9,113</span></div>
+        <div class="k-data"><span class="k-name">max degree</span><span class="k-value k-num">907</span></div>
+      </div></div>
+      <div class="f-foot"><b>Undo:</b> Mod+Z ("Override color of 60 nodes"). Create set first instead, and the row is a layer named for the set.</div>
+    </section>
+  </div>
+
+  <h2>Undo and layout, side by side</h2>
+  <table class="f-glance">
+    <thead><tr><th><span class="cm-visually-hidden">Aspect</span></th><th>Filter out</th><th>Hide on canvas <span class="k-annot-tag f-tag">waits on graphty-element</span></th><th>Paint</th></tr></thead>
+    <tbody>
+      <tr><th>A layout</th><td>Filtered-out accounts exert no force and keep their positions (simulation layouts).</td><td>Still reads and moves the hidden accounts; the Layout row says how many.</td><td>Unaffected.</td></tr>
+      <tr><th>Its undo entry</th><td>"Filter out kind = merchant" from the value; "Filter out 60 nodes" from the selection</td><td>"Hide 60 nodes on canvas"</td><td>"Color by kind"; or "Create set Merchants" then "Add style layer Merchants"; or "Override color of 60 nodes"</td></tr>
+      <tr><th>Undone by</th><td>Mod+Z; the step's checkbox turns it off and keeps it; Delete step removes it.</td><td>Mod+Z; Show all on the legend's hidden line; Select, then Show on canvas for some.</td><td>Mod+Z; the layer's eye turns it off; Delete removes it.</td></tr>
+    </tbody>
+  </table>
+  <p><b>Where graphty departs from Figma, and why.</b> Figma keeps a hidden layer in the layers list with its eye off; graphty keeps hidden elements on the legend's hidden line instead, because nodes are not layers and the order of the Styles list means precedence. The command says "Hide on canvas" rather than being a plain toggle because hiding and filtering look alike on the canvas and do opposite things to every number. What stays as in Figma: the hide chord, visibility kept separate from opacity, and Select same value working like Select matching layers.</p>
+
+  <h2>Step by step</h2>
+  <table class="f-steps">
+    <thead><tr><th>Step</th><th>Place</th><th>Command</th><th>Undo entry</th><th>Trust check</th><th>Needs from graphty-element</th></tr></thead>
+    <tbody>
+      <tr><td>Start, a rule</td><td>Table, Nodes: the kind column, value merchant</td><td>the value's menu</td><td>none</td><td>the value's count, 60</td><td>--</td></tr>
+      <tr><td>Start, a list</td><td>Canvas: ACC-393859</td><td>Select same value</td><td>none</td><td>"60 selected"</td><td><span class="k-mono">session.selection.apply</span></td></tr>
+      <tr><td>Narrow</td><td>the value's menu; the selection's actions</td><td>Filter out</td><td>"Filter out kind = merchant"; "Filter out 60 nodes"</td><td>the chip reads "Filtered: 2,940 of 3,000 nodes"</td><td><span class="k-mono">session.filters.steps</span>, the recommended name for today's <span class="k-mono">session.visibility.set</span>; ordered filter steps and their undo <span class="f-missing">missing</span>; the chip itself is not built yet</td></tr>
+      <tr><td>Hide</td><td>the selection's overflow; a legend entry's menu; the hide chord</td><td>Hide on canvas</td><td>"Hide 60 nodes on canvas"</td><td>the chip does not move; the legend counts 60 nodes, 5,302 edges hidden</td><td>whether an element is drawn, as its own state: <span class="f-missing">missing</span>; Hide on canvas is not offered until it lands</td></tr>
+      <tr><td>Paint every kind</td><td>Table, Nodes: the kind column header's menu</td><td>Color by</td><td>"Color by kind"</td><td>the legend lists all three kinds; the chip does not move</td><td><span class="k-mono">session.styles.encode</span></td></tr>
+      <tr><td>Paint a set</td><td>the selection's actions, then the set's Appearance</td><td>Create set; a color</td><td>"Create set Merchants"; "Add style layer Merchants"</td><td>the layer tops Styles; the chip does not move</td><td><span class="k-mono">session.styles.add</span> with a member selector on the set</td></tr>
+      <tr><td>Paint by hand</td><td>the selection's Appearance</td><td>a color</td><td>"Override color of 60 nodes"</td><td>the Overrides row counts 60</td><td>the Overrides layer: <span class="f-missing">missing</span></td></tr>
+      <tr><td>Recover</td><td>after "Did the chip move the way I meant?"</td><td>Show all (if hidden), then Filter out</td><td>two entries</td><td>the chip moves</td><td>as Hide and Narrow</td></tr>
+      <tr><td>Extract</td><td>Graphs: New graph from</td><td>Extract as graph</td><td>"Extract filtered graph (2,940 nodes) as graph"</td><td>the new graph names what it was made from</td><td><span class="f-missing">missing</span> entirely</td></tr>
+      <tr><td>Characterize</td><td>Inspector, nothing selected: Statistics</td><td>none (a reading)</td><td>none</td><td>the chip reads Filtered; an earlier run's state line reads Full graph</td><td><span class="k-mono">session.data.statistics()</span>; a run recording which filter steps it read <span class="f-missing">missing</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Counts, failures and the keyboard</h2>
+  <ul>
+    <li><b>Steps from rest</b> (a step is a command or a choice; opening a menu is travel):
+      Filter out, 2 steps and 1 travel from the value (the value; Filter out), 3 steps from the canvas (the merchant; Select same value; Filter out). Hide on canvas, the same counts.
+      Color by kind, 1 step and 1 travel (the header menu; Color by). A set's color from the canvas, 4 steps and 1 travel (the merchant; Select same value; Create set; a color). By hand, 3 steps and 1 travel.
+      <b>Figma</b>, for all merchants: select one; Select matching layers; the hide chord -- 3 steps. Painting them there: select one; Select matching layers; a fill color -- 3 steps and 1 travel. From the canvas, graphty's hide matches Figma's count; the set route costs one more step, Create set, which makes the color a layer anyone can find again.</li>
+    <li><b>First failure:</b> taking the hide or paint exit when later numbers should have left the merchants out. The chip does not move, and the absence of a change is a weak signal. The failure question sends her to Show all, then Filter out. If she only filtered and left the hide on, turning the filter step off would bring the chip back to Full graph while the merchants stay invisible -- a canvas that looks filtered and is not. That is why the route shows everything first.</li>
+    <li><b>Second failure:</b> a result run before the filter still describes all 3,000 accounts. Its state line says "on: full graph" and it is not "Out of date"; Run computes it again on the filtered graph.</li>
+    <li><b>Questions for the sessions</b> (hypotheses, not observations): an analyst who uses Figma presses the hide chord on the merchants and, as in Figma, they vanish. Does she notice that the chip still reads Full graph before quoting a statistic? Does an analyst who painted the merchants gray believe they are "gone"?</li>
+    <li><b>Keyboard:</b> Quick actions reaches Filter out, Hide on canvas, Show all and Color by. A column value's menu opens with Shift+F10 or the Menu key; set rows follow the tree keys; a legend entry has no keyboard route yet.</li>
+  </ul>
+
+  <h2>Changes this flow proposes, and what the study will test</h2>
+  <p>Recorded in <a href="../framework-changes.md">framework-changes.md</a>. The two wording ideas are design reasoning to be tested in sessions (<a href="../study/hypotheses/narrow-hide-paint.md">the hypotheses and tasks</a>), not findings.</p>
+  <ul>
+    <li><b>The router draws its failure question and recovery route</b>, so every exit of the named first failure is visible.</li>
+    <li><b>An undo entry is named by what the step did</b>: "Extract filtered graph (2,940 nodes) as graph", not after a rule that Filter out removed.</li>
+    <li><b>The legend's hidden line counts edges as well as nodes</b>, and the two wordings the design gives for it are made one. Whether it should add "still counted" is to be tested.</li>
+    <li><b>Statistics keeps no scope line of its own</b>, as the design's principle "marks only on departure" says. Whether a stronger chip is enough, or Statistics needs its own scope line, is to be tested before anything changes.</li>
+    <li><b>Figma's route is counted honestly</b>: Select matching layers then the hide chord, 3 steps, not a 2-step type filter.</li>
+    <li><b>Hidden, then filtered out:</b> what the hidden line counts while a filter step also leaves those elements out is not defined yet.</li>
+  </ul>
+</div>
+</body>
+</html>

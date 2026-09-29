@@ -1,0 +1,94 @@
+{
+  "note": "written by screens/export-dialog.gen.mjs; the figure files the Export dialog previews",
+  "widthMm": 174,
+  "widthPt": 493.2,
+  "heightPt": {
+    "screen": 216,
+    "print": 244
+  },
+  "fontPt": 8,
+  "labels": {
+    "rule": "top 10 by |log2FoldChange|",
+    "n": 10,
+    "shown": [
+      {
+        "id": "CHEK1",
+        "log2FoldChange": 3.15
+      },
+      {
+        "id": "WRN",
+        "log2FoldChange": 2.61
+      },
+      {
+        "id": "SNRNP70",
+        "log2FoldChange": 2.58
+      },
+      {
+        "id": "RPS6",
+        "log2FoldChange": -2.52
+      },
+      {
+        "id": "MAPK10",
+        "log2FoldChange": -2.42
+      },
+      {
+        "id": "NDUFS5",
+        "log2FoldChange": -2.18
+      },
+      {
+        "id": "E2F1",
+        "log2FoldChange": -2.14
+      },
+      {
+        "id": "MAPK2",
+        "log2FoldChange": 2.13
+      }
+    ],
+    "hidden": [
+      {
+        "id": "MRE11",
+        "log2FoldChange": 2.35
+      },
+      {
+        "id": "RPL17",
+        "log2FoldChange": -2.25
+      }
+    ]
+  },
+  "up": 152,
+  "down": 148,
+  "steps": [
+    {
+      "from": 2.4,
+      "to": 3.2,
+      "down": 2,
+      "up": 3,
+      "grayDown": "#303030",
+      "grayUp": "#323232"
+    },
+    {
+      "from": 1.6,
+      "to": 2.4,
+      "down": 13,
+      "up": 22,
+      "grayDown": "#5d5d5d",
+      "grayUp": "#676767"
+    },
+    {
+      "from": 0.8,
+      "to": 1.6,
+      "down": 48,
+      "up": 55,
+      "grayDown": "#949494",
+      "grayUp": "#a0a0a0"
+    },
+    {
+      "from": 0,
+      "to": 0.8,
+      "down": 85,
+      "up": 72,
+      "grayDown": "#cecece",
+      "grayUp": "#d8d8d8"
+    }
+  ]
+}

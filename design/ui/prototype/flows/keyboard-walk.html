@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyboard walk and leaving the canvas</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .f-scroll { overflow-x: auto; margin: 8px 0 4px; }
+  .f-diagram { display: block; width: 100%; min-width: 980px; height: auto; font-family: inherit; }
+  .f-place { fill: var(--cm-bg); stroke: var(--cm-text-secondary); stroke-width: 1.25; }
+  .f-walk { fill: var(--cm-bg-selected); stroke: var(--cm-border-selected-strong); stroke-width: 1.5; }
+  .f-over { fill: var(--cm-bg-secondary); stroke: var(--cm-text-secondary); stroke-width: 1.25; }
+  .f-err { fill: var(--cm-bg-secondary); stroke: var(--k-annot); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .f-t { height: 100%; box-sizing: border-box; padding: 8px 12px; display: flex; flex-direction: column; justify-content: flex-start; font-size: 12px; line-height: 16px; color: var(--cm-text); }
+  .f-t b { font-weight: 600; }
+  .f-t .f-u { display: block; margin-top: 3px; color: var(--cm-text-secondary); }
+  .f-t .f-s { display: block; margin-top: 4px; font-style: italic; color: var(--cm-text); }
+  .f-t .f-s::before { content: "Says: "; font-style: normal; font-weight: 600; }
+  .f-edge { fill: none; stroke: var(--cm-text-secondary); stroke-width: 1.25; }
+  .f-ah { fill: var(--cm-text-secondary); }
+  .f-lbl { font-size: 11px; line-height: 14px; color: var(--cm-text-secondary); font-style: italic; }
+  .f-lbl b { font-style: normal; font-weight: 600; color: var(--cm-text); }
+  .f-key { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--cm-text-secondary); font-size: 12px; }
+  .f-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .f-key svg { width: 28px; height: 16px; overflow: visible; flex: none; }
+
+  .f-open { margin: 8px 0; padding: 8px 12px; border-radius: 6px; background: var(--k-annot-bg); border-inline-start: 3px solid var(--k-annot); font-size: 13px; line-height: 19px; }
+
+  .f-keys { width: 100%; font-size: 12px; line-height: 17px; }
+  .f-keys th:first-child, .f-keys td:first-child { white-space: nowrap; width: 150px; }
+  .f-keys thead th { font-weight: 600; }
+  .f-keys td { vertical-align: top; }
+  .f-new { margin-inline-start: 4px; }
+  .f-say { font-style: italic; }
+
+  .f-ladder { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 8px 0; }
+  .f-ladder .k-flow-step { flex: 1 1 150px; font-size: 12px; line-height: 17px; }
+  .f-ladder .k-flow-step h3 { font-size: 12px; }
+  .f-ladder .k-flow-arrow { font-size: 12px; text-align: center; line-height: 14px; }
+
+  /* The focus pill and the two overlays, drawn at product size (11/16 body, compact-mantine tokens). */
+  .f-parts { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 8px 0 16px; }
+  .f-part { display: grid; gap: 6px; }
+  .f-part > .k-secondary { font-size: 12px; max-width: 400px; }
+  .f-pill { width: 392px; box-sizing: border-box; display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-400); font-size: 11px; line-height: 16px; color: var(--cm-text); }
+  .f-pill .f-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .f-pill .f-region { color: var(--cm-text-secondary); font-weight: 550; }
+  .f-pill .f-name { font-weight: 550; }
+  .f-pill .f-vals { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+  .f-pill .f-vals span b { font-weight: 550; }
+  .f-pill .f-hint { color: var(--cm-text-secondary); }
+  .f-pill .k-seg { height: 20px; font-size: 11px; }
+  .f-sheet, .f-qa { width: 392px; box-sizing: border-box; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-400); font-size: 11px; line-height: 16px; color: var(--cm-text); overflow: hidden; }
+  .f-sheet-head, .f-qa-field { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--cm-border); }
+  .f-sheet-head b { font-size: 13px; font-weight: 550; }
+  .f-sheet-body { padding: 4px 10px 8px; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+  .f-sheet-body h3 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px; font-weight: 550; }
+  .f-sheet-foot, .f-qa-foot { padding: 6px 10px; border-top: 1px solid var(--cm-border); color: var(--cm-text-secondary); }
+  .f-qa-foot { display: flex; gap: 12px; }
+  .f-qa-group { padding: 6px 10px 2px; color: var(--cm-text-secondary); }
+  .f-qa-row { display: flex; align-items: center; gap: 8px; padding: 4px 10px; }
+  .f-qa-row[aria-selected="true"] { background: var(--cm-bg-selected); }
+
+  .f-fig { display: grid; grid-template-columns: minmax(0, 540px) minmax(0, 1fr); gap: 24px; align-items: start; margin: 8px 0 16px; }
+  .f-draw { position: relative; aspect-ratio: 3 / 2; border-radius: 8px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--cm-border); background: var(--cm-bg); }
+  /* The drawing enlarged 1.5 times around Javert; the rings use the drawings' own widths (selection 2 and 2, focus 1, 2 and 1). */
+  .f-draw svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .f-draw .f-lead { stroke: var(--k-annot); stroke-width: 1; fill: none; }
+  .f-draw .f-sel-i { fill: none; stroke: var(--k-mark-in); stroke-width: 2; }
+  .f-draw .f-sel-o { fill: none; stroke: var(--k-mark-out); stroke-width: 2; }
+  .f-draw .f-band-o { fill: none; stroke: var(--k-mark-out); stroke-width: 1; }
+  .f-draw .f-band-i { fill: none; stroke: var(--k-mark-in); stroke-width: 2; }
+  .f-draw .k-annot-note { font-size: 11px; line-height: 15px; max-width: 40%; }
+
+  .f-walktable, .f-regions { width: 100%; font-size: 12px; line-height: 17px; }
+  .f-walktable td, .f-regions td { vertical-align: top; }
+  .f-walktable td:first-child { font-variant-numeric: tabular-nums; color: var(--cm-text-secondary); }
+  .f-walktable td:nth-child(2), .f-regions td:first-child { white-space: nowrap; }
+  @media (max-width: 900px) { .f-fig { grid-template-columns: 1fr; } .f-pill, .f-sheet, .f-qa { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <p><a href="../index.html">graphty design gallery</a> / Flows</p>
+  <h1>Keyboard walk and leaving the canvas</h1>
+  <p class="k-lede">A keyboard or screen-reader user explores a graph by walking it: keyboard focus sits on one node and moves along its edges, one neighbor at a time, while the selection stays where it was. This flow draws every state of the drawing's keyboard focus, what each key does in it, what is said in each state, and every way out. Plain arrows move the camera; Shift and an arrow walk. Going to a node by name moves the walk there and selects nothing; Enter adds the node the walk is on to the selection, and no key in the walk ever replaces it. graphty-element holds the walk's start and where it left off, so both survive Tab and every visit elsewhere. It all runs on the Les Miserables graph (<span data-fx="datasets.lesmis.nodes">77</span> characters, <span data-fx="datasets.lesmis.edges">254</span> co-appearances), with Javert on the page. The same walk is told as a story in <a href="../storyboards/keyboard-only.html">Keyboard and screen reader</a>, and can be tried in <a href="../screens/keyboard-walk.html">the working mock</a>.</p>
+
+  <div class="f-open"><b>Decided by the owner:</b> Shift with the arrows walks and the plain arrows stay on the camera. Alt with the arrows was ruled out: Alt+Left and Alt+Right are the browser's Back and Forward. <b>Decided after the third study:</b> going to a node (Quick actions, Ctrl+K) moves the walk there without selecting it, and Enter selects; the walk's start is held by graphty-element and survives Tab; the walk line names its region, "Walking the drawing"; the key sheet groups its keys by region; every region has a heading; the long welcome plays once per project; and there is no C key, because there is no separate Note tool. That Shift+Down walks on the drawing but extends a row selection in the Nodes table two regions away is accepted: each region's name is said first, and the key sheet lists the two under their own headings. <b>Kept, because the study showed it works:</b> the focus pill, O for the neighbor order, Shift+Enter back, Shift+Home to the start, "where you came from", the key sheet, Space to add or remove, Esc one step per press, Tab to leave, and every overlay putting focus back on the same node.</div>
+
+  <h2>What a sighted keyboard user sees</h2>
+  <p>The focus pill sits above the toolbar while the drawing has keyboard focus, and only then. It shows on screen what the screen reader says, so a sighted keyboard user gets the same facts as a blind one. Its first words name the region and what focus is doing there. It is drawn at product size on Les Miserables, colored by group and sized by degree.</p>
+  <div class="f-parts">
+    <div class="f-part">
+      <div class="f-pill" role="status" aria-label="Focus pill, right after going to Javert">
+        <div class="f-row"><span class="f-region">Walking the drawing</span><span class="f-name">Javert</span><span class="k-secondary">start of the walk</span><span class="k-grow"></span><span>Nothing selected</span></div>
+        <div class="f-vals"><span>Degree <b class="k-num" data-fx="datasets.lesmis.rows.27.degree">17</b>, rank <span class="k-num">4</span> of <span class="k-num">77</span></span><span>Group <b>4</b></span></div>
+        <div class="f-row"><span>Neighbors by</span><span class="k-seg" title="O switches the order"><span aria-pressed="true">Co-appearances</span><span>Degree</span><span>Name</span></span><span class="k-kbd">O</span></div>
+        <div class="f-hint">Shift+Arrow: walk. Enter: select. ?: keys.</div>
+      </div>
+      <span class="k-secondary"><b>Right after going to Javert</b> with Ctrl+K: the walk is on him and he is its start, and nothing is selected, as the pill says. Going to a node is not choosing it.</span>
+    </div>
+    <div class="f-part">
+      <div class="f-pill" role="status" aria-label="Focus pill, walking">
+        <div class="f-row"><span class="f-region">Walking the drawing</span><span class="f-name">Gavroche</span><span class="k-num">2 of 17 from Javert</span><span class="k-grow"></span><span>1 selected on canvas</span></div>
+        <div class="f-vals"><span>Co-appearances <b class="k-num">1</b></span><span>Degree <b class="k-num" data-fx="datasets.lesmis.rows.48.degree">22</b>, rank <span class="k-num">2</span> of <span class="k-num">77</span></span><span>Group <b>8</b></span></div>
+        <div class="f-row"><span>Neighbors by</span><span class="k-seg" title="O switches the order"><span>Co-appearances</span><span aria-pressed="true">Degree</span><span>Name</span></span><span class="k-kbd">O</span></div>
+        <div class="f-hint">Shift+Arrow: walk. Enter: select. ?: keys.</div>
+      </div>
+      <span class="k-secondary"><b>Walking</b>, on Gavroche, Javert's second neighbor once O has switched the order to degree. The values are the edge's weight to the node stepped from (here the number of chapters they share, which the data calls value and the pill calls co-appearances), then the measures the drawing shows, in the order they are spoken.</span>
+    </div>
+    <div class="f-part">
+      <div class="f-pill" role="status" aria-label="Focus pill, back on the drawing after the Nodes table">
+        <div class="f-row"><span class="f-region">Graph drawing</span><span>Walk kept: on <span class="f-name">Gavroche</span>, from <span class="f-name">Javert</span></span><span class="k-grow"></span><span>2 selected on canvas</span></div>
+        <div class="f-vals"><span>Degree <b class="k-num">22</b>, rank <span class="k-num">2</span> of <span class="k-num">77</span></span><span>Group <b>8</b></span></div>
+        <div class="f-row"><span>Neighbors by</span><span class="k-seg" title="O switches the order"><span>Co-appearances</span><span aria-pressed="true">Degree</span><span>Name</span></span><span class="k-kbd">O</span></div>
+        <div class="f-hint">Shift+Arrow: walk. Enter: select. ?: keys.</div>
+      </div>
+      <span class="k-secondary"><b>Back on the drawing</b> after a visit to the Nodes table: not walking, because arriving never starts the walk, but the start and the place are where the reader left them. The next Shift+Arrow goes on from Gavroche, and Shift+Home goes back to Javert.</span>
+    </div>
+  </div>
+  <p class="k-secondary"><b>Built with:</b> the pill's words and values come from graphty-element's focused-node event, the same text its live region speaks, and the walk's start and position are graphty-element state, so a bare embed keeps them across Tab too. The graphty app draws the pill as a card in the secondary bar's place above the toolbar: compact-mantine's <span class="k-mono">SegmentedControl</span> (panel variant) for the order, <span class="k-mono">Badge</span> for "selected" and <span class="k-mono">Kbd</span> for the key. The drawing keeps keyboard focus while the pill shows, so the switch is changed with O; a pointer can click it. The hint is one fixed string in every state.</p>
+
+  <h2>The states, and what each one says</h2>
+  <p>The walk has Figma's shape of moving through a tree, put on Shift and the arrows, as screen-reader tree views do: Shift+Down goes into a node's neighbors, Shift+Right and Shift+Left move among them, and Shift+Enter comes back out, as Figma's go-to-parent does. Tab cannot step through neighbors, as it steps through siblings in Figma, because Tab must leave the drawing, so a keyboard user is never trapped in a node with 400 neighbors.</p>
+  <div class="f-key">
+    <span><svg viewBox="0 0 28 16"><rect x="1" y="2" width="26" height="12" rx="2" class="f-place"/></svg>a place keyboard focus can be</span>
+    <span><svg viewBox="0 0 28 16"><rect x="1" y="2" width="26" height="12" rx="2" class="f-walk"/></svg>the walk: the one place where a single node holds focus</span>
+    <span><svg viewBox="0 0 28 16"><rect x="1" y="2" width="26" height="12" rx="2" class="f-over"/></svg>an overlay or a panel focus visits and comes back from</span>
+    <span><svg viewBox="0 0 28 16"><rect x="1" y="2" width="26" height="12" rx="2" class="f-err"/></svg>dashed: a condition that changes what the keys do</span>
+  </div>
+
+<div class="f-scroll">
+<svg class="f-diagram" viewBox="0 0 1080 780" role="img" aria-labelledby="kw-title">
+<title id="kw-title">State diagram of keyboard focus on the graph drawing. From another region, Tab, Shift+Tab, F6 or a click moves focus onto the drawing, which never starts the walk; the walk's start and place are kept. Ctrl+K opens Quick actions from anywhere; Go to a node, then Enter, puts the walk on that node as its start, with nothing selected. On the drawing, plain arrows move the camera. With something drawn, Shift+Down or Shift+Right walks, going on from where the walk left off. With nothing drawn, Enter opens Choose what to draw. In the walk, Shift and the arrows move between neighbors and Shift+Enter steps back. Enter adds the focused node to the selection and Space adds or removes it. Alt+Enter visits the inspector on the focused node, Shift+F10 opens its menu, and ? the key sheet; Esc from each returns to the same node. Esc in the walk, or a pointer click on the drawing, ends the walk and leaves focus on the drawing; Esc there with nothing to end clears the selection. From the drawing or the walk, Tab, Shift+Tab, F6 or a click elsewhere leaves, the selection, the start and the place kept.</title>
+<defs>
+  <marker id="kw-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="f-ah" d="M0 0 L10 5 L0 10 z"/></marker>
+</defs>
+
+<!-- edges -->
+<path class="f-edge" d="M360 58 L446 58" marker-end="url(#kw-ah)"/>
+<foreignObject x="364" y="20" width="80" height="36"><div class="f-lbl">Ctrl+K, from anywhere</div></foreignObject>
+<path class="f-edge" d="M720 140 L720 256" marker-end="url(#kw-ah)"/>
+<foreignObject x="726" y="148" width="226" height="64"><div class="f-lbl">Go to Javert, Enter: the walk on Javert, now its start; <b>nothing selected</b></div></foreignObject>
+
+<path class="f-edge" d="M90 140 L90 256" marker-end="url(#kw-ah)"/>
+<foreignObject x="96" y="150" width="120" height="100"><div class="f-lbl">Tab, Shift+Tab, F6 or a click arrives; the walk never starts, its start and place are kept</div></foreignObject>
+<path class="f-edge" d="M320 256 L320 140" marker-end="url(#kw-ah)"/>
+<foreignObject x="246" y="146" width="70" height="84"><div class="f-lbl" style="text-align:end">Tab, Shift+Tab, F6, a click elsewhere: leaves</div></foreignObject>
+
+<path class="f-edge" d="M394 380 L616 380" marker-end="url(#kw-ah)"/>
+<foreignObject x="400" y="302" width="212" height="76"><div class="f-lbl">Shift+Down or Shift+Right <b>[something drawn]</b>: goes on from where the walk left off, or starts at the start</div></foreignObject>
+<path class="f-edge" d="M620 460 L394 460" marker-end="url(#kw-ah)"/>
+<foreignObject x="400" y="466" width="214" height="48"><div class="f-lbl">Esc, or a pointer click on the drawing: the walk ends, focus stays</div></foreignObject>
+
+<path class="f-edge" d="M650 256 L650 232 L240 232 L240 140" marker-end="url(#kw-ah)"/>
+<foreignObject x="410" y="160" width="200" height="66"><div class="f-lbl">Tab, Shift+Tab, F6, a click elsewhere: leaves; the selection, start and place are kept</div></foreignObject>
+
+<path class="f-edge" d="M960 256 L960 144" marker-end="url(#kw-ah)"/>
+<foreignObject x="966" y="170" width="30" height="20"><div class="f-lbl"><b>?</b></div></foreignObject>
+<path class="f-edge" d="M1030 144 L1030 252" marker-end="url(#kw-ah)"/>
+<foreignObject x="1036" y="170" width="44" height="60"><div class="f-lbl">Esc: back</div></foreignObject>
+
+<path class="f-edge" d="M660 530 L660 586" marker-end="url(#kw-ah)"/>
+<foreignObject x="588" y="540" width="68" height="20"><div class="f-lbl" style="text-align:end">Alt+Enter</div></foreignObject>
+<path class="f-edge" d="M720 586 L720 530" marker-end="url(#kw-ah)"/>
+<foreignObject x="726" y="538" width="80" height="40"><div class="f-lbl">Esc: back on the node</div></foreignObject>
+<path class="f-edge" d="M880 530 L880 586" marker-end="url(#kw-ah)"/>
+<foreignObject x="812" y="540" width="64" height="40"><div class="f-lbl" style="text-align:end">Shift+F10</div></foreignObject>
+<path class="f-edge" d="M990 586 L990 530" marker-end="url(#kw-ah)"/>
+<foreignObject x="996" y="538" width="80" height="40"><div class="f-lbl">Esc, or an item runs</div></foreignObject>
+
+<!-- states -->
+<g><rect class="f-place" x="30" y="14" width="330" height="126" rx="6"/>
+<foreignObject x="30" y="14" width="330" height="126"><div class="f-t"><b>Another region</b><span class="f-u">the Graph panel, the Inspector, the Nodes table, the toolbar: each a named region with a heading. Tab from the drawing lands on the Nodes table, on the first selected node's row; Shift+Tab on the toolbar.</span><span class="f-s">the region's name first: "Nodes table. ..."</span></div></foreignObject></g>
+
+<g><rect class="f-over" x="450" y="14" width="300" height="126" rx="6"/>
+<foreignObject x="450" y="14" width="300" height="126"><div class="f-t"><b>Quick actions (Ctrl+K)</b><span class="f-u">A node's exact name is the first row, "Go to Javert"; Enter goes there and selects nothing. Esc goes back where focus was.</span><span class="f-s">"Go to Javert, node, exact name. Enter goes there."</span></div></foreignObject></g>
+
+<g><rect class="f-over" x="800" y="14" width="260" height="126" rx="6"/>
+<foreignObject x="800" y="14" width="260" height="126"><div class="f-t"><b>The key sheet (?)</b><span class="f-u">graphty-element's default keys, grouped by region, each group a heading. Opens from the drawing too. Esc returns to the node or the drawing.</span><span class="f-s">"Keys, dialog. Everywhere, heading."</span></div></foreignObject></g>
+
+<g><rect class="f-place" x="30" y="260" width="360" height="490" rx="6"/>
+<foreignObject x="30" y="260" width="360" height="330"><div class="f-t"><b>Graph drawing, not walking</b><span class="f-u">The focus ring shows and the pill names the walk's start and where it left off, both held by graphty-element. Plain arrows move the camera: pan in 2D, orbit in 3D; the first press in a session says once how to walk. Shift+Up, Shift+Left and Shift+Home say which key walks.</span><span class="f-u">Enter: with a set, path or item selected, goes to its members; otherwise it says how to walk. ? opens the key sheet. Esc disarms a tool, then clears the selection: "Selection cleared ({count} nodes). Ctrl+Z brings it back."</span><span class="f-s">once per project, on the first arrival: "Graph drawing, application. Les Miserables, 77 nodes, 254 edges. Nothing selected. The walk starts at Valjean. Shift+Arrow: walk. Enter: select. Question mark: keys." Every later arrival: "Graph drawing. Walk kept: on Gavroche, from Javert. 2 selected on canvas."</span></div></foreignObject>
+<rect class="f-err" x="46" y="600" width="328" height="136" rx="6"/>
+<foreignObject x="46" y="600" width="328" height="136"><div class="f-t"><b>While nothing is drawn</b><span class="f-u">past the drawing limit, the canvas unsupported, or everything hidden. Shift+Down walks nowhere; Enter opens Choose what to draw, whose Cancel or Esc comes back here.</span><span class="f-s">"Nothing drawn to walk: 124,318 nodes not drawn. Enter opens Choose what to draw."</span></div></foreignObject></g>
+
+<g><rect class="f-walk" x="620" y="260" width="440" height="270" rx="6"/>
+<foreignObject x="620" y="260" width="440" height="270"><div class="f-t"><b>Walking the drawing: keyboard focus on one node</b><span class="f-u">Shift+Down goes into the focused node's neighbors. Shift+Right and Shift+Left take the next and previous. Shift+Enter steps back one hop (Shift+Up does too); Shift+Home returns to the start, the path kept. O switches the order: co-appearances, degree, name.</span><span class="f-u">Enter adds the focused node to the selection and never replaces it; Space adds or removes it. Alt+Enter visits the inspector. ] and [ step through the selection. Esc ends the walk. Plain arrows still move the camera.</span><span class="f-s">first step after each Shift+Down: "Walking the drawing. Valjean, neighbor 1 of 17 of Javert, by co-appearances, highest first. Co-appearances 17, degree 36, rank 1 of 77, group 2." Each later step: "Gavroche, 2 of 17, co-appearances 1, degree 22, rank 2 of 77, group 8." Into a list that holds the node just left: "Javert, neighbor 3 of 36 of Valjean, ..., where you came from."</span></div></foreignObject></g>
+
+<g><rect class="f-over" x="620" y="590" width="210" height="150" rx="6"/>
+<foreignObject x="620" y="590" width="210" height="150"><div class="f-t"><b>Inspector, on the focused node</b><span class="f-u">a visit: its heading says whether the node is selected; the selection and the walk are unchanged</span><span class="f-s">"Inspector, Gavroche, selected. Group 8, degree 22, rank 2 of 77."</span></div></foreignObject></g>
+
+<g><rect class="f-over" x="850" y="590" width="210" height="150" rx="6"/>
+<foreignObject x="850" y="590" width="210" height="150"><div class="f-t"><b>The focused node's menu</b><span class="f-u">its header names the node; every command acts on that node alone</span><span class="f-s">"Gavroche, selected, menu."</span></div></foreignObject></g>
+</svg>
+</div>
+
+  <p class="k-secondary">Playback and gestures come first: while playback runs, Esc pauses it before anything else, and a drag in progress ends before Esc reaches the walk. A plain arrow never ends the walk; focus stays on its node while the camera moves. <b>Esc never moves focus off the drawing:</b> it ends the walk with focus on the drawing, then clears the selection. Tab is the one way out, so Esc does the same job on the drawing as in every list and in Figma, with or without a focus ring. <b>The start and the place outlive the walk:</b> Esc, Tab, F6 and every overlay keep them; only going to another node, the start node leaving the drawing, or opening another graph replaces them.</p>
+
+  <h2>Every key, in both states</h2>
+  <table class="f-keys">
+    <thead><tr><th>Key</th><th>Graph drawing, not walking</th><th>Walking the drawing</th></tr></thead>
+    <tbody>
+      <tr><td>Arrows</td><td>move the camera: orbit in 3D, pan in 2D. The first press in a session also says once <span class="f-say">"View moved. Shift+Arrow walks the graph."</span></td><td>move the camera; focus stays on its node</td></tr>
+      <tr><td>Shift+Down</td><td>walks: goes on from the node the walk left off on, or, with no walk yet, into the start node's neighbors. With nothing drawn: <span class="f-say">"Nothing drawn to walk: 124,318 nodes not drawn. Enter opens Choose what to draw."</span></td><td>goes into the focused node's own neighbors; the focused node becomes the node stepped from</td></tr>
+      <tr><td>Shift+Right</td><td>walks, as Shift+Down</td><td>the next neighbor of the node stepped from; no wrap: on the last it says <span class="f-say">"Last neighbor."</span> and stays</td></tr>
+      <tr><td>Shift+Left</td><td>moves nothing; says <span class="f-say">"Shift+Down walks from Javert."</span></td><td>the previous neighbor; on the first it says <span class="f-say">"First neighbor."</span> and stays</td></tr>
+      <tr><td>Shift+Enter</td><td>after Enter on a set, path or item: back to that object, as on its list row; otherwise as Shift+Left</td><td>steps back one hop, to the node stepped from, and remembers the position, so Shift+Down returns to it; at the start: <span class="f-say">"At the start, Javert."</span></td></tr>
+      <tr><td>Shift+Up</td><td>as Shift+Left</td><td>the same as Shift+Enter</td></tr>
+      <tr><td>Shift+Home</td><td>goes to the start node and walks from there: <span class="f-say">"Back to Javert, start of the walk, not selected."</span></td><td>back to the start node; the path is kept, so Shift+Down goes back in where it was</td></tr>
+      <tr><td>O</td><td>switches the order the walk will use, and says it: <span class="f-say">"Neighbors by degree, highest first."</span></td><td>switches the order (co-appearances, degree, name, then round again), keeps the node stepped from, and puts focus on the first neighbor in the new order</td></tr>
+      <tr><td>Enter</td><td>a set, path or item selected: goes to its members. Otherwise: <span class="f-say">"Shift+Down walks from Javert. Enter adds the node you are on to the selection."</span> Nothing drawn: opens Choose what to draw</td><td>adds the focused node to the selection; the walk goes on: <span class="f-say">"Gavroche selected. 2 selected on canvas."</span> Already selected: <span class="f-say">"Gavroche is already selected. Space removes it."</span> It never replaces or removes<span class="k-annot-tag f-new">changed</span></td></tr>
+      <tr><td>Space (released with no drag)</td><td>nothing; held with a drag, it pans</td><td>adds the focused node to the selection, or removes it; the walk goes on: <span class="f-say">"Gavroche removed. 1 selected on canvas."</span></td></tr>
+      <tr><td>Alt+Enter (Option+Enter on a Mac)</td><td>moves focus into the inspector, on the selection or the graph</td><td>moves focus into the inspector, on the focused node; the selection does not change. Esc comes back to the same node<span class="k-annot-tag f-new">changed</span></td></tr>
+      <tr><td>] and [</td><td>nothing</td><td>focus to the next or previous node of the selection, in its own order; the selection does not change. At either end: <span class="f-say">"First selected, Valjean."</span> or <span class="f-say">"Last selected, Gavroche."</span></td></tr>
+      <tr><td>?</td><td>opens the key sheet</td><td>opens the key sheet; Esc comes back to the same node</td></tr>
+      <tr><td>Delete, Backspace</td><td>by subject: nodes selected: remove the selection; a set or path: delete its definition, keep the members, empty the selection; an item: nothing, and it says why</td><td>the focused node in the selection: remove the selection and say the count; outside it: <span class="f-say">"Nothing removed; Enjolras is not selected. Enter adds him."</span></td></tr>
+      <tr><td>Shift+F10, the Menu key</td><td>the selection's context menu</td><td>the focused node's context menu: every command acts on the focused node alone</td></tr>
+      <tr><td>Esc</td><td>disarms a tool; then clears the selection and names the way back: <span class="f-say">"Selection cleared ({count} nodes). Ctrl+Z brings it back."</span> Focus stays on the drawing</td><td>closes an open menu, inspector visit or key sheet; then ends the walk, keeping focus, the selection, the start and the place: <span class="f-say">"Walk ended at Javert. 2 selected on canvas."</span></td></tr>
+      <tr><td>Tab, Shift+Tab</td><td>leaves the drawing: Tab to the Nodes table, on the first selected node's row; Shift+Tab to the toolbar</td><td>the same; the walk ends, and its start and place are kept for the return</td></tr>
+      <tr><td>F6 (the next region)</td><td>the next region</td><td>the same; the start and place are kept</td></tr>
+      <tr><td>Ctrl+K</td><td colspan="2">opens Quick actions. A node's exact name is the first row, "Go to Javert"; Enter puts the walk on him as its start and puts focus on the drawing, walking, with nothing selected. A name the graph does not hold says so: <span class="f-say">"No commands or nodes match "TP53"."</span><span class="k-annot-tag f-new">changed</span></td></tr>
+      <tr><td>Ctrl+F</td><td colspan="2">opens Find, from every region; a hit chosen there is selected, the way Find ends, and becomes the walk's start</td></tr>
+      <tr><td>A pointer click</td><td>what a click does</td><td>on the drawing: ends the walk and does what a click does; elsewhere: leaves the drawing. The walk does not come back until a key starts it</td></tr>
+    </tbody>
+  </table>
+  <p class="k-secondary"><b>The start node:</b> the node gone to with Quick actions or chosen in Find, held by graphty-element until another replaces it; with none, the first selected node in the selection's own order (path order, rank order, order of addition, otherwise lowest id), the first member when a set is selected, or, with nothing selected, the drawn node of highest degree (Valjean). The pill names it. <b>Neighbor order</b> starts on the graph's edge weight, highest first, then name (in Les Miserables, co-appearances: the chapters two characters share); with no weight, by degree. O switches between the weight, degree (highest first) and name (A to Z); the choice holds for the rest of the session on that graph, and the first step after each Shift+Down says it. <b>The values</b> shown and spoken are the measures the drawing shows (the size's, then the color's), with the rank in the one rank format, "rank 2 of 77". <b>Inside a filter</b>, the walk moves only among the nodes shown, and a degree says how many neighbors are shown: "degree 17, 10 of 17 shown, on: filtered graph". There is no C key: notes are added from the Notes panel. <span class="k-annot-tag f-new">changed</span> marks a behavior that departs from the framework.</p>
+
+  <h2>Regions, their headings and the same keys</h2>
+  <p>Every region is a landmark with a heading of the same name, so a screen reader moves by region (F6) or by heading (H), and every announcement on arriving in a region starts with that name. That is also how the two jobs of Shift+Down are told apart: the reader always hears which region the key is in.</p>
+  <table class="f-regions">
+    <thead><tr><th>Region and heading</th><th>First words on arrival</th><th>Shift+Down there</th></tr></thead>
+    <tbody>
+      <tr><td>Graph drawing</td><td class="f-say">"Graph drawing." or, walking, "Walking the drawing."</td><td>walks into the focused node's neighbors</td></tr>
+      <tr><td>Nodes table</td><td class="f-say">"Nodes table. Valjean, group 2, degree 36, rank 1 of 77, selected. Row 1 of 77. 1 of 2 selected."</td><td>extends the row selection one row; the first arrival in a project says once <span class="f-say">"Shift+Arrow here extends the row selection."</span></td></tr>
+      <tr><td>Inspector</td><td class="f-say">"Inspector, 2 selected."</td><td>nothing</td></tr>
+      <tr><td>Graph panel (Graphs, Sets and paths, Styles, Views)</td><td class="f-say">"Graph panel. Graphs, heading."</td><td>extends the row selection in the list it is in</td></tr>
+      <tr><td>Tools</td><td class="f-say">"Tools, toolbar. Select, pressed, 1 of 5."</td><td>nothing</td></tr>
+    </tbody>
+  </table>
+  <p class="k-secondary"><b>Built with:</b> compact-mantine's section header and panel components carry the heading role and level themselves; the drawing's heading and its landmark name are graphty-element's, so a bare embed has them too.</p>
+
+  <h2>Quick actions and the key sheet</h2>
+  <div class="f-parts">
+    <div class="f-part">
+      <div class="f-qa" aria-label="Quick actions with an exact node name">
+        <div class="f-qa-field"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg><span>javert</span><span class="k-grow"></span><span class="k-kbd">Esc</span></div>
+        <div class="f-qa-group">Nodes</div>
+        <div class="f-qa-row" aria-selected="true"><span>Go to <span class="k-strong">Javert</span></span><span class="k-grow"></span><span class="k-secondary">Node, group 4, degree 17</span></div>
+        <div class="f-qa-row"><span>Find "javert"</span><span class="k-grow"></span><span class="k-secondary">nodes, sets, styles and more, in Find</span></div>
+        <div class="f-qa-foot"><span><span class="k-kbd">Enter</span> Go to</span><span><span class="k-kbd">Esc</span> Close</span><span><span class="k-kbd">F6</span> Next region</span></div>
+      </div>
+      <span class="k-secondary"><b>Quick actions (Ctrl+K)</b> with a node's exact name, on Les Miserables. The row and the footer say "Go to", never "Choose", so the reader knows before pressing Enter that nothing will be selected. Built with the same compact-mantine rows as Find. Typed "TP53" here, the list reads "No commands or nodes match "TP53"", the one empty state Find and Quick actions share.</span>
+    </div>
+    <div class="f-part">
+      <div class="f-sheet" role="dialog" aria-label="Keys">
+        <div class="f-sheet-head"><b>Keys</b><span class="k-grow"></span><span class="k-kbd">Esc</span></div>
+        <div class="f-sheet-body">
+          <h3>Everywhere</h3>
+          <span class="k-kbd">Ctrl+F</span><span>Find: nodes, sets, styles, notes and more</span>
+          <span class="k-kbd">Ctrl+K</span><span>Quick actions: commands, and go to a node by name</span>
+          <span class="k-kbd">F6</span><span>Next region</span>
+          <h3>Graph drawing</h3>
+          <span class="k-kbd">Arrows</span><span>Move the view</span>
+          <span class="k-kbd">Shift+Down</span><span>Walk: into this node's neighbors</span>
+          <span class="k-kbd">Shift+Right</span><span>Next neighbor</span>
+          <span class="k-kbd">Shift+Left</span><span>Previous neighbor</span>
+          <span class="k-kbd">Shift+Enter</span><span>Back one step</span>
+          <span class="k-kbd">Shift+Home</span><span>Back to the start</span>
+          <span class="k-kbd">O</span><span>Order: co-appearances, degree, name</span>
+          <span class="k-kbd">Enter</span><span>Select this node</span>
+          <span class="k-kbd">Space</span><span>Select or deselect this node</span>
+          <span class="k-kbd">] [</span><span>Next or previous selected node</span>
+          <span class="k-kbd">Alt+Enter</span><span>Visit the inspector</span>
+          <span class="k-kbd">Esc</span><span>End the walk; again, clear the selection</span>
+          <span class="k-kbd">Tab</span><span>To the Nodes table</span>
+          <h3>Nodes table</h3>
+          <span class="k-kbd">Up, Down</span><span>Move between rows</span>
+          <span class="k-kbd">Shift+Down</span><span>Extend the row selection</span>
+          <span class="k-kbd">Esc</span><span>Keep only this row; again, clear</span>
+        </div>
+        <div class="f-sheet-foot">graphty-element's default keys. Read only.</div>
+      </div>
+      <span class="k-secondary"><b>The key sheet (?)</b>, cut to three of its regions. Each group is a heading named after its region, so Shift+Down appears twice, once under each region, instead of once with two meanings. It renders graphty-element's published list of default key bindings, so it cannot drift from the keys. A compact-mantine <span class="k-mono">Modal</span> with <span class="k-mono">Kbd</span> rows.</span>
+    </div>
+  </div>
+
+  <h2>Esc: one step back per press</h2>
+  <p>From the deepest state, a walk with a menu open and a tool armed, each press takes exactly one step, and focus never leaves the drawing: Tab does that. The last press clears the selection and says, in the same breath, which key brings it back.</p>
+  <div class="f-ladder">
+    <div class="k-flow-step"><h3>Menu open on Gavroche</h3>focus in the menu, or in the inspector, or on the key sheet</div>
+    <div class="k-flow-arrow">Esc<br>&rarr;</div>
+    <div class="k-flow-step"><h3>Walking, on Gavroche, Lasso armed</h3>"Walking the drawing. Gavroche, 2 of 17."</div>
+    <div class="k-flow-arrow">Esc<br>&rarr;</div>
+    <div class="k-flow-step"><h3>Drawing, no walk, Lasso armed</h3>"Walk ended at Gavroche. 2 selected on canvas."</div>
+    <div class="k-flow-arrow">Esc<br>&rarr;</div>
+    <div class="k-flow-step"><h3>Drawing, Select tool, 2 still selected</h3>"Select tool."</div>
+    <div class="k-flow-arrow">Esc<br>&rarr;</div>
+    <div class="k-flow-step"><h3>Drawing, nothing selected</h3>"Selection cleared (2 nodes). Ctrl+Z brings it back."</div>
+  </div>
+  <p class="k-secondary">With playback running, one extra first press pauses it, and the window it lands on is kept as one undo step. With no tool armed, the tool step is skipped. The walk's start and place survive every press; the next Shift+Arrow goes on from Gavroche. The Nodes table's Esc works the same way, one step per press (the first keeps only the focused row, the second clears). Ctrl+Z (Cmd+Z on a Mac) brings a cleared selection back while nothing else has changed since.</p>
+
+  <h2>A happy-path trace on Les Miserables</h2>
+  <p>A keyboard user is asked: using only the keyboard, find Javert, walk to his most connected neighbor and back, and select two of his neighbors. The project is open on Les Miserables for the first time, all <span data-fx="datasets.lesmis.nodes">77</span> characters drawn, colored by group and sized by degree. Focus starts on the toolbar with nothing selected. The figure is what a sighted colleague sees after step 8: Valjean carries the selection ring, keyboard focus sits on Gavroche, and Javert, the walk's start, is unmarked because nothing marks a start on the drawing; the pill names it.</p>
+  <div class="f-fig">
+    <div class="f-draw">
+      <svg viewBox="590 330 360 240" role="img" aria-label="Les Miserables, colored by group and sized by degree, enlarged around Javert: Valjean carries the two-tone selection ring, Gavroche the three-band keyboard focus mark after a gap">
+        <image class="k-light-only" href="../kit/canvas/lesmis-groups-rest-light.svg" x="0" y="0" width="1200" height="800"/>
+        <image class="k-dark-only" href="../kit/canvas/lesmis-groups-rest-dark.svg" x="0" y="0" width="1200" height="800"/>
+        <circle class="f-sel-i" cx="698.7" cy="394.3" r="17"/>
+        <circle class="f-sel-o" cx="698.7" cy="394.3" r="19"/>
+        <circle class="f-band-o" cx="820.6" cy="539.7" r="15.9"/>
+        <circle class="f-band-i" cx="820.6" cy="539.7" r="17.4"/>
+        <circle class="f-band-o" cx="820.6" cy="539.7" r="18.9"/>
+        <path class="f-lead" d="M684 382 L640 358"/>
+        <path class="f-lead" d="M764 383 L800 358"/>
+        <path class="f-lead" d="M834 525 L858 496"/>
+      </svg>
+      <span class="k-annot-note" style="left:2%;top:3%">Valjean: selected, a two-tone ring close to the node</span>
+      <span class="k-annot-note" style="left:58%;top:3%">Javert: the walk's start, named by the pill</span>
+      <span class="k-annot-note" style="left:72%;top:58%;max-width:27%">Gavroche: keyboard focus, three bands after a 2 px gap</span>
+    </div>
+    <div>
+      <p><b>Screens:</b> <a href="../screens/keyboard-walk.html">the walk, in the working mock</a>, with the focus pill above the toolbar, to try with the keyboard.</p>
+      <p><b>Numbers:</b> Javert has <span data-fx="datasets.lesmis.rows.27.degree">17</span> neighbors, rank 4 of 77 by degree. His most connected neighbor is Valjean under both orders: 17 shared chapters and degree <span data-fx="datasets.lesmis.rows.11.degree">36</span>, rank 1. By degree the second is Gavroche, degree <span data-fx="datasets.lesmis.rows.48.degree">22</span>, who shares one chapter with Javert; by co-appearances it is Enjolras, 6.</p>
+      <p><b>Built with:</b> the drawing's focus target, its focus mark, its polite live region and the walk's start and place are graphty-element's own (<span class="k-mono">role="application"</span>). A bare embed shows the focus mark, speaks the same words and keeps the start across Tab; the element publishes the pill's text and values in its focused-node event, so any host can draw the pill.</p>
+    </div>
+  </div>
+  <table class="f-walktable">
+    <thead><tr><th>#</th><th>Key</th><th>Focus</th><th>Selected</th><th>Says</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Ctrl+K, types javert</td><td>Quick actions, first row</td><td>nothing</td><td class="f-say">"Go to Javert, node, exact name. Enter goes there."</td></tr>
+      <tr><td>2</td><td>Enter</td><td>Javert, walking, the start</td><td>nothing</td><td class="f-say">"Graph drawing, application. Les Miserables, 77 nodes, 254 edges. Nothing selected. Walking the drawing. Javert, start of the walk, not selected. Degree 17, rank 4 of 77, group 4. Shift+Arrow: walk. Enter: select. Question mark: keys." (the long form, once per project)</td></tr>
+      <tr><td>3</td><td>Shift+Down</td><td>Valjean</td><td>nothing</td><td class="f-say">"Valjean, neighbor 1 of 17 of Javert, by co-appearances, highest first. Co-appearances 17, degree 36, rank 1 of 77, group 2. Shift+Enter goes back, Esc ends the walk, Tab leaves the drawing, O changes the order, question mark lists the keys."</td></tr>
+      <tr><td>4</td><td>O</td><td>Valjean</td><td>nothing</td><td class="f-say">"Neighbors by degree, highest first. Valjean, neighbor 1 of 17 of Javert, co-appearances 17, degree 36, rank 1 of 77, group 2." (Valjean is first either way)</td></tr>
+      <tr><td>5</td><td>Shift+Enter</td><td>Javert</td><td>nothing</td><td class="f-say">"Back to Javert, start of the walk, not selected."</td></tr>
+      <tr><td>6</td><td>Shift+Down</td><td>Valjean</td><td>nothing</td><td class="f-say">"Valjean, neighbor 1 of 17 of Javert, by degree, highest first. Co-appearances 17, degree 36, rank 1 of 77, group 2." (Shift+Down goes back in where the walk left)</td></tr>
+      <tr><td>7</td><td>Enter</td><td>Valjean</td><td>Valjean</td><td class="f-say">"Valjean selected. 1 selected on canvas."</td></tr>
+      <tr><td>8</td><td>Shift+Right</td><td>Gavroche</td><td>Valjean</td><td class="f-say">"Gavroche, 2 of 17, co-appearances 1, degree 22, rank 2 of 77, group 8."</td></tr>
+      <tr><td>9</td><td>Enter</td><td>Gavroche</td><td>Valjean, Gavroche</td><td class="f-say">"Gavroche selected. 2 selected on canvas."</td></tr>
+      <tr><td>10</td><td>Alt+Enter</td><td>inspector, Gavroche</td><td>Valjean, Gavroche</td><td class="f-say">"Inspector, Gavroche, selected. Group 8, degree 22, rank 2 of 77."</td></tr>
+      <tr><td>11</td><td>Esc</td><td>Gavroche</td><td>Valjean, Gavroche</td><td class="f-say">"Walking the drawing. Gavroche, 2 of 17."</td></tr>
+      <tr><td>12</td><td>Tab</td><td>Nodes table, Valjean's row</td><td>Valjean, Gavroche</td><td class="f-say">"Nodes table. Valjean, group 2, degree 36, rank 1 of 77, selected. Row 1 of 77. 1 of 2 selected. Shift+Arrow here extends the row selection." (the last sentence once per project)</td></tr>
+      <tr><td>13</td><td>Shift+Tab</td><td>drawing, not walking</td><td>Valjean, Gavroche</td><td class="f-say">"Graph drawing. Walk kept: on Gavroche, from Javert. 2 selected on canvas."</td></tr>
+      <tr><td>14</td><td>Shift+Home</td><td>Javert</td><td>Valjean, Gavroche</td><td class="f-say">"Back to Javert, start of the walk, not selected."</td></tr>
+      <tr><td>15</td><td>Esc</td><td>drawing, not walking</td><td>Valjean, Gavroche</td><td class="f-say">"Walk ended at Javert. 2 selected on canvas."</td></tr>
+    </tbody>
+  </table>
+  <p class="k-secondary">Fifteen keys, and no clean-up: in the third study, going to the node selected it, so every participant ended with three selected and spent four extra keys taking the first one back out. Step 13 is the other fix: the start is still Javert after the visit to the table, where before it had moved to the first selected node. The first step of a walk names the back key, the ways out, O and the key sheet. The order is said only on the first step after each Shift+Down and after O; every step speaks the same values in the same order as the pill -- the edge's co-appearances, then degree, rank and group -- each with its word, never a bare number.</p>
+
+  <h2>What the next round checks</h2>
+  <p>Intended: a participant reaches a named node from the keyboard, can always say where they are and how to get back, and ends a "select two" task with exactly two. The study asks, after steps 4, 9 and 13, "Where are you, and how would you get back to where you started?" It must also be able to prove these wrong:</p>
+  <ul>
+    <li>Every participant reaches Javert with Ctrl+K on the first try, and nobody expects "Go to" to have selected him.</li>
+    <li>Nobody ends "select two of his neighbors" with three selected.</li>
+    <li>After Tab to the table and back, every participant can say where the walk will go on from, and Shift+Home takes them to Javert.</li>
+    <li>Nobody presses Shift+Down in the Nodes table expecting the walk, once they have heard "Nodes table" first; a screen-reader user finds the table and the drawing with H.</li>
+    <li>Participants who used Enter for the inspector in the last round find Alt+Enter from the key sheet, or do not miss the visit.</li>
+    <li>Run with NVDA before the round, not only with the page's text read back.</li>
+  </ul>
+
+  <h2>Errors, dead ends and cancellations</h2>
+  <ul>
+    <li><b>A name the graph does not hold.</b> In Quick actions on Les Miserables, "TP53" matches nothing, so the list says <span class="f-say">"No commands or nodes match "TP53"."</span> Esc returns focus where it was; Find, opened on the same query, says what it searched and offers Search recent projects.</li>
+    <li><b>A name that is not exact.</b> "jav" finds no exact node, so the row reads <span class="f-say">"Find "jav""</span>; Enter opens Find with that text, where the ranking by prefix and substring takes over.</li>
+    <li><b>Enter on a node already selected.</b> Nothing changes: <span class="f-say">"Valjean is already selected. Space removes it."</span></li>
+    <li><b>Nothing drawn.</b> Past the drawing limit (the citation graph, 124,318 nodes), with the canvas unsupported, or with everything hidden, Shift+Down does not walk: <span class="f-say">"Nothing drawn to walk: 124,318 nodes not drawn. Enter opens Choose what to draw."</span> Cancel or Esc in that dialog returns focus to the drawing.</li>
+    <li><b>Inside a filter.</b> With the three filter steps on (<span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of 77 characters shown), Javert says <span class="f-say">"degree 17, 10 of 17 shown, on: filtered graph"</span>, and his list holds only the 10 shown: Gavroche and Enjolras, filtered out with group 8, are not walked to, and "1 of 10" counts only the ones shown.</li>
+    <li><b>A dead end.</b> In the published Les Miserables graph, Old Man's one edge goes to Myriel. Reached from Myriel, Shift+Down on Old Man stays and says <span class="f-say">"Old Man's only neighbor is Myriel, where you came from. Shift+Enter goes back."</span> A node with no edges at all says <span class="f-say">"{name} has no neighbors. Shift+Enter goes back."</span></li>
+    <li><b>The end of a neighbor list.</b> Shift+Right on the last neighbor says <span class="f-say">"Last neighbor."</span> and stays; the list does not wrap, because a wrap is heard as another node and loses the count.</li>
+    <li><b>The focused node stops being drawn</b> (an undo, a filter step or a hide). Focus moves back along the walked path to the nearest node still drawn: <span class="f-say">"Gavroche is no longer drawn; back to Javert."</span> If the start itself goes, the start falls back to the start-node rule and says so: <span class="f-say">"Javert is no longer drawn. The walk starts at Valjean."</span></li>
+    <li><b>Delete on a node that is not selected.</b> Nothing is removed: <span class="f-say">"Nothing removed; Enjolras is not selected. Enter adds him."</span></li>
+    <li><b>A pointer click.</b> Ends the walk and does what the click does. The start and place are kept; Shift+Down goes on from them.</li>
+    <li><b>The window loses focus</b> (switching apps). The walk is kept, and the drawing still has focus when the window returns; nothing is said on return. Proposed, untested.</li>
+    <li><b>The focused node is off screen.</b> Each step that lands off screen pans the camera just enough to bring it into view, without zooming, and never under the pill or the toolbar. Proposed, untested.</li>
+  </ul>
+
+  <h2>Changes this flow proposes</h2>
+  <p>Each is recorded with the document, the old text, the new text and the evidence in <a href="../framework-changes.md">framework-changes.md</a>.</p>
+  <ul>
+    <li><b>Plain arrows keep the camera and Shift with the arrows walks.</b> Three framework passages still say plain arrows walk: the canvas walk entry (interaction pattern entries 9.2, "the first arrow press on the canvas starts the walk" and "the arrow keys move focus to a neighbor", with the mode table's Canvas walk row and Enter on a set in 4.2); the key dispatch table and the canvas state chart (interaction patterns 3.6 and 3.8, "Idle --&gt; Walk : arrow"); and the Figma departures ledger (figma crosswalk 4.3, "the arrows walk from the focused node to a neighbor").</li>
+    <li><b>Going to a node moves the walk and selects nothing; Enter adds to the selection.</b> 9.2 says "Enter selects it, and the inspector follows", which replaced the selection. Enter now adds the focused node and never replaces or removes; Space still toggles. Quick actions' node row reads "Go to {name}".</li>
+    <li><b>The inspector visit moves to Alt+Enter</b> (Option+Enter on a Mac), the platform's properties key, because Enter selects.</li>
+    <li><b>graphty-element holds the walk's start and place.</b> 3.8 says focus leaving the canvas ends the walk and coming back needs a deliberate key; both stay true, but the start and the place survive, so the deliberate key goes on where the reader left off.</li>
+    <li><b>Region names and headings.</b> Every region has a heading of its own name, every arrival announcement starts with it, the walk line reads "Walking the drawing", and the key sheet groups its keys under region headings.</li>
+    <li><b>The long welcome plays once per project</b>; every later arrival says only the region, the kept walk and the selection count.</li>
+  </ul>
+
+  <h2>Still open</h2>
+  <ul>
+    <li>Alt+Enter for the inspector visit is a new published key, for the owner. In the third study the visit with Enter was one of the parts the screen-reader participant most wanted kept; the next round shows whether moving it costs more than it saves.</li>
+    <li>Enter and Space both select in the walk: Enter only adds, Space adds or removes. If the next round shows nobody uses Space, it can go back to being only the pan key.</li>
+    <li>The 3D camera's pan is on Shift and the arrows in the app today and has to move before the walk can take them. Its new key is undecided (the suggestion is Ctrl and the arrows).</li>
+    <li>Shift+Home on a Mac laptop is Shift+Fn+Left. The next round should see whether people find it.</li>
+    
+  </ul>
+</div>
+</body>
+</html>

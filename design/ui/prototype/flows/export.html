@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export flow</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+.flowsvg { width: 100%; max-width: 1160px; height: auto; display: block; margin: 8px 0 16px; }
+.flowsvg .n { fill: var(--cm-bg); stroke: var(--cm-text); stroke-width: 1.2; }
+.flowsvg .n.chk { stroke-width: 2; }
+.flowsvg .n.gap { stroke-dasharray: 5 4; }
+.flowsvg .n.end { fill: var(--cm-bg-secondary); }
+.flowsvg a:hover .n { fill: var(--cm-bg-hover); }
+.flowsvg .t { font-size: 12px; fill: var(--cm-text); }
+.flowsvg .l { font-size: 11px; fill: var(--cm-text-secondary); }
+.flowsvg a .l { fill: var(--cm-text-brand); }
+.flowsvg .e { fill: none; stroke: var(--cm-text-secondary); stroke-width: 1.2; }
+.flowsvg .e.err { stroke-dasharray: 2 3; }
+.flowsvg .ahp { fill: var(--cm-text-secondary); }
+.flowsvg .col { font-size: 12px; font-weight: 600; fill: var(--cm-text-secondary); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--cm-text-secondary); }
+.keyrow svg { vertical-align: middle; margin-right: 6px; }
+.wide { max-width: none !important; }
+.k-doc table.steps { font-size: 12px; line-height: 18px; }
+.k-doc .facts th { width: 150px; }
+.k-flow { margin: 8px 0 16px; }
+.k-flow-step h3 { font-weight: 550; }
+.x-num { display: inline-block; min-width: 18px; font-weight: 600; }
+/* The Print look figure: a file preview, always on the file's white ground in both themes. */
+.x-print { width: 100%; max-width: 1160px; height: auto; display: block; margin: 8px 0 16px; }
+.x-print .paper { fill: #ffffff; stroke: var(--cm-border); }
+.x-print .ink { fill: #1a1a1a; font-size: 10px; }
+.x-print .ink2 { fill: #555555; font-size: 10px; }
+.x-print .ink-b { fill: #1a1a1a; font-size: 10px; font-weight: 600; }
+.x-print .head { fill: var(--cm-text); font-size: 12px; font-weight: 600; }
+.x-print .sub { fill: var(--cm-text-secondary); font-size: 11px; }
+.x-print .ok { fill: var(--cm-text); font-size: 12px; }
+.x-print .mk { stroke: #1a1a1a; stroke-width: 0.8; }
+.x-print .rule { stroke: var(--cm-text-secondary); stroke-width: 1; fill: none; }
+.x-print .rule.bad { stroke: var(--cm-text-danger); stroke-width: 1.5; }
+</style>
+</head>
+<body data-dataset="ppi">
+<div class="k-doc">
+<p><a href="../index.html">Design gallery</a></p>
+<h1>Export a figure, a recipe or an evidence file</h1>
+<p class="k-lede">Everything that leaves graphty leaves through one Export dialog. It has three ways in: Export... in the menu under the project name, Export... in the Data panel's header, and Export table... in the table dock, which opens the same dialog with the table chosen. Ctrl+Shift+E opens it from anywhere. This page follows one analysis from start to finish: Maren, a postdoc, turns this week's qPCR results into a network figure a reviewer can read in black and white -- which genes went up, which went down, and which barely moved -- then writes the table behind it for the supplement. The other outputs of the same dialog (the setup without data, the findings report, the project) are drawn on the same project below. Shapes with a drawn screen state link to it.</p>
+
+<h2>The project</h2>
+<table class="facts wide">
+<tr><th>Data</th><td>Human protein interactions, ppi-core-300.graphml: <span data-fx="datasets.ppi.nodes">300</span> proteins and <span data-fx="datasets.ppi.edges">1,262</span> interactions, undirected, weighted by confidence. The project is called Stress response study.</td></tr>
+<tr><th>The signed column</th><td>This week's qPCR file, qpcr-hits-2026-09.csv, added as a table in the Data panel and joined by gene symbol: <span data-fx="datasets.ppi.expression.matched">84</span> of its <span data-fx="datasets.ppi.expression.rows">96</span> rows matched a protein. Its log2FC runs <span data-fx="datasets.ppi.expression.range">-2.41 to 2.98</span>: <span data-fx="datasets.ppi.expression.down">48</span> genes went down under stress and <span data-fx="datasets.ppi.expression.up">36</span> went up. The other proteins have no value and are drawn as small gray dots.</td></tr>
+<tr><th>The filter step</th><td>Filter to confidence &gt;= 0.7 keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of the 1,262 interactions and every protein. The figure and the table are both written over this filtered graph, so they describe the same network.</td></tr>
+<tr><th>What she needs</th><td>A figure for a journal that prints in gray, from which a reader can tell which genes went up and which went down without the color, with the strongest genes named, a legend and a methods paragraph; and the interactions behind it as a CSV her reviewer can open in R or Excel.</td></tr>
+</table>
+
+<h2>The route: a signed figure and its table</h2>
+<div class="keyrow">
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="none" stroke="currentColor"/></svg>a place in the app</span>
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="7" fill="none" stroke="currentColor"/></svg>a dialog, a menu, a notice or another app</span>
+<span><svg width="24" height="18"><polygon points="12,1 23,9 12,17 1,9" fill="none" stroke="currentColor"/></svg>a decision or a named failure</span>
+<span><svg width="34" height="16"><polygon points="6,1 28,1 33,8 28,15 6,15 1,8" fill="none" stroke="currentColor" stroke-width="2"/></svg>a trust check the analyst sees</span>
+<span><svg width="34" height="16"><polygon points="6,1 33,1 28,15 1,15" fill="none" stroke="currentColor"/></svg>a file written (no undo entry)</span>
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="currentColor" fill-opacity=".12" stroke="currentColor"/></svg>where the analyst ends up</span>
+<span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="none" stroke="currentColor" stroke-dasharray="4 3"/></svg>waits on graphty-element</span>
+<span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-dasharray="2 3"/></svg>error or cancellation</span>
+</div>
+<svg class="flowsvg" viewBox="0 0 1160 1250" role="group" aria-labelledby="d1title">
+<title id="d1title">Export flow on the stress response study. Left, the figure: Color by log2FC makes a layer diverging at 0 with a stated no-change band; any of three ways in opens the one Export dialog on the filtered graph with Figure (.svg) and Methods text checked; in the Screen look the gray check says values just above and below 0 print as the same gray, with Use Print look; in the Print look darkness shows distance from 0, an up or down triangle shows the sign and a circle marks the no-change band, or fill against outline when a shape layer sits higher; the check then reads "Increases and decreases stay apart in gray (48 below 0, 36 above)"; Export 2 files writes the SVG and its methods text, and the file opened from Downloads matches the preview. Right, the table: Export table... in the table dock opens the same dialog with Table (.csv) chosen, 1,059 of 1,262 rows, filtered, always with its methods file, and the CSV opens in R with the same count. Cancel ends with nothing written; a failed save stays in the dialog.</title>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+
+<text class="col" x="380" y="12" text-anchor="middle">The figure</text>
+<text class="col" x="940" y="12" text-anchor="middle">The table behind it</text>
+
+<!-- figure column -->
+<rect class="n" x="200" y="22" width="360" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="380" y="42">Stress response study, at rest: filter chip 1,059 of</tspan><tspan x="380" y="58">1,262 interactions; qPCR table joined, 84 of 96 rows</tspan></text>
+<polyline class="e" points="380,70 380,108" marker-end="url(#ah)"/>
+<a href="../screens/inspector.html"><rect class="n" x="200" y="108" width="360" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="380" y="128">Inspector, nothing selected: Attributes,</tspan><tspan x="380" y="144">log2FC -2.41 to 2.98, on 84 proteins</tspan></text></a>
+<polyline class="e" points="380,156 380,198" marker-end="url(#ah)"/><text class="l" x="388" y="181">Style by this: Color</text>
+<a href="../screens/colour-by-value.html#numbers"><polygon class="n chk" points="190,234 210,198 550,198 570,234 550,270 210,270"/><text class="t" text-anchor="middle"><tspan x="380" y="222">Layer "log2FC color", diverging at 0 because the</tspan><tspan x="380" y="238">column is signed; she sets No change within 0.58;</tspan><tspan x="380" y="254">legend: 48 below 0, 36 above</tspan></text></a>
+<text class="l" x="578" y="238">one undo entry</text>
+
+<!-- three ways in -->
+<text class="l" x="380" y="292" text-anchor="middle">any one of</text>
+<rect class="n" x="30" y="300" width="200" height="38" rx="19"/><text class="t" text-anchor="middle"><tspan x="130" y="317">Project-name menu:</tspan><tspan x="130" y="331">Export...</tspan></text>
+<rect class="n" x="280" y="300" width="200" height="38" rx="19"/><text class="t" text-anchor="middle"><tspan x="380" y="317">Data panel header:</tspan><tspan x="380" y="331">Export...</tspan></text>
+<rect class="n" x="530" y="300" width="180" height="38" rx="19"/><text class="t" text-anchor="middle"><tspan x="620" y="317">Ctrl+Shift+E, or</tspan><tspan x="620" y="331">Quick actions</tspan></text>
+<polyline class="e" points="130,338 130,356 330,356 330,380" marker-end="url(#ah)"/>
+<polyline class="e" points="380,338 380,380" marker-end="url(#ah)"/>
+<polyline class="e" points="620,338 620,356 430,356 430,380" marker-end="url(#ah)"/>
+
+<a href="../screens/export-dialog.html#figure"><rect class="n" x="200" y="380" width="360" height="56" rx="28"/><text class="t" text-anchor="middle"><tspan x="380" y="403">Export dialog, Scope: Filtered graph. Figure (.svg),</tspan><tspan x="380" y="419">white ground, and Methods text checked; Look: Screen</tspan></text></a>
+
+<rect class="n end" x="20" y="380" width="140" height="56" rx="3"/><text class="t" text-anchor="middle"><tspan x="90" y="397">Focus back where</tspan><tspan x="90" y="412">it was opened;</tspan><tspan x="90" y="427">nothing written</tspan></text>
+<polyline class="e err" points="200,408 160,408" marker-end="url(#ah)"/><text class="l" x="180" y="372" text-anchor="middle">Cancel, Esc</text>
+
+<polyline class="e" points="380,436 380,470" marker-end="url(#ah)"/>
+<a href="../screens/export-dialog.html#figure-signed"><polygon class="n chk" points="190,505 210,470 550,470 570,505 550,540 210,540"/><text class="t" text-anchor="middle"><tspan x="380" y="499">Under the preview, the gray check: "Values just above</tspan><tspan x="380" y="515">and below 0 print as the same gray", Use Print look</tspan></text></a>
+<polyline class="e" points="570,505 640,505 640,905 500,905" marker-end="url(#ah)"/><text class="l" x="576" y="498">Keep Screen</text>
+
+<polyline class="e" points="380,540 380,570" marker-end="url(#ah)"/><text class="l" x="388" y="560">Use Print look</text>
+<polygon class="n" points="380,570 540,605 380,640 220,605"/><text class="t" text-anchor="middle"><tspan x="380" y="601">Does a shape layer sit</tspan><tspan x="380" y="617">higher in the stack?</tspan></text>
+<polyline class="e" points="380,640 380,670" marker-end="url(#ah)"/><text class="l" x="388" y="660">no</text>
+<a href="#print-look"><rect class="n" x="200" y="670" width="360" height="62" rx="3"/><text class="t" text-anchor="middle"><tspan x="380" y="690">Preview redrawn: darker = further from 0, both sides;</tspan><tspan x="380" y="706">up triangle above, down triangle below, circle</tspan><tspan x="380" y="722">between -0.58 and +0.58; top 10 named</tspan></text></a>
+<polyline class="e" points="220,605 97,605 97,670" marker-end="url(#ah)"/><text class="l" x="160" y="598" text-anchor="middle">yes</text>
+<a href="#print-look"><rect class="n" x="20" y="670" width="155" height="62" rx="3"/><text class="t" text-anchor="middle"><tspan x="97" y="690">Sign by fill: filled</tspan><tspan x="97" y="706">above, outline below;</tspan><tspan x="97" y="722">shapes stay the layer's</tspan></text></a>
+<polyline class="e" points="97,732 97,795 190,795" marker-end="url(#ah)"/>
+
+<polyline class="e" points="380,732 380,760" marker-end="url(#ah)"/>
+<a href="#print-look"><polygon class="n chk" points="190,795 210,760 550,760 570,795 550,830 210,830"/><text class="t" text-anchor="middle"><tspan x="380" y="782">"Increases and decreases stay apart in gray (48 below</tspan><tspan x="380" y="798">0, 36 above)"; As written and In gray side by side;</tspan><tspan x="380" y="814">"File is written with: Print look"</tspan></text></a>
+<polyline class="e" points="380,830 380,870" marker-end="url(#ah)"/><text class="l" x="372" y="858" text-anchor="end">Export 2 files</text>
+
+<a href="../screens/export-dialog.html#failed"><polygon class="n" points="380,870 500,905 380,940 260,905"/><text class="t" text-anchor="middle"><tspan x="380" y="909">Did the files save?</tspan></text></a>
+<polyline class="e err" points="260,905 180,905" marker-end="url(#ah)"/>
+<a href="../screens/export-dialog.html#failed"><rect class="n" x="20" y="880" width="160" height="52" rx="26"/><text class="t" text-anchor="middle"><tspan x="100" y="898">"Could not export ...",</tspan><tspan x="100" y="913">in the dialog; every</tspan><tspan x="100" y="926">choice kept</tspan></text></a>
+<text class="l" x="220" y="898" text-anchor="middle">no</text>
+<polyline class="e" points="380,940 380,970" marker-end="url(#ah)"/><text class="l" x="388" y="959">yes</text>
+<a href="../screens/export-dialog.html#done"><polygon class="n" points="222,970 570,970 548,1016 200,1016"/><text class="t" text-anchor="middle"><tspan x="385" y="990">stress-response-study_current-view.svg</tspan><tspan x="385" y="1006">and stress-response-study_methods.txt</tspan></text></a>
+<polyline class="e" points="380,1016 380,1040" marker-end="url(#ah)"/>
+<a href="../screens/export-dialog.html#done"><rect class="n" x="180" y="1040" width="400" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="380" y="1058">The notice names both files; Data, Sent and saved lists</tspan><tspan x="380" y="1073">them; focus back where the dialog was opened</tspan></text></a>
+<polyline class="e" points="380,1084 380,1110" marker-end="url(#ah)"/><text class="l" x="388" y="1101">opened from the browser's Downloads</text>
+<polygon class="n chk" points="190,1145 210,1110 550,1110 570,1145 550,1180 210,1180"/><text class="t" text-anchor="middle"><tspan x="380" y="1134">The file is the preview: triangles and circles,</tspan><tspan x="380" y="1150">"Print look" in its legend, the caption, the 10 names</tspan></text>
+<polyline class="e" points="380,1180 380,1204" marker-end="url(#ah)"/>
+<rect class="n end" x="220" y="1204" width="320" height="36" rx="3"/><text class="t" text-anchor="middle"><tspan x="380" y="1226">Figure in the manuscript; methods in its legend</tspan></text>
+
+<!-- table column -->
+<a href="../screens/table-dock.html#out"><rect class="n" x="740" y="198" width="400" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="940" y="218">Table dock, Edges tab: Filtered graph,</tspan><tspan x="940" y="234">1,059 of 1,262 rows</tspan></text></a>
+<polyline class="e" points="940,246 940,470" marker-end="url(#ah)"/><text class="l" x="948" y="290">Export table...</text>
+<polyline class="e" points="560,420 700,420 700,498 740,498" marker-end="url(#ah)"/><text class="l" x="708" y="450">or tick</text><text class="l" x="708" y="464">Table (.csv)</text>
+<a href="../screens/export-dialog.html#table"><rect class="n" x="740" y="470" width="400" height="56" rx="28"/><text class="t" text-anchor="middle"><tspan x="940" y="493">The same Export dialog, Table (.csv) chosen: "Rows</tspan><tspan x="940" y="509">1,059 of 1,262, filtered"; its methods file always on</tspan></text></a>
+<polyline class="e err" points="1100,526 1100,560" marker-end="url(#ah)"/><text class="l" x="1094" y="548" text-anchor="end">Cancel, Esc</text>
+<rect class="n end" x="1000" y="560" width="140" height="40" rx="3"/><text class="t" text-anchor="middle"><tspan x="1070" y="576">Focus back on Export</tspan><tspan x="1070" y="591">table...; nothing written</tspan></text>
+<polyline class="e" points="880,526 880,564" marker-end="url(#ah)"/><text class="l" x="888" y="550">Export 2 files</text>
+<polygon class="n" points="880,564 960,596 880,628 800,596"/><text class="t" text-anchor="middle"><tspan x="880" y="600">Saved?</tspan></text>
+<polyline class="e err" points="800,596 760,596 760,526" marker-end="url(#ah)"/><text class="l" x="752" y="616" text-anchor="end">no: in the dialog</text>
+<polyline class="e" points="880,628 880,660" marker-end="url(#ah)"/><text class="l" x="888" y="648">yes</text>
+<polygon class="n" points="762,660 1130,660 1108,706 740,706"/><text class="t" text-anchor="middle"><tspan x="935" y="680">stress-response-study_edges.csv and</tspan><tspan x="935" y="696">stress-response-study_edges-methods.txt</tspan></text>
+<polyline class="e" points="940,706 940,740" marker-end="url(#ah)"/><text class="l" x="948" y="728">opened in R or Excel</text>
+<polygon class="n chk" points="740,782 760,740 1120,740 1140,782 1120,824 760,824"/><text class="t" text-anchor="middle"><tspan x="940" y="766">1,059 rows, as the dialog said; each header names</tspan><tspan x="940" y="782">its scope; the methods file names the filter step,</tspan><tspan x="940" y="798">the load choices and the graphty-element version</tspan></text>
+<polyline class="e" points="940,824 940,850" marker-end="url(#ah)"/>
+<rect class="n end" x="780" y="850" width="320" height="36" rx="3"/><text class="t" text-anchor="middle"><tspan x="940" y="872">Supplementary table, with its methods file</tspan></text>
+</svg>
+
+<h2 id="print-look">What the Print look draws on a signed layer, and what the gray check tests</h2>
+<p>A signed column needs two facts on paper: how far each value is from 0, and on which side. Darkness alone cannot carry both, so the Print look gives each fact its own channel. Darkness is the distance from 0, the same on both sides, so the largest decrease prints as dark as the largest increase. The sign is a shape: a triangle pointing up above 0, pointing down below it, and a circle for values inside the band the analyst stated as no change (here -0.58 to +0.58, a 1.5-fold change). Shape survives gray print and every kind of color vision, so Print is one look for both needs. When a shape layer sits higher in the stack and already owns the marks' shape, the sign moves to fill: filled above 0, outline only below.</p>
+<svg class="x-print" viewBox="0 0 1160 395" role="img" aria-labelledby="d3title">
+<title id="d3title">The figure's preview in the Print look, as written and in gray, side by side and the same. Ten strongest genes are named: PSMA2, SNRPD3, NDUFA6, NDUFV2 and SKI up, drawn as up triangles; GSK3B, BMPR1A, NDUFS3 and SMAD3 down, drawn as down triangles, as dark as the increases of the same size; TGFBR2's label is hidden because it overlaps BMPR1A's. Below, the gray check's two verdicts: under the Screen look the red and blue bins just either side of 0 print as the same light gray; under the Print look every pair of bins on opposite sides differs in shape, so increases and decreases stay apart.</title>
+<defs>
+  <symbol id="up" viewBox="-6 -6 12 12" overflow="visible"><polygon points="0,-5.5 5,4 -5,4"/></symbol>
+  <symbol id="dn" viewBox="-6 -6 12 12" overflow="visible"><polygon points="0,5.5 5,-4 -5,-4"/></symbol>
+  <g id="fig">
+    <rect class="paper" x="0" y="0" width="440" height="330"/>
+    <!-- marks: the 12 strongest matched genes, placed as in the drawing; darkness = |log2FC| / 2.98 -->
+    <g class="mk">
+      <polygon fill="#232323" points="135,112 140,121 130,121"/>
+      <polygon fill="#3b3b3b" points="280,82 285,91 275,91"/>
+      <polygon fill="#414141" points="123,51 128,60 118,60"/>
+      <polygon fill="#494949" points="372,31 377,22 367,22"/>
+      <polygon fill="#4b4b4b" points="201,193 206,184 196,184"/>
+      <polygon fill="#4b4b4b" points="150,67 155,76 145,76"/>
+      <polygon fill="#535353" points="201,187 206,196 196,196"/>
+      <polygon fill="#5f5f5f" points="135,66 140,57 130,57"/>
+      <polygon fill="#696969" points="220,191 225,200 215,200"/>
+      <polygon fill="#6e6e6e" points="205,169 210,160 200,160"/>
+      <polygon fill="#707070" points="145,64 150,73 140,73"/>
+      <polygon fill="#727272" points="249,138 254,129 244,129"/>
+    </g>
+    <text class="ink" x="143" y="116">PSMA2</text>
+    <text class="ink" x="288" y="87">SNRPD3</text>
+    <text class="ink" x="115" y="55" text-anchor="end">NDUFA6</text>
+    <text class="ink" x="364" y="28" text-anchor="end">GSK3B</text>
+    <text class="ink" x="192" y="191" text-anchor="end">BMPR1A</text>
+    <text class="ink" x="158" y="80">NDUFV2</text>
+    <text class="ink" x="138" y="47">NDUFS3</text>
+    <text class="ink" x="228" y="205">SKI</text>
+    <text class="ink" x="213" y="166">SMAD3</text>
+    <!-- legend drawn in -->
+    <line x1="12" y1="238" x2="428" y2="238" stroke="#cccccc"/>
+    <text class="ink-b" x="12" y="254">Print look</text>
+    <text class="ink" x="12" y="268">log2FC, this week's qPCR (qpcr-hits-2026-09.csv), 84 proteins</text>
+    <g class="mk"><polygon fill="#555555" points="18,276 23,285 13,285"/></g><text class="ink" x="30" y="284">above +0.58</text>
+    <g class="mk"><polygon fill="#555555" points="18,302 23,293 13,293"/></g><text class="ink" x="30" y="301">below -0.58</text>
+    <g class="mk"><circle cx="18" cy="314" r="4" fill="#d9d9d9"/></g><text class="ink" x="30" y="318">-0.58 to +0.58: no change</text>
+    <g class="mk"><polygon fill="#d7d7d7" points="190,276 195,285 185,285"/><polygon fill="#8b8b8b" points="206,276 211,285 201,285"/><polygon fill="#232323" points="222,276 227,285 217,285"/></g><text class="ink" x="234" y="284">darker = further from 0, both sides</text>
+    <circle cx="190" cy="297" r="1.6" fill="#9a9a9a"/><text class="ink" x="200" y="301">no value in the qPCR file</text>
+    <text class="ink2" x="190" y="318">Filtered graph: 1,059 of 1,262 interactions</text>
+  </g>
+</defs>
+
+<text class="head" x="0" y="14">As written</text>
+<text class="head" x="470" y="14">In gray</text>
+<g transform="translate(0,22)"><use href="#fig"/></g>
+<g transform="translate(470,22)" style="filter: grayscale(1)"><use href="#fig"/></g>
+<text class="sub" x="0" y="370">Labels: top 10 by distance from 0. 1 label hidden to avoid overlap (TGFBR2): show list. Text is 8 pt at the printed size.</text>
+<text class="sub" x="0" y="386">This sketch draws the 12 strongest genes where the drawing places them; the file draws all 300 proteins.</text>
+
+<!-- the check, on the Screen look's red-to-blue palette and on the Print look -->
+<text class="head" x="940" y="14">The gray check</text>
+<text class="sub" x="940" y="32">Every bin below 0 against</text>
+<text class="sub" x="940" y="46">every bin above it</text>
+
+<text class="sub" x="940" y="80">Screen look, printed in gray</text>
+<g transform="translate(940,88)">
+  <rect x="0"   y="0" width="20" height="20" fill="#303030"/><rect x="20"  y="0" width="20" height="20" fill="#5a5a5a"/><rect x="40"  y="0" width="20" height="20" fill="#848484"/><rect x="60"  y="0" width="20" height="20" fill="#b8b8b8"/><rect x="80"  y="0" width="20" height="20" fill="#e1e1e1"/>
+  <rect x="100" y="0" width="20" height="20" fill="#f7f7f7"/><rect x="120" y="0" width="20" height="20" fill="#e2e2e2"/><rect x="140" y="0" width="20" height="20" fill="#bebebe"/><rect x="160" y="0" width="20" height="20" fill="#8b8b8b"/><rect x="180" y="0" width="20" height="20" fill="#646464"/>
+  <rect x="0" y="0" width="200" height="20" fill="none" stroke="var(--cm-border)"/>
+  <line x1="100" y1="-4" x2="100" y2="24" stroke="var(--cm-text)"/>
+  <path class="rule bad" d="M90,24 v8 h40 v-8"/>
+  <path class="rule bad" d="M70,24 v14 h80 v-14"/>
+  <text class="sub" x="0" y="54">below 0</text><text class="sub" x="200" y="54" text-anchor="end">above 0</text>
+</g>
+<text class="ok" x="940" y="162">"Values just above and below 0</text>
+<text class="ok" x="940" y="177">print as the same gray"</text>
+
+<text class="sub" x="940" y="216">Print look</text>
+<g transform="translate(940,224)" class="mk">
+  <rect x="0" y="0" width="200" height="20" fill="#ffffff" stroke="var(--cm-border)"/>
+  <polygon fill="#595959" points="10,15 15,6 5,6"/><polygon fill="#7a7a7a" points="30,15 35,6 25,6"/><polygon fill="#9a9a9a" points="50,15 55,6 45,6"/><polygon fill="#bbbbbb" points="70,15 75,6 65,6"/><circle cx="90" cy="10" r="4" fill="#dbdbdb"/>
+  <circle cx="110" cy="10" r="4" fill="#d7d7d7"/><polygon fill="#afafaf" points="130,5 135,14 125,14"/><polygon fill="#878787" points="150,5 155,14 145,14"/><polygon fill="#5f5f5f" points="170,5 175,14 165,14"/><polygon fill="#373737" points="190,5 195,14 185,14"/>
+</g>
+<line x1="1040" y1="220" x2="1040" y2="248" stroke="var(--cm-text)"/>
+<text class="sub" x="940" y="262">darkness: distance from 0</text>
+<text class="sub" x="940" y="276">shape: the side, or no change</text>
+<text class="ok" x="940" y="300">"Increases and decreases stay</text>
+<text class="ok" x="940" y="315">apart in gray (48 below 0, 36 above)"</text>
+<text class="sub" x="940" y="340">The innermost bins both hold</text>
+<text class="sub" x="940" y="354">circles: inside the no-change</text>
+<text class="sub" x="940" y="368">band they are meant to match.</text>
+</svg>
+<p>The check is graphty-element's and the dialog only shows its verdict. It compares every pair of bins on opposite sides of the midpoint, not just the two ends: the round before, a check of the ends passed a ramp that printed the largest decreases palest. Two marks on opposite sides stay apart when their shapes differ or their grays differ by more than the threshold; two circles inside the no-change band are meant to match. The pass verdict gives the counts on each side so the reader can reconcile them with the legend. With no band stated, there are no circles, and the legend says "No band around 0 set".</p>
+
+<h2>The walk, step by step</h2>
+<p>Maren's steps through the figure and the table, with what she sees at each one.</p>
+<div class="k-flow">
+  <div class="k-flow-step"><h3><span class="x-num">1</span>Color by log2FC</h3><p>On Attributes, with nothing selected, she picks Style by this, then Color, on log2FC. The column holds negative and positive numbers, so the new layer "log2FC color" diverges at 0 without being asked: red below, blue above, and a legend reading 48 below 0, 36 above. In the layer's midpoint row she types 0.58 into No change within, her lab's 1.5-fold cut-off. The layer, band included, is one undo entry. <a href="../screens/colour-by-value.html#numbers">See the layer</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">2</span>Open Export</h3><p>From the menu under the project name she picks Export... (the Data panel's header has the same button, and Ctrl+Shift+E opens it from anywhere). The dialog opens on the filter chip's scope, Filtered graph, with Figure (.svg) and Methods text checked, a white ground, and Look: Screen. <a href="../screens/export-dialog.html#figure">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">3</span>The check names the problem</h3><p>Under the preview: "Values just above and below 0 print as the same gray", with Use Print look beside it. On the shipped red-to-blue palette the palest red and the palest blue both print as the same light gray, so on paper a small decrease cannot be told from a small increase. <a href="../screens/export-dialog.html#figure-signed">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">4</span>Use Print look</h3><p>The preview is redrawn as the file will be, with the same file in gray beside it. Darker means further from 0 on both sides, so GSK3B, the largest decrease, prints nearly as dark as PSMA2, the largest increase. Triangles point up or down; genes inside the band are circles. The ten strongest genes are named. The check now reads "Increases and decreases stay apart in gray (48 below 0, 36 above)", and the line beside Look says "File is written with: Print look". The canvas keeps its own look. <a href="#print-look">See the figure</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">5</span>Export 2 files</h3><p>stress-response-study_current-view.svg and stress-response-study_methods.txt go to the browser's Downloads. The dialog closes, a notice names both files, the Data panel's Sent and saved lists them, and focus returns to where she opened the dialog. <a href="../screens/export-dialog.html#done">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">6</span>Open the file, read it without color</h3><p>She opens the SVG from Downloads and prints it in gray. It is the preview she approved: the triangles and circles, "Print look" as the legend's first line, the no-change band stated, the caption "Filtered graph: 1,059 of 1,262 interactions", the names as real text. Which genes went up? The ones whose triangles point up.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">7</span>Export the table behind it</h3><p>In the table dock's Edges tab the scope line reads Filtered graph, 1,059 of 1,262 rows. Export table... opens the same Export dialog with Table (.csv) chosen: "Rows: 1,059 of 1,262, filtered", the file names, and its methods file, which is always written and cannot be unticked. Had she ticked Table (.csv) in step 2, the same row would have been written with the figure. <a href="../screens/export-dialog.html#table">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">8</span>Open the CSV</h3><p>In R, the CSV has 1,059 rows, as the dialog said, and no comment lines to trip the reader. stress-response-study_edges-methods.txt names the scope and its filter step, the load choices, the weight's meaning and the graphty-element version, ready for the supplement.</p></div>
+</div>
+
+<h3>Errors, cancellation and other graphs</h3>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>Cancel</h3><p>Cancel, Esc or the close button: nothing is written, no notice is shown, and focus returns to what opened the dialog -- the menu's owner, the Data panel's Export..., or Export table....</p></div>
+  <div class="k-flow-step" data-branch><h3>Keep the Screen look</h3><p>For a journal that prints in color she may leave Look on Screen. The file is written in color, as the preview shows; the check's line stays in the dialog as a fact, never as a block.</p></div>
+  <div class="k-flow-step" data-branch><h3>A shape layer sits higher</h3><p>Had a layer above hers set shape by module, the Print look would not take shape away from it: the sign moves to fill, filled above 0 and outline only below, marks inside the band keep their shape in the lightest gray with a dashed outline, and the legend says so. The check reads the same.</p></div>
+  <div class="k-flow-step" data-branch><h3>No band stated</h3><p>Without a No change within value, the Print look draws no circles: every gene is a triangle, and the legend's line reads "No band around 0 set". The check still runs on every pair of bins.</p></div>
+  <div class="k-flow-step" data-branch><h3>The save failed</h3><p>"Could not export ...: the browser blocked the download", in the dialog, announced at once, with Export. Every choice is kept. <a href="../screens/export-dialog.html#failed">See it</a>.</p></div>
+  <div class="k-flow-step" data-branch><h3>On a graph drawn as density, or too big to draw</h3><p>Not on this project. On a graph drawn partly as density, the dialog and the caption both state how many were drawn one by one; past the drawing limit there is no picture, so each figure row is disabled with its reason and the table row stays. <a href="../screens/export-dialog.html#reduced">Density</a>, <a href="../screens/export-dialog.html#too-big">too big</a>.</p></div>
+</div>
+
+<h2>The other outputs of the same dialog</h2>
+<p>The same Export dialog, on the same project and scope, writes three more kinds, plus Image (.png) for slides. Where scripting the same export would start is marked, but it goes nowhere yet.</p>
+<svg class="flowsvg" viewBox="0 0 1160 330" role="group" aria-labelledby="d2title">
+<title id="d2title">The other outputs of the Export dialog on the stress response study: Share the setup, without data, checks that the recipe holds only definitions and writes a .graphty file; the findings report puts the scope first and writes one self-contained HTML file, which waits on graphty-element; the project file carries the data and has no trust check; and a line at the end of the methods text will point to scripting the same export once graphty-element publishes those calls.</title>
+<defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
+<a href="../screens/export-dialog.html#recipe"><rect class="n" x="400" y="10" width="360" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="580" y="36">Export dialog, Scope: Filtered graph</tspan></text></a>
+<polyline class="e" points="580,54 580,80"/>
+<polyline class="e" points="145,80 1015,80"/>
+<polyline class="e" points="145,80 145,120" marker-end="url(#ah2)"/><text class="l" x="151" y="104">Share the setup, without data</text>
+<polyline class="e" points="435,80 435,120" marker-end="url(#ah2)"/><text class="l" x="441" y="104">Findings report (.html)</text>
+<polyline class="e" points="725,80 725,120" marker-end="url(#ah2)"/><text class="l" x="731" y="104">Project</text>
+<polyline class="e" points="1015,80 1015,120" marker-end="url(#ah2)"/><text class="l" x="1021" y="104">Methods text, last line</text>
+
+<a href="../screens/export-dialog.html#recipe"><polygon class="n chk" points="20,160 40,120 250,120 270,160 250,200 40,200"/><text class="t" text-anchor="middle"><tspan x="145" y="142">Holds only definitions: the</tspan><tspan x="145" y="157">filter step, the log2FC layer</tspan><tspan x="145" y="172">and its band, the Look; log2FC</tspan><tspan x="145" y="187">left for the recipient to supply</tspan></text></a>
+<polygon class="n chk gap" points="310,160 330,120 540,120 560,160 540,200 330,200"/><text class="t" text-anchor="middle"><tspan x="435" y="149">Boundary first: 1,059 of</tspan><tspan x="435" y="164">1,262 interactions; then saved</tspan><tspan x="435" y="179">views, notes and methods</tspan></text>
+<rect class="n" x="610" y="120" width="230" height="80" rx="3"/><text class="t" text-anchor="middle"><tspan x="725" y="156">The analysis with its data;</tspan><tspan x="725" y="172">no trust check</tspan></text>
+<rect class="n gap" x="890" y="120" width="250" height="80" rx="3"/><text class="t" text-anchor="middle"><tspan x="1015" y="142">A line naming the page on</tspan><tspan x="1015" y="157">scripting this export, once</tspan><tspan x="1015" y="172">graphty-element publishes</tspan><tspan x="1015" y="187">those calls; nothing until then</tspan></text>
+
+<polyline class="e" points="145,200 145,240" marker-end="url(#ah2)"/>
+<polyline class="e" points="435,200 435,240" marker-end="url(#ah2)"/>
+<polyline class="e" points="725,200 725,240" marker-end="url(#ah2)"/>
+<polygon class="n" points="40,240 270,240 250,290 20,290"/><text class="t" text-anchor="middle"><tspan x="145" y="261">stress-response-study_recipe</tspan><tspan x="145" y="277">.graphty (no data inside)</tspan></text>
+<polygon class="n gap" points="330,240 560,240 540,290 310,290"/><text class="t" text-anchor="middle"><tspan x="435" y="261">stress-response-study_findings</tspan><tspan x="435" y="277">.html, opens offline</tspan></text>
+<polygon class="n" points="620,240 850,240 830,290 600,290"/><text class="t" text-anchor="middle"><tspan x="725" y="269">The project file</tspan></text>
+</svg>
+<div class="k-flow">
+  <div class="k-flow-step"><h3>Share the setup, without data</h3><p>For a partner lab: ticking it turns off and disables every kind that would carry the proteins, and the preview first says no data is inside. What travels: the filter step, the log2FC color layer with its no-change band, and the Print look; log2FC is marked for the recipient to supply from their own table, so it is never bound to a column that came with someone else's network. <a href="../screens/export-dialog.html#recipe">See it</a>.</p></div>
+  <div class="k-flow-step"><h3>Findings report (.html) <span class="k-annot-tag">waits on graphty-element</span></h3><p>One self-contained HTML file: the boundary first (1,059 of 1,262 interactions), then the saved views as pages with their notes and each note's author, then the methods. Figures are embedded, text is real text, it opens offline in any browser and prints to PDF. <a href="../screens/export-dialog.html#evidence">See it on another case</a>.</p></div>
+  <div class="k-flow-step"><h3>Project</h3><p>The whole analysis with its data, for a colleague who will keep working on it. It has no trust check: it is the analysis itself, not a claim about it.</p></div>
+  <div class="k-flow-step"><h3>Starting from a selection</h3><p>With a set selected, TP53 neighbors for example, Export... opens the same dialog with Scope: the selection. There is no second export dialog: the same Look, check and preview apply to every figure.</p></div>
+  <div class="k-flow-step" data-branch><h3>Scripting the same export <span class="k-annot-tag">proposed</span></h3><p>There is no scripting control in the dialog. Once graphty-element publishes calls that write these files, the methods text ends with one line naming their documentation page, and Help links to the same page; the shape is proposed in <a href="../framework-changes.md">framework-changes.md</a>.</p></div>
+</div>
+
+<h2>What this flow claims</h2>
+<table class="facts wide">
+<tr><th>Task</th><td>Export, the task that closes a piece of work, and the tail task of saving a recipe.</td></tr>
+<tr><th>Serves</th><td>The weekly return: Publish. The alert investigation: Determine, Hand over. A recipe travels: Save the recipe.</td></tr>
+<tr><th>Starts from</th><td>Anywhere: the project-name menu, the Data panel's header, Ctrl+Shift+E or Quick actions; the table dock's Export table... for a table; a selection, which sets the scope.</td></tr>
+<tr><th>Scale</th><td>The same route at every size. A figure over the density boundary is written reduced and says so; past the drawing limit its row is disabled with its reason.</td></tr>
+<tr><th>Claim</th><td>"This figure, table or file shows this value on this scope, with its legend and method; in gray, up and down stay apart; and the file is what the preview showed."</td></tr>
+<tr><th>Record</th><td>An export changes nothing in the project and has no undo entry; the Look chosen in the dialog applies to the file only. Each file written is listed in Data, Sent and saved. Coloring by log2FC, with its band, is the one step with an undo entry.</td></tr>
+<tr><th>Desk count</th><td>The figure: 1 step to color (Style by this, Color) and 1 field for the band, then 3 steps (Export...; Use Print look; Export 2 files). The table: 1 travel (the Edges tab), 2 steps (Export table...; Export 2 files). Recipe: 2 steps (Export...; check Share the setup, without data) and Export, plus its name.</td></tr>
+<tr><th>First failure</th><td>A figure that goes to print with up and down in the same gray, or with the largest decreases printed palest, or without its legend or scope. Shape for the sign and a check of every pair of bins exist to prevent it.</td></tr>
+<tr><th>Where the analyst may stall</th><td>Will the reviewer see what I see? The In gray pane beside the preview answers on sight, and the check says in words which side each count is on.</td></tr>
+<tr><th>Keyboard</th><td>Ctrl+Shift+E opens Export anywhere; Export... and Export table... are also in Quick actions. In the dialog, Tab moves through Scope, Look, the check line's Use Print look, each row's checkbox then its settings, Cancel, Export; Space toggles a row; Enter on Export commits; Esc cancels; focus returns to what opened it. The check's verdict is announced politely when it changes. No pointer-only step.</td></tr>
+<tr><th>Re-entry</th><td>Where it started: the menu's owner, the Data panel, the same table tab, or the same selection.</td></tr>
+</table>
+
+<h2 id="steps">Steps</h2>
+<p>"Surfaced" means graphty-element does the work and the app shows it. The last column says what the element lacks today.</p>
+<table class="steps wide">
+<thead><tr><th>Step</th><th>Place</th><th>Command</th><th>Pattern</th><th>Undo</th><th>Trust check</th><th>Built by</th><th>Element need</th></tr></thead>
+<tbody>
+<tr><td>color by a signed column</td><td>inspector, Attributes; Style stack "+"</td><td>Style by this: Color; No change within</td><td>Style by this</td><td>Add log2FC color</td><td>diverging at 0 on a signed column; legend counts each side; the band stated</td><td>Surfaced</td><td><b>missing</b>: a no-change band on a diverging layer (proposed)</td></tr>
+<tr><td>open</td><td>project-name menu; Data panel header; table dock; Ctrl+Shift+E; Quick actions</td><td>Export...; Export table...</td><td>the command register</td><td>no undo entry</td><td>scope set to the filter chip's, or the selection</td><td>App (chrome only)</td><td>--</td></tr>
+<tr><td>gray check</td><td>Export dialog, under the preview</td><td>Use Print look; or keep Screen</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>every pair of bins on opposite sides of the midpoint; counts each side</td><td>Surfaced</td><td><b>missing</b>: the gray check and its two verdicts (proposed)</td></tr>
+<tr><td>Print look on a signed layer</td><td>Export dialog, Look</td><td>Look: Print</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>darkness = distance from 0; triangle or circle for the side; fill against outline under a higher shape layer</td><td>Surfaced</td><td><b>missing</b>: the Print look's sign channel (proposed)</td></tr>
+<tr><td>figure</td><td>Export dialog, Figure (.svg) and Methods text</td><td>Export N files</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>the file is the preview: Look named in the legend, scope in the caption, labels as text</td><td>Surfaced</td><td><b>missing</b>: SVG figure export, decided for graphty-element; PDF later</td></tr>
+<tr><td>table</td><td>table dock; Export dialog, Table (.csv)</td><td>Export table...</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>"N of M rows, filtered"; scope in headers; the methods file always written</td><td>Surfaced</td><td><b>missing</b>: "Each exported result's method"; the methods file (proposed)</td></tr>
+<tr><td>recipe</td><td>Export dialog, Share the setup, without data</td><td>Export N files</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>holds only definitions; inputs the recipient supplies are marked</td><td>Surfaced</td><td>recipe <b>missing</b>: "Saved project parts beyond the style stack"</td></tr>
+<tr><td>findings report</td><td>Export dialog, Findings report (.html)</td><td>Export N files</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>scope first, then saved views, notes, methods</td><td>Surfaced</td><td><b>missing</b>: "Not yet in the element at all"</td></tr>
+<tr><td>project</td><td>Export dialog, Project; the project-name menu</td><td>Download project file</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>--</td><td>Surfaced</td><td><b>missing</b>: "Saved project parts beyond the style stack"</td></tr>
+<tr><td>save</td><td>the browser's download; Data, Sent and saved</td><td>--</td><td>Export and file writes (6.11)</td><td>no undo entry</td><td>the notice names the files; the log lists them</td><td>App (chrome only)</td><td>--</td></tr>
+</tbody></table>
+
+<h2>Screens</h2>
+<ul>
+<li><a href="../screens/colour-by-value.html#numbers">Color by a signed value</a>: the layer diverging at 0, with its legend.</li>
+<li><a href="../screens/export-dialog.html">The Export dialog</a>: the figure, the gray check and the Print look, the table, the written state, the failed save, the recipe and the findings report. Light and dark, with an annotation layer citing the framework and naming the compact-mantine component for each part.</li>
+<li><a href="../screens/table-dock.html#out">The table dock</a>: the scope line and Export table....</li>
+</ul>
+<p>See <a href="../framework-changes.md">framework-changes.md</a> for what this flow proposes to change in the framework.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A recipe travels</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .k-doc { max-width: 1180px; }
+  /* one frame per row: the picture (a readable crop plus a whole-screen locator) and its caption */
+  .s-fr { display: grid; grid-template-columns: 620px minmax(0, 1fr); gap: 16px 28px; margin: 0 0 36px; padding-top: 20px; border-top: 1px solid var(--cm-border); }
+  .s-pics { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 10px; }
+  .s-crop { position: relative; flex: none; overflow: hidden; width: calc(var(--w) * var(--s) * 1px); height: calc(var(--h) * var(--s) * 1px); border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border-strong); background: var(--k-canvas); }
+  .s-crop iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(var(--s)) translate(calc(var(--x) * -1px), calc(var(--y) * -1px)); pointer-events: none; }
+  .s-loc { position: relative; flex: none; width: 144px; height: 90px; overflow: hidden; border-radius: 4px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); }
+  .s-loc iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(0.1); pointer-events: none; }
+  .s-loc i { position: absolute; z-index: 2; left: calc(var(--x) / 14.4 * 1%); top: calc(var(--y) / 9 * 1%); width: calc(var(--w) / 14.4 * 1%); height: calc(var(--h) / 9 * 1%); border: 1.5px solid var(--k-annot); border-radius: 2px; }
+  .s-loc-cap { width: 144px; font-size: 11px; line-height: 15px; color: var(--cm-text-secondary); }
+  .s-cap h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; font-size: 15px; line-height: 22px; }
+  .s-cap p { margin: 6px 0; font-size: 13px; line-height: 20px; }
+  .s-who { color: var(--cm-text-secondary); font-size: 12px; }
+  .s-lab { display: block; font-size: 11px; font-weight: 600; letter-spacing: .2px; color: var(--cm-text-secondary); margin-top: 10px; }
+  .s-expect { margin: 2px 0 6px; padding-left: 10px; border-left: 3px solid var(--cm-border-strong); font-style: italic; color: var(--cm-text-secondary); font-size: 13px; line-height: 20px; }
+  .s-branch { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--k-annot-bg); color: var(--cm-text); font-size: 11px; font-weight: 600; }
+  .s-stumble { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--cm-bg-secondary); box-shadow: inset 0 0 0 1px var(--cm-border-strong); font-size: 11px; font-weight: 600; }
+  .s-link { font-size: 12px; }
+  .s-mail { width: 600px; padding: 14px 16px; border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border-strong); background: var(--cm-bg); font-size: 13px; line-height: 20px; }
+  .s-mail .s-h { display: grid; grid-template-columns: 64px 1fr; gap: 2px 8px; padding-bottom: 8px; border-bottom: 1px solid var(--cm-border); }
+  .s-mail .s-h span:nth-child(odd) { color: var(--cm-text-secondary); }
+  .s-mail p { margin: 8px 0; }
+  .s-att { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
+  .s-outcome { margin: 8px 0 32px; padding: 16px 20px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); max-width: 90ch; }
+  .s-outcome h2 { margin-top: 0; }
+  .k-doc table td:first-child { white-space: nowrap; padding-right: 16px; vertical-align: top; }
+  @media (max-width: 1000px) { .s-fr { grid-template-columns: minmax(0, 1fr); } .s-crop { max-width: 100%; } .s-mail { width: auto; } }
+  /* dialog sketches drawn on this page: the Apply dialog's body, in the markup of screens/binding-step.html, at 0.8 */
+  .s-dlg { flex: none; width: 608px; border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border-strong); background: var(--k-canvas); padding: 0; overflow: hidden; }
+  .s-dlg .k-modal { zoom: 0.8; width: 760px; max-width: none; max-height: none; margin: 0; box-shadow: none; position: static; }
+  .s-dlg .k-modal-body { max-height: none; overflow: visible; }
+  .s-dlg-cut { border-top: 1px dashed var(--cm-border-strong); padding: 4px 16px; font-size: 11px; color: var(--cm-text-secondary); }
+  .s-panel { flex: none; width: 328px; padding: 12px 16px; border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border-strong); background: var(--cm-bg); font-size: 11px; line-height: 16px; }
+  .s-panel .s-panel-h { margin: 0 0 6px; font-size: 11px; font-weight: 550; }
+  .s-panel .s-row { display: grid; grid-template-columns: 1fr 112px; gap: 8px; align-items: center; min-height: 28px; }
+  .s-panel .k-field { width: 112px; }
+  .s-panel p { margin: 6px 0 0; color: var(--cm-text-secondary); }
+  .s-prop { margin-left: 4px; }
+  .b-sec { padding: 12px 16px; border-bottom: 1px solid var(--cm-border); }
+  .b-sec:last-child { border-bottom: 0; }
+  .b-sec h3 { font-size: 11px; font-weight: 550; margin: 0 0 6px; color: var(--cm-text-secondary); }
+  .b-files { display: grid; grid-template-columns: 16px 220px 1fr auto; gap: 4px 8px; align-items: center; min-height: 24px; }
+  .b-files .k-btn { height: 22px; font-size: 11px; }
+  .b-big { display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 25px; font-weight: 550; }
+  .b-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
+  .b-line .k-btn { height: 20px; font-size: 11px; }
+  .b-near { display: flex; align-items: center; gap: 8px; min-height: 22px; white-space: nowrap; }
+  .b-near .k-id { width: 64px; flex: none; font-weight: 550; }
+  .b-near .k-btn { height: 20px; font-size: 11px; }
+  .b-ids { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px 16px; margin: 4px 0; }
+  .b-ids > span { display: flex; align-items: center; gap: 6px; min-height: 22px; white-space: nowrap; }
+  .b-ids .k-id { font-weight: 550; }
+  .b-grid { display: grid; grid-template-columns: 120px 160px 1fr 130px; gap: 4px 12px; align-items: center; }
+  .b-grid .k-field { width: 160px; }
+  .b-grp { grid-column: 1 / -1; font-size: 11px; font-weight: 550; color: var(--cm-text-secondary); margin-top: 8px; }
+  .b-cand { grid-column: 2 / -1; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; margin-top: -2px; }
+  .b-warn { grid-column: 2 / -1; display: flex; gap: 6px; align-items: flex-start; font-size: 11px; line-height: 16px; }
+  .b-ok { display: flex; align-items: center; gap: 6px; }
+  .b-hint { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 4px; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); }
+  .b-reason { font-weight: 550; }
+  /* inside a picture (role="img") nothing is a control, so the chosen row is data-selected, not aria-selected */
+  .cs-row { margin: 4px 0; border-radius: 8px; min-height: 40px; padding-top: 6px; padding-bottom: 6px; align-items: flex-start; box-shadow: inset 0 0 0 1px var(--cm-border); }
+  .cs-row > .k-i { margin-top: 2px; }
+  .cs-row[data-selected] { background: var(--cm-bg-selected); box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+  /* the "Expects:" list: one block of text, drawn word for word in the Export preview (frame 1) and on the recipe's card (frame 3) */
+  .s-expects { margin: 8px 0; font-size: 13px; line-height: 20px; }
+  .s-expects ul { margin: 2px 0 0; padding-left: 18px; }
+  .s-expects li { margin: 2px 0; }
+  .s-panel .s-expects { font-size: 11px; line-height: 16px; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); }
+  .s-card { flex: none; width: 600px; padding: 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); background: var(--cm-bg); font-size: 13px; line-height: 20px; }
+  .s-card h4 { display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 25px; font-weight: 550; margin: 4px 0 2px; }
+  .s-card p { margin: 6px 0; }
+  .s-card .s-eyebrow { color: var(--cm-text-secondary); font-size: 11px; font-weight: 550; }
+  .s-card .s-trust { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0; padding: 10px 12px; border-radius: 5px; background: var(--cm-bg-secondary); }
+  .s-card .s-trust b { display: block; }
+  .s-card .s-actions { display: flex; gap: 8px; margin-top: 12px; }
+  @media (max-width: 1000px) { .s-dlg { width: 100%; overflow-x: auto; } .s-card { width: auto; } }
+</style>
+</head>
+<body data-dataset="ppi">
+<div class="k-doc">
+  <p><a href="../index.html">Design gallery</a></p>
+  <h1>A recipe travels: recipe out, recipe in, what matched</h1>
+  <p class="k-lede">Maren, a fourth-year cancer biology postdoc who does her lab's computational work, has settled how the lab colors its protein interaction network for lab meeting: genes by log2 fold change, red up and blue down, the other proteins in muted module colors, weak interactions hidden. She saves that as a recipe with none of the lab's data inside, says that the fold change must come from whoever opens it, and emails it. Tom, the lab manager, opens it on his own laptop and puts this week's qPCR hits on it, because in lab meeting the principal investigator will ask him one question: how many of ours are in there?</p>
+  <p><b>Success line:</b> Tom can state how many of his genes matched and which did not. Every number below comes from the kit's protein network (<span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions) and Tom's <span data-fx="datasets.ppi.expression.rows">96</span>-row qPCR table, both in the kit's fixtures.</p>
+  <p><b>What this version settles.</b> Participants stopped at the recipe's card because it asked for "a protein network" without saying which, and whether it came with the recipe. Now the card lists what the person opening it must supply under "Expects:", naming the network the recipe was made on and saying it is not inside, and Maren's Export preview shows that list word for word, as Tom will see it. The Apply dialog is the one Apply dialog every recipe uses: how the recipe's styles go in is its own choice, "Use these styles" first and "Add these styles on top", neither preselected. A recipe for data already open comes in from the Style stack's +, "From a recipe or file...", in the inspector. Matching genes by alias or previous symbol is deferred, so TP53BP1 and H2AFX still do not match. Everything else is as the sessions showed it working: Apply waiting for his table, the count in words, the unmatched genes by name, "ask the sender", and one Undo.</p>
+  <p><b>How to read the frames.</b> Each picture is the part of the screen that matters, at a readable size. Frames 1, 7 and branch A are crops of the screen mock, with a small whole-screen locator beside them. The card in frame 3, the list beside the crop in frame 1, and the Apply dialog in frames 4 to 6 and branch B are drawn on this page, because the screen mocks still draw the earlier versions. Lines marked "What we expect him to say" are the design's hypothesis in Tom's voice, not findings. Session tasks come from the goal ("Find out how many of your genes are in the lab's network, and which are not"), never from these lines.</p>
+  <p>Screens: <a href="../screens/recipe-apply.html">Share and apply a recipe</a> (export, start screen, applied, undo) and <a href="../screens/binding-step.html">The binding step</a> (the dialog body). The changes to the framework this storyboard needs are in <a href="../framework-changes.md">framework-changes.md</a>, under "Recipe travels".</p>
+
+  <h2>The frames</h2>
+
+  <!-- 1 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-crop" style="--x:800;--y:212;--w:280;--h:232;--s:1"><iframe src="../screens/recipe-apply.html#export" scrolling="no" title="The Export dialog's preview: no data inside" tabindex="-1"></iframe></div>
+      <div class="s-panel" aria-label="Expects: the list the person who opens it will see, and where each input comes from">
+        <div class="s-panel-h">The person who opens it sees</div>
+        <div class="s-expects"><b>Expects:</b><ul><li>a protein network with a module per protein and a confidence per interaction. It is not in this recipe; it was made on ppi-core-300.graphml.</li><li>your own table of genes: a gene id per row and a fold change named <span class="k-id">log2FC</span>, above and below 0. The fold change is never taken from the network.</li></ul></div>
+        <div class="s-panel-h" style="margin-top:10px">Where each comes from</div>
+        <div class="s-row"><span>a gene id, to join a table</span><span class="k-field">Their table<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+        <div class="s-row"><span>a fold change, above and below 0, named <span class="k-id">log2FC</span></span><span class="k-field" data-focus-ring>Their table<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+        <div class="s-row"><span>a module per protein</span><span class="k-field">The network<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+        <div class="s-row"><span>a confidence per interaction</span><span class="k-field">The network<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+        <p>"Their table" means the person who opens the recipe adds it. A column in a network file is never used for it. Each choice rewrites the list above.<span class="k-annot-tag s-prop">proposed</span></p>
+      </div>
+      <div class="s-loc" style="--x:800;--y:212;--w:280;--h:500"><iframe src="../screens/recipe-apply.html#export" scrolling="no" title="" tabindex="-1"></iframe><i></i></div>
+      <div class="s-loc-cap">Maren's project, Export dialog open. Left: the preview's first lines. Right: the rest of the preview, redrawn: the "Expects:" list as Tom will see it, and where each input comes from.</div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">1</span>Maren saves the recipe</h3>
+      <div class="s-who">Maren, at her desk, in her project "Knockdown screen, September".</div>
+      <p>She chooses Main menu, Recipes, Save as a recipe... The Export dialog opens with only Recipe checked; she names it Expression overlay. Scope is grayed out, because a recipe holds no data; its tooltip says so.</p>
+      <p><b>She sees</b> the preview's first line: no data inside, no genes, interactions, fold-change values, positions or notes. Below it, what travels (two color layers, the confidence filter, overview readings), what stays behind, including her 38-gene knockdown set, and, under "The person who opens it sees", the "Expects:" list exactly as it will appear on Tom's screen. It names the network she made the recipe on, ppi-core-300.graphml, and says it is not inside. Under the list, each input says where it comes from. The gene id reads "Their table", as a join always does. The fold change starts at "The network", because her layer reads the network's log2FoldChange; she switches it to "Their table" and gives the name Tom's sheets use, log2FC, and the list above changes to say so. Module and confidence stay "The network".</p>
+      <span class="s-lab">What we expect her to say</span><div class="s-expect">"So that's what Tom gets. The network off the shared drive and his own log2FC, not the old fold change in the network. Good, that column is from the 2024 screen."</div>
+      <p><b>Then</b> she exports one file: Expression overlay, a recipe. (Where each input comes from is a new field in the recipe file, a published format, so it is proposed for the owner's decision.)</p>
+      <a class="s-link" href="../screens/recipe-apply.html#export">Full screen: Export the recipe</a>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-mail">
+        <div class="s-h"><span>From</span><span>Maren</span><span>To</span><span>Tom</span><span>Subject</span><span>Lab overlay for Thursday</span></div>
+        <p>Tom, this is how we color the network for lab meeting. Open the network file on the shared drive (ppi-core-300.graphml) and put this week's qPCR hits on it. It's just the colors and the filter, none of our data.</p>
+        <span class="s-att"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Expression overlay <span class="k-secondary">recipe</span></span>
+      </div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">2</span>The file travels by email</h3>
+      <div class="s-who">Between people; no graphty screen.</div>
+      <p>Tom has two files to bring: the lab's network, ppi-core-300.graphml, on the shared drive, and his own table qpcr-hits-2026-09.csv in his Downloads folder, <span data-fx="datasets.ppi.expression.rows">96</span> rows with the columns symbol, log2FC and padj. He does not know that the network file still carries a log2FoldChange column from an earlier screen.</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"Just the colors. Fine. We'll see what it does with my list."</div>
+      <p><b>Then</b> he opens graphty in his browser: no install, no sign-in.</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <section class="s-card" aria-label="Recipe waiting for data">
+        <div class="s-eyebrow">Recipe waiting for data</div>
+        <h4><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Expression overlay</h4>
+        <div class="k-secondary">Recipe, version 1. Saved by Maren on Sep 26 2026.</div>
+        <p>Colors your genes by log2 fold change, red for up and blue for down, draws the other proteins in muted module colors, and hides interactions with confidence under 0.7.</p>
+        <p><b>No data inside.</b></p>
+        <div class="s-expects"><b>Expects:</b><ul><li>a protein network with a module per protein and a confidence per interaction. It is not in this recipe; it was made on ppi-core-300.graphml.</li><li>your own table of genes: a gene id per row and a fold change named <span class="k-id">log2FC</span>, above and below 0. The fold change is never taken from the network.</li></ul></div>
+        <div class="s-trust"><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg><span><b>Data stays on this computer.</b>This recipe names no server, so graphty contacts none. Files you add are read in this browser and are not uploaded.</span></div>
+        <div class="s-actions"><span class="k-btn" data-focus-ring>Add data...</span><span class="k-btn k-btn-ghost">Close recipe</span></div>
+      </section>
+      <div class="s-loc" style="--x:368;--y:72;--w:704;--h:362"><iframe src="../screens/recipe-apply.html#start" scrolling="no" title="" tabindex="-1"></iframe><i></i></div>
+      <div class="s-loc-cap">The start screen. The card is redrawn here with its "Expects:" list; the samples sit below it.</div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">3</span>Tom drops the recipe on the start screen</h3>
+      <div class="s-who">Tom, lab manager, 13-inch laptop between two meetings.</div>
+      <p>He drags the attachment onto the page, his first move with any file. The page lights up "Drop to open".</p>
+      <p><b>He sees</b> a card at the top: Expression overlay, a recipe waiting for data, saved by Maren on Sep 26 2026. (Who saved it is a proposed field: a recipe does not record its author today, and adding it changes a published file format, so it is the owner's decision.) The card says what the recipe does and "No data inside.", then "Expects:" and the same two lines Maren saw in her preview: the network the recipe was made on, ppi-core-300.graphml, which is not in the recipe, and his own table with a log2FC column. Before he adds anything it answers the question he always asks: his data stays on this computer, and the recipe names no server, so graphty contacts none.</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"ppi-core-300, that's the one on the shared drive. And my own list with log2FC. These hits aren't published; it stays on this laptop? Then I'll add them."</div>
+      <p><b>Then</b> he clicks Add data... and picks the network the card named, on the shared drive; he does not need the email to know which. His table is in another folder; he means to add it next. Choosing a file makes an Untitled project holding the recipe; from here on, Cancel and Undo come back to that project, not to the start screen.</p>
+      <a class="s-link" href="../screens/recipe-apply.html#start">Full screen: A recipe waiting for data (the earlier card)</a>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-dlg"><div class="k-modal" role="img" aria-label="The Apply dialog with the network only: Apply off until his table is added">
+        <div class="k-modal-head">Apply recipe Expression overlay<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="k-modal-body" style="padding:0">
+          <div class="b-sec"><h3>Your files</h3><div class="b-files">
+            <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-id">ppi-core-300.graphml</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span></span>
+            <svg class="k-i k-secondary"><use href="../kit/icons.svg#table"/></svg><span class="k-secondary">Your table: not added yet</span><span class="k-secondary">This recipe colors genes from it.</span><span class="k-btn" data-focus-ring>Add your table...</span></div></div>
+          <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+            <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+            <span class="b-grp" style="margin-top:2px">From your table (2)</span>
+            <span>Genes, to join</span><span class="k-field" data-disabled data-placeholder>gene column</span><span class="k-secondary">waiting for your table</span><span class="k-secondary">Fold change color</span>
+            <span>Fold change</span><span class="k-field" data-disabled data-placeholder>log2FC</span><span class="k-secondary">waiting for your table</span><span class="k-secondary">Fold change color</span>
+            <span class="b-cand">This recipe takes the fold change from your table only, so the network's log2FoldChange is not used.</span>
+            <span class="b-grp">From the network, found by name (2)</span>
+            <span>Module</span><span class="k-id">module</span><span class="k-secondary">found by name</span><span class="k-secondary">Module color</span>
+            <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+          </div></div>
+          <div class="b-sec"><h3>Styles: 2 layers, Fold change color and Module color</h3><div class="k-row cs-row"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row cs-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your Base style, which stays.</span></span></div></div>
+        </div>
+        <div class="k-modal-foot"><span class="b-reason">Add your table to apply. This recipe needs log2FC from your data.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" aria-disabled="true">Apply</span></div>
+      </div></div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">4</span>Apply waits for his table</h3>
+      <div class="s-who">The Apply dialog, over the empty project, before anything changes.</div>
+      <p>The network read without a question, so there is no separate load step: the dialog opens at once, and nothing loads until Apply.</p>
+      <p><b>He sees</b> his network listed and, under it, a row for the file that is missing: "Your table: not added yet", with a full-size Add your table... button, where focus is. Below, the two things the recipe takes from his table are waiting, and one line says the network's old log2FoldChange is not used. Module and confidence were found in the network. At the bottom, the choice every Apply dialog asks, how the recipe's styles go in: "Use these styles" first, then "Add these styles on top", neither preselected. Apply is off, and the reason is printed beside it, not in a tooltip: "Add your table to apply. This recipe needs log2FC from your data."</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"Right, it wants my list. It's in Downloads."</div>
+      <p><b>Then</b> he clicks Add your table... and picks qpcr-hits-2026-09.csv. The dialog stays open, the network stays listed, and nothing has been applied.</p>
+      <a class="s-link" href="../screens/binding-step.html">The dialog body: The binding step</a>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-dlg"><div class="k-modal" role="img" aria-label="84 of 96 genes matched, and the 12 that did not">
+        <div class="k-modal-head">Apply recipe Expression overlay<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="k-modal-body" style="padding:0">
+          <div class="b-sec"><h3>Your files</h3><div class="b-files">
+            <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-id">ppi-core-300.graphml</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span></span>
+            <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+          <div class="b-sec"><div class="b-big k-num"><span><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> genes matched</span></div>
+            <div class="b-line"><span class="k-secondary">Your table's</span><span class="k-id">symbol</span><span class="k-secondary">against the network's protein names; letter case must match, as the recipe sets.</span></div>
+            <div class="b-line" style="margin-top:4px"><b class="k-num"><span data-fx="datasets.ppi.expression.unmatchedCount">12</span> did not match.</b><span class="k-secondary">They stay in your table and are not colored.</span></div>
+            <div class="b-near"><span class="k-id">Mdm2</span><span class="k-secondary">differs only in letter case from MDM2</span><span class="k-btn k-btn-secondary">Use MDM2</span></div>
+            <div class="b-line" style="margin-top:4px"><b class="k-num">Not in this network: 11 ids, for example 7-Sep.</b></div>
+            <div class="b-ids"><span><span class="k-id">7-Sep</span><span class="k-secondary">date?</span></span><span><span class="k-id">2-Mar</span><span class="k-secondary">date?</span></span><span><span class="k-id">TP53BP1</span></span><span><span class="k-id">H2AFX</span></span><span><span class="k-id">GAPDH</span></span><span><span class="k-id">ACTB</span></span><span><span class="k-id">VEGFA</span></span><span><span class="k-id">HIF1A</span></span><span><span class="k-id">IL6</span></span><span><span class="k-id">CXCL8</span></span><span><span class="k-id">SERPINE1</span></span></div>
+            <div class="b-hint"><svg class="k-i"><use href="../kit/icons.svg#calendar"/></svg><div><b>2 ids look like spreadsheet dates (SEPT2 -&gt; 2-Sep).</b> A spreadsheet can turn a gene name into a date when the file is opened. Correct them in your table and add it again.</div></div>
+            <div class="b-line"><span class="k-btn k-btn-ghost" style="margin-left:-8px"><svg class="k-i"><use href="../kit/icons.svg#copy"/></svg>Copy the 12 symbols</span></div></div>
+        </div>
+        <div class="s-dlg-cut">The dialog continues: "What the recipe reads from the data", then Styles, with "Use these styles" and "Add these styles on top"; frame 6.</div>
+      </div></div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">5</span>How many of his genes matched</h3>
+      <div class="s-who">Same dialog, top half, with both files in.</div>
+      <p><b>He sees</b> "<span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> genes matched", his table's symbol column against the network's protein names. Below it, all <span data-fx="datasets.ppi.expression.unmatchedCount">12</span> that did not, each by name, with only what graphty can tell from the value itself: Mdm2 differs only in letter case from MDM2, with a Use MDM2 button; the other eleven are "Not in this network", and 7-Sep and 2-Mar carry a "date?" tag with one line on how a spreadsheet does that.</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"Eighty-four. 7-Sep, that's Excel again, not me. GAPDH and ACTB are my reference genes, they wouldn't be in a network."</div>
+      <p><b>Then</b> he leaves Mdm2 alone: whether it is a typo or a mouse gene is Maren's call. He does not see that TP53BP1 is in the network under its alias 53BP1, or that H2AFX is the old name of H2AX, which is there too. Nothing on screen can tell him: matching by alias or previous symbol is deferred, so graphty matches the ids as written.</p>
+      <a class="s-link" href="../screens/binding-step.html#some">The dialog body: How many matched</a>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-dlg"><div class="k-modal" role="img" aria-label="log2FC found in his table; Apply is ready">
+        <div class="s-dlg-cut" style="border-top:0;border-bottom:1px dashed var(--cm-border-strong)">Above: his files and the 84 of 96, frame 5.</div>
+        <div class="k-modal-body" style="padding:0">
+          <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+            <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+            <span class="b-grp" style="margin-top:2px">From your table, found by name (2)</span>
+            <span>Genes, to join</span><span class="k-field">symbol<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num"><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> matched</span><span class="k-secondary">Fold change color</span>
+            <span>Fold change</span><span class="k-field">log2FC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num b-ok"><svg class="k-i k-i-sm k-brand"><use href="../kit/icons.svg#check"/></svg><span data-fx="datasets.ppi.expression.up">36</span> up, <span data-fx="datasets.ppi.expression.down">48</span> down</span><span class="k-secondary">Fold change color</span>
+            <span class="b-cand k-num">Blue below 0, red above, as the recipe draws it; <span data-fx="datasets.ppi.expression.range">-2.41 to 2.98</span> on the matched genes.</span>
+            <span class="b-grp">From the network, found by name (2)</span>
+            <span>Module</span><span class="k-id">module</span><span class="k-secondary">found by name</span><span class="k-secondary">Module color</span>
+            <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+          </div></div>
+          <div class="b-sec"><h3>Styles: 2 layers, Fold change color and Module color</h3><div class="k-row cs-row" data-selected><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row cs-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your Base style, which stays.</span></span></div></div>
+        </div>
+        <div class="k-modal-foot"><span class="k-secondary">Apply is one step. One Undo takes all of it back.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+      </div></div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">6</span>His own fold change, found by name</h3>
+      <div class="s-who">Same dialog, lower half.</div>
+      <p><b>He sees</b> the two things the recipe takes from his table, both found: symbol for the join, and log2FC for the fold change, from his table and nowhere else. The row says what it will do on his numbers: <span data-fx="datasets.ppi.expression.up">36</span> up and <span data-fx="datasets.ppi.expression.down">48</span> down, which add up to his <span data-fx="datasets.ppi.expression.matched">84</span>. His column runs below and above 0, as the recipe's colors do, so nothing is asked. Module and confidence come from the network; the filter will keep <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span> interactions. Under Styles he picks Use these styles: it says none of his layers write the same thing, so nothing of his goes, and Base style stays. Apply is on now, and the footer says it is one step that one Undo takes back.</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"Thirty-six and forty-eight, that's eighty-four. That's mine."</div>
+      <p><b>Then</b> he clicks Apply.</p>
+      <a class="s-link" href="../screens/binding-step.html#chosen">The dialog body: Ready to apply</a>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-crop" style="--x:305;--y:385;--w:690;--h:200;--s:0.87"><iframe src="../screens/recipe-apply.html#applied" scrolling="no" title="The legend and the notice after Apply" tabindex="-1"></iframe></div>
+      <div class="s-crop" style="--x:1200;--y:140;--w:240;--h:275;--s:0.85"><iframe src="../screens/recipe-apply.html#applied" scrolling="no" title="The graph's Statistics with the recipe's count" tabindex="-1"></iframe></div>
+      <div class="s-loc" style="--x:305;--y:140;--w:1135;--h:445"><iframe src="../screens/recipe-apply.html#applied" scrolling="no" title="" tabindex="-1"></iframe><i></i></div>
+      <div class="s-loc-cap">Left: the legend and the notice, over the canvas. Right: the graph's Statistics, in the right column.</div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="k-step">7</span>Applied</h3>
+      <div class="s-who">The graph, its legend, the notice and the graph's Statistics.</div>
+      <p><b>He sees</b> his <span data-fx="datasets.ppi.expression.matched">84</span> genes in red (up) and blue (down); the other 216 proteins in the lab's module colors, muted so that no module hue competes with the fold change; weak interactions hidden, the filter chip reading "Filtered: 1,059 of 1,262 edges". The notice says "Expression overlay applied: 84 of 96 genes matched", with Show the 12 and Undo. When the notice goes, the same count stays in the graph's Statistics, under the filtered readings (12 components, 11 isolated proteins). The two layers are marked "recipe" in the inspector's Style stack.</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"That's the lab's picture with my genes on it. PSMA2 and SNRPD3 up the most."</div>
+      <p><b>Then</b> he goes to lab meeting. The outcome is below.</p>
+      <a class="s-link" href="../screens/recipe-apply.html#applied">Full screen: Applied</a>
+    </div>
+  </section>
+
+  <div class="s-outcome">
+    <h2>Outcome</h2>
+    <p>The success line is met if, in the session, Tom can say something like this without opening anything after Apply: <b>"84 of my 96 genes are in the network. No match for 12: 7-Sep and 2-Mar, which look like Excel dates; Mdm2, which differs from MDM2 only in case, I'll ask Maren; TP53BP1, H2AFX, VEGFA, HIF1A, IL6, CXCL8 and SERPINE1; and GAPDH and ACTB, our reference genes."</b> He could read the count before he applied, in the notice after, and in the graph's Statistics once the notice had gone. He colored by this week's numbers, because the recipe could only take the fold change from his table, and Apply would not start until his table was in. His hits never left the laptop.</p>
+  </div>
+
+  <h2>Branches, drawn</h2>
+
+  <!-- A -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-crop" style="--x:530;--y:300;--w:440;--h:156;--s:1"><iframe src="../screens/recipe-apply.html#undone" scrolling="no" title="The canvas after one Undo: the recipe waiting for data" tabindex="-1"></iframe></div>
+      <div class="s-loc" style="--x:530;--y:300;--w:440;--h:156"><iframe src="../screens/recipe-apply.html#undone" scrolling="no" title="" tabindex="-1"></iframe><i></i></div>
+      <div class="s-loc-cap">The project after Undo: the card on the canvas; on the right, Add data... and the Style stack with the recipe's two layers waiting</div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="s-branch">Branch A</span>One Undo, or Cancel</h3>
+      <div class="s-who">After frame 7, Edit, Undo (Ctrl+Z); or during frames 4 to 6, Cancel or Esc in the dialog.</div>
+      <p>One Undo takes back the whole apply: the colors, the filter, the recipe's two layers and the two loaded files. The project stays, with the recipe waiting for data: the canvas card, the Graphs section's one empty row, and in the inspector Add data... and the Style stack's two layers marked "waiting"; Export... in the project-name menu is disabled. The card says his files on disk were not changed. There is no "Undone" notice, since the canvas visibly empties. Cancel and Esc in the Apply dialog land in the same place, with nothing applied. Redo (Ctrl+Shift+Z) brings all of it back, the count with it.</p>
+      <p><b>Not narrated as success.</b> Whether seeing his data vanish on Undo reassures Tom or scares him is a study task: "Take back what you just did, then get it back."</p>
+      <a class="s-link" href="../screens/recipe-apply.html#undone">Full screen: After one Undo</a>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="s-fr">
+    <div class="s-pics">
+      <div class="s-dlg"><div class="k-modal" role="img" aria-label="His table has no log2FC column: ask the sender">
+        <div class="k-modal-head">Apply recipe Expression overlay<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="k-modal-body" style="padding:0">
+          <div class="b-sec"><h3>Your files</h3><div class="b-files">
+            <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-id">ppi-core-300.graphml</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span></span>
+            <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09-core.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, logFC, PValue</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+          <div class="b-sec"><div class="b-big k-num"><span><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> genes matched</span></div>
+            <div class="b-line"><span class="k-secondary"><span data-fx="datasets.ppi.expression.unmatchedCount">12</span> did not match.</span><span class="k-btn k-btn-ghost">Show the 12</span></div></div>
+          <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
+            <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
+            <span class="b-grp" style="margin-top:2px">Needs a choice (1)</span>
+            <span>Fold change</span><span class="k-field" data-placeholder data-focus-ring>Choose a column<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">not chosen</span><span class="k-secondary">Fold change color</span>
+            <span class="b-warn"><span class="k-warn-glyph">!</span><span><b>Your table has no log2FC column. Ask the sender which column they meant.</b><br><span class="k-secondary">In your table and signed, like a fold change: logFC, <span data-fx="datasets.ppi.expression.matched">84</span> matched values, <span data-fx="datasets.ppi.expression.range">-2.41 to 2.98</span>.</span></span></span>
+            <span class="b-grp">From your table, found by name (1)</span>
+            <span>Genes, to join</span><span class="k-field">symbol<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-num"><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> matched</span><span class="k-secondary">Fold change color</span>
+            <span class="b-grp">From the network, found by name (2)</span>
+            <span>Module</span><span class="k-id">module</span><span class="k-secondary">found by name</span><span class="k-secondary">Module color</span>
+            <span>Confidence</span><span class="k-id">confidence</span><span class="k-num">keeps <span data-fx="datasets.ppi.expression.highConfidence.edgesKept">1,059</span> of <span data-fx="datasets.ppi.edges">1,262</span></span><span class="k-secondary">Confidence filter</span>
+          </div></div>
+          <div class="b-sec"><h3>Styles: 2 layers, Fold change color and Module color</h3><div class="k-row cs-row"><svg class="k-i"><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">No data inside. Its 2 layers take the place of any of yours that write the same thing; none of yours do. Base style stays.</span></span></div><div class="k-row cs-row"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">2 layers above your Base style, which stays.</span></span></div></div>
+        </div>
+        <div class="k-modal-foot"><span class="b-reason">Choose the fold-change column, and how the styles go in, to apply.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" aria-disabled="true">Apply</span></div>
+      </div></div>
+    </div>
+    <div class="s-cap">
+      <h3><span class="s-branch">Branch B</span>His table has no log2FC: ask the sender</h3>
+      <div class="s-who">At frame 4, Tom picks the sheet the sequencing core sent back, qpcr-hits-2026-09-core.csv: the same <span data-fx="datasets.ppi.expression.rows">96</span> genes, but its fold-change column is named logFC.</div>
+      <p>The join still finds <span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span>. The fold-change row is marked and its picker starts empty: "Your table has no log2FC column. Ask the sender which column they meant." Under it, the columns of his table that are signed like a fold change, here only logFC, with its count and range. The network's log2FoldChange is not in the list, and graphty does not pick logFC for him because its name is close. Focus is on the picker, and Apply stays off with the reason beside it: "Choose the fold-change column, and how the styles go in, to apply."</p>
+      <span class="s-lab">What we expect him to say</span><div class="s-expect">"logFC. Probably the same thing. I'll ask Maren before I put it in front of the PI."</div>
+      <p><b>Then</b> he either writes to Maren and cancels, which returns to the project with the recipe waiting (branch A), or picks logFC himself; the notice and the report then say the fold change was "chosen by you: logFC".</p>
+      <a class="s-link" href="../screens/binding-step.html#some">The dialog body: The binding step</a>
+    </div>
+  </section>
+
+  <h2>Behavior this storyboard specifies</h2>
+  <table>
+    <tr><td>Expects</td><td>The recipe's card on the start screen says "No data inside." and then "Expects:" with one line per thing the person opening it must supply: the network the recipe was made on, by file name, and that it is not in the recipe; and their own table, with the column name the recipe will look for. The Export preview shows the same list, word for word, under "The person who opens it sees", and it changes as the sender changes where an input comes from.</td></tr>
+    <tr><td>Where each input comes from</td><td>Save as a recipe... (the Export dialog with only Recipe checked) lists every input the recipe will ask for with a Select, "Their table" or "The network", and the name the recipient's column should have. A join key starts at Their table; any other input starts where its column lives in the sender's project. The preview says in one line what Their table means. The recipe file records it (proposed; a published format).</td></tr>
+    <tr><td>Apply before the table</td><td>While any "Their table" input has no table, the dialog lists "Your table: not added yet" with a full-size Add your table... button, focus on it; those inputs read "waiting for your table"; Apply is off and the reason is printed beside it: "Add your table to apply. This recipe needs {column} from your data." The dialog never says everything was found while an input is waiting.</td></tr>
+    <tr><td>Never the network's column</td><td>For a "Their table" input, only columns of the recipient's tables are candidates, even when a network file holds a column with the recipe's own name. The dialog says once that the network's column is not used.</td></tr>
+    <tr><td>Column missing: ask the sender</td><td>When the table has no column of the recipe's name, the row is marked, the picker starts empty and lists the table's columns of the right level with where they live, how many values and their range; the row says "Your table has no {column} column. Ask the sender which column they meant." No column is proposed or bound for him, not even a close name. Apply is off with "Choose the fold-change column, and how the styles go in, to apply." A column he picks is recorded as "chosen by you".</td></tr>
+    <tr><td>How the styles go in</td><td>The one Apply dialog, the same for every recipe, ends with a Styles section: "Use these styles" first (its layers take the place of any of the reader's layers that write the same thing, each named; layers an algorithm suggested are never replaced; Base style stays), then "Add these styles on top". Neither is preselected, and Apply waits for the choice.</td></tr>
+    <tr><td>Where the count lives</td><td>Always in words, "84 of 96 genes matched", never as a fraction or a percentage. Three places, in order of time: the Apply dialog before anything changes; the notice after Apply ("84 of 96 genes matched", Show the 12, Undo); a row in the graph's Statistics naming the applied recipe and its count, which opens the full report. The report never lives in the notice alone.</td></tr>
+    <tr><td>Unmatched ids</td><td>Listed by name, never only counted: a case-only near miss on its own row with its hand match (Use MDM2, recorded as matched by hand); the rest under "Not in this network: 11 ids, for example 7-Sep", a date-shaped id tagged "date?" with one general line ("2 ids look like spreadsheet dates (SEPT2 -&gt; 2-Sep)"). Copy the 12 symbols puts the list on the clipboard.</td></tr>
+    <tr><td>A signed column</td><td>When the recipient's column runs below and above 0, as the recipe's colors do, nothing is asked; the row shows what it will do on his numbers ("36 up, 48 down"). A question is asked only when the column's sign disagrees with the recipe's scale.</td></tr>
+    <tr><td>Focus and keyboard</td><td>The dialog opens with focus on the first thing that needs him: Add your table... (frame 4), the fold-change picker (branch B), or Apply when nothing does. Tab walks the rows in order, then Cancel and Apply; a disabled Apply stays in the Tab order so its reason is read with it. Esc or Cancel closes it with nothing applied and lands on the project's canvas with the recipe waiting, focus on the card's Add data.... After Apply, focus goes to the canvas and the notice is announced politely; Ctrl+Z is the one Undo, Ctrl+Shift+Z the Redo.</td></tr>
+    <tr><td>Undo</td><td>One entry, "Apply recipe Expression overlay", that removes the layers, the filter and the files loaded for it, and returns to the same project with the recipe waiting for data. No notice: the empty canvas and its card are the feedback. Files on disk and the recipe file are never written.</td></tr>
+    <tr><td>Where data goes</td><td>Answered on the start screen before any data is added. When a recipe names a data source, the same line names the host and Apply waits for a separate confirm to contact it; nothing is fetched first.</td></tr>
+  </table>
+
+  <h2>Branches this storyboard does not draw</h2>
+  <ul>
+    <li><b>An older network file</b> with protein names only (ppi-core-300-2024.graphml): module and confidence have nothing to read. Each row says what it switches off (the other 216 proteins stay in the Base style; all 1,262 interactions show), Apply still applies the rest, and the notice and Statistics add "2 parts off". The fold change is unaffected, since it comes from his table. Drawn, with the earlier fold-change row, in <a href="../screens/recipe-apply.html#unbound">Two parts unbound</a>.</li>
+    <li><b>0 genes matched</b> (the table's ids are Ensembl, not symbols): the join row is marked "0 of 96 matched" and its Select opens on the table's other text columns. See <a href="../screens/binding-step.html#none">Nothing matched</a>.</li>
+    <li><b>A file that raises a load question</b> (numbers stored as text, parallel edges): the load step comes first for that file, its button reads Continue to binding, and Back from the Apply dialog returns to it with every choice kept.</li>
+    <li><b>A recipe that names a server</b> (a data-source query): the start screen's line reads "This recipe will read from {host} when you confirm", and the dialog has a separate Confirm for that host before Apply.</li>
+    <li><b>The recipe applied to data already open</b> (the Style stack's +, From a recipe or file..., or dropping the recipe on the canvas): the same dialog; a "Their table" input still waits for a table added in this dialog or already joined, never a network column. Undo leaves the data loaded.</li>
+    <li><b>Making this recipe the default overview</b> is not part of this journey. An overview never paints, and Tom's motive here is colors; if that behavior needs a picture it gets its own flow, with a reader whose motive is the readings.</li>
+  </ul>
+
+  <h2>What the study watches for</h2>
+  <ul>
+    <li><b>Apply before the table.</b> Does Tom read the reason beside the disabled Apply and find Add your table... without help? The last round's participants found the small link only after about 50 seconds, and one only because the counts did not add up to his rows.</li>
+    <li><b>Ask the sender</b> (branch B). Does he stop and ask, or pick logFC? Either is fine; the failure is picking without reading the line. Does the list of his table's signed columns help him, or read as a suggestion to take?</li>
+    <li><b>The count check.</b> Does he still add up "36 up, 48 down" against his 84? If he does not need to any more, the dialog is doing its job.</li>
+    <li><b>Reading direction.</b> Can he tell up from down from the legend on the first try? The recipe uses red for up and blue for down, the usual expression convention, and red-blue avoids the red-green pair his mild color weakness confuses. Does he read a muted sky-blue Ribosome node as down-regulated?</li>
+    <li><b>Expects.</b> Does Tom know which network to add from the card alone, without the email? Does "It is not in this recipe" read as a missing attachment?</li>
+    <li><b>Use these styles.</b> With no layers of his own, both choices do the same thing here. Does Tom stop at a choice that changes nothing for him, and does the line "none of yours do" settle it?</li>
+    <li><b>"Not in this network".</b> Does he read it as "these genes do not exist"? Does he notice that TP53BP1 and H2AFX name proteins the network holds under other names (53BP1, H2AX)? Matching by alias or previous symbol is deferred; a lab could add an alias column to its network.</li>
+    <li><b>Mdm2.</b> Does he take Use MDM2 as a capitalization fix, when a mouse-case symbol on a human list can mean a mouse gene?</li>
+    <li><b>Undo unloading the files.</b> Does seeing his data vanish reassure him or scare him?</li>
+    <li><b>Maren's side.</b> Does she understand "Their table" against "The network" at export, and does she think to switch the fold change to "Their table" when it starts at "The network"? Does seeing the "Expects:" list as Tom will see it make the switch obvious? If not, the export needs to ask rather than default.</li>
+  </ul>
+</div>
+</body>
+</html>

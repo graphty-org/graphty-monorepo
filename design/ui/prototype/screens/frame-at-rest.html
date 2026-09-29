@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Main frame at rest, Les Miserables</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css">
+<script src="../kit/kit.js" defer></script>
+<style>
+  /* States: open with #s1 ... #s9 (add "a" for annotations on: #s1a). The dataset: ?dataset=lesmis (default),
+     ppi, ppiEvidence (the evidence file, as the load step leaves it) or transactions, or ?task=<a task in kit/fixtures.json>; its numbers come from the fixtures.
+     The version under comparison: ?arm=a (default: "Nothing has been sent from this project" at rest) or ?arm=b (empty at rest). */
+  .anchor { position: fixed; top: 0; left: 0; width: 0; height: 0; }
+  body:not(:has(.anchor:target)) [data-on]:not([data-on~="1"]),
+  body:has(#s1:target, #s1a:target) [data-on]:not([data-on~="1"]),
+  body:has(#s2:target, #s2a:target) [data-on]:not([data-on~="2"]),
+  body:has(#s3:target, #s3a:target) [data-on]:not([data-on~="3"]),
+  body:has(#s4:target, #s4a:target) [data-on]:not([data-on~="4"]),
+  body:has(#s5:target, #s5a:target) [data-on]:not([data-on~="5"]),
+  body:has(#s6:target, #s6a:target) [data-on]:not([data-on~="6"]),
+  body:has(#s7:target, #s7a:target) [data-on]:not([data-on~="7"]),
+  body:has(#s8:target, #s8a:target) [data-on]:not([data-on~="8"]),
+  body:has(#s9:target, #s9a:target) [data-on]:not([data-on~="9"]) { display: none !important; }
+  /* Version B: the location slot is empty at rest; it still speaks when data leaves */
+  body[data-arm="b"] .k-privacy.rest { display: none !important; }
+
+  /* State 2 is the same screen in the dark theme, whatever the viewer's theme */
+  :root:has(#s2:target, #s2a:target) { color-scheme: dark; }
+  :root:has(#s2:target, #s2a:target) .k-light-only { display: none !important; }
+  :root:has(#s2:target, #s2a:target) .k-dark-only { display: revert !important; }
+  body { background: var(--cm-bg); color: var(--cm-text); }
+
+  /* The mock's own controls: annotation ink, so nobody reads them as product UI */
+  .m-bar { position: fixed; z-index: 200; top: 8px; left: 306px; right: 249px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px; padding: 4px 8px; border-radius: 8px; background: var(--k-annot-bg); border: 1px solid var(--k-annot); font-size: 11px; white-space: nowrap; }
+  .m-bar a { padding: 4px 6px; border-radius: 5px; color: var(--cm-text); text-decoration: none; }
+  body:not(:has(.anchor:target)) .m-bar a[href="#s1"],
+  body:has(#s1:target, #s1a:target) .m-bar a[href="#s1"], body:has(#s2:target, #s2a:target) .m-bar a[href="#s2"],
+  body:has(#s3:target, #s3a:target) .m-bar a[href="#s3"], body:has(#s4:target, #s4a:target) .m-bar a[href="#s4"],
+  body:has(#s5:target, #s5a:target) .m-bar a[href="#s5"], body:has(#s6:target, #s6a:target) .m-bar a[href="#s6"],
+  body:has(#s7:target, #s7a:target) .m-bar a[href="#s7"], body:has(#s8:target, #s8a:target) .m-bar a[href="#s8"],
+  body:has(#s9:target, #s9a:target) .m-bar a[href="#s9"] { background: var(--k-annot); color: #fff; }
+  .m-bar a[aria-current] { outline: 1px solid var(--k-annot); }
+  .m-bar .m-sep { width: 1px; height: 16px; margin: 0 6px; background: var(--k-annot); }
+  .m-bar label { display: flex; align-items: center; gap: 4px; margin-inline-start: 8px; color: var(--k-annot-ink); font-weight: 600; }
+
+  /* Annotation layer: dashed boxes with a number on each annotated element, and the key.
+     Blocked parts (absent until graphty-element provides what they read) use a second ink. */
+  :root { --m-blocked: #b35900; }
+  .an { display: none; }
+  body:has(#annot:checked) .an, body:has(.anchor[id$="a"]:target) .an { display: block; }
+  body:has(#annot:checked) .an-t, body:has(.anchor[id$="a"]:target) .an-t { outline: 2px dashed var(--k-annot); outline-offset: -2px; }
+  body:has(#annot:checked) .an-t.an-b, body:has(.anchor[id$="a"]:target) .an-t.an-b { outline: 2px dotted var(--m-blocked); }
+  body:has(#annot:checked) .an-t::after, body:has(.anchor[id$="a"]:target) .an-t::after {
+    content: attr(data-n); position: absolute; z-index: 95; top: 2px; right: 2px; display: grid; place-items: center;
+    min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--k-annot); color: #fff;
+    font-size: 11px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  body:has(#annot:checked) .an-b::after, body:has(.anchor[id$="a"]:target) .an-b::after { background: var(--m-blocked); }
+  /* Small targets: the badge sits outside, so it never covers the label */
+  body:has(#annot:checked) .an-out::after, body:has(.anchor[id$="a"]:target) .an-out::after { top: -10px; right: -10px; }
+  body:has(#annot:checked) .an-left::after, body:has(.anchor[id$="a"]:target) .an-left::after { right: auto; left: -22px; top: 50%; transform: translateY(-50%); }
+  .an-r { position: relative; }
+  /* Hover-only header menus, drawn only with the annotations on */
+  .m-hover { display: none; }
+  body:has(#annot:checked) .m-hover, body:has(.anchor[id$="a"]:target) .m-hover { display: grid; outline: 1px dashed var(--k-annot); outline-offset: -1px; opacity: .8; }
+  .an-key { position: fixed; z-index: 150; left: 612px; top: 72px; width: 576px; max-height: 812px; overflow: auto; padding: 10px 14px 12px; border-radius: 8px; background: var(--k-annot-bg); border-inline-start: 3px solid var(--k-annot); box-shadow: var(--cm-elevation-300); font-size: 11px; line-height: 15px; }
+  .an-key h2 { margin: 0 0 6px; font-size: 12px; color: var(--k-annot-ink); }
+  .an-key ol, .an-key ul { margin: 0; padding-inline-start: 22px; }
+  .an-key li { margin: 0 0 5px; }
+  .an-key li::marker { color: var(--k-annot-ink); font-weight: 700; }
+  .an-key ul.blk li::marker { color: var(--m-blocked); }
+  .an-key h3 { margin: 8px 0 4px; font-size: 11px; color: var(--m-blocked); }
+  .an-key i { color: var(--cm-text-secondary); font-style: normal; }
+  .an-key code { font-family: inherit; font-weight: 600; }
+  .an-key p { margin: 6px 0 0; }
+
+  /* Header: file chip and filter chip wrap under the project name */
+  .chips { display: flex; flex-wrap: wrap; gap: 0 4px; }
+  .k-chip.file { max-width: 128px; color: var(--cm-text); }
+  .k-chip.file .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .k-chip.file[aria-expanded="true"] { background: var(--cm-bg-selected); }
+  .notsaved { color: var(--cm-text-secondary); white-space: nowrap; }
+  .chev[data-open] { background: var(--cm-bg-selected); border-radius: 4px; }
+
+  /* Statistics rows */
+  .st { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 26px; padding: 4px 8px 4px 16px; }
+  .st .n { color: var(--cm-text-secondary); white-space: nowrap; }
+  .st .v { margin-inline-start: auto; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: end; }
+  .st .v.pending { color: var(--cm-text-tertiary); }
+  .st .ii { color: var(--cm-icon-secondary); width: 12px; height: 12px; stroke-width: 2; flex: none; }
+  .st .sub { color: var(--cm-text-secondary); flex-basis: 100%; text-align: end; }
+  .spark { margin-inline-start: auto; display: flex; align-items: flex-end; gap: 1px; width: 88px; height: 18px; }
+  .spark i { flex: 1; background: var(--cm-icon-secondary); border-radius: 1px 1px 0 0; min-height: 1px; }
+  .spark i.z { background: var(--cm-border); }
+  .k-row .rt { color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+  .more { color: var(--cm-text-secondary); }
+
+  /* Background row: the unset background follows the theme, so the swatch shows both canvases */
+  .bgsw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: none; background: linear-gradient(135deg, #F5F5F5 0 50%, #1E1E1E 50% 100%); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
+
+  /* The toolbar's view-mode button shows the mode in force */
+  .k-tool.mode { font-size: 11px; font-weight: 550; color: var(--cm-text); }
+  /* Quick actions carries its name beside the icon: readers did not recognise the lightning alone */
+  .k-tool.qa { display: flex; gap: 4px; width: auto; padding: 0 8px 0 4px; font-size: 11px; color: var(--cm-text); }
+
+  /* Legend */
+  .k-legend-card .gap { height: 6px; }
+  .k-legend-card { max-width: 212px; }
+  .k-legend-card .lbl .k-lg-title { white-space: normal; }
+
+  /* The collapsed table: a strip along the bottom of the canvas column (as screens/table-dock.html, Collapsed) */
+  .strip { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border-top: 1px solid var(--cm-border); background: var(--cm-bg); font-size: 11px; line-height: 16px; cursor: pointer; }
+  .strip .k-i { color: var(--cm-icon-secondary); }
+
+  /* The state line: how the data was loaded, under the Statistics heading */
+  .stline { padding: 2px 8px 6px 16px; font-size: 11px; line-height: 16px; color: var(--cm-text); }
+
+  /* The file popover: where this graph's data came from */
+  .fpop { width: 260px; z-index: 120; }
+  .fpop .foot { display: flex; gap: 8px; padding: 8px 16px 0; }
+  .fpop .where { margin: 0 0 6px; padding: 0 16px 8px; border-bottom: 1px solid var(--cm-border); }
+  .fpop .where p { margin: 0; }
+  .fpop .where b { font-weight: 550; }
+
+  /* Menus opened from the header and the toolbar */
+  .k-menu.m-status .k-menu-item.status { height: auto; padding-block: 2px; white-space: normal; color: var(--k-menu-ink2); }
+
+  /* Blank project */
+  .add-data { padding: 12px 8px 12px 16px; border-bottom: 1px solid var(--cm-border); }
+  .add-data .k-btn { width: 100%; justify-content: center; }
+</style>
+</head>
+<body data-dataset="lesmis">
+<span class="anchor" id="s1"></span><span class="anchor" id="s2"></span><span class="anchor" id="s3"></span><span class="anchor" id="s4"></span><span class="anchor" id="s5"></span><span class="anchor" id="s6"></span><span class="anchor" id="s7"></span><span class="anchor" id="s8"></span><span class="anchor" id="s9"></span>
+<span class="anchor" id="s1a"></span><span class="anchor" id="s2a"></span><span class="anchor" id="s3a"></span><span class="anchor" id="s4a"></span><span class="anchor" id="s5a"></span><span class="anchor" id="s6a"></span><span class="anchor" id="s7a"></span><span class="anchor" id="s8a"></span><span class="anchor" id="s9a"></span>
+
+<div class="m-bar" aria-label="Mock states">
+  <a href="#s1">1 At rest</a><a href="#s2">2 Dark</a><a href="#s3">3 Blank project</a><a href="#s4">4 Still measuring</a><a href="#s5">5 Where is the file?</a><a href="#s6">6 Not saved</a><a href="#s7">7 View mode</a><a href="#s8">8 Assistant on</a><a href="#s9" data-needs-legend>9 Size added</a>
+  <span class="m-sep"></span><a href="?arm=a" data-arm="a">A: line at rest</a><a href="?arm=b" data-arm="b">B: empty at rest</a>
+  <span class="m-sep"></span><a href="?" data-ds="lesmis">Les Miserables</a><a href="?dataset=ppi" data-ds="ppi">Proteins</a><a href="?dataset=ppiEvidence" data-ds="ppiEvidence">Evidence file</a><a href="?dataset=transactions" data-ds="transactions">Transfers</a>
+  <label><input type="checkbox" id="annot"> Annotations</label>
+</div>
+<script>
+// Which version of the location slot is shown (?arm=a or ?arm=b); the links keep the dataset and the state.
+(() => {
+  const arm = new URLSearchParams(location.search).get("arm") === "b" ? "b" : "a";
+  document.body.dataset.arm = arm;
+  for (const a of document.querySelectorAll(".m-bar a[data-arm]")) {
+    const q = new URLSearchParams(location.search);
+    q.set("arm", a.dataset.arm);
+    a.href = `?${q}${location.hash}`;
+    a.toggleAttribute("aria-current", a.dataset.arm === arm);
+  }
+  if (arm === "b") for (const a of document.querySelectorAll(".m-bar a[data-ds]")) {
+    const q = new URLSearchParams(a.getAttribute("href").slice(1));
+    q.set("arm", "b");
+    a.href = `?${q}`;
+  }
+})();
+</script>
+
+<div class="k-app">
+
+  <!-- Rail -->
+  <nav class="k-rail an-t an-r" data-n="1" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn an-t an-b an-r" data-n="B4"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off an-t an-out an-r" data-n="22" data-on="1 2 3 4 5 6 7 9" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div><div class="k-rail-btn" data-on="8"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sparkles"/></svg></span>Assistant</div></nav>
+
+  <!-- Left panel: Graph -->
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head an-t an-r" data-n="2">
+      <div class="k-title-line">
+        <span class="k-project" data-on="1 2 4 5 6 7 8 9" data-fx="datasets.{ds}.frame.project">Les Miserables</span>
+        <span class="k-project" data-on="3">Untitled</span>
+        <span class="notsaved" data-on="6">Not saved</span>
+        <svg class="k-i k-i-sm k-secondary chev" data-on="1 2 3 4 5 7 8 9"><use href="../kit/icons.svg#chevron-down"/></svg>
+        <svg class="k-i k-i-sm k-secondary chev" data-open data-on="6"><use href="../kit/icons.svg#chevron-down"/></svg>
+      </div>
+      <a class="k-privacy rest an-t an-r" data-n="21" data-on="1 2 3 4 5 6 7 9">Nothing has been sent from this project</a>
+      <a class="k-privacy an-t an-r" data-n="21" data-on="8">Sends node names and statistics to api.anthropic.com when you ask</a>
+      <div class="chips" data-on="1 2 4 5 6 7 8 9">
+        <span class="k-chip file an-t an-out an-r" data-n="3" title="miserables.json, opened from this computer" data-on="1 2 4 6 7 8 9"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="nm k-id" data-fx="datasets.{ds}.frame.file">miserables.json</span></span>
+        <span class="k-chip file" aria-expanded="true" data-on="5"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="nm k-id" data-fx="datasets.{ds}.frame.file">miserables.json</span></span>
+        <span class="k-chip an-t an-out an-r" data-n="4"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section an-t an-r" data-n="5">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true" data-on="1 2 4 5 6 7 8 9"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis" data-fx="datasets.{ds}.frame.graphRow">Co-appearances</span></li>
+          <li class="k-item" aria-selected="true" data-on="3"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Graph 1</span></li>
+        </ul>
+      </section>
+      <section class="k-section an-t an-r" data-empty data-n="6">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      </section>
+      <section class="k-section an-t an-r" data-collapsed data-empty data-n="9">
+        <div class="k-section-head">Views</div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <main class="k-main">
+    <div class="k-canvas an-t" data-n="10">
+      <div class="k-stage" data-on="1 2 4 5 6 7 8">
+        <img class="k-light-only" src="../kit/canvas/lesmis-groups-onesize-light.svg" alt="Les Miserables colored by group, nothing selected" data-fx-theme="light" data-fx-attr="src:datasets.{ds}.frame.drawing; alt:datasets.{ds}.frame.alt">
+        <img class="k-dark-only" src="../kit/canvas/lesmis-groups-onesize-dark.svg" alt="Les Miserables colored by group, nothing selected" data-fx-theme="dark" data-fx-attr="src:datasets.{ds}.frame.drawing; alt:datasets.{ds}.frame.alt">
+      </div>
+      <div class="k-stage" data-on="9">
+        <img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt="Les Miserables colored by group, sized by number of connections, nothing selected" data-fx-theme="light" data-fx-attr="src:datasets.{ds}.frame.drawingSized; alt:datasets.{ds}.frame.altSized">
+        <img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt="Les Miserables colored by group, sized by number of connections, nothing selected" data-fx-theme="dark" data-fx-attr="src:datasets.{ds}.frame.drawingSized; alt:datasets.{ds}.frame.altSized">
+      </div>
+      <div class="k-legend-card an-t" data-n="11" data-on="1 2 4 5 6 7 8 9" style="min-width:0;width:max-content">
+        <div class="k-lg-title">Group color</div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>8<span class="k-value">13</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value">11</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>1<span class="k-value">10</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>3<span class="k-value">10</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>5<span class="k-value">10</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>0<span class="k-value">4</span></div>
+        <div class="k-lg-row" title="Groups 6, 7 and 10"><span class="k-chit" style="background:#505050"></span>Other<span class="k-value">5</span></div>
+        <div class="sz" data-on="9"><div class="gap"></div>
+        <div class="k-lg-title">Size: degree</div>
+        <div class="k-size-marks"><div><b style="width:9px;height:9px"></b>1</div><div><b style="width:15px;height:15px"></b>10</div><div><b style="width:24px;height:24px"></b>36</div></div></div>
+        <div class="lbl an-t an-r" data-n="23"><div class="gap"></div><div class="k-lg-title">Labels: the 18 characters with the most connections</div><div class="k-secondary">5 more hidden where they overlap</div></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar an-t an-r" data-n="12" role="toolbar">
+          <span class="k-tool" role="button" aria-pressed="true" aria-label="Select V"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" role="button" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool qa an-t an-r" data-n="26" role="button" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg" aria-hidden="true"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool mode" title="View: 2D" data-on="1 2 3 4 5 6 8 9">2D</span><span class="k-tool mode" title="View: 2D" style="background:var(--cm-bg-hover)" data-on="7">2D</span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+
+      <!-- State 5: the file chip's popover: the data file only -->
+      <div class="k-popover fpop an-t an-r" data-n="17" data-on="5" style="position:fixed;left:73px;top:64px" role="dialog" aria-label="miserables.json" data-fx-attr="aria-label:datasets.{ds}.frame.file">
+        <div class="k-popover-head"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-id" data-fx="datasets.{ds}.frame.file">miserables.json</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="k-popover-body">
+          <div class="where"><p><b>Nothing has been sent from this project</b></p><p>Projects are kept in this browser.</p><p><span class="k-link">Where your data goes...</span></p></div>
+          <div class="k-data"><span class="k-name">Opened from</span><span class="k-value">this computer</span></div>
+          <div class="k-data"><span class="k-name">Read</span><span class="k-value k-num">Sep 28, 10:42</span></div>
+          <div class="foot"><span class="k-btn k-btn-secondary">Update with new data...</span></div>
+        </div>
+      </div>
+
+      <!-- State 6: the project name's chevron menu while the autosave fails -->
+      <div class="k-menu m-status an-t an-r" data-n="18" data-on="6" style="position:fixed;left:73px;top:68px;width:236px;z-index:120">
+        <div class="k-menu-item status" aria-disabled="true"><span class="k-check-col"></span>Not saved: this browser's storage is full</div>
+        <div class="k-menu-sep"></div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Open...<span class="k-shortcut">Ctrl+O</span></div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Update with new data...</div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Export...<span class="k-shortcut">Ctrl+Shift+E</span></div>
+        <div class="k-menu-item" data-hover><span class="k-check-col"></span>Download project file</div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Version history</div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Project info...</div>
+        <div class="k-menu-sep"></div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Rename</div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Duplicate</div>
+        <div class="k-menu-item"><span class="k-check-col"></span>Close</div>
+      </div>
+
+      <!-- State 7: the view-mode menu, over the toolbar's right end -->
+      <div class="k-menu an-t an-r" data-n="19" data-on="7" style="position:fixed;left:800px;top:770px;width:120px;z-index:120">
+        <div class="k-menu-item"><span class="k-check-col">&#10003;</span>2D</div>
+        <div class="k-menu-item" data-hover><span class="k-check-col"></span>3D</div>
+      </div>
+    </div>
+    <div class="strip an-t an-r" data-n="25" role="button" tabindex="0" aria-expanded="false" aria-label="Table: 77 nodes, 254 edges (rows). Open the table" data-on="1 2 4 5 6 7 8 9"><svg class="k-i k-i-sm" aria-hidden="true"><use href="../kit/icons.svg#chevron-up"/></svg><svg class="k-i" aria-hidden="true"><use href="../kit/icons.svg#table"/></svg><span class="k-strong">Table</span><span class="k-secondary k-num"><span data-fx="datasets.{ds}.frame.nodes">77</span> nodes, <span data-fx="datasets.{ds}.frame.edges">254</span> edges (rows)</span><span class="k-grow"></span><span class="k-secondary">View &gt; Table</span></div>
+    <div class="strip an-t an-r" data-n="25" role="button" tabindex="0" aria-expanded="false" aria-label="Table: empty. Open the table" data-on="3"><svg class="k-i k-i-sm" aria-hidden="true"><use href="../kit/icons.svg#chevron-up"/></svg><svg class="k-i" aria-hidden="true"><use href="../kit/icons.svg#table"/></svg><span class="k-strong">Table</span><span class="k-grow"></span><span class="k-secondary">View &gt; Table</span></div>
+  </main>
+
+  <!-- Right column: the graph's inspector (nothing selected) -->
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1 an-t an-r" data-n="13"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+
+      <!-- Blank project: one command, above the graph's own properties -->
+      <div class="add-data an-t an-r" data-n="20" data-on="3"><span class="k-btn"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#plus"/></svg>Add data...</span></div>
+
+      <section class="k-section an-t an-r" data-n="14">
+        <div class="k-section-head">Graph<span class="k-grow"></span><span class="k-icon-btn an-t an-b an-out an-r" data-n="B1" title="Look: Default"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg></span></div>
+        <div class="k-fieldrow">
+          <span class="k-legend">Background</span>
+          <div class="k-fields"><span class="k-field k-span"><span class="bgsw"></span>Theme</span></div>
+        </div>
+        <div class="k-fieldrow" data-on="1 2 4 5 6 7 8 9">
+          <span class="k-legend">Layout</span>
+          <div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" title="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div>
+        </div>
+      </section>
+
+      <section class="k-section an-t an-r" data-n="15" data-on="1 2 4 5 6 7 8 9">
+        <div class="k-section-head">Statistics<span class="k-grow"></span><span class="k-icon-btn m-hover" title="Over time..."><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+        <div class="stline an-t an-r" data-n="24"><span class="said">Loaded: miserables.json, undirected, value not used yet.</span> <span class="k-link" role="button">Change...</span></div>
+        <div class="k-row an-t an-b an-r" data-n="B2"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
+        <div class="st an-t an-r" data-n="27"><span class="n">Nodes</span><span class="v"><span data-fx="datasets.{ds}.frame.nodes">77</span> nodes</span></div>
+        <div class="st"><span class="n">Edges</span><span class="v"><span data-fx="datasets.{ds}.frame.edges">254</span> edges (rows)</span></div>
+        <div class="st"><span class="n">Linked pairs</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v"><span class="pairs">254</span> linked pairs</span></div>
+        <div class="st"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v" data-fx="datasets.{ds}.frame.density">0.0868</span></div>
+        <div class="st"><span class="n" data-fx="datasets.{ds}.frame.componentsName">Connected components</span>
+          <svg class="k-i ii" data-on="1 2 5 6 7 8 9"><use href="../kit/icons.svg#info"/></svg><svg class="k-i ii" data-on="4"><use href="../kit/icons.svg#loader-circle"/></svg>
+          <span class="v" data-on="1 2 5 6 7 8 9" data-fx="datasets.{ds}.frame.components">1</span><span class="v pending" data-on="4">not yet measured</span></div>
+        <div class="st an-t an-b an-r" data-n="B3"><span class="n" data-fx="datasets.{ds}.frame.degreeName">Degree distribution</span>
+          <svg class="k-i ii" data-on="1 2 5 6 7 8 9"><use href="../kit/icons.svg#info"/></svg><svg class="k-i ii" data-on="4"><use href="../kit/icons.svg#loader-circle"/></svg>
+          <span class="spark" data-on="1 2 5 6 7 8 9" role="img" aria-label="Degree 1 to 36, in bars of 2" data-fx-attr="aria-label:datasets.{ds}.frame.degreeLabel">
+            <i style="height:100%"></i><i style="height:94%"></i><i style="height:18%"></i><i style="height:88%"></i><i style="height:24%"></i><i style="height:65%"></i><i style="height:24%"></i><i style="height:12%"></i><i style="height:12%"></i><i style="height:6%"></i><i class="z"></i><i style="height:6%"></i><i class="z"></i><i class="z"></i><i class="z"></i><i class="z"></i><i class="z"></i><i class="z"></i><i style="height:6%"></i>
+          </span><span class="v pending" data-on="4">not yet measured</span></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="rt" data-fx="datasets.{ds}.frame.attributes">3</span></div>
+        <div class="k-row more">5 more</div>
+      </section>
+
+      <section class="k-section an-t an-r" data-n="8">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn m-hover" title="Export style..., Source"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" data-on="9" data-style-row="size"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
+          <li class="k-item" data-on="1 2 4 5 6 7 8 9" data-style-row="color"><span class="k-stack"><span class="k-chit" style="background:#009E73"></span><span class="k-chit" style="background:#56B4E9"></span><span class="k-chit" style="background:#E69F00"></span></span><span class="k-ellipsis">Group color</span></li>
+          <li class="k-item an-t an-b an-r" data-n="B5"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+        </ul>
+      </section>
+      
+    </div>
+  </aside>
+</div>
+
+<!-- Annotation key: one entry per numbered box -->
+<div class="an an-key" data-on="1 2 4 5 6 7 8 9">
+  <h2>What each part is, why, and what it is built with</h2>
+  <ol>
+    <li><b>Rail.</b> The main menu on top, then what the project owns: Graph, Data, Results, Notes, and the Assistant (22) last. Results is the one home of runs, each with its settings and date; a value is read on its node, in the inspector and in the table. <i>information-architecture.md 5; framework-changes.md, "Places".</i> <code>NavRail</code>, <code>RailButton</code>.</li>
+    <li><b>Left panel header.</b> The project name and its chevron menu. Not saved (state 6) or View only sits beside the name and shows only while it is true. <i>interface-templates.md 2; interface-specification.md 1.2 and 3, the marks table.</i> <code>ActionRow</code>, Mantine <code>Menu</code>.</li>
+    <li><b>File chip.</b> Names the file this graph's data was read from and stays in view whichever rail panel is open. Tooltip: "miserables.json, opened from this computer". A click opens the file popover (state 5): where the data is, where the project is kept, and where the data came from; whether the last save worked is in the project name menu (state 6). A proposal. <i>framework-changes.md, "Main frame at rest: the file chip's popover holds the data file only".</i> Mantine <code>Pill</code>.</li>
+    <li><b>Filter chip.</b> What every number on screen is computed on. Read-only until filter steps exist; the study checks whether anyone clicks it and is confused. <i>interface-templates.md 7; implementation-mapping.md, slice 1.</i> Mantine <code>Pill</code>.</li>
+    <li><b>Graphs.</b> One row, no count (Figma's page rows carry none; the size is in Statistics). Find on the header; the "+" is absent while several graphs are blocked, as every blocked command is. <i>interface-templates.md 2; interface-specification.md 7.4.</i> <code>ControlSection</code>, <code>PageList</code>.</li>
+    <li><b>Sets and paths.</b> Nothing kept yet: the header and "+" only, no "No sets yet" line. <i>principles.md 5; content-design.md 4.</i> <code>ControlSection</code>, <code>Tree</code>.</li>
+    <li value="8"><b>Style stack</b> (in the inspector, after Statistics). The stack, top layer wins; Base style always last. The sample starts with one layer, Group color: every node is one size, so the one key on the canvas makes one claim. A size layer the reader adds goes on top, named for what it shows (state 9). No row carries an origin word: only a layer from a run or a recipe is marked, as Figma marks only a library style. The header's menu (Export style..., Source) shows on hover, as Figma's does. Chips: stacked chits for the categorical layer, the graduated glyph for size. <i>interface-templates.md 9; canvas-drawing.md 3; framework-changes.md, "Only a layer that was not made here carries an origin word" and "The sample's starting look paints one channel".</i> <code>Tree</code> rows with a leading chip.</li>
+    <li><b>Views.</b> Collapsed to its header. With no views it shows no count: an empty section is its header only. <i>interface-templates.md 2; content-design.md 4, empty surface.</i> <code>ControlSection</code>.</li>
+    <li><b>Canvas.</b> No text but labels, the legend and state cards. Labels follow the label budget with collision culling: where two would overlap, the lower-degree one is dropped (Thenardier yields to Javert). Nothing selected, so no marks. <i>principles.md 5; canvas-drawing.md 9.</i> Why these names are shown is said in the legend (23). graphty-element.</li>
+    <li><b>Legend.</b> One block per bound layer, titled by what it encodes. At rest one block: every group with its count, then Other (groups 6, 7 and 10, painted <code>#505050</code>) as its own row. Once size is added, a second block "Size: degree" with three graduated marks labeled 1, 10 and 36 (state 9). <i>options-and-encodings.md 6, items 2 and 9; canvas-drawing.md 3; framework-changes.md, "Legends: a block's title says what the channel encodes".</i> Drawn by graphty-element.</li>
+    <li><b>Toolbar.</b> Select, Path, Quick actions (26), and the view mode. Select and Path are icons with a tooltip naming the tool and its key ("Select V"), as on a drawing tool. There is no Note tool: notes are added from the Notes panel. The view mode, whose face says the mode in force, "2D", and whose menu lists 2D and 3D (state 7). <i>interface-templates.md 14; figma-crosswalk.md.</i> <code>Toolbar</code>, <code>ToolButton</code>, <code>ToolGroup</code>.</li>
+    <li><b>Header row.</b> One row: the zoom and view menu. No Export button (Export... is in the project name menu and the Data panel), no avatar (nothing signs in), no Undo button. <i>framework-changes.md, "Navigation: one header row on the right".</i> Mantine <code>Menu</code>.</li>
+    <li><b>Graph.</b> Background writes the graph's style, never a layer. Unset, the canvas follows the light or dark theme (canvas-drawing.md 1), so no single hex is right: the swatch shows both canvases and the value reads "Theme". Layout names the method with Run beside it. <i>interface-specification.md 4.1, Nothing.</i> <code>ControlSection</code>, <code>CompactColorInput</code>, <code>StyleSelect</code>, <code>TrailingSlot</code>.</li>
+    <li><b>Statistics.</b> The state line first (24), then the headline readings (27) on an undirected graph; the Edges row opens the Edges editor (direction and weight are in the state line, so the row does not repeat them); Attributes; "5 more". No Last import row: the file chip names the file and its popover the date, so the row appears only when rows were unmatched or dropped. The header's menu (Over time...) shows on hover. <i>interface-specification.md 3 and 4.1.</i> <code>ActionRow</code>, <code>DataRow</code>, <code>InfoCircle</code>.</li>
+    <li value="21"><b>Location slot.</b> Under the project name, one line in body ink. Version A reads "Nothing has been sent from this project" at rest; version B leaves it empty at rest (switch at the top). In both, it speaks when data leaves: "Sent to {host}: {n} query" after a data-source query, "Sends node names and statistics to {host} when you ask" while the Assistant is on (state 8). A click opens Data &gt; Sent and saved; the same line, in the same place, in every frame. <i>information-architecture.md 5; framework-changes.md, "Pending the round-2 comparison: where the data is, at rest".</i> Mantine <code>Anchor</code>.</li>
+    <li><b>Assistant, off.</b> No icon, so nothing sparkles while nothing is sent; the caption says what off means. Tooltip: "Assistant: off until you set a provider in Preferences". A click opens the Assistant panel with its setup. <i>framework-changes.md, "The Assistant's rail button while it is off".</i> <code>RailButton</code> without its icon.</li>
+    <li><b>Why nodes are named.</b> The legend's last block says which nodes carry a name and by what rule: "Labels: the 18 characters with the most connections", then how many of those the drawing dropped where two names would overlap. In the study, readers took the named nodes for "the important ones"; the caption says it is only the most connected. On the transfers file, drawn as density, it reads "No labels: 3,000 accounts drawn as density". <i>options-and-encodings.md 6, item 2; framework-changes.md, "Main frame at rest: the legend says why nodes are named".</i> Drawn by graphty-element from its label budget.</li>
+    <li><b>State line.</b> How the file was loaded, in the same sentence the Data panel keeps on the file's row: "Loaded: miserables.json, undirected, value not used yet." Change... opens those choices. It stays; it is not a notice to dismiss. <i>content-design.md 3, State line; framework-changes.md, "The Data panel: its order...", and "Main frame at rest: the Statistics state line carries the load".</i> <code>ProseBlock</code>, Mantine <code>Anchor</code>.</li>
+    <li><b>Table strip.</b> The table is collapsed at rest but never gone: a one-row strip along the bottom of the canvas column, "Table" with what it holds, opens the dock at the height it had. No toolbar button. In the study, a reader looking for a table found none. <i>interface-specification.md 1, Bottom dock; screens/table-dock.html, Collapsed.</i> <code>ResizeHandle</code> with a Mantine <code>UnstyledButton</code>.</li>
+    <li><b>Quick actions.</b> The lightning button carries its name. With the icon alone, readers did not know it was where runs, commands and "Go to {name}" start; the tooltip adds the key, Ctrl+K. <code>ToolButton</code> with a label.</li>
+    <li><b>Counts carry their unit.</b> "77 nodes", "254 edges (rows)", "254 linked pairs". Edges counts the rows of the file; linked pairs counts each pair of nodes once, however many rows join them. On a file with repeated rows the two differ (the evidence file: 2,298 edges (rows), 1,262 linked pairs), and a bare "Edges 2,298" was read as the number of interactions. The same words are in the table strip and the Data panel. <i>content-design.md 3.</i> <code>DataRow</code>.</li>
+  </ol>
+  <h3>Blocked: absent until graphty-element provides what they read (interface-specification.md 7.4)</h3>
+  <ul class="blk">
+    <li><b>B1 Look</b> (the Graph header's icon). Waits on "A Look that writes no layers" and on <code>registerLook</code> in "Registered recipes, Looks and samples". <i>element-needs.md.</i></li>
+    <li><b>B2 Overview row and Change overview....</b> Waits on "The built-in General overview run by the element at load" and <code>registerRecipe</code>. Until then the readings show without the row. <i>element-needs.md.</i></li>
+    <li><b>B3 Degree distribution.</b> Waits on "Histogram bins" (degree variants). <i>element-needs.md; interface-specification.md 3, Statistics.</i></li>
+    <li><b>B4 Notes</b> (the rail button). Waits on "A notes collection with targets, citations and quoted values". <i>element-needs.md.</i></li>
+    <li><b>B5 Base style row.</b> Waits on the Overrides row's need. <i>interface-templates.md 9, Departures.</i></li>
+  </ul>
+  <p data-on="2"><b>State 2, dark.</b> Group 0 is Okabe-Ito black, 1.26:1 on the dark canvas. Every node of the layer therefore carries the one-tone fill edge, which is what keeps those four nodes and the blue isolate at far left findable. graphty-element draws neither today: the fill edge and the default palette whose black becomes <code>#6929C4</code> are both element needs ("The two palette defects decided"; canvas-drawing.md 4).</p>
+  <p data-on="4"><b>State 4, still measuring.</b> The drawing and the counts the file states arrive first. A reading still being measured reads "not yet measured" and a progress glyph takes its (i) slot, so the row itself shows that work is under way; no notice appears, because nobody asked for a run. Row heights do not change when the values arrive. Whether "not yet measured" reads as "coming" is a study question.</p>
+  <p data-on="5"><b>State 5 (17), the file popover.</b> First where the data is and where the project is kept, in the same words in both versions, with the link to the page that can be forwarded to an IT reviewer; then where this graph's data came from: a file on this computer (a browser cannot see its folder) and when it was read, plus Update with new data.... Counts are in Statistics and whether the last save worked is in the chevron menu, so neither is repeated here.</p>
+  <p data-on="8"><b>State 8, the Assistant on.</b> A provider is set and the Assistant is on: the rail button gets its icon back, and the location slot says what leaves, in both versions. When the Assistant is turned off the slot returns to its resting form.</p>
+  <p data-on="6"><b>State 6 (18), Not saved.</b> The autosave failed. "Not saved" sits beside the name and the header still fits its 241 px with both chips. The chevron menu's first line says why, then Download project file, then the menu's usual commands: Export..., Update with new data..., Version history, Project info..., Rename, Duplicate, Close. While the autosave works, that first line reads "Kept in this browser, saved 10:58".</p>
+  <p data-on="9"><b>State 9, size added.</b> The reader has added size by degree: a layer "Size: degree" on top of the stack, and its own legend block in the same words, so a bigger dot says "more connections", not "more important". Group color is unchanged. A result the reader paints later (betweenness, say) takes one channel, color or size, never both, so each key on the canvas still makes one claim.</p>
+  <p data-on="7"><b>State 7 (19), view mode.</b> The caret opens the mode menu, with the mode in force checked.</p>
+  <p><b>Word count at rest</b> (app text, counted as principles.md 5; names, values, counts and legend categories are free). Left panel 8 against its 8 in version B; version A's standing line adds 4, making 12. Inspector 25, plus the state line's 7 ("Loaded", "undirected", "not used yet", "Change..."), makes 32. Rail labels and the Assistant's caption 8, filter chip 2, the legend title 2, the labels caption 13 and the mode face 1 make 26. The table strip 5 ("Table", "nodes", "edges", "View > Table"). Screen total 67 in version B and 71 in version A, against a budget of 50. Every word over budget answers a question a participant asked out loud (where is my data, why are these named, how was it loaded, where is the table); the budget change is proposed with the Assistant's caption.</p>
+</div>
+<div class="an an-key" data-on="3">
+  <h2>Blank project</h2>
+  <ol>
+    <li><b>Rail.</b> Unchanged: every place exists before data does. <i>interface-templates.md 1.</i> <code>NavRail</code>.</li>
+    <li><b>Header.</b> "Untitled" until the reader names it or data names it. In version A the location line stands here too, since it is already true. No file chip, because nothing was read; no filter chip, because there is nothing to compute on. A proposal. <code>ActionRow</code>.</li>
+    <li value="5"><b>Graphs.</b> One row, as Figma's Pages list always holds a page. <i>state-matrix.md, Graph panel, Object list.</i> <code>PageList</code>.</li>
+    <li><b>Sets and paths.</b> Header and "+". <i>content-design.md 4.</i></li>
+    <li value="8"><b>Style stack.</b> In the inspector: Base style only, visible as the last row. <i>state-matrix.md, Styles list, Blank.</i></li>
+    <li value="10"><b>Canvas.</b> Empty, no text and no card. Dragging a file over the window draws the start screen's drop box; whether a newcomer finds that without being told is a study question. <i>framework-changes.md, "Start screen: the drop box while a file is dragged over the window".</i></li>
+    <li value="12"><b>Toolbar.</b> Present, as Figma's is on an empty file.</li>
+    <li><b>Header row.</b> The zoom only, as in the resting frame.</li>
+    <li><b>Graph.</b> Kept, as Figma's empty file keeps its Page section: Background is editable, because it does not depend on data. Layout is absent: there is nothing to arrange, and the row appears with the first data. A proposal.</li>
+    <li value="20"><b>Add data...</b> The inspector's one command, full width above the Graph section. <i>state-matrix.md, Inspector, Blank; content-design.md 4.</i> Mantine <code>Button</code>.</li>
+    <li><b>Location slot.</b> Version A only, as in the resting frame.</li>
+    <li value="25"><b>Table strip.</b> Present with no counts: the table exists before data does, and is empty.</li>
+    <li><b>Assistant, off.</b> As in the resting frame.</li>
+  </ol>
+</div>
+<script>
+// The dataset parameter: the legend, the style rows it follows, the degree bars and the file chip's
+// tooltip are built from datasets.<id>.frame in kit/fixtures.json; kit.js fills every data-fx number
+// and checks the typed ones (the Les Miserables frame) against the fixture.
+document.addEventListener("kit:fixtures", ({ detail: { fixtures, get, ds, fmt, expect } }) => {
+  const f = get(`datasets.${ds}.frame`);
+  if (!f) return;
+  for (const a of document.querySelectorAll(".m-bar a[data-ds]")) a.toggleAttribute("aria-current", a.dataset.ds === ds);
+  const esc = (x) => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  for (const c of document.querySelectorAll(".k-chip.file[title]")) c.title = `${f.file}, opened from this computer`;
+  // Linked pairs: rows that join the same two nodes count once (the evidence file keeps repeats as rows).
+  const pairs = fixtures.datasets[ds].pairs ?? f.edges;
+  const pe = document.querySelector(".pairs");
+  expect(pe, fmt(pairs));
+  pe.textContent = fmt(pairs);
+  for (const s of document.querySelectorAll(".strip[aria-label^='Table: 77']")) s.setAttribute("aria-label", `Table: ${fmt(f.nodes)} nodes, ${fmt(f.edges)} edges (rows). Open the table`);
+  const spark = document.querySelector(".spark");
+  spark.innerHTML = f.degreeBars.map((h) => (h ? `<i style="height:${h}%"></i>` : `<i class="z"></i>`)).join("");
+  // The state line: the load's choices, in the Data panel's words ("Loaded: {file}, direction followed, {column} not used yet").
+  const lw = fixtures.datasets[ds].loadedWith;
+  const w = /; (\S+), not used yet/.exec(f.edgesLine);
+  const said = [f.file, f.edgesLine.startsWith("directed") ? "direction followed" : "undirected"];
+  if (lw) said.push(`NA ${lw.na}`, lw.parallelEdges === "keep all" ? "repeated pairs kept" : "repeated pairs combined");
+  said.push(w ? `${w[1]} not used yet` : "no numeric edge column");
+  const line = document.querySelector(".stline .said");
+  expect(line, `Loaded: ${said.join(", ")}.`);
+  line.textContent = `Loaded: ${said.join(", ")}.`;
+  // The labels caption: why these nodes are named. The label budget and how many the collision cull kept are
+  // counted from each drawing (kit/gen-canvas.mjs); ponytail: typed here, move into datasets.<id>.frame when gen-canvas.mjs next changes.
+  const LB = { lesmis: [18, 13, "characters", "connections"], ppi: [22, 15, "proteins", "partners"], ppiEvidence: [12, 10, "proteins", "partners"] }[ds];
+  const lblHtml = LB
+    ? `<div class="gap"></div><div class="k-lg-title">Labels: the ${LB[0]} ${LB[2]} with the most ${LB[3]}</div>${LB[0] > LB[1] ? `<div class="k-secondary">${LB[0] - LB[1]} more hidden where they overlap</div>` : ""}`
+    : `<div class="k-lg-title">No labels: ${fmt(f.nodes)} accounts drawn as density</div>`;
+  const lbl = document.querySelector(".k-legend-card .lbl");
+  const card = document.querySelector(".k-legend-card");
+  const rows = document.querySelectorAll("[data-style-row]");
+  const L = f.legend;
+  if (!L) {
+    card.innerHTML = `<div class="lbl an-t an-r" data-n="23">${lblHtml}</div>`;
+    card.querySelector(".gap")?.remove();
+    for (const r of rows) r.hidden = true;
+    // No sample look to add size to: state 9 has nothing to show on this dataset.
+    for (const a of document.querySelectorAll(".m-bar [data-needs-legend]")) a.hidden = true;
+    return;
+  }
+  const row = (r, title) => `<div class="k-lg-row"${title ? ` title="${esc(title)}"` : ""}><span class="k-chit" style="background:${r.color}"></span>${esc(r.label)}<span class="k-value">${fmt(r.count)}</span></div>`;
+  const html = `<div class="k-lg-title">${esc(L.title)}</div>${L.rows.map((r) => row(r)).join("")}${row(L.other, L.other.title)}` +
+    `<div class="sz" data-on="9"><div class="gap"></div><div class="k-lg-title">${esc(L.sizeTitle)}</div><div class="k-size-marks">${f.sizeMarks.map((m) => `<div><b style="width:${m.px}px;height:${m.px}px"></b>${fmt(m.degree)}</div>`).join("")}</div></div>`;
+  const built = document.createElement("div");
+  built.innerHTML = html + lblHtml;
+  expect(card, built.textContent);
+  card.innerHTML = html + `<div class="lbl an-t an-r" data-n="23">${lblHtml}</div>`;
+  card.style.width = "max-content";
+  const [sizeRow, colorRow] = rows;
+  colorRow.querySelector(".k-ellipsis").textContent = L.title;
+  colorRow.querySelector(".k-stack").innerHTML = L.rows.slice(0, 3).reverse().map((r) => `<span class="k-chit" style="background:${r.color}"></span>`).join("");
+  sizeRow.querySelector(".k-ellipsis").textContent = L.sizeTitle;
+});
+</script>
+</body>
+</html>

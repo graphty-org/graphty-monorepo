@@ -1,0 +1,2319 @@
+{
+ "generatedBy": "screens/find-and-expand/gen.mjs -- rerun instead of editing",
+ "transactions": {
+  "total": 3000,
+  "seed": {
+   "id": "ACC-233575",
+   "kind": "personal",
+   "country": "US",
+   "degree": 8,
+   "out": 5,
+   "in": 3,
+   "riskScore": 98,
+   "flagged": true,
+   "rankByRisk": 1
+  },
+  "hit": {
+   "id": "ACC-782213",
+   "kind": "personal",
+   "country": "BR",
+   "degree": 7,
+   "out": 4,
+   "in": 3,
+   "riskScore": 97,
+   "flagged": true,
+   "rankByRisk": 2
+  },
+  "merchant": {
+   "id": "ACC-893168",
+   "kind": "merchant",
+   "country": "NG",
+   "degree": 37,
+   "out": 0,
+   "in": 37,
+   "riskScore": 18,
+   "flagged": false,
+   "rankByRisk": 1109
+  },
+  "seedHood": {
+   "all1": 9,
+   "all2": 975,
+   "all3": 2356,
+   "out1": 6,
+   "out2": 14,
+   "out3": 22,
+   "in1": 4,
+   "in2": 9,
+   "in3": 22
+  },
+  "conn": {
+   "seed": {
+    "nIn": 3,
+    "nOut": 5,
+    "nAll": 8,
+    "eIn": 3,
+    "eOut": 5,
+    "eAll": 8
+   },
+   "seedInGrown": {
+    "nIn": 3,
+    "nOut": 5,
+    "nAll": 8,
+    "eIn": 3,
+    "eOut": 5,
+    "eAll": 8
+   },
+   "hit": {
+    "nIn": 3,
+    "nOut": 4,
+    "nAll": 7,
+    "eIn": 3,
+    "eOut": 4,
+    "eAll": 7
+   },
+   "t577InGrown": {
+    "nIn": 2,
+    "nOut": 3,
+    "nAll": 5,
+    "eIn": 2,
+    "eOut": 3,
+    "eAll": 5
+   },
+   "t577": {
+    "nIn": 3,
+    "nOut": 5,
+    "nAll": 8,
+    "eIn": 3,
+    "eOut": 5,
+    "eAll": 8
+   },
+   "merchantInB0": {
+    "nIn": 5,
+    "nOut": 0,
+    "nAll": 5,
+    "eIn": 5,
+    "eOut": 0,
+    "eAll": 5
+   },
+   "merchant": {
+    "nIn": 37,
+    "nOut": 0,
+    "nAll": 37,
+    "eIn": 37,
+    "eOut": 0,
+    "eAll": 37
+   },
+   "next": {
+    "nIn": 1,
+    "nOut": 2,
+    "nAll": 3,
+    "eIn": 1,
+    "eOut": 2,
+    "eAll": 3
+   }
+  },
+  "merchantIn": {
+   "id": "ACC-893168",
+   "kind": "merchant",
+   "country": "NG",
+   "degree": 37,
+   "out": 0,
+   "in": 37,
+   "riskScore": 18,
+   "flagged": false,
+   "rankByRisk": 1109,
+   "hoodOut": {
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "hoodIn1": 38,
+   "hoodAll1": 38,
+   "hoodIn1InB0": 6,
+   "hoodAll1InB0": 6
+  },
+  "next": {
+   "id": "ACC-175569",
+   "kind": "personal",
+   "country": "GB",
+   "degree": 3,
+   "out": 2,
+   "in": 1,
+   "riskScore": 79,
+   "flagged": false,
+   "rankByRisk": 15,
+   "hood": {
+    "all1": 4,
+    "all2": 55,
+    "all3": 1391,
+    "in1": 2,
+    "out1": 3
+   },
+   "rows": [
+    {
+     "id": "ACC-175569",
+     "kind": "personal",
+     "country": "GB",
+     "degree": 3,
+     "out": 2,
+     "in": 1,
+     "riskScore": 79,
+     "flagged": false,
+     "rankByRisk": 15
+    },
+    {
+     "id": "ACC-335461",
+     "kind": "personal",
+     "country": "GB",
+     "degree": 4,
+     "out": 2,
+     "in": 2,
+     "riskScore": 0,
+     "flagged": false,
+     "rankByRisk": 2313
+    },
+    {
+     "id": "ACC-635003",
+     "kind": "merchant",
+     "country": "GB",
+     "degree": 44,
+     "out": 0,
+     "in": 44,
+     "riskScore": 0,
+     "flagged": false,
+     "rankByRisk": 2313
+    },
+    {
+     "id": "ACC-644433",
+     "kind": "personal",
+     "country": "GB",
+     "degree": 6,
+     "out": 3,
+     "in": 3,
+     "riskScore": 0,
+     "flagged": false,
+     "rankByRisk": 2313
+    }
+   ],
+   "edges": 3,
+   "flaggedInHood": 0,
+   "inKept": 0
+  },
+  "hitHood": {
+   "all1": 8,
+   "out1": 5,
+   "all2": 129
+  },
+  "boundary": [
+   {
+    "id": "ACC-233575",
+    "kind": "personal",
+    "country": "US",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 98,
+    "flagged": true,
+    "rankByRisk": 1
+   },
+   {
+    "id": "ACC-966851",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 31,
+    "out": 0,
+    "in": 31,
+    "riskScore": 38,
+    "flagged": false,
+    "rankByRisk": 609
+   },
+   {
+    "id": "ACC-393859",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 907,
+    "out": 0,
+    "in": 907,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-959129",
+    "kind": "business",
+    "country": "GB",
+    "degree": 14,
+    "out": 14,
+    "in": 0,
+    "riskScore": 11,
+    "flagged": false,
+    "rankByRisk": 1390
+   },
+   {
+    "id": "ACC-242954",
+    "kind": "personal",
+    "country": "US",
+    "degree": 9,
+    "out": 5,
+    "in": 4,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8
+   },
+   {
+    "id": "ACC-670564",
+    "kind": "personal",
+    "country": "NG",
+    "degree": 8,
+    "out": 6,
+    "in": 2,
+    "riskScore": 89,
+    "flagged": true,
+    "rankByRisk": 13
+   },
+   {
+    "id": "ACC-139419",
+    "kind": "personal",
+    "country": "MX",
+    "degree": 10,
+    "out": 5,
+    "in": 5,
+    "riskScore": 90,
+    "flagged": true,
+    "rankByRisk": 11
+   },
+   {
+    "id": "ACC-350110",
+    "kind": "personal",
+    "country": "PH",
+    "degree": 10,
+    "out": 6,
+    "in": 4,
+    "riskScore": 90,
+    "flagged": true,
+    "rankByRisk": 11
+   },
+   {
+    "id": "ACC-893168",
+    "kind": "merchant",
+    "country": "NG",
+    "degree": 37,
+    "out": 0,
+    "in": 37,
+    "riskScore": 18,
+    "flagged": false,
+    "rankByRisk": 1109
+   }
+  ],
+  "boundaryHitInside": false,
+  "edgesB1": 16,
+  "grow": {
+   "fromNodes": 10,
+   "out": 34,
+   "all": 977,
+   "in": 961,
+   "out2": 57,
+   "out3": 62,
+   "selectOutInside": 10
+  },
+  "grownFlagged": 11,
+  "grownRows": [
+   {
+    "id": "ACC-233575",
+    "kind": "personal",
+    "country": "US",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 98,
+    "flagged": true,
+    "rankByRisk": 1
+   },
+   {
+    "id": "ACC-577269",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 97,
+    "flagged": true,
+    "rankByRisk": 2
+   },
+   {
+    "id": "ACC-782213",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 7,
+    "out": 4,
+    "in": 3,
+    "riskScore": 97,
+    "flagged": true,
+    "rankByRisk": 2
+   },
+   {
+    "id": "ACC-642959",
+    "kind": "personal",
+    "country": "NG",
+    "degree": 9,
+    "out": 6,
+    "in": 3,
+    "riskScore": 96,
+    "flagged": true,
+    "rankByRisk": 4
+   },
+   {
+    "id": "ACC-753261",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 12,
+    "out": 6,
+    "in": 6,
+    "riskScore": 95,
+    "flagged": true,
+    "rankByRisk": 5
+   },
+   {
+    "id": "ACC-242954",
+    "kind": "personal",
+    "country": "US",
+    "degree": 9,
+    "out": 5,
+    "in": 4,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8
+   },
+   {
+    "id": "ACC-365386",
+    "kind": "personal",
+    "country": "GB",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8
+   },
+   {
+    "id": "ACC-888258",
+    "kind": "personal",
+    "country": "IN",
+    "degree": 8,
+    "out": 4,
+    "in": 4,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8
+   },
+   {
+    "id": "ACC-139419",
+    "kind": "personal",
+    "country": "MX",
+    "degree": 10,
+    "out": 5,
+    "in": 5,
+    "riskScore": 90,
+    "flagged": true,
+    "rankByRisk": 11
+   },
+   {
+    "id": "ACC-350110",
+    "kind": "personal",
+    "country": "PH",
+    "degree": 10,
+    "out": 6,
+    "in": 4,
+    "riskScore": 90,
+    "flagged": true,
+    "rankByRisk": 11
+   },
+   {
+    "id": "ACC-670564",
+    "kind": "personal",
+    "country": "NG",
+    "degree": 8,
+    "out": 6,
+    "in": 2,
+    "riskScore": 89,
+    "flagged": true,
+    "rankByRisk": 13
+   },
+   {
+    "id": "ACC-749890",
+    "kind": "personal",
+    "country": "US",
+    "degree": 4,
+    "out": 2,
+    "in": 2,
+    "riskScore": 66,
+    "flagged": false,
+    "rankByRisk": 183
+   },
+   {
+    "id": "ACC-293071",
+    "kind": "merchant",
+    "country": "GB",
+    "degree": 249,
+    "out": 0,
+    "in": 249,
+    "riskScore": 50,
+    "flagged": false,
+    "rankByRisk": 401
+   },
+   {
+    "id": "ACC-527694",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 344,
+    "out": 0,
+    "in": 344,
+    "riskScore": 43,
+    "flagged": false,
+    "rankByRisk": 527
+   },
+   {
+    "id": "ACC-966851",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 31,
+    "out": 0,
+    "in": 31,
+    "riskScore": 38,
+    "flagged": false,
+    "rankByRisk": 609
+   },
+   {
+    "id": "ACC-198979",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 7,
+    "out": 2,
+    "in": 5,
+    "riskScore": 36,
+    "flagged": false,
+    "rankByRisk": 645
+   },
+   {
+    "id": "ACC-620800",
+    "kind": "merchant",
+    "country": "NL",
+    "degree": 144,
+    "out": 0,
+    "in": 144,
+    "riskScore": 32,
+    "flagged": false,
+    "rankByRisk": 753
+   },
+   {
+    "id": "ACC-376994",
+    "kind": "personal",
+    "country": "US",
+    "degree": 6,
+    "out": 4,
+    "in": 2,
+    "riskScore": 30,
+    "flagged": false,
+    "rankByRisk": 795
+   },
+   {
+    "id": "ACC-975444",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 93,
+    "out": 0,
+    "in": 93,
+    "riskScore": 25,
+    "flagged": false,
+    "rankByRisk": 914
+   },
+   {
+    "id": "ACC-855506",
+    "kind": "personal",
+    "country": "IN",
+    "degree": 3,
+    "out": 2,
+    "in": 1,
+    "riskScore": 19,
+    "flagged": false,
+    "rankByRisk": 1072
+   },
+   {
+    "id": "ACC-893168",
+    "kind": "merchant",
+    "country": "NG",
+    "degree": 37,
+    "out": 0,
+    "in": 37,
+    "riskScore": 18,
+    "flagged": false,
+    "rankByRisk": 1109
+   },
+   {
+    "id": "ACC-167582",
+    "kind": "personal",
+    "country": "US",
+    "degree": 4,
+    "out": 3,
+    "in": 1,
+    "riskScore": 11,
+    "flagged": false,
+    "rankByRisk": 1390
+   },
+   {
+    "id": "ACC-959129",
+    "kind": "business",
+    "country": "GB",
+    "degree": 14,
+    "out": 14,
+    "in": 0,
+    "riskScore": 11,
+    "flagged": false,
+    "rankByRisk": 1390
+   },
+   {
+    "id": "ACC-166725",
+    "kind": "personal",
+    "country": "MX",
+    "degree": 4,
+    "out": 2,
+    "in": 2,
+    "riskScore": 3,
+    "flagged": false,
+    "rankByRisk": 1888
+   },
+   {
+    "id": "ACC-142805",
+    "kind": "personal",
+    "country": "NL",
+    "degree": 8,
+    "out": 4,
+    "in": 4,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-173956",
+    "kind": "merchant",
+    "country": "BR",
+    "degree": 63,
+    "out": 0,
+    "in": 63,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-303546",
+    "kind": "personal",
+    "country": "IN",
+    "degree": 2,
+    "out": 1,
+    "in": 1,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-393859",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 907,
+    "out": 0,
+    "in": 907,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-489442",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 3,
+    "out": 1,
+    "in": 2,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-593226",
+    "kind": "merchant",
+    "country": "FR",
+    "degree": 200,
+    "out": 0,
+    "in": 200,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-624358",
+    "kind": "personal",
+    "country": "GB",
+    "degree": 4,
+    "out": 3,
+    "in": 1,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-677347",
+    "kind": "merchant",
+    "country": "US",
+    "degree": 39,
+    "out": 0,
+    "in": 39,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-701495",
+    "kind": "personal",
+    "country": "MX",
+    "degree": 7,
+    "out": 2,
+    "in": 5,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   },
+   {
+    "id": "ACC-850677",
+    "kind": "personal",
+    "country": "IN",
+    "degree": 4,
+    "out": 2,
+    "in": 2,
+    "riskScore": 0,
+    "flagged": false,
+    "rankByRisk": 2313
+   }
+  ],
+  "ranked": [
+   {
+    "id": "ACC-233575",
+    "kind": "personal",
+    "country": "US",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 98,
+    "flagged": true,
+    "rankByRisk": 1,
+    "inBoundary": true
+   },
+   {
+    "id": "ACC-577269",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 97,
+    "flagged": true,
+    "rankByRisk": 2,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-782213",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 7,
+    "out": 4,
+    "in": 3,
+    "riskScore": 97,
+    "flagged": true,
+    "rankByRisk": 2,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-642959",
+    "kind": "personal",
+    "country": "NG",
+    "degree": 9,
+    "out": 6,
+    "in": 3,
+    "riskScore": 96,
+    "flagged": true,
+    "rankByRisk": 4,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-753261",
+    "kind": "personal",
+    "country": "BR",
+    "degree": 12,
+    "out": 6,
+    "in": 6,
+    "riskScore": 95,
+    "flagged": true,
+    "rankByRisk": 5,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-309606",
+    "kind": "personal",
+    "country": "PH",
+    "degree": 9,
+    "out": 5,
+    "in": 4,
+    "riskScore": 93,
+    "flagged": true,
+    "rankByRisk": 6,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-946224",
+    "kind": "personal",
+    "country": "US",
+    "degree": 9,
+    "out": 5,
+    "in": 4,
+    "riskScore": 93,
+    "flagged": true,
+    "rankByRisk": 6,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-242954",
+    "kind": "personal",
+    "country": "US",
+    "degree": 9,
+    "out": 5,
+    "in": 4,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8,
+    "inBoundary": true
+   },
+   {
+    "id": "ACC-365386",
+    "kind": "personal",
+    "country": "GB",
+    "degree": 8,
+    "out": 5,
+    "in": 3,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-888258",
+    "kind": "personal",
+    "country": "IN",
+    "degree": 8,
+    "out": 4,
+    "in": 4,
+    "riskScore": 92,
+    "flagged": true,
+    "rankByRisk": 8,
+    "inBoundary": false
+   },
+   {
+    "id": "ACC-139419",
+    "kind": "personal",
+    "country": "MX",
+    "degree": 10,
+    "out": 5,
+    "in": 5,
+    "riskScore": 90,
+    "flagged": true,
+    "rankByRisk": 11,
+    "inBoundary": true
+   },
+   {
+    "id": "ACC-350110",
+    "kind": "personal",
+    "country": "PH",
+    "degree": 10,
+    "out": 6,
+    "in": 4,
+    "riskScore": 90,
+    "flagged": true,
+    "rankByRisk": 11,
+    "inBoundary": true
+   },
+   {
+    "id": "ACC-670564",
+    "kind": "personal",
+    "country": "NG",
+    "degree": 8,
+    "out": 6,
+    "in": 2,
+    "riskScore": 89,
+    "flagged": true,
+    "rankByRisk": 13,
+    "inBoundary": true
+   },
+   {
+    "id": "ACC-739987",
+    "kind": "personal",
+    "country": "US",
+    "degree": 11,
+    "out": 6,
+    "in": 5,
+    "riskScore": 88,
+    "flagged": true,
+    "rankByRisk": 14,
+    "inBoundary": false
+   }
+  ],
+  "anchors": {
+   "boundary": {
+    "ACC-233575": {
+     "x": 45.6,
+     "y": 45.8
+    },
+    "ACC-966851": {
+     "x": 46.8,
+     "y": 85
+    },
+    "ACC-393859": {
+     "x": 58.6,
+     "y": 54.2
+    },
+    "ACC-959129": {
+     "x": 77.2,
+     "y": 54.4
+    },
+    "ACC-242954": {
+     "x": 25.8,
+     "y": 15
+    },
+    "ACC-670564": {
+     "x": 40.5,
+     "y": 28.9
+    },
+    "ACC-139419": {
+     "x": 25.3,
+     "y": 70.7
+    },
+    "ACC-350110": {
+     "x": 33.7,
+     "y": 21.3
+    },
+    "ACC-893168": {
+     "x": 22.8,
+     "y": 48.3
+    }
+   },
+   "boundary-hit": {
+    "ACC-233575": {
+     "x": 51.2,
+     "y": 45.8
+    },
+    "ACC-966851": {
+     "x": 52.5,
+     "y": 85
+    },
+    "ACC-393859": {
+     "x": 64.2,
+     "y": 54.2
+    },
+    "ACC-959129": {
+     "x": 82.9,
+     "y": 54.4
+    },
+    "ACC-242954": {
+     "x": 31.4,
+     "y": 15
+    },
+    "ACC-670564": {
+     "x": 46.1,
+     "y": 28.9
+    },
+    "ACC-139419": {
+     "x": 30.9,
+     "y": 70.7
+    },
+    "ACC-350110": {
+     "x": 39.3,
+     "y": 21.3
+    },
+    "ACC-893168": {
+     "x": 28.4,
+     "y": 48.3
+    },
+    "ACC-782213": {
+     "x": 17.1,
+     "y": 81.4
+    }
+   },
+   "grown": {
+    "ACC-233575": {
+     "x": 47.2,
+     "y": 51.3
+    },
+    "ACC-966851": {
+     "x": 48,
+     "y": 74.3
+    },
+    "ACC-393859": {
+     "x": 54.9,
+     "y": 56.2
+    },
+    "ACC-959129": {
+     "x": 65.8,
+     "y": 56.3
+    },
+    "ACC-242954": {
+     "x": 35.6,
+     "y": 33.2
+    },
+    "ACC-670564": {
+     "x": 44.2,
+     "y": 41.4
+    },
+    "ACC-139419": {
+     "x": 35.3,
+     "y": 65.9
+    },
+    "ACC-350110": {
+     "x": 40.2,
+     "y": 36.9
+    },
+    "ACC-893168": {
+     "x": 33.8,
+     "y": 52.7
+    },
+    "ACC-782213": {
+     "x": 27.2,
+     "y": 72.2
+    },
+    "ACC-855506": {
+     "x": 80.1,
+     "y": 58.4
+    },
+    "ACC-303546": {
+     "x": 81.4,
+     "y": 67.1
+    },
+    "ACC-850677": {
+     "x": 63.4,
+     "y": 33.2
+    },
+    "ACC-198979": {
+     "x": 70.8,
+     "y": 35.3
+    },
+    "ACC-489442": {
+     "x": 73.8,
+     "y": 76.4
+    },
+    "ACC-624358": {
+     "x": 82.2,
+     "y": 50.8
+    },
+    "ACC-167582": {
+     "x": 57.4,
+     "y": 74.2
+    },
+    "ACC-376994": {
+     "x": 65.1,
+     "y": 69.9
+    },
+    "ACC-142805": {
+     "x": 63.9,
+     "y": 43
+    },
+    "ACC-749890": {
+     "x": 76.1,
+     "y": 67.9
+    },
+    "ACC-166725": {
+     "x": 78.2,
+     "y": 44.7
+    },
+    "ACC-701495": {
+     "x": 52.8,
+     "y": 67.7
+    },
+    "ACC-527694": {
+     "x": 48.3,
+     "y": 24.2
+    },
+    "ACC-677347": {
+     "x": 26.6,
+     "y": 17.1
+    },
+    "ACC-888258": {
+     "x": 27.4,
+     "y": 46.3
+    },
+    "ACC-293071": {
+     "x": 29.3,
+     "y": 39.2
+    },
+    "ACC-753261": {
+     "x": 34.3,
+     "y": 43.7
+    },
+    "ACC-620800": {
+     "x": 38.5,
+     "y": 80.2
+    },
+    "ACC-577269": {
+     "x": 41,
+     "y": 55.2
+    },
+    "ACC-593226": {
+     "x": 56.9,
+     "y": 27.4
+    },
+    "ACC-975444": {
+     "x": 39.6,
+     "y": 15
+    },
+    "ACC-173956": {
+     "x": 17.8,
+     "y": 85
+    },
+    "ACC-642959": {
+     "x": 39.9,
+     "y": 63.6
+    },
+    "ACC-365386": {
+     "x": 27.1,
+     "y": 61.4
+    }
+   },
+   "boundary-hit-all": {
+    "ACC-233575": {
+     "x": 51.2,
+     "y": 45.8
+    },
+    "ACC-966851": {
+     "x": 52.5,
+     "y": 85
+    },
+    "ACC-393859": {
+     "x": 64.2,
+     "y": 54.2
+    },
+    "ACC-959129": {
+     "x": 82.9,
+     "y": 54.4
+    },
+    "ACC-242954": {
+     "x": 31.4,
+     "y": 15
+    },
+    "ACC-670564": {
+     "x": 46.1,
+     "y": 28.9
+    },
+    "ACC-139419": {
+     "x": 30.9,
+     "y": 70.7
+    },
+    "ACC-350110": {
+     "x": 39.3,
+     "y": 21.3
+    },
+    "ACC-893168": {
+     "x": 28.4,
+     "y": 48.3
+    },
+    "ACC-782213": {
+     "x": 17.1,
+     "y": 81.4
+    }
+   },
+   "grown-577269": {
+    "ACC-233575": {
+     "x": 47.2,
+     "y": 51.3
+    },
+    "ACC-966851": {
+     "x": 48,
+     "y": 74.3
+    },
+    "ACC-393859": {
+     "x": 54.9,
+     "y": 56.2
+    },
+    "ACC-959129": {
+     "x": 65.8,
+     "y": 56.3
+    },
+    "ACC-242954": {
+     "x": 35.6,
+     "y": 33.2
+    },
+    "ACC-670564": {
+     "x": 44.2,
+     "y": 41.4
+    },
+    "ACC-139419": {
+     "x": 35.3,
+     "y": 65.9
+    },
+    "ACC-350110": {
+     "x": 40.2,
+     "y": 36.9
+    },
+    "ACC-893168": {
+     "x": 33.8,
+     "y": 52.7
+    },
+    "ACC-782213": {
+     "x": 27.2,
+     "y": 72.2
+    },
+    "ACC-855506": {
+     "x": 80.1,
+     "y": 58.4
+    },
+    "ACC-303546": {
+     "x": 81.4,
+     "y": 67.1
+    },
+    "ACC-850677": {
+     "x": 63.4,
+     "y": 33.2
+    },
+    "ACC-198979": {
+     "x": 70.8,
+     "y": 35.3
+    },
+    "ACC-489442": {
+     "x": 73.8,
+     "y": 76.4
+    },
+    "ACC-624358": {
+     "x": 82.2,
+     "y": 50.8
+    },
+    "ACC-167582": {
+     "x": 57.4,
+     "y": 74.2
+    },
+    "ACC-376994": {
+     "x": 65.1,
+     "y": 69.9
+    },
+    "ACC-142805": {
+     "x": 63.9,
+     "y": 43
+    },
+    "ACC-749890": {
+     "x": 76.1,
+     "y": 67.9
+    },
+    "ACC-166725": {
+     "x": 78.2,
+     "y": 44.7
+    },
+    "ACC-701495": {
+     "x": 52.8,
+     "y": 67.7
+    },
+    "ACC-527694": {
+     "x": 48.3,
+     "y": 24.2
+    },
+    "ACC-677347": {
+     "x": 26.6,
+     "y": 17.1
+    },
+    "ACC-888258": {
+     "x": 27.4,
+     "y": 46.3
+    },
+    "ACC-293071": {
+     "x": 29.3,
+     "y": 39.2
+    },
+    "ACC-753261": {
+     "x": 34.3,
+     "y": 43.7
+    },
+    "ACC-620800": {
+     "x": 38.5,
+     "y": 80.2
+    },
+    "ACC-577269": {
+     "x": 41,
+     "y": 55.2
+    },
+    "ACC-593226": {
+     "x": 56.9,
+     "y": 27.4
+    },
+    "ACC-975444": {
+     "x": 39.6,
+     "y": 15
+    },
+    "ACC-173956": {
+     "x": 17.8,
+     "y": 85
+    },
+    "ACC-642959": {
+     "x": 39.9,
+     "y": 63.6
+    },
+    "ACC-365386": {
+     "x": 27.1,
+     "y": 61.4
+    }
+   },
+   "boundary-merchant": {
+    "ACC-233575": {
+     "x": 45.6,
+     "y": 45.8
+    },
+    "ACC-966851": {
+     "x": 46.8,
+     "y": 85
+    },
+    "ACC-393859": {
+     "x": 58.6,
+     "y": 54.2
+    },
+    "ACC-959129": {
+     "x": 77.2,
+     "y": 54.4
+    },
+    "ACC-242954": {
+     "x": 25.8,
+     "y": 15
+    },
+    "ACC-670564": {
+     "x": 40.5,
+     "y": 28.9
+    },
+    "ACC-139419": {
+     "x": 25.3,
+     "y": 70.7
+    },
+    "ACC-350110": {
+     "x": 33.7,
+     "y": 21.3
+    },
+    "ACC-893168": {
+     "x": 22.8,
+     "y": 48.3
+    }
+   },
+   "seed-selected": {
+    "ACC-233575": {
+     "x": 60.8,
+     "y": 41.4
+    }
+   },
+   "next-boundary": {
+    "ACC-175569": {
+     "x": 51.4,
+     "y": 60.2
+    },
+    "ACC-644433": {
+     "x": 24.8,
+     "y": 73.4
+    },
+    "ACC-635003": {
+     "x": 46.2,
+     "y": 20
+    },
+    "ACC-335461": {
+     "x": 75.2,
+     "y": 80
+    }
+   }
+  }
+ },
+ "citations": {
+  "seed": {
+   "id": "6061722",
+   "grantYear": 2000,
+   "category": "Computers and communications",
+   "citationsReceived": 1386,
+   "citesMade": 11,
+   "rank": 3
+  },
+  "hood": {
+   "all1": 1398,
+   "all2": 41207,
+   "all2Edges": 612944,
+   "all3": 108733,
+   "out1": 12,
+   "out2": 148,
+   "out3": 403,
+   "in1": 1387,
+   "in2": 9832
+  },
+  "edgesOut2": 194,
+  "conn": {
+   "full": {
+    "nIn": 1386,
+    "nOut": 11,
+    "nAll": 1397,
+    "eIn": 1386,
+    "eOut": 11,
+    "eAll": 1397
+   },
+   "inPriorArt": {
+    "nIn": 0,
+    "nOut": 11,
+    "nAll": 11,
+    "eIn": 0,
+    "eOut": 11,
+    "eAll": 11
+   }
+  },
+  "limits": {
+   "renderCeiling": 50000,
+   "edgesDrawn": 100000
+  },
+  "fullTop": [
+   {
+    "id": "5991399",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 2214
+   },
+   {
+    "id": "6006242",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1702
+   },
+   {
+    "id": "6061722",
+    "grantYear": 2000,
+    "category": "Computers and communications",
+    "citationsReceived": 1386
+   },
+   {
+    "id": "5933811",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 1291
+   },
+   {
+    "id": "6128651",
+    "grantYear": 2000,
+    "category": "Computers and communications",
+    "citationsReceived": 1204
+   },
+   {
+    "id": "5960411",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 1188
+   },
+   {
+    "id": "6269361",
+    "grantYear": 2001,
+    "category": "Computers and communications",
+    "citationsReceived": 1102
+   },
+   {
+    "id": "6023684",
+    "grantYear": 2000,
+    "category": "Electrical",
+    "citationsReceived": 1057
+   }
+  ],
+  "hoodRows": [
+   {
+    "id": "6061722",
+    "grantYear": 2000,
+    "category": "Computers and communications",
+    "citationsReceived": 1386
+   },
+   {
+    "id": "6023580",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 1136
+   },
+   {
+    "id": "6016469",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 815
+   },
+   {
+    "id": "5912599",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 618
+   },
+   {
+    "id": "6185991",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 608
+   },
+   {
+    "id": "5926077",
+    "grantYear": 1999,
+    "category": "Other",
+    "citationsReceived": 600
+   },
+   {
+    "id": "5936174",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 502
+   },
+   {
+    "id": "6109662",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 306
+   },
+   {
+    "id": "5988535",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 278
+   },
+   {
+    "id": "5857332",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 254
+   },
+   {
+    "id": "6042330",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 253
+   },
+   {
+    "id": "5896224",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 253
+   },
+   {
+    "id": "5888922",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 244
+   },
+   {
+    "id": "6174738",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 244
+   },
+   {
+    "id": "6008218",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 233
+   },
+   {
+    "id": "5958995",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 230
+   },
+   {
+    "id": "6267201",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 227
+   },
+   {
+    "id": "5934694",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 223
+   },
+   {
+    "id": "6030404",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 218
+   },
+   {
+    "id": "6124916",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 207
+   },
+   {
+    "id": "5948214",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 207
+   },
+   {
+    "id": "6259918",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 205
+   },
+   {
+    "id": "6299620",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 205
+   },
+   {
+    "id": "6038380",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 193
+   },
+   {
+    "id": "6186559",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 192
+   },
+   {
+    "id": "5955171",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 189
+   },
+   {
+    "id": "6238580",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 187
+   },
+   {
+    "id": "6241714",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 178
+   },
+   {
+    "id": "5923034",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 175
+   },
+   {
+    "id": "6233336",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 174
+   },
+   {
+    "id": "6291426",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 171
+   },
+   {
+    "id": "6005324",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 163
+   },
+   {
+    "id": "5942024",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 162
+   },
+   {
+    "id": "6025273",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 153
+   },
+   {
+    "id": "6243428",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 135
+   },
+   {
+    "id": "5904683",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 134
+   },
+   {
+    "id": "5971810",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 131
+   },
+   {
+    "id": "5932873",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 127
+   },
+   {
+    "id": "5892610",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 125
+   },
+   {
+    "id": "5860239",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 123
+   },
+   {
+    "id": "6098586",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 120
+   },
+   {
+    "id": "6214524",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 117
+   },
+   {
+    "id": "6081313",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 116
+   },
+   {
+    "id": "6076537",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 109
+   },
+   {
+    "id": "5948890",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 103
+   },
+   {
+    "id": "5966379",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 103
+   },
+   {
+    "id": "5876526",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 99
+   },
+   {
+    "id": "6105129",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 97
+   },
+   {
+    "id": "6016621",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 95
+   },
+   {
+    "id": "6151221",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 93
+   },
+   {
+    "id": "6010527",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 92
+   },
+   {
+    "id": "5883642",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 87
+   },
+   {
+    "id": "6143907",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 84
+   },
+   {
+    "id": "6331245",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 78
+   },
+   {
+    "id": "6274748",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 77
+   },
+   {
+    "id": "6115471",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 76
+   },
+   {
+    "id": "6201818",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 75
+   },
+   {
+    "id": "6315727",
+    "grantYear": 1999,
+    "category": "Other",
+    "citationsReceived": 74
+   },
+   {
+    "id": "6246688",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 73
+   },
+   {
+    "id": "5927702",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 72
+   },
+   {
+    "id": "6240084",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 55
+   },
+   {
+    "id": "6323868",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 55
+   },
+   {
+    "id": "6170012",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 50
+   },
+   {
+    "id": "6198959",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 50
+   },
+   {
+    "id": "6149828",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 46
+   },
+   {
+    "id": "5864416",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 45
+   },
+   {
+    "id": "5938784",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 42
+   },
+   {
+    "id": "6173039",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 39
+   },
+   {
+    "id": "5955101",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 38
+   },
+   {
+    "id": "6005245",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 34
+   },
+   {
+    "id": "6001605",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 33
+   },
+   {
+    "id": "6229500",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 32
+   },
+   {
+    "id": "5899936",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 31
+   },
+   {
+    "id": "6156997",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 28
+   },
+   {
+    "id": "5876057",
+    "grantYear": 1999,
+    "category": "Other",
+    "citationsReceived": 26
+   },
+   {
+    "id": "5906563",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 26
+   },
+   {
+    "id": "5891475",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 24
+   },
+   {
+    "id": "5963459",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 24
+   },
+   {
+    "id": "6272542",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 24
+   },
+   {
+    "id": "6079528",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 23
+   },
+   {
+    "id": "6119211",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 23
+   },
+   {
+    "id": "6200423",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 22
+   },
+   {
+    "id": "6068513",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 22
+   },
+   {
+    "id": "6324106",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 22
+   },
+   {
+    "id": "6296224",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 22
+   },
+   {
+    "id": "6080646",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 21
+   },
+   {
+    "id": "6214681",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 21
+   },
+   {
+    "id": "5959650",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 20
+   },
+   {
+    "id": "6021760",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 19
+   },
+   {
+    "id": "6152196",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 19
+   },
+   {
+    "id": "6025433",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 19
+   },
+   {
+    "id": "6052641",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 18
+   },
+   {
+    "id": "6069360",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 18
+   },
+   {
+    "id": "5962983",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 16
+   },
+   {
+    "id": "5989525",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 15
+   },
+   {
+    "id": "5989440",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 13
+   },
+   {
+    "id": "6155603",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 13
+   },
+   {
+    "id": "6199717",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 12
+   },
+   {
+    "id": "6052326",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 11
+   },
+   {
+    "id": "6093607",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 11
+   },
+   {
+    "id": "6163665",
+    "grantYear": 1999,
+    "category": "Other",
+    "citationsReceived": 11
+   },
+   {
+    "id": "5892565",
+    "grantYear": 1999,
+    "category": "Other",
+    "citationsReceived": 11
+   },
+   {
+    "id": "5993779",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 9
+   },
+   {
+    "id": "6281924",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 8
+   },
+   {
+    "id": "6113526",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 8
+   },
+   {
+    "id": "6226588",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 8
+   },
+   {
+    "id": "6091230",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 6
+   },
+   {
+    "id": "5894319",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 6
+   },
+   {
+    "id": "5938391",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 6
+   },
+   {
+    "id": "6110390",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 6
+   },
+   {
+    "id": "6065950",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 6
+   },
+   {
+    "id": "6022570",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 6
+   },
+   {
+    "id": "6080474",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 5
+   },
+   {
+    "id": "6181034",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 5
+   },
+   {
+    "id": "6278524",
+    "grantYear": 1999,
+    "category": "Other",
+    "citationsReceived": 5
+   },
+   {
+    "id": "5905911",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 5
+   },
+   {
+    "id": "5877848",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 4
+   },
+   {
+    "id": "6019709",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 4
+   },
+   {
+    "id": "6205143",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 4
+   },
+   {
+    "id": "6054799",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 3
+   },
+   {
+    "id": "5965997",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 3
+   },
+   {
+    "id": "6038106",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 3
+   },
+   {
+    "id": "6268969",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 2
+   },
+   {
+    "id": "6141585",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 2
+   },
+   {
+    "id": "6260108",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 2
+   },
+   {
+    "id": "5973551",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6107750",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6278402",
+    "grantYear": 1999,
+    "category": "Chemical",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6293395",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6103930",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6089065",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6175990",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6198009",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6099544",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6262961",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6276989",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6278817",
+    "grantYear": 1999,
+    "category": "Electrical",
+    "citationsReceived": 1
+   },
+   {
+    "id": "5975035",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 1
+   },
+   {
+    "id": "6331478",
+    "grantYear": 1999,
+    "category": "Mechanical",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6005751",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "5998453",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6155931",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6295652",
+    "grantYear": 1999,
+    "category": "Drugs and medical",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6321818",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6286550",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "5911114",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6039155",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   },
+   {
+    "id": "6126561",
+    "grantYear": 1999,
+    "category": "Computers and communications",
+    "citationsReceived": 0
+   }
+  ],
+  "anchors": {
+   "seed": {
+    "x": 48.3,
+    "y": 50.5
+   }
+  }
+ }
+}

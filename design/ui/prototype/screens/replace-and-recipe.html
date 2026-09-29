@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Update with new data and apply a recipe: screens</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  body { background: var(--cm-bg-secondary); }
+  .pg-head { max-width: 1440px; padding: 24px 24px 8px; font-size: 13px; line-height: 20px; }
+  .pg-head h1 { font-size: 24px; line-height: 32px; margin: 0 0 8px; font-weight: 600; }
+  .pg-head p { max-width: 80ch; margin: 0 0 8px; color: var(--cm-text-secondary); }
+  .pg-toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0; }
+  .pg-head a, .st a { color: var(--cm-text-brand); }
+  .an-off { display: none; }
+  #notes:target ~ .pg-head .an-on { display: none; }
+  #notes:target ~ .pg-head .an-off { display: inline; }
+  .st { padding: 24px 0 16px; }
+  .st-head { padding: 0 24px 12px; font-size: 13px; line-height: 20px; max-width: 1440px; }
+  .st-head h2 { font-size: 15px; line-height: 25px; margin: 0; font-weight: 600; }
+  .st-head p { margin: 0; color: var(--cm-text-secondary); max-width: 100ch; }
+  .st-frame { position: relative; width: 1440px; height: 900px; overflow: hidden; transform: translateZ(0); background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border); }
+  .st-frame > .k-app { width: 1440px; height: 900px; }
+  .an { display: none !important; }
+  #notes:target ~ .states .an { display: inline-grid !important; }
+  #notes:target ~ .states .k-annot-box.an { display: block !important; }
+  .st-notes { display: none; margin: 12px 24px 0; padding: 0; list-style: none; max-width: 1392px; font-size: 12px; line-height: 18px; }
+  #notes:target ~ .states .st-notes { display: grid; grid-template-columns: 28px 1fr 1fr 220px; gap: 6px 12px; }
+  .st-notes .h { color: var(--cm-text-secondary); font-weight: 600; }
+  .k-item .k-kind { white-space: nowrap; }
+  .k-link { color: var(--cm-text-brand); text-decoration: none; cursor: default; }
+  .k-rail-pill { position: relative; }
+  .rr .k-trail { gap: 6px; }
+  .rr-line { list-style: none; padding: 0 8px 6px 32px; margin-top: -6px; color: var(--cm-text-secondary); }
+  .pin { background: var(--cm-bg-secondary); }
+  .nb { color: var(--cm-text-brand); }
+  .lp-grid { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; }
+  .lp-cols { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--cm-border); border-bottom: 1px solid var(--cm-border); margin: 8px 0; }
+  .lp-cols > div + div { border-inline-start: 1px solid var(--cm-border); }
+  .lp-issue { align-items: flex-start; padding-top: 6px; padding-bottom: 6px; }
+  .lp-sample th, .lp-sample td { height: 26px; }
+  .bs-head { display: flex; flex-direction: column; padding: 8px 16px; }
+  .bs-row { display: grid; grid-template-columns: 220px 200px 1fr; gap: 4px 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--cm-border); }
+  .bs-name { display: flex; flex-direction: column; }
+  .bs-row > .k-badge { justify-self: start; }
+  .bs-uses { grid-column: 2 / span 2; }
+  .bs-sep { height: 8px; }
+  .bs-matched { display: flex; gap: 8px; align-items: flex-start; padding: 6px 16px; }
+  .bs-ids { margin: 0 16px; padding: 6px 12px; border-radius: 5px; background: var(--cm-bg-secondary); }
+  .rc { padding: 10px 16px 2px; }
+  .rp { display: grid; grid-template-columns: 240px 1fr; min-height: 380px; margin-top: -8px; }
+  .rp-list { border-inline-end: 1px solid var(--cm-border); padding-top: 8px; }
+  .rp-prev { padding-top: 4px; }
+  .cs-row { margin: 4px 8px; border-radius: 8px; min-height: 52px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+  .cs-row[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+  .sc { min-height: 44px; margin: 4px 0 4px 36px; }
+  .uc { align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
+  .uc > .k-i { margin-top: 2px; }
+  .gone { margin: 4px 0; }
+  .gone .k-item { padding-left: 0; }
+  .droptarget { position: absolute; inset: 8px; border: 2px solid var(--cm-border-selected); border-radius: 8px; background: color-mix(in srgb, var(--cm-bg-selected) 40%, transparent); }
+  .cmp { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1px 1fr; min-height: 0; }
+  .cmp > .k-canvas { height: 100%; }
+  .cmp-handle { background: var(--cm-border-strong); }
+  .cmp-head { position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center; height: 40px; padding: 0 12px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); }
+</style>
+</head>
+<body>
+<span id="notes"></span>
+<header class="pg-head">
+  <h1>Update with new data, apply a recipe, compare with last month</h1>
+  <p>Screen mocks for one sitting of a fraud analyst: she swaps March's transfers for April's, reads what replayed, re-runs the one result that did not, and applies her team's recipe and then a recipe that holds only styles. Comparing the two months is its own flow, <a href="../flows/compare-versions.html">Compare with the previous data version</a>. Each state is the whole app at 1440 by 900. The flow that strings them together is <a href="../flows/replace-and-recipe.html">Update with new data, apply a recipe, compare</a>.</p>
+  <p><a class="an-on" href="#notes">Show annotations</a><a class="an-off" href="#">Hide annotations</a> -- numbered boxes over each state, with the framework section behind each element and the compact-mantine component it would be built with. Counts come from the kit's March and April transfer data. In this telling the April export renamed riskScore and wrote flagged as Y and N, so the binding step opens; the kit's own April file matches every column. The canvas keeps March's drawing in the April states.</p>
+  <nav class="pg-toc"><a href="#s-menu">1. Update with new data, from the File menu</a><a href="#s-load">2. The load step for the April file</a><a href="#s-bind-replace">3. The binding step: two attributes to bind</a><a href="#s-replaying">4. Replaying on the April data</a><a href="#s-report">5. The replay report</a><a href="#s-rerun">6. Re-run the out-of-date result</a><a href="#s-recipe-pick">7. Apply recipe: the picker shows what the recipe holds</a><a href="#s-bind-recipe">8. The recipe's binding step: matched and unmatched</a><a href="#s-recipe-applied">9. The recipe applied</a><a href="#s-style-drop">10. A recipe of styles dropped on the canvas: Use these styles</a><a href="#s-bind-style">11. Its binding step: one layer</a><a href="#s-style-applied">12. The team's styles in use</a></nav>
+</header>
+<div class="states">
+<section class="st" id="s-menu">
+  <div class="st-head"><h2>1. Update with new data, from the File menu</h2><p>The analyst's March project is open. Update with new data... says, before the click, that one slow result will not replay on its own. The quick replays carry no band: they finish in seconds.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">March, 3,000</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">41</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">March</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-03.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-03.csv read as CSV; 3,000 nodes; 9,113 edges; 0 rows dropped.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">9,113</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">1, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">907</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-menu" style="left:52px;top:36px">
+      <div class="k-menu-item"><span class="k-check-col"></span>Quick actions...<span class="k-shortcut">Ctrl+K</span></div>
+      <div class="k-menu-sep"></div>
+      <div class="k-menu-item" data-hover><span class="k-check-col"></span>File<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Edit<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>View<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Selection<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Algorithms<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Recipes<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+      <div class="k-menu-sep"></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Preferences...</div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Help<span class="k-sub"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span></div>
+    </div>
+    <div class="k-menu" style="left:256px;top:77px;min-width:300px">
+      <div class="k-menu-item"><span class="k-check-col"></span>Open...<span class="k-shortcut">Ctrl+O</span></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Add data...</div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Add as another graph...</div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Join...</div>
+      <div class="k-menu-item" data-hover style="height:auto;padding-top:4px;padding-bottom:4px;align-items:flex-start" aria-describedby="rd-cost"><span class="k-check-col"></span><span style="display:flex;flex-direction:column">Update with new data...<span id="rd-cost" style="font-size:11px;line-height:14px;color:var(--k-menu-ink2)">1 slow result will wait for Re-run</span></span></div>
+      <div class="k-menu-sep"></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Connect to data source...</div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Load set collection...</div>
+      <div class="k-menu-sep"></div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Export...<span class="k-shortcut">Ctrl+Shift+E</span></div>
+    </div><span class="k-annot-box an" style="left:262px;top:140px;width:316px;height:38px"></span><span class="k-step an" style="position:absolute;z-index:92;left:568px;top:130px">1</span><span class="k-annot-box an" style="left:1200px;top:136px;width:240px;height:160px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1430px;top:126px">2</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>The command's cost is a secondary line under its label, not in the shortcut column, which holds only key chords. It names what will actually happen: the quick replays are under the smallest band, so the line names the one result that will wait. It is the item's accessible description (aria-describedby), never aria-keyshortcuts. The count of what replays is in the load step.</li><li class="k-secondary">principles.md, 'An act that replays runs shows their combined cost first'; glossary.md 10, cost bands. Proposed change: the command shows the band of what it will start</li><li class="k-secondary">Menu, Menu.Item with a description line</li><li><span class="k-step">2</span></li><li>The graph's Data section names the current data version and its last import, so 'which month am I looking at?' is answered without opening anything.</li><li class="k-secondary">information-architecture.md 4.1, the Last import row; conceptual-model.md 3.2</li><li class="k-secondary">ControlSection, DataRow, ProseBlock</li></ol>
+</section>
+<section class="st" id="s-load">
+  <div class="st-head"><h2>2. The load step for the April file</h2><p>The file picker returned transfers-2026-04.csv. The load step previews it against the March version before anything changes.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">March, 3,000</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">41</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">March</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-03.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-03.csv read as CSV; 3,000 nodes; 9,113 edges; 0 rows dropped.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">9,113</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">1, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">907</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-backdrop"><div class="k-modal k-modal-wide">
+      <div class="k-modal-head">Update with transfers-2026-04.csv<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body">
+      <div class="k-fieldrow" style="padding-right:16px"><span class="k-legend">Format</span>
+        <div class="lp-grid"><span class="k-field">CSV, comma separated<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary">detected from the header row</span></div></div>
+      <div class="lp-cols">
+        <div>
+          <div class="k-caption" style="padding:8px 16px 4px">Mapping</div>
+          <div class="k-data"><span class="k-name">Source</span><span class="k-value k-id">from_account</span></div>
+          <div class="k-data"><span class="k-name">Target</span><span class="k-value k-id">to_account</span></div>
+          <div class="k-data"><span class="k-name">amount</span><span class="k-value">currency; weight: flow</span></div>
+          <div class="k-data"><span class="k-name">timestamp</span><span class="k-value">date and time</span></div>
+          <div class="k-data"><span class="k-name">kind, country</span><span class="k-value">categories</span></div>
+          <div class="k-data"><span class="k-name">risk_score</span><span class="k-value">numbers</span></div>
+          <div class="k-data"><span class="k-name">flagged</span><span class="k-value">categories: Y, N</span></div>
+        </div>
+        <div>
+          <div class="k-caption" style="padding:8px 16px 4px">Issues</div>
+          <div class="k-row lp-issue"><span class="k-warn-glyph">!</span><span class="k-grow">2 attributes differ from March: <span class="k-id">riskScore</span> is missing; <span class="k-id">flagged</span> now reads as categories (Y, N), not yes or no. The next step asks how to read them.</span></div>
+          <div class="k-row lp-issue"><svg class="k-i k-secondary"><use href="../kit/icons.svg#info"/></svg><span class="k-grow">39 March accounts are not in this file and 132 are new. Sets keep missing members, marked.</span></div>
+          <div class="k-caption" style="padding:12px 16px 4px">Counts</div>
+          <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes read</span><span class="k-big">3,093</span><span class="k-secondary k-num">March: 3,000</span></div><div class="k-metric"><span class="k-secondary">edges read</span><span class="k-big">8,370</span><span class="k-secondary k-num">March: 9,113</span></div></div>
+          <div class="k-data"><span class="k-name">rows dropped</span><span class="k-value">0</span></div>
+        </div>
+      </div>
+      <div class="k-caption" style="padding:8px 16px 4px">Sample, first 4 of 8,370 rows</div>
+      <div style="padding:0 16px"><table class="k-table lp-sample"><thead><tr><th>from_account</th><th>to_account</th><th class="k-n">amount</th><th>timestamp</th><th>kind</th><th class="k-n">risk_score</th><th>flagged</th></tr></thead><tbody>
+        <tr><td class="k-id">ACC-633005</td><td class="k-id">ACC-393859</td><td class="k-n">1,240.00</td><td class="k-num">2026-04-01 08:12</td><td>business</td><td class="k-n">3</td><td>N</td></tr>
+        <tr><td class="k-id">ACC-946224</td><td class="k-id">ACC-242954</td><td class="k-n">9,500.00</td><td class="k-num">2026-04-01 09:40</td><td>personal</td><td class="k-n">93</td><td>Y</td></tr>
+        <tr><td class="k-id">ACC-242954</td><td class="k-id">ACC-888258</td><td class="k-n">9,350.00</td><td class="k-num">2026-04-01 11:02</td><td>personal</td><td class="k-n">92</td><td>Y</td></tr>
+        <tr><td class="k-id">ACC-325714</td><td class="k-id">ACC-697114</td><td class="k-n">86.20</td><td class="k-num">2026-04-01 11:15</td><td>business</td><td class="k-n">19</td><td>N</td></tr>
+      </tbody></table></div></div>
+      <div class="k-modal-foot"><span class="k-secondary k-grow">4 results replay at once; Cycles up to 6 transfers waits for Re-run (a few minutes)</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Continue to binding</span></div>
+    </div></div><span class="k-annot-box an" style="left:728px;top:280px;width:352px;height:110px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:270px">1</span><span class="k-annot-box an" style="left:728px;top:400px;width:352px;height:105px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:390px">2</span><span class="k-annot-box an" style="left:360px;top:690px;width:720px;height:40px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:680px">3</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Issues name what the binding step will ask by what changed in the values' meaning (missing; now read as categories, not yes or no), never by storage type (text, integer), which the glossary keeps to the docs, and without the words slot or measurement level.</li><li class="k-secondary">task-flows.md 8, 'Where the analyst stalls'; interface-templates.md 20a</li><li class="k-secondary">DataRow with a severity glyph</li><li><span class="k-step">2</span></li><li>Counts sit beside the March counts, so the size of the change is a trust check before commit.</li><li class="k-secondary">task-flows.md 8, trust check 'the preview; size before loading'</li><li class="k-secondary">MetricRow</li><li><span class="k-step">3</span></li><li>Continue to binding, because another step follows and nothing is applied yet; Cancel or Esc leaves March untouched. The footer counts what will replay and names the one result that will wait, with its band.</li><li class="k-secondary">Proposed change: the load step's commit label when a binding step follows</li><li class="k-secondary">ModalFooter, Button</li></ol>
+</section>
+<section class="st" id="s-bind-replace">
+  <div class="st-head"><h2>3. The binding step: two attributes to bind</h2><p>It opens only because one attribute is missing and one now reads as categories. One choice per such attribute, and none otherwise. The back arrow returns to the load step with every choice kept; Esc, Cancel and the close button apply nothing.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">March, 3,000</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">41</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">March</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-03.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-03.csv read as CSV; 3,000 nodes; 9,113 edges; 0 rows dropped.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">9,113</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">1, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">907</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-backdrop"><div class="k-modal k-modal-wide">
+      <div class="k-modal-head"><span role="button" class="k-icon-btn" title="Back" aria-label="Back to the load step"><svg class="k-i "><use href="../kit/icons.svg#arrow-left"/></svg></span>Update with transfers-2026-04.csv<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body">
+      <div class="bs-head"><span class="k-strong">2 attributes to bind</span><span class="k-secondary">Everything else matched by name.</span></div>
+      <div class="bs-row">
+        <div class="bs-name"><span class="k-id k-strong">riskScore</span><span class="k-secondary">needs numbers</span></div>
+        <span class="k-field" data-focus style="width:200px"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#hash"/></svg><span class="k-id">risk_score</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-badge">matched by hand</span>
+        <div class="bs-uses k-secondary">Used by: High risk (rule set); Risk color (style layer). Left unbound, both switch off.</div>
+      </div>
+      <div class="bs-row">
+        <div class="bs-name"><span class="k-id k-strong">flagged</span><span class="k-secondary">yes or no in March; now categories Y, N</span></div>
+        <span class="k-field" style="width:200px">Y is yes, N is no<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-secondary k-num">Y 14; N 3,079</span>
+        <div class="bs-uses k-secondary">Used by: Flagged (rule set); the legend on the canvas.</div>
+      </div>
+      <div class="bs-sep"></div>
+      <div class="bs-matched"><svg class="k-i k-secondary"><use href="../kit/icons.svg#circle-check"/></svg><span><span class="k-strong">6 matched by name:</span> from_account, to_account, amount (weight: flow), timestamp, kind, country</span></div>
+      <div class="bs-matched"><svg class="k-i k-secondary"><use href="../kit/icons.svg#circle-check"/></svg><span><span class="k-strong">Accounts:</span> <span class="k-num">2,961 of 3,000</span> March accounts found by id; <span class="k-num">132</span> new; <span class="k-num">39</span> not in April</span></div></div>
+      <div class="k-modal-foot"><span class="k-secondary k-grow">One undo step: Update with transfers-2026-04.csv</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Replace</span></div>
+    </div></div><span class="k-annot-box an" style="left:360px;top:366px;width:720px;height:70px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:356px">1</span><span class="k-annot-box an" style="left:360px;top:518px;width:720px;height:28px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:508px">2</span><span class="k-annot-box an" style="left:360px;top:546px;width:720px;height:28px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:536px">3</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Each row names the attribute, what it needs, the picker, and what it switches off if left unbound. The picker lists only attributes of a fitting kind.</li><li class="k-secondary">task-flows.md 8, 'Replace data binds only when it must'; interface-templates.md 20, Binding step; message-catalog.md graphty.file.binding</li><li class="k-secondary">ComboInput in the type slot, Badge</li><li><span class="k-step">2</span></li><li>What matched is stated too, so 'did it read my columns?' needs no second look.</li><li class="k-secondary">user-journeys.md 1, Arrive; task-flows.md 8 trust check 'matched and unmatched counts'</li><li class="k-secondary">ProseBlock with a check glyph</li><li><span class="k-step">3</span></li><li>Accounts matched by id are counted here, before commit: 39 March accounts will be missing members of their sets. The header's back arrow is the only way back a step; Esc is Cancel, as in Figma's stepped dialogs.</li><li class="k-secondary">conceptual-model.md 7.3, forwarding and matching</li><li class="k-secondary">ProseBlock</li></ol>
+</section>
+<section class="st" id="s-replaying">
+  <div class="st-head"><h2>4. Replaying on the April data</h2><p>Apply committed one undo step. The canvas shows April at once, arranged positions kept; results replay in the background.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph"><div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div><div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">41</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div></aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toast">Replaying 4 results<span class="k-progress"><i style="width:45%"></i></span><span class="k-toast-action">Cancel</span></div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April. <a class="k-link">Show replay report</a></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><span class="k-annot-box an" style="left:60px;top:370px;width:236px;height:44px"></span><span class="k-step an" style="position:absolute;z-index:92;left:286px;top:360px">1</span><span class="k-annot-box an" style="left:590px;top:790px;width:320px;height:44px"></span><span class="k-step an" style="position:absolute;z-index:92;left:900px;top:780px">2</span><span class="k-annot-box an" style="left:1200px;top:170px;width:240px;height:110px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1430px;top:160px">3</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Cheap results replay; a result whose estimate is a few minutes or more is not started. It reads Out of date with its band and one verb, Re-run.</li><li class="k-secondary">interaction-patterns.md 3.3, cost table, 'Apply recipe' row; glossary.md 10, Out of date. Proposed change: Replace data's replay follows the same row</li><li class="k-secondary">ActionRow with state, busy and actions</li><li><span class="k-step">2</span></li><li>One running notice for the whole replay, with Cancel. Undo (the chord) takes back the whole update.</li><li class="k-secondary">principles.md, 'Long runs report as Figma's plugins do'; interaction-patterns.md 3.4</li><li class="k-secondary">Toast, Progress</li><li><span class="k-step">3</span></li><li>The Data section already reads April, and its last import line carries the match counts and the way into the replay report.</li><li class="k-secondary">message-catalog.md graphty.load.merged; information-architecture.md, the Last import row</li><li class="k-secondary">DataRow, ProseBlock, Anchor</li></ol>
+</section>
+<section class="st" id="s-report">
+  <div class="st-head"><h2>5. The replay report</h2><p>Show report on the notice opens Version history on the April entry. Last week's analysis on this week's data: these replayed, this one did not.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph"><div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div><div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">41</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div></aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toast">Data updated: 4 of 5 results replayed<span class="k-toast-action">Show report</span><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Version history">
+    
+    <div class="k-header2"><span class="k-tabs"><span class="k-tab" aria-selected="true">Version history</span></span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Done</span></div>
+    <div class="k-scroll">
+      <ul class="k-list" style="padding-top:8px">
+        <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg><span class="k-ellipsis">April data</span><span class="k-trail k-num">today 09:14</span></li>
+        <li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg><span class="k-ellipsis">March data</span><span class="k-trail k-num">Apr 2</span></li>
+      </ul>
+      <section class="k-section rep">
+        <div class="k-section-head">Replay report</div>
+        <div class="k-prose">Replaced March with transfers-2026-04.csv.</div>
+        <div class="k-caption rc">Accounts</div>
+        <div class="k-data"><span class="k-name">found by id</span><span class="k-value">2,961 of 3,000</span></div>
+        <div class="k-data"><span class="k-name">new in April</span><span class="k-value">132</span></div>
+        <div class="k-data"><span class="k-name">not in April</span><span class="k-value">39 <a class="k-link">List</a></span></div>
+        <div class="k-caption rc">Attributes</div>
+        <div class="k-prose">6 matched by name; riskScore bound by hand to risk_score; flagged read as yes or no (Y is yes).</div>
+        <div class="k-caption rc">Results</div>
+        <div class="k-prose">4 replayed. <span class="k-warn-glyph">!</span> Cycles up to 6 transfers not replayed: a few minutes. <a class="k-link">Re-run</a></div>
+        <div class="k-caption rc">Sets and notes</div>
+        <div class="k-prose">Mule ring: 14 of 14 members in April. Flagged and High risk re-evaluated on April's values. 2 notes carried over by id.</div>
+        <div class="k-caption rc">Positions</div>
+        <div class="k-prose">Kept; 132 new accounts placed beside their neighbors.</div>
+      </section>
+    </div>
+  </aside></div><span class="k-annot-box an" style="left:1199px;top:48px;width:241px;height:40px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1430px;top:38px">1</span><span class="k-annot-box an" style="left:1199px;top:180px;width:241px;height:560px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1430px;top:170px">2</span><span class="k-annot-box an" style="left:57px;top:104px;width:241px;height:90px"></span><span class="k-step an" style="position:absolute;z-index:92;left:288px;top:94px">3</span><span class="k-annot-box an" style="left:60px;top:275px;width:236px;height:150px"></span><span class="k-step an" style="position:absolute;z-index:92;left:286px;top:265px">4</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Version history is a mode: its tab names it in header row 2, Done is the one exit, Esc moves focus to Done.</li><li class="k-secondary">interaction-pattern-entries.md 5, modes table; interface-templates.md 6 and 17</li><li class="k-secondary">Tabs, Button</li><li><span class="k-step">2</span></li><li>The report is the claim of the task: counts matched and not, how each attribute was bound, what replayed, and what sets and notes carried over by id.</li><li class="k-secondary">task-flows.md 8, Claim and 'read the replay'; conceptual-model.md 7.3</li><li class="k-secondary">ActionRow entries, DataRow, ProseBlock</li><li><span class="k-step">3</span></li><li>Out-of-date results are pinned at the top of the Results panel, with Review, which lists every out-of-date object with its band and offers Re-run all.</li><li class="k-secondary">interaction-pattern-entries.md 7.2, Freshness; figma-crosswalk.md, 'Library updates wait behind one badged button'</li><li class="k-secondary">ActionRow in a pinned strip, Button</li><li><span class="k-step">4</span></li><li>Each replayed result says what changed in one report line, so the next question (flow 8.2, compare) has an obvious start.</li><li class="k-secondary">task-flows.md 8, 'Results: rows note what replayed and what changed'</li><li class="k-secondary">ActionRow state line</li></ol>
+</section>
+<section class="st" id="s-rerun">
+  <div class="st-head"><h2>6. Re-run the out-of-date result</h2><p>The analyst pressed Re-run. The pinned strip is gone, the rail badge clears, and the run reports like any long run.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph"><div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div><div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">41</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div></aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toast">Running Cycles up to 6 transfers<span class="k-progress"><i style="width:20%"></i></span><span class="k-toast-action">Cancel</span></div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April. <a class="k-link">Show replay report</a></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><span class="k-annot-box an" style="left:60px;top:236px;width:236px;height:44px"></span><span class="k-step an" style="position:absolute;z-index:92;left:286px;top:226px">1</span><span class="k-annot-box an" style="left:4px;top:196px;width:50px;height:48px"></span><span class="k-step an" style="position:absolute;z-index:92;left:44px;top:186px">2</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Re-run is one undo step ('Run Cycles up to 6 transfers'); the undo chord cancels it while it runs. The row keeps its band while running.</li><li class="k-secondary">interaction-pattern-entries.md 7.2 and 7.1; interaction-patterns.md 3.3</li><li class="k-secondary">ActionRow busy state</li><li><span class="k-step">2</span></li><li>The Results rail button's count of failed and out-of-date results drops to none.</li><li class="k-secondary">figma-crosswalk.md, 'Library updates wait behind one badged button'</li><li class="k-secondary">Rail button with an Indicator</li></ol>
+</section>
+<section class="st" id="s-recipe-pick">
+  <div class="st-head"><h2>7. Apply recipe: the picker shows what the recipe holds</h2><p>From Recipes, Apply recipe.... Choosing a recipe shows its contents and needs before anything changes.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">52</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-backdrop"><div class="k-modal k-modal-wide">
+      <div class="k-modal-head">Apply recipe<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body"><div class="rp">
+      <div class="rp-list">
+        <div class="k-search" style="padding:0 8px"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find a recipe</span></div>
+        <div class="k-group-head">In graphty</div>
+        <div class="k-result"><svg class="k-i "><use href="../kit/icons.svg#book-open"/></svg>Overview</div>
+        <div class="k-group-head">Recently opened</div>
+        <div class="k-result" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#file"/></svg>Mule ring triage</div>
+        <div class="k-result"><svg class="k-i "><use href="../kit/icons.svg#file"/></svg>Card-testing sweep</div>
+        <div class="k-result"><svg class="k-i "><use href="../kit/icons.svg#upload"/></svg>Open a recipe file...</div>
+      </div>
+      <div class="rp-prev">
+        <div class="k-strong" style="font-size:13px;padding:8px 16px 0">Mule ring triage</div>
+        <div class="k-prose">From the fraud team, shared Sep 20. Carries no data.</div>
+        <div class="k-caption rc">What it carries</div>
+        <div class="k-row"><span class="k-check" aria-checked="true"></span><span class="k-grow">3 sets: Watchlist (9 accounts), Fast pass-through, Watchlist hits</span></div>
+        <div class="k-row"><span class="k-check" aria-checked="true"></span><span class="k-grow">2 runs: Personalized PageRank from the watchlist; Cycles up to 4 transfers</span><span class="k-secondary">a few minutes</span></div>
+        <div class="k-row"><span class="k-check" aria-checked="true"></span><span class="k-grow">3 style layers: Watchlist ring, Pass-through edges, Risk ramp</span></div><div class="k-row cs-row sc"><span class="k-grow"><span class="k-strong">Use these styles</span><br><span class="k-secondary">Risk color and Mule ring go: Risk ramp also colors nodes. Community color, from an algorithm, stays.</span></span></div><div class="k-row cs-row sc" aria-selected="true"><span class="k-grow"><span class="k-strong">Add these styles on top</span><br><span class="k-secondary">3 layers above your 5; all 5 stay.</span></span></div>
+        <div class="k-row"><span class="k-check" aria-checked="true"></span><span class="k-grow">1 note: "24 hours follows the team's AML playbook"</span></div>
+        <div class="k-caption rc">It needs</div>
+        <div class="k-prose"><span class="k-id">amount</span> (numbers, weight: flow); <span class="k-id">timestamp</span> (date and time); <span class="k-id">riskScore</span> (numbers); <span class="k-id">counterparty_bank</span> (categories)</div>
+        <div class="k-prose"><span class="k-warn-glyph">!</span> 2 of the 4 are not in this graph by name: riskScore, counterparty_bank. The next step asks how to read them.</div>
+      </div></div></div>
+      <div class="k-modal-foot"><span class="k-secondary k-grow">1 run of a few minutes arrives Not run; the rest run at once</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Continue to binding</span></div>
+    </div></div><span class="k-annot-box an" style="left:362px;top:260px;width:236px;height:200px"></span><span class="k-step an" style="position:absolute;z-index:92;left:588px;top:250px">1</span><span class="k-annot-box an" style="left:600px;top:296px;width:480px;height:240px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:286px">2</span><span class="k-annot-box an" style="left:600px;top:554px;width:480px;height:92px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:544px">3</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Registered recipes first, then recently opened files. The file's extension is not shown: the recipe file's format is still an open decision.</li><li class="k-secondary">interaction-pattern-entries.md 6.10 (Bring a recipe or style in); one-way-doors.md 1 and 19</li><li class="k-secondary">Modal, Combobox list, ResultRow</li><li><span class="k-step">2</span></li><li>Each part is a checkbox row; runs carry their cost band. Style layers get the one Apply dialog's two choices, neither preselected; here she chose to add on top, so her Mule ring stays.</li><li class="k-secondary">interface-templates.md 20, Apply recipe dialog; interaction-patterns.md 3.3</li><li class="k-secondary">ToggleRow</li><li><span class="k-step">3</span></li><li>What it needs is listed by name and kind, and what does not match here is named, so the next step is no surprise. The button reads Continue to binding because a step follows; with everything matched it reads Apply and commits.</li><li class="k-secondary">files-and-recipes.md 1, recipe profile</li><li class="k-secondary">ProseBlock</li></ol>
+</section>
+<section class="st" id="s-bind-recipe">
+  <div class="st-head"><h2>8. The recipe's binding step: matched and unmatched</h2><p>One choice per unmatched attribute; the Watchlist's ids are counted and the two that did not match are named.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">52</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-backdrop"><div class="k-modal k-modal-wide">
+      <div class="k-modal-head"><span role="button" class="k-icon-btn" title="Back" aria-label="Back to the recipe picker"><svg class="k-i "><use href="../kit/icons.svg#arrow-left"/></svg></span>Bind attributes: Mule ring triage<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body">
+      <div class="bs-head"><span class="k-strong">2 attributes to bind</span><span class="k-secondary">amount and timestamp matched by name.</span></div>
+      <div class="bs-row">
+        <div class="bs-name"><span class="k-id k-strong">riskScore</span><span class="k-secondary">needs numbers</span></div>
+        <span class="k-field" data-focus style="width:200px"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#hash"/></svg><span class="k-id">risk_score</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-badge">matched by hand</span>
+        <div class="bs-uses k-secondary">Used by: Risk ramp (style layer); Watchlist hits (rule set).</div>
+      </div>
+      <div class="bs-row">
+        <div class="bs-name"><span class="k-id k-strong">counterparty_bank</span><span class="k-secondary">needs categories</span></div>
+        <span class="k-field" data-placeholder style="width:200px">Leave unbound<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-secondary">This graph has no such attribute. Ask the sender which one they meant.</span>
+        <div class="bs-uses k-secondary">Left unbound, Pass-through edges (style layer) is kept and switched off, marked missing attribute.</div>
+      </div>
+      <div class="bs-sep"></div>
+      <div class="bs-head"><span class="k-strong">Watchlist: <span class="k-num">7 of 9</span> accounts found</span><span class="k-secondary">2 are not in this data</span></div>
+      <div class="bs-ids k-id">ACC-705989<br>ACC-243731</div>
+      <div class="bs-uses k-secondary" style="padding:4px 16px 0">They stay in the set as missing members; a later data version that holds them brings them back.</div></div>
+      <div class="k-modal-foot"><span class="k-secondary k-grow">One undo step: Apply recipe Mule ring triage</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+    </div></div><span class="k-annot-box an" style="left:360px;top:396px;width:720px;height:76px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:386px">1</span><span class="k-annot-box an" style="left:360px;top:490px;width:720px;height:130px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:480px">2</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Leave unbound is a real choice: the layer is kept and off, never silently skipped. Its row says so before Apply.</li><li class="k-secondary">task-flows.md 8, first failure; glossary.md 10, missing attribute</li><li class="k-secondary">ComboInput, StyleSelect</li><li><span class="k-step">2</span></li><li>'7 of 9 found; these 2 did not' answers the step's question without opening anything.</li><li class="k-secondary">task-flows.md 8, 'Where the analyst stalls'; user-journeys.md, Apply it</li><li class="k-secondary">ProseBlock, a list of ids</li></ol>
+</section>
+<section class="st" id="s-recipe-applied">
+  <div class="st-head"><h2>9. The recipe applied</h2><p>One undo step added 3 sets and 3 layers, each marked new with its recipe's name. The unbound layer is kept, off and flagged.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">52</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Watchlist</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-badge nb">new</span><span class="k-warn-glyph" title="2 members not in this data">!</span><span class="k-num">7</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Fast pass-through</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-badge nb">new</span><span class="k-num">9</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Watchlist hits</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-badge nb">new</span><span class="k-num">11</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toast">Mule ring triage applied: recipe; 1 missing attribute<span class="k-toast-action">Undo</span><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#layers"/></svg><span class="k-name">Pass-through edges</span><span class="k-secondary">Style layer</span></div>
+    <div class="k-scroll">
+      <div class="k-row" style="gap:6px"><span class="k-warn-glyph">!</span><span class="k-grow">missing attribute</span><a class="k-link">Bind...</a></div>
+      <section class="k-section">
+        <div class="k-section-head">Applies to</div>
+        <div class="k-prose">Edges in Fast pass-through</div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Color</span>
+          <div class="k-fields"><span class="k-field k-span" data-error><span class="k-pill"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#tag"/></svg><span class="k-id">counterparty_bank</span></span></span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Width</span>
+          <div class="k-fields"><span class="k-field k-num">2 px</span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Source</div>
+        <div class="k-prose">From the recipe Mule ring triage, applied today 09:31.</div>
+      </section>
+    </div>
+  </aside></div><span class="k-annot-box an" style="left:60px;top:288px;width:236px;height:244px"></span><span class="k-step an" style="position:absolute;z-index:92;left:286px;top:278px">1</span><span class="k-annot-box an" style="left:560px;top:790px;width:390px;height:44px"></span><span class="k-step an" style="position:absolute;z-index:92;left:940px;top:780px">2</span><span class="k-annot-box an" style="left:1199px;top:136px;width:241px;height:40px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1430px;top:126px">3</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Added objects are marked on their rows (new, and the recipe's name as their kind) until the next session.</li><li class="k-secondary">interaction-pattern-entries.md 6.10, Feedback 'the added layers marked on their rows'</li><li class="k-secondary">Tree row, Badge</li><li><span class="k-step">2</span></li><li>The notice leads with its subject and offers Undo, which removes everything the recipe added and its unfinished runs.</li><li class="k-secondary">message-catalog.md graphty.file.applied; interaction-patterns.md 3.4</li><li class="k-secondary">Toast</li><li><span class="k-step">3</span></li><li>The unbound layer's state line carries its one verb, Bind..., which reopens the binding step for this layer alone.</li><li class="k-secondary">message-catalog.md graphty.style.unbound; glossary.md 10, missing attribute</li><li class="k-secondary">ActionRow state, FieldRow in error</li></ol>
+</section>
+<section class="st" id="s-style-drop">
+  <div class="st-head"><h2>10. A recipe of styles dropped on the canvas: Use these styles</h2><p>The team's colors arrive as a recipe that holds only styles. The Apply dialog opens with nothing preselected; the first choice names each of her layers that will go before she picks it. Nothing commits until one is chosen.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">52</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      <div class="droptarget"></div>
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit k-chit-round" style="background:transparent;box-shadow:inset 0 0 0 2px #CC79A7"></span><span class="k-ellipsis">Watchlist ring</span><span class="k-kind">recipe</span><span class="k-trail"></span></li><li class="k-item" data-off><span class="k-chit" style="background:#0072B2;opacity:.4"></span><span class="k-ellipsis">Pass-through edges</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-warn-glyph" title="missing attribute: counterparty_bank">!</span><span class="k-icon-btn k-secondary"><svg class="k-i "><use href="../kit/icons.svg#eye-off"/></svg></span></span></li><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk ramp</span><span class="k-kind">recipe</span><span class="k-trail"></span></li><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-backdrop"><div class="k-modal k-modal-wide">
+      <div class="k-modal-head">Apply recipe fraud-team-colors<span class="k-grow"></span><span class="k-icon-btn" title="Close" aria-label="Close"><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body"><div class="bs-head"><span class="k-strong">fraud-team-colors</span><span class="k-secondary">A recipe that holds only styles: 4 layers, bound by attribute name.</span></div>
+      <div class="k-row cs-row uc"><svg class="k-i "><use href="../kit/icons.svg#layers"/></svg><span class="k-grow"><span class="k-strong">Use these styles...</span><br><span class="k-secondary">No data inside. Its 4 layers take the place of these 3 of yours, which write the same thing:</span><ul class="k-list gone"><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk ramp</span><span class="k-trail k-secondary">node color</span></li><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail k-secondary">node color</span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail k-secondary">node color</span></li></ul><span class="k-secondary">Your other 5 stay: Community color (from an algorithm, never replaced), Size by PageRank, Watchlist ring, Pass-through edges, Base style.</span></span></div>
+      <div class="k-row cs-row"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg><span class="k-grow"><span class="k-strong">Add these styles on top...</span><br><span class="k-secondary">4 layers above your 8; all 8 stay.</span></span></div>
+      <div class="bs-uses k-secondary" style="padding:8px 16px 0">Either is one undo step. 1 layer, Chargeback heat, needs chargeback_rate, which this graph lacks: you choose next whether to leave it off.</div></div>
+      <div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span></div>
+    </div></div><span class="k-annot-box an" style="left:366px;top:334px;width:708px;height:172px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1064px;top:324px">1</span><span class="k-annot-box an" style="left:366px;top:566px;width:708px;height:44px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1064px;top:556px">2</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>Neither choice is preselected. Use these styles lists by name each of her layers that goes. The rule is graphty-element's StyleManager's: a layer from the recipe replaces every layer of hers that styles the same kind of element (nodes or edges) and writes the same style property, whatever its rule, so a degree color replaces a community color she made herself; layers from an algorithm's suggested styles are never replaced. Watchlist ring writes the node outline, not its color, so it stays; Base style is the graph's defaults under every layer and stays. The old whole-stack replace, which also removed algorithm layers, is gone. Here a layer is unmatched, so each row opens the binding step and keeps its ellipsis; with every layer matched the rows commit.</li><li class="k-secondary">interaction-pattern-entries.md 4.5, Paste and drop; message-catalog.md graphty.drop.choice; task-flows.md 8.1</li><li class="k-secondary">Modal, ActionRow</li><li><span class="k-step">2</span></li><li>An unmatched layer is announced before the choice, so the binding step that follows is expected.</li><li class="k-secondary">task-flows.md 8.1, 'Every layer's attributes matched by name?'</li><li class="k-secondary">ProseBlock</li></ol>
+</section>
+<section class="st" id="s-bind-style">
+  <div class="st-head"><h2>11. Its binding step: one layer</h2><p>She chose Use these styles. One of the recipe's four layers reads an attribute this graph lacks, so one choice is asked; the other three matched by name.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">52</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts drawn as density, the mule ring drawn over it"></div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>yes<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>no<span class="k-value">3,079</span></div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit k-chit-round" style="background:transparent;box-shadow:inset 0 0 0 2px #CC79A7"></span><span class="k-ellipsis">Watchlist ring</span><span class="k-kind">recipe</span><span class="k-trail"></span></li><li class="k-item" data-off><span class="k-chit" style="background:#0072B2;opacity:.4"></span><span class="k-ellipsis">Pass-through edges</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-warn-glyph" title="missing attribute: counterparty_bank">!</span><span class="k-icon-btn k-secondary"><svg class="k-i "><use href="../kit/icons.svg#eye-off"/></svg></span></span></li><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk ramp</span><span class="k-kind">recipe</span><span class="k-trail"></span></li><li class="k-item"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#fde0c5,#D55E00)"></span><span class="k-ellipsis">Risk color</span><span class="k-trail"></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Mule ring</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-backdrop"><div class="k-modal k-modal-wide">
+      <div class="k-modal-head"><span role="button" class="k-icon-btn" title="Back" aria-label="Back to the choice of how to use the styles"><svg class="k-i "><use href="../kit/icons.svg#arrow-left"/></svg></span>Bind attributes: fraud-team-colors<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body">
+      <div class="bs-head"><span class="k-secondary">Use these styles: Risk ramp, Risk color and Mule ring go.</span></div><div class="bs-head"><span class="k-strong">1 layer to bind</span><span class="k-secondary">3 layers matched by name: Cleared accounts, Merchant hubs, Amount width.</span></div>
+      <div class="bs-row">
+        <div class="bs-name"><span class="k-strong">Chargeback heat</span><span class="k-secondary">reads <span class="k-id">chargeback_rate</span>, numbers</span></div>
+        <span class="k-field" data-focus data-placeholder style="width:200px">Leave unbound<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-secondary">This graph has no such attribute. Ask the sender which one they meant.</span>
+        <div class="bs-uses k-secondary">Left unbound, Chargeback heat is kept and switched off, marked missing attribute, with Bind... on its row.</div>
+      </div></div>
+      <div class="k-modal-foot"><span class="k-secondary k-grow">One undo step: Use styles from fraud-team-colors</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Apply</span></div>
+    </div></div><span class="k-annot-box an" style="left:360px;top:446px;width:720px;height:78px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1070px;top:436px">1</span>
+    <span class="k-annot-box an" style="left:368px;top:311px;width:40px;height:40px"></span><span class="k-step an" style="position:absolute;z-index:92;left:398px;top:301px">2</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>One row per layer whose attribute did not match, with the same Leave unbound choice as a recipe's binding step, and what leaving it does, stated before Apply.</li><li class="k-secondary">task-flows.md 8.1, the bind row; options-and-encodings.md 10</li><li class="k-secondary">Modal, ComboInput</li><li><span class="k-step">2</span></li><li>Back is the header's arrow, to the two choices. Esc, Cancel and the close button apply nothing and return focus to the canvas.</li><li class="k-secondary">interaction-patterns.md 3.6. Proposed change: Esc in a binding step is Cancel</li><li class="k-secondary">Modal header, ActionIcon</li></ol>
+</section>
+<section class="st" id="s-style-applied">
+  <div class="st-head"><h2>12. The team's styles in use</h2><p>The team's colors are on this graph: 4 layers are new and marked, and the 3 named in the dialog are gone, so the Mule ring set is no longer painted. Community color and Size by PageRank, from algorithms, are untouched. Chargeback heat was left unbound and is switched off, never skipped silently.</p></div>
+  <div class="st-frame"><div class="k-app"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i "><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Mule ring review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">April, 3,093</span></li>
+        </ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li><li class="k-item"><svg class="k-i "><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">52</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside><main class="k-main"><div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt="3,000 accounts drawn as density; the mule ring is no longer painted">
+      <img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt="3,000 accounts drawn as density; the mule ring is no longer painted"></div>
+      <div class="k-toolbar-dock"><div class="k-toast">fraud-team-colors in use: 3 of your layers replaced; 1 missing attribute<span class="k-toast-action">Undo</span><svg class="k-i "><use href="../kit/icons.svg#x"/></svg></div>
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i "><use href="../kit/icons.svg#circle-help"/></svg></span>
+      
+    </div></main><aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Data</div>
+        <div class="k-data"><span class="k-name">version</span><span class="k-value">April</span></div>
+        <div class="k-data"><span class="k-name">file</span><span class="k-value k-id">transfers-2026-04.csv</span></div>
+        <div class="k-prose">Last import: transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April.</div>
+      </section><section class="k-section">
+        <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#009E73"></span><span class="k-ellipsis">Cleared accounts</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-badge nb">new</span></span></li><li class="k-item"><span class="k-chit" style="background:#E69F00"></span><span class="k-ellipsis">Merchant hubs</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-badge nb">new</span></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Amount width</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-badge nb">new</span></span></li><li class="k-item" data-off data-hover><span class="k-chit" style="background:#CC79A7;opacity:.4"></span><span class="k-ellipsis">Chargeback heat</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-badge nb">new</span><span class="k-warn-glyph" title="missing attribute: chargeback_rate">!</span><span class="k-icon-btn k-secondary"><svg class="k-i "><use href="../kit/icons.svg#eye-off"/></svg></span></span></li><li class="k-item"><span class="k-chit k-chit-round" style="background:transparent;box-shadow:inset 0 0 0 2px #CC79A7"></span><span class="k-ellipsis">Watchlist ring</span><span class="k-kind">recipe</span><span class="k-trail"></span></li><li class="k-item" data-off><span class="k-chit" style="background:#0072B2;opacity:.4"></span><span class="k-ellipsis">Pass-through edges</span><span class="k-kind">recipe</span><span class="k-trail"><span class="k-warn-glyph" title="missing attribute: counterparty_bank">!</span><span class="k-icon-btn k-secondary"><svg class="k-i "><use href="../kit/icons.svg#eye-off"/></svg></span></span></li><li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size by PageRank</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#56B4E9"></span><span class="k-ellipsis">Community color</span><span class="k-kind">run</span><span class="k-trail"></span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span><span class="k-kind"></span><span class="k-trail"></span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">3,093</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">8,370</span></div></div>
+        <div class="k-data"><span class="k-name">components</span><span class="k-value">27, weakly</span></div>
+        <div class="k-data"><span class="k-name">max total degree</span><span class="k-value">842</span></div>
+        <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
+      </section>
+      
+    </div>
+  </aside></div><div class="k-tooltip" style="left:1000px;top:360px">missing attribute: <span class="k-id">chargeback_rate</span><br><span class="k-secondary">Bind... in its row's menu</span></div><span class="k-annot-box an" style="left:1204px;top:268px;width:232px;height:96px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1186px;top:258px">1</span><span class="k-annot-box an" style="left:1204px;top:365px;width:232px;height:32px"></span><span class="k-step an" style="position:absolute;z-index:92;left:1186px;top:365px">2</span></div>
+  <ol class="st-notes"><li class="h">#</li><li class="h">What and why</li><li class="h">Framework</li><li class="h">compact-mantine</li><li><span class="k-step">1</span></li><li>The recipe's layers sit on top of the stack, marked new; each keeps the recipe's identity for the record. Only the 3 layers the dialog named are gone; Undo brings them back.</li><li class="k-secondary">task-flows.md 8.1, Record and trust check</li><li class="k-secondary">Tree row, Badge</li><li><span class="k-step">2</span></li><li>The unbound layer is listed, off, with the missing-attribute mark; its tooltip names the attribute. The Mule ring set's paint slot is empty: its layer was one of the 3 replaced.</li><li class="k-secondary">glossary.md 10, missing attribute; message-catalog.md graphty.style.unbound</li><li class="k-secondary">Tree row, Tooltip</li></ol>
+</section>
+</div>
+</body>
+</html>

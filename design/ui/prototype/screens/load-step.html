@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The load step and its import report</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+body { background: var(--cm-bg-secondary); margin: 0; }
+:root:has(#ls-th-light:checked) { color-scheme: light; }
+:root:has(#ls-th-dark:checked) { color-scheme: dark; }
+.ls-top { position: sticky; top: 0; z-index: 200; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.ls-top a { color: var(--cm-text-brand); }
+.ls-top label { display: inline-flex; gap: 4px; align-items: center; }
+.ls-toc { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.ls-state { padding: 16px 16px 24px; }
+.ls-label { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+.ls-fixture { margin: 0 0 8px; color: var(--cm-text-secondary); font-size: 12px; }
+.ls-win { position: relative; width: 1440px; height: 900px; overflow: hidden; transform: translateZ(0); box-shadow: 0 0 0 1px var(--cm-border); background: var(--cm-bg); }
+.ls-win .k-backdrop { position: absolute; top: 48px; }
+/* Opened as screens/load-step.html#clean (a storyboard frame): that state alone, no chrome */
+body:has(.ls-state:target) { background: var(--cm-bg); }
+body:has(.ls-state:target) .ls-state:not(:target), body:has(.ls-state:target) .ls-top, body:has(.ls-state:target) .ls-label, body:has(.ls-state:target) .ls-fixture { display: none; }
+body:has(.ls-state:target) .ls-state { padding: 0; }
+body:has(.ls-state:target) .ls-win { box-shadow: none; }
+/* Annotation layer, off by default */
+.ls-an { display: none; }
+body:has(#ls-annot:checked) .ls-an { display: block; }
+body:has(#ls-annot:checked) [data-annot] { outline: 2px dashed var(--k-annot); outline-offset: 2px; }
+.ls-an i { font-style: normal; font-family: var(--cm-font-family-mono); font-size: 11px; }
+
+/* What sits behind the dialog */
+.ls-brand { display: flex; gap: 8px; align-items: center; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--cm-border); font-size: 13px; }
+.ls-h { font-size: 11px; font-weight: 550; margin: 16px 0 8px; }
+.ls-behind { position: absolute; inset: 48px 0 0 0; }
+
+/* The dialog: Figma's large modal (two columns, 1px divider), widened for the sample table */
+.ls-modal { width: 960px; max-height: 812px; position: relative; }
+.ls-modal .k-modal-body { flex: 1 1 auto; padding: 0; display: grid; grid-template-columns: 400px 1fr; min-height: 0; }
+.ls-col { overflow: auto; padding: 8px 0 12px; }
+.ls-col + .ls-col { border-inline-start: 1px solid var(--cm-border); }
+.ls-sh { display: flex; align-items: center; gap: 0; height: 32px; padding: 0 16px; font-weight: 550; }
+.ls-sh .k-count { font-weight: 450; color: var(--cm-text-secondary); margin-inline-start: 6px; }
+.ls-sh .k-link { font-weight: 450; }
+.ls-row { display: grid; grid-template-columns: 104px 1fr; gap: 8px; align-items: center; min-height: 32px; padding: 0 16px; }
+.ls-row > .ls-lg { color: var(--cm-text-secondary); }
+.ls-row .k-field { width: 100%; box-sizing: border-box; }
+.ls-pair { display: grid; grid-template-columns: 1fr 16px 1fr; gap: 4px; align-items: center; }
+.ls-cols { display: grid; grid-template-columns: 104px 1fr 96px; gap: 4px 8px; align-items: center; padding: 0 16px; }
+.ls-cols .k-caption { height: 20px; display: flex; align-items: end; }
+.ls-cols .ls-cn { display: flex; gap: 6px; align-items: center; height: 32px; min-width: 0; }
+.ls-cols .k-field { width: 100%; box-sizing: border-box; min-width: 0; }
+.ls-ro { color: var(--cm-text-secondary); padding-inline-start: 4px; }
+.ls-info { color: var(--cm-icon-secondary); }
+/* The load summary: a drop said in words under the counts */
+.ls-drop { display: flex; gap: 6px; align-items: flex-start; padding: 4px 16px 0; line-height: 16px; }
+.ls-drop .k-i { margin-top: 1px; color: var(--cm-icon-secondary); flex: none; }
+.ls-issue .ls-acts { display: flex; gap: 8px; margin-top: 6px; }
+/* The weight sentence: one of three, the same words on every screen */
+.ls-wt { display: grid; grid-template-columns: 104px 1fr; gap: 8px; padding: 8px 16px 0; line-height: 16px; }
+.ls-wt > .k-secondary { font-weight: 450; }
+/* Issues: one flat DataRow each, severity glyph first */
+.ls-issue { align-items: flex-start; padding-top: 6px; padding-bottom: 8px; padding-inline-end: 16px; }
+.ls-issue .ls-ib { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.ls-issue .ls-ib > b { font-weight: 550; line-height: 20px; }
+.ls-issue .k-secondary { line-height: 16px; }
+.ls-issue .k-field { margin-top: 4px; width: 100%; box-sizing: border-box; }
+.ls-issue > .k-i, .ls-issue > .k-warn-glyph { margin-top: 3px; }
+.ls-danger { color: var(--cm-text-danger); flex: none; }
+.ls-sample { padding: 0 16px; }
+.ls-sample .k-table { width: 100%; }
+.ls-sample .k-table th, .ls-sample .k-table td { height: 28px; }
+td.ls-bad { color: var(--cm-text-danger); }
+.ls-text { font-family: var(--cm-font-family-mono); }
+.ls-metrics { padding: 0 8px; grid-template-columns: repeat(3, 1fr) !important; }
+.ls-foot { justify-content: flex-start; }
+.ls-reason { color: var(--cm-text-secondary); display: inline-flex; gap: 6px; align-items: center; }
+.ls-reason.ls-off { color: var(--cm-text-danger); }
+.ls-progress { display: grid; gap: 6px; padding: 8px 16px 12px; }
+.ls-progress .k-progress { height: 4px; }
+.ls-skel { display: block; height: 10px; border-radius: 3px; background: var(--cm-bg-tertiary); margin-top: 8px; }
+.ls-menu { width: 264px; }
+/* Frames 9 and 10: the app after Load */
+.ls-win > .k-app { width: 100%; height: 100%; }
+.ls-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ls-2l { flex-wrap: wrap; }
+.ls-sub { display: block; flex-basis: 100%; color: var(--cm-text-secondary); line-height: 16px; }
+.ls-fact { color: var(--cm-text); }
+.ls-import { align-items: flex-start; padding-top: 6px; padding-bottom: 6px; }
+.ls-import .ls-ib, .ls-vh .ls-ib { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.ls-import > .k-i { margin-top: 3px; }
+.ls-spark { display: flex; align-items: flex-end; gap: 1px; height: 14px; margin: 2px 0; width: 96px; }
+.ls-spark i { flex: 1; background: var(--cm-text-secondary); min-height: 1px; }
+.ls-spark i.z { background: none; border-bottom: 1px solid var(--cm-border); }
+.ls-vh .k-row[aria-selected="true"] { padding-top: 6px; padding-bottom: 6px; }
+.ls-rep { padding: 8px 8px 16px 16px; display: grid; gap: 6px; }
+.ls-rl { margin: 0; line-height: 16px; }
+.ls-rh { font-weight: 550; margin-top: 8px; }
+.ls-kv { display: grid; grid-template-columns: 80px 1fr; gap: 8px; line-height: 16px; }
+.ls-acts2 { margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="ls-top"><b>The load step and its import report</b>
+<nav class="ls-toc"><a href="#clean">1 Clean</a><a href="#blocked">2 Scores read as text</a><a href="#policy">3 Pairs that repeat</a><a href="#too-large">4 Too large to draw</a><a href="#loading">5 Reading</a><a href="#error">6 Refused</a><a href="#add-data">7 Add data, same columns</a><a href="#graphml">8 GraphML</a><a href="#loaded">9 After Load</a><a href="#report">10 Import report</a></nav>
+<span class="k-grow"></span>
+<span class="k-secondary">Theme</span><label><input type="radio" name="ls-th" id="ls-th-sys" checked> System</label><label><input type="radio" name="ls-th" id="ls-th-light"> Light</label><label><input type="radio" name="ls-th" id="ls-th-dark"> Dark</label>
+<label><input type="checkbox" id="ls-annot"> Show annotations</label><a href="../index.html">Gallery</a></div>
+
+<!-- ===================================================================== 1. CLEAN -->
+<section class="ls-state" id="clean"><h2 class="ls-label">1. Clean: a transfer file that reads as the analyst meant; timestamp is recognized as a date; amount loads as a column of numbers, not yet used as a weight; nothing about weight is asked here</h2>
+<p class="ls-fixture">State fixture: State/Canvas/LoadStepSizeRead</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="ls-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Card and transfer transactions, February<span class="k-grow"></span><span class="k-secondary">Mar 2</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open transfers-2026-03.csv">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">transfers-2026-03.csv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row" data-annot><span class="ls-lg">Format</span><span class="k-field">CSV, comma, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row" data-annot><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">from_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#arrow-right"/></svg><span class="k-field k-id">to_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="k-field">Directed (from &rarr; to)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">4</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">from_account</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro" data-annot>source</span>
+        <span class="ls-cn k-id">to_account</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">target</span>
+        <span class="ls-cn k-id">amount</span><span class="k-field">Currency (USD)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field" data-annot>None<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="ls-cn k-id" data-annot>timestamp</span><span class="k-field">Date and time, UTC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Time role<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh"><span>Sample, first 5 of <span class="k-num">9,113</span> rows</span></div>
+      <div class="ls-sample" data-annot><table class="k-table"><thead><tr><th>from_account</th><th>to_account</th><th class="k-n">amount <span class="k-profile">currency, USD</span></th><th>timestamp <span class="k-profile">date, Mar 1 to Mar 31, UTC</span></th></tr></thead><tbody>
+        <tr><td class="k-id">ACC-863727</td><td class="k-id">ACC-173956</td><td class="k-n">5.04</td><td class="k-num">2026-03-29T21:09:09Z</td></tr>
+        <tr><td class="k-id">ACC-789516</td><td class="k-id">ACC-157047</td><td class="k-n">8.97</td><td class="k-num">2026-03-25T21:53:13Z</td></tr>
+        <tr><td class="k-id">ACC-171252</td><td class="k-id">ACC-393859</td><td class="k-n">44.63</td><td class="k-num">2026-03-11T18:12:38Z</td></tr>
+        <tr><td class="k-id">ACC-502342</td><td class="k-id">ACC-393859</td><td class="k-n">38.01</td><td class="k-num">2026-03-16T20:25:38Z</td></tr>
+        <tr><td class="k-id">ACC-502342</td><td class="k-id">ACC-527694</td><td class="k-n">14.80</td><td class="k-num">2026-03-12T02:10:34Z</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">What will load</div>
+      <div class="k-metrics ls-metrics" data-annot><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num">3,000</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">9,113</span></div></div>
+      <div class="ls-wt" data-annot><span class="k-secondary">Weight</span><span class="k-fact"><span class="k-id">amount</span>, not used yet</span></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" data-focus-ring>Load</span></div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:8px;top:64px;width:220px">The load step: one dialog for Open, Add data, Join, Update with new data and Re-map columns. Shell: Figma's large two-column modal (Manage libraries), no dimming behind it; wider than Figma's 760 because the sample needs four to five columns at a readable width. <i>interface-templates.md 20, 20a</i>. compact-mantine <b>Modal</b>.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:246px;width:220px">Format first, detected by graphty-element and changeable. Ends are type slots: pick a column or type its name. They and Direction are the only place the ends are set, so the endpoint columns' Role reads "source" and "target" as plain text. <i>20a</i>. <b>FieldRow</b>, <b>StyleSelect</b>, <b>ComboInput</b> x2.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:430px;width:220px">A numeric edge column loads as a plain attribute: its Role starts at None and the Role list offers no Weight. Nothing about weight is asked here and nothing about it can hold Load back. What a higher amount means is asked by the first run that uses it, or from the weight sentence in Statistics. <i>framework-changes.md</i>, "Load step: the weight's meaning is asked at the first weighted run". <b>StyleSelect</b> (role).</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:545px;width:224px">The weight sentence: one of three, the same words on every screen ("Weight: {column}, not used yet", "Weight: {column}, used as similarity", "Weight: no numeric edge column"; under a Weight label the label is the prefix). The state comes from graphty-element, not the app. Here without its Change... link, which lives in Statistics. <i>framework-changes.md</i>, "Load step: the weight sentence, the plain wording of pairs and unconnected nodes". <b>DataRow</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">No Issues section: a section with no command and nothing in it is left out of a dialog, as Figma leaves out property sections that do not apply. Whether an absent section reads as "nothing wrong" is a study question. <i>content-design.md</i>, Empty surface (proposed wording change).</div>
+<div class="k-annot-note ls-an" style="left:8px;top:680px;width:220px">timestamp is recognized as a date, not read as text: its kind is Date and time with the zone the file writes (Z, so UTC), and the sample header gives its range. A date type is what makes a range filter on it honest (a time window is an ordinary filter step) and lets a path say when its hops are not in time order. If the guess is wrong, Read as changes it here. <i>framework-changes.md</i>, "graphty-element: dates at load, and time order on paths" (waits on graphty-element). <b>StyleSelect</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:250px;width:224px">The sample is the file's first rows as graphty-element read them, with each column's kind under its name; the time keeps its Z, and the kind says UTC. <b>DataTable</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:410px;width:224px">Nodes and edges read; no rows-dropped figure, because nothing was dropped. <i>principles.md</i>, no row at zero; <i>message-catalog.md graphty.load.done</i>. <b>MetricRow</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:770px;width:224px">Footer: Cancel and Load, focus on Load (nothing blocks). The reason slot is used only while Load is off. Undo label after Load: "Load transfers-2026-03.csv". <i>task-flows.md 2</i>. <b>ModalFooter</b>.</div>
+</div></section>
+
+<!-- ===================================================================== 2. BLOCKED -->
+<section class="ls-state" id="blocked"><h2 class="ls-label">2. Scores read as text: confidence holds NA values, so it is read as text; Load stays on, and its Read as list is open with what each reading loads</h2>
+<p class="ls-fixture">State fixture: State/Canvas/LoadStepSizeRead with a caution (was State/Canvas/LoadStepBlocked)</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="ls-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Human protein interactions (300 proteins)<span class="k-grow"></span><span class="k-secondary">Sep 21</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open ppi-core-300-evidence.tsv">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">ppi-core-300-evidence.tsv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">TSV, tab, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">protein_a<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary" style="text-align:center">--</span><span class="k-field k-id">protein_b<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="k-field">Undirected<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">4</span><span class="k-grow"></span><span class="k-count">unsettled first</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id" data-annot><span class="k-warn-glyph">!</span>confidence</span><span class="k-field" data-focus-ring aria-expanded="true">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-field">None<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="ls-cn k-id">protein_a</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">end</span>
+        <span class="ls-cn k-id">protein_b</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">end</span>
+        <span class="ls-cn k-id">source</span><span class="k-field">Category, 4 values<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Edge type<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh">Issues <span class="k-count k-num">2</span></div>
+      <div class="k-row ls-issue" aria-selected="true" data-annot><span class="k-warn-glyph">!</span><div class="ls-ib"><b><span class="k-id">confidence</span> is read as text: <span class="k-num">150</span> of <span class="k-num">2,298</span> scores are <span class="ls-text">NA</span></b><span class="k-secondary">The rest are numbers between 0 and 1. As text it still loads, and can label and filter; to use it as numbers, read <span class="ls-text">NA</span> as missing.</span><span class="k-field"><span>Text</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-row ls-issue"><span class="k-warn-glyph">!</span><div class="ls-ib"><b><span class="k-num">865</span> pairs appear more than once <svg class="k-i k-i-sm ls-info" style="vertical-align:-2px"><use href="../kit/icons.svg#info"/></svg></b><span class="k-secondary">Each row is one evidence source for a pair (parallel edges).</span><span class="k-field"><span>Keep each: <span class="k-num">2,298</span> edges</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="ls-sh"><span>Rows with <span class="ls-text">NA</span>, 5 of <span class="k-num">150</span></span><span class="k-grow"></span><a class="k-link">Show first rows</a></div>
+      <div class="ls-sample" data-annot><table class="k-table"><thead><tr><th class="k-n">line</th><th>protein_a</th><th>protein_b</th><th>source</th><th>confidence <span class="k-profile">text</span></th></tr></thead><tbody>
+        <tr><td class="k-n">29</td><td class="k-id">PSMA4</td><td class="k-id">PSMD2</td><td>coexpression</td><td class="ls-text">NA</td></tr>
+        <tr><td class="k-n">31</td><td class="k-id">PSMA5</td><td class="k-id">PSMA7</td><td>coexpression</td><td class="ls-text">NA</td></tr>
+        <tr><td class="k-n">44</td><td class="k-id">PSMA5</td><td class="k-id">PSMD12</td><td>coexpression</td><td class="ls-text">NA</td></tr>
+        <tr><td class="k-n">52</td><td class="k-id">PSMA6</td><td class="k-id">PSMD1</td><td>coexpression</td><td class="ls-text">NA</td></tr>
+        <tr><td class="k-n">64</td><td class="k-id">PSMA7</td><td class="k-id">PSMB6</td><td>coexpression</td><td class="ls-text">NA</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">What will load</div>
+      <div class="k-metrics ls-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num" data-fx="datasets.ppiEvidence.nodes">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">2,298</span></div></div>
+      <div class="ls-drop"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#info"/></svg><span class="k-fact">2 proteins have no partner in the file: <span class="k-id">GSK3B</span>, <span class="k-id">NOTCH1</span>. They are loaded unconnected.</span></div>
+      <div class="ls-wt" data-annot><span class="k-secondary">Weight</span><span class="k-fact">No numeric edge column</span></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" data-annot>Load</span></div>
+  <!-- confidence's own Read as list, open: the one control for this fact -->
+  <div class="k-menu ls-menu" role="listbox" style="left:128px;top:274px;width:264px" data-annot aria-label="confidence">
+    <div class="k-menu-label"><span>confidence: <span class="k-num"><span data-fx="datasets.ppi.evidence.scored">2,148</span></span> numbers, <span class="k-num">150</span> NA</span></div>
+    <div class="k-menu-item" data-described data-hover role="option" aria-selected="false"><span class="k-check-col"></span><span class="k-grow">Number, NA as missing<span class="k-menu-desc"><span class="k-num">2,298</span> edges; <span class="k-num">150</span> of them with no confidence</span></span></div>
+    <div class="k-menu-item" data-described role="option" aria-selected="false"><span class="k-check-col"></span><span class="k-grow">Number, leave out the rows with NA<span class="k-menu-desc"><span class="k-num"><span data-fx="datasets.ppi.evidence.scored">2,148</span></span> edges; the <span class="k-num">150</span> rows are not loaded</span></span></div>
+    <div class="k-menu-sep"></div>
+    <div class="k-menu-item" data-described role="option" aria-selected="true"><span class="k-check-col">&#10003;</span><span class="k-grow">Text<span class="k-menu-desc"><span class="k-num">2,298</span> edges; confidence labels and filters, but is not a number</span></span></div>
+  </div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:8px;top:64px;width:220px">An unsettled column is sorted to the top, as Figma's Missing-fonts dialog does; its mark is the caution glyph, because nothing stops Load. <i>figma-crosswalk.md</i>.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:190px;width:220px">One setting, shown in two places: the caution row's select and this Read as field are the same value, so they cannot disagree. Each choice states its result in counts, in plain words ("leave out", not "drop"). Kept from the study: naming the column and giving each choice with its result was what won trust. <b>StyleSelect</b>, options with a description line (kit's described item; proposed to compact-mantine).</div>
+<div class="k-annot-note ls-an" style="left:8px;top:440px;width:220px">Role None: no weight role is preset, so a text column with NA values never holds Load back. A preset Weight role was the only thing that did, and recipients could not answer it. <i>framework-changes.md</i>, "Load step: the weight's meaning is asked at the first weighted run".</div>
+<div class="k-annot-note ls-an" style="left:8px;top:620px;width:220px">Focus: when the preview arrives it lands on Load, because nothing blocks. The ring shows where it is now, after the analyst opened confidence's Read as list to check it. <i>framework-changes.md</i>, "where focus lands in the load step".</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">Issues: flat rows, blocking first, each with its severity glyph and its fix in place. This file has no blocker left, so both rows are cautions; a blocking row (frame 6) would sit above them. The selected row drives the sample below. <i>interface-templates.md 20a</i>. <b>DataRow</b>, selected.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:250px;width:224px">Pairs in plain words: "865 pairs appear more than once", with "parallel edges" only as the secondary term. 865 pairs hold the 1,036 extra rows (694 pairs twice, 171 three times). <i>framework-changes.md</i>, "Load step: the weight sentence, the plain wording of pairs and unconnected nodes".</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:470px;width:224px">Proteins with no partner are loaded, unconnected, and named: 300 nodes, the number the file's name promises. In round 3 "have no interaction" and a lower count read as a broken file. <i>content-design.md 5</i>. <b>Text</b> with an info glyph.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:640px;width:224px">Weight sentence: "No numeric edge column", because confidence is text right now. Choosing Number, NA as missing turns it into "confidence, not used yet" (frame 3). Load is on and the reason slot is empty.</div>
+</div></section>
+
+<!-- ===================================================================== 3. POLICY -->
+<section class="ls-state" id="policy"><h2 class="ls-label">3. Pairs that repeat: confidence now reads as a number, NA as missing; the list that says whether each pair keeps its rows is open</h2>
+<p class="ls-fixture">State fixture: choose-policy on State/Canvas/LoadStepSizeRead</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="ls-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Human protein interactions (300 proteins)<span class="k-grow"></span><span class="k-secondary">Sep 21</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open ppi-core-300-evidence.tsv">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">ppi-core-300-evidence.tsv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">TSV, tab, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">protein_a<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-secondary" style="text-align:center">--</span><span class="k-field k-id">protein_b<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="k-field">Undirected<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">4</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">confidence</span><span class="k-field">Number, NA as missing<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">None<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="ls-cn k-id">protein_a</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">end</span>
+        <span class="ls-cn k-id">protein_b</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">end</span>
+        <span class="ls-cn k-id">source</span><span class="k-field">Category, 4 values<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">Edge type<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh">Issues <span class="k-count k-num">1</span></div>
+      <div class="k-row ls-issue" aria-selected="true" data-annot><span class="k-warn-glyph">!</span><div class="ls-ib"><b><span class="k-num">865</span> pairs appear more than once <svg class="k-i k-i-sm ls-info" style="vertical-align:-2px"><use href="../kit/icons.svg#info"/></svg></b><span class="k-secondary">Each row is one evidence source for a pair (parallel edges).</span><span class="k-field" data-focus-ring aria-expanded="true"><span>Keep each: <span class="k-num">2,298</span> edges</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-up"/></svg></span></div></div>
+      <div class="ls-sh">Rows that repeat a pair, first 5</div>
+      <div class="ls-sample"><table class="k-table"><thead><tr><th class="k-n">line</th><th>protein_a</th><th>protein_b</th><th>source</th><th class="k-n">confidence <span class="k-profile">number</span></th></tr></thead><tbody>
+        <tr><td class="k-n">2</td><td class="k-id">PSMA1</td><td class="k-id">PSMB4</td><td>coexpression</td><td class="k-n">0.840</td></tr>
+        <tr><td class="k-n">3</td><td class="k-id">PSMA1</td><td class="k-id">PSMB4</td><td>textmining</td><td class="k-n">0.570</td></tr>
+        <tr><td class="k-n">5</td><td class="k-id">PSMA1</td><td class="k-id">PSMB10</td><td>databases</td><td class="k-n">0.800</td></tr>
+        <tr><td class="k-n">6</td><td class="k-id">PSMA1</td><td class="k-id">PSMB10</td><td>textmining</td><td class="k-n">0.742</td></tr>
+        <tr><td class="k-n">7</td><td class="k-id">PSMA1</td><td class="k-id">PSMB10</td><td>experiments</td><td class="k-n">0.398</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">What will load</div>
+      <div class="k-metrics ls-metrics" data-annot><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num" data-fx="datasets.ppiEvidence.nodes">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">2,298</span></div><div class="k-metric"><span class="k-secondary">with no confidence</span><span class="k-big k-num">150</span></div></div>
+      <div class="ls-drop" data-annot><svg class="k-i k-i-sm"><use href="../kit/icons.svg#info"/></svg><span class="k-fact">2 proteins have no partner in the file: <span class="k-id">GSK3B</span>, <span class="k-id">NOTCH1</span>. They are loaded unconnected.</span></div>
+      <div class="ls-wt"><span class="k-secondary">Weight</span><span class="k-fact"><span class="k-id">confidence</span>, not used yet</span></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Load</span></div>
+  <!-- the parallel-edge policy list, open -->
+  <div class="k-menu" role="listbox" style="left:416px;top:158px;width:528px" data-annot aria-label="Pairs that appear more than once">
+    <div class="k-menu-item" data-described role="option" aria-selected="true"><span class="k-check-col">&#10003;</span><span class="k-grow">Keep each: <span class="k-num">2,298</span> edges<span class="k-menu-desc">One edge per row, so a pair reported by three sources is linked three times. A measure that needs one link per pair combines them itself and says so on its result.</span></span></div>
+    <div class="k-menu-item" data-described data-hover role="option" aria-selected="false"><span class="k-check-col"></span><span class="k-grow">Combine into one: <span class="k-num">1,262</span> edges<span class="k-menu-desc">One edge per pair of proteins, with its highest confidence. The source column is not kept, because a combined edge has several.</span></span></div>
+  </div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:8px;top:330px;width:220px">confidence is now numbers, still with Role None: no weight is set at load. What a higher confidence means, and how it becomes a path length, is asked by the first run that uses it. <i>graph-conventions.md 2</i>, Similarity as distance, "inline the first time a distance algorithm meets the attribute".</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">The choice lives on its issue row, in plain words: "Keep each" or "Combine into one", each with its result in counts plus what happens to the other columns; "parallel edges" is only the secondary term. Dark in both themes, as every Mantine Menu and Select list is. Committed by Load, so no dialog stacks on another. <i>message-catalog.md graphty.load.parallelEdges</i>; <i>interface-templates.md 21</i>. <b>StyleSelect</b>, described options.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:420px;width:224px">The sample now follows this issue: the first rows that repeat a pair.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:560px;width:220px">Load writes these choices once, to the import report of the data version it makes. After Load the Last import row reads them back in one line and opens that report (frames 9 and 10); Statistics and the run record keep no copy.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:590px;width:224px">The outcome of "NA as missing" shows as a count, not in the footer: 150 edges will load with no confidence. The unconnected proteins stay named under the counts, and the weight sentence now reads "confidence, not used yet". Load is on, so the reason slot is empty.</div>
+</div></section>
+
+<!-- ===================================================================== 4. TOO LARGE -->
+<section class="ls-state" id="too-large"><h2 class="ls-label">4. Too large to draw: a citation graph past the node drawing limit; Load still commits, and it opens with nothing drawn</h2>
+<p class="ls-fixture">State fixtures: State/Canvas/LoadStepHuge, State/Canvas/LoadStepNoAutosave</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open patent-citations-sample.csv">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">patent-citations-sample.csv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">CSV, comma, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">citing<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#arrow-right"/></svg><span class="k-field k-id">cited<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="k-field">Directed (from &rarr; to)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">2</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">citing</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">source</span>
+        <span class="ls-cn k-id">cited</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">target</span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh">Issues <span class="k-count k-num">2</span></div>
+      <div class="k-row ls-issue" data-annot><span class="k-warn-glyph">!</span><div class="ls-ib"><b><span class="k-num">124,318</span> nodes will not be drawn</b><span class="k-secondary">More than this computer draws. The table, Find and Statistics work as usual; the canvas opens empty, with Narrow the graph... to bring part of it into view.</span></div></div>
+      <div class="k-row ls-issue" data-annot><span class="k-warn-glyph">!</span><div class="ls-ib"><b>Will not be autosaved</b><span class="k-secondary">Larger than this browser keeps. After Load, Download project file saves it.</span></div></div>
+      <div class="ls-sh"><span>Sample, first 5 of <span class="k-num">1,480,221</span> rows</span></div>
+      <div class="ls-sample"><table class="k-table"><thead><tr><th>citing <span class="k-profile">text</span></th><th>cited <span class="k-profile">text</span></th></tr></thead><tbody>
+        <tr><td class="k-id">6028459</td><td class="k-id">3792039</td></tr>
+        <tr><td class="k-id">6028459</td><td class="k-id">5701201</td></tr>
+        <tr><td class="k-id">6055542</td><td class="k-id">3557818</td></tr>
+        <tr><td class="k-id">6055542</td><td class="k-id">3843443</td></tr>
+        <tr><td class="k-id">5953895</td><td class="k-id">5080322</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">What will load</div>
+      <div class="k-metrics ls-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num">124,318</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">1,480,221</span></div></div>
+      <div class="ls-wt"><span class="k-secondary">Weight</span><span class="k-fact">No numeric edge column</span></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><a class="k-link" data-annot>Filter at import...</a><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" data-focus-ring>Load</span></div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">A size concern is a warning, never a block: it names the concern in the words of the not-drawn line and names Narrow the graph..., the command that follows. <i>state-matrix.md 4.2, 4.3</i>; <i>message-catalog.md graphty.drawn.not</i>. <b>DataRow</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:270px;width:224px">Autosave capacity is a caution with its route, so Not saved shows from the first edit, not after an hour's work. <i>state-matrix.md 4.3</i>.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:700px;width:224px">Filter at import appears only while a size concern is crossed, as a link at the footer's left. It waits on graphty-element, which has no filter at import yet: a load reads the whole file. <i>element-needs.md</i>, "Filter at import". <b>Anchor</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:700px;width:224px">Load is on, so the reason slot is empty: the issue rows already say what will happen. Focus lands on Load when only size notices arrive.</div>
+</div></section>
+
+<!-- ===================================================================== 5. READING -->
+<section class="ls-state" id="loading"><h2 class="ls-label">5. Reading: graphty-element is still counting the file's nodes and edges; Load waits, Cancel works</h2>
+<p class="ls-fixture">State fixture: State/Canvas/LoadStepReading</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open patent-citations-sample.csv" aria-busy="true">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">patent-citations-sample.csv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col" data-annot>
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">CSV, comma, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">citing<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#arrow-right"/></svg><span class="k-field k-id">cited<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="k-field">Directed (from &rarr; to)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">2</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">citing</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">source</span>
+        <span class="ls-cn k-id">cited</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">target</span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-progress" data-annot>
+        <div style="display:flex;gap:8px;align-items:center"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#loader-circle"/></svg><span class="k-grow">Reading <span class="k-id">patent-citations-sample.csv</span> as CSV</span><span class="k-num k-secondary">38%</span></div>
+        <div class="k-progress"><i style="width:38%"></i></div>
+      </div>
+      <div class="ls-sh">Sample, first 5 rows</div>
+      <div class="ls-sample"><table class="k-table"><thead><tr><th>citing <span class="k-profile">text</span></th><th>cited <span class="k-profile">text</span></th></tr></thead><tbody>
+        <tr><td class="k-id">6028459</td><td class="k-id">3792039</td></tr>
+        <tr><td class="k-id">6028459</td><td class="k-id">5701201</td></tr>
+        <tr><td class="k-id">6055542</td><td class="k-id">3557818</td></tr>
+        <tr><td class="k-id">6055542</td><td class="k-id">3843443</td></tr>
+        <tr><td class="k-id">5953895</td><td class="k-id">5080322</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">What will load</div>
+      <div class="k-metrics ls-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="ls-skel" style="width:64px"></span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="ls-skel" style="width:80px"></span></div></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="ls-reason" data-annot>Load is off: waiting for the node and edge counts</span><span class="k-grow"></span><span class="k-btn k-btn-secondary" data-focus-ring>Cancel</span><span class="k-btn" aria-disabled="true">Load</span></div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">The progress row heads the right column, where the issues will appear; no Issues heading over it, because reading is not an issue. Text: "Reading {file} as {format}", with its home moved into the step while the step is open. <i>message-catalog.md graphty.load.reading</i> (proposed placement); <i>content-design.md</i>, Progress. <b>Progress</b>.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:120px;width:220px">The header row is read first, so format and mapping can be checked while the rest streams. Changing one restarts the read from the top, and the progress row says so. Proposed in <i>framework-changes.md</i>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:690px;width:224px">Focus opens on Cancel, the one live command while reading; Cancel stops the read and leaves nothing behind. Load waits for the counts, because they decide the notices. <i>state-matrix.md 3, LoadStepReading</i>.</div>
+</div></section>
+
+<!-- ===================================================================== 6. ERROR -->
+<section class="ls-state" id="error"><h2 class="ls-label">6. Refused: the whole patent citation network will not fit in this tab's memory, so it is refused before anything loads</h2>
+<p class="ls-fixture">State fixture: State/Canvas/LoadStepError</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open cit-Patents.txt">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">cit-Patents.txt</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">TSV, tab, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">FromNodeId<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#arrow-right"/></svg><span class="k-field k-id">ToNodeId<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="k-field">Directed (from &rarr; to)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">2</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">FromNodeId</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">source</span>
+        <span class="ls-cn k-id">ToNodeId</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">target</span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh">Issues <span class="k-count k-num">1</span></div>
+      <div class="k-row ls-issue" data-annot><svg class="k-i ls-danger"><use href="../kit/icons.svg#circle-x"/></svg><div class="ls-ib"><b>Too large to open in this tab</b><span class="k-secondary"><span class="k-num" data-fx="datasets.citations.fullFile.nodes">3,774,768</span> nodes and <span class="k-num" data-fx="datasets.citations.fullFile.edges">16,518,948</span> edges need more memory than graphty can use here. Nothing was loaded.</span><span class="k-secondary">Way on: filter at import, reading only the rows a rule keeps.</span></div></div>
+      <div class="ls-sh">Sample, first 5 rows</div>
+      <div class="ls-sample"><table class="k-table"><thead><tr><th>FromNodeId <span class="k-profile">text</span></th><th>ToNodeId <span class="k-profile">text</span></th></tr></thead><tbody>
+        <tr><td class="k-id">3858241</td><td class="k-id">956203</td></tr>
+        <tr><td class="k-id">3858241</td><td class="k-id">1324234</td></tr>
+        <tr><td class="k-id">3858241</td><td class="k-id">3398406</td></tr>
+        <tr><td class="k-id">3858241</td><td class="k-id">3557384</td></tr>
+        <tr><td class="k-id">3858241</td><td class="k-id">3634889</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">Read from the file</div>
+      <div class="k-metrics ls-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num" data-fx="datasets.citations.fullFile.nodes">3,774,768</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num" data-fx="datasets.citations.fullFile.edges">16,518,948</span></div></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" data-focus-ring data-annot>Filter at import...</span></div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">A load that cannot fit in memory is refused before it starts, in the step, never as a separate alert. The way on is the route graphty-element names on its refusal, not a table in the app. <i>state-matrix.md 3, LoadStepError</i>; <i>element-needs.md</i>, "A load refusal that names its routes back" (not built: today the element says only "Load a subset of the graph."). <b>DataRow</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:690px;width:224px">Only Cancel and Filter at import: there is no Load to offer, so Filter at import becomes the primary command and takes focus. The reason slot stays empty: the issue row already says why. Filter at import waits on graphty-element.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:120px;width:220px">The file is SNAP's cit-Patents, the full network the citation sample in frames 4 and 5 is cut from; its node and edge counts are SNAP's published ones. A read that fails outright (a sign-in page saved as .csv) uses this same row with its cause.</div>
+</div></section>
+
+<!-- ===================================================================== 7. ADD DATA -->
+<section class="ls-state" id="add-data"><h2 class="ls-label">7. Add data with a file shaped like the loaded one: April's transfers have March's columns, so the step warns that adding stacks the two months and offers Replace data</h2>
+<p class="ls-fixture">State fixture: State/Canvas/LoadStepCrossesOnAdd, with nothing crossed (the April file crosses no limit)</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>Card and transfer transactions, March 2026</b><span class="k-secondary">Saved</span></div>
+<div class="ls-behind k-canvas"><div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-density-light.svg" alt="The March transfers drawn as density"><img class="k-dark-only" src="../kit/canvas/transactions-density-dark.svg" alt="The March transfers drawn as density"></div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Add data from transfers-2026-04.csv">
+  <div class="k-modal-head">Add data from&nbsp;<span class="k-id">transfers-2026-04.csv</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">CSV, comma, header row<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Each row is</span><span class="k-field">An edge<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row"><span class="ls-lg">Ends</span><span class="ls-pair"><span class="k-field k-id">from_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#arrow-right"/></svg><span class="k-field k-id">to_account<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></span></div>
+      <div class="ls-row"><span class="ls-lg">Direction</span><span class="ls-ro">Directed, as the project is</span></div>
+      <div class="ls-sh">Columns <span class="k-count k-num">4</span></div>
+      <div class="ls-cols" data-annot style="grid-template-columns:104px 1fr 112px">
+        <span class="k-caption">Column</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">from_account</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">source</span>
+        <span class="ls-cn k-id">to_account</span><span class="k-field">Text<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">target</span>
+        <span class="ls-cn k-id">amount</span><span class="k-field">Currency (USD)<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">none</span>
+        <span class="ls-cn k-id">timestamp</span><span class="k-field">Date and time, UTC<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="ls-ro">time role</span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh">Issues <span class="k-count k-num">1</span></div>
+      <div class="k-row ls-issue" aria-selected="true" data-annot><span class="k-warn-glyph">!</span><div class="ls-ib"><b>Same columns as <span class="k-id">transfers-2026-03.csv</span>, the data already loaded</b><span class="k-secondary">Add data keeps March and puts April on top of it: <span class="k-num"><span data-fx="datasets.transactionsApril.stackedOnMarch.transfers">17,483</span></span> transfers, and the <span class="k-num">39</span> accounts not in April stay in. To see April alone, replace March with it: <span class="k-num">3,093</span> accounts, <span class="k-num">8,370</span> transfers.</span><span class="ls-acts"><span class="k-btn k-btn-secondary" data-focus-ring>Replace data instead</span></span></div></div>
+      <div class="ls-sh">Accounts in the file</div>
+      <div class="k-metrics ls-metrics" data-annot><div class="k-metric"><span class="k-secondary">matched</span><span class="k-big k-num">2,961</span></div><div class="k-metric"><span class="k-secondary">new</span><span class="k-big k-num">132</span></div><div class="k-metric"><span class="k-secondary">not in April</span><span class="k-big k-num">39</span></div></div>
+      <div class="ls-sh">After the merge</div>
+      <div class="k-metrics ls-metrics" data-annot><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num"><span data-fx="datasets.transactionsApril.stackedOnMarch.accounts">3,132</span></span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num"><span data-fx="datasets.transactionsApril.stackedOnMarch.transfers">17,483</span></span></div></div>
+      <div class="ls-sh"><span class="k-count" style="font-weight:450">Adds <span class="k-num">132</span> nodes and <span class="k-num">8,370</span> edges to <span class="k-num">3,000</span> and <span class="k-num">9,113</span>.</span></div>
+      <div class="ls-wt" data-annot><span class="k-secondary">Weight</span><span class="k-fact"><span class="k-id">amount</span>, used as similarity</span></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Add data</span></div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:8px;top:64px;width:220px">The same step for Add data: the project's roles are shown, not asked again. amount has no role, as every numeric edge column loads; its weight is the project's answer, not the file's. Direction is the project's. <i>interface-templates.md 20a</i>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:64px;width:224px">A file with the same columns as the loaded data is most likely the next snapshot, not more of the same. The step warns, says what each verb would give in counts, and offers Replace data on the issue row; choosing it turns this same step into Update with new data (its title, its commit verb, its undo label), with nothing read again. A warning, not a block: adding a second month on purpose is legitimate. Focus opens on Replace data instead, the first thing a keyboard user meets. <i>framework-changes.md</i>, "Add data warns when the file has the loaded data's columns". <b>DataRow</b>, <b>Button</b> (default variant).</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:300px;width:224px">Match counts in the words of the merge report, now with the accounts that are not in the new file, which is what a manager asks about first: "transfers-2026-04.csv: 2,961 matched, 132 new, 39 not in April". <i>message-catalog.md graphty.load.merged</i>. <b>MetricRow</b>.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:470px;width:224px">The size after the merge. If it crossed a limit, the concern would be a second issue row as in frame 4, with "after the merge", and Add data would still commit. <i>state-matrix.md 4.3</i>.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:560px;width:220px">The weight sentence in its second form: in March the analyst said what a higher amount means, from a run, so April's amounts are used the same way. Changed from Statistics, its one home. <i>framework-changes.md</i>, "Load step: the weight sentence, the plain wording of pairs and unconnected nodes".</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:690px;width:224px">Not drawn: the file's sample, because the kit holds no April rows yet. The commit verb is Add data; its undo label "Add transfers-2026-04.csv".</div>
+</div></section>
+
+<!-- ===================================================================== 8. GRAPHML -->
+<section class="ls-state" id="graphml"><h2 class="ls-label">8. A format that declares its own structure: the protein network as GraphML, with no ends or direction to map</h2>
+<p class="ls-fixture">State fixture: State/Canvas/LoadStepSizeRead, a self-describing format</p>
+<div class="ls-win" data-kit-frame>
+<div class="ls-brand"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><b>graphty</b></div>
+<div class="k-start"><h1>Open a graph</h1><h2 class="ls-h">Recent</h2><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Card and transfer transactions, March 2026<span class="k-grow"></span><span class="k-secondary">Sep 26</span></div><div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#folder-open"/></svg>Open...</div></div>
+<div class="k-backdrop" data-clear><div class="k-modal ls-modal" role="dialog" aria-label="Open ppi-core-300.graphml">
+  <div class="k-modal-head">Open&nbsp;<span class="k-id">ppi-core-300.graphml</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="ls-col">
+      <div class="ls-row"><span class="ls-lg">Format</span><span class="k-field">GraphML<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="ls-row" data-annot><span class="ls-lg">Direction</span><span class="ls-ro">Undirected, as the file declares</span></div>
+      <div class="ls-sh">Node attributes <span class="k-count k-num">2</span></div>
+      <div class="ls-cols">
+        <span class="k-caption">Attribute</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">module</span><span class="k-field">Category, 9 values<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">None<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="ls-cn k-id">log2FoldChange</span><span class="k-field">Number<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">None<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+      <div class="ls-sh">Edge attributes <span class="k-count k-num">1</span></div>
+      <div class="ls-cols" data-annot>
+        <span class="k-caption">Attribute</span><span class="k-caption">Read as</span><span class="k-caption">Role</span>
+        <span class="ls-cn k-id">confidence</span><span class="k-field">Number<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field">None<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div>
+    </div>
+    <div class="ls-col">
+      <div class="ls-sh"><span>Sample, first 5 of <span class="k-num">300</span> nodes</span></div>
+      <div class="ls-sample"><table class="k-table"><thead><tr><th>id</th><th>module <span class="k-profile">category</span></th><th class="k-n">log2FoldChange <span class="k-profile">number</span></th></tr></thead><tbody>
+        <tr><td class="k-id">PSMA1</td><td>Proteasome</td><td class="k-n">-0.85</td></tr>
+        <tr><td class="k-id">PSMA2</td><td>Proteasome</td><td class="k-n">0.48</td></tr>
+        <tr><td class="k-id">PSMA3</td><td>Proteasome</td><td class="k-n">0.38</td></tr>
+        <tr><td class="k-id">PSMA4</td><td>Proteasome</td><td class="k-n">-0.87</td></tr>
+        <tr><td class="k-id">PSMA5</td><td>Proteasome</td><td class="k-n">-0.67</td></tr>
+      </tbody></table></div>
+      <div class="ls-sh">What will load</div>
+      <div class="k-metrics ls-metrics" data-annot><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num" data-fx="datasets.ppi.nodes">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num">1,262</span></div></div>
+      <div class="ls-wt"><span class="k-secondary">Weight</span><span class="k-fact"><span class="k-id">confidence</span>, not used yet</span></div>
+    </div>
+  </div>
+  <div class="k-modal-foot ls-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Load</span></div>
+</div></div>
+<div class="k-annot-note ls-an" style="left:8px;top:120px;width:220px">GraphML says which element each attribute belongs to and whether the graph is directed, so the ends, Each row is and Direction rows are gone and the columns become node and edge attributes. The kind and role pickers stay. <i>interface-templates.md 20a</i>.</div>
+<div class="k-annot-note ls-an" style="left:8px;top:420px;width:220px">Every role starts at None, and the Role list has no Weight: nothing is guessed from a name, not even for a number called confidence. What a higher confidence means is asked at the first run that uses it. <i>principles.md</i>, the guessed-role row.</div>
+<div class="k-annot-note ls-an" style="left:1208px;top:520px;width:224px">300 nodes: GraphML lists every node, including the 2 proteins with no partner. The edge-list export in frames 2 and 3 names them on rows with an empty partner, so it loads the same 300.</div>
+</div></section>
+<!-- ===================================================================== 9. LOADED -->
+<section class="ls-state" id="loaded"><h2 class="ls-label">9. After Load: the evidence file at rest; the Last import row says in one line what the load chose, and opens the import report</h2>
+<p class="ls-fixture">State fixture: State/Canvas/Ideal after a load, the evidence file read with NA as missing and Keep each; the two unconnected proteins are not in the kit drawing yet</p>
+<div class="ls-win" data-kit-frame><div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project" data-fx="datasets.ppiEvidence.frame.project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="ls-chips"><span class="k-chip" role="button" aria-expanded="false" title="ppi-core-300-evidence.tsv, opened from this computer"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id k-ellipsis" style="max-width:150px" data-fx="datasets.ppiEvidence.frame.file">ppi-core-300-evidence.tsv</span></span><span class="k-chip" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Find a graph"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span></div>
+        <ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis" data-fx="datasets.ppiEvidence.frame.graphRow">Evidence rows</span></li></ul></section>
+      <section class="k-section" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="New set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div></section>
+      
+      <section class="k-section" data-collapsed data-empty><div class="k-section-head">Views</div></section>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-evidence-plain-light.svg" alt="Protein interactions from the evidence file, 300 proteins, unstyled"><img class="k-dark-only" src="../kit/canvas/ppi-evidence-plain-dark.svg" alt="Protein interactions from the evidence file, 300 proteins, unstyled"></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar" aria-label="Tools">
+        <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-tool" role="button" aria-pressed="false" aria-label="Note"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+        <span class="k-toolbar-sep"></span>
+        <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+      </div></div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graph</div>
+        <div class="k-fieldrow"><span class="k-legend">Layout</span><div class="k-fields"><span class="k-field k-span">Force-directed<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn" role="button" aria-label="Run layout"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span></div></div>
+      </section><section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Add a style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list" role="tree" aria-label="Styles"><li class="k-item" role="treeitem"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section>
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-row"><span class="k-grow">Overview: General</span></div>
+        <div class="k-data"><span class="k-name">Nodes</span><span class="k-value k-num" data-fx="datasets.ppiEvidence.nodes">300</span></div>
+        <div class="k-data ls-2l" data-annot><span class="k-name">Edges</span><span class="k-value" data-fx="datasets.ppiEvidence.frame.edges">2,298</span><span class="ls-sub">undirected; <span class="k-num">865</span> pairs appear more than once</span></div>
+        <div class="k-data ls-2l" data-annot><span class="k-name">Weight</span><span class="ls-sub ls-fact"><span class="k-id">confidence</span>, not used yet. <a class="k-link">Change...</a></span></div>
+        <div class="k-data"><span class="k-name">Density</span><span class="k-value k-num">0.0281</span></div>
+        <div class="k-data"><span class="k-name">Connected components</span><span class="k-value k-num" data-fx="datasets.ppiEvidence.stats.components">3</span></div>
+        <div class="k-data" style="align-items:center"><span class="k-name">Degree distribution</span><span class="ls-spark" role="img" aria-label="Degree 1 to 63, in bars of 4; 2 proteins have none"><i style="height:12%"></i><i style="height:27%"></i><i style="height:54%"></i><i style="height:100%"></i><i style="height:87%"></i><i style="height:56%"></i><i style="height:5%"></i><i style="height:4%"></i><i class="z"></i><i style="height:4%"></i><i style="height:2%"></i><i style="height:1%"></i><i style="height:1%"></i><i class="z"></i><i class="z"></i><i style="height:2%"></i></span></div>
+        <div class="k-row ls-import" role="button" data-hover data-focus-ring data-annot aria-label="Last import: open the import report"><span class="ls-ib"><span>Last import</span><span class="ls-sub ls-fact">Loaded with: NA read as missing; each pair's rows kept (<span class="k-num">2,298</span> edges); 2 proteins unconnected</span></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-right"/></svg></div>
+        <div class="k-row"><span class="k-grow">Attributes</span><span class="k-num k-secondary" data-fx="datasets.ppiEvidence.frame.attributes">2</span></div>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Export<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Add an export"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div></section>
+    </div>
+  </aside>
+</div>
+<div class="k-annot-note ls-an" style="left:900px;top:470px;width:280px">The Last import row, shown because this load made choices. Its one line is the load's choices in the words the load step used, with their counts: how NA was read, what happened to pairs that appear more than once, and the proteins loaded with no partner. It is a pointer, not a copy: the row opens the import report of this data version (frame 10), which is the only place the choices are kept. <i>message-catalog.md</i>, proposed key <i>graphty.load.loadedWith</i>; <i>output-homes.md</i>, data version; <i>framework-changes.md</i>, "Loading data: the load choices have one home, the import report". <b>ActionRow</b> with a second line.</div>
+<div class="k-annot-note ls-an" style="left:900px;top:130px;width:280px">Statistics keeps no copy of the choices. The Edges row gives facts about the graph that was built (direction, the 865 pairs with more than one edge). The Weight row is the weight sentence in full, with its action: "confidence, not used yet. Change...". The same words appear wherever the weight is shown; the other two forms are "{column}, used as similarity. Change..." and "No numeric edge column". 3 components: the network plus the two unconnected proteins. <i>interface-specification.md 4.1</i>; <i>framework-changes.md</i>, "Load step: the weight sentence, the plain wording of pairs and unconnected nodes". <b>DataRow</b>, <b>Anchor</b>.</div>
+<div class="k-annot-note ls-an" style="left:310px;top:64px;width:260px">The screen after Load is the file that was loaded: 300 proteins (2 unconnected), 2,298 edges with Keep each, no module column, so nothing is colored. The file chip names the evidence file. <i>kit fixtures: datasets.ppiEvidence</i>.</div>
+</div></section>
+
+<!-- ===================================================================== 10. IMPORT REPORT -->
+<section class="ls-state" id="report"><h2 class="ls-label">10. The import report, opened from the Last import row: the load's choices and what they did, kept once, on the data version in Version history</h2>
+<p class="ls-fixture">State fixture: Version history mode with one data version open (waits on graphty-element: Version history)</p>
+<div class="ls-win" data-kit-frame><div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Human protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <div class="ls-chips"><span class="k-chip" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id k-ellipsis" style="max-width:150px">ppi-core-300-evidence.tsv</span></span><span class="k-chip" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span></div>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graphs</div>
+        <ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Evidence rows</span></li></ul></section>
+      <section class="k-section" data-empty><div class="k-section-head">Sets and paths</div></section>
+      
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-evidence-plain-light.svg" alt="Protein interactions from the evidence file, 300 proteins, unstyled"><img class="k-dark-only" src="../kit/canvas/ppi-evidence-plain-dark.svg" alt="Protein interactions from the evidence file, 300 proteins, unstyled"></div>
+    </div>
+  </main>
+  <aside class="k-right ls-vh" aria-label="Version history">
+    <div class="k-header1"><b>Version history</b><span class="k-grow"></span><span class="k-btn k-btn-secondary">Done</span></div>
+    <div class="k-scroll">
+      <div class="k-row" aria-selected="true" data-annot><span class="ls-ib"><span>Loaded <span class="k-id">ppi-core-300-evidence.tsv</span></span><span class="ls-sub k-num">Sep 28, 10:42</span></span></div>
+      <div class="ls-rep" data-annot>
+        <p class="ls-rl">Read as TSV: <span class="k-id">protein_a</span> -- <span class="k-id">protein_b</span>, undirected; <span class="k-num" data-fx="datasets.ppiEvidence.nodes">300</span> nodes, <span class="k-num">2,298</span> edges</p>
+        <div class="ls-rh">Loaded with</div>
+        <div class="ls-kv"><span class="k-secondary">confidence</span><span>Number, NA as missing<span class="ls-sub"><span class="k-num">150</span> edges with no confidence</span></span></div>
+        <div class="ls-kv"><span class="k-secondary">Pairs</span><span>Keep each: <span class="k-num">2,298</span> edges<span class="ls-sub"><span class="k-num">865</span> pairs appear more than once, one row per evidence source (parallel edges)</span></span></div>
+        <div class="ls-kv"><span class="k-secondary">Roles</span><span>source: edge type<span class="ls-sub">Weight is chosen when a run needs one</span></span></div>
+        <div class="ls-rh">Found</div>
+        <div class="ls-kv"><span class="k-secondary">Nodes</span><span><span class="k-num" data-fx="datasets.ppiEvidence.nodes">300</span><span class="ls-sub">2 proteins have no partner in the file: <span class="k-id">GSK3B</span>, <span class="k-id">NOTCH1</span>. They are loaded unconnected.</span></span></div>
+        <div class="ls-kv"><span class="k-secondary">Distinct pairs</span><span><span class="k-num">1,262</span></span></div>
+        <div class="ls-rh">Used by</div>
+        <div class="ls-kv"><span class="k-secondary">Runs</span><span>none yet</span></div>
+        <div class="ls-acts2"><span class="k-btn k-btn-secondary">Re-map columns...</span></div>
+      </div>
+    <section class="k-section"><div class="k-section-head">Style stack</div>
+        <ul class="k-list" role="tree" aria-label="Styles"><li class="k-item" role="treeitem"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section></div>
+  </aside>
+</div>
+<div class="k-annot-note ls-an" style="left:880px;top:64px;width:300px">Version history replaces the inspector column, and the data version's entry opens its import report at full height: the one home of the load's choices. Header with Done; the entry; the report. <i>interface-templates.md 17</i>; <i>output-homes.md</i>, data version: "its entry in Version history ... its import report". Version history waits on graphty-element. <b>ActionRow</b>, <b>ProseBlock</b>, <b>DataRow</b>s.</div>
+<div class="k-annot-note ls-an" style="left:880px;top:270px;width:300px">First the report line in the catalog's form, then the choices in the load step's own words, each with what it did in counts, then what was found. The unconnected proteins are named, in the words used under the load step's counts. The weight's state is not kept here: it belongs to the project and lives in Statistics. <i>message-catalog.md graphty.load.report</i>; <i>glossary.md</i>, import report.</div>
+<div class="k-annot-note ls-an" style="left:880px;top:470px;width:300px">Used by: the runs on this data version. A run's record points here ("Data: ppi-core-300-evidence.tsv, Sep 28, 10:42") and does not copy the choices, so a later Re-map or Update with a new export cannot leave an old run quoting choices its data no longer has. Re-map columns reopens the load step on this version (waits on graphty-element).</div>
+</div></section>
+</body>
+</html>

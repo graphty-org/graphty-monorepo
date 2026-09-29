@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+// The protein graph for screens/filter-chip.html, so its filter steps run on real positions and edges:
+// reads the kit's drawing kit/canvas/ppi-modules-rest-light.svg (nodes in kit/gen-canvas.mjs order,
+// edges between them) and writes screens/filter-chip-ppi-data.js. Checks every node's degree, the
+// edge count and the Ribosome filter against kit/fixtures.json, so a drawing that drifts from the
+// fixtures fails here instead of showing a wrong number.
+// Run from design/ui/prototype/: node screens/filter-chip-ppi-numbers.mjs
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const svg = readFileSync(join(here, "../kit/canvas/ppi-modules-rest-light.svg"), "utf8");
+const P = JSON.parse(readFileSync(join(here, "../kit/fixtures.json"), "utf8")).datasets.ppi;
+const colorOf = Object.fromEntries(Object.entries(P.moduleColors).map(([m, c]) => [c.toUpperCase(), m]));
+
+const circles = [...svg.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" fill="(#[0-9A-Fa-f]{6})"\/>/g)]
+  .map((m) => ({ x: +m[1], y: +m[2], r: +m[3], fill: m[4].toUpperCase() }));
+assert.equal(circles.length, P.nodes, "one filled circle per protein");
+const key = (x, y) => `${+x},${+y}`;
+const at = new Map(circles.map((c, i) => [key(c.x, c.y), i]));
+assert.equal(at.size, P.nodes, "no two proteins share a position");
+const E = [...svg.matchAll(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"\/>/g)]
+  .map((m) => [at.get(key(m[1], m[2])), at.get(key(m[3], m[4]))]);
+assert.ok(E.every(([s, t]) => s !== undefined && t !== undefined), "every edge joins two drawn proteins");
+assert.equal(E.length, P.edges);
+const labeled = new Set([...svg.matchAll(/<text[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]));
+
+// the protein names in node order, as kit/gen-canvas.mjs section 3 builds them (no random names at 300)
+const fam = (p, a, b) => Array.from({ length: b - a + 1 }, (_, k) => `${p}${a + k}`);
+const MODULES = [
+  ["Proteasome", [...fam("PSMA", 1, 7), ...fam("PSMB", 1, 10), ...fam("PSMC", 1, 6), ...fam("PSMD", 1, 14), "ADRM1", "UCHL5", "USP14"]],
+  ["Ribosome", [...fam("RPL", 3, 32), ...fam("RPS", 2, 27)]],
+  ["Complex I", [...fam("NDUFA", 1, 13), ...fam("NDUFB", 1, 11), ...fam("NDUFS", 1, 8), ...fam("NDUFV", 1, 3)]],
+  ["Spliceosome", [...fam("SF3B", 1, 6), ...fam("SF3A", 1, 3), "SNRNP70", "SNRPA", "SNRPB", "SNRPC", "SNRPD1", "SNRPD2", "SNRPD3", "SNRPE", "SNRPF", "SNRPG", "PRPF8", "PRPF19", "PRPF31", "U2AF1", "U2AF2", "SRSF1", "SRSF2", "SRSF3", "HNRNPA1", "HNRNPC", "DHX15", "EFTUD2", "SNRNP200"]],
+  ["DNA repair", ["TP53", "MDM2", "BRCA1", "BRCA2", "ATM", "ATR", "CHEK1", "CHEK2", "RAD51", "RAD50", "MRE11", "NBN", "XRCC1", "XRCC5", "XRCC6", "PARP1", "MLH1", "MSH2", "MSH6", "PALB2", "FANCD2", "BLM", "WRN", "H2AX", "MDC1", "53BP1", "RPA1", "RPA2", "PCNA", "LIG4"]],
+  ["Cell cycle", [...fam("CDK", 1, 9), "CCNA2", "CCNB1", "CCND1", "CCNE1", "CDC20", "CDC25A", "CDC25C", "CDKN1A", "CDKN1B", "CDKN2A", "RB1", "E2F1", "PLK1", "AURKA", "AURKB", "BUB1", "MAD2L1", "WEE1", "SKP2", "FZR1"]],
+  ["MAPK signaling", [...fam("MAPK", 1, 14), "EGFR", "ERBB2", "KRAS", "HRAS", "NRAS", "BRAF", "RAF1", "MAP2K1", "MAP2K2", "GRB2", "SOS1", "SHC1", "DUSP1", "DUSP6", "JUN", "FOS", "ELK1"]],
+  ["TGF-beta", [...fam("SMAD", 1, 7), "TGFB1", "TGFB2", "TGFBR1", "TGFBR2", "BMP2", "BMP4", "BMPR1A", "BMPR2", "ACVR1", "SKI", "SMURF1", "SMURF2", "NOG", "LTBP1"]],
+];
+const EXTRA = ["UBC", "UBB", "HSP90AA1", "HSPA8", "YWHAZ", "YWHAB", "CUL1", "CUL3", "RBX1", "SKP1", "VCP", "EP300", "CREBBP", "HDAC1", "HDAC2", "SIRT1", "AKT1", "PIK3CA", "PTEN", "MTOR", "MYC", "MAX", "CTNNB1", "APC", "GSK3B", "NOTCH1", "STAT3", "JAK2", "SRC", "ABL1"];
+const names = [], mods = [];
+for (const [m, genes] of MODULES) for (const g of genes) if (!names.includes(g)) names.push(g), mods.push(m);
+for (const g of EXTRA) if (names.length < 300 && !names.includes(g)) names.push(g), mods.push("Unassigned");
+assert.equal(names.length, P.nodes, "every protein named");
+const deg = circles.map(() => 0);
+for (const [s, t] of E) { deg[s]++; deg[t]++; }
+const N = circles.map((c, i) => {
+  assert.equal(colorOf[c.fill], mods[i], `node ${i} (${names[i]}) module`);
+  return [names[i], mods[i], c.x, c.y, c.fill, labeled.has(names[i]) ? 1 : 0, c.r];
+});
+
+for (const row of [...P.rows, ...P.topByDegree]) assert.equal(deg[names.indexOf(row.id)], row.degree, `${row.id} degree`);
+// the filtered state the page shows: Filter to module = Ribosome
+const keep = new Set(N.flatMap((n, i) => (n[1] === P.filtered.module ? [i] : [])));
+const kept = E.filter(([s, t]) => keep.has(s) && keep.has(t));
+assert.equal(keep.size, P.filtered.nodes);
+assert.equal(kept.length, P.filtered.edges);
+
+writeFileSync(join(here, "filter-chip-ppi-data.js"),
+  "// THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT screens/filter-chip-ppi-numbers.mjs\n" +
+  "// [id, module, x, y, color, labeled, radius], in kit/gen-canvas.mjs node order; edges as index pairs.\n" +
+  `window.PPI = ${JSON.stringify({ N, E })};\n`);
+console.log(`wrote screens/filter-chip-ppi-data.js: ${N.length} proteins, ${E.length} edges, ${labeled.size} labels`);

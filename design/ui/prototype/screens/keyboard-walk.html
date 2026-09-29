@@ -1,0 +1,1138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyboard walk on the protein network</title>
+<!-- Interactive screen mock: walk TP53 and its 32 neighbors with the keyboard alone.
+     States load from the address: #s1 canvas focused, #s2 walking, #s9 selection of two,
+     #s6 left the canvas, #s10 the key sheet, #s11 the inspector visit (Alt+Enter), #s12 going to TP53
+     with Ctrl+K, #s13 back on the drawing after the table with the walk kept (and #s3, #s4, #s5, #s7, #s8
+     used by the keyboard flow). They start with
+     nothing selected, so the walk starts at the drawn node of highest degree.
+     #f1 to #f19 are the keyboard storyboard's frames, one state per frame, each the frame's key
+     presses replayed from the start; the storyboard's analyst arrives with TP53 selected.
+     ?mac=1 or ?mac=0 forces the key names (Cmd or Ctrl); by default they follow the platform.
+     Every state is reached by replaying key presses through the same handlers the viewer uses. -->
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  :root {
+    --kb-outer: var(--k-mark-out); --kb-inner: var(--k-mark-in);
+    --kb-fill-edge: var(--k-fill-edge);
+    --kw-fit-bottom: 184px; /* toolbar dock (12 + 48) + gap 8 + focus pill 100 + 16 clear */
+  }
+  body { margin: 0; min-width: 1440px; background: var(--cm-bg); }
+  .kw-head { position: sticky; top: 0; z-index: 300; background: var(--cm-bg); }
+  .kw-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 44px; box-sizing: border-box; padding: 6px 16px; border-bottom: 1px solid var(--cm-border); font-size: 12px; }
+  .kw-bar a { color: var(--cm-text-brand); }
+  .kw-bar .k-tab { cursor: pointer; }
+  .kw-bar .k-tab[data-more] { color: var(--cm-text-secondary); }
+  .kw-bar label { display: inline-flex; align-items: center; gap: 4px; }
+  .kw-bar .k-seg { width: auto; }
+  .kw-bar .k-seg a { color: inherit; text-decoration: none; padding: 0 8px; }
+  .kw-grow { flex: 1; }
+  body.kw-bare .kw-head { display: none; }
+  .kw-frame { position: relative; width: 1440px; height: 900px; overflow: hidden; }
+  .kw-frame .k-app { width: 1440px; height: 900px; }
+
+  /* not product UI: what the screen reader says, above the 1440 x 900 frame, in annotation ink */
+  .kw-caption { height: 60px; box-sizing: border-box; overflow: hidden; padding: 5px 16px; background: var(--k-annot-bg); border-inline-start: 3px solid var(--k-annot); border-bottom: 1px solid var(--cm-border); font-size: 13px; line-height: 18px; }
+  .kw-cap-head { display: flex; gap: 8px; align-items: baseline; font-size: 11px; color: var(--k-annot-ink); font-weight: 600; }
+  .kw-cap-kind { font-weight: 450; color: var(--cm-text-secondary); }
+  .kw-cap-now { color: var(--cm-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kw-cap-prev { color: var(--cm-text-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kw-framename { color: var(--k-annot-ink); font-weight: 600; }
+  .kw-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* the drawing, fitted to the canvas less the toolbar dock and the walk slot, so no node starts
+     under canvas chrome; colors as kit/canvas (gen-canvas.mjs THEMES) */
+  .kw-fit { position: absolute; left: 12px; right: 12px; top: 12px; bottom: var(--kw-fit-bottom); }
+  .kw-fit svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .kw-edges line { stroke: #808080; stroke-opacity: .4; stroke-width: 1; stroke-linecap: round; }
+  .kw-labels text { font-family: "Inter Variable", Inter, system-ui, sans-serif; fill: var(--k-canvas-ink); stroke: var(--k-canvas); stroke-linejoin: round; paint-order: stroke; }
+  .kw-marks circle { fill: none; }
+  .kw-marks .e { stroke: var(--kb-fill-edge); }
+  .kw-marks .o { stroke: var(--kb-outer); }
+  .kw-marks .i { stroke: var(--kb-inner); }
+
+  /* the canvas focus target covers the canvas; the toolbar and overlays sit above it */
+  .kw-target { position: absolute; inset: 0; z-index: 1; outline: none; cursor: default; }
+  body[data-region="canvas"] .kw-target { box-shadow: inset 0 0 0 2px var(--cm-border-selected-strong); }
+  body.kw-hand .kw-target { cursor: grabbing; }
+  .k-canvas .k-legend-card, .k-canvas .k-toolbar-dock, .k-canvas .k-help, .k-quick { z-index: 2; }
+  [data-rove]:focus { outline: none; }
+
+  /* the focus pill: while the canvas has keyboard focus, in the secondary bar's place above the toolbar */
+  .kw-walkslot { display: grid; gap: 4px; width: max-content; min-width: 440px; height: auto; box-sizing: border-box; padding: 8px 12px; font-size: 11px; line-height: 16px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .kw-walkslot[hidden] { display: none; }
+  .kw-walkslot .kw-pr { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .kw-walkslot .kw-pr b { font-weight: 550; }
+  .kw-walkslot .k-seg { height: 20px; font-size: 11px; }
+  /* the key sheet (?): graphty-element's default keys, read only */
+  .kw-sheet { position: absolute; left: 50%; top: 48px; transform: translateX(-50%); z-index: 3; width: 380px; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-400); font-size: 11px; line-height: 16px; color: var(--cm-text); outline: none; }
+  .kw-sheet { display: flex; flex-direction: column; max-height: calc(100% - 64px); }
+  .kw-sheet[hidden] { display: none; }
+  .kw-sheet-body { overflow: auto; min-height: 0; }
+  .kw-sheet-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--cm-border); }
+  .kw-sheet-body { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; padding: 8px 12px; align-items: center; }
+  .kw-sheet-body h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px; font-weight: 550; color: var(--cm-text-secondary); }
+  .kw-sheet-body .k-kbd { justify-self: start; }
+  .kw-sheet-foot { padding: 6px 12px; border-top: 1px solid var(--cm-border); color: var(--cm-text-secondary); }
+
+  /* the table grid: the focused row is drawn when the grid has focus */
+  body[data-region="table"] .k-table tr[data-focus] td { box-shadow: inset 0 2px 0 var(--cm-border-selected-strong), inset 0 -2px 0 var(--cm-border-selected-strong); }
+  body[data-region="table"] .k-table tr[data-focus] td:first-child { box-shadow: inset 2px 2px 0 var(--cm-border-selected-strong), inset 0 -2px 0 var(--cm-border-selected-strong); }
+  body[data-region="table"] .k-table tr[data-focus] td:last-child { box-shadow: inset -2px 2px 0 var(--cm-border-selected-strong), inset 0 -2px 0 var(--cm-border-selected-strong); }
+  .k-table tbody tr { cursor: default; user-select: none; }
+
+  .k-quick[hidden] { display: none; }
+  .k-quick input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; color: var(--cm-text); }
+  .k-result .k-shortcut { margin-inline-start: auto; color: var(--cm-text-secondary); font-size: 11px; }
+  .k-result[aria-disabled="true"] { color: var(--cm-text-tertiary); }
+  .kw-qfoot { padding: 6px 16px 2px; font-size: 11px; color: var(--cm-text-secondary); border-top: 1px solid var(--cm-border); margin-top: 4px; }
+  .kw-rename { flex: 1 1 auto; min-width: 0; height: 24px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--cm-border-selected-strong); border-radius: 5px; background: var(--cm-bg); color: var(--cm-text); font: inherit; outline: none; }
+  .k-item:focus { outline: none; }
+  body[data-region="set"] .kw-setrow { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+
+  /* the inspector's two-line type row (interface-specification 4.2), as screens/inspector.html */
+  .kw-type { flex: none; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--cm-border); }
+  .kw-l1, .kw-l2 { display: flex; align-items: center; gap: 6px; height: 28px; }
+  .kw-l1 .k-name { flex: 1 1 auto; min-width: 0; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kw-split { display: inline-flex; align-items: center; border-radius: 5px; }
+  .kw-caret { display: inline-grid; place-items: center; width: 12px; height: 24px; color: var(--cm-icon-secondary); }
+  .kw-dr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 8px; align-items: baseline; min-height: 24px; padding: 4px 8px 4px 16px; }
+  .kw-dr .k-name { color: var(--cm-text-secondary); }
+  .kw-rank { color: var(--cm-text-tertiary); font-size: 11px; }
+
+  .kw-note { display: none; z-index: 95; }
+  body.kw-notes .kw-note { display: block; }
+  body:not([data-quick]) .kw-note-quick, body:not([data-sets]) .kw-note-set, body:not([data-walk]) .kw-note-walk { display: none !important; }
+  .kw-note code { font-size: 11px; }
+</style>
+</head>
+<body data-region="none" data-dataset="ppi">
+<div class="kw-head">
+<div class="kw-bar">
+  <a href="../index.html">Gallery</a>
+  <b>Keyboard walk (try it)</b>
+  <span class="k-tabs" role="tablist" aria-label="Start from">
+    <span class="k-tab" role="tab" data-state="s1">Canvas focused</span>
+    <span class="k-tab" role="tab" data-state="s2">Walking</span>
+    <span class="k-tab" role="tab" data-state="s9">Selection of two</span>
+    <span class="k-tab" role="tab" data-state="s6">Left the canvas</span>
+    <span class="k-tab" role="tab" data-state="s3" data-more>Three selected</span>
+    <span class="k-tab" role="tab" data-state="s4" data-more>Walk ended</span>
+    <span class="k-tab" role="tab" data-state="s5" data-more>Cleared</span>
+    <span class="k-tab" role="tab" data-state="s7" data-more>Quick actions</span>
+    <span class="k-tab" role="tab" data-state="s8" data-more>New set</span>
+    <span class="k-tab" role="tab" data-state="s10" data-more>Key sheet</span>
+    <span class="k-tab" role="tab" data-state="s11" data-more>Inspector visit</span>
+    <span class="k-tab" role="tab" data-state="s12" data-more>Go to TP53</span>
+    <span class="k-tab" role="tab" data-state="s13" data-more>Walk kept after the table</span>
+  </span>
+  <span class="kw-framename" id="kw-framename"></span>
+  <span class="kw-grow"></span>
+  <label><input type="checkbox" id="kw-notes-on">Annotations</label>
+</div>
+<div class="kw-caption" aria-hidden="true"><div class="kw-cap-head">Screen reader says (not part of the screen) <span class="kw-cap-kind" id="kw-cap-kind"></span></div><div class="kw-cap-now" id="kw-cap-now"></div><div class="kw-cap-prev" id="kw-cap-prev"></div></div>
+</div>
+
+<div class="kw-frame">
+<div class="k-app">
+  <div class="k-rail" aria-label="Main" id="kw-rail" tabindex="-1" data-rove role="toolbar" aria-orientation="vertical"><div class="k-rail-btn" data-say="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true" data-say="Graph"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false" data-say="Data"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false" data-say="Results"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" data-say="Notes"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" data-say="Assistant" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></div>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>33 of 300<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list" role="listbox" aria-label="Graphs" id="kw-graphs" tabindex="-1" data-rove><li class="k-item" role="option" aria-selected="true" data-say="ppi-core-300, 300 nodes"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis k-id">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+      </section>
+      <section class="k-section" id="kw-sets" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div><ul class="k-list" role="tree" aria-label="Sets and paths" id="kw-setlist"></ul></section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas" id="kw-canvas">
+      <div class="kw-fit">
+        <svg class="kw-svg" id="kw-svg" viewBox="225 40 795 720" aria-hidden="true"><g id="kw-view">
+<g class="kw-edges">
+<line x1="535.6" y1="70" x2="711.1" y2="71.9"/>
+<line x1="281.2" y1="223.4" x2="464.9" y2="193"/>
+<line x1="464.9" y1="193" x2="624.3" y2="96.4"/>
+<line x1="607.7" y1="376.5" x2="773.8" y2="484.4"/>
+<line x1="607.7" y1="376.5" x2="760.1" y2="166.7"/>
+<line x1="607.7" y1="376.5" x2="935.9" y2="411.3"/>
+<line x1="607.7" y1="376.5" x2="586.5" y2="538.4"/>
+<line x1="607.7" y1="376.5" x2="929.3" y2="217.2"/>
+<line x1="607.7" y1="376.5" x2="884" y2="467.7"/>
+<line x1="607.7" y1="376.5" x2="790.3" y2="262.7"/>
+<line x1="607.7" y1="376.5" x2="607.5" y2="666.9"/>
+<line x1="607.7" y1="376.5" x2="785.6" y2="573.4"/>
+<line x1="607.7" y1="376.5" x2="770.8" y2="347.6"/>
+<line x1="773.8" y1="484.4" x2="586.5" y2="538.4"/>
+<line x1="773.8" y1="484.4" x2="790.3" y2="262.7"/>
+<line x1="773.8" y1="484.4" x2="607.5" y2="666.9"/>
+<line x1="773.8" y1="484.4" x2="802.6" y2="664.4"/>
+<line x1="760.1" y1="166.7" x2="945.6" y2="314"/>
+<line x1="935.9" y1="411.3" x2="929.3" y2="217.2"/>
+<line x1="935.9" y1="411.3" x2="790.3" y2="262.7"/>
+<line x1="935.9" y1="411.3" x2="785.6" y2="573.4"/>
+<line x1="935.9" y1="411.3" x2="770.8" y2="347.6"/>
+<line x1="586.5" y1="538.4" x2="607.5" y2="666.9"/>
+<line x1="586.5" y1="538.4" x2="785.6" y2="573.4"/>
+<line x1="586.5" y1="538.4" x2="770.8" y2="347.6"/>
+<line x1="929.3" y1="217.2" x2="790.3" y2="262.7"/>
+<line x1="929.3" y1="217.2" x2="770.8" y2="347.6"/>
+<line x1="884" y1="467.7" x2="790.3" y2="262.7"/>
+<line x1="884" y1="467.7" x2="770.8" y2="347.6"/>
+<line x1="884" y1="467.7" x2="802.6" y2="664.4"/>
+<line x1="790.3" y1="262.7" x2="945.6" y2="314"/>
+<line x1="607.5" y1="666.9" x2="802.6" y2="664.4"/>
+<line x1="945.6" y1="314" x2="770.8" y2="347.6"/>
+<line x1="379.1" y1="238.2" x2="349.5" y2="411.3"/>
+<line x1="438.9" y1="674" x2="599.8" y2="730"/>
+<line x1="607.7" y1="376.5" x2="599.8" y2="730"/>
+<line x1="607.7" y1="376.5" x2="281.2" y2="223.4"/>
+<line x1="607.7" y1="376.5" x2="802.6" y2="664.4"/>
+<line x1="607.7" y1="376.5" x2="269.8" y2="504.7"/>
+<line x1="607.7" y1="376.5" x2="464.9" y2="193"/>
+<line x1="607.7" y1="376.5" x2="945.6" y2="314"/>
+<line x1="607.7" y1="376.5" x2="372" y2="498.5"/>
+<line x1="607.7" y1="376.5" x2="711.1" y2="71.9"/>
+<line x1="607.7" y1="376.5" x2="446.1" y2="589.9"/>
+<line x1="607.7" y1="376.5" x2="367.7" y2="135.6"/>
+<line x1="607.7" y1="376.5" x2="890.1" y2="559.3"/>
+<line x1="607.7" y1="376.5" x2="344.7" y2="597.9"/>
+<line x1="607.7" y1="376.5" x2="379.1" y2="238.2"/>
+<line x1="607.7" y1="376.5" x2="624.3" y2="96.4"/>
+<line x1="607.7" y1="376.5" x2="287.5" y2="314.8"/>
+<line x1="607.7" y1="376.5" x2="832.9" y2="143.3"/>
+<line x1="607.7" y1="376.5" x2="349.5" y2="411.3"/>
+<line x1="607.7" y1="376.5" x2="458.2" y2="97.6"/>
+<line x1="607.7" y1="376.5" x2="693.3" y2="655.7"/>
+<line x1="607.7" y1="376.5" x2="254.4" y2="398.4"/>
+<line x1="607.7" y1="376.5" x2="535.6" y2="70"/>
+<line x1="607.7" y1="376.5" x2="438.9" y2="674"/>
+<line x1="287.5" y1="314.8" x2="372" y2="498.5"/>
+<line x1="287.5" y1="314.8" x2="269.8" y2="504.7"/>
+</g>
+<g class="kw-nodes">
+<circle data-id="TP53" cx="607.7" cy="376.5" r="15.2" fill="#D55E00"/>
+<circle data-id="BRCA1" cx="773.8" cy="484.4" r="11.5" fill="#D55E00"/>
+<circle data-id="RAD51" cx="760.1" cy="166.7" r="9" fill="#D55E00"/>
+<circle data-id="RAD50" cx="935.9" cy="411.3" r="10.7" fill="#D55E00"/>
+<circle data-id="MRE11" cx="586.5" cy="538.4" r="9" fill="#D55E00"/>
+<circle data-id="MSH2" cx="929.3" cy="217.2" r="10.1" fill="#D55E00"/>
+<circle data-id="PALB2" cx="884" cy="467.7" r="9" fill="#D55E00"/>
+<circle data-id="FANCD2" cx="790.3" cy="262.7" r="11.2" fill="#D55E00"/>
+<circle data-id="WRN" cx="607.5" cy="666.9" r="11.5" fill="#D55E00"/>
+<circle data-id="RPA1" cx="785.6" cy="573.4" r="9.8" fill="#D55E00"/>
+<circle data-id="RPA2" cx="770.8" cy="347.6" r="11" fill="#D55E00"/>
+<circle data-id="LTBP1" cx="599.8" cy="730" r="10.4" fill="#F0E442"/>
+<circle data-id="RPL5" cx="281.2" cy="223.4" r="11" fill="#56B4E9"/>
+<circle data-id="PCNA" cx="802.6" cy="664.4" r="11.2" fill="#D55E00"/>
+<circle data-id="RPL14" cx="269.8" cy="504.7" r="9.8" fill="#56B4E9"/>
+<circle data-id="RPS8" cx="464.9" cy="193" r="12.4" fill="#56B4E9"/>
+<circle data-id="53BP1" cx="945.6" cy="314" r="9.8" fill="#D55E00"/>
+<circle data-id="NDUFS7" cx="372" cy="498.5" r="10.4" fill="#009E73"/>
+<circle data-id="PSMD14" cx="711.1" cy="71.9" r="10.1" fill="#E69F00"/>
+<circle data-id="CDC20" cx="446.1" cy="589.9" r="9.4" fill="#CC79A7"/>
+<circle data-id="NDUFB8" cx="367.7" cy="135.6" r="9.8" fill="#009E73"/>
+<circle data-id="SF3B2" cx="890.1" cy="559.3" r="9.4" fill="#0072B2"/>
+<circle data-id="PSMA4" cx="344.7" cy="597.9" r="9.8" fill="#E69F00"/>
+<circle data-id="SHC1" cx="379.1" cy="238.2" r="10.4" fill="#000000"/>
+<circle data-id="RPS13" cx="624.3" cy="96.4" r="10.4" fill="#56B4E9"/>
+<circle data-id="UBC" cx="287.5" cy="314.8" r="13.2" fill="#505050"/>
+<circle data-id="PSMB2" cx="832.9" cy="143.3" r="10.7" fill="#E69F00"/>
+<circle data-id="DUSP6" cx="349.5" cy="411.3" r="10.4" fill="#000000"/>
+<circle data-id="NDUFA7" cx="458.2" cy="97.6" r="11" fill="#009E73"/>
+<circle data-id="SNRPD3" cx="693.3" cy="655.7" r="10.1" fill="#0072B2"/>
+<circle data-id="HSPA8" cx="254.4" cy="398.4" r="8.6" fill="#505050"/>
+<circle data-id="PSMC6" cx="535.6" cy="70" r="11.2" fill="#E69F00"/>
+<circle data-id="SMAD5" cx="438.9" cy="674" r="10.7" fill="#F0E442"/>
+</g>
+<g class="kw-marks"></g>
+<g class="kw-labels">
+<text data-id="TP53" x="626.9" y="380.5">TP53</text>
+<text data-id="BRCA1" x="789.3" y="488.4">BRCA1</text>
+<text data-id="RAD51" x="773.2" y="170.7">RAD51</text>
+<text data-id="RAD50" x="950.6" y="415.3">RAD50</text>
+<text data-id="MRE11" x="599.5" y="542.4">MRE11</text>
+<text data-id="MSH2" x="943.4" y="221.2">MSH2</text>
+<text data-id="PALB2" x="897.1" y="471.7">PALB2</text>
+<text data-id="FANCD2" x="805.6" y="266.7">FANCD2</text>
+<text data-id="WRN" x="622.9" y="670.9">WRN</text>
+<text data-id="RPA1" x="799.4" y="577.4">RPA1</text>
+<text data-id="RPA2" x="785.7" y="351.6">RPA2</text>
+<text data-id="LTBP1" x="614.2" y="734">LTBP1</text>
+<text data-id="RPL5" x="296.1" y="227.4">RPL5</text>
+<text data-id="PCNA" x="817.8" y="668.4">PCNA</text>
+<text data-id="RPL14" x="283.6" y="508.7">RPL14</text>
+<text data-id="RPS8" x="481.3" y="197">RPS8</text>
+<text data-id="53BP1" x="959.4" y="318">53BP1</text>
+<text data-id="NDUFS7" x="386.4" y="502.5">NDUFS7</text>
+<text data-id="PSMD14" x="725.2" y="75.9">PSMD14</text>
+<text data-id="CDC20" x="459.5" y="593.9">CDC20</text>
+<text data-id="NDUFB8" x="381.5" y="139.6">NDUFB8</text>
+<text data-id="SF3B2" x="903.5" y="563.3">SF3B2</text>
+<text data-id="PSMA4" x="358.4" y="601.9">PSMA4</text>
+<text data-id="SHC1" x="393.5" y="242.2">SHC1</text>
+<text data-id="RPS13" x="638.7" y="100.4">RPS13</text>
+<text data-id="UBC" x="304.7" y="318.8">UBC</text>
+<text data-id="PSMB2" x="847.6" y="147.3">PSMB2</text>
+<text data-id="DUSP6" x="363.9" y="415.3">DUSP6</text>
+<text data-id="NDUFA7" x="473.1" y="101.6">NDUFA7</text>
+<text data-id="SNRPD3" x="707.4" y="659.7">SNRPD3</text>
+<text data-id="HSPA8" x="267" y="402.4">HSPA8</text>
+<text data-id="PSMC6" x="550.8" y="74">PSMC6</text>
+<text data-id="SMAD5" x="453.6" y="678">SMAD5</text>
+</g>
+        </g></svg>
+      </div>
+      <div class="k-legend-card"><div class="k-lg-title">Module color <span class="k-secondary">by module</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>DNA repair<span class="k-value">13</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">4</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">4</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">3</span></div><div class="k-lg-row k-secondary">5 more</div></div>
+      <div class="k-toolbar-dock">
+        <div class="k-secondary-bar kw-walkslot" id="kw-slot" hidden></div>
+        <div class="k-toolbar" role="toolbar" aria-label="Tools" tabindex="0" id="kw-toolbar" data-rove>
+          <span class="k-tool" aria-pressed="true" title="Select" data-say="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" title="Path" data-say="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool" title="Note" data-say="Note"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" title="Quick actions" data-say="Quick actions" data-act="quick"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" title="View mode (2D / 3D)" data-say="View mode, 2D, menu button"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <div class="kw-target" id="kw-target" tabindex="0" role="application" aria-roledescription="graph drawing" aria-label="Graph drawing" aria-describedby="kw-target-desc"></div>
+      <span class="kw-sr" id="kw-target-desc">Shift and the arrow keys walk the graph. Enter adds the node the walk is on to the selection. Esc ends the walk. Tab leaves the drawing; the walk is kept for your return. F6 moves between regions.</span>
+      <div class="kw-sr" id="kw-live" aria-live="polite"></div>
+      <div class="kw-sheet" id="kw-sheet" hidden role="dialog" aria-label="Keys" tabindex="0">
+        <div class="kw-sheet-head"><b role="heading" aria-level="3">Keys</b><span class="k-grow"></span><span class="k-kbd">Esc</span></div>
+        <div class="kw-sheet-body">
+          <h4>Everywhere</h4>
+          <span class="k-kbd" id="kw-sheet-find">Ctrl+F</span><span>Find: nodes, sets, styles, notes and more</span>
+          <span class="k-kbd" id="kw-sheet-quick">Ctrl+K</span><span>Quick actions: commands, and go to a node by name</span>
+          <span class="k-kbd">F6</span><span>Next region</span>
+          <span class="k-kbd">?</span><span>These keys</span>
+          <h4>Graph drawing</h4>
+          <span class="k-kbd">Arrows</span><span>Move the view</span>
+          <span class="k-kbd">Shift+Down</span><span>Walk: into this node's neighbors</span>
+          <span class="k-kbd">Shift+Right</span><span>Next neighbor</span>
+          <span class="k-kbd">Shift+Left</span><span>Previous neighbor</span>
+          <span class="k-kbd">Shift+Enter</span><span>Back one step (Shift+Up too)</span>
+          <span class="k-kbd">Shift+Home</span><span>Back to the start</span>
+          <span class="k-kbd">O</span><span>Order: confidence, degree, name</span>
+          <span class="k-kbd">Enter</span><span>Add this node to the selection</span>
+          <span class="k-kbd">Space</span><span>Add or remove this node</span>
+          <span class="k-kbd">] [</span><span>Next or previous selected node</span>
+          <span class="k-kbd" id="kw-sheet-visit">Alt+Enter</span><span>Visit the inspector</span>
+          <span class="k-kbd" id="kw-sheet-prev">Ctrl+Z</span><span>Undo; right after a clear, restores the selection</span>
+          <span class="k-kbd">Esc</span><span>End the walk; again, clear the selection</span>
+          <span class="k-kbd">Tab</span><span>To the Nodes table; the walk is kept</span>
+          <h4>Nodes table</h4>
+          <span class="k-kbd">Up, Down</span><span>Move between rows</span>
+          <span class="k-kbd">Shift+Down</span><span>Extend the row selection</span>
+          <span class="k-kbd">Space</span><span>Select or deselect this row</span>
+          <span class="k-kbd">Esc</span><span>Keep only this row; again, clear</span>
+        </div>
+        <div class="kw-sheet-foot">graphty-element's default keys. Read only.</div>
+      </div>
+      <div class="k-quick" id="kw-quick" hidden role="dialog" aria-label="Quick actions">
+        <div class="k-quick-input"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg><input id="kw-qinput" role="combobox" aria-expanded="true" aria-controls="kw-qlist" aria-label="Quick actions" placeholder="Type a command, or go to a node by name"></div>
+        <div class="k-quick-list" id="kw-qlist" role="listbox" aria-label="Results"></div>
+      </div>
+      <span class="k-help" id="kw-help" tabindex="0" data-rove role="button" aria-haspopup="menu" aria-label="Help and resources" title="Help" data-say="Help and resources, menu button"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+    <section class="k-dock" aria-label="Nodes table">
+      <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+      <div class="k-scope" id="kw-scope">Filtered graph: 33 of 300 nodes. Sorted by degree.</div>
+      <div class="k-table-wrap" id="kw-tablewrap"><table class="k-table kw-grid" id="kw-grid" role="grid" aria-label="Nodes, filtered graph" aria-multiselectable="true" aria-rowcount="34" tabindex="0">
+        <thead><tr><th>id</th><th>module <span class="k-profile">9 values</span></th><th class="k-n">degree <span class="k-profile">4 to 32</span></th><th class="k-n">degree rank <span class="k-profile">1 to 300</span></th></tr></thead>
+        <tbody id="kw-rows"></tbody></table></div>
+    </section>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div id="kw-insp" tabindex="0" data-rove role="group" aria-label="Inspector" style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0"></div>
+  </aside>
+</div>
+
+<div class="k-annot-note kw-note" style="left:70px;top:420px;max-width:220px"><b>Regions</b>: F6 and Shift+F6 cycle the rail and left panel, the inspector, Help, the toolbar, the canvas and the table, the order Tab also follows where it crosses a region (proposed order, framework changes; interaction pattern entries 9.1). Lists and the inspector are one Tab stop each, with a roving row moved by the arrows.</div>
+<div class="k-annot-note kw-note" style="left:312px;top:40px"><b>Canvas focus target</b>, <code>role="application"</code>, owned by graphty-element: Tab from the toolbar reaches it; Tab always leaves it for the table and ends the walk, but graphty-element keeps the walk's start and where it left off, so the next Shift+Arrow goes on from there. Interaction pattern entries 9.1 and 9.2; interaction patterns 3.6 (dispatch) and 3.8 (the walk's state chart). Component: graphty-element, no compact-mantine part.</div>
+<div class="k-annot-note kw-note" style="left:1200px;top:490px;max-width:220px"><b>Not product UI.</b> The magenta strip above the frame mirrors the one polite live region (interaction pattern entries 9.4) so a sighted tester reads what the screen reader says. "On focus" lines are what the screen reader reads from the focused element; "not in this mock" lines mark a control the mock does not build, so study notes can tell a mock limit from a design failure.</div>
+<div class="k-annot-note kw-note" style="left:560px;top:180px;max-width:260px"><b>Fit</b>: the drawing is fitted to the canvas less the toolbar dock and the walk slot's row, so no node starts under canvas chrome and starting a walk never moves it (proposed, framework changes: where the walk-position slot is drawn).</div>
+<div class="k-annot-note kw-note kw-note-walk" style="left:312px;top:420px;max-width:250px"><b>Focus pill</b>, shown while the canvas has keyboard focus: the start node on arrival; in the walk, the focused node, its place among the neighbors of the node stepped from, whether it is selected, the selection count, the edge's value named by its column ("confidence 0.98"), degree and rank, the neighbor order with its switch (O, proposed) and one fixed hint. Silent: the live region speaks the same values. Interaction pattern entries 9.2, as proposed in framework changes. Components: <code>SegmentedControl</code>, <code>Badge</code>, <code>Kbd</code> in a card in the secondary bar's place.</div>
+<div class="k-annot-note kw-note kw-note-walk" style="left:960px;top:500px;max-width:190px"><b>Focus ring</b>: three bands (1 + 2 + 1 px) after a 2 px gap, outside the selection ring and the 1 px fill edge, drawn in screen pixels at any zoom. Canvas drawing 2, 4 and 6. Drawn by graphty-element.</div>
+<div class="k-annot-note kw-note" style="left:1190px;top:170px;max-width:230px"><b>Inspector stays on the selection</b> while the walk moves focus. In the walk Enter adds the focused node to the selection and never replaces it, Space adds or removes it, and Alt+Enter (Option+Enter on a Mac) visits the focused node here without changing the selection (Esc goes back to the node) (interaction patterns 3.1; interaction pattern entries 9.2). Type row: name over the kind word, three verbs and the overflow (interface specification 4.2). Components: <code>ActionIcon</code>, <code>SplitButton</code>, <code>ControlSection</code>, <code>DataRow</code>.</div>
+<div class="k-annot-note kw-note" style="left:312px;top:640px;max-width:300px"><b>Nodes table</b>, the text equivalent of the drawing and one selection with it (interaction patterns 3.1, linked views): click, Shift+click or Shift+arrow for a range, Mod+click or Space to toggle, Esc collapses to the focused row (9.1). A selection made on the canvas scrolls its newest row into view without taking focus (proposed). Interface templates 16. Component: <code>DataTable</code>.</div>
+<div class="k-annot-note kw-note kw-note-quick" style="left:560px;top:230px"><b>Quick actions</b> lists every command with its key, which is how keys are learned (interaction pattern entries 9.3; interface templates 15). A node's exact name is the first row, "Go to TP53": Enter puts the walk on it as the start and selects nothing. Ctrl+F opens Find; Enter on a hit also puts the walk on it and selects nothing. This mock lists the selection and set commands only, and shows a key only where the framework or a proposal names one. Component: <code>QuickActions</code>.</div>
+<div class="k-annot-note kw-note kw-note-set" style="left:70px;top:230px;max-width:220px"><b>A new set opens in rename</b>; Enter commits and focus stays on the row. The set is the selection: its members carry the thin member ring and the member row mark, and are not selected themselves. Interaction pattern entries 9.3 (the group key); canvas drawing 6. Components: <code>Tree</code>, <code>InlineRename</code>.</div>
+</div>
+
+<script>
+const D = {"nodes":{"TP53":[607.7,376.5,15.2,"DNA repair",32,2],"BRCA1":[773.8,484.4,11.5,"DNA repair",13,16],"RAD51":[760.1,166.7,9,"DNA repair",5,247],"RAD50":[935.9,411.3,10.7,"DNA repair",10,62],"MRE11":[586.5,538.4,9,"DNA repair",5,247],"MSH2":[929.3,217.2,10.1,"DNA repair",8,129],"PALB2":[884,467.7,9,"DNA repair",5,247],"FANCD2":[790.3,262.7,11.2,"DNA repair",12,24],"WRN":[607.5,666.9,11.5,"DNA repair",13,16],"RPA1":[785.6,573.4,9.8,"DNA repair",7,172],"RPA2":[770.8,347.6,11,"DNA repair",11,40],"LTBP1":[599.8,730,10.4,"TGF-beta",9,94],"RPL5":[281.2,223.4,11,"Ribosome",11,40],"PCNA":[802.6,664.4,11.2,"DNA repair",12,24],"RPL14":[269.8,504.7,9.8,"Ribosome",7,172],"RPS8":[464.9,193,12.4,"Ribosome",17,11],"53BP1":[945.6,314,9.8,"DNA repair",7,172],"NDUFS7":[372,498.5,10.4,"Complex I",9,94],"PSMD14":[711.1,71.9,10.1,"Proteasome",8,129],"CDC20":[446.1,589.9,9.4,"Cell cycle",6,217],"NDUFB8":[367.7,135.6,9.8,"Complex I",7,172],"SF3B2":[890.1,559.3,9.4,"Spliceosome",6,217],"PSMA4":[344.7,597.9,9.8,"Proteasome",7,172],"SHC1":[379.1,238.2,10.4,"MAPK signaling",9,94],"RPS13":[624.3,96.4,10.4,"Ribosome",9,94],"UBC":[287.5,314.8,13.2,"Unassigned",21,7],"PSMB2":[832.9,143.3,10.7,"Proteasome",10,62],"DUSP6":[349.5,411.3,10.4,"MAPK signaling",9,94],"NDUFA7":[458.2,97.6,11,"Complex I",11,40],"SNRPD3":[693.3,655.7,10.1,"Spliceosome",8,129],"HSPA8":[254.4,398.4,8.6,"Unassigned",4,271],"PSMC6":[535.6,70,11.2,"Proteasome",12,24],"SMAD5":[438.9,674,10.7,"TGF-beta",10,62]},"nb":{"TP53":[["PALB2",0.98],["RPA1",0.95],["RAD51",0.87],["RPA2",0.86],["FANCD2",0.84],["LTBP1",0.83],["MSH2",0.82],["UBC",0.8],["DUSP6",0.79],["MRE11",0.79],["RAD50",0.78],["CDC20",0.77],["SNRPD3",0.77],["PSMA4",0.76],["WRN",0.75],["BRCA1",0.71],["PSMC6",0.71],["NDUFS7",0.7],["SMAD5",0.62],["NDUFA7",0.57],["NDUFB8",0.55],["PSMB2",0.55],["HSPA8",0.51],["RPL14",0.51],["PSMD14",0.5],["SF3B2",0.5],["RPS13",0.49],["53BP1",0.46],["SHC1",0.43],["PCNA",0.42],["RPL5",0.42],["RPS8",0.42]],"BRCA1":[["WRN",0.91],["FANCD2",0.88],["MRE11",0.82],["PCNA",0.75],["TP53",0.71]],"RAD51":[["TP53",0.87],["53BP1",0.8]],"RAD50":[["RPA1",0.98],["MSH2",0.97],["FANCD2",0.83],["TP53",0.78],["RPA2",0.73]],"MRE11":[["RPA1",0.89],["BRCA1",0.82],["TP53",0.79],["RPA2",0.78],["WRN",0.71]],"MSH2":[["RAD50",0.97],["RPA2",0.91],["TP53",0.82],["FANCD2",0.73]],"PALB2":[["TP53",0.98],["PCNA",0.95],["RPA2",0.9],["FANCD2",0.72]],"FANCD2":[["BRCA1",0.88],["TP53",0.84],["RAD50",0.83],["53BP1",0.73],["MSH2",0.73],["PALB2",0.72]],"WRN":[["BRCA1",0.91],["PCNA",0.76],["TP53",0.75],["MRE11",0.71]],"RPA1":[["RAD50",0.98],["TP53",0.95],["MRE11",0.89]],"RPA2":[["53BP1",0.92],["MSH2",0.91],["PALB2",0.9],["TP53",0.86],["MRE11",0.78],["RAD50",0.73]],"LTBP1":[["SMAD5",0.88],["TP53",0.83]],"RPL5":[["RPS8",0.87],["TP53",0.42]],"PCNA":[["PALB2",0.95],["WRN",0.76],["BRCA1",0.75],["TP53",0.42]],"RPL14":[["UBC",0.79],["TP53",0.51]],"RPS8":[["RPL5",0.87],["RPS13",0.86],["TP53",0.42]],"53BP1":[["RPA2",0.92],["RAD51",0.8],["FANCD2",0.73],["TP53",0.46]],"NDUFS7":[["UBC",0.73],["TP53",0.7]],"PSMD14":[["PSMC6",0.92],["TP53",0.5]],"CDC20":[["TP53",0.77]],"NDUFB8":[["TP53",0.55]],"SF3B2":[["TP53",0.5]],"PSMA4":[["TP53",0.76]],"SHC1":[["DUSP6",0.95],["TP53",0.43]],"RPS13":[["RPS8",0.86],["TP53",0.49]],"UBC":[["TP53",0.8],["RPL14",0.79],["NDUFS7",0.73]],"PSMB2":[["TP53",0.55]],"DUSP6":[["SHC1",0.95],["TP53",0.79]],"NDUFA7":[["TP53",0.57]],"SNRPD3":[["TP53",0.77]],"HSPA8":[["TP53",0.51]],"PSMC6":[["PSMD14",0.92],["TP53",0.71]],"SMAD5":[["LTBP1",0.88],["TP53",0.62]]},"colors":{"Proteasome":"#E69F00","Ribosome":"#56B4E9","Complex I":"#009E73","Spliceosome":"#0072B2","DNA repair":"#D55E00","Cell cycle":"#CC79A7","MAPK signaling":"#000000","TGF-beta":"#F0E442","Unassigned":"#505050"}};
+const TOTAL = { nodes: 300, edges: 1262 }, SLICE = { nodes: 33, edges: 59 };
+const params = new URLSearchParams(location.search);
+// Mod is Cmd on macOS and Ctrl elsewhere (interaction pattern entries 9.3); Alt is Option on macOS
+const MAC = params.has("mac") ? params.get("mac") === "1" : /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = MAC ? "Cmd" : "Ctrl", ALT = MAC ? "Option" : "Alt";
+const BACK_KEY = "Shift+Enter"; // the walk-back key; Shift+Up is a second binding
+const PREV_KEY = `${MOD}+Z`, VISIT_KEY = `${ALT}+Enter`;
+const INFRAME = window !== window.top;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const node = (id) => { const [x, y, r, module, degree, rank] = D.nodes[id]; return { id, x, y, r, module, degree, rank }; };
+const ROWS = Object.keys(D.nodes).sort((a, b) => D.nodes[b][4] - D.nodes[a][4] || (a < b ? -1 : 1));
+const START = ROWS[0]; // the drawn node of highest degree, ties to the lowest id: the entry node with nothing selected (9.2)
+
+let S;
+function reset(sel = []) {
+  S = {
+    sel: sel.slice(), prevSel: null, setSel: false, sets: [], renaming: false,
+    walking: false, anchor: null, frames: [], depth: 0, jump: null, spokeExits: false, spokeMemberKeys: false, hinted: false,
+    // the walk's start and the place it left off, held by graphty-element: they outlive the walk (Tab, F6, Esc,
+    // overlays) and are replaced only by going to another node or a Find hit. welcomed: the long reading is said once
+    start: null, welcomed: false,
+    order: "weight", visit: null, sheet: null,
+    pan: [0, 0], region: "none", row: 0, rowAnchor: 0, quick: null, capture: [], rove: {}, reveal: false, hold: null,
+  };
+}
+const curSet = () => S.sets[S.sets.length - 1];
+
+// ---------- the walk model ----------
+// the neighbor order (9.2, proposed): the declared edge weight (confidence), degree, or name;
+// ties by name. A frame keeps the node it is on, so a new order keeps every step of the path.
+const ORDERS = ["weight", "degree", "name"];
+const EDGE_COL = "confidence"; // the readout names the edge column and its value ("confidence 0.98"), never "weight"
+const ORDER_NAME = { weight: EDGE_COL, degree: "degree", name: "name" }; // the walk names the column it orders by
+const ORDER_WORD = { weight: "by confidence, highest first", degree: "by degree, highest first", name: "by name, A to Z" };
+function nbList(from) {
+  const l = D.nb[from].slice();
+  if (S.order === "degree") l.sort((a, b) => D.nodes[b[0]][4] - D.nodes[a[0]][4] || (a[0] < b[0] ? -1 : 1));
+  else if (S.order === "name") l.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  return l;
+}
+function posOf(fr) { const l = nbList(fr.from), i = l.findIndex((x) => x[0] === fr.id); return { i, n: l.length, w: l[i][1] }; }
+function focused() {
+  if (!S.walking) return null;
+  if (S.jump) return S.jump;
+  if (S.depth === 0) return S.anchor;
+  return S.frames[S.depth - 1].id;
+}
+function cameFrom() { return S.depth >= 2 ? S.frames[S.depth - 2].from : null; }
+function selPhrase() {
+  if (S.setSel) return `${curSet().name} selected on canvas, ${S.sel.length} members.`;
+  const n = S.sel.length; return n === 0 ? "Nothing selected." : n === 1 ? `${S.sel[0]} selected on canvas.` : `${n} selected on canvas.`;
+}
+function countPhrase() { return S.sel.length ? `${S.sel.length} selected on canvas.` : "Nothing selected on canvas."; }
+function flags(id) { let s = ""; if (S.sel.includes(id) && !S.setSel) s += ", selected"; if (id === cameFrom()) s += ", where you came from"; return s; }
+function inFiltered(from) { return D.nb[from].length < D.nodes[from][4] ? " in filtered graph" : ""; }
+function posFirst() {
+  const f = S.frames[S.depth - 1], { i, n: N, w } = posOf(f), n = node(f.id);
+  return `${f.id}, neighbor ${i + 1} of ${N} of ${f.from}${inFiltered(f.from)}, ${ORDER_WORD[S.order]}. ${EDGE_COL} ${w.toFixed(2)}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${flags(f.id)}.`;
+}
+function posStep() {
+  const f = S.frames[S.depth - 1], { i, n: N, w } = posOf(f), n = node(f.id);
+  return `${f.id}, ${i + 1} of ${N}, ${EDGE_COL} ${w.toFixed(2)}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${flags(f.id)}.`;
+}
+// said when focus comes back to the walk from the inspector or the key sheet
+function posShort() {
+  const f = focused();
+  if (S.jump) return `${f}, selected ${S.sel.indexOf(f) + 1} of ${S.sel.length}.`;
+  if (S.depth === 0) return `${f}, start of the walk.`;
+  const { i, n } = posOf(S.frames[S.depth - 1]); return `${f}, ${i + 1} of ${n} from ${S.frames[S.depth - 1].from}.`;
+}
+function setOrder(o) {
+  S.order = o;
+  const f = S.walking && !S.jump && S.depth > 0 ? S.frames[S.depth - 1] : null;
+  if (!f) return `Neighbors ${ORDER_WORD[o]}.`;
+  // the node stepped from is kept; focus goes to the first neighbor in the new order
+  f.id = nbList(f.from)[0][0]; S.frames = S.frames.slice(0, S.depth);
+  const { n: N, w } = posOf(f), n = node(f.id);
+  return `Neighbors ${ORDER_WORD[o]}. ${f.id}, neighbor 1 of ${N} of ${f.from}, ${EDGE_COL} ${w.toFixed(2)}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${flags(f.id)}.`;
+}
+const MEMBER_KEYS = " ] and [ step through the selection.";
+const WALKING = "Walking the drawing.";
+// the entry announcement names the exits, and the member-walk keys once there is a selection to step
+// through; a walk that starts with nothing selected names them when Space first adds a node (9.2)
+function exits() {
+  if (S.spokeExits) return "";
+  S.spokeExits = true;
+  let s = ` ${BACK_KEY} goes back, Esc ends the walk, Tab leaves the drawing`;
+  if (S.sel.length && !S.setSel) { s += ", ] and [ step through the selection"; S.spokeMemberKeys = true; }
+  return s + ", O changes the order, question mark lists the keys.";
+}
+function entryNode() { return S.start ?? S.sel[0] ?? START; }
+const kept = () => !S.walking && S.anchor && S.anchor === S.start; // a walk that was left, start and place held
+// a walk starts at the start node, or goes on from where it was left (never starts itself on arrival)
+function startWalk() {
+  if (kept()) { S.walking = true; S.jump = null; return true; }
+  S.walking = true; S.anchor = S.start = entryNode(); S.frames = []; S.depth = 0; S.jump = null; S.spokeExits = false; S.spokeMemberKeys = false;
+  return false;
+}
+function goTo(id) { // Quick actions' Go to, and a Find hit: a new start, the old place dropped
+  S.walking = false; S.start = id; S.anchor = null; S.frames = []; S.depth = 0; S.jump = null;
+}
+function keptOn() { return S.jump ?? (S.depth ? S.frames[S.depth - 1].id : null); }
+function keptPhrase() { const f = keptOn(); return f ? `Walk kept: on ${f}, from ${S.anchor}.` : `Walk kept: at the start, ${S.anchor}.`; }
+function stepIn() {
+  const from = focused();
+  S.jump = null;
+  if (S.frames[S.depth] && S.frames[S.depth].from === from) S.depth++;
+  else { S.frames = S.frames.slice(0, S.depth); S.frames.push({ from, id: nbList(from)[0][0] }); S.depth++; }
+  return posFirst();
+}
+function endWalk() { S.walking = false; S.visit = null; } // the start and the place are kept
+
+// ---------- speaking ----------
+// kinds: "live" (the polite region), "focus" (read from the focused element), "mock" (a control this mock does not build)
+function say(text, kind = "live") {
+  S.capture.unshift({ text, kind });
+  S.capture.length = Math.min(S.capture.length, 3);
+  if (kind === "live") { const l = $("kw-live"); l.textContent = ""; setTimeout(() => (l.textContent = text), 30); }
+}
+// the long reading once per project; every later arrival names the region, the kept walk and the selection
+function canvasReading() {
+  if (!S.welcomed) { S.welcomed = true; return `Graph drawing, application. Protein interactions, ${SLICE.nodes} of ${TOTAL.nodes} nodes shown. ${selPhrase()} The walk starts at ${entryNode()}. Shift+Arrow: walk. Enter: select. Question mark: keys.`; }
+  return `Graph drawing. ${kept() ? keptPhrase() : `The walk starts at ${entryNode()}.`} ${countPhrase()}`;
+}
+function visitReading() { const n = node(S.visit); return `Inspector, ${n.id}, ${S.sel.includes(n.id) && !S.setSel ? "selected" : "not selected"}. Module ${n.module}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}.`; }
+function rowReading() {
+  const id = ROWS[S.row], n = node(id);
+  // aria-selected: the screen reader says its own word, "selected"; the live announcements of a change end "on canvas"
+  const st = S.setSel ? (curSet().members.includes(id) ? `, member of ${curSet().name}` : "") : S.sel.includes(id) ? ", selected" : "";
+  return `${id}, ${n.module}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${st}. Row ${S.row + 1} of ${ROWS.length}.`;
+}
+
+// ---------- selection ----------
+// Ctrl+Z restores a cleared selection from one slot (graphty-element's history): the slot is armed
+// only by a clear, and any other selection change empties it.
+function changed() { S.prevSel = null; S.reveal = S.region !== "table"; }
+function setSelection(ids) { S.sel = ids; S.setSel = false; changed(); }
+function toggle(id) {
+  if (S.setSel) { S.sel = []; S.setSel = false; }
+  const had = S.sel.includes(id);
+  S.sel = had ? S.sel.filter((x) => x !== id) : [...S.sel, id];
+  changed();
+  let m = `${id} ${had ? "removed" : "added"}. ${countPhrase()}`;
+  if (S.walking && S.sel.length && !S.spokeMemberKeys) { m += MEMBER_KEYS; S.spokeMemberKeys = true; }
+  return m;
+}
+function addSel(id) { // Enter in the walk: adds the focused node, never replaces or removes
+  if (S.sel.includes(id) && !S.setSel) return `${id} is already selected. Space removes it.`;
+  if (S.setSel) { S.sel = []; S.setSel = false; }
+  S.sel = [...S.sel, id]; changed();
+  let m = `${id} selected. ${countPhrase()}`;
+  if (S.sel.length && !S.spokeMemberKeys) { m += MEMBER_KEYS; S.spokeMemberKeys = true; }
+  return m;
+}
+function clearSelection() { if (!S.sel.length) return null; const was = S.sel.slice(); S.sel = []; S.setSel = false; changed(); S.prevSel = was; return `Selection cleared (${was.length} node${was.length === 1 ? "" : "s"}). ${PREV_KEY} brings it back.`; }
+function restoreSelection() { // Ctrl+Z right after a clear; otherwise Ctrl+Z is Undo, which this mock does not draw
+  if (!S.prevSel || S.sel.length) return "Nothing to undo in this mock.";
+  const was = S.prevSel; S.sel = was; S.setSel = false; changed();
+  return `Selection restored (${was.length} node${was.length === 1 ? "" : "s"}). ${countPhrase()}`;
+}
+function createSet() {
+  if (!S.sel.length) return "Nothing selected to make a set from.";
+  const name = `Set ${S.sets.length + 1}`;
+  S.sets.push({ name, members: S.sel.slice() });
+  S.setSel = true; S.renaming = true;
+  return `Set created, ${S.sel.length} nodes. Name, edit, ${name}.`;
+}
+function selectNeighbors() {
+  if (!S.sel.length) return "Nothing selected.";
+  const add = new Set(S.sel); for (const id of S.sel) for (const [n] of D.nb[id]) add.add(n);
+  const was = S.sel.length; setSelection([...add]);
+  return `${S.sel.length - was} neighbors added. ${countPhrase()}`;
+}
+
+// ---------- keys ----------
+function chord(e) {
+  let k = e.key === " " ? "Space" : e.key;
+  if ((e.ctrlKey || e.metaKey || e.altKey) && /^Key[A-Z]$/.test(e.code || "")) k = e.code.slice(3); // Option+Z types a symbol on macOS
+  if (k.length === 1) k = k.toLowerCase();
+  return (e.ctrlKey || e.metaKey ? "Mod+" : "") + (e.altKey ? "Alt+" : "") + (e.shiftKey && k.length > 1 ? "Shift+" : "") + k;
+}
+const ARROWS = { ArrowUp: [0, 40], ArrowDown: [0, -40], ArrowLeft: [40, 0], ArrowRight: [-40, 0] };
+function onCanvasKey(c) {
+  const f = focused();
+  if (ARROWS[c]) {
+    const [dx, dy] = ARROWS[c];
+    S.pan = [Math.max(-240, Math.min(240, S.pan[0] + dx)), Math.max(-160, Math.min(160, S.pan[1] + dy))];
+    if (!S.hinted && !S.walking) { S.hinted = true; say("View moved. Shift+Arrow walks the graph."); }
+    return true;
+  }
+  const back = "Shift+Enter";
+  // Shift+Enter is the walk-back key (Figma's go-to-parent); Shift+Up is a second binding for it
+  if (c === "Shift+ArrowUp") c = back;
+  // a kept walk goes on where it was left: focus back on that node, nothing stepped
+  if (!S.walking && kept() && ["Shift+ArrowDown", "Shift+ArrowRight", "Shift+ArrowLeft", back].includes(c)) { startWalk(); say(`${WALKING} ${posShort()}`); return true; }
+  if (c === "Shift+ArrowDown" || c === "Shift+ArrowRight" && (!S.walking || (S.depth === 0 && !S.jump))) {
+    const fresh = !S.walking;
+    if (!S.walking) startWalk();
+    say((fresh ? `${WALKING} ` : "") + stepIn() + exits());
+    return true;
+  }
+  if (c === "Shift+ArrowRight" || c === "Shift+ArrowLeft") {
+    if (!S.walking) { say(`Shift+Down walks from ${entryNode()}.`); return true; }
+    S.jump = null;
+    const fr = S.frames[S.depth - 1], l = nbList(fr.from), d = c === "Shift+ArrowRight" ? 1 : -1, j = posOf(fr).i + d;
+    if (j < 0 || j >= l.length) { say(d > 0 ? "Last neighbor." : "First neighbor."); return true; }
+    fr.id = l[j][0]; S.frames = S.frames.slice(0, S.depth);
+    say(posStep());
+    return true;
+  }
+  if (c === back) {
+    if (!S.walking) { say(`Shift+Down walks from ${entryNode()}.`); return true; }
+    const backTo = (fr) => { const { i, n } = posOf(fr); return `Back to ${fr.id}, neighbor ${i + 1} of ${n} of ${fr.from}.`; };
+    if (S.jump) { S.jump = null; say(S.depth ? backTo(S.frames[S.depth - 1]) : `Back to the start, ${S.anchor}.`); return true; }
+    if (S.depth === 0) { say(`At the start, ${S.anchor}.`); return true; }
+    S.depth--;
+    say(S.depth === 0 ? `Start, ${S.anchor}.` : backTo(S.frames[S.depth - 1]));
+    return true;
+  }
+  if (c === "Shift+Home") {
+    if (!S.walking) { const had = kept(); startWalk(); if (had) { S.jump = null; S.depth = 0; } say(`${WALKING} Back to ${S.anchor}, start of the walk${S.sel.includes(S.anchor) ? "" : ", not selected"}. ${countPhrase()}`); return true; }
+    S.jump = null; S.depth = 0; say(`Back to ${S.anchor}, start of the walk${S.sel.includes(S.anchor) ? "" : ", not selected"}. ${countPhrase()}`); return true;
+  }
+  if (c === "Delete" || c === "Backspace") {
+    // proposed: during the walk Delete acts only when the focused node is selected, and says so when it is not
+    if (f && !S.sel.includes(f)) { say(`Nothing removed; ${f} is not selected. Enter adds it.`); return true; }
+    say("Remove: not built in this mock.", "mock"); return true;
+  }
+  // Space arrives here on release with no drag in between (see the keyup listener), or from a replay
+  if (c === "Space") { if (!f) { say(`Shift+Down walks from ${entryNode()}.`); return true; } say(toggle(f)); return true; }
+  if (c === "o") { say(setOrder(ORDERS[(ORDERS.indexOf(S.order) + 1) % ORDERS.length])); return true; }
+  if (c === "Enter") {
+    // In the walk Enter adds the focused node to the selection and never replaces or removes it. It never
+    // starts the walk: with a set selected it goes to its members (4.2); otherwise it says how to walk
+    if (f) { say(addSel(f)); return true; }
+    if (S.setSel) { const s = curSet(); S.setSel = false; S.sel = s.members.slice(); changed(); say(`${s.members.length} members of ${s.name} selected. ${countPhrase()}`); return true; }
+    say(`Shift+Down walks from ${entryNode()}. Enter adds the node you are on to the selection.`); return true;
+  }
+  if (c === "Alt+Enter") { // the inspector visit: on the focused node in the walk, else on the selection; Esc comes back
+    if (f) { S.visit = f; enterRegion("insp"); return true; }
+    enterRegion("insp"); return true;
+  }
+  if (c === "]" || c === "[") {
+    if (!S.sel.length) { say("Nothing selected."); return true; }
+    const cur = S.sel.indexOf(f), n = S.sel.length;
+    const i = c === "]" ? (cur < 0 ? 0 : Math.min(n - 1, cur + 1)) : (cur < 0 ? n - 1 : Math.max(0, cur - 1));
+    if (!S.walking) startWalk();
+    S.jump = S.sel[i];
+    say(`${S.jump}, selected ${i + 1} of ${n}.`);
+    return true;
+  }
+  if (c === "Escape") {
+    if (S.walking) { const at = f; endWalk(); say(`Walk ended at ${at}. ${countPhrase()}`); return true; }  // start and place kept
+    const m = clearSelection(); if (m) say(m); return true;
+  }
+  return onCommonKey(c);
+}
+function onCommonKey(c) {
+  if (c === "Mod+z") { say(restoreSelection()); return true; }
+  if (c === "Mod+k") { openQuick(); return true; }
+  if (c === "Mod+f") { openQuick("find"); return true; } // Ctrl+F opens Find from every region inside the app
+  if (c === "?") { S.sheet = S.region; enterRegion("sheet"); return true; }
+  if (c === "Mod+g") { runCreateSet(); return true; }
+  return false;
+}
+function onTableKey(c) {
+  const clamp = (i) => Math.max(0, Math.min(ROWS.length - 1, i));
+  if (c === "ArrowDown" || c === "ArrowUp" || c === "Home" || c === "End") {
+    S.row = c === "Home" ? 0 : c === "End" ? ROWS.length - 1 : clamp(S.row + (c === "ArrowDown" ? 1 : -1));
+    say(rowReading(), "focus"); return true;
+  }
+  if (c === "Shift+ArrowDown" || c === "Shift+ArrowUp") { // extend from the anchor (9.1)
+    S.row = clamp(S.row + (c === "Shift+ArrowDown" ? 1 : -1));
+    const a = Math.min(S.rowAnchor, S.row), b = Math.max(S.rowAnchor, S.row);
+    setSelection(ROWS.slice(a, b + 1));
+    say(`${ROWS[S.row]}. ${countPhrase()}`); return true;
+  }
+  if (c === "Space" || c === "Mod+Space") { S.rowAnchor = S.row; say(toggle(ROWS[S.row])); return true; }
+  if (c === "Enter") { const id = ROWS[S.row]; S.rowAnchor = S.row; setSelection([id]); say(`${id} selected. ${countPhrase()}`); return true; }
+  if (c === "Escape") { // Esc collapses a row selection to the focused row (9.1); the next Esc clears it
+    const id = ROWS[S.row];
+    if (!S.setSel && S.sel.length > 1 && S.sel.includes(id)) { setSelection([id]); S.rowAnchor = S.row; say(`${id} alone selected. ${countPhrase()}`); return true; }
+    const m = clearSelection(); say(m ?? "Nothing selected."); return true;
+  }
+  return onCommonKey(c);
+}
+function onSetKey(c) {
+  if (c === "Enter" || c === "Space") { S.setSel = true; S.sel = curSet().members.slice(); changed(); say(selPhrase()); return true; }
+  return onCommonKey(c);
+}
+
+// ---------- the other regions: one Tab stop each, a roving item moved by the arrows ----------
+const ROVE = {
+  rail: { el: "kw-rail", items: ".k-rail-btn", name: "Main, toolbar" },
+  graphs: { el: "kw-graphs", items: ".k-item", name: "Graphs, list" },
+  insp: { el: "kw-insp", items: "[data-item]", name: "Inspector" },
+  help: { el: "kw-help", self: true, name: "" },
+  toolbar: { el: "kw-toolbar", items: ".k-tool", name: "Tools, toolbar", across: true },
+};
+function roveItems(r) { const c = $(ROVE[r].el); return ROVE[r].self ? [c] : [...c.querySelectorAll(ROVE[r].items)]; }
+function itemReading(el, i, n) {
+  let st = "";
+  if (el.getAttribute("aria-pressed") === "true") st += ", pressed";
+  if (el.getAttribute("aria-selected") === "true") st += ", selected";
+  if (el.getAttribute("aria-disabled") === "true") st += ", unavailable";
+  return `${el.dataset.say || el.title || el.textContent.trim()}${st}${n > 1 ? `, ${i + 1} of ${n}` : ""}.`;
+}
+function onRoveKey(r, c) {
+  const its = roveItems(r), n = its.length, [fwd, bwd] = ROVE[r].across ? ["ArrowRight", "ArrowLeft"] : ["ArrowDown", "ArrowUp"];
+  let i = Math.min(S.rove[r] ?? 0, n - 1);
+  if (c === fwd || c === bwd || c === "Home" || c === "End") {
+    i = c === "Home" ? 0 : c === "End" ? n - 1 : Math.max(0, Math.min(n - 1, i + (c === fwd ? 1 : -1)));
+    S.rove[r] = i; say(itemReading(its[i], i, n), "focus"); return true;
+  }
+  if (c === "Enter" || c === "Space") { activate(its[i]); return true; }
+  // Esc in the inspector, reached with Enter from the canvas, goes back there; a visit returns to the walk
+  if (c === "Escape" && r === "insp" && S.inspFrom === "canvas") { enterRegion("canvas"); return true; }
+  return onCommonKey(c);
+}
+function onSheetKey(c) {
+  if (c === "Escape" || c === "?") { const back = S.sheet; S.sheet = null; enterRegion(back && back !== "none" ? back : "canvas"); return true; }
+  return false;
+}
+const ACTS = {
+  quick: () => openQuick(),
+  neighbors: () => say(selectNeighbors()),
+  members: () => { const s = curSet(); if (!s) return; setSelection(s.members.slice()); say(`${s.members.length} members selected. ${countPhrase()}`); },
+  createSet: () => runCreateSet(),
+};
+function activate(el) {
+  if (el.getAttribute("aria-pressed") === "true") return;
+  if (el.dataset.act && ACTS[el.dataset.act]) { ACTS[el.dataset.act](); return; }
+  say(`${(el.dataset.say || el.title || el.textContent.trim()).replace(/, (menu )?button$/, "")}: not built in this mock.`, "mock");
+}
+
+// ---------- quick actions: a sample, the selection and set commands only ----------
+const COMMANDS = [
+  { g: "Selection", name: "Select neighbors", run: ACTS.neighbors, needsSel: true },
+  { g: "Selection", name: "Select members", run: ACTS.members, needsSet: true },
+  { g: "Selection", name: "Select all", run: () => { setSelection(ROWS.slice()); say(countPhrase()); } },
+  { g: "Selection", name: "Invert selection", run: () => { const out = S.setSel ? [] : S.sel; setSelection(ROWS.filter((id) => !out.includes(id))); say(countPhrase()); } },
+  { g: "Selection", name: "Select none", key: "Esc", run: () => say(clearSelection() ?? "Nothing selected."), needsSel: true },
+  { g: "Selection", name: "Show in table", run: () => enterRegion("table"), needsSel: true },
+  { g: "Sets and paths", name: "Create set", key: `${MOD}+G`, run: () => runCreateSet(), needsSel: true },
+  ...ORDERS.map((o) => ({ g: "Graph drawing", name: `Walk order: ${ORDER_NAME[o]}`, key: "O", run: () => say(setOrder(o)) })),
+];
+function unavailable(h) { return h.needsSel && !S.sel.length ? "nothing selected" : h.needsSet && !S.setSel ? "no set selected" : ""; }
+// Quick actions: a node's exact name is the first row, "Go to {name}", which moves the walk there and selects
+// nothing; any typed text also offers Find "{text}". Find (Ctrl+F): nodes by prefix, then substring; Enter goes there and selects nothing.
+function quickHits() {
+  const raw = S.quick.q.trim(), q = raw.toLowerCase(), ids = Object.keys(D.nodes);
+  if (S.quick.mode === "find") {
+    if (!q) return [];
+    const hit = ids.filter((id) => id.toLowerCase().includes(q)).sort((a, b) => (b.toLowerCase().startsWith(q) - a.toLowerCase().startsWith(q)) || D.nodes[b][4] - D.nodes[a][4]);
+    return hit.map((id) => ({ g: "Nodes", name: id, pick: id, detail: `${D.nodes[id][3]}, degree ${D.nodes[id][4]}` }));
+  }
+  const exact = q && ids.find((id) => id.toLowerCase() === q);
+  const cmds = COMMANDS.filter((c) => !q || c.name.toLowerCase().includes(q));
+  const nodes = [];
+  if (exact) nodes.push({ g: "Nodes", name: `Go to ${exact}`, go: exact, detail: `${D.nodes[exact][3]}, degree ${D.nodes[exact][4]}` });
+  if (q) nodes.push({ g: "Nodes", name: `Find "${raw}"`, find: raw, detail: "nodes, sets, styles and more, in Find" });
+  return [...nodes, ...cmds];
+}
+function quickReading() {
+  const hits = quickHits(), h = hits[S.quick.i];
+  if (!h) return S.quick.mode === "find" && !S.quick.q.trim() ? "Type a node's name." : `No ${S.quick.mode === "find" ? "nodes" : "commands or nodes"} match "${S.quick.q.trim()}".`;
+  const u = unavailable(h);
+  const what = h.go ? ", node, exact name. Enter goes there" : h.pick ? `, ${h.detail}. Enter goes there` : "";
+  return `${h.name}${what}${h.key ? `, ${h.key}` : ""}${u ? `, unavailable, ${u}` : ""}, ${S.quick.i + 1} of ${hits.length}.`;
+}
+function openQuick(mode = "quick", q = "") { S.quick = { q, i: 0, mode, from: S.quick?.from ?? S.region }; enterRegion("quick"); }
+function typeQuick(q) { S.quick.q = q; S.quick.i = 0; const n = quickHits().length; say(`${n} result${n === 1 ? "" : "s"}. ${quickReading()}`, "focus"); }
+function onQuickKey(c) {
+  const hits = quickHits();
+  if (c === "ArrowDown" || c === "ArrowUp") { S.quick.i = Math.max(0, Math.min(hits.length - 1, S.quick.i + (c === "ArrowDown" ? 1 : -1))); say(quickReading(), "focus"); return true; }
+  if (c === "Escape") { const back = S.quick.from; S.quick = null; enterRegion(back === "quick" || back === "none" ? "canvas" : back); return true; }
+  if (c === "Enter") {
+    const h = hits[S.quick.i]; if (!h) return true;
+    const u = unavailable(h); if (u) { say(`${h.name} is unavailable: ${u}.`); return true; }
+    const back = S.quick.from; S.quick = null;
+    if (h.go) { // the walk on the node, as its start; nothing selected
+      goTo(h.go); S.region = "none"; enterRegion("canvas", { quiet: true }); startWalk();
+      const n = node(h.go);
+      say(`${WALKING} ${h.go}, start of the walk${S.sel.includes(h.go) ? ", selected" : ", not selected"}. Degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}, module ${n.module}. ${countPhrase()}`); render(); return true;
+    }
+    if (h.find) { openQuick("find", h.find); S.quick.from = back; return true; }
+    if (h.pick) { // Find, like Go to: the hit becomes the walk's start; nothing selected
+      goTo(h.pick); S.region = "none"; enterRegion("canvas", { quiet: true }); startWalk();
+      say(`${WALKING} ${h.pick}, start of the walk${S.sel.includes(h.pick) ? ", selected" : ", not selected"}. ${countPhrase()}`); render(); return true;
+    }
+    if (h.name === "Create set") runCreateSet(); else { enterRegion(back === "none" ? "canvas" : back); h.run(); }
+    return true;
+  }
+  return false;
+}
+function runCreateSet() {
+  const m = createSet(); say(m);
+  if (S.renaming) enterRegion("rename");
+}
+function onRenameKey(c, value) {
+  const set = curSet();
+  if (c === "Enter" || c === "Escape") {
+    if (c === "Enter" && value.trim()) set.name = value.trim();
+    S.renaming = false; enterRegion("set"); say(`${set.name}, frozen set, ${set.members.length} nodes.`, "focus"); return true;
+  }
+  return false;
+}
+
+// ---------- regions and real focus ----------
+// region order for F6 and for Tab where it crosses a region (the proposed 9.1 order)
+const GROUPS = [["rail", "graphs", "set"], ["insp"], ["help"], ["toolbar"], ["canvas"], ["table"]];
+const live = (g) => g.filter((r) => r !== "set" || S.sets.length);
+function tabMove(dir) { const st = live(GROUPS.flat()); const i = Math.max(0, st.indexOf(S.region)); enterRegion(st[(i + dir + st.length) % st.length]); }
+function groupMove(dir) {
+  const gs = GROUPS.map(live); let gi = gs.findIndex((g) => g.includes(S.region)); if (gi < 0) gi = 0;
+  enterRegion(gs[(gi + dir + gs.length) % gs.length][0]);
+}
+const EL = { canvas: "kw-target", table: "kw-grid", quick: "kw-qinput", rename: "kw-rename", set: "kw-setrow", sheet: "kw-sheet", ...Object.fromEntries(Object.entries(ROVE).map(([r, v]) => [r, v.el])) };
+let moving = false;
+function enterRegion(r, { keepRow = false, quiet = false } = {}) {
+  const from = S.region;
+  // the walk goes on through a visit to the inspector (Alt+Enter), the key sheet (?) or Quick actions and Find
+  // (Esc comes back to the same node); leaving any other way ends it, but its start and place are kept for
+  // the return (graphty-element state)
+  if (S.walking && r !== "canvas" && !(r === "insp" && S.visit) && r !== "sheet" && r !== "quick") endWalk();
+  if (r !== "insp") S.visit = null;
+  if (r === "insp") S.inspFrom = from === "canvas" ? "canvas" : null;
+  S.region = r;
+  if (quiet) { render(); return; }
+  if (r === "canvas") say(S.walking ? `${WALKING} ${posShort()}` : canvasReading(), "focus");
+  else if (r === "sheet") say("Keys, dialog. Everywhere, heading.", "focus");
+  else if (r === "insp" && S.visit) say(visitReading(), "focus");
+  else if (r === "insp" && from === "canvas") say(`Inspector, ${S.setSel ? curSet().name : S.sel.length === 1 ? S.sel[0] : S.sel.length ? `${S.sel.length} selected` : "Protein interactions, graph"}.`, "focus");
+  else if (r === "table") {
+    let extra = "";
+    // Tab from the canvas lands on the first selected node's row (proposed)
+    if (!keepRow && from === "canvas" && S.sel.length) { S.row = ROWS.indexOf(S.sel[0]); if (S.sel.length > 1 && !S.setSel) extra = ` 1 of ${S.sel.length} selected.`; }
+    S.rowAnchor = S.row;
+    say(`Nodes table, filtered graph, ${ROWS.length} rows, sorted by degree. ${rowReading()}${extra}${S.tableHinted ? "" : " Shift+Arrow here extends the row selection."}`, "focus");
+    S.tableHinted = true;
+  } else if (r === "quick") say(S.quick.mode === "find" ? `Find, nodes in this graph. ${quickReading()}` : `Quick actions. ${quickHits().length} results. ${quickReading()}`, "focus");
+  else if (r === "set" && from !== "rename") say(`Sets and paths, tree. ${curSet().name}, frozen set, ${curSet().members.length} nodes, 1 of 1.`, "focus");
+  else if (ROVE[r]) { const its = roveItems(r), i = Math.min(S.rove[r] ?? 0, its.length - 1); S.rove[r] = i; say(`${ROVE[r].name ? ROVE[r].name + ". " : ""}${itemReading(its[i], i, its.length)}`, "focus"); }
+  render();
+}
+function dispatch(r, c, v) {
+  const MAP = { canvas: onCanvasKey, table: onTableKey, quick: onQuickKey, set: onSetKey, rename: onRenameKey, sheet: onSheetKey };
+  if (MAP[r]) return MAP[r](c, v);
+  if (ROVE[r]) return onRoveKey(r, c);
+  return false;
+}
+function keyHandler(region) {
+  return (e) => {
+    if (S.region !== region) return;
+    const c = chord(e), text = region === "quick" || region === "rename";
+    const done = () => { e.preventDefault(); e.stopPropagation(); };
+    if (c === "F6" || c === "Shift+F6") { if (region !== "rename") { done(); groupMove(c === "F6" ? 1 : -1); } return; }
+    if ((c === "Tab" || c === "Shift+Tab") && region === "sheet") { done(); return; } // the sheet is modal
+    if ((c === "Tab" || c === "Shift+Tab") && !text) { done(); tabMove(c === "Tab" ? 1 : -1); return; }
+    // Space acts on release, and only when no pointer drag happened while it was held (interaction patterns 3.1);
+    // Space held with a drag is the temporary Hand
+    if ((c === "Space" || c === "Mod+Space") && !text) { done(); if (!e.repeat && !S.hold) S.hold = { region, c, dragged: false }; return; }
+    if (dispatch(region, c, e.target.value)) { done(); render(); }
+  };
+}
+document.addEventListener("keyup", (e) => {
+  if (e.key !== " " || !S.hold) return;
+  const h = S.hold; S.hold = null; document.body.classList.remove("kw-hand");
+  if (h.dragged || S.region !== h.region) return;
+  if (dispatch(h.region, h.c)) render();
+});
+function wire(id, region) {
+  const el = $(id); if (!el || el.dataset.wired) return; el.dataset.wired = "1";
+  el.addEventListener("keydown", keyHandler(region));
+  el.addEventListener("focus", () => { if (!moving && S.region !== region) enterRegion(region); });
+}
+document.addEventListener("focusout", () => setTimeout(() => {
+  if (!document.hasFocus()) return; // a window switch keeps the walk (proposed)
+  const a = document.activeElement, known = Object.values(EL).some((id) => a && a.id === id);
+  if (!known && S.region !== "none") { if (S.region === "canvas") endWalk(); S.region = "none"; render(); }
+}, 0));
+
+// pointer: a click on the drawing selects the node under it, or clears; it leaves the walk.
+// With Space held, a press and drag pans (the temporary Hand) and selects nothing.
+function unit() { const svg = $("kw-svg"), vb = svg.viewBox.baseVal; return Math.max(vb.width / svg.clientWidth, vb.height / svg.clientHeight); }
+$("kw-target").addEventListener("mousedown", (e) => {
+  if (S.hold) { S.hold.dragged = true; document.body.classList.add("kw-hand"); return; }
+  S.sheet = null;
+  const pt = $("kw-svg").createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform($("kw-svg").getScreenCTM().inverse());
+  const x = p.x - S.pan[0], y = p.y - S.pan[1];
+  const hit = Object.keys(D.nodes).find((id) => { const n = node(id); return Math.hypot(n.x - x, n.y - y) <= n.r + 4; });
+  endWalk();
+  if (hit) { setSelection([hit]); say(`${hit} selected. ${countPhrase()}`); }
+  else { const m = clearSelection(); if (m) say(m); }
+  render();
+});
+$("kw-target").addEventListener("mousemove", (e) => {
+  if (!S.hold || !e.buttons) return;
+  S.hold.dragged = true; document.body.classList.add("kw-hand");
+  const u = unit(); S.pan = [S.pan[0] + e.movementX * u, S.pan[1] + e.movementY * u]; render();
+});
+$("kw-rows").addEventListener("mousedown", (e) => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  e.preventDefault();
+  const id = tr.dataset.id, i = ROWS.indexOf(id), toggleKey = MAC ? e.metaKey : e.ctrlKey; // never a plain Ctrl+click on macOS (3.1)
+  if (e.shiftKey) { const a = Math.min(S.rowAnchor, i), b = Math.max(S.rowAnchor, i); S.row = i; setSelection(ROWS.slice(a, b + 1)); say(countPhrase()); }
+  else if (toggleKey) { S.row = i; S.rowAnchor = i; say(toggle(id)); }
+  else { S.row = i; S.rowAnchor = i; setSelection([id]); say(`${id} selected. ${countPhrase()}`); }
+  if (S.region !== "table") enterRegion("table", { keepRow: true }); else render();
+});
+$("kw-qinput").addEventListener("input", (e) => { typeQuick(e.target.value); render(); });
+
+// ---------- drawing ----------
+// Band positions in CSS px out from the silhouette (canvas drawing 6), turned into drawing units so the
+// rings are the same on screen at any fit: fill edge 1; selection 2 + 2 or member 1 + 1; focus after a
+// 2 px gap, 1 + 2 + 1.
+function ringsFor(id, kind, u, inside = 0) {
+  const n = node(id), c = (d, w, cls) => `<circle class="${cls}" cx="${n.x}" cy="${n.y}" r="${(n.r + d * u).toFixed(2)}" stroke-width="${(w * u).toFixed(2)}"/>`;
+  if (kind === "edge") return c(0.5, 1, "e");
+  if (kind === "selected") return c(2, 2, "i") + c(4, 2, "o");
+  if (kind === "member") return c(1.5, 1, "i") + c(2.5, 1, "o");
+  const s = 1 + inside + 2; // fill edge, the ring inside, the gap
+  return c(s + 0.5, 1, "o") + c(s + 2, 2, "i") + c(s + 3.5, 1, "o");
+}
+function keepInView(id, u) {
+  const n = node(id), vb = $("kw-svg").viewBox.baseVal, m = 24 * u;
+  let [px, py] = S.pan;
+  if (n.x + px < vb.x + m) px = vb.x + m - n.x; if (n.x + px > vb.x + vb.width - m) px = vb.x + vb.width - m - n.x;
+  if (n.y + py < vb.y + m) py = vb.y + m - n.y; if (n.y + py > vb.y + vb.height - m) py = vb.y + vb.height - m - n.y;
+  S.pan = [px, py];
+}
+function render() {
+  const f = focused(), u = unit();
+  if (f) keepInView(f, u);
+  document.body.dataset.region = S.region;
+  const pillOn = S.region === "canvas" || (S.walking && (S.region === "sheet" || S.region === "insp"));
+  document.body.toggleAttribute("data-walk", pillOn);
+  document.body.toggleAttribute("data-quick", !!S.quick);
+  document.body.toggleAttribute("data-sets", S.sets.length > 0 && S.setSel);
+  $("kw-view").setAttribute("transform", `translate(${S.pan[0]} ${S.pan[1]})`);
+  // Okabe-Ito yellow is under 3:1 on the light canvas and black on the dark one, so every node carries the fill edge (canvas drawing 4)
+  let marks = Object.keys(D.nodes).map((id) => ringsFor(id, "edge", u)).join("");
+  for (const id of S.sel) marks += ringsFor(id, S.setSel ? "member" : "selected", u);
+  if (f) marks += ringsFor(f, "focus", u, S.sel.includes(f) ? (S.setSel ? 2 : 4) : 0);
+  document.querySelector(".kw-marks").innerHTML = marks;
+  // a label starts 3 px past the node's outermost ring, so a marked node keeps its label clear of its rings
+  const ext = {}; for (const id of S.sel) ext[id] = S.setSel ? 3 : 5;
+  if (f) ext[f] = 1 + (ext[f] ? ext[f] - 1 : 0) + 2 + 4;
+  for (const t of document.querySelectorAll(".kw-labels text")) { const n = node(t.dataset.id); t.setAttribute("x", (n.x + n.r + ((ext[n.id] ?? 1) + 3) * u).toFixed(1)); }
+  const lab = document.querySelector(".kw-labels"); lab.style.fontSize = `${(12 * u).toFixed(2)}px`; lab.style.strokeWidth = `${(3 * u).toFixed(2)}px`; // labels at 12 CSS px
+  $("kw-target").setAttribute("aria-label", `Graph drawing. Protein interactions, ${SLICE.nodes} of ${TOTAL.nodes} nodes shown. ${selPhrase()}`);
+
+  // the focus pill: what the live region says, shown (9.2, proposed); the start node before a walk
+  const slot = $("kw-slot");
+  slot.hidden = !pillOn;
+  if (pillOn) {
+    const id = f ?? (kept() ? keptOn() : null) ?? entryNode(), n = node(id), selOn = S.sel.includes(id) && !S.setSel;
+    let head, w = null;
+    if (!f && kept()) head = keptOn() ? `<b>Graph drawing</b><span>Walk kept: on <span class="k-id">${esc(keptOn())}</span>, from <span class="k-id">${esc(S.anchor)}</span></span>` : `<b>Graph drawing</b><span>Walk kept: at the start, <span class="k-id">${esc(S.anchor)}</span></span>`;
+    else if (!f) head = `<b>Graph drawing</b><span>Start: <span class="k-id">${esc(id)}</span></span><span class="k-secondary">the walk starts here</span>`;
+    else {
+      let pos;
+      if (S.jump) pos = `selected ${S.sel.indexOf(S.jump) + 1} of ${S.sel.length}`;
+      else if (S.depth === 0) pos = "start of the walk";
+      else { const fr = S.frames[S.depth - 1], p = posOf(fr); w = p.w; pos = `${p.i + 1} of ${p.n} from ${fr.from}${inFiltered(fr.from) ? ", in filtered graph" : ""}`; }
+      head = `<b>Walking the drawing</b><b class="k-id">${esc(f)}</b><span class="k-num">${esc(pos)}</span>${selOn ? '<span class="k-badge">selected</span>' : ""}`;
+    }
+    const count = S.setSel ? `${curSet().name} selected` : S.sel.length ? `${S.sel.length} selected` : "nothing selected";
+    const seg = ORDERS.map((o) => `<span aria-pressed="${o === S.order}">${ORDER_NAME[o][0].toUpperCase() + ORDER_NAME[o].slice(1)}</span>`).join("");
+    slot.innerHTML = `<div class="kw-pr">${head}<span class="k-grow"></span><span>${count}</span></div>`
+      + `<div class="kw-pr">${w != null ? `<span>${EDGE_COL} <b class="k-num">${w.toFixed(2)}</b></span>` : ""}<span>degree <b class="k-num">${n.degree}</b>, rank <b class="k-num">${n.rank}</b> of <span class="k-num">${TOTAL.nodes}</span></span><span><span class="k-chit" style="background:${D.colors[n.module]}"></span> ${esc(n.module)}</span></div>`
+      + `<div class="kw-pr"><span>Neighbors by</span><span class="k-seg" data-wired>${seg}</span><span class="k-kbd">O</span></div>`
+      + `<div class="kw-pr k-secondary">Shift+Arrow: walk. Enter: select. ?: keys.</div>`;
+    slot.querySelectorAll(".k-seg > span").forEach((s, i) => s.addEventListener("mousedown", (e) => { e.preventDefault(); say(setOrder(ORDERS[i])); render(); }));
+  }
+  $("kw-sheet").hidden = !S.sheet;
+
+  // caption
+  const [now, ...prev] = S.capture;
+  $("kw-cap-kind").textContent = now ? ({ live: "(live region)", focus: "(on focus)", mock: "(not in this mock)" })[now.kind] : "";
+  $("kw-cap-now").textContent = now ? now.text : "Nothing yet. Tab to the drawing (or click it), then press Shift+Down.";
+  $("kw-cap-prev").textContent = prev.map((p) => p.text).join("  /  ");
+
+  // table: while a set is the selection its members are marked as members, not selected
+  const set = S.setSel ? curSet() : null;
+  $("kw-rows").innerHTML = ROWS.map((id, i) => {
+    const n = node(id), sel = !set && S.sel.includes(id), mem = set && set.members.includes(id);
+    return `<tr role="row" id="kw-row-${i}" data-id="${id}" aria-rowindex="${i + 2}" aria-selected="${sel}"${mem ? " data-member" : ""}${i === S.row ? " data-focus" : ""}><td class="k-id" role="gridcell">${id}</td><td role="gridcell"><span class="k-chit" style="background:${D.colors[n.module]}"></span>${n.module}</td><td class="k-n" role="gridcell">${n.degree}</td><td class="k-n" role="gridcell">${n.rank}</td></tr>`;
+  }).join("");
+  $("kw-grid").setAttribute("aria-activedescendant", `kw-row-${S.row}`);
+  const w = $("kw-tablewrap"), wr = w.getBoundingClientRect(), head = 32;
+  const shown = (tr) => { const r = tr.getBoundingClientRect(); return r.top >= wr.top + head && r.bottom <= wr.bottom; };
+  const scrollTo = (tr) => { w.scrollTop += tr.getBoundingClientRect().top - wr.top - (w.clientHeight - head) / 2; };
+  if (S.region === "table") { const tr = $(`kw-row-${S.row}`); if (!shown(tr)) scrollTo(tr); }
+  else if (S.reveal && S.sel.length) { // a selection made elsewhere scrolls its newest row into view, focus stays (proposed)
+    const trs = S.sel.map((id) => $(`kw-row-${ROWS.indexOf(id)}`));
+    if (!trs.some(shown)) scrollTo(trs[trs.length - 1]);
+  }
+  S.reveal = false;
+
+  // sets
+  $("kw-sets").toggleAttribute("data-empty", !S.sets.length);
+  $("kw-setlist").innerHTML = S.sets.map((s, i) => {
+    const last = i === S.sets.length - 1;
+    const name = last && S.renaming ? `<input class="kw-rename" id="kw-rename" value="${esc(s.name)}" aria-label="Name">` : `<span class="k-ellipsis k-grow">${esc(s.name)}</span>`;
+    return `<li class="k-item${last ? " kw-setrow" : ""}" role="treeitem"${last ? ' id="kw-setrow" tabindex="0"' : ""} aria-selected="${last && S.setSel}"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg>${name}<span class="k-kind">frozen</span><span class="k-trail k-num">${s.members.length}</span></li>`;
+  }).join("");
+  if ($("kw-rename")) wire("kw-rename", "rename");
+  if ($("kw-setrow")) wire("kw-setrow", "set");
+
+  // quick actions
+  $("kw-quick").hidden = !S.quick;
+  if (S.quick) {
+    const hits = quickHits();
+    if ($("kw-qinput").value !== S.quick.q) $("kw-qinput").value = S.quick.q;
+    $("kw-qinput").placeholder = S.quick.mode === "find" ? "Find nodes by name" : "Type a command, or go to a node by name";
+    $("kw-qinput").setAttribute("aria-label", S.quick.mode === "find" ? "Find" : "Quick actions");
+    let g = "", html = "";
+    hits.forEach((h, i) => {
+      if (h.g !== g) { g = h.g; html += `<div class="k-group-head">${g}</div>`; }
+      html += `<div class="k-result" role="option" id="kw-q-${i}" aria-selected="${i === S.quick.i}"${unavailable(h) ? ' aria-disabled="true"' : ""}>${esc(h.name)}${h.detail ? ` <span class="k-secondary">${esc(h.detail)}</span>` : ""}${h.key ? `<span class="k-shortcut">${esc(h.key)}</span>` : ""}</div>`;
+    });
+    const find = S.quick.mode === "find", empty = find && !S.quick.q.trim() ? "Type a node's name." : `No ${find ? "nodes" : "commands or nodes"} match "${esc(S.quick.q.trim())}"`;
+    $("kw-qlist").innerHTML = (html || `<div class="k-result k-secondary" role="option" aria-disabled="true" id="kw-q-0">${empty}</div>`) + `<div class="kw-qfoot">${find ? "Enter goes to the node and selects nothing. Esc closes Find." : "Enter: Go to selects nothing. This mock lists the selection and set commands only."}</div>`;
+    $("kw-qinput").setAttribute("aria-activedescendant", `kw-q-${S.quick.i}`);
+  }
+
+  renderInspector();
+  // the roving item of the focused region carries the focus ring
+  document.querySelectorAll("[data-rove] [data-focus-ring], [data-rove][data-focus-ring]").forEach((el) => el.removeAttribute("data-focus-ring"));
+  // every roving item is a named control, so the active-item reference below lands on something a screen reader can speak
+  for (const r of Object.keys(ROVE)) if (!ROVE[r].self) for (const el of roveItems(r)) {
+    if (!el.hasAttribute("role")) el.setAttribute("role", "button");
+    if (!el.hasAttribute("aria-label") && el.dataset.say) el.setAttribute("aria-label", el.dataset.say.replace(/, (button|menu button)$/, ""));
+  }
+  if (ROVE[S.region]) {
+    const its = roveItems(S.region); S.rove[S.region] = Math.min(S.rove[S.region] ?? 0, its.length - 1);
+    const it = its[S.rove[S.region]]; it.setAttribute("data-focus-ring", "");
+    // A screen reader follows the ring only if the focused container names it as the active item.
+    if (!ROVE[S.region].self) { it.id ||= `kw-${S.region}-item-${S.rove[S.region]}`; $(ROVE[S.region].el).setAttribute("aria-activedescendant", it.id); }
+  }
+  if (!INFRAME && EL[S.region]) { const el = $(EL[S.region]); if (el && document.activeElement !== el) { moving = true; el.focus({ preventScroll: true }); moving = false; if (S.region === "rename") el.select(); } }
+}
+function renderInspector() {
+  const icon = (n) => `<svg class="k-i"><use href="../kit/icons.svg#${n}"/></svg>`;
+  const verb = (ic, label, act, split) => `<span class="kw-split"><span class="k-icon-btn" title="${label}" data-item data-say="${label}, button"${act ? ` data-act="${act}"` : ""}>${icon(ic)}</span>${split ? `<span class="kw-caret">${icon("chevron-down").replace('class="k-i"', 'class="k-i k-i-sm"')}</span>` : ""}</span>`;
+  const type = (ic, name, kind, verbs, isId) => `<div class="kw-type"><div class="kw-l1">${icon(ic)}<span class="k-name${isId ? " k-id" : ""}">${esc(name)}</span></div><div class="kw-l2"><span class="k-secondary k-ellipsis">${esc(kind)}</span><span class="k-grow"></span>${verbs}<span class="k-icon-btn" title="More actions" data-item data-say="More actions, menu button">${icon("ellipsis")}</span></div></div>`;
+  const row = (k, v, sayV, rank) => `<div class="kw-dr" data-item data-say="${esc(k)}, ${esc(sayV ?? v)}"><span class="k-name">${k}</span><span class="k-value k-num">${v}</span><span class="kw-rank k-num">${rank ?? ""}</span></div>`;
+  const chit = (m) => `<span class="k-chit" style="background:${D.colors[m]}"></span> ${m}`;
+  const sec = (head, body) => `<section class="k-section"><div class="k-section-head">${head}</div>${body}</section>`;
+  const list = (ids) => ids.map((id) => row(`<span class="k-id">${id}</span>`, node(id).degree, `degree ${node(id).degree}`)).join("");
+  let html;
+  if (S.visit) { // Alt+Enter in the walk: the focused node, visited; the selection is unchanged
+    const n = node(S.visit), selOn = S.sel.includes(n.id) && !S.setSel;
+    html = type("circle-dot", n.id, "Node", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("pin", "Pin"), true)
+        .replace("</span></div>", `</span><span class="k-badge">${selOn ? "selected" : "not selected"}</span></div>`)
+      + `<div class="k-scroll">${sec("Attributes", row("module", chit(n.module), n.module) + row("degree", n.degree, `${n.degree}, rank ${n.rank} of 300`, `#${n.rank} of 300`))}</div>`;
+  } else if (S.setSel) {
+    const s = curSet();
+    html = type("group", s.name, `Frozen set, ${s.members.length}`, verb("circle-dot", "Select members", "members") + verb("funnel", "Filter to") + verb("plus", "Add to set"))
+      + `<div class="k-scroll">${sec(`Members <span class="k-count k-num">${s.members.length}</span>`, list(s.members))}</div>`;
+  } else if (S.sel.length === 0) {
+    html = type("network", "Protein interactions", "Graph", "")
+      + `<div class="k-scroll">${sec("Graph", row("nodes", "33 of 300") + row("edges", "59 of 1,262") + row("components", "1") + row("edge weight", "confidence"))}</div>`;
+  } else if (S.sel.length === 1) {
+    const n = node(S.sel[0]), inSets = S.sets.filter((s) => s.members.includes(n.id));
+    html = type("circle-dot", n.id, "Node", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("pin", "Pin"), true)
+      + `<div class="k-scroll">${sec("Attributes", row("module", chit(n.module), n.module) + row("degree", n.degree, `${n.degree}, rank ${n.rank} of 300`, `#${n.rank} of 300`))}`
+      + (inSets.length ? sec("Memberships", row("In", `${inSets.length} set${inSets.length > 1 ? "s" : ""}`, inSets.map((s) => s.name).join(", "))) : "") + `</div>`;
+  } else {
+    const mods = [...new Set(S.sel.map((id) => node(id).module))];
+    html = type("circle-dot", `${S.sel.length} selected`, "Nodes", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("group", "Create set", "createSet"))
+      + `<div class="k-scroll">${sec("Attributes", row("module", mods.length === 1 ? chit(mods[0]) : "Mixed", mods.length === 1 ? mods[0] : "mixed") + row("degree", "Mixed", "mixed"))}${sec(`Selection <span class="k-count k-num">${S.sel.length}</span>`, list(S.sel))}</div>`;
+  }
+  $("kw-insp").innerHTML = html;
+}
+
+// ---------- held states: replayed key presses ----------
+const K = (key, mods = {}) => ({ key, code: "", shiftKey: !!mods.shift, ctrlKey: !!mods.ctrl, altKey: !!mods.alt, metaKey: false, rename: mods.rename });
+const SD = K("ArrowDown", { shift: true }), SR = K("ArrowRight", { shift: true }), SP = K(" "), ESC = K("Escape");
+const PREV = K("z", { ctrl: true }), QUICK = K("k", { ctrl: true });
+// the studio's states start with nothing selected, so the walk starts at the node of highest degree;
+// the selection of two is built with two Space presses on the walk (RPA2, then 53BP1)
+const TWO = [SD, SR, SR, SR, SP, SD, SP];
+const STATES = {
+  s1: { sel: [], keys: [] },
+  s2: { sel: [], keys: [SD] },
+  s9: { sel: [], keys: TWO },
+  s3: { sel: [], keys: [...TWO, SR, SP] },
+  s4: { sel: [], keys: [...TWO, SR, SP, ESC] },
+  s5: { sel: [], keys: [...TWO, SR, SP, ESC, ESC] },
+  s6: { sel: [], keys: [...TWO, SR, SP, ESC, ESC, PREV, K("Tab")] },
+  s7: { sel: [], keys: [...TWO, SR, SP, ESC, ESC, PREV, K("Tab"), QUICK, "set"] },
+  s8: { sel: [], keys: [...TWO, SR, SP, ESC, ESC, PREV, K("Tab"), QUICK, "set", K("Enter")] },
+  s10: { sel: [], keys: [...TWO, K("?")] },
+  s11: { sel: [], keys: [...TWO, K("Enter", { alt: true })] },
+  s12: { sel: [], keys: [K("k", { ctrl: true }), "tp53", K("Enter")] },
+  s13: { sel: [], keys: [...TWO, SR, K("Enter"), K("Tab"), K("Tab", { shift: true })] },
+};
+// the keyboard storyboard (storyboards/keyboard-only.html): one state per frame; its analyst arrives with TP53 selected from an earlier Find
+const DOWN = K("ArrowDown"), SL = K("ArrowLeft", { shift: true }), SU = K("ArrowUp", { shift: true }), SH = K("Home", { shift: true });
+const F = [[]];
+F[1] = [];
+F[2] = [DOWN];
+F[3] = [...F[2], SD];
+F[4] = [...F[3], SR, SR, SR];
+F[5] = [...F[4], SP];
+F[6] = [...F[5], SD];
+F[7] = [...F[6], SP, SP];
+F[8] = [...F[7], SP, K("["), K("[")];
+F[9] = [...F[8], SU, SR, SR, SR];
+F[10] = [...F[9], SR, SR, SR];
+F[11] = [...F[10], K("Delete")];
+F[12] = [...F[11], SU];
+F[13] = [...F[12], SH, SU];
+F[14] = [...F[13], ESC];
+F[15] = [...F[14], ESC];
+F[16] = [...F[15], PREV];
+F[17] = [...F[16], K("Tab")];
+F[18] = [...F[17], QUICK, "set"];
+F[19] = [...F[18], K("Enter"), K("Enter", { rename: "TP53 via RPA2" })];
+for (let i = 1; i < F.length; i++) STATES[`f${i}`] = { sel: ["TP53"], keys: F[i] };
+function play(name) {
+  const st = STATES[name];
+  reset(st.sel);
+  S.region = "canvas"; say(canvasReading(), "focus");
+  for (const step of st.keys) {
+    if (typeof step === "string") { typeQuick(step); continue; }
+    const c = chord(step);
+    if (c === "Tab" || c === "Shift+Tab") { tabMove(c === "Tab" ? 1 : -1); continue; }
+    dispatch(S.region, c, step.rename ?? curSet()?.name ?? "");
+  }
+  render();
+  document.querySelectorAll(".kw-bar .k-tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.state === name));
+  $("kw-framename").textContent = /^f\d+$/.test(name) ? `Frame ${name.slice(1)}` : "";
+}
+function fromHash() {
+  const name = location.hash.slice(1);
+  if (STATES[name]) play(name); else { reset(); render(); document.querySelectorAll(".kw-bar .k-tab").forEach((t) => t.setAttribute("aria-selected", "false")); }
+}
+
+// ---------- the bar ----------
+document.querySelectorAll(".kw-bar .k-tab").forEach((t) => t.addEventListener("click", () => { if (location.hash === "#" + t.dataset.state) fromHash(); else location.hash = t.dataset.state; }));
+$("kw-sheet-prev").textContent = PREV_KEY; $("kw-sheet-visit").textContent = VISIT_KEY;
+$("kw-sheet-quick").textContent = `${MOD}+K`; $("kw-sheet-find").textContent = `${MOD}+F`;
+addEventListener("hashchange", fromHash);
+$("kw-notes-on").addEventListener("change", (e) => document.body.classList.toggle("kw-notes", e.target.checked));
+if (params.has("notes")) { $("kw-notes-on").checked = true; document.body.classList.add("kw-notes"); }
+if (INFRAME) document.body.classList.add("kw-bare");
+
+wire("kw-target", "canvas"); wire("kw-grid", "table"); wire("kw-qinput", "quick"); wire("kw-sheet", "sheet");
+for (const r of Object.keys(ROVE)) wire(ROVE[r].el, r);
+fromHash();
+</script>
+</body>
+</html>

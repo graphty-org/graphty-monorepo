@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find and Quick actions</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  /* States: open with #s1 ... #s15 (add "a" for annotations on: #s3a). No script. Default: state 2. */
+  .anchor { position: fixed; top: 0; left: 0; width: 0; height: 0; }
+  body:not(:has(.anchor:target)) [data-on]:not([data-on~="2"]),
+  body:has(#s1:target, #s1a:target) [data-on]:not([data-on~="1"]),
+  body:has(#s2:target, #s2a:target) [data-on]:not([data-on~="2"]),
+  body:has(#s3:target, #s3a:target) [data-on]:not([data-on~="3"]),
+  body:has(#s4:target, #s4a:target) [data-on]:not([data-on~="4"]),
+  body:has(#s5:target, #s5a:target) [data-on]:not([data-on~="5"]),
+  body:has(#s6:target, #s6a:target) [data-on]:not([data-on~="6"]),
+  body:has(#s7:target, #s7a:target) [data-on]:not([data-on~="7"]),
+  body:has(#s8:target, #s8a:target) [data-on]:not([data-on~="8"]),
+  body:has(#s9:target, #s9a:target) [data-on]:not([data-on~="9"]),
+  body:has(#s10:target, #s10a:target) [data-on]:not([data-on~="10"]),
+  body:has(#s11:target, #s11a:target) [data-on]:not([data-on~="11"]),
+  body:has(#s12:target, #s12a:target) [data-on]:not([data-on~="12"]),
+  body:has(#s13:target, #s13a:target) [data-on]:not([data-on~="13"]),
+  body:has(#s14:target, #s14a:target) [data-on]:not([data-on~="14"]),
+  body:has(#s15:target, #s15a:target) [data-on]:not([data-on~="15"]) { display: none !important; }
+
+  /* The mock's own controls, in annotation ink so nobody reads them as product UI */
+  .m-bar { position: fixed; z-index: 200; top: 8px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px; max-width: 1020px; padding: 4px 8px; border-radius: 8px; background: var(--k-annot-bg); border: 1px solid var(--k-annot); font-size: 11px; }
+  .m-bar a { padding: 4px 6px; border-radius: 5px; color: var(--cm-text); text-decoration: none; white-space: nowrap; }
+  body:not(:has(.anchor:target)) .m-bar a[href="#s2"],
+  body:has(#s1:target, #s1a:target) .m-bar a[href="#s1"],
+  body:has(#s2:target, #s2a:target) .m-bar a[href="#s2"],
+  body:has(#s3:target, #s3a:target) .m-bar a[href="#s3"],
+  body:has(#s4:target, #s4a:target) .m-bar a[href="#s4"],
+  body:has(#s5:target, #s5a:target) .m-bar a[href="#s5"],
+  body:has(#s6:target, #s6a:target) .m-bar a[href="#s6"],
+  body:has(#s7:target, #s7a:target) .m-bar a[href="#s7"],
+  body:has(#s8:target, #s8a:target) .m-bar a[href="#s8"],
+  body:has(#s9:target, #s9a:target) .m-bar a[href="#s9"],
+  body:has(#s10:target, #s10a:target) .m-bar a[href="#s10"],
+  body:has(#s11:target, #s11a:target) .m-bar a[href="#s11"],
+  body:has(#s12:target, #s12a:target) .m-bar a[href="#s12"],
+  body:has(#s13:target, #s13a:target) .m-bar a[href="#s13"],
+  body:has(#s14:target, #s14a:target) .m-bar a[href="#s14"],
+  body:has(#s15:target, #s15a:target) .m-bar a[href="#s15"] { background: var(--k-annot); color: #fff; }
+  .m-bar label { display: flex; align-items: center; gap: 4px; margin-inline-start: 8px; color: var(--k-annot-ink); font-weight: 600; }
+  .an { display: none; }
+  body:has(#annot:checked) .an, body:has(.anchor[id$="a"]:target) .an { display: block; }
+  .an.k-annot-note { position: fixed; z-index: 150; font-size: 11px; line-height: 15px; max-width: 250px; }
+  .an.k-annot-note b { color: var(--k-annot-ink); }
+  .an.k-annot-box { position: fixed; z-index: 150; }
+
+  /* Find, Figma's two rows. Search bar row: 48 tall, padding 12 12 12 16; SearchInput, Find's
+     Menu (in Figma's settings slot), Close. */
+  .f-bar { display: flex; align-items: center; gap: 4px; height: 48px; box-sizing: border-box; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--cm-border); }
+  .f-bar .f-q { flex: 1; min-width: 0; margin-right: 4px; }
+  .f-bar .f-q > span:not(.k-grow) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Result header: 40 tall, padding 0 8 0 16; the count, then Previous / Next result */
+  .f-head { display: flex; align-items: center; gap: 4px; height: 40px; box-sizing: border-box; padding: 0 8px 0 16px; }
+  .f-head .f-count { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .f-head .k-icon-btn[aria-disabled="true"] { color: var(--cm-text-disabled); }
+  /* ResultRow (compact-mantine tree/ResultRow): 52 with a second line, 34 with one; name 11/16
+     with the match at 600, second line 10/16 secondary. The trailing action sits on the name line. */
+  .f-list { padding: 0 0 8px; }
+  .f-list .k-group-head .k-num { font-weight: 450; margin-inline-start: 6px; }
+  .f-hit { position: relative; isolation: isolate; display: grid; grid-template-columns: 16px 1fr auto; column-gap: 8px; padding: 8px 8px 8px 16px; min-height: 52px; box-sizing: border-box; align-content: center; }
+  .f-hit.f-one { min-height: 34px; }
+  .f-hit::before { content: ""; position: absolute; inset: 1px 8px; border-radius: 5px; z-index: -1; }
+  .f-hit[aria-selected="true"]::before { background: var(--cm-bg-selected); box-shadow: inset 0 0 0 1px var(--cm-bg-selected); }
+  .f-hit[data-hover]::before { background: var(--cm-bg-hover, var(--cm-bg-secondary)); }
+  .f-hit > .k-i { grid-row: 1; color: var(--cm-text-secondary); }
+  .f-name { font-size: 11px; line-height: 16px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .f-name b { font-weight: 550; }
+  .f-act { grid-row: 1; grid-column: 3; align-self: center; margin: -4px 0; }
+  .f-path { grid-column: 2 / 4; font-size: var(--k-caption-fs); line-height: 16px; color: var(--cm-text-secondary); display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; min-width: 0; }
+  .f-path > span { overflow: hidden; text-overflow: ellipsis; }
+  .f-path .k-i { color: inherit; flex: none; }
+  .f-out .f-name { color: var(--cm-text-secondary); }
+  .f-out .f-path, .f-out .f-path > span { white-space: normal; overflow: visible; }
+  .f-none { padding: 4px 8px 8px 16px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
+  .f-none a { color: var(--cm-text-brand); text-decoration: none; }
+
+  /* Canvas zoomed about the committed hit: the zoomed drawing keeps the node at its place */
+  .mk-ring { position: absolute; transform: translate(-50%, -50%); width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--k-canvas), 0 0 0 3.5px var(--k-canvas-ink); }
+
+  /* Inspector: the out-of-scope state line */
+  .i-state { display: flex; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--cm-border); color: var(--cm-text-secondary); line-height: 16px; }
+  .i-state .k-i { flex: none; margin-top: 0; }
+  .k-typerow .k-btn { flex: none; }
+  .k-typerow .k-icon-btn + .k-icon-btn, .k-typerow .split + .k-icon-btn { margin-inline-start: -6px; } /* cancels the row gap; any more and one 24 px target covers the next */
+  .split { display: inline-flex; align-items: center; }
+  .split .k-icon-btn + .k-icon-btn { width: 24px; padding-inline-end: 10px; margin-inline-start: 0; } /* a 24 px target, the chevron where it was drawn */
+  .k-data .k-full { color: var(--cm-text-secondary); margin-inline-start: 6px; font-weight: 400; }
+
+  /* Quick actions (compact-mantine shell/QuickActions), 529 wide above the toolbar. The detail is a
+     secondary run after the name, so the right edge stays free for a shortcut. */
+  .q { width: 529px; }
+  .q .k-result .q-detail { color: var(--cm-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .q .k-result > span:first-of-type { white-space: nowrap; flex: none; }
+  .q .k-group-head { gap: 6px; font-weight: 450; }
+  .q .q-none { padding: 4px 16px 8px; color: var(--cm-text-secondary); }
+
+  /* Empty Find: the message names what was searched, then the on-demand scan of Recent projects */
+  .f-empty { padding: 8px 8px 8px 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font-size: 11px; line-height: 16px; }
+  .f-empty p { margin: 0; }
+  .f-found .f-path { color: var(--cm-text); }
+  .f-found .f-path, .f-found .f-path > span { white-space: normal; overflow: visible; }
+  .f-empty .k-secondary { font-size: var(--k-caption-fs); }
+  /* The scope row: what the search read, and the one wider search (template 2a, result header's second line) */
+  .f-scope { padding: 4px 8px 4px 16px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
+  .f-scope .k-link { text-decoration: none; }
+  /* A hit from another project, selected: its two verbs, then what Open costs, said before the click */
+  .f-acts { grid-column: 2 / 4; display: flex; gap: 4px; margin-top: 6px; }
+  .f-warn { grid-column: 2 / 4; margin-top: 4px; font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); color: var(--cm-text-secondary); }
+  /* Key hints: one line at the foot of Find and of Quick actions, F6 among them */
+  .f-keys { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 8px 8px 16px; border-top: 1px solid var(--cm-border); font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
+  .f-keys .k-kbd, .q-keys .k-kbd { margin-inline-end: 4px; }
+  .q-keys { display: flex; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--cm-border); font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
+
+  /* The key sheet (?), as screens/keyboard-walk.html draws it: keys grouped by where they work */
+  .ks { position: absolute; left: 50%; top: 140px; transform: translateX(-50%); z-index: 3; width: 380px; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-400); font-size: 11px; line-height: 16px; color: var(--cm-text); }
+  .ks-head { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border-bottom: 1px solid var(--cm-border); font-weight: 550; }
+  .ks-body { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; padding: 8px 12px; align-items: center; }
+  .ks-body h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px; font-weight: 550; color: var(--cm-text-secondary); }
+  .ks-body .k-kbd { justify-self: start; }
+  .ks-body .ks-new { background: var(--cm-bg-selected); border-radius: 4px; box-shadow: 0 0 0 3px var(--cm-bg-selected); }
+  .ks-foot { padding: 6px 12px; border-top: 1px solid var(--cm-border); color: var(--cm-text-secondary); }
+  /* Add data, opened by Bring in its links: the rows it will add, named before they are added */
+  .ad .k-data .k-name { flex: none; width: 56px; }
+  .ad .k-data .k-value { flex: 1; white-space: normal; text-align: start; }
+  .ad .k-prose { padding: 4px 16px; line-height: 16px; }
+
+  /* The table's fixed widths */
+  .k-table col.c-label { width: 32%; }
+</style>
+</head>
+<body>
+<span class="anchor" id="s1"></span><span class="anchor" id="s2"></span><span class="anchor" id="s3"></span>
+<span class="anchor" id="s4"></span><span class="anchor" id="s5"></span><span class="anchor" id="s6"></span>
+<span class="anchor" id="s7"></span><span class="anchor" id="s8"></span><span class="anchor" id="s9"></span><span class="anchor" id="s10"></span><span class="anchor" id="s11"></span><span class="anchor" id="s12"></span><span class="anchor" id="s13"></span><span class="anchor" id="s14"></span><span class="anchor" id="s15"></span>
+<span class="anchor" id="s1a"></span><span class="anchor" id="s2a"></span><span class="anchor" id="s3a"></span>
+<span class="anchor" id="s4a"></span><span class="anchor" id="s5a"></span><span class="anchor" id="s6a"></span>
+<span class="anchor" id="s7a"></span><span class="anchor" id="s8a"></span><span class="anchor" id="s9a"></span><span class="anchor" id="s10a"></span><span class="anchor" id="s11a"></span><span class="anchor" id="s12a"></span><span class="anchor" id="s13a"></span><span class="anchor" id="s14a"></span><span class="anchor" id="s15a"></span>
+
+<div class="m-bar" aria-label="Mock states">
+  <a href="#s1">1 Just opened</a><a href="#s2">2 Hits inside the filter</a><a href="#s3">3 Hits outside the filter</a><a href="#s4">4 A style layer and an attribute</a><a href="#s5">5 A misspelled name</a><a href="#s6">6 A verb typed into Find</a><a href="#s7">7 Past the drawing limit</a><a href="#s8">8 Quick actions by question</a><a href="#s9">9 A name typed into Quick actions</a><a href="#s10">10 An id not in this project</a><a href="#s11">11 Searched recent projects</a><a href="#s12">12 Quick actions with no match</a><a href="#s13">13 Searched all projects</a><a href="#s14">14 Bring in its links</a><a href="#s15">15 Ctrl+F on the key sheet</a>
+  <label><input type="checkbox" id="annot"> Annotations</label>
+</div>
+
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+
+  <!-- Left panel: Graph. Find replaces the lists while open (states 1 to 7). -->
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head" data-on="1 2 3 4 5 6 8 9 12 15">
+      <div class="k-title-line"><span class="k-project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 3 steps</span></span>
+    </div>
+    <div class="k-panel-head" data-on="10 11 13 14">
+      <div class="k-title-line"><span class="k-project">Transfers, April 2026</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Full graph</span></span>
+    </div>
+    <div class="k-panel-head" data-on="7">
+      <div class="k-title-line"><span class="k-project">Patent citations</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Full graph</span></span>
+    </div>
+
+    <!-- Find, row 1: the search bar -->
+    <div class="f-bar" data-on="1 2 3 4 5 6 7 10 11 13 14">
+      <span class="k-field f-q" data-focus data-on="1" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg><span>Name, id or value</span></span>
+      <span class="k-field f-q" data-focus data-on="2"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>thenard</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-field f-q" data-focus data-on="3"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>ma</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-field f-q" data-focus data-on="4"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>group</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-field f-q" data-focus data-on="5"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>thenardeir</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-field f-q k-id" data-focus data-on="10 11 13 14"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>ACC-705989</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-field f-q" data-focus data-on="6"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>betweenness</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-field f-q k-id" data-focus data-on="7"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#search"/></svg><span>6117075 6231106 6287586</span><span class="k-grow"></span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#x"/></svg></span>
+      <span class="k-icon-btn" title="Find options"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span>
+      <span class="k-icon-btn" title="Close Find"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span>
+    </div>
+
+    <!-- Find, row 2: the result header (only once something is typed) -->
+    <div class="f-head" data-on="2"><span class="f-count k-num">2 results in all 77 nodes</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="3"><span class="f-count k-num">14 results in all 77 nodes</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="4"><span class="f-count k-num">2 results in this project</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="10 11 13 14"><span class="f-count k-num">0 results in <span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts</span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="5 6"><span class="f-count k-num">0 results in all 77 nodes</span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="7"><span class="f-count k-num">3 results in all 124,318 nodes</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+
+    <div class="k-scroll" data-on="1 2 3 4 5 6 7 10 11 13 14">
+      <!-- 2: thenard, both inside the filter -->
+      <div class="f-list" role="listbox" aria-label="Find results" data-on="2">
+        <div class="k-group-head">Nodes<span class="k-num">2</span></div>
+        <div class="f-hit" aria-selected="true" role="option"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name"><b>Thenard</b>ier</span><span class="f-path k-num"><span>group 4 &middot; degree 11</span></span></div>
+        <div class="f-hit" role="option"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Mme.<b>Thenard</b>ier</span><span class="f-path k-num"><span>group 4 &middot; degree 9</span></span></div>
+      </div>
+
+      <!-- 3: ma, 14 hits: prefix matches first, then substring, each class in id order -->
+      <div class="f-list" role="tree" aria-label="Find results" data-on="3">
+        <div class="k-group-head">Nodes<span class="k-num">14 &middot; 10 filtered out</span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name"><b>Ma</b>rguerite</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name"><b>Ma</b>gnon</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+        <div class="f-hit f-out" aria-selected="true" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name"><b>Ma</b>rius</span><span class="f-act k-btn k-btn-ghost" title="Opens the rule editor of &quot;Filter out group 8&quot;">Edit step...</span><span class="f-path"><span>Filtered out by "Filter out group 8"</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name"><b>Ma</b>beuf</span><span class="f-path"><span>Filtered out by "Filter out group 8"</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Mme.<b>Ma</b>gloire</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Old<b>Ma</b>n</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 2"</span></span></div>
+        <div class="f-hit" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Ba<b>ma</b>tabois</span><span class="f-path k-num"><span>group 2 &middot; degree 8</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Wo<b>ma</b>n1</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+        <div class="f-hit" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Champ<b>ma</b>thieu</span><span class="f-path k-num"><span>group 2 &middot; degree 6</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Anzel<b>ma</b></span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Wo<b>ma</b>n2</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+        <div class="f-hit" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Gillenor<b>ma</b>nd</span><span class="f-path k-num"><span>group 5 &middot; degree 3</span></span></div>
+        <div class="f-hit" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Mlle.Gillenor<b>ma</b>nd</span><span class="f-path k-num"><span>group 5 &middot; degree 3</span></span></div>
+        <div class="f-hit f-out" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name">Lt.Gillenor<b>ma</b>nd</span><span class="f-path"><span>Filtered out by "Filter to degree &gt;= 5"</span></span></div>
+      </div>
+
+      <!-- 4: group: a style layer and an attribute, each in its own group, in the object map's order -->
+      <div class="f-list" role="listbox" aria-label="Find results" data-on="4">
+        <div class="k-group-head">Style layers<span class="k-num">1</span></div>
+        <div class="f-hit" aria-selected="true" role="option"><span class="k-chit" style="background:conic-gradient(#E69F00 0 25%,#56B4E9 0 50%,#009E73 0 75%,#0072B2 0)"></span><span class="f-name"><b>Group</b> color</span><span class="f-path"><span>Styles, 2nd of 3 &middot; color by group</span></span></div>
+        <div class="k-group-head">Attributes<span class="k-num">1</span></div>
+        <div class="f-hit" role="option"><svg class="k-i"><use href="../kit/icons.svg#tag"/></svg><span class="f-name"><b>group</b></span><span class="f-path k-num"><span>Node attribute &middot; category, 10 values</span></span></div>
+      </div>
+
+      <!-- 5: no match, a misspelling -->
+      <div class="f-list" data-on="5">
+        <div class="f-none">0 matches for thenardeir; Closest: <a>Thenardier</a></div>
+      </div>
+
+      <!-- 10: an id not in this project: the message names what was searched; the scan is on demand -->
+      <div class="f-empty" data-on="10">
+        <p class="k-num">0 matches in Transfers, April 2026 (<span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts).</p>
+        <span class="k-btn k-btn-secondary"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Search recent projects</span>
+        <p class="k-secondary">Reads projects on this computer. Nothing is sent.</p>
+      </div>
+
+      <!-- 11: after Search recent projects: the scope row, then the hit with its facts and its two verbs -->
+      <div data-on="11">
+        <div class="f-empty"><p class="k-num">0 matches in Transfers, April 2026 (<span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts).</p></div>
+        <div class="f-scope k-num">Searched 7 recent projects &mdash; <a class="k-link">Search all 23</a></div>
+      <div class="f-list" role="tree" aria-label="Find results">
+        <div class="k-group-head">Other projects<span class="k-num">found in 1</span></div>
+        <div class="f-hit f-found" aria-selected="true" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name k-id"><b>ACC-705989</b></span><span class="f-path k-num"><span>Transfers, March 2026: <span data-fx="scenarios.tableDock.rows.1751.3">1</span> transfer</span></span>
+          <div class="f-acts"><span class="k-btn k-btn-secondary">Bring in its links...</span><span class="k-btn k-btn-ghost">Open</span></div>
+          <div class="f-warn">Open closes Transfers, April 2026. It is saved and stays in Recent projects.</div>
+        </div>
+      </div>
+      </div>
+
+      <!-- 13, 14: after Search all 23: every project on this computer; newest first -->
+      <div class="f-list" role="tree" aria-label="Find results" data-on="13 14">
+        <div class="f-empty"><p class="k-num">0 matches in Transfers, April 2026 (<span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts).</p></div>
+        <div class="f-scope k-num">Searched all 23 projects on this computer</div>
+        <div class="k-group-head">Other projects<span class="k-num">found in 2</span></div>
+        <div class="f-hit f-found" aria-selected="true" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name k-id"><b>ACC-705989</b></span><span class="f-path k-num"><span>Mule ring, Aug 12: 14 transfers, $48,200 out</span></span>
+          <div class="f-acts"><span class="k-btn k-btn-secondary" data-focus-ring>Bring in its links...</span><span class="k-btn k-btn-ghost">Open</span></div>
+          <div class="f-warn">Open closes Transfers, April 2026. It is saved and stays in Recent projects.</div>
+        </div>
+        <div class="f-hit f-found" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name k-id"><b>ACC-705989</b></span><span class="f-path k-num"><span>Transfers, March 2026: <span data-fx="scenarios.tableDock.rows.1751.3">1</span> transfer</span></span></div>
+      </div>
+
+      <!-- 6: no match, a verb: the hand-off to Quick actions -->
+      <div class="f-list" role="listbox" aria-label="Find results" data-on="6">
+        <div class="f-none">0 matches</div>
+        <div class="k-group-head">Commands</div>
+        <div class="f-hit f-one" aria-selected="true" role="option"><svg class="k-i"><use href="../kit/icons.svg#zap"/></svg><span class="f-name">Run Betweenness centrality...</span><span class="f-path"><span>in Quick actions</span></span></div>
+      </div>
+
+      <!-- 7: a pasted id list on the citation graph -->
+      <div class="f-list" role="listbox" aria-label="Find results" data-on="7">
+        <div class="k-group-head">Nodes<span class="k-num">3</span></div>
+        <div class="f-hit" aria-selected="true" role="option"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name k-id"><b>6117075</b></span><span class="f-path"><span>category Drugs and medical</span></span></div>
+        <div class="f-hit" role="option"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name k-id"><b>6231106</b></span><span class="f-path"><span>category Drugs and medical</span></span></div>
+        <div class="f-hit" role="option"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="f-name k-id"><b>6287586</b></span><span class="f-path"><span>category Drugs and medical</span></span></div>
+      </div>
+    </div>
+
+    <div class="f-keys" data-on="1 2 3 4 5 6 7 10 11 13 14"><span><span class="k-kbd">Enter</span>Select</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
+
+    <!-- Find closed: the lists (states 8, 9 and 12) -->
+    <div class="k-scroll" data-on="8 9 12 15">
+      <section class="k-section">
+        <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">77 nodes</span></li></ul>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">The barricade</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">13</span></span></li></ul>
+      </section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">0</span></div></section>
+    </div>
+  </aside>
+
+  <!-- Canvas and dock -->
+  <main class="k-main">
+    <!-- Les Miserables, filtered -->
+    <div class="k-canvas" data-on="1 2 3 4 5 6 8 9 12 15">
+      <div class="k-stage" data-on="1 3 4 5 6 8 9 12 15">
+        <img class="k-light-only" src="../kit/canvas/lesmis-step3-light.svg" alt="Les Miserables, 28 of 77 characters drawn after three filter steps, colored by group and sized by degree">
+        <img class="k-dark-only" src="../kit/canvas/lesmis-step3-dark.svg" alt="Les Miserables, 28 of 77 characters drawn after three filter steps, colored by group and sized by degree">
+      </div>
+      <div class="k-stage" data-on="2">
+        <img class="k-light-only" src="../kit/canvas/lesmis-step3-find-zoom-light.svg" alt="The filtered graph zoomed to 200% about Thenardier, who is selected and labeled">
+        <img class="k-dark-only" src="../kit/canvas/lesmis-step3-find-zoom-dark.svg" alt="The filtered graph zoomed to 200% about Thenardier, who is selected and labeled">
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Group color <span class="k-secondary">group</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value k-num">9</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>3<span class="k-value k-num">8</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value k-num">7</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>5<span class="k-value k-num">3</span></div>
+        <div class="k-lg-row k-secondary">1 more</div>
+        <div class="k-notdrawn" data-on="3">1 selected node not drawn: filtered out by "Filter out group 8"</div>
+      </div>
+
+      <!-- 8: Quick actions asked a question -->
+      <div class="k-quick q" data-on="8" role="dialog" aria-label="Quick actions">
+        <div class="k-quick-input"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg>who matters most<span class="k-grow"></span><span class="k-kbd">Esc</span></div>
+        <div class="k-quick-list" role="listbox" aria-label="Results">
+          <div class="k-group-head">Catalog &middot; Centrality, "who matters most"</div>
+          <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span>Degree</span><span class="q-detail">how many ties &middot; already shown as size</span></div>
+          <div class="k-result" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span>Betweenness centrality</span><span class="q-detail">who sits between groups</span></div>
+          <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span>Closeness centrality</span><span class="q-detail">who is few steps from everyone</span></div>
+          <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span>PageRank</span><span class="q-detail">where a random walk spends most time</span></div>
+          <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span>Eigenvector centrality</span><span class="q-detail">who is tied to well-tied nodes &middot; HITS gives the same here</span></div>
+          <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span>Katz centrality</span><span class="q-detail">who many short walks reach</span></div>
+        </div>
+        <div class="q-keys"><span><span class="k-kbd">Enter</span>Choose</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
+      </div>
+
+      <!-- 9: a name typed into Quick actions: the hand-off to Find -->
+      <div class="k-quick q" data-on="9" role="dialog" aria-label="Quick actions">
+        <div class="k-quick-input"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg>marius<span class="k-grow"></span><span class="k-kbd">Esc</span></div>
+        <div class="k-quick-list" role="listbox" aria-label="Results">
+          <div class="k-group-head">Nodes</div>
+          <div class="k-result" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span>Go to Marius</span><span class="q-detail">Filtered out by "Filter out group 8"</span></div>
+          <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg><span>Find "marius"</span><span class="q-detail">nodes, sets, styles and more, in Find</span></div>
+        </div>
+        <div class="q-keys"><span><span class="k-kbd">Enter</span>Go to</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
+      </div>
+
+      <!-- 12: Quick actions with no command and no node -->
+      <div class="k-quick q" data-on="12" role="dialog" aria-label="Quick actions">
+        <div class="k-quick-input"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg>hugo<span class="k-grow"></span><span class="k-kbd">Esc</span></div>
+        <div class="k-quick-list" role="listbox" aria-label="Results">
+          <div class="q-none" role="option" aria-disabled="true" aria-selected="false">No commands or nodes match "hugo"</div>
+        </div>
+        <div class="q-keys"><span><span class="k-kbd">Enter</span>Choose</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
+      </div>
+
+      <!-- 15: the key sheet (?), opened from the table: Ctrl+F is listed with the keys that work anywhere -->
+      <div class="ks" data-on="15" role="dialog" aria-label="Keys">
+        <div class="ks-head"><span role="heading" aria-level="3">Keys</span><span class="k-grow"></span><span class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ks-body">
+          <h4>Everywhere</h4>
+          <span class="k-kbd ks-new">Ctrl+F</span><span class="ks-new">Find: nodes, sets, styles, notes and more</span>
+          <span class="k-kbd">Ctrl+K</span><span>Quick actions: commands, and go to a node by name</span>
+          <span class="k-kbd">F6</span><span>Next region</span>
+          <span class="k-kbd">?</span><span>These keys</span>
+          <h4>In Find</h4>
+          <span class="k-kbd">Enter</span><span>Select the hit</span>
+          <span class="k-kbd">Esc</span><span>Close; the selection stays</span>
+        </div>
+        <div class="ks-foot">Ctrl+F opens Find wherever the focus is inside graphty: the drawing, the table or a panel. Outside it, the browser's own find.</div>
+      </div>
+
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool" data-on="1 2 3 4 5 6 15"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool" aria-pressed="true" data-on="8 9 12"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+
+      <!-- 1: the tooltip of the field, naming what Find finds and what Esc does -->
+      <div class="k-tooltip" data-on="1" style="position:fixed;left:73px;top:108px;max-width:250px">Finds nodes, edges, sets, paths, results, style layers, attributes, notes and views by name, id or value. Paste a list of ids to find them all.<br><span class="k-secondary">Ctrl+F opens Find from anywhere in graphty. Esc closes it; the lists come back and the selection stays. F6 moves to the next region.</span></div>
+    </div>
+
+    <!-- Transfers, April 2026: the full graph, colored by community -->
+    <div class="k-canvas" data-on="10 11 13 14">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/transactions-april-communities-light.svg" alt="April transfers, 3,093 accounts colored by Louvain community and sized by degree">
+        <img class="k-dark-only" src="../kit/canvas/transactions-april-communities-dark.svg" alt="April transfers, 3,093 accounts colored by Louvain community and sized by degree">
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Community color <span class="k-secondary">community</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value k-num" data-fx="datasets.transactionsApril.legends.april.rows.0.count">359</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value k-num" data-fx="datasets.transactionsApril.legends.april.rows.1.count">168</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value k-num" data-fx="datasets.transactionsApril.legends.april.rows.2.count">127</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value k-num" data-fx="datasets.transactionsApril.legends.april.rows.3.count">126</span></div>
+        <div class="k-lg-row k-secondary">4 more</div>
+      </div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+
+    <!-- Patent citations, past the drawing limit: nothing drawn -->
+    <div class="k-canvas" data-on="7">
+      <div class="k-legend-card"><div class="k-notdrawn" style="border:0;margin:0;padding:0">124,318 nodes not drawn. <a>Narrow the graph...</a></div></div>
+      <div class="k-toolbar-dock">
+        <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool" aria-disabled="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          <span class="k-tool" aria-disabled="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        </div>
+      </div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+
+    <!-- Table, Les Miserables: live degree read on the filtered graph, the full-graph degree beside it -->
+    <section class="k-dock" aria-label="Table" data-on="1 2 3 4 5 6 8 9 12 15">
+      <div class="k-dock-tabs">
+        <span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span>
+        <span class="k-grow"></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span>
+      </div>
+      <div class="k-scope">Filtered graph: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes. Sorted by degree.</div>
+      <div class="k-table-wrap">
+        <table class="k-table">
+          <colgroup><col class="c-label"><col><col><col></colgroup>
+          <thead><tr><th>label</th><th>group</th><th class="k-n">degree <span class="k-profile">filtered graph</span></th><th class="k-n">degree <span class="k-profile">full graph</span></th></tr></thead>
+          <tbody>
+            <tr><td class="k-id">Valjean</td><td><span class="k-chit" style="background:#E69F00"></span>2</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.0.degree">17</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.0.fullDegree">36</td></tr>
+            <tr><td class="k-id">Fantine</td><td><span class="k-chit" style="background:#D55E00"></span>3</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.1.degree">12</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.1.fullDegree">15</td></tr>
+            <tr data-on="2" aria-selected="true"><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.degree">11</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.fullDegree">16</td></tr>
+            <tr data-on="1 3 4 5 6 8 9 12 15"><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.degree">11</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.fullDegree">16</td></tr>
+            <tr><td class="k-id">Javert</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.3.degree">10</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.3.fullDegree">17</td></tr>
+            <tr><td class="k-id">Mme.Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.4.degree">9</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.4.fullDegree">11</td></tr>
+            <tr><td class="k-id">Gueulemer</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.5.degree">9</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.5.fullDegree">10</td></tr>
+            <tr><td class="k-id">Babet</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.6.degree">9</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.6.fullDegree">10</td></tr>
+            <tr><td class="k-id">Claquesous</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.7.degree">9</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.7.fullDegree">10</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Table, Transfers April -->
+    <section class="k-dock" aria-label="Table" data-on="10 11 13 14">
+      <div class="k-dock-tabs">
+        <span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span>
+        <span class="k-grow"></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span>
+      </div>
+      <div class="k-scope">Full graph: <span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts. Sorted by degree.</div>
+      <div class="k-table-wrap">
+        <table class="k-table">
+          <colgroup><col style="width:28%"><col style="width:20%"><col style="width:32%"><col style="width:20%"></colgroup>
+          <thead><tr><th>id</th><th>kind</th><th>community</th><th class="k-n">degree</th></tr></thead>
+          <tbody>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.0.id">ACC-393859</td><td>merchant</td><td><span class="k-chit" style="background:#E69F00"></span>Community 1</td><td class="k-n" data-fx="datasets.transactionsApril.rows.0.degree">842</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.1.id">ACC-697114</td><td>merchant</td><td><span class="k-chit" style="background:#56B4E9"></span>Community 2</td><td class="k-n" data-fx="datasets.transactionsApril.rows.1.degree">513</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.2.id">ACC-527694</td><td>merchant</td><td><span class="k-chit" style="background:#0072B2"></span>Community 4</td><td class="k-n" data-fx="datasets.transactionsApril.rows.2.degree">318</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.3.id">ACC-293071</td><td>merchant</td><td><span class="k-chit" style="background:#505050"></span>Community 16</td><td class="k-n" data-fx="datasets.transactionsApril.rows.3.degree">250</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.4.id">ACC-694666</td><td>merchant</td><td><span class="k-chit" style="background:#D55E00"></span>Community 5</td><td class="k-n" data-fx="datasets.transactionsApril.rows.4.degree">212</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.5.id">ACC-593226</td><td>merchant</td><td><span class="k-chit" style="background:#009E73"></span>Community 3</td><td class="k-n" data-fx="datasets.transactionsApril.rows.5.degree">189</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.6.id">ACC-620800</td><td>merchant</td><td><span class="k-chit" style="background:#505050"></span>Community 18</td><td class="k-n" data-fx="datasets.transactionsApril.rows.6.degree">140</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.7.id">ACC-317086</td><td>merchant</td><td><span class="k-chit" style="background:#505050"></span>Community 36</td><td class="k-n" data-fx="datasets.transactionsApril.rows.7.degree">128</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Table, citations: Find leads and opens the table past the drawing limit -->
+    <section class="k-dock" aria-label="Table" data-on="7">
+      <div class="k-dock-tabs">
+        <span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span>
+        <span class="k-grow"></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span>
+        <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span>
+      </div>
+      <div class="k-scope">Full graph: 124,318 nodes. Sorted by citationsReceived.</div>
+      <div class="k-table-wrap">
+        <table class="k-table">
+          <colgroup><col style="width:18%"><col style="width:16%"><col style="width:38%"><col style="width:28%"></colgroup>
+          <thead><tr><th>id <span class="k-profile">patent number</span></th><th class="k-n">grantYear <span class="k-profile">1999 to 2001</span></th><th>category <span class="k-profile">6 values</span></th><th class="k-n">citationsReceived <span class="k-profile">0 to 779</span></th></tr></thead>
+          <tbody>
+            <tr aria-selected="true"><td class="k-id">6117075</td><td class="k-n">2000</td><td>Drugs and medical</td><td class="k-n">779</td></tr>
+            <tr><td class="k-id">6031111</td><td class="k-n">2000</td><td>Computers and communications</td><td class="k-n">702</td></tr>
+            <tr><td class="k-id">5960121</td><td class="k-n">1999</td><td>Computers and communications</td><td class="k-n">655</td></tr>
+            <tr><td class="k-id">6231106</td><td class="k-n">2001</td><td>Drugs and medical</td><td class="k-n">611</td></tr>
+            <tr><td class="k-id">5987440</td><td class="k-n">1999</td><td>Electrical</td><td class="k-n">548</td></tr>
+            <tr><td class="k-id">6085164</td><td class="k-n">2000</td><td>Computers and communications</td><td class="k-n">531</td></tr>
+            <tr><td class="k-id">6287586</td><td class="k-n">2001</td><td>Drugs and medical</td><td class="k-n">517</td></tr>
+            <tr><td class="k-id">5892900</td><td class="k-n">1999</td><td>Electrical</td><td class="k-n">498</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Right column: header rows and inspector -->
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num"><span data-on="2">200%</span><span data-on="1 3 4 5 6 7 8 9 10 11 12 13 14 15">100%</span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+
+    <!-- 2: Thenardier, inside the filter -->
+    <div class="k-typerow" data-on="2"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">Thenardier</span><span class="k-grow"></span><span class="split"><span class="k-icon-btn" title="Select neighbors"><svg class="k-i"><use href="../kit/icons.svg#split"/></svg></span><span class="k-icon-btn" title="Neighbor options"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></span><span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn" title="Pin"><svg class="k-i"><use href="../kit/icons.svg#pin"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="k-scroll" data-on="2">
+      <section class="k-section">
+        <div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#009E73"></span>group</span></span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>degree</span></span></div></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">group</span><span class="k-value">4</span></div>
+        <div class="k-data"><span class="k-name">degree</span><span class="k-value k-num">11<span class="k-full">16 in the full graph</span></span></div>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Memberships</div><div class="k-row k-secondary">In no sets</div></section>
+    </div>
+
+    <!-- 3: Marius, outside the filter: an out-of-scope selection -->
+    <div class="k-typerow" data-on="3"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">Marius</span><span class="k-grow"></span><span class="k-btn k-btn-secondary" title="Opens the rule editor of &quot;Filter out group 8&quot;">Edit step...</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="i-state" data-on="3"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span>Filtered out by "Filter out group 8". Not drawn and not in any count.</span></div>
+    <div class="k-scroll" data-on="3">
+      <section class="k-section">
+        <div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">group</span><span class="k-value"><span class="k-chit" style="background:#56B4E9"></span> 8</span></div>
+        <div class="k-data"><span class="k-name">degree</span><span class="k-value k-num"><span class="k-secondary">--</span><span class="k-full">19 in the full graph</span></span></div>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Memberships</div><div class="k-row k-secondary">In no sets</div></section>
+    </div>
+
+    <!-- 7: a patent that is counted but not drawn -->
+    <div class="k-typerow" data-on="7"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">6117075</span><span class="k-grow"></span><span class="split"><span class="k-icon-btn" title="Select neighbors"><svg class="k-i"><use href="../kit/icons.svg#split"/></svg></span><span class="k-icon-btn" title="Neighbor options"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></span><span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="i-state" data-on="7"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#eye-off"/></svg><span>Not drawn: the graph is past the drawing limit. Counted everywhere.</span></div>
+    <div class="k-scroll" data-on="7">
+      <section class="k-section">
+        <div class="k-section-head">Attributes</div>
+        <div class="k-data"><span class="k-name">grantYear</span><span class="k-value k-num">2000</span></div>
+        <div class="k-data"><span class="k-name">category</span><span class="k-value">Drugs and medical</span></div>
+        <div class="k-data"><span class="k-name">citationsReceived</span><span class="k-value k-num">779</span></div>
+      </section>
+      <section class="k-section" data-empty><div class="k-section-head">Memberships</div><div class="k-row k-secondary">In no sets</div></section>
+    </div>
+
+    <!-- 10, 11: nothing selected: the Transfers graph -->
+    <div class="k-typerow" data-on="10 11 13 14"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll" data-on="10 11 13 14">
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics">
+          <div class="k-metric"><span class="k-secondary">accounts</span><span class="k-big k-num" data-fx="datasets.transactionsApril.nodes">3,093</span></div>
+          <div class="k-metric"><span class="k-secondary">transfers</span><span class="k-big k-num" data-fx="datasets.transactionsApril.edges">8,370</span></div>
+        </div>
+        <div class="k-metrics">
+          <div class="k-metric"><span class="k-secondary">weak components</span><span class="k-big k-num" data-fx="datasets.transactionsApril.stats.components">27</span></div>
+          <div class="k-metric"><span class="k-secondary">density</span><span class="k-big k-num" data-fx="datasets.transactionsApril.stats.density" data-fx-digits="6">0.000875</span></div>
+        </div>
+        <div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">directed; amount, not used yet</span></div>
+      </section>
+    </div>
+
+    <!-- 1, 4, 5, 6, 8, 9, 12: nothing selected: the graph -->
+    <div class="k-typerow" data-on="1 4 5 6 8 9 12 15"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll" data-on="1 4 5 6 8 9 12 15">
+      <section class="k-section">
+        <div class="k-section-head">Statistics <span class="k-count">&nbsp;Filtered graph</span></div>
+        <div class="k-metrics">
+          <div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big k-num" data-fx="datasets.lesmis.filterSteps.byStep.2.nodes">27</span></div>
+          <div class="k-metric"><span class="k-secondary">edges</span><span class="k-big k-num" data-fx="datasets.lesmis.filterSteps.byStep.2.edges">104</span></div>
+        </div>
+        <div class="k-metrics">
+          <div class="k-metric"><span class="k-secondary">components</span><span class="k-big k-num" data-fx="datasets.lesmis.filterSteps.byStep.2.components">1</span></div>
+          <div class="k-metric"><span class="k-secondary">density</span><span class="k-big k-num" data-fx="datasets.lesmis.filterSteps.byStep.2.density" data-fx-digits="3">0.296</span></div>
+        </div>
+        <div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">undirected; value, not used yet</span></div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<!-- 14: Bring in its links opens the existing Add data, set to the account and its transfers -->
+<div class="k-backdrop" data-on="14"><div class="k-modal ad" role="dialog" aria-label="Add data">
+  <div class="k-modal-head">Add data: ACC-705989 and its links<span class="k-grow"></span><span class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="k-section-head">From</div>
+    <div class="k-data"><span class="k-name">Project</span><span class="k-value">Mule ring, Aug 12</span></div>
+    <div class="k-data"><span class="k-name">Adds</span><span class="k-value k-num">ACC-705989, its 14 transfers ($48,200 out), and the account at the other end of each</span></div>
+    <div class="k-section-head">Into</div>
+    <div class="k-data"><span class="k-name">Project</span><span class="k-value k-num">Transfers, April 2026 (<span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts)</span></div>
+    <div class="k-prose k-secondary">Accounts are matched by id, so one already in April is not added twice. Mule ring is not opened and not changed. Undo removes what this adds.</div>
+  </div>
+  <div class="k-modal-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" data-focus-ring>Add data</span></div>
+</div></div>
+
+<!-- Annotation layer: the framework section and compact-mantine component behind each element -->
+<!-- State 1 -->
+<span class="an k-annot-box" data-on="1" style="left:57px;top:64px;width:241px;height:48px"></span>
+<div class="an k-annot-note" data-on="1" style="left:320px;top:150px"><b>1 Search bar row, as Figma's.</b> Field, then Find's menu in Figma's settings slot (it holds Create rule set), then Close -- interface-templates 2a; Figma's Find panel. <b>SearchInput</b>, <b>ActionIcon</b> + <b>Menu</b>, <b>ActionIcon</b> with <b>CloseGlyph</b>. Opened by the Find icon on the Graphs header, or by Ctrl+F from anywhere inside the app frame (the drawing, the table, any panel); it replaces the lists. Ctrl+F is on the key sheet (state 15). Proposed, framework changes.</div>
+<div class="an k-annot-note" data-on="1" style="left:600px;top:150px"><b>2 Empty query.</b> No result header and no list until something is typed, as in Figma. The tooltip names what Find finds and what Esc does -- content-design; interaction-patterns, Esc rung 1 ("closing never discards what it selected"). <b>Tooltip</b>.</div>
+
+<!-- State 2 -->
+<span class="an k-annot-box" data-on="2" style="left:57px;top:112px;width:241px;height:40px"></span>
+<div class="an k-annot-note" data-on="2" style="left:320px;top:100px"><b>1 Result header, as Figma's.</b> The count and what it counted: "in all 77 nodes" says Find looks past the filter -- information-architecture 7, Scope. Previous and Next are the Next finding and Previous finding commands -- interaction-patterns 3.1. <b>Text</b>, two <b>ActionIcon</b>s. No scope select: this project holds one graph (proposed).</div>
+<span class="an k-annot-box" data-on="2" style="left:57px;top:152px;width:241px;height:132px"></span>
+<div class="an k-annot-note" data-on="2" style="left:320px;top:250px"><b>2 Hits by kind, ranked.</b> Exact, then prefix (Thenardier), then substring (Mme.Thenardier) -- information-architecture 7. <b>ResultRow</b>. Second line: the group, then what the size layer reads (proposed). <b>Blocked:</b> ranking and every hit but an exact id wait on graphty-element (interface-specification 7.4, the search row); today only an exact id is found.</div>
+<div class="an k-annot-note" data-on="2" style="left:960px;top:150px;max-width:220px"><b>3 The committed hit is brought into view.</b> At 100% Thenardier's label was culled in the densest cluster, so the camera zooms to 200% about him and the freed labels draw -- interaction-patterns 3.1, the camera. The zoom control reads 200%.</div>
+<div class="an k-annot-note" data-on="2" style="left:960px;top:420px;max-width:220px"><b>4 Numbers name their graph.</b> Degree is a live reading on the filtered graph (11); the full-graph value sits beside it (16) -- conceptual-model 3; principles, "Live readings follow the chip". The table shows both columns.</div>
+
+<!-- State 3 -->
+<span class="an k-annot-box" data-on="3" style="left:57px;top:152px;width:241px;height:744px"></span>
+<div class="an k-annot-note" data-on="3" style="left:320px;top:100px"><b>1 Inside and outside the filter, one list.</b> 14 hits: 4 in the filter, 10 filtered out, each naming the step that removed it -- information-architecture 7; glossary, "filtered out". Within a class, id order: Marguerite (12), Magnon (50), Marius (55). Wording proposed.</div>
+<div class="an k-annot-note" data-on="3" style="left:320px;top:260px"><b>2 The recovery verb on the hit.</b> On the selected, hovered or focused hit, the same verb as the inspector's (proposed).</div>
+<span class="an k-annot-box" data-on="3" style="left:1199px;top:88px;width:241px;height:90px"></span>
+<div class="an k-annot-note" data-on="3" style="left:930px;top:190px;max-width:260px"><b>3 An out-of-scope selection</b> -- interaction-patterns 3.1; state-matrix, Inspector Partial. <b>Edit step...</b> (<b>Button</b> secondary, in the type row) opens the chip's popover at the rule editor of "Filter out group 8", where turning the step off or changing its rule brings Marius back (several steps and the per-step checkbox are blocked: interface-specification 7.4). Add selection to step cannot: it grows the newest Filter to, and Marius is removed by a Filter out. It is offered when the step that excludes the node is the newest Filter to (screens/find-and-expand.html). Proposed.</div>
+<div class="an k-annot-note" data-on="3" style="left:560px;top:430px;max-width:250px"><b>4 Why nothing is ringed.</b> The legend's not-drawn line, in the same words as the hit and the inspector, with no verb -- canvas furniture, the not-drawn line (proposed wording).</div>
+
+<!-- State 4 -->
+<span class="an k-annot-box" data-on="4" style="left:57px;top:152px;width:241px;height:160px"></span>
+<div class="an k-annot-note" data-on="4" style="left:320px;top:120px"><b>1 Every kind is listed as rows</b>, grouped in the object map's order: style layers before attributes -- information-architecture 7. A style layer's second line gives its place in the stack and what it paints. This settles a contradiction in interface-templates 2a (proposed): Figma's Find lists every kind, and with the lists replaced the Styles list could not be narrowed in place.</div>
+<div class="an k-annot-note" data-on="4" style="left:320px;top:300px"><b>2 What committing does.</b> A style-layer hit closes Find and selects the layer in the Styles list, opening nothing; an attribute hit opens its column in the table -- information-architecture 7, "Ends as".</div>
+
+<!-- State 5 -->
+<div class="an k-annot-note" data-on="5" style="left:320px;top:120px"><b>1 A misspelled name</b> -- message catalog, graphty.find.none: "0 matches for {query}; Closest: {value}" (the query echoed is proposed). A name is not shaped like an id, so the closest name is offered. It is a link, and Enter takes it. <b>Text</b> with an <b>Anchor</b>. The header keeps the count and its scope, and Previous and Next are off.</div>
+
+<!-- State 10 -->
+<span class="an k-annot-box" data-on="10" style="left:57px;top:152px;width:241px;height:72px"></span>
+<div class="an k-annot-note" data-on="10" style="left:320px;top:100px;max-width:320px"><b>1 An empty Find names what it searched</b> -- message catalog, graphty.find.none (proposed wording): "0 matches in {project} ({N} {nouns})." The project and its size tell the analyst she searched April, not "the data". An id is matched exactly, so no Closest is offered: on an account graph a near-miss id is a different customer. <b>Text</b>.</div>
+<div class="an k-annot-note" data-on="10" style="left:320px;top:250px;max-width:320px"><b>2 Search recent projects</b> reads only the Recent projects list, and only when pressed. Nothing is indexed ahead of time and nothing new is stored. <b>Button</b> secondary (proposed, framework changes). The account here is not in April: it is in March's data and not in April's.</div>
+<span class="an k-annot-box" data-on="10" style="left:57px;top:866px;width:241px;height:34px"></span>
+<div class="an k-annot-note" data-on="10" style="left:320px;top:790px;max-width:320px"><b>3 Key hints, F6 among them.</b> F6 moves to the next region (the rail and panel, the inspector, the toolbar, the canvas, the table) -- interaction pattern entries 9.1 (proposed: shown in the frame). <b>Kbd</b>.</div>
+
+<!-- State 11 -->
+<span class="an k-annot-box" data-on="11" style="left:57px;top:208px;width:241px;height:36px"></span>
+<div class="an k-annot-note" data-on="11" style="left:320px;top:140px;max-width:330px"><b>1 The scope row says what was read.</b> "Searched 7 recent projects -- Search all 23": the count of what was searched, and the one wider search as a link. An examiner's "which ones did you check?" has an answer, and a miss no longer reads as "the account does not exist". <b>Text</b> with an <b>Anchor</b>. Proposed.</div>
+<span class="an k-annot-box" data-on="11" style="left:57px;top:248px;width:241px;height:140px"></span>
+<div class="an k-annot-note" data-on="11" style="left:320px;top:270px;max-width:330px"><b>2 One line of facts per hit</b>: the project, then what the account did there, read by graphty-element from that project. Enough to judge the hit without opening it. <b>ResultRow</b> second line.</div>
+<div class="an k-annot-note" data-on="11" style="left:320px;top:380px;max-width:330px"><b>3 Two verbs on the selected hit.</b> <b>Bring in its links...</b> opens the existing Add data (state 14); <b>Open</b> opens that project. What Open costs is said before the click: it closes this project. There is no side-by-side opening: two open projects would be a new concept for one task. <b>Button</b> secondary and ghost, <b>Text</b> dimmed.</div>
+<span class="an k-annot-box" data-on="10" style="left:57px;top:236px;width:241px;height:20px"></span>
+<div class="an k-annot-note" data-on="10" style="left:320px;top:420px;max-width:320px"><b>4 Where the search looks</b>, under the button: projects on this computer, nothing sent. The header counts "accounts", the same noun as the message. <b>Text</b> dimmed.</div>
+
+<!-- State 13 -->
+<span class="an k-annot-box" data-on="13" style="left:57px;top:208px;width:241px;height:36px"></span>
+<div class="an k-annot-note" data-on="13" style="left:320px;top:140px;max-width:330px"><b>1 Search all 23</b> reads every project graphty keeps on this computer, only when pressed; nothing is indexed ahead of time. The scope row now says so. Proposed.</div>
+<span class="an k-annot-box" data-on="13" style="left:57px;top:248px;width:241px;height:190px"></span>
+<div class="an k-annot-note" data-on="13" style="left:320px;top:260px;max-width:330px"><b>2 The older case is found</b>: "Mule ring, Aug 12: 14 transfers, $48,200 out". Hits are listed newest project first. Each carries its own facts, so the analyst can tell the case she remembers from last month's one transfer. <b>ResultRow</b>.</div>
+<div class="an k-annot-note" data-on="13" style="left:320px;top:420px;max-width:330px"><b>3 Bring in its links is focused</b>, because keeping her place in April was what the analysts asked for; Open is the other way and says what it closes.</div>
+
+<!-- State 14 -->
+<div class="an k-annot-note" data-on="14" style="left:1000px;top:250px;max-width:220px"><b>1 Bring in its links is Add data</b>, opened with its source already set: the account, its transfers, and the account at each far end. No new dialog: the same step as adding a file (interface-templates 20a). <b>Modal</b>, <b>DataRow</b>s, <b>ModalFooter</b>.</div>
+<div class="an k-annot-note" data-on="14" style="left:1000px;top:470px;max-width:220px"><b>2 What stays put</b>: Mule ring is not opened or changed; April gains the rows, matched by id; Undo removes them. <b>Waits on graphty-element:</b> reading one account's transfers from a stored project, and the load preview's counts (proposed).</div>
+
+<!-- State 15 -->
+<span class="an k-annot-box" data-on="15" style="left:560px;top:203px;width:372px;height:24px"></span>
+<div class="an k-annot-note" data-on="15" style="left:950px;top:150px;max-width:230px"><b>1 Ctrl+F is on the key sheet</b>, first under Everywhere; the sheet groups its keys by region, as in the keyboard walk. Inside the app frame graphty takes Ctrl+F from the browser; outside it, the browser's find still works. <b>Kbd</b> rows. Proposed keymap role; the key itself is the owner's call.</div>
+
+<!-- State 12 -->
+<span class="an k-annot-box" data-on="12" style="left:482px;top:403px;width:534px;height:121px"></span>
+<div class="an k-annot-note" data-on="12" style="left:560px;top:534px;max-width:420px"><b>1 Quick actions with no match</b> says what it looked in: "No commands or nodes match "{query}"" (proposed key graphty.quick.none), because Quick actions now finds a node by its exact name (state 9). The key hints stay, F6 among them. <b>QuickActions</b> empty state.</div>
+
+<!-- State 6 -->
+<div class="an k-annot-note" data-on="6" style="left:320px;top:120px"><b>1 A verb typed into Find</b> is handed to Quick actions -- information-architecture 7, "Run ..." for a verb. Nothing in this graph is named betweenness because the measure has not run. Enter opens Quick actions with "betweenness" typed and Betweenness centrality highlighted. <b>ResultRow</b> in a Commands group.</div>
+
+<!-- State 7 -->
+<span class="an k-annot-box" data-on="7" style="left:57px;top:64px;width:241px;height:88px"></span>
+<div class="an k-annot-note" data-on="7" style="left:320px;top:150px"><b>1 Past the drawing limit, Find leads</b> and opens the table -- information-architecture 7, "Findability by graph size"; state-matrix 4.2. A pasted list of ids is one query; an exact id is the one hit that ships today. Committing selects the patent; it is announced as not drawn -- interaction-patterns 3.1.</div>
+<div class="an k-annot-note" data-on="7" style="left:320px;top:330px"><b>2 No layer paints, so the second line names the first category attribute</b> (proposed rule).</div>
+<div class="an k-annot-note" data-on="7" style="left:930px;top:150px;max-width:250px"><b>3 Counted, not drawn.</b> The inspector says so in one line; Path and Note are off because they act on drawn nodes.</div>
+
+<!-- State 8 -->
+<span class="an k-annot-box" data-on="8" style="left:482px;top:300px;width:534px;height:230px"></span>
+<div class="an k-annot-note" data-on="8" style="left:320px;top:100px;max-width:420px"><b>1 Quick actions answers a question</b> -- interface-templates 15; information-architecture 7; user-journeys, "Try a measure". "who matters most" matches the Centrality category's question, so its measures are listed in catalog order. <b>QuickActions</b>, 529 wide. The highlight starts on the first measure not already shown: Betweenness, not Degree (proposed).</div>
+<div class="an k-annot-note" data-on="8" style="left:1024px;top:330px;max-width:170px"><b>2 One line per measure</b>, a secondary run after the name, so the right edge stays free for a shortcut (proposed detail slot). Degree says it is already shown as size; HITS folds into Eigenvector's row on an undirected graph.</div>
+
+<!-- State 9 -->
+<div class="an k-annot-note" data-on="9" style="left:560px;top:150px;max-width:420px"><b>1 A name typed into Quick actions</b> puts the node with that exact name first as "Go to Marius": on a drawn node, Enter puts the keyboard walk on it as its start and selects nothing (the keyboard walk, decided after the third study). Marius is filtered out, so his row says so in Find's words, and Enter opens Find on him (state 3), which says how to show him. The next row hands the query to Find for partial matches -- information-architecture 7, "Find ..." for a noun. <b>QuickActions</b> rows.</div>
+</body>
+</html>

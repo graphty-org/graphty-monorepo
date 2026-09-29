@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="The 10 accounts of the boundary, all selected">
+<rect width="1200" height="800" fill="#F5F5F5"/>
+<g stroke="#808080" stroke-width="1" stroke-opacity="0.55" stroke-linecap="round">
+<line x1="614.9" y1="366.6" x2="629.4" y2="680"/>
+<line x1="614.9" y1="366.6" x2="770.7" y2="434"/>
+<line x1="553.5" y1="231.3" x2="770.7" y2="434"/>
+<line x1="994.4" y1="434.8" x2="614.9" y2="366.6"/>
+<line x1="994.4" y1="434.8" x2="770.7" y2="434"/>
+<line x1="376.9" y1="120" x2="614.9" y2="366.6"/>
+<line x1="553.5" y1="231.3" x2="614.9" y2="366.6"/>
+<line x1="614.9" y1="366.6" x2="371.3" y2="565.5"/>
+<line x1="614.9" y1="366.6" x2="472" y2="170.5"/>
+<line x1="371.3" y1="565.5" x2="205.6" y2="651"/>
+<line x1="376.9" y1="120" x2="340.7" y2="386.3"/>
+<line x1="553.5" y1="231.3" x2="340.7" y2="386.3"/>
+<line x1="614.9" y1="366.6" x2="340.7" y2="386.3"/>
+<line x1="371.3" y1="565.5" x2="340.7" y2="386.3"/>
+<line x1="205.6" y1="651" x2="340.7" y2="386.3"/>
+<line x1="472" y1="170.5" x2="340.7" y2="386.3"/>
+</g>
+<g>
+<circle cx="614.9" cy="366.6" r="8" fill="#D55E00"/>
+<circle cx="614.9" cy="366.6" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="614.9" cy="366.6" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="629.4" cy="680" r="8" fill="#808080"/>
+<circle cx="629.4" cy="680" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="629.4" cy="680" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="770.7" cy="434" r="8" fill="#808080"/>
+<circle cx="770.7" cy="434" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="770.7" cy="434" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="994.4" cy="434.8" r="8" fill="#808080"/>
+<circle cx="994.4" cy="434.8" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="994.4" cy="434.8" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="376.9" cy="120" r="8" fill="#D55E00"/>
+<circle cx="376.9" cy="120" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="376.9" cy="120" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="553.5" cy="231.3" r="8" fill="#D55E00"/>
+<circle cx="553.5" cy="231.3" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="553.5" cy="231.3" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="371.3" cy="565.5" r="8" fill="#D55E00"/>
+<circle cx="371.3" cy="565.5" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="371.3" cy="565.5" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="472" cy="170.5" r="8" fill="#D55E00"/>
+<circle cx="472" cy="170.5" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="472" cy="170.5" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="340.7" cy="386.3" r="8" fill="#808080"/>
+<circle cx="340.7" cy="386.3" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="340.7" cy="386.3" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+<circle cx="205.6" cy="651" r="8" fill="#D55E00"/>
+<circle cx="205.6" cy="651" r="9" fill="none" stroke="#FFFFFF" stroke-width="2"/><circle cx="205.6" cy="651" r="11" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+</g>
+<g font-family="Inter Variable, Inter, system-ui, sans-serif" font-size="12" fill="#1A1A1A" stroke="#F5F5F5" stroke-width="3" stroke-linejoin="round" paint-order="stroke">
+<text x="626.9" y="370.6">ACC-233575</text>
+<text x="641.4" y="684">ACC-966851</text>
+<text x="782.7" y="438">ACC-393859</text>
+<text x="1006.4" y="438.8">ACC-959129</text>
+<text x="388.9" y="124">ACC-242954</text>
+<text x="565.5" y="235.3">ACC-670564</text>
+<text x="383.3" y="569.5">ACC-139419</text>
+<text x="484" y="174.5">ACC-350110</text>
+<text x="352.7" y="390.3">ACC-893168</text>
+<text x="217.6" y="655">ACC-782213</text>
+</g></svg>

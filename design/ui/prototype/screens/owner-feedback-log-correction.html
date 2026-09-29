@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback log corrected</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  body { margin: 0; background: var(--cm-bg); color: var(--cm-text); }
+  .c-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 16px; }
+  .c-card { border: 1px solid var(--cm-border); border-radius: 6px; padding: 12px 16px; }
+  .c-card h3 { margin-top: 0; }
+  .c-card p { margin: 0 0 8px; }
+  .c-was { color: var(--cm-text-secondary); }
+  .c-status { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; }
+  .c-status h3 { margin: 0; }
+  .k-doc td:first-child { white-space: nowrap; }
+  @media (max-width: 720px) { .c-grid { grid-template-columns: 1fr; } .k-doc td:first-child { white-space: normal; } }
+</style>
+</head>
+<body>
+<main class="k-doc">
+  <h1>The feedback log, corrected</h1>
+  <p class="k-lede">The owner feedback log told you three things that were not true. Here is each one as it was written, what is true, and what has to happen before the log may call it done. The log itself (<a href="../study/owner-feedback-log.md">study/owner-feedback-log.md</a>) now says the same.</p>
+
+  <p>The rule from now on: an item is written as done only after the kit's check (it reads every rendered page) passes on every page, and, for the participant view, a 768 px wide shot exists.</p>
+
+  <h2>1. The avatar, the top-right export button and the rail redraw</h2>
+  <div class="c-grid">
+    <div class="c-card">
+      <h3>What the log said</h3>
+      <p class="c-was">"Redrawn on every mock that showed the avatar." Later: the top-right export button and the avatar letter are removed from every task screen, and every task screen is redrawn on the new rail, before the next sessions.</p>
+    </div>
+    <div class="c-card">
+      <div class="c-status"><h3>What is true</h3><span class="k-badge">Not done</span></div>
+      <p>When the fifth round of simulated sessions ran, these pages still showed the top-right export button: screens/navigation, screens/recipe-apply, screens/table-dock, screens/first-look, screens/comparison, flows/alert-triage, storyboards/recipe-travels and storyboards/weekly-return. The frame at rest (screens/frame-at-rest) still showed the avatar and the Export button, and most task screens used the old rail. That voided 7 of the round's 18 repeated tasks.</p>
+      <p>Today every task screen takes its frame from one shared source (the rail, one right panel, no avatar, no top-right Export), and the check finds no top-right export button, no avatar letter and no old frame on any task screen. It still fails on 12 pages for other reasons, so the item stays open.</p>
+    </div>
+  </div>
+  <table>
+    <tr><th>Still failing the check</th><th>Pages</th></tr>
+    <tr><td>The retired key that brought back a cleared selection</td><td>storyboards/keyboard-only, storyboards/weekly-return, flows/keyboard-walk, flows/undo-and-ways-back, screens/filter-steps-and-undo, screens/selection-over-cap, screens/weekly-return</td></tr>
+    <tr><td>A second Apply dialog</td><td>storyboards/recipe-travels, screens/binding-step</td></tr>
+    <tr><td>The retired name for a style-only recipe</td><td>flows/replace-and-recipe</td></tr>
+    <tr><td>A count the data does not hold</td><td>flows/load-and-characterize</td></tr>
+    <tr><td>Retired strings quoted in prose</td><td>the gallery (index.html)</td></tr>
+  </table>
+
+  <h2>2. The navigation page's participant view</h2>
+  <div class="c-grid">
+    <div class="c-card">
+      <h3>What the log said</h3>
+      <p class="c-was">The participant view of "storyboards/navigation" renders blank, and will be fixed and shot at 768 px before the next sessions.</p>
+    </div>
+    <div class="c-card">
+      <div class="c-status"><h3>What is true</h3><span class="k-badge">Not done</span></div>
+      <p>The page is <a href="navigation.html">screens/navigation.html</a>; there is no storyboards/navigation. After the fifth round its participant view was blank. A new <a href="../shots/screens__navigation-storyboard--study--768.png">768 px participant-view shot</a> now exists and is not blank, and the check passes on that page alone. The log calls it done only when the check passes on every page.</p>
+    </div>
+  </div>
+
+  <h2>3. Where Results live</h2>
+  <div class="c-grid">
+    <div class="c-card">
+      <h3>What the log said</h3>
+      <p class="c-was">"The Results rail panel is retired": results become a section of the inspector. Later: Results stay in the inspector and the table.</p>
+    </div>
+    <div class="c-card">
+      <div class="c-status"><h3>What is true</h3><span class="k-badge">Studio decision</span></div>
+      <p>Results moves back to the rail, as a studio decision, not yours, because testing answered it. With Results in the inspector, finding how an earlier run was set up reached 25% direct success. With Results on the rail, the same simulated participants gave 7 more direct answers out of 48, more than the margin of 4 set before the round. The rail place holds runs: each run with its settings and date, opened in place, with the actions "Re-run" and "Compare with...". A value is still read where you suggested: on the selected node in the inspector, and in the table.</p>
+    </div>
+  </div>
+
+  <h2>What the next milestone does</h2>
+  <p>It shows the before and after for each of your four review items, drawn only after the check passes, and asks you nothing. Hosting country, telemetry and the organization-wide Assistant switch are listed once, as still open from milestone 4, because the feedback file does not answer them yet.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alert triage flow</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .k-doc { max-width: 1240px; }
+  .k-flow { margin: 8px 0 4px; }
+  .k-flow-step { font-size: 12px; line-height: 17px; flex: 1 1 150px; max-width: 220px; }
+  .k-flow-step h3 { font-size: 12px; }
+  .k-flow-step .k-secondary { display: block; }
+  .k-flow-step a { color: var(--cm-text-brand); }
+  .kind { display: block; font-size: var(--k-caption-fs); color: var(--cm-text-tertiary); }
+  .k-flow-step[data-kind="check"] { box-shadow: inset 0 0 0 2px var(--cm-text); }
+  .k-flow-step[data-kind="commit"] { border-radius: 2px 14px 2px 14px; }
+  .k-flow-step[data-kind="decision"] { background: var(--cm-bg-secondary); }
+  .branch-head { margin: 12px 0 0; font-size: 12px; color: var(--k-annot-ink); font-weight: 600; }
+  .steps { font-size: 12px; line-height: 18px; }
+  .steps td, .steps th { vertical-align: top; }
+  .keyrow { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--cm-text-secondary); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="k-doc">
+<p><a href="../index.html">Design gallery</a> &middot; <a href="../storyboards/alert-triage.html">the alert triage storyboard</a> &middot; <a href="../screens/alert-triage.html">its screens</a></p>
+<h1>Alert triage flow</h1>
+<p class="k-lede">The places, commands and decisions of the alert triage storyboard, with the branches for cancelling and for things going wrong, and for each step the undo label, where focus goes and what Esc does. Card titles in blue open the screen they show.</p>
+<div class="keyrow">
+  <span><b>Place</b>: somewhere in the app</span>
+  <span><b>Decision</b>: shaded card</span>
+  <span><b>Trust check</b>: heavy outline, what the reviewer reads before going on</span>
+  <span><b>Commit</b>: one undo entry</span>
+  <span style="color:var(--k-annot-ink)"><b>Branch</b>: magenta edge, a cancel or a failure</span>
+</div>
+
+<h2 id="triage">The triage: one alert, cleared or referred</h2>
+<p>Nadia, level-1 reviewer, on the August transfers (3,000 accounts, 50 alerted).</p>
+<div class="k-flow">
+  <div class="k-flow-step"><span class="kind">Place</span><h3><a href="../screens/alert-triage.html#open">The queue</a></h3><span class="k-secondary">Rule set Alerts selected; density with 50 diamonds</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><span class="kind">Place</span><h3><a href="../screens/alert-triage.html#tuition-find">Find: the account</a></h3><span class="k-secondary">Paste, Enter; the hit is selected</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#seed-menu">Hop sizes in the menu</a></h3><span class="k-secondary">1 hop 9, 2 hops 283 and why</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#seed-hop1">Filter to neighbors, 1 hop</a></h3><span class="k-secondary">Chip: Filtered: 9 of 3,000 nodes</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><span class="kind">Place</span><h3>Edges tab, by amount</h3><span class="k-secondary">Reads what went where</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="decision"><span class="kind">Decision</span><h3>Clear it or refer it?</h3><span class="k-secondary">Reachable at any point above</span></div>
+</div>
+<p class="branch-head" style="color:var(--cm-text)">Clear</p>
+<div class="k-flow">
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3>Add note</h3><span class="k-secondary">On the step: why it is benign</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#tuition-clear">Export: scope and head count</a></h3><span class="k-secondary">The step; 6 accounts, 2 people; nothing uploaded</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3>Delete step</h3><span class="k-secondary">Leaves only the evidence file and the note</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><span class="kind">Place</span><h3>Find: the next account</h3></div>
+</div>
+<p class="branch-head" style="color:var(--cm-text)">Refer</p>
+<div class="k-flow">
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#seed-refer">Create set; Add note</a></h3><span class="k-secondary">Referred AL-40122, 9 accounts</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3>Export: set scope</h3><span class="k-secondary">9 accounts; nothing uploaded</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#next-delete">Kept and exported line</a></h3><span class="k-secondary">Under the step, in the filter steps</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3>Delete step</h3></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#next">Find; Filter to the new seed</a></h3><span class="k-secondary">Chip: Filtered: 1 of 3,000 nodes</span></div>
+</div>
+<p class="branch-head">Branches</p>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>Find has no hit</h3><span class="k-secondary">"No node ACC-... in Transfers." The account is not in this file: the reviewer checks the file chip's date range. Nothing changes.</span></div>
+  <div class="k-flow-step" data-branch><h3>Esc in the hop menu</h3><span class="k-secondary">The menu closes, nothing changes, focus returns to the caret on Neighbors.</span></div>
+  <div class="k-flow-step" data-branch><h3><a href="../screens/alert-triage.html#seed-selected">Select neighbors, chosen from the menu</a></h3><span class="k-secondary">Nine selected, the chip still reads Full graph: only the selection changed. The main press of Neighbors filters, so this is a deliberate choice. Filter to on the selection makes the step (undo label "Filter to 9 nodes").</span></div>
+  <div class="k-flow-step" data-branch><h3>Delete step with nothing kept</h3><span class="k-secondary">The step's line reads "Nothing kept or exported from this step" in caution ink. Delete still takes no confirmation; the notice offers Undo.</span></div>
+  <div class="k-flow-step" data-branch><h3>Export canceled or blocked</h3><span class="k-secondary">Cancel writes nothing. If the browser blocks the download, the dialog says "Could not export 3 files: the browser blocked the download" with Export; the kept-and-exported line does not change.</span></div>
+</div>
+
+<h2 id="case">The escalated case: over days</h2>
+<p>Sarah, level-2 investigator, from Nadia's referral to a file for the SAR.</p>
+<div class="k-flow">
+  <div class="k-flow-step"><span class="kind">Place</span><h3><a href="../screens/alert-triage.html#case-open">The referred set, with its note</a></h3></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3>Filter to the set</h3><span class="k-secondary">9 of 3,000</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#case-menu">2 hops: 283, and why</a></h3></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#case-hop2">Filter to neighbors, 2 hops</a></h3></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#case-distractor">Rule step: 9,000 to 9,999 USD</a></h3><span class="k-secondary">14 accounts</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="decision"><span class="kind">Decision</span><h3>Is every one of them in it?</h3><span class="k-secondary">Rules out the service and one lookalike</span></div>
+</div>
+<div class="k-flow">
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#case-ring">Create set; Add note</a></h3><span class="k-secondary">Ring around ACC-365386, 12</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#case-path">Shortest path, along transfers</a></h3><span class="k-secondary">5 hops; the undirected 2 stated beside it</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3>Save view</h3><span class="k-secondary">Ring, 12 accounts</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#case-export">Export: set scope, head count, gray check</a></h3><span class="k-secondary">46 accounts named; 4 files</span></div>
+</div>
+<p class="branch-head">Branches</p>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>The project file is not the data</h3><span class="k-secondary">If the escalation's project holds its data by reference and the transfer file is not on Sarah's machine, the project opens with its sets, notes and steps, and the load step asks for the file by name and checks it matches.</span></div>
+  <div class="k-flow-step" data-branch><h3>Path leaves the step</h3><span class="k-secondary">If no path exists inside the filtered graph, the bar offers Search full graph; the result says which scope it used.</span></div>
+  <div class="k-flow-step" data-branch><h3>Wider export scope chosen</h3><span class="k-secondary">Choosing the step (283) in the scope select updates the head count before the click: "283 accounts: 253 people".</span></div>
+</div>
+
+<h2 id="limit">Past the drawing limit</h2>
+<div class="k-flow">
+  <div class="k-flow-step"><span class="kind">Place</span><h3><a href="../screens/alert-triage.html#bank-open">Nothing drawn: statistics</a></h3><span class="k-secondary">1,000,000 accounts</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><span class="kind">Place</span><h3><a href="../screens/alert-triage.html#bank-narrow">Offered steps</a></h3><span class="k-secondary">None fits under the limit</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="check"><span class="kind">Trust check</span><h3><a href="../screens/alert-triage.html#bank-menu">Find; hop sizes</a></h3><span class="k-secondary">3 hops: will not be drawn</span></div><div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step" data-kind="commit"><span class="kind">Commit</span><h3><a href="../screens/alert-triage.html#bank-hop1">Filter to neighbors, 1 hop</a></h3><span class="k-secondary">It draws</span></div>
+</div>
+<p class="branch-head">Branches</p>
+<div class="k-flow">
+  <div class="k-flow-step" data-branch><h3>A hop past the limit chosen</h3><span class="k-secondary">Filter to neighbors, 3 hops is allowed and undoable: the step is made, nothing draws, the not-drawn line counts it, and the hop menu is still one click away for fewer hops or one direction.</span></div>
+</div>
+
+<h2 id="steps">Step by step: undo, focus and Esc</h2>
+<table class="steps">
+<thead><tr><th>Step</th><th>Command</th><th>Undo label (and the notice's text)</th><th>Focus after</th><th>Esc or cancel</th></tr></thead>
+<tbody>
+<tr><td>Find the account</td><td>Find: paste, Enter</td><td>no undo entry (selection)</td><td>stays in Find's field, so the next paste replaces the query</td><td>Esc closes Find; the hit stays selected and focus goes to the canvas</td></tr>
+<tr><td>Size the hops</td><td>Neighbors: its caret's menu</td><td>no undo entry</td><td>the checked hop row; arrows move through hop rows, Direction and the commands; each row's second line is read with it</td><td>closes, nothing changed, focus back on the caret</td></tr>
+<tr><td>Bound it</td><td>Filter to neighbors, N hops</td><td>"ACC-365386 and neighbors", the step's own name (notice: "Filter to neighbors, 1 hop: 9 nodes")</td><td>back on Neighbors</td><td>Undo in the notice, or Mod+Z</td></tr>
+<tr><td>Bound a selection</td><td>Filter to</td><td>"Filter to 9 nodes"</td><td>on Filter to</td><td>Mod+Z</td></tr>
+<tr><td>Keep</td><td>Create set</td><td>"Create set Referred AL-40122"</td><td>the new row, in rename; Enter keeps the name</td><td>Esc keeps the default name</td></tr>
+<tr><td>Write why</td><td>Add note</td><td>"Add note" once text is committed</td><td>in the note's text</td><td>Esc with text adds the note and closes the editor (a paragraph is not cheap to retype); empty, it leaves nothing</td></tr>
+<tr><td>Evidence</td><td>Export...</td><td>no undo entry (a file write)</td><td>back on Export...; the notice "Exported 3 files" is announced politely</td><td>Cancel or Esc writes nothing</td></tr>
+<tr><td>Replace</td><td>Delete step</td><td>"Delete step ACC-365386 and neighbors"</td><td>the next step's row, or the chip when none is left</td><td>Undo in the notice</td></tr>
+<tr><td>Next seed</td><td>Find; Filter to</td><td>"Filter to ACC-492465"</td><td>on Filter to</td><td>Mod+Z</td></tr>
+<tr><td>Narrow by amount</td><td>New filter step (rule)</td><td>"Filter to Transfers of 9,000 to 9,999 USD"</td><td>the new step's row</td><td>the back row returns to the step list, nothing made</td></tr>
+<tr><td>Follow the money</td><td>Path tool: From, To, Run</td><td>"Shortest path ACC-365386 to ACC-580664"</td><td>the found path's type row</td><td>Esc before a run disarms the tool; focus returns to the control that armed it</td></tr>
+<tr><td>Figure for the file</td><td>Save view</td><td>"Save view Ring, 12 accounts"</td><td>the new view row, in rename</td><td>Esc keeps the default name</td></tr>
+</tbody>
+</table>
+<p class="k-secondary">Keyboard route for the case, without a mouse: Find picks From and To in the Path tool as well as the seed; = and - zoom the canvas (Ctrl with them stays the browser's page zoom); the table's arrows move rows and Space selects.</p>
+<p class="k-secondary">Step count for keeping one boundary and starting the next: Create set, Add note, Delete step, Find, the hit, Filter to -- 6 steps, as the next-seed task flow counts them. Its budget is 3, so the proposed single command that keeps the boundary and starts the next is what the study measures against.</p>
+</div>
+</body>
+</html>

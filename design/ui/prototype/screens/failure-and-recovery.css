@@ -1,0 +1,107 @@
+/* Page frame and the few pieces the kit lacks, for the screens behind
+   storyboards/failure-and-recovery.html (built by failure-and-recovery.gen.mjs). Plain ASCII. */
+
+/* ---------- the page: stacked, labelled states ---------- */
+.fr-bar { position: sticky; top: 0; z-index: 300; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); font-size: 12px; }
+.fr-bar a { color: var(--cm-text-brand); }
+.fr-bar input { vertical-align: -2px; margin: 0 2px 0 6px; }
+.fr-sep { flex: 1; }
+.fr-lede { max-width: 90ch; margin: 16px; font-size: 13px; line-height: 20px; color: var(--cm-text-secondary); }
+.fr-state { padding: 16px 16px 24px; }
+.fr-label { margin: 0 0 4px; font-size: 15px; line-height: 24px; font-weight: 600; }
+.fr-sub { max-width: 1440px; margin: 0 0 8px; font-size: 13px; line-height: 20px; color: var(--cm-text-secondary); }
+/* The transform makes fixed overlays (the modal backdrop) belong to this screen. */
+.fr-screen { position: relative; width: 1440px; height: 900px; overflow: hidden; box-shadow: 0 0 0 1px var(--cm-border); transform: translateZ(0); background: var(--cm-bg); }
+.fr-screen > .k-app { width: 1440px; height: 900px; }
+.fr-abs { position: absolute; z-index: 80; }
+.fr-ann { display: none; }
+body:has(#fr-ann:checked) .fr-ann { display: block; }
+
+/* A storyboard frame loads one state: page.html#c2 shows that screen alone, unannotated. */
+body:has(.fr-state:target) .fr-bar,
+body:has(.fr-state:target) .fr-lede,
+body:has(.fr-state:target) .fr-label,
+body:has(.fr-state:target) .fr-sub,
+body:has(.fr-state:target) .fr-state:not(:target) { display: none; }
+body:has(.fr-state:target) .fr-state { padding: 0; }
+body:has(.fr-state:target) .fr-screen { box-shadow: none; }
+
+/* Theme switch without script: color-scheme drives every light-dark() token. */
+:root:has(#fr-th-dark:checked) { color-scheme: dark; }
+:root:has(#fr-th-light:checked) { color-scheme: light; }
+:root:has(#fr-th-dark:checked) .k-dark-only, :root:has(#fr-th-light:checked) .k-light-only { display: revert !important; }
+:root:has(#fr-th-dark:checked) .k-light-only, :root:has(#fr-th-light:checked) .k-dark-only { display: none !important; }
+
+/* ---------- a result row (compact-mantine ActionRow) ---------- */
+.fr-res { position: relative; padding: 4px 8px 4px 16px; }
+.fr-res[aria-selected="true"] { background: var(--cm-bg-selected); }
+.fr-res[data-hover] { background: var(--cm-bg-hover); }
+.fr-res-line { display: flex; align-items: center; gap: 8px; height: 24px; }
+.fr-res-sub { display: flex; align-items: center; gap: 6px; min-height: 24px; padding-inline-start: 24px; color: var(--cm-text-secondary); }
+.fr-indent { padding: 0 8px 4px 40px; }
+.fr-reading { color: var(--cm-text-secondary); }
+.fr-state-word { display: inline-flex; align-items: center; gap: 4px; color: var(--cm-text); }
+.fr-state-word.k-danger { color: var(--cm-text-danger); }
+.fr-prog { width: 56px; }
+.fr-variant { color: var(--cm-text-secondary); text-decoration: underline dotted; text-underline-offset: 3px; }
+.fr-mark { color: var(--cm-text-secondary); padding-inline-end: 4px; }
+.fr-focus { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; border-radius: 5px; }
+.fr-family { height: 24px; padding: 0 16px; display: flex; align-items: center; color: var(--cm-text-secondary); font-size: var(--k-caption-fs); font-weight: 500; letter-spacing: 0.055px; }
+.fr-weight-row[aria-selected="true"] { background: var(--cm-bg-selected); }
+.fr-mini-head { height: 28px; padding: 8px 16px 0; font-weight: 550; }
+.fr-hot { position: relative; }
+
+/* ---------- the load step's role question ---------- */
+.fr-q { margin: 8px 16px 0; padding: 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.fr-q-head { display: flex; gap: 12px; align-items: baseline; }
+.fr-hist { height: 40px; margin: 8px 0; }
+.fr-q-ask { margin: 8px 0 4px; font-size: 13px; line-height: 20px; font-weight: 550; }
+.fr-q-ask .k-secondary { display: block; font-size: 11px; line-height: 16px; font-weight: 450; }
+.fr-radio { display: grid; grid-template-columns: 16px 168px 1fr; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border-radius: 5px; }
+.fr-radio[aria-checked="true"] { background: var(--cm-bg-selected); }
+.fr-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
+.fr-radio[aria-checked="true"] .fr-dot { box-shadow: inset 0 0 0 4px var(--cm-bg-brand); }
+
+/* ---------- the error slot ---------- */
+.fr-error { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 4px 16px 8px; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); box-shadow: inset 3px 0 0 var(--cm-border-danger-strong); }
+.fr-error b { font-weight: 550; }
+
+/* ---------- selection over the cap: one hull in the selection bands, with a count ---------- */
+:root { --fr-band-out: var(--k-mark-out); --fr-band-in: var(--k-mark-in); }
+.fr-hull { position: absolute; inset: 0; width: 100%; height: 100%; }
+.fr-badge { position: absolute; transform: translate(-50%, -50%); padding: 2px 8px; border-radius: 10px; background: var(--fr-band-out); color: var(--fr-band-in); font-weight: 550; }
+
+/* ---------- the Results rail button's count (figma-crosswalk 4.1, the badged update button) ---------- */
+.k-rail-pill { position: relative; }
+
+/* ---------- a value bound to the graph's column, with hover Detach ---------- */
+.fr-bound { gap: 6px; }
+.fr-bound .k-pill { color: var(--cm-text); }
+.fr-danger { color: var(--cm-text-danger); }
+
+/* ---------- a filter step's counts ---------- */
+.fr-step .k-trail { display: inline-flex; gap: 10px; }
+.fr-left { min-width: 20px; text-align: right; }
+
+/* ---------- the refused run's routes ---------- */
+.fr-routes { padding: 0 0 8px; }
+.fr-sub-head { height: 24px; padding: 4px 16px 0; color: var(--cm-text-secondary); font-size: 11px; }
+.fr-route { gap: 8px; padding-block: 4px; }
+.fr-route .k-secondary { white-space: nowrap; flex: none; }
+.fr-route[aria-selected="true"] { background: var(--cm-bg-selected); }
+
+/* ---------- the run's weight question ---------- */
+.fr-ask { color: var(--cm-text); font-weight: 550; }
+
+/* ---------- the Results rail place (as screens/navigation.html draws it): the run list and a run's record ---------- */
+.fr-title { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--cm-border); font-weight: 550; }
+.fr-cap { padding: 0 8px 4px 16px; font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); }
+.k-scroll > .fr-cap:first-child { padding-top: 8px; }
+.fr-run { display: grid; grid-template-columns: 16px 1fr; gap: 0 8px; align-items: baseline; padding: 6px 8px 6px 16px; }
+.fr-run:hover, .fr-run[data-hover] { background: var(--cm-bg-hover); }
+.fr-run > .k-i { align-self: center; }
+.fr-run-sub { grid-column: 2; color: var(--cm-text-secondary); font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); }
+.fr-run-acts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.fr-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 8px 8px 16px; }
+.fr-error .k-btn { margin-top: 2px; }
+.fr-error.fr-refused { box-shadow: inset 3px 0 0 var(--cm-border-strong); } /* a refusal is not a failure: no danger mark */

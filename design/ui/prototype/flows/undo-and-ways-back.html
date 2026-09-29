@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undo and the other ways back</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .f-lane { margin: 0 0 32px; }
+  .f-lane > h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .f-sub { margin: 8px 0 0 48px; }
+  .f-sub::before { content: attr(data-then); display: block; color: var(--cm-text-secondary); font-size: 12px; margin-bottom: 4px; }
+  .k-flow-step p { margin: 0; max-width: none; }
+  .k-flow-step p + p { margin-top: 4px; }
+  .k-flow-step .k-mono { font-size: 12px; }
+  .k-flow-step a { font-size: 12px; }
+  .f-loss { color: var(--k-annot-ink); font-weight: 600; }
+  .f-kind { display: block; font-size: 11px; color: var(--cm-text-secondary); letter-spacing: .06em; margin-bottom: 2px; }
+  .f-kind b { color: var(--cm-text-brand, var(--cm-bg-brand)); }
+  .f-good { box-shadow: inset 0 0 0 1px var(--cm-border), inset 5px 0 0 var(--cm-bg-brand) !important; }
+  .f-off { box-shadow: inset 0 0 0 1px var(--cm-border), inset 5px 0 0 var(--cm-border-strong) !important; }
+  .f-lossbar { box-shadow: inset 0 0 0 1px var(--cm-border), inset 5px 0 0 var(--k-annot) !important; }
+  .f-chip { display: inline-block; padding: 0 8px; border-radius: 10px; background: var(--cm-bg-secondary); color: var(--cm-text); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; }
+  .f-key { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 8px 0 16px; color: var(--cm-text-secondary); }
+  .f-key span { display: inline-flex; align-items: center; gap: 8px; }
+  .f-key span::before { content: ""; display: inline-block; width: 28px; height: 20px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+  .f-key .f-k-good::before { box-shadow: inset 0 0 0 1px var(--cm-border), inset 5px 0 0 var(--cm-bg-brand); }
+  .f-key .f-k-off::before { box-shadow: inset 0 0 0 1px var(--cm-border), inset 5px 0 0 var(--cm-border-strong); }
+  .f-key .f-k-loss::before { box-shadow: inset 0 0 0 1px var(--cm-border), inset 5px 0 0 var(--k-annot); }
+  .f-needs { font-size: 11px; font-weight: 500; padding: 0 8px; line-height: 20px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--cm-border); color: var(--cm-text-secondary); }
+  .f-board { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .f-decide { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 24px; }
+  .f-decide-top { grid-column: 1 / -1; justify-self: center; max-width: 480px; text-align: center; }
+  .f-decide-top::after { content: "\2193  by what the analyst wants"; display: block; margin-top: 8px; color: var(--cm-text-secondary); font-size: 12px; }
+  .f-decide a { text-decoration: none; color: inherit; }
+  .f-decide .k-flow-step { height: 100%; box-sizing: border-box; }
+  @media (max-width: 900px) { .f-decide { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .f-decide { grid-template-columns: 1fr; } .f-sub { margin-left: 16px; } }
+  /* Numbered frames of the main walk: a small sketch of what is on screen, then the words. */
+  .f-sketches { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 8px 0 24px; }
+  .f-sketch { margin: 0; padding: 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); background: var(--cm-bg-secondary); display: flex; flex-direction: column; gap: 8px; }
+  .f-sketch .k-popover, .f-sketch .k-menu { position: static; }
+  .f-sketch .k-popover { width: 100%; max-width: none; box-sizing: border-box; }
+  .f-sketch .k-kind { white-space: nowrap; }
+  .f-sketch .k-toast { position: static; white-space: normal; max-width: 100%; box-sizing: border-box; align-self: flex-start; padding-top: 8px; padding-bottom: 8px; }
+  .f-sketch .k-toast-action { white-space: nowrap; }
+  .f-sketch figcaption { font-size: 12px; color: var(--cm-text-secondary); }
+  .f-sketch figcaption b { color: var(--cm-text); }
+  .f-sketch figcaption p { margin: 4px 0 0; max-width: none; }
+  .f-sketch .f-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--cm-text); }
+  .f-sketch .k-item[data-off] .k-kind, .f-sketch .k-item[data-off] .k-mono, .f-sketch .k-item[data-off] .k-trail { color: var(--cm-text-tertiary); }
+  .f-sketch .k-trail { font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .f-stat { font-size: 12px; color: var(--cm-text); font-variant-numeric: tabular-nums; }
+  .f-stat span { color: var(--cm-text-secondary); }
+  .f-map { width: 100%; height: auto; max-width: 1010px; display: block; margin: 8px 0 8px; color: var(--cm-text-secondary); }
+  .f-map .n { fill: var(--cm-bg); stroke: var(--cm-border-strong); stroke-width: 1; }
+  .f-map .n-start { stroke: var(--cm-bg-brand); stroke-width: 2.5; }
+  .f-map .n-goal { stroke: var(--cm-bg-brand); stroke-width: 1.5; }
+  .f-map .n-loss { stroke: var(--k-annot); stroke-width: 2; stroke-dasharray: 5 3; }
+  .f-map .t1 { fill: var(--cm-text); font: 600 13px var(--cm-font-family, sans-serif); font-variant-numeric: tabular-nums; }
+  .f-map .t2 { fill: var(--cm-text-secondary); font: 400 11px var(--cm-font-family, sans-serif); }
+  .f-map .e { fill: none; stroke: currentColor; stroke-width: 1.4; }
+  .f-map .e-loss { fill: none; stroke: var(--k-annot); stroke-width: 1.6; stroke-dasharray: 5 3; }
+  .f-map .e-good { fill: none; stroke: var(--cm-bg-brand); stroke-width: 1.8; }
+  .f-map .l { fill: var(--cm-text); font: 400 11px var(--cm-font-family, sans-serif); }
+  .f-map .l-loss { fill: var(--k-annot-ink); font: 600 11px var(--cm-font-family, sans-serif); }
+  .f-map .l-bg { fill: var(--cm-bg); }
+  .f-map-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <p><a href="../index.html">graphty design gallery</a></p>
+  <h1>Undo and the other ways back</h1>
+  <p class="k-lede">An analyst has narrowed Les Miserables (<span data-fx="datasets.lesmis.nodes">77</span> characters) in three filter steps. The middle one was a mistake; the other two are work to keep. A stray click has also cleared the <span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> characters they had picked out. In graphty, <b>Undo never deletes a filter step: it unticks it</b>, and the row stays in the steps list. So Undo pressed once too often costs a tick, not a step, and every good step is one checkbox away. This flow shows that model end to end, then the other ways back -- turning a step off directly, deleting a step, and Ctrl+Z bringing back a cleared selection -- and the one place a step can still be lost.</p>
+
+  <h2>Where it starts</h2>
+  <p>The filter chip under the project name reads <span class="f-chip">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 3 steps</span>. Its list of filter steps shows them in the order they apply, each row saying what it took out and what is left:</p>
+  <table>
+    <thead><tr><th>Step</th><th>Rule</th><th>The row reads</th><th>The analyst meant it?</th></tr></thead>
+    <tbody>
+      <tr><td>1. Filter to</td><td class="k-mono">degree &gt;= 2</td><td>took out <span data-fx="datasets.lesmis.filterSteps.took.step1">17</span> &middot; <span data-fx="datasets.lesmis.filterSteps.after.step1">60</span> left</td><td>Yes: drop the characters with a single tie</td></tr>
+      <tr><td>2. Filter to</td><td class="k-mono">degree &gt;= 5</td><td>took out <span data-fx="datasets.lesmis.filterSteps.took.step2">20</span> &middot; <span data-fx="datasets.lesmis.filterSteps.after.step2">40</span> left</td><td><span class="f-loss">No: it cut too deep</span></td></tr>
+      <tr><td>3. Filter out</td><td class="k-mono">group 8</td><td>took out <span data-fx="datasets.lesmis.filterSteps.took.step3">13</span> &middot; <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> left</td><td>Yes: the barricade students, out on purpose</td></tr>
+    </tbody>
+  </table>
+  <p>The goal is steps 1 and 3 on and step 2 off: <b><span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span>, 2 of 3 steps</b>, and the <span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> characters selected again. The clickable screen is <a href="../screens/undo.html#s3">Undo and ways back</a>; it opens in exactly this state.</p>
+
+  <h2>The model, in four rules</h2>
+  <ol>
+    <li><b>Undoing a step unticks it.</b> The row stays in the list, off, with "--" for its count. Only Delete step removes a row.</li>
+    <li><b>Every undo and redo of a filter step shows one line</b> in the notice area: <span class="k-mono">Undone: Filter out group 8</span> with the action <b>Show in steps</b> (<span class="k-mono">Redone: ...</span> for Redo). It is announced politely and never takes focus. It stays until the next change, never on a timer, and Undos in a row add to it, so a second Undo names both steps instead of replacing the first line unread. It shows whether or not the filter chip is in view, because a filter step changes counts, not the look of the canvas.</li>
+    <li><b>Ticking a step on or off is an ordinary change.</b> It goes on the undo list and clears Redo like any change. Nothing is lost when it does, because the rows are still there.</li>
+    <li><b>Every count says what it was counted on</b> while a step is on: Statistics reads <span class="k-mono">Components <span data-fx="datasets.lesmis.filterSteps.step2OffStats.components">3</span>, on: filtered graph</span>. The count explains the loose characters on the canvas by itself; no step is explained by another step.</li>
+  </ol>
+
+  <h2>Why it changed</h2>
+  <p>In the second round of the study this was the most severe finding, seen in seven sessions. Participants pressed Ctrl+Z by reflex, which removed the good last step from the list with no message; only the chip's count changed. One then unticked the wrong step, which cleared Redo, and the good step was gone from the list, Redo and Undo history ("That's me reconstructing my own work from a legend."). Six of the seven roles in the focus group arrived at the same rule: undo unticks, it never deletes. What worked is kept: unticking the wrong step directly, Ctrl+Y for Redo off macOS, Undo history saying how far each entry goes. In the fourth round every analyst who lost a selection pressed Ctrl+Z first, so Ctrl+Z now brings a cleared selection back, and the separate Previous selection command is gone.</p>
+
+  <h2>The map</h2>
+  <p>Each box is a state of the graph, named by what the chip says. Arrows are what the analyst does. Blue arrows reach the goal; the dashed magenta box is the only state where a step is gone for good. Every other box has all three rows in the list.</p>
+  <div class="f-map-wrap">
+  <svg class="f-map" viewBox="0 0 1010 420" role="img" aria-labelledby="map-t map-d">
+    <title id="map-t">The states of the filter steps and the commands between them</title>
+    <desc id="map-d">From the start, 3 steps on: Undo unticks group 8, and Undo again unticks the degree step; Redo goes back the same way; all three rows stay in the list throughout. From two undos, Show in steps and ticking group 8 back on reaches the goal, the degree step off with 2 of 3 steps on. From the start, unticking the degree step reaches the same goal in one change. Deleting the degree step from the goal removes its row; Undo brings it back; if the tab closes first, it is gone for good.</desc>
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+      <marker id="ah-loss" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--k-annot)"/></marker>
+      <marker id="ah-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--cm-bg-brand)"/></marker>
+    </defs>
+
+    <!-- untick directly: start to goal -->
+    <path class="e-good" d="M115 150 C 115 40, 895 40, 895 148" marker-end="url(#ah-good)"/>
+    <rect class="l-bg" x="330" y="34" width="350" height="18"/>
+    <text class="l" x="505" y="47" text-anchor="middle">Filter steps: untick the degree step (one change)</text>
+
+    <!-- nodes -->
+    <rect class="n n-start" x="20" y="150" width="190" height="76" rx="8"/>
+    <text class="t1" x="34" y="176"><tspan data-fx="datasets.lesmis.filterSteps.after.step3">27</tspan> of 77 &#183; 3 steps</text>
+    <text class="t2" x="34" y="194">Start: the middle step is</text>
+    <text class="t2" x="34" y="209">the wrong one.</text>
+
+    <rect class="n" x="280" y="150" width="190" height="76" rx="8"/>
+    <text class="t1" x="294" y="176"><tspan data-fx="datasets.lesmis.filterSteps.after.step2">40</tspan> of 77 &#183; 2 of 3</text>
+    <text class="t2" x="294" y="194">Group 8 unticked, still in</text>
+    <text class="t2" x="294" y="209">the list.</text>
+
+    <rect class="n" x="540" y="150" width="190" height="76" rx="8"/>
+    <text class="t1" x="554" y="176"><tspan data-fx="datasets.lesmis.filterSteps.after.step1">60</tspan> of 77 &#183; 1 of 3</text>
+    <text class="t2" x="554" y="194">The degree step unticked</text>
+    <text class="t2" x="554" y="209">too. Both rows still listed.</text>
+
+    <rect class="n n-goal" x="800" y="150" width="190" height="76" rx="8"/>
+    <text class="t1" x="814" y="176"><tspan data-fx="datasets.lesmis.filterSteps.after.step2Off">47</tspan> of 77 &#183; 2 of 3</text>
+    <text class="t2" x="814" y="194">The goal: degree step off,</text>
+    <text class="t2" x="814" y="209">group 8 on.</text>
+
+    <rect class="n n-goal" x="800" y="316" width="190" height="76" rx="8"/>
+    <text class="t1" x="814" y="342"><tspan data-fx="datasets.lesmis.filterSteps.after.step2Off">47</tspan> of 77 &#183; 2 steps</text>
+    <text class="t2" x="814" y="360">Degree step deleted; its</text>
+    <text class="t2" x="814" y="375">row is gone.</text>
+
+    <rect class="n n-loss" x="540" y="316" width="190" height="76" rx="8"/>
+    <text class="t1" x="554" y="342">Tab closed</text>
+    <text class="t2" x="554" y="360">A deleted step cannot come</text>
+    <text class="t2" x="554" y="375">back. The only real loss.</text>
+
+    <!-- Undo / Redo along the top row -->
+    <path class="e" d="M210 172 L 278 172" marker-end="url(#ah)"/>
+    <text class="l" x="244" y="165" text-anchor="middle">Undo</text>
+    <path class="e" d="M278 204 L 212 204" marker-end="url(#ah)"/>
+    <text class="l" x="244" y="220" text-anchor="middle">Redo</text>
+    <path class="e" d="M470 172 L 538 172" marker-end="url(#ah)"/>
+    <text class="l" x="504" y="165" text-anchor="middle">Undo</text>
+    <path class="e" d="M538 204 L 472 204" marker-end="url(#ah)"/>
+    <text class="l" x="504" y="220" text-anchor="middle">Redo</text>
+
+    <!-- two undos to goal -->
+    <path class="e-good" d="M730 188 L 798 188" marker-end="url(#ah-good)"/>
+    <text class="l" x="764" y="172" text-anchor="middle">Show in</text>
+    <text class="l" x="764" y="184" text-anchor="middle">steps,</text>
+    <text class="l" x="764" y="204" text-anchor="middle">tick</text>
+    <text class="l" x="764" y="216" text-anchor="middle">group 8</text>
+
+    <!-- one undo to goal: two ticks -->
+    <path class="e-good" d="M375 226 C 375 290, 700 290, 840 228" marker-end="url(#ah-good)"/>
+    <rect class="l-bg" x="420" y="268" width="250" height="18"/>
+    <text class="l" x="545" y="281" text-anchor="middle">Show in steps, tick group 8, untick degree</text>
+
+    <!-- delete and its undo -->
+    <path class="e" d="M870 226 L 870 314" marker-end="url(#ah)"/>
+    <text class="l" x="862" y="275" text-anchor="end">Delete step</text>
+    <path class="e" d="M920 314 L 920 228" marker-end="url(#ah)"/>
+    <text class="l" x="928" y="275">Undo</text>
+
+    <!-- tab closes -->
+    <path class="e-loss" d="M800 354 L 732 354" marker-end="url(#ah-loss)"/>
+    <text class="l-loss" x="766" y="346" text-anchor="middle">tab</text>
+    <text class="l-loss" x="766" y="372" text-anchor="middle">closes</text>
+  </svg>
+  </div>
+
+  <h2>The main walk: Undo reaches the middle step, and a tick brings the good one back</h2>
+  <p>The route most people take, because Ctrl+Z is the reflex from spreadsheets and documents. Six frames, from the start to the goal.</p>
+  <div class="f-sketches">
+    <figure class="f-sketch">
+      <div class="f-head"><span class="k-step">1</span><span class="f-chip">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 3 steps</span></div>
+      <figcaption><b>The start.</b> The left panel is open; the chip is under the project name. The analyst sees the numbers are off and does not yet know which step is wrong.
+        <p>Thinks: "Something I did made this wrong. Undo."</p>
+        <p><a href="../screens/undo.html#s3">Screen: the start</a></p></figcaption>
+    </figure>
+    <figure class="f-sketch">
+      <div class="f-head"><span class="k-step">2</span><span class="f-chip"><span data-fx="datasets.lesmis.filterSteps.after.step2">40</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 2 of 3 steps</span></div>
+      <div class="k-toast" role="status">Undone: Filter out group 8<span class="k-toast-action">Show in steps</span></div>
+      <figcaption><b>Ctrl+Z (Cmd+Z on a Mac).</b> Group 8 is unticked, not removed. The barricade students (Gavroche, Marius, Enjolras) come back on the canvas, and the line names the step. Screen readers hear the same words.
+        <p>Thinks: "That was the good one. Again, then."</p>
+        <p><a href="../screens/undo.html#s2">Screen: after one Undo</a></p></figcaption>
+    </figure>
+    <figure class="f-sketch">
+      <div class="f-head"><span class="k-step">3</span><span class="f-chip"><span data-fx="datasets.lesmis.filterSteps.after.step1">60</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 1 of 3 steps</span></div>
+      <div class="k-toast" role="status">Undone: Filter out group 8 and Filter to degree &gt;= 5<span class="k-toast-action">Show in steps</span></div>
+      <figcaption><b>Ctrl+Z again: the middle step.</b> The wrong step is now off. The same line now names both steps, the good one first, so the first press is not lost under the second. Group 8 is off with it, but still in the list. This used to be where a good step was lost; now it is one tick from the goal. Edit &gt; Redo reads <span class="k-mono">Redo Filter to degree &gt;= 5</span>.
+        <p>Thinks: "That's the one. Where did group 8 go?"</p>
+        <p><a href="../screens/undo.html#s1">Screen: after two Undos</a></p></figcaption>
+    </figure>
+    <figure class="f-sketch">
+      <div class="f-head"><span class="k-step">4</span>Steps list, opened from the line</div>
+      <div class="k-popover">
+        <div class="k-popover-head">Filter steps<span class="k-grow"></span></div>
+        <div class="k-popover-body"><ul class="k-list">
+          <li class="k-item"><span class="k-check" role="checkbox" aria-checked="true" aria-label="Filter to degree &gt;= 2"></span><span class="k-kind">Filter to</span><span class="k-ellipsis k-mono">degree &gt;= 2</span><span class="k-trail">took out <span data-fx="datasets.lesmis.filterSteps.took.step1">17</span> &middot; <span data-fx="datasets.lesmis.filterSteps.after.step1">60</span> left</span></li>
+          <li class="k-item" data-off aria-selected="true"><span class="k-check" role="checkbox" aria-checked="false" aria-label="Filter to degree &gt;= 5"></span><span class="k-kind">Filter to</span><span class="k-ellipsis k-mono">degree &gt;= 5</span><span class="k-trail">--</span></li>
+          <li class="k-item" data-off aria-selected="true" data-focus-ring><span class="k-check" role="checkbox" aria-checked="false" aria-label="Filter out group 8"></span><span class="k-kind">Filter out</span><span class="k-ellipsis k-mono">group 8</span><span class="k-trail">--</span></li>
+        </ul></div>
+      </div>
+      <figcaption><b>Show in steps.</b> A click on the action, or Tab into the notice and Enter. The steps list opens under the chip with focus on the first row the line names, group 8, and both rows it names are marked until the list closes. All three rows are there; two are off.
+        <p>Thinks: "Oh -- it's all still here."</p>
+        <p><a href="../screens/undo.html#s1&amp;pop">Screen: the list after two Undos</a></p></figcaption>
+    </figure>
+    <figure class="f-sketch">
+      <div class="f-head"><span class="k-step">5</span>Steps list, group 8 back on</div>
+      <div class="k-popover">
+        <div class="k-popover-head">Filter steps<span class="k-grow"></span></div>
+        <div class="k-popover-body"><ul class="k-list">
+          <li class="k-item"><span class="k-check" role="checkbox" aria-checked="true" aria-label="Filter to degree &gt;= 2"></span><span class="k-kind">Filter to</span><span class="k-ellipsis k-mono">degree &gt;= 2</span><span class="k-trail">took out <span data-fx="datasets.lesmis.filterSteps.took.step1">17</span> &middot; <span data-fx="datasets.lesmis.filterSteps.after.step1">60</span> left</span></li>
+          <li class="k-item" data-off><span class="k-check" role="checkbox" aria-checked="false" aria-label="Filter to degree &gt;= 5"></span><span class="k-kind">Filter to</span><span class="k-ellipsis k-mono">degree &gt;= 5</span><span class="k-trail">--</span></li>
+          <li class="k-item" data-focus-ring><span class="k-check" role="checkbox" aria-checked="true" aria-label="Filter out group 8"></span><span class="k-kind">Filter out</span><span class="k-ellipsis k-mono">group 8</span><span class="k-trail">took out <span data-fx="datasets.lesmis.filterSteps.took.step3WithStep2Off">13</span> &middot; <span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> left</span></li>
+        </ul></div>
+      </div>
+      <figcaption><b>Space: group 8 ticked back on.</b> Or a click on its checkbox. One undo step, <span class="k-mono">Turn on step Filter out group 8</span>. It clears Redo, and nothing is lost: the degree step's row is right there, off, as wanted.
+        <p><a href="../screens/undo.html#off&amp;pop">Screen: the goal, list open</a></p></figcaption>
+    </figure>
+    <figure class="f-sketch">
+      <div class="f-head"><span class="k-step">6</span><span class="f-chip">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 2 of 3 steps</span></div>
+      <div class="f-stat">Nodes <span data-fx="datasets.lesmis.filterSteps.step2OffStats.nodes">47</span><span>, on: filtered graph</span></div>
+      <div class="f-stat">Components <span data-fx="datasets.lesmis.filterSteps.step2OffStats.components">3</span><span>, on: filtered graph</span></div>
+      <figcaption><b>The goal.</b> Esc closes the list and returns focus to the chip. With group 8 out and the degree cut gone, a few characters sit apart from the rest; Statistics counts them as <span data-fx="datasets.lesmis.filterSteps.step2OffStats.components">3</span> components and says on what, so nobody doubts the fix. Then the selection: lane D below.
+        <p>Thinks: "Untick, done, and it kept the rest."</p>
+        <p><a href="../screens/undo.html#off">Screen: the goal</a></p></figcaption>
+    </figure>
+  </div>
+
+  <h2>The flow, by intent</h2>
+  <div class="f-key"><span>a place or a state</span><span class="f-k-good">reaches the goal</span><span class="f-k-off">a good step is off, still in the list: one tick back</span><span class="f-k-loss">a step is gone for good</span></div>
+
+  <div class="f-decide">
+    <div class="k-flow-step f-decide-top"><span class="f-kind">Start</span><h3>Wants something back</h3><p><span class="f-chip">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 3 steps</span>; the <span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> selected characters were just cleared by a stray click.</p></div>
+    <a href="#lane-a"><div class="k-flow-step"><span class="f-kind">A</span><h3>"Something is wrong -- Ctrl+Z."</h3><p>Undo, the line, the list, a tick.</p></div></a>
+    <a href="#lane-b"><div class="k-flow-step"><span class="f-kind">B</span><h3>"A step in the middle was wrong."</h3><p>Filter steps: untick it, or delete it.</p></div></a>
+    <a href="#lane-c"><div class="k-flow-step"><span class="f-kind">C</span><h3>"The last step was wrong."</h3><p>Undo, once.</p></div></a>
+    <a href="#lane-d"><div class="k-flow-step"><span class="f-kind">D</span><h3>"I lost my selection."</h3><p>Ctrl+Z, before anything else changes.</p></div></a>
+  </div>
+
+  <!-- Lane A -->
+  <div class="f-lane" id="lane-a">
+    <h3><span class="k-step">A</span>"Something is wrong -- Ctrl+Z." The main walk above, with its branches. <span class="f-needs">Needs ordered filter steps, and undo that unticks</span></h3>
+    <div class="k-flow">
+      <div class="k-flow-step f-off"><span class="f-kind">Command</span><h3>Undo</h3><p>Ctrl+Z, Cmd+Z, or Edit &gt; <span class="k-mono">Undo Filter out group 8</span>. Group 8 unticks.</p><p class="k-mono">Undone: Filter out group 8 Show in steps</p><a href="../screens/undo.html#s2">Screen: after one Undo</a></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step f-off"><span class="f-kind">Command</span><h3>Undo again</h3><p>The degree step unticks. <span class="f-chip"><span data-fx="datasets.lesmis.filterSteps.after.step1">60</span> of <span data-fx="datasets.lesmis.nodes">77</span> &middot; 1 of 3 steps</span></p><p class="k-mono">Undone: Filter out group 8 and Filter to degree &gt;= 5 Show in steps</p><a href="../screens/undo.html#s1">Screen: after two Undos</a></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step"><span class="f-kind">Place</span><h3>Show in steps</h3><p>The list opens with focus on group 8's row, the first the line names. Both undone rows are there, off, and marked.</p><a href="../screens/undo.html#s1&amp;pop">Screen: the list</a></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step f-good"><span class="f-kind">Command -- <b>reaches the goal</b></span><h3>Tick group 8</h3><p>Space. <span class="f-chip"><span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span> &middot; 2 of 3 steps</span>. Redo is cleared; nothing is lost.</p><a href="../screens/undo.html#off">Screen: the goal</a></div>
+    </div>
+
+    <div class="f-sub" data-then="or, after only one Undo">
+      <div class="k-flow">
+        <div class="k-flow-step"><span class="f-kind">Place</span><h3>Show in steps</h3><p>Focus on group 8's row, off; the degree step is still on above it. The row counts name the wrong step: took out <span data-fx="datasets.lesmis.filterSteps.took.step2">20</span>.</p><a href="../screens/undo.html#s2&amp;pop">Screen: the list after one Undo</a></div>
+        <div class="k-flow-arrow">&rarr;</div>
+        <div class="k-flow-step f-good"><span class="f-kind">Commands -- <b>reach the goal</b></span><h3>Tick group 8, untick the degree step</h3><p>Space, Up, Space: two undo steps. The order does not matter. The same goal.</p></div>
+      </div>
+    </div>
+
+    <div class="f-sub" data-then="or, without opening the list">
+      <div class="k-flow">
+        <div class="k-flow-step"><span class="f-kind">Command</span><h3>Redo twice</h3><p>Ctrl+Y or Ctrl+Shift+Z (Cmd+Shift+Z on a Mac). Back to the start, each redo with its <span class="k-mono">Redone: ...</span> line. Then lane B.</p><a href="#lane-b">Go to lane B</a></div>
+      </div>
+    </div>
+
+    <div class="f-sub" data-then="branches and edges">
+      <div class="k-flow">
+        <div class="k-flow-step f-off" data-branch><span class="f-kind">Edge</span><h3>The line goes at the next change</h3><p>A tick, a delete, a selection change or Show in steps ends it; a camera move, a hover or opening a menu does not, and it never times out. Once it is gone nothing is lost: the chip still opens the same list, and every row is in it. The line is a shortcut, never the only way.</p></div>
+        <div class="k-flow-step f-off" data-branch><span class="f-kind">Edge</span><h3>Undo pressed a third time</h3><p>Unticks degree &gt;= 2 too: <span class="f-chip">Full graph &middot; 0 of 3 steps</span>, <span data-fx="datasets.lesmis.nodes">77</span> nodes. Still all three rows; tick the two good ones.</p></div>
+        <div class="k-flow-step f-off" data-branch><span class="f-kind">Edge</span><h3>Undo history</h3><p>Edit &gt; Undo history, <span class="k-mono">Filter to degree &gt;= 5</span>: the same state as two Undos. No entry says "back to here"; to take out one filter step, delete it on the filter chip. Recovered the same way.</p><a href="../screens/undo.html#s3&amp;menu&amp;hist">Screen: Undo history</a></div>
+        <div class="k-flow-step" data-branch><span class="f-kind">Edge</span><h3>Left panel closed</h3><p>The same line. Show in steps opens the left panel, then the list, with the same focus.</p><a href="../screens/undo.html#s2&amp;closed">Screen: panel closed</a></div>
+        <div class="k-flow-step" data-branch><span class="f-kind">Edge</span><h3>Redo after the tick</h3><p>Edit &gt; Redo reads <span class="k-mono">Redo</span> and is disabled; the keys do nothing. Undo takes back the tick.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lane B -->
+  <div class="f-lane" id="lane-b">
+    <h3><span class="k-step">B</span>"The degree cut was wrong; the group 8 cut was right." Fix the step directly. <span class="f-needs">Needs ordered filter steps and the checkbox</span></h3>
+    <div class="k-flow">
+      <div class="k-flow-step"><span class="f-kind">Place</span><h3>The filter chip</h3><p>A click on the chip opens Filter steps under it. From the keyboard: Tab to the chip, Enter; focus lands on the first step.</p><a href="../screens/undo.html#s3&amp;pop">Screen: the list open</a></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step"><span class="f-kind">Read</span><h3>The rows name the step</h3><p>took out <span data-fx="datasets.lesmis.filterSteps.took.step1">17</span>, then <span data-fx="datasets.lesmis.filterSteps.took.step2">20</span>, then <span data-fx="datasets.lesmis.filterSteps.took.step3">13</span>. The degree step is the big cut.</p></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step f-good"><span class="f-kind">Command -- <b>reaches the goal</b></span><h3>Untick <span class="k-mono">degree &gt;= 5</span></h3><p>A click, or Space on the focused row. One undo step: <span class="k-mono">Turn off step Filter to degree &gt;= 5</span>. No notice: the list is open and shows it.</p><a href="../screens/undo.html#off&amp;pop">Screen: the step off</a></div>
+    </div>
+    <div class="f-sub" data-then="then, if the step should go for good">
+      <div class="k-flow">
+        <div class="k-flow-step"><span class="f-kind">Command</span><h3>Delete step</h3><p>Delete with the row focused, or the row's menu. Nothing asks. One undo step: <span class="k-mono">Delete step Filter to degree &gt;= 5</span>. Focus moves to the next row. <span class="f-chip"><span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span> &middot; 2 steps</span></p><a href="../screens/filter-steps-and-undo.html#delete-step">Screen: the step's menu</a></div>
+        <div class="k-flow-arrow">&rarr;</div>
+        <div class="k-flow-step"><span class="f-kind">Cancel</span><h3>Undo</h3><p>Brings the row back in its place, as it was (off), at any point in this sitting.</p></div>
+        <div class="k-flow-step f-lossbar" data-branch><span class="f-kind"><span class="f-loss">The only loss</span></span><h3>The tab closes</h3><p>What undo can reach is not saved with the project, so a deleted step cannot come back. A step turned off is saved, off. This is why Undo unticks and only Delete removes.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lane C -->
+  <div class="f-lane" id="lane-c">
+    <h3><span class="k-step">C</span>"That last step was wrong." Take back the newest step. <span class="f-needs">Works today on one filter</span></h3>
+    <div class="k-flow">
+      <div class="k-flow-step"><span class="f-kind">Place</span><h3>Edit menu, or Ctrl+Z</h3><p>The item reads <span class="k-mono">Undo Filter out group 8</span>: the next press, named before it happens.</p><a href="../screens/undo.html#s3&amp;menu">Screen: Edit &gt; Undo</a></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step f-good"><span class="f-kind">Command -- <b>reaches the goal</b></span><h3>Undo, once</h3><p>Group 8 unticks and the line confirms it. The row stays, off, in case it was wanted after all.</p><a href="../screens/undo.html#s2">Screen: after one Undo</a></div>
+    </div>
+  </div>
+
+  <!-- Lane D -->
+  <div class="f-lane" id="lane-d">
+    <h3><span class="k-step">D</span>"I clicked the canvas and lost my selection." Get the selection back. <span class="f-needs">Needs Ctrl+Z to restore a cleared selection</span></h3>
+    <div class="k-flow">
+      <div class="k-flow-step"><span class="f-kind">State</span><h3>Selection cleared</h3><p>A click on empty canvas cleared Valjean and <span data-fx="datasets.lesmis.filterSteps.valjeanNeighborsAfterStep3">17</span> others. The table, on its Selected scope, keeps the rows marked as the selection just cleared, and the undo line reads <span class="k-mono">Selection cleared (<span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> nodes)</span> with Bring it back.</p><a href="../screens/undo.html#s3">Screen: the start</a></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step f-good"><span class="f-kind">Command -- <b>reaches the goal</b></span><h3>Ctrl+Z, or Bring it back</h3><p>While nothing else has changed since the clear, Ctrl+Z brings the selection back before any filter step, and Edit &gt; Undo reads <span class="k-mono">Undo Restore selection (<span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> nodes)</span>. Bring it back on the line does the same. Neither touches Redo.</p></div>
+      <div class="k-flow-arrow">&rarr;</div>
+      <div class="k-flow-step"><span class="f-kind">Outcome</span><h3><span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> nodes selected</h3><p>The steps are untouched, and the line reads <span class="k-mono">Selection restored (<span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> nodes)</span>. One slot, not a history.</p><a href="../screens/undo.html#fix">Screen: selection back</a></div>
+    </div>
+    <div class="f-sub" data-then="instead">
+      <div class="k-flow">
+        <div class="k-flow-step f-off" data-branch><span class="f-kind">Branch</span><h3>Another change first</h3><p>A new selection or any undoable change empties the slot. Ctrl+Z then unticks group 8, and the line says so: <span class="k-mono">Undone: Filter out group 8</span></p></div>
+        <div class="k-flow-arrow">&rarr;</div>
+        <div class="k-flow-step"><span class="f-kind">Recover</span><h3>Redo, then select again</h3><p>Redo brings group 8 back. The <span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> are not kept past a change, so they are picked again by hand.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Cancellations</h3>
+  <div class="k-flow">
+    <div class="k-flow-step"><span class="f-kind">Cancel</span><h3>Esc on a menu or the list</h3><p>Closes it; nothing changes and nothing enters undo. Focus returns to the chip or the menu's trigger.</p></div>
+    <div class="k-flow-step"><span class="f-kind">Cancel</span><h3>Undo after a tick or a Delete</h3><p>Brings the step back as it was, in its place, with its count.</p></div>
+    <div class="k-flow-step"><span class="f-kind">Edge</span><h3>Nothing to undo</h3><p>Edit &gt; Undo reads <span class="k-mono">Undo</span> and is disabled; the keys do nothing and no line shows.</p></div>
+    <div class="k-flow-step"><span class="f-kind">Edge</span><h3>On touch</h3><p>Undo and Redo are in the main menu's Edit; Bring it back and Show in steps are tap targets on the line.</p></div>
+  </div>
+
+  <h2>Figma, and where this differs</h2>
+  <p>As in Figma: Delete never asks and shows no notice; selection is outside undo; undo is linear, with no branches; there is no Undo button in the header. graphty departs in these places, each for a reason that comes from the graph:</p>
+  <ul>
+    <li><b>Undo of adding a filter step unticks it</b>, where Figma's undo of adding a layer removes it. A filter step changes what every number is computed over, and one that silently disappears cannot be found again.</li>
+    <li><b>Undo and Redo of a filter step show a line</b>, "Undone: {name} Show in steps", which stays until the next change; Figma gives Undo no feedback. A filter step changes counts, not the look of the canvas, so without the line an undo passes unseen.</li>
+    <li><b>Edit &gt; Undo names the next step</b> ("Undo Filter out group 8"); Figma's reads plain "Undo".</li>
+    <li><b>Ctrl+Y also redoes</b>, off macOS. Figma on Windows takes only Ctrl+Shift+Z.</li>
+    <li><b>The Undo history submenu</b>, which Figma does not have. Interim; its entries say how many steps they take back.</li>
+    <li><b>A checkbox, not an eye, turns a filter step off.</b> Turning a step off changes what is counted, so it is not hiding.</li>
+    <li><b>Ctrl+Z restores a cleared selection</b> while nothing else has changed; Figma keeps selection out of undo. Photoshop's Select &gt; Reselect is the nearest model.</li>
+  </ul>
+
+  <h2>The rule the flow teaches</h2>
+  <table>
+    <thead><tr><th>The analyst wants to</th><th>Use</th><th>And if they do something else</th></tr></thead>
+    <tbody>
+      <tr><td>fix an older step and keep the newer ones</td><td>Filter steps: untick it</td><td>Undo gets there too; tick the good steps back on</td></tr>
+      <tr><td>see what an undo did</td><td>the line's Show in steps, or the chip</td><td>--</td></tr>
+      <tr><td>take back the newest change</td><td>Undo, once</td><td>--</td></tr>
+      <tr><td>remove a step for good</td><td>Delete step</td><td>Undo brings it back until the tab closes</td></tr>
+      <tr><td>get a lost selection back</td><td>Ctrl+Z at once, or Bring it back on the line</td><td>after another change the slot is empty, and Undo unticks a step instead, and says so</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The screens, in order</h2>
+  <p>The flow runs on one clickable mock, <a href="../screens/undo.html">Undo and ways back</a>; each frame below is a live state of it. Delete step is drawn on <a href="../screens/filter-steps-and-undo.html#delete-step">Filter steps and the ways back</a>.</p>
+  <div class="k-board f-board">
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;s3" title="The start"></iframe></div>
+      <figcaption><span class="k-step">1</span><a href="../screens/undo.html#s3">The start.</a> <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> after three steps; the selection just cleared.</figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;s2" title="After one Undo"></iframe></div>
+      <figcaption><span class="k-step">2</span><a href="../screens/undo.html#s2">After one Undo.</a> Group 8 unticked; the line names it.</figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;s1" title="After two Undos"></iframe></div>
+      <figcaption><span class="k-step">3</span><a href="../screens/undo.html#s1">After two Undos.</a> <span data-fx="datasets.lesmis.filterSteps.after.step1">60</span> of <span data-fx="datasets.lesmis.nodes">77</span>, 1 of 3 steps; the line names the degree step.</figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;s1&amp;pop" title="The steps list after two Undos"></iframe></div>
+      <figcaption><span class="k-step">4</span><a href="../screens/undo.html#s1&amp;pop">Show in steps.</a> All three rows, two off.</figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;off" title="The goal"></iframe></div>
+      <figcaption><span class="k-step">5</span><a href="../screens/undo.html#off">The goal.</a> <span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span>, 2 of 3 steps; <span data-fx="datasets.lesmis.filterSteps.step2OffStats.components">3</span> components, on: filtered graph.</figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;s3&amp;menu&amp;hist" title="Undo history"></iframe></div>
+      <figcaption><span class="k-step">6</span><a href="../screens/undo.html#s3&amp;menu&amp;hist">Edit and Undo history.</a> Each entry says how far it goes.</figcaption>
+    </figure>
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2375"><iframe class="k-frame-live" src="../screens/undo.html#study&amp;fix" title="Selection back"></iframe></div>
+      <figcaption><span class="k-step">7</span><a href="../screens/undo.html#fix">Ctrl+Z.</a> The <span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> characters are back; the steps are untouched.</figcaption>
+    </figure>
+  </div>
+
+  <h2>What the next round should watch</h2>
+  <p>The same task as before, read without naming any command: "After your last few actions the numbers changed in a way you did not expect. Get back to where you were, without losing work you meant to keep." It starts at <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> with the selection cleared.</p>
+  <table>
+    <thead><tr><th>Watch for</th><th>Passes when</th></tr></thead>
+    <tbody>
+      <tr><td>Reaching the goal, <span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span> with group 8 on, unaided</td><td>At least four in five</td></tr>
+      <tr><td>A good step rebuilt by hand</td><td>Nobody</td></tr>
+      <tr><td>Noticing the first undo (from the line, said aloud)</td><td>At least four in five</td></tr>
+      <tr><td>Expecting a step to be gone after Undo, and being surprised it is listed off</td><td>Recorded; surprise that helps is fine, confusion about what "off" means is not</td></tr>
+      <tr><td>Doubt about the loose characters after the fix</td><td>Fewer than one in five, with the counts' ", on: filtered graph"</td></tr>
+      <tr><td>The selection</td><td>Comes back for every participant who presses Ctrl+Z or Bring it back before another change</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Where this rests in the design</h2>
+  <ul>
+    <li>Undo, its label, the notice and the interim Undo history: <code>interaction-patterns.md</code> 3.4 and 3.5; the message is the catalog's <code>graphty.undo.done</code> row.</li>
+    <li>Filter steps, Turn off and Delete: <code>interaction-pattern-entries.md</code> 6.9 and 6.4; the filter chip: <code>interface-templates.md</code> 7.</li>
+    <li>Restoring a cleared selection: <a href="../framework-changes.md">framework-changes.md</a>, "Ctrl+Z restores a cleared selection". Every other selection change stays outside undo: <code>conceptual-model.md</code> 1 and 2.</li>
+    <li>Counts that name their scope: <code>content-design.md</code> 5.</li>
+  </ul>
+  <p>Proposed changes this flow rests on are in <a href="../framework-changes.md">framework-changes.md</a>: "Filter steps and undo: undoing 'add step' unticks it; only Delete removes a step", "Message catalog: the undo line for a filter step", and "Undo and the other ways back: where Show in steps puts focus".</p>
+</div>
+</body>
+</html>

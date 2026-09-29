@@ -1,0 +1,86 @@
+[
+ {
+  "id": "t-find",
+  "n": 1,
+  "title": "Find the seed",
+  "graph": "Transactions, 3,000 accounts, drawn as density"
+ },
+ {
+  "id": "t-inspect",
+  "n": 2,
+  "title": "Inspect the hit",
+  "graph": "Transactions, 3,000 accounts, drawn as density"
+ },
+ {
+  "id": "t-size",
+  "n": 3,
+  "title": "See the size before growing",
+  "graph": "Transactions, 3,000 accounts, drawn as density"
+ },
+ {
+  "id": "t-click",
+  "n": 4,
+  "title": "Click an account; a direction with none",
+  "graph": "Transactions, filtered to 9 accounts"
+ },
+ {
+  "id": "t-outside",
+  "n": 5,
+  "title": "A hit the filter leaves out",
+  "graph": "Transactions, filtered to 9 accounts"
+ },
+ {
+  "id": "t-grow",
+  "n": 6,
+  "title": "Select all, then grow the step one hop out",
+  "graph": "Transactions, filtered to 10 accounts"
+ },
+ {
+  "id": "t-grown",
+  "n": 7,
+  "title": "The step, grown",
+  "graph": "Transactions, filtered to 34 accounts"
+ },
+ {
+  "id": "t-triage",
+  "n": 8,
+  "title": "Triage the ranked list",
+  "graph": "Transactions, filtered to 34 accounts"
+ },
+ {
+  "id": "t-keep",
+  "n": 9,
+  "title": "Keep it with a note, then delete the step",
+  "graph": "Transactions, filtered to 34 accounts"
+ },
+ {
+  "id": "t-next",
+  "n": 10,
+  "title": "The next seed, its first step made",
+  "graph": "Transactions, filtered to 4 accounts"
+ },
+ {
+  "id": "c-find",
+  "n": 11,
+  "title": "Find a seed in a graph that is not drawn",
+  "graph": "Patent citations, 124,318 patents, not drawn"
+ },
+ {
+  "id": "c-count",
+  "n": 12,
+  "title": "A count still being measured",
+  "graph": "Patent citations, 124,318 patents, not drawn"
+ },
+ {
+  "id": "c-size",
+  "n": 13,
+  "title": "Two hops would not draw",
+  "graph": "Patent citations, 124,318 patents, not drawn"
+ },
+ {
+  "id": "c-bounded",
+  "n": 14,
+  "title": "The prior art, drawn",
+  "graph": "Patent citations, filtered to 148 patents"
+ }
+]

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock kit components</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .demo { position: relative; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 8px 0 24px; }
+  .demo > .cell { position: relative; }
+  .demo .k-menu, .demo .k-popover, .demo .k-tooltip, .demo .k-quick { position: relative; left: auto; bottom: auto; transform: none; }
+  .panel-sample { width: 241px; border: 1px solid var(--cm-border); border-radius: 8px; overflow: hidden; padding-bottom: 4px; }
+  .canvas-sample { position: relative; flex: none; width: 600px; height: 400px; border-radius: 8px; overflow: hidden; }
+</style>
+</head>
+<body>
+<div class="k-doc">
+  <h1>Mock kit components</h1>
+  <p class="k-lede">Every wireframe component the mocks share, drawn with compact-mantine's tokens. Snippets for each are in kit/README.md. The whole-app starting point is <a href="template.html">template.html</a>; the canvas drawings are on <a href="canvas.html">canvas.html</a>.</p>
+
+  <h2>Panel rows</h2>
+  <div class="demo">
+    <div class="panel-sample">
+      <section class="k-section">
+        <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list">
+          <li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Flagged accounts</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"><span class="k-chit" style="background:#D55E00"></span></span><span class="k-num">14</span></span></li>
+          <li class="k-item" data-member data-level="2"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-id">ACC-412907</span></li>
+          <li class="k-item" data-hover><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">High risk</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">212</span></span></li>
+          <li class="k-item" data-off><svg class="k-i"><use href="../kit/icons.svg#waypoints"/></svg><span class="k-ellipsis">Cash-out route</span><span class="k-kind">path</span></li>
+        </ul>
+      </section>
+      <section class="k-section" data-empty>
+        <div class="k-section-head">Views<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      </section>
+    </div>
+    <div class="panel-sample">
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">TP53</span><span class="k-secondary">Node</span><span class="k-grow"></span><span class="k-secondary k-num">1 of 300</span></div>
+      <section class="k-section">
+        <div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Fill</span>
+          <div class="k-fields"><span class="k-field"><span class="k-chit" style="background:#009E73"></span>009E73</span><span class="k-field k-num">100%</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-ramp" style="width:20px"></span>degree</span></span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Shape</span>
+          <div class="k-fields"><span class="k-field k-span">Sphere<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Label</span>
+          <div class="k-fields"><span class="k-seg k-seg-fill k-span"><span aria-pressed="true">Name</span><span>Id</span><span>None</span></span></div></div>
+        <div class="k-row"><span class="k-check" aria-checked="true"></span>Labels on canvas</div>
+        <div class="k-row"><span class="k-switch" aria-checked="false"></span>Follow selection</div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">degree</span><span class="k-big">34</span></div><div class="k-metric"><span class="k-secondary">betweenness</span><span class="k-big">0.121</span></div></div>
+        <div class="k-hist"><i style="height:90%"></i><i style="height:70%"></i><i style="height:44%"></i><i style="height:30%"></i><i style="height:18%"></i><i style="height:12%"></i><i style="height:8%"></i><i style="height:5%"></i><i style="height:3%"></i><i data-on style="height:2%"></i></div>
+        <div class="k-prose">Degree over 300 proteins. TP53 is in the top bin.</div>
+        <div class="k-data"><span class="k-name">module</span><span class="k-value">DNA repair</span></div>
+        <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-1.84</span></div>
+      </section>
+    </div>
+    <div class="panel-sample">
+      <div class="k-search"><span class="k-field"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find a result or algorithm</span></div>
+      <section class="k-section">
+        <div class="k-section-head">In this project</div>
+        <div class="k-row"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span class="k-grow">Communities: Louvain</span><span class="k-secondary k-num">8 groups</span></div>
+        <div class="k-row" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span class="k-grow">Betweenness</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="k-row"><span class="k-grow"><div class="k-progress"><i style="width:62%"></i></div></span><span class="k-secondary k-num">62%</span><span class="k-btn k-btn-ghost">Cancel</span></div>
+        <div class="k-row"><span class="k-warn-glyph">!</span><span class="k-grow">PageRank</span><span class="k-secondary">out of date</span></div>
+      </section>
+      <section class="k-section">
+        <div class="k-section-head">Catalog</div>
+        <div class="k-row"><span class="k-grow">Shortest path</span><span class="k-secondary">a few seconds</span><svg class="k-i k-secondary"><use href="../kit/icons.svg#info"/></svg></div>
+        <div class="k-row"><span class="k-grow">Closeness</span><span class="k-secondary">seconds</span><svg class="k-i k-secondary"><use href="../kit/icons.svg#info"/></svg></div>
+      </section>
+      <div class="k-row"><span class="k-btn">Run</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn" aria-disabled="true">Save</span></div>
+      <div class="k-row"><span class="k-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span></span><span class="k-badge">Beta</span><span class="k-kbd">Ctrl+K</span></div>
+      <div class="k-row"><span class="k-ramp k-ramp-measure" style="width:32px" title="Measure: orange to brown"></span><span class="k-ramp k-ramp-redblue" style="width:32px" title="Red to blue, as shipped"></span><span class="k-ramp k-ramp-bluered" style="width:32px" title="Blue to red, reversed"></span><span class="k-grow"></span><div class="k-rail-btn" style="width:48px"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span class="k-rail-badge k-num">2</span></span></div></div>
+    </div>
+  </div>
+
+  <h2>Overlays</h2>
+  <div class="demo">
+    <div class="cell"><div class="k-menu">
+      <div class="k-menu-item"><span class="k-check-col"></span>Select neighbors<span class="k-shortcut">Shift+N</span></div>
+      <div class="k-menu-item" data-hover><span class="k-check-col"></span>Create set from selection</div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Hide on canvas<span class="k-shortcut">H</span></div>
+      <div class="k-menu-sep"></div>
+      <div class="k-menu-item"><span class="k-check-col">&#10003;</span>Labels on canvas</div>
+      <div class="k-menu-item" aria-disabled="true"><span class="k-check-col"></span>Minimap</div>
+      <div class="k-menu-item"><span class="k-check-col"></span>Color by<svg class="k-i k-i-sm k-sub"><use href="../kit/icons.svg#chevron-right"/></svg></div>
+    </div></div>
+    <div class="cell"><div class="k-popover">
+      <div class="k-popover-head"><span class="k-chit" style="background:conic-gradient(#E69F00 0 25%,#56B4E9 0 50%,#009E73 0 75%,#0072B2 0)"></span>Module color<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-popover-body">
+        <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span">All nodes</span></div></div>
+        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- module</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#E69F00"></span>module</span></span></div></div>
+        <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#E69F00"></span> Proteasome</span><span class="k-value">40</span></div>
+        <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#56B4E9"></span> Ribosome</span><span class="k-value">56</span></div>
+        <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#505050"></span> Other</span><span class="k-value">30</span></div>
+      </div>
+    </div></div>
+    <div class="cell" style="display:flex;flex-direction:column;gap:16px">
+      <div class="k-tooltip"><b>Valjean</b><br><span class="k-secondary">group 2, degree 36</span></div>
+      <div class="k-toast">14 nodes removed<span class="k-toast-action">Undo</span></div>
+      <div class="k-toast">Running Louvain on 3,000 nodes<div class="k-progress"><i style="width:40%"></i></div><span class="k-toast-action">Cancel</span></div>
+      <div class="k-secondary-bar"><span class="k-secondary">From</span><span class="k-field k-id">Fantine</span><span class="k-secondary">To</span><span class="k-field" data-placeholder>Pick a node</span><span class="k-btn">Run</span></div>
+    </div>
+  </div>
+  <div class="demo">
+    <div class="cell"><div class="k-quick" style="width:420px">
+      <div class="k-quick-input"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg>between</div>
+      <div class="k-quick-list">
+        <div class="k-group-head">Commands</div>
+        <div class="k-result" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg>Run betweenness<span class="k-grow"></span><span class="k-secondary">seconds</span></div>
+        <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#palette"/></svg>Size by betweenness</div>
+        <div class="k-group-head">Nodes</div>
+        <div class="k-result"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-id">Betweenness hub: Valjean</span></div>
+      </div>
+    </div></div>
+    <div class="cell" style="width:480px;height:280px;border-radius:8px;overflow:hidden;position:relative">
+      <div class="k-backdrop" style="position:absolute">
+        <div class="k-modal" style="width:400px">
+          <div class="k-modal-head">Open transfers-2026-03.csv<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+          <div class="k-modal-body">
+            <div class="k-fieldrow"><span class="k-legend">Format</span><div class="k-fields"><span class="k-field k-span">CSV edge list<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+            <div class="k-data"><span class="k-name">Nodes read</span><span class="k-value">3,000</span></div>
+            <div class="k-data"><span class="k-name">Edges read</span><span class="k-value">9,113</span></div>
+          </div>
+          <div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Open</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Canvas furniture</h2>
+  <div class="demo">
+    <div class="canvas-sample k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts as density, 14 flagged accounts selected">
+      <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts as density, 14 flagged accounts selected"></div>
+      <div class="k-legend-card"><div class="k-lg-title">Density</div><div class="k-lg-row"><span class="k-ramp" style="background:linear-gradient(90deg,#80808038,#808080f2)"></span><span class="k-value">fewer to more accounts</span></div><div class="k-notdrawn">3,000 nodes drawn as density. <a>Show nodes</a></div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+    <div class="canvas-sample k-canvas">
+      <div class="k-legend-card"><div class="k-notdrawn" style="border:0;margin:0;padding:0">124,318 nodes not drawn. <a>Narrow the graph...</a></div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </div>
+
+  <h2>Tooltips, controls the mock does not wire, and numbers from the fixtures</h2>
+  <p>kit/kit.js draws these; see kit/README.md, "kit.js". Hover any icon button on any page for its tooltip; click a control the mock does not wire and it says so.</p>
+  <div class="demo" style="padding-bottom:32px">
+    <div class="panel-sample">
+      <section class="k-section">
+        <div class="k-section-head">Styles<span class="k-grow"></span><span class="k-icon-btn" data-tip-open><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span><span class="k-icon-btn" data-not-in-mock aria-label="Style options"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#E69F00"></span><span class="k-ellipsis">Group color</span></li></ul>
+      </section>
+    </div>
+    <div class="panel-sample" style="width:320px;padding:8px 16px">
+      <div class="k-data"><span class="k-name">Nodes</span><span class="k-value" data-fx="datasets.lesmis.nodes">77</span></div>
+      <div class="k-data"><span class="k-name">Edges</span><span class="k-value" data-fx="datasets.lesmis.edges">254</span></div>
+      <div class="k-data"><span class="k-name">Density</span><span class="k-value" data-fx="datasets.lesmis.stats.density" data-fx-measure="density">0.0868, on: full graph</span></div>
+      <div class="k-data"><span class="k-name">Density</span><span class="k-value" data-fx="datasets.lesmis.filterSteps.byStep.2.density" data-fx-measure="density" data-fx-set="filtered graph">0.296, on: filtered graph</span></div>
+      <div class="k-data"><span class="k-name">Degree 5 or more</span><span class="k-value" data-fx="tasks.narrow-or-paint.facts.degreeAtLeast5">41</span></div>
+      <p style="margin:8px 0 0"><span class="k-fact">A fact the reader acts on: body ink.</span> <span class="k-secondary">A truly secondary note: caption gray.</span></p>
+    </div>
+  </div>
+
+  <h2>Storyboard frame, annotation and flow</h2>
+  <div class="k-board">
+    <figure class="k-frame">
+      <div class="k-frame-shot" style="--k-scale:0.2366"><iframe class="k-frame-live" src="template.html" title="The app with Valjean selected" loading="lazy"></iframe>
+        <span class="k-annot-box" style="left:60%;top:40%;width:12%;height:14%"></span>
+        <span class="k-cursor" style="left:67%;top:48%"></span>
+      </div>
+      <figcaption><span class="k-step">1</span>Elena clicks Valjean; the inspector shows his group and degree.<span class="k-said">What a participant said goes here, in italics.</span></figcaption>
+    </figure>
+    <div>
+      <div class="k-flow">
+        <div class="k-flow-step"><h3><span class="k-step">1</span> Open a file</h3>Drop transfers-2026-03.csv on the start screen.</div>
+        <div class="k-flow-arrow">&rarr;</div>
+        <div class="k-flow-step"><h3><span class="k-step">2</span> Check the load step</h3>3,000 nodes, 9,113 edges; no issues.</div>
+        <div class="k-flow-arrow">&rarr;</div>
+        <div class="k-flow-step" data-branch><h3><span class="k-step">2a</span> A column fails</h3>amount has 12 blank cells: Load anyway or fix.</div>
+      </div>
+      <div class="k-quote" style="margin-top:16px">"I don't want another tool that makes me learn a query language before I can see anything."<cite>Sample text for the component, not a study finding</cite></div>
+      <span class="k-tag">first look</span><span class="k-tag">large graph</span>
+      <p>A design note tags what is not product UI: <span class="k-annot-tag">proposed</span> <span class="k-annot-tag">waits on graphty-element</span></p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

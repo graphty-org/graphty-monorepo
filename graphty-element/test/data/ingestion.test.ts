@@ -2,8 +2,8 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../src/catalog/types";
-import { GraphStore } from "../../src/data/GraphStore";
-import { GraphOps } from "../../src/session/project/graphOps";
+import { CAPACITY_COLUMN, GraphStore } from "../../src/data/GraphStore";
+import { GraphOps, resolveEdgeCapacity } from "../../src/session/project/graphOps";
 import { readSeedPosition, resolveEdgeWeight } from "../../src/session/project/ingest";
 
 /**
@@ -29,6 +29,7 @@ function ingestNode(
  * @param source - The source id.
  * @param target - The target id.
  * @param weight - The weight.
+ * @param record - The edge's record.
  * @returns The row and the element-assigned id.
  */
 function ingestEdge(
@@ -36,8 +37,9 @@ function ingestEdge(
     source: unknown,
     target: unknown,
     weight: number,
+    record: Record<string, unknown> = {},
 ): { index: number; edgeId: number } {
-    return GraphOps.standalone().writer(null, store).addEdge(source, target, weight, {});
+    return GraphOps.standalone().writer(null, store).addEdge(source, target, weight, record);
 }
 
 function makeStore(positionScale = 1): GraphStore {
@@ -199,7 +201,28 @@ describe("resolveEdgeWeight", () => {
     });
 });
 
+describe("resolveEdgeCapacity", () => {
+    it("reads capacity, then value, then 1", () => {
+        assert.strictEqual(resolveEdgeCapacity({ capacity: 4, value: 9 }), 4);
+        assert.strictEqual(resolveEdgeCapacity({ value: 9 }), 9);
+        assert.strictEqual(resolveEdgeCapacity({}), 1);
+    });
+
+    it("reads a capacity that is present but not a number as 1, without falling through to value", () => {
+        assert.strictEqual(resolveEdgeCapacity({ capacity: "4", value: 9 }), 1);
+    });
+});
+
 describe("ingestEdge", () => {
+    it("writes the capacity into the capacity column as an exact f64, and 1 where none was given", () => {
+        const store = makeStore();
+        ingestEdge(store, "a", "b", 1, { capacity: 0.1 });
+        ingestEdge(store, "b", "c", 1);
+        const column = store.getSnapshot().edges.requireTyped(CAPACITY_COLUMN, "f64");
+        assert.strictEqual(column.data[0], 0.1, "not rounded to f32");
+        assert.strictEqual(column.data[1], 1);
+    });
+
     it("takes an edge whose endpoints have not arrived, and the snapshot carries both", () => {
         const store = makeStore();
         const { index } = ingestEdge(store, "X", "Y", 1);

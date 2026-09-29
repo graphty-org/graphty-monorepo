@@ -54,6 +54,7 @@ export function ingestNode(
  * @param dstId - The target id.
  * @param weight - The weight.
  * @param fileId - The file's own id for the edge, its stable identity, when it has one.
+ * @param capacity - Its flow capacity, written to the capacity column when it is not 1.
  * @returns The row and the id, INVALID_INDEX for both when an id cannot be stored.
  */
 export function ingestEdge(
@@ -62,6 +63,7 @@ export function ingestEdge(
     dstId: unknown,
     weight: number,
     fileId?: string | number,
+    capacity = 1,
 ): { index: number; edgeId: number } {
     if (!isStorableId(srcId) || !isStorableId(dstId)) {
         return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
@@ -70,6 +72,10 @@ export function ingestEdge(
     const index = store.builder.addEdge(srcId, dstId, weight);
     const edgeId = store.nextEdgeId();
     store.stampEdgeId(index, edgeId);
+    if (capacity !== 1) {
+        store.builder.setEdgeValue(store.capacityColumn, index, capacity);
+    }
+
     // Completed at the next freeze, or with the load open around it, as the graph primitives'.
     store.recordIngestedEdge(index, edgeId, fileId);
     store.touch();

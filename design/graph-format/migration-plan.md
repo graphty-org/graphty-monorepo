@@ -341,6 +341,21 @@ graphty-element (element minor):
   minimum is used, not the sum) and on graphs with self-loops.
 - Floyd-Warshall now refuses a graph above 5,792 nodes with a coded error before the run starts.
   Before, it had no bound and a large graph ran until the tab ran out of memory.
+- Link prediction, Adamic-Adar method: the same pairs are scored, but a score can differ from
+  2.x in the last bits (up to about 2e-11), because the port rounds each shared neighbour's weight
+  1/ln(degree) to a multiple of 2^-36 before adding. Pairs whose scores tie exactly can therefore
+  come out in another order, and at the `topK` cut-off a different one of the tied pairs can be
+  kept. The common-neighbours method is unchanged.
+- Max flow: when the capacities between one pair of nodes add up to a negative number, that pair
+  now has capacity 0 and each of its edges publishes `capacity: 0`. Before, the edges published the
+  negative sum (the flow was 0 either way).
+- Max flow and min cut: a `source` equal to the `sink` is refused with a `GraphtyError` coded
+  `E_OPTION_RANGE`. Before, the run went ahead and published a meaningless result.
+- Max flow: a graph with fewer than two nodes publishes no result. Before, a single node with a
+  self-loop ran with its source equal to its sink.
+- Max flow and min cut: a `source` or `sink` option is matched against node ids exactly first, and
+  by string form only when no node matches exactly. In a graph holding both the number 1 and the
+  string "1", `source: "1"` names the string. Before, every id was compared as a string.
 
 ### 4.4 The release sequence
 

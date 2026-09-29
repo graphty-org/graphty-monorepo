@@ -221,6 +221,32 @@ function isStorableId(id: unknown): id is string | number {
 }
 
 /**
+ * Resolve an edge's flow capacity: the record's `capacity`, else its `value`, else 1. A key that is
+ * present but not a number reads as 1 rather than falling through to the next key.
+ * @param record - the raw edge record
+ * @returns the capacity
+ */
+export function resolveEdgeCapacity(record: Readonly<Record<string | number, unknown>>): number {
+    const raw = record.capacity ?? record.value ?? 1;
+    return typeof raw === "number" ? raw : 1;
+}
+
+/**
+ * Write an edge's capacity column from the record it holds now, so the column always reads what
+ * {@link resolveEdgeCapacity} reads from that record. An edge with no row writes nothing.
+ * @param store - The store.
+ * @param edgeId - The edge's element-assigned id.
+ * @param record - Its record, or undefined for none.
+ */
+function writeCapacity(store: GraphStore, edgeId: number, record: GraphRecord | undefined): void {
+    const row = store.edgeIndexOf(edgeId);
+    if (row !== INVALID_INDEX) {
+        store.builder.setEdgeValue(store.capacityColumn, row, resolveEdgeCapacity(record ?? {}));
+        store.touch();
+    }
+}
+
+/**
  * What ingest writes through: one command's writes.
  *
  * Every method writes live state before it returns, so a getter reads the write at once.
@@ -775,6 +801,10 @@ class GraphEntry implements OpLogEntry {
                         op.target === "node" ? op.id : String(op.id),
                         op.prior,
                     );
+                    if (op.target === "edge") {
+                        writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
+                    }
+
                     this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
                     break;
                 case "value":
@@ -855,6 +885,9 @@ class GraphEntry implements OpLogEntry {
                     }
 
                     edges.set(edgeIdOf(op.edgeId), op.record);
+                    if (resolveEdgeCapacity(op.record) !== 1) {
+                        writeCapacity(store, op.edgeId, op.record);
+                    }
                     bumpFields(store, "edge", undefined, op.record, seen);
                     this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
                     added.add(EDGES_ADDED);
@@ -878,6 +911,10 @@ class GraphEntry implements OpLogEntry {
                         op.target === "node" ? op.id : String(op.id),
                         op.next,
                     );
+                    if (op.target === "edge") {
+                        writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
+                    }
+
                     this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
                     break;
                 case "value":
@@ -1091,6 +1128,11 @@ class Writer implements GraphWriter {
         this.store.recordIngestedEdge(index, edgeId, fileId);
         this.store.touch();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
+        // A new row already reads the column default, 1: only another capacity costs a write.
+        if (resolveEdgeCapacity(record) !== 1) {
+            writeCapacity(this.store, edgeId, record);
+        }
+
         bumpFields(this.store, "edge", undefined, record, this.bumped);
         this.record(
             { kind: "edge", edgeId, source, target, weight, record, created, fileId },
@@ -1113,6 +1155,7 @@ class Writer implements GraphWriter {
             const id = edgeIdOf(edgeId);
             const priorRecord = edges.get(id);
             edges.set(id, record);
+            writeCapacity(this.store, edgeId, record);
             bumpFields(this.store, "edge", priorRecord, record, this.bumped);
             this.record({ kind: "record", target: "edge", id, prior: priorRecord, next: record }, edgeKey(id), null);
         }
@@ -1143,6 +1186,10 @@ class Writer implements GraphWriter {
         this.begin();
         const next = frozenRecord({ ...prior, ...values });
         map.set(key, next);
+        if (target === "edge") {
+            writeCapacity(this.store, edgeCounterOf(String(key)), next);
+        }
+
         bumpFields(this.store, target, prior, next, this.bumped, true);
         // A layer or a filter may read any value just written, so every reader keyed on the
         // snapshot asks again.

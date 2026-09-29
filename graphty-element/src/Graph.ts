@@ -5509,6 +5509,12 @@ export class Graph implements GraphContext {
             label: "Set the graph data",
             steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
         }).catch((e: unknown) => {
+            // Disposing the graph cancels the step while it is pending; that is teardown, not a
+            // failure of the data.
+            if (this.#teardown.signal.aborted && isAbort(e)) {
+                return;
+            }
+
             console.error("Error setting data:", e);
         });
     }

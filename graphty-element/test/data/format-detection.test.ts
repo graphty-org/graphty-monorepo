@@ -18,6 +18,16 @@ describe("detectFormat", () => {
         assert.strictEqual(detectFormat("", xml), "gexf");
     });
 
+    test("detects GEXF 1.2, whose namespace carries www, from its root element", () => {
+        const xml = '<?xml version="1.0"?>\n<gexf xmlns="http://www.gexf.net/1.2draft" version="1.2">';
+        assert.strictEqual(detectFormat("", xml), "gexf");
+    });
+
+    test("does not read a JSON document that mentions an XML root as XML", () => {
+        const json = '{ "nodes": [{ "id": "a", "label": "<gexf >" }], "edges": [] }';
+        assert.strictEqual(detectFormat("", json), "json");
+    });
+
     test("detects CSV from extension", () => {
         assert.strictEqual(detectFormat("edges.csv", ""), "csv");
     });

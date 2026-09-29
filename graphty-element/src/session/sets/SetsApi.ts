@@ -2,10 +2,12 @@
  * @file The synchronous doors of `session.sets`: the reads that only look at records and the
  * writes that resolve nothing (design/sets/sets-design.md sections 13.2, 13.3, 15.2).
  *
- * Each write door does the one thing a pure `prepare` cannot: it reaches the graph to turn a
- * session edge id into the edge's stable identity, and it mints the id and the order. Then, in one
- * store write group, it prepares one operation and writes the result. A no-op writes nothing and
- * emits nothing.
+ * Each write door dispatches one `set.*` command through the session's dispatcher, so every write
+ * is one undoable step (design/sets/undo-integration.md section 2). A create's door mints the id
+ * and the order first, and says what the set was created from. The command's body, which this
+ * module hands the dispatcher as its set service, does the one thing a pure `prepare` cannot -- it
+ * reaches the graph to turn a session edge id into the edge's stable identity -- then prepares the
+ * operation and refuses a rule the doors cannot keep. A no-op writes nothing and records nothing.
  *
  * Built by the session and published on it as `session.sets`.
  */
@@ -39,6 +41,8 @@ import type {
 import { canonicalEdgeEnds, edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
+import type { MintedSetCreateCommand, SetCommand, SetService } from "../commands/sets";
+import type { Dispatcher } from "../project/Dispatcher";
 import type { SessionAttributes } from "../types";
 import { type Concrete, isOffer, type Materialiser, SET_COMBINES } from "./algebra";
 import {
@@ -73,6 +77,11 @@ import type { ElementSet, Memberships, SetMemberDelta, SetOffer, SetsApi, SetSta
 
 /** What the doors read from the rest of the session. */
 interface SetsDependencies {
+    /**
+     * The dispatcher whose `sets` slice holds the records and whose history records every write.
+     * A session hands in its own; absent, the sets keep a dispatcher of their own.
+     */
+    readonly dispatcher?: Dispatcher;
     /**
      * A session edge's stable identity.
      * @param id - The session edge id.
@@ -206,10 +215,13 @@ export function setsStoreOf(api: SetsApi): SetsStore {
 /**
  * Build the synchronous doors over a store.
  * @param dependencies - Where session edge ids are looked up.
- * @param store - The slice; a fresh one when absent.
+ * @param store - The kept sets; over the dispatcher handed in, or one of their own, when absent.
  * @returns The doors.
  */
-export function createSetsApi(dependencies: SetsDependencies, store: SetsStore = new SetsStore()): SetsApi {
+export function createSetsApi(
+    dependencies: SetsDependencies,
+    store: SetsStore = new SetsStore(dependencies.dispatcher),
+): SetsApi {
     const limit = dependencies.maxEdgeMembers ?? MAX_EDGE_MEMBER_EDIT;
     /** The session edges the write in progress named, with the members they became, in order. */
     let named: [EdgeId, EdgeMember][] = [];
@@ -399,28 +411,40 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
     };
 
     /**
-     * Write a prepared record, or nothing for a no-op.
-     * @param record - The record, or null.
+     * Check a prepared record against what the doors refuse, and note its order as taken.
+     * @param record - The record, or null for a no-op.
+     * @returns The record.
      */
-    const write = (record: ElementSet | null): void => {
+    const checked = (record: ElementSet | null): ElementSet | null => {
         if (record !== null) {
             checkReferences(record);
-            store.put(record);
+            store.written(record);
         }
+
+        return record;
     };
+
+    /**
+     * Dispatch one set op now, as its own step or into the transaction open around the call.
+     * @param command - The command.
+     * @returns What its body returned.
+     */
+    const dispatch = (command: SetCommand): unknown => store.dispatcher.dispatchNow(command);
 
     const createAs: CreateAs = (definition, given, createdFrom, prebuilt, seeds) => {
         // A definition the element built from a snapshot is already stable and canonical.
         const [concrete, refs] = isPrebuilt(definition) ? [definition, []] : collect(() => stabilise(definition));
-        const id = store.transact(() => {
-            const name = given ?? defaultName(store);
-            const minted = store.mint(typeof name === "string" ? name.trim() : "");
-            write(
-                prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom }),
-            );
-
-            return minted;
-        });
+        const name = given ?? defaultName(store);
+        const id = store.mint(typeof name === "string" ? name.trim() : "");
+        const command: MintedSetCreateCommand = {
+            op: "set.create",
+            id,
+            name: name,
+            order: store.nextOrder(),
+            definition: concrete as SetDefinitionInput,
+            createdFrom,
+        };
+        dispatch(command);
         if (seeds !== undefined) {
             store.seed(id, seeds);
         }
@@ -721,84 +745,149 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         },
 
         rename(id: SetId, name: string): void {
-            store.transact(() => {
-                // A rename never touches the definition, so it does not re-check what the definition
-                // reads: a loaded or restored set in a cycle, or naming a missing set, stays renamable.
-                const record = prepareRename(store, { id, name });
-                if (record !== null) {
-                    store.put(record);
-                }
-            });
+            dispatch({ op: "set.rename", id, name });
         },
 
         redefine(id: SetId, definition: SetDefinitionInput): void {
-            const [concrete, refs] = collect(() => stabilise(definition));
             const prior = store.get(id);
-            store.transact(() => {
-                write(prepareRedefine(store, { id, definition: concrete }));
-            });
+            const [, refs] = collect(() => dispatch({ op: "set.redefine", id, definition }));
             seed(id, prior, refs);
         },
 
         addMembers(id: SetId, members: SetMemberDelta): void {
-            const [add, refs] = collect(() => stableDelta(members));
             const prior = store.get(id);
-            store.transact(() => {
-                write(prepareMembers(store, { id, add }, limit));
-            });
+            const [, refs] = collect(() => dispatch({ op: "set.members", id, add: members }));
             seed(id, prior, refs);
         },
 
         removeMembers(id: SetId, members: SetMemberDelta): void {
-            const remove = stableDelta(members, removable(id));
-            store.transact(() => {
-                write(prepareMembers(store, { id, remove }, limit));
-            });
+            dispatch({ op: "set.members", id, remove: members });
         },
 
         remove(id: SetId): void {
-            store.transact(() => {
-                store.delete(prepareRemove(store, { id }));
-            });
+            dispatch({ op: "set.remove", id });
             // ponytail: records nothing names are dropped at the next removal, not the moment
             // the last layer or filter lets go; bound per removal by the tombstones held.
             store.forget((removed) => api.usedBy(removed).length > 0);
         },
 
         restore(id: SetId): void {
-            const refuse = (reason: string, message: string): GraphtyError =>
-                new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message,
-                    source: "data",
-                    target: { kind: "scope", id },
-                    details: { id, reason },
-                });
-            if (store.get(id) !== undefined) {
-                throw refuse(
+            dispatch({ op: "set.restore", id });
+        },
+    };
+    /**
+     * The refusal of a restore.
+     * @param id - The set.
+     * @param reason - The typed reason.
+     * @param message - What is wrong.
+     * @returns The error to throw.
+     */
+    const refuseRestore = (id: SetId, reason: string, message: string): GraphtyError =>
+        new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message,
+            source: "data",
+            target: { kind: "scope", id },
+            details: { id, reason },
+        });
+
+    // The bodies of the set ops: what each command writes, checked against the sets held now.
+    const service: SetService = {
+        create(command) {
+            if ("id" in command) {
+                const minted = command;
+                return checked(prepareCreate(store, { ...minted, name: minted.name as string })) as ElementSet;
+            }
+
+            // A consumer's create: the element mints what the consumer may not send.
+            const [concrete, refs] = collect(() => stabilise(command.definition));
+            const name = command.name ?? defaultName(store);
+            const id = store.mint(typeof name === "string" ? name.trim() : "");
+            const record = checked(
+                prepareCreate(store, {
+                    id,
+                    name,
+                    order: store.nextOrder(),
+                    definition: concrete,
+                    createdFrom: { kind: "user" },
+                }),
+            ) as ElementSet;
+            const entries = new Map<string, number>();
+            for (const [ref, member] of refs) {
+                const key = edgeMemberKey(member);
+                if (!entries.has(key) && holdsEdgeMember(record.definition, member)) {
+                    entries.set(key, edgeCounterOf(ref));
+                }
+            }
+
+            store.seed(id, entries);
+
+            return record;
+        },
+
+        // A rename never touches the definition, so it does not re-check what the definition
+        // reads: a loaded or restored set in a cycle, or naming a missing set, stays renamable.
+        rename: (command) => prepareRename(store, command),
+
+        redefine: (command) =>
+            checked(prepareRedefine(store, { id: command.id, definition: stabilise(command.definition) })),
+
+        members: (command) =>
+            checked(
+                prepareMembers(
+                    store,
+                    {
+                        id: command.id,
+                        ...(command.add === undefined ? {} : { add: stableDelta(command.add) }),
+                        ...(command.remove === undefined
+                            ? {}
+                            : { remove: stableDelta(command.remove, removable(command.id)) }),
+                    },
+                    limit,
+                ),
+            ),
+
+        remove(command) {
+            const id = prepareRemove(store, command);
+            store.bury(store.get(id) as ElementSet);
+
+            return id;
+        },
+
+        restore({ id }) {
+            const live = store.get(id);
+            if (live !== undefined) {
+                throw refuseRestore(
+                    id,
                     "live",
-                    `The set "${store.get(id)?.name ?? id}" was not removed, so there is nothing to restore.`,
+                    `The set "${live.name}" was not removed, so there is nothing to restore.`,
                 );
             }
 
             const tombstone = store.tombstone(id);
             if (tombstone === undefined) {
-                throw refuse("unknown-id", `No set with the id "${id}" was ever removed.`);
+                throw refuseRestore(id, "unknown-id", `No set with the id "${id}" was ever removed.`);
             }
 
             const { record } = tombstone;
             if (record === undefined) {
-                throw refuse(
+                throw refuseRestore(
+                    id,
                     "record-dropped",
                     `The set "${tombstone.name}" cannot be restored: nothing named it any more, so its record was not kept.`,
                 );
             }
 
-            store.transact(() => {
-                store.put(record);
-            });
+            store.written(record);
+
+            return record;
+        },
+
+        issue: (id) => {
+            store.issue(id);
         },
     };
+    store.dispatcher.services.sets = service;
     storesOf.set(api, store);
     creatorsOf.set(api, createAs);
 

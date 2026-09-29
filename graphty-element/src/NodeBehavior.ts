@@ -15,9 +15,12 @@ import {
 
 import { readEndpoint, resolveEndpoints } from "./data/endpoints";
 import type { Graph } from "./Graph";
+import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
+import { dispatcherOf } from "./session/GraphSession";
+import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 
 interface NodeBehaviorOptions {
     pinOnDrag?: boolean;
@@ -29,6 +32,22 @@ interface DragState {
     dragStartMeshPosition: Vector3 | null;
     dragStartWorldPosition: Vector3 | null;
     dragPlaneNormal: Vector3 | null;
+}
+
+/**
+ * One drag as one undoable step: the transaction the drag opens at drag start and records at the
+ * drop (design/undo/undo-design.md section 5.3).
+ */
+interface DragGesture {
+    readonly dispatcher: Dispatcher;
+    /** The drag's transaction; what is dispatched through it joins the drag's step. */
+    scope: TransactionScope | null;
+    /** Let the transaction's body settle: the drop has dispatched everything it will. */
+    readonly finish: () => void;
+    /** An undo aborted the drag: the rest of the gesture does nothing. */
+    aborted: boolean;
+    /** The pointer moved the node, so the drop places it. */
+    moved: boolean;
 }
 
 // Click detection state
@@ -50,6 +69,7 @@ export class NodeDragHandler {
     private node: GraphNode;
     private dragState: DragState;
     private clickState: ClickState | null = null;
+    private gesture: DragGesture | null = null;
     private scene: Scene;
     private pointerObserver: Observer<PointerInfoPre> | null = null;
     private hoverObserver: Observer<PointerInfoPre> | null = null;
@@ -93,6 +113,12 @@ export class NodeDragHandler {
         //     nodeId: this.node.id,
         //     isXRMode: this.isXRMode(),
         // });
+
+        // Opened FIRST, so its before-arrangement is taken before the layout is reheated and
+        // before anything has moved: undoing the drag puts every node back where it was now. A
+        // drag that never saw its drop is closed with what it did.
+        this.gesture?.finish();
+        this.gesture = this.openGesture();
 
         this.dragState.dragging = true;
         this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
@@ -150,7 +176,8 @@ export class NodeDragHandler {
         if (
             !this.dragState.dragging ||
             !this.dragState.dragStartWorldPosition ||
-            !this.dragState.dragStartMeshPosition
+            !this.dragState.dragStartMeshPosition ||
+            this.gesture?.aborted === true
         ) {
             return;
         }
@@ -178,14 +205,20 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.mesh.position.copyFrom(newPosition);
+        if (this.gesture !== null) {
+            this.gesture.moved = true;
+        }
 
         // Update layout engine
         const context = this.getContext();
-        context.getLayoutManager().layoutEngine?.setNodePosition(this.node, {
-            x: newPosition.x,
-            y: newPosition.y,
-            z: newPosition.z,
-        });
+        const engine = context.getLayoutManager().layoutEngine;
+        if (engine !== undefined) {
+            layoutEngineInternals.setNodePosition(engine, this.node, {
+                x: newPosition.x,
+                y: newPosition.y,
+                z: newPosition.z,
+            });
+        }
     }
 
     /**
@@ -196,34 +229,26 @@ export class NodeDragHandler {
             return;
         }
 
-        // Debug: console.log("🏁 NodeDragHandler.onDragEnd called", {
-        //     nodeId: this.node.id,
-        //     finalPosition: this.node.mesh.position.asArray(),
-        // });
-
-        // Make sure graph is running -- through the INTERNAL write, which a consumer's pause
-        // refuses: a drag moves the node without resuming a paused layout.
         const context = this.getContext();
-        context.getLayoutManager().running = true;
+        const { gesture } = this;
+        this.gesture = null;
+        // An undo during the drag already released the node, put everything back and stopped
+        // the layout: the drop of that gesture does nothing.
+        if (gesture?.aborted !== true) {
+            // Make sure graph is running -- through the INTERNAL write, which a consumer's pause
+            // refuses: a drag moves the node without resuming a paused layout.
+            context.getLayoutManager().running = true;
 
-        // BEFORE THE PIN, so the fixed bit is never cleared and set again inside one frame: a
-        // drop that pins keeps the bit it has been holding, and a drop that does not gives the
-        // row back to the simulation.
-        const { layoutEngine } = context.getLayoutManager();
-        if (layoutEngine instanceof SimulationLayoutEngine) {
-            layoutEngine.endDrag(this.node, this.node.pinOnDrag);
-        }
+            // BEFORE THE PIN, so the fixed bit is never cleared and set again inside one frame: a
+            // drop that pins keeps the bit it has been holding, and a drop that does not gives the
+            // row back to the simulation.
+            const { layoutEngine } = context.getLayoutManager();
+            if (layoutEngine instanceof SimulationLayoutEngine) {
+                layoutEngine.endDrag(this.node, this.node.pinOnDrag);
+            }
 
-        // Pin after dragging if configured
-        if (this.node.pinOnDrag) {
-            this.node.pin();
-        }
-
-        // Re-enable camera input handler after node drag
-        const cameraManager = this.scene.metadata?.cameraManager;
-        if (cameraManager) {
-            // Debug: console.log("📷 Re-enabling camera input after node drag");
-            cameraManager.temporarilyEnableInput();
+            this.drop(gesture);
+            this.releaseCamera();
         }
 
         // Emit node-drag-end event before resetting drag state
@@ -257,20 +282,131 @@ export class NodeDragHandler {
      * @param newPosition - New position to set for the node
      */
     public setPositionDirect(newPosition: Vector3): void {
-        if (!this.dragState.dragging) {
+        if (!this.dragState.dragging || this.gesture?.aborted === true) {
             return;
         }
 
         // Update mesh position
         this.node.mesh.position.copyFrom(newPosition);
+        if (this.gesture !== null) {
+            this.gesture.moved = true;
+        }
 
         // Update layout engine
         const context = this.getContext();
-        context.getLayoutManager().layoutEngine?.setNodePosition(this.node, {
-            x: newPosition.x,
-            y: newPosition.y,
-            z: newPosition.z,
+        const engine = context.getLayoutManager().layoutEngine;
+        if (engine !== undefined) {
+            layoutEngineInternals.setNodePosition(engine, this.node, {
+                x: newPosition.x,
+                y: newPosition.y,
+                z: newPosition.z,
+            });
+        }
+    }
+
+    /**
+     * Open the drag's transaction. Its body waits for the drop; an undo while it is open aborts
+     * it, which ends the drag (design/undo/undo-design.md section 5.3).
+     * @returns The gesture, or null for a graph with no session.
+     */
+    private openGesture(): DragGesture | null {
+        const session = this.getContext().getSession?.();
+        if (session === undefined) {
+            return null;
+        }
+
+        let finish: () => void = () => undefined;
+        const dropped = new Promise<void>((resolve) => {
+            finish = resolve;
         });
+        const gesture: DragGesture = {
+            dispatcher: dispatcherOf(session),
+            scope: null,
+            finish: () => {
+                finish();
+            },
+            aborted: false,
+            moved: false,
+        };
+        gesture.dispatcher
+            .transaction(
+                `Dragged node ${String(this.node.id)}`,
+                (tx, signal) => {
+                    gesture.scope = tx;
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            this.abortGesture(gesture);
+                        },
+                        { once: true },
+                    );
+                    return dropped;
+                },
+                { moves: true },
+            )
+            // An aborted drag rejects; the abort has already ended it.
+            .catch(() => undefined);
+        return gesture;
+    }
+
+    /**
+     * The drop: place the node where the pointer left it and, with `pinOnDrag`, pin it, both
+     * through the drag's transaction, then let the transaction record.
+     * @param gesture - The drag's gesture, or null for a graph with no session.
+     */
+    private drop(gesture: DragGesture | null): void {
+        const { scope } = gesture ?? {};
+        if (gesture === null || scope === null || scope === undefined) {
+            if (this.node.pinOnDrag) {
+                this.node.pin();
+            }
+
+            return;
+        }
+
+        if (gesture.moved) {
+            const { x, y, z } = this.node.mesh.position;
+            scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
+        }
+
+        if (this.node.pinOnDrag) {
+            // Through `pin` itself, routed into the drag, so there is one way a node is pinned.
+            const via: DispatchFunction = (command, options) => scope.dispatch(command, options);
+            gesture.dispatcher.routed(via, () => {
+                this.node.pin();
+            });
+        }
+
+        gesture.finish();
+    }
+
+    /**
+     * An undo aborted the drag: the dispatcher has rolled it back, restoring where everything
+     * was at drag start and stopping the layout. Release the node in the engine and give the
+     * camera its input back; the rest of the gesture is ignored until the pointer is released.
+     * @param gesture - The aborted gesture.
+     */
+    private abortGesture(gesture: DragGesture): void {
+        gesture.aborted = true;
+        if (this.gesture !== gesture) {
+            return;
+        }
+
+        this.node.dragging = false;
+        const { layoutEngine } = this.getContext().getLayoutManager();
+        if (layoutEngine instanceof SimulationLayoutEngine) {
+            layoutEngine.endDrag(this.node, false);
+        }
+
+        this.releaseCamera();
+    }
+
+    /** Give the camera its input back after a drag. */
+    private releaseCamera(): void {
+        const cameraManager = this.scene.metadata?.cameraManager;
+        if (cameraManager) {
+            cameraManager.temporarilyEnableInput();
+        }
     }
 
     /**
@@ -535,6 +671,9 @@ export class NodeDragHandler {
      * Cleans up event observers and releases resources.
      */
     public dispose(): void {
+        // A node removed mid-drag: its drag records nothing more, and leaves nothing pending.
+        this.gesture?.finish();
+        this.gesture = null;
         if (this.pointerObserver) {
             this.scene.onPrePointerObservable.remove(this.pointerObserver);
             this.pointerObserver = null;
@@ -642,22 +781,22 @@ export class NodeBehavior {
                     // fetch all nodes from associated edges
                     const nodes = fetchNodes(nodeIds, graph);
 
-                    // add all the nodes and edges we collected
-                    //
-                    // `repeated: "first"` because expanding a node's neighbourhood
-                    // LEGITIMATELY re-supplies edges the graph already holds -- the edge the
-                    // reader followed to get here is in every one of its endpoints'
-                    // neighbourhoods. The element defaults to keeping a repeated edge, which
-                    // is right for a file that really does carry two, and would double every
-                    // known edge on every expand. Only the call site knows which of the two
-                    // this is, and this one knows.
-                    const dataManager = context.getDataManager();
-                    dataManager.addNodes([...nodes]);
-                    dataManager.addEdges([...edges], {
-                        repeated: "first",
-                        source: endpoints.source,
-                        target: endpoints.target,
-                    });
+                    // Add what was fetched as one step. The records ride in the command, so a
+                    // redo puts them back without asking the consumer again; the command adds
+                    // the edges under `repeated: "first"`, because a neighbourhood legitimately
+                    // names edges the graph already holds.
+                    void dispatcherOf(graph.getSession())
+                        .dispatch({
+                            op: "data.expand",
+                            seed: node.id,
+                            nodes: [...nodes],
+                            edges,
+                            source: endpoints.source,
+                            target: endpoints.target,
+                        })
+                        .catch((error: unknown) => {
+                            console.error("[graphty] Expanding a node failed:", error);
+                        });
 
                     // TODO: fetch and add secondary edges
                 },

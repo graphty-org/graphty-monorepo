@@ -6,8 +6,13 @@ import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../catalog/registry";
 import type { AlgorithmDescriptor } from "../catalog/types";
+import { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Graph } from "../Graph";
+import { Node } from "../Node";
+import { type AlgoLegacyCommand, legacyFacade, LegacyWrites, openLegacyScope } from "../session/commands/algo";
+import { dispatcherOf } from "../session/GraphSession";
+import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
 import { resolutionBehind } from "../session/scope/ScopeApi";
@@ -203,28 +208,32 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
-     * Run algorithms specified in the template configuration
-     * Called during initialization if runAlgorithmsOnLoad is true
+     * Run algorithms specified in the template configuration, as one undoable step.
      * @param algorithms - Array of algorithm names in "namespace:type" format
      */
     async runAlgorithmsFromTemplate(algorithms: string[]): Promise<void> {
         const errors: Error[] = [];
 
-        for (const algName of algorithms) {
-            try {
-                const trimmedName = algName.trim();
-                const [namespace, type] = trimmedName.split(":");
-                if (!namespace || !type) {
-                    throw new Error(`invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`);
-                }
+        await dispatcherOf(this.graph.getSession()).transaction("Ran the template's algorithms", async (tx) => {
+            for (const algName of algorithms) {
+                try {
+                    const trimmedName = algName.trim();
+                    const [namespace, type] = trimmedName.split(":");
+                    if (!namespace || !type) {
+                        throw new Error(
+                            `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
+                        );
+                    }
 
-                await this.runAlgorithm(namespace.trim(), type.trim());
-            } catch (error) {
-                const algorithmError = error instanceof Error ? error : new Error(String(error));
-                errors.push(algorithmError);
-                // Individual error already emitted by runAlgorithm
+                    await this.dispatchLegacy(
+                        { op: "algo.legacy", namespace: namespace.trim(), type: type.trim() },
+                        (command) => tx.dispatch(command),
+                    );
+                } catch (error) {
+                    errors.push(error instanceof Error ? error : new Error(String(error)));
+                }
             }
-        }
+        });
 
         // If there were any errors, throw a summary error
         if (errors.length > 0) {
@@ -244,8 +253,7 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
-     * Run a specific algorithm by its 1.10 registry address, publishing the result through side
-     * effects and returning nothing.
+     * Run a specific algorithm by its 1.10 registry address, as one undoable step.
      *
      * This is the path a PLUGIN algorithm takes. A plugin registers itself under a
      * `namespace:type` and publishes no catalogue descriptor, so it cannot be started by key and
@@ -253,37 +261,109 @@ export class AlgorithmManager implements Manager {
      * to agree with. Everything this package ships goes through {@link AlgorithmManager.execute}
      * instead, reached from `graph.run` and `session.runs.start`.
      *
-     * It goes when plugin algorithms publish descriptors of their own.
+     * It dispatches `algo.legacy`, which takes its turn on the queue, constructs the plugin with a
+     * facade of the graph and runs it: what it writes to node and edge records and
+     * `graphResults`, and every door it calls on the graph, are one step.
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "dijkstra")
      * @param algorithmOptions - Optional algorithm-specific options (source, target, etc.)
      */
     async runAlgorithm(namespace: string, type: string, algorithmOptions?: AlgorithmSpecificOptions): Promise<void> {
+        const dispatcher = dispatcherOf(this.graph.getSession());
+        await this.dispatchLegacy(
+            {
+                op: "algo.legacy",
+                namespace,
+                type,
+                ...(algorithmOptions === undefined ? {} : { options: algorithmOptions }),
+            },
+            (command) => dispatcher.dispatch(command),
+        );
+    }
+
+    /**
+     * Carry out one `algo.legacy` the dispatcher has started: construct the plugin with a
+     * group-tagged facade of the graph, run it with the element's node and edge records read
+     * copy-on-write, and write what it wrote into the command's draft. Registered by the graph
+     * as its session's legacy service; nothing else calls it.
+     * @param command - The command.
+     * @param ctx - The command's context.
+     * @returns Settles once everything the plugin wrote is in the command's draft.
+     * @internal
+     */
+    async runLegacy(command: AlgoLegacyCommand, ctx: UndoableContext): Promise<void> {
+        const dispatcher = dispatcherOf(this.graph.getSession());
+        const data = this.graph.getDataManager();
+        const scope = new LegacyWrites(
+            dispatcher,
+            (element) =>
+                data.nodes.get((element as Node).id) === element || data.edges.get((element as Edge).id) === element,
+        );
+        const facade = legacyFacade(this.graph, dispatcher, ctx.inline);
+        const close = openLegacyScope(scope, [
+            { prototype: Node.prototype, target: "node" },
+            { prototype: Edge.prototype, target: "edge" },
+        ]);
         try {
+            const options = command.options as AlgorithmSpecificOptions | undefined;
             // Pass options to constructor for new-style algorithms with zodOptionsSchema
-            const alg = Algorithm.get(this.graph, namespace, type, algorithmOptions);
+            const alg = Algorithm.get(facade, command.namespace, command.type, options);
             if (!alg) {
-                throw new Error(`algorithm not found: ${namespace}:${type}`);
+                throw new Error(`algorithm not found: ${command.namespace}:${command.type}`);
             }
 
             // Also call configure for backward compatibility with legacy algorithms
             // that use the deprecated configure() method instead of constructor options
-            if (algorithmOptions && "configure" in alg && typeof alg.configure === "function") {
-                alg.configure(algorithmOptions);
+            if (options && "configure" in alg && typeof alg.configure === "function") {
+                alg.configure(options);
             }
 
-            await alg.run(this.graph);
+            await alg.run(facade);
+        } finally {
+            // Kept open until the plugin settles, even after a cancel: a write it makes late still
+            // lands in the copy, never on a record.
+            close();
+        }
 
-            // As in `execute`: the repaint belongs to the style stack and is scheduled from the
-            // run finishing, not forced from here. A plugin algorithm writes its results onto the
-            // element's own node and edge records, which the session reads as attributes, so a
-            // layer selecting on one of those paths is repainted by the same trigger.
+        // Reading the draft throws once the command was cancelled, so nothing late is written.
+        const { draft } = ctx;
+        const written = scope.writes();
+        const service = ctx.services.data;
+        if (service !== undefined) {
+            for (const target of ["node", "edge"] as const) {
+                const rows = target === "node" ? written.nodes : written.edges;
+                if (rows.length > 0) {
+                    service.apply({ kind: "update-rows", target, rows }, draft);
+                }
+            }
+
+            if (written.graph !== null) {
+                service.values?.(written.graph, draft);
+            }
+        }
+
+        if (command.applySuggestedStyles === true) {
+            // Through the facade, so the layers join this step.
+            facade.applySuggestedStyles(`${command.namespace}:${command.type}`);
+        }
+    }
+
+    /**
+     * Dispatch one `algo.legacy`, announcing a failure on the graph's error channel.
+     * @param command - The command.
+     * @param dispatch - Where it goes.
+     */
+    private async dispatchLegacy(
+        command: AlgoLegacyCommand,
+        dispatch: (command: AlgoLegacyCommand) => Promise<unknown>,
+    ): Promise<void> {
+        try {
+            await dispatch(command);
         } catch (error) {
-            // Emit error event for any error (not found or execution)
             const algorithmError = error instanceof Error ? error : new Error(String(error));
 
             this.eventManager.emitGraphError(this.graph, algorithmError, "algorithm", {
-                algorithm: `${namespace}:${type}`,
+                algorithm: `${command.namespace}:${command.type}`,
                 component: "AlgorithmManager",
             });
 

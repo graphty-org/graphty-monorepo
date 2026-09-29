@@ -70,8 +70,9 @@ Variants of the command:
     - **incomplete: N of M stories**: the capture stopped part way. Re-run the job.
     - **not seeded from master**: this project is not reviewed on master (`seedFromMaster: false`
       in `projects.json`); its first baselines are accepted on a pull request.
-2. **Grid.** It opens on **Needs a decision** (the undecided items); **All** and one button per
-   status show the rest. At the top, **Errors** lists every failed capture with its reason and,
+2. **Grid.** It opens on **Needs a decision** (the undecided items, counted on the button); **All**
+   and one button per status show the rest. A line above the grid splits what is shown into
+   errors and images to compare, so the counts always add up. At the top, **Errors** lists every failed capture with its reason and,
    under "console and stack", the story's console output and the thrown error's stack (a play
    function's failed `expect` included). An error is never accepted: fix the story, re-run the
    `visual` job for a one-off timeout, or exclude it with a reason. Below it the items are grouped
@@ -82,11 +83,13 @@ Variants of the command:
    asking. **Filter by story id** narrows the grid; **Go to** opens item N, or the first item
    whose id contains the text. Coming back from a story, its tile is outlined and scrolled into
    view.
-3. **Story.** One item. Images are shown at real size: one CSS pixel of the page for each CSS
-   pixel the story was drawn at (a capture holds two image pixels per CSS pixel). **2x**, **4x**
+3. **Story.** One item. Images open at **Fit**: real size, shrunk to the pane when wider (a
+   1200 px graphty-element capture beside its baseline). **Real size (1x)** is one CSS pixel of the
+   page for each CSS pixel the story was drawn at (a capture holds two image pixels per CSS
+   pixel), scrolling when wider than the pane. **2x**, **4x**
    and **8x** enlarge it; from 4x pixels are drawn as hard squares. Each image scrolls in its own
-   frame. **Next changed box** (N) moves every frame to the next region of changed pixels and
-   outlines it; "box i of k" counts them. The views: **Side by side**; **Flash**, which shows
+   frame, which opens at the top left of the image. **Next changed box** (N) scrolls every frame
+   until the next region of changed pixels is in view and outlines it; "box i of k" counts them. The views: **Side by side**; **Flash**, which shows
    baseline and new one after the other in the same place, about 1.5 times a second (the images
    themselves, not an overlay); **Highlight**, pixelmatch's changed pixels in red over the
    dimmed baseline; and **Spotlight**, the new image dimmed everywhere except around the changed
@@ -118,7 +121,7 @@ for them. Seed them from master (below), or accept them on the pull request that
 | F            | Flash between baseline and new; F again returns to side by side                |
 | H            | Highlight changed pixels; H again returns to side by side                      |
 | S            | Spotlight the changes; S again returns to side by side                         |
-| Z            | Next zoom: real size, 2x, 4x, 8x, then real size again                         |
+| Z            | Next zoom: fit, real size, 2x, 4x, 8x, then fit again                          |
 | N            | Next changed box                                                               |
 | Space (hold) | Flash while held                                                               |
 | Shift+A      | Accept every undecided item of this project without opening it (asks first)    |
@@ -187,6 +190,11 @@ Seeding is per story:
    rejects become one issue whose machine-readable block an agent reads to fix the stories.
 3. Merge the seed pull request once its own capture shows its accepted items `unchanged`.
 
+To seed from an older, known-good commit instead of master's newest, capture it with master's
+tool: `gh workflow run visual-seed.yml --ref master -f ref=<sha>`, then start the server with
+`--master-run <that run's id>`. It is listed as "master"; its results.json names the captured
+commit, so Finish's seed branch starts from that commit.
+
 A story with no baseline on master is in the "no baseline yet" state. On every pull request, CI
 compares its capture with master's newest capture of that story:
 
@@ -225,8 +233,9 @@ the pull request.
 
 - **What a capture is.** Each story and mode is opened in a 1200 x 900 viewport at device scale
   factor 2, as Chromatic captures, so a PNG holds two image pixels per CSS pixel. It is cropped
-  to the story's rendered content (the box around every visible element, tooltips and popovers
-  included, but not what a scroll area hides) plus a 32 px margin. graphty-element keeps its viewport: the full width, cropped only
+  to the story's rendered content: its text, images and form controls and whatever paints a
+  background, border or shadow, tooltips and popovers included, but not an empty full-width
+  wrapper nor what a scroll area hides, plus a 32 px margin. graphty-element keeps its viewport: the full width, cropped only
   in height, never past the viewport, because capturing beyond it could resize the graph's
   canvas, which clears it. results.json records the scale as `scale`, and each review record
   copies it into its `subject`.
@@ -263,11 +272,13 @@ the pull request.
   to the branch, including an agent on your machine, can write one that names the copied PNGs, and
   the gate cannot tell it from one Finish wrote. What the gate shows is that the captures match
   the pull request's baselines and that each baseline change carries a record; who wrote the
-  record is unproven until signing arrives (below).
+  record is unproven until passkey approval arrives (below).
 - Review records are marked `"unproven": true`. The page runs on the development server, where
   agents run with your GitHub credentials and signing key, so an agent could press Accept or call
-  the page's API. CLAUDE.md forbids it; nothing technical prevents it yet. Signing with a hardware
-  security key on your own computer replaces this in milestone 3 (`design/visual-testing/roadmap.md`).
+  the page's API. CLAUDE.md forbids it; nothing technical prevents it yet. In milestone 3 Finish
+  asks for your passkey and Face ID on your iPhone, iPad or Mac, and the gate counts an accept
+  only with that approval; the commit's git signature no longer matters
+  (`design/visual-testing/design.md`, section 8).
 - The projects the gate checks are the ones with baselines on the base branch, so editing
   `visual-review/projects.json` does not remove one from the gate.
 - The gate is part of `.github/workflows/ci.yml`, which a pull request can edit, and a pull request

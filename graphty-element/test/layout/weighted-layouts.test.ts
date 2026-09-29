@@ -46,7 +46,7 @@ import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
-import type { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { layoutEngineInternals, type SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import type { Node } from "../../src/Node";
 
 /** One edge of a test graph: two node ids and the weight the store will hold for it. */
@@ -134,9 +134,9 @@ function mirrorPath(ab: number, ce: number): TestGraph {
  * @returns node id to its published coordinates, in scene units
  */
 function arrange(engine: SimpleLayoutEngine, graph: TestGraph): Arrangement {
-    engine.attachPositions(graph.positions);
-    engine.addNodes(graph.nodes);
-    engine.addEdges(graph.edges);
+    layoutEngineInternals.attachPositions(engine, graph.positions);
+    layoutEngineInternals.addNodes(engine, graph.nodes);
+    layoutEngineInternals.addEdges(engine, graph.edges);
     engine.publishPositions();
 
     const out: Record<string, readonly [number, number, number]> = {};
@@ -256,10 +256,7 @@ describe("edge weights and the two layouts that read them", () => {
             const zeroed = forceAtlas2(mirrorPath(0, 1));
             const ones = forceAtlas2(mirrorPath(1, 1));
 
-            assert.isFalse(
-                samePlaces(zeroed, ones),
-                "a weight of zero is not the same instruction as a weight of one",
-            );
+            assert.isFalse(samePlaces(zeroed, ones), "a weight of zero is not the same instruction as a weight of one");
             assert.isAbove(
                 distance(zeroed, "a", "b"),
                 distance(zeroed, "c", "e"),
@@ -303,10 +300,7 @@ describe("edge weights and the two layouts that read them", () => {
             const asDistances = directKamadaKawai({ "a|b": 1 / 4, "b|c": 1, "c|e": 1 });
             const asWeights = directKamadaKawai({ "a|b": 4, "b|c": 1, "c|e": 1 });
 
-            assert.isTrue(
-                samePlaces(arranged, asDistances),
-                "the engine asked for 1/weight, which is a distance",
-            );
+            assert.isTrue(samePlaces(arranged, asDistances), "the engine asked for 1/weight, which is a distance");
             assert.isFalse(
                 samePlaces(arranged, asWeights),
                 "and not for the weight itself, which would draw a strong connection long",
@@ -333,9 +327,29 @@ describe("edge weights and the two layouts that read them", () => {
             // Left to last-writer-wins, the order the file happened to list its edges in would
             // decide the arrangement, and the same graph re-exported in another order would draw
             // differently.
-            const parallel = arrange(kamadaKawai(), graphOf([["a", "b", 2], ["a", "b", 3], ["b", "c", 1]]));
-            const reversed = arrange(kamadaKawai(), graphOf([["a", "b", 3], ["a", "b", 2], ["b", "c", 1]]));
-            const summed = arrange(kamadaKawai(), graphOf([["a", "b", 5], ["b", "c", 1]]));
+            const parallel = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 2],
+                    ["a", "b", 3],
+                    ["b", "c", 1],
+                ]),
+            );
+            const reversed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 3],
+                    ["a", "b", 2],
+                    ["b", "c", 1],
+                ]),
+            );
+            const summed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 5],
+                    ["b", "c", 1],
+                ]),
+            );
 
             assert.isTrue(samePlaces(parallel, reversed), "the order the parallel edges arrived in changes nothing");
             assert.isTrue(samePlaces(parallel, summed), "and edges of 2 and 3 arrange exactly as one edge of 5");

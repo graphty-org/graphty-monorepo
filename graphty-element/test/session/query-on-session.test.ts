@@ -72,7 +72,11 @@ describe("a { where } predicate on a session", () => {
 
         await selection.apply({ where: "data.source == 'b'" });
 
-        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "b", "c")], "an edge predicate selects edges");
+        assert.deepStrictEqual(
+            [...selection.edges],
+            [edgeBetween(harness, "b", "c")],
+            "an edge predicate selects edges",
+        );
 
         const missing = await selection.apply({ where: "data.nope == 'x'" });
 
@@ -85,7 +89,7 @@ describe("a { where } predicate on a session", () => {
         const harness = harnessOf();
         const where = "data.type == 'host' && data.label != 'Beta'";
         const source = createSelectorSource({
-            snapshot: () => harness.session.snapshot(),
+            snapshot: () => harness.store.getSnapshot(),
             records: {
                 nodeAttributes: (index) => harness.nodeAttributes.get(index),
                 edgeAttributes: (index) => harness.edgeAttributes.get(index),

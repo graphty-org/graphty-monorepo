@@ -37,11 +37,13 @@ const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), 
  */
 const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string }[] = [
     { subpath: ".", source: "index.ts", output: "graphty" },
-    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map((name) => ({
-        subpath: `./${name}`,
-        source: `${name}.ts`,
-        output: name,
-    })),
+    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map(
+        (name) => ({
+            subpath: `./${name}`,
+            source: `${name}.ts`,
+            output: name,
+        }),
+    ),
 ];
 
 /**
@@ -147,7 +149,7 @@ function viteEntries(): Record<string, string> {
                 continue;
             }
 
-            const {initializer} = declaration;
+            const { initializer } = declaration;
             if (initializer === undefined || !ts.isObjectLiteralExpression(initializer)) {
                 continue;
             }
@@ -164,15 +166,18 @@ function viteEntries(): Record<string, string> {
 }
 
 describe("the exports map", () => {
-    it.each(MODULE_ENTRIES)("$subpath is a real entry point with a source file behind it", ({ subpath, source, output }) => {
-        const conditions = manifest.exports[subpath];
+    it.each(MODULE_ENTRIES)(
+        "$subpath is a real entry point with a source file behind it",
+        ({ subpath, source, output }) => {
+            const conditions = manifest.exports[subpath];
 
-        assert.deepEqual(
-            conditions,
-            { types: `./dist/${output === "graphty" ? "index" : output}.d.ts`, import: `./dist/${output}.js` },
-        );
-        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
-    });
+            assert.deepEqual(conditions, {
+                types: `./dist/${output === "graphty" ? "index" : output}.d.ts`,
+                import: `./dist/${output}.js`,
+            });
+            assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
+        },
+    );
 
     it("publishes ./bundle as one self-contained file, for a page with no installer", () => {
         // The UMD build is gone, and ./bundle is what replaced it. A consumer pasting a script
@@ -265,7 +270,10 @@ describe("the sibling packages", () => {
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {
-        assert.deepEqual(namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)), []);
+        assert.deepEqual(
+            namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)),
+            [],
+        );
     });
 });
 
@@ -287,6 +295,30 @@ describe("the ./format entry point", () => {
 
         for (const name of ["GraphBuilder", "AttributeTable", "NodeIdMap", "fromRecords", "fromWire", "fromBytes"]) {
             assert.notInclude(exported, name);
+        }
+    });
+});
+
+describe("the ./commands entry point", () => {
+    it("publishes the vocabulary as data that survives JSON, and a guard that reads it", async () => {
+        const commands = await import("../../commands");
+
+        assert.isAbove(Object.keys(commands.COMMANDS).length, 0);
+        assert.deepEqual(JSON.parse(JSON.stringify(commands.COMMANDS)), commands.COMMANDS);
+        assert.isTrue(commands.isSessionCommand({ op: "algo.run", algorithm: "degree" }));
+        assert.isFalse(commands.isSessionCommand({ op: "no.such-op" }));
+        assert.isFalse(commands.isSessionCommand(null));
+        assert.isFalse(commands.isSessionCommand({ op: "toString" }));
+    });
+
+    it("is the vocabulary of the session: every op is undoable or exempt with a reason", async () => {
+        const { COMMANDS } = await import("../../commands");
+
+        for (const [op, meta] of Object.entries(COMMANDS) as [string, { undo: string; reason?: string }][]) {
+            assert.include(["undoable", "exempt"], meta.undo, op);
+            if (meta.undo === "exempt") {
+                assert.isNotEmpty(meta.reason, op);
+            }
         }
     });
 });

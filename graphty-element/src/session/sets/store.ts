@@ -1,13 +1,14 @@
 /**
- * @file The kept-set slice: one keyed map of frozen records, written only through `put` and
- * `delete` inside a write group (design/sets/sets-design.md sections 3.1, 12.4, 13).
+ * @file The kept sets: the `sets` slice of project state, one keyed map of frozen records written
+ * only by the `set.*` commands through the session's dispatcher, and the state kept beside it
+ * (design/sets/sets-design.md sections 3.1, 12.4, 13; design/sets/undo-integration.md section 1).
  *
  * Beside the slice, never in it:
  *
  * - the ISSUED-ID REGISTER, every id ever minted. Monotonic: appended when a group commits,
  *   never written by `put` or `delete`, never rewound. Minting skips it, the live ids and the ids
- *   pending in the open group, so an id is never issued twice even when a group creates, removes
- *   and re-creates one name.
+ *   minted and not yet sealed, so an id is never issued twice even when a transaction creates,
+ *   removes and re-creates one name. Undo, redo and a rollback never rewind it.
  * - the TOMBSTONES, `{ id, name, record? }` for each removed id, rewritten at every commit that
  *   removes it. A tombstone is authoritative only while its id is absent from the slice. Its
  *   record is kept while anything still names the id -- a reference to a removed set resolves
@@ -21,16 +22,18 @@
  * - the ORDER high-water mark: a new set's order is one past the highest order the store has
  *   held, so a restored record can never share its order with a set created after it was removed.
  *
- * A committed group tells its listeners one {@link SetChange} per touched key, from the key's
- * before and after values; a group that throws is rolled back and tells nobody.
+ * Each change of the slice the dispatcher publishes -- a step recorded, undone or redone --
+ * tells the listeners one {@link SetChange} per changed key, from the key's before and after
+ * values; a rollback tells nobody.
  *
- * Only `session/sets/` may import this module (a static test enforces it): nothing else writes
- * set state.
+ * Only `session/sets/` may import this module (a static test enforces it).
  */
 
 import { compareIds } from "../../catalog/sets/canonical";
 import type { SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { SET_DEFINITIONS } from "../commands/sets";
+import { Dispatcher } from "../project/Dispatcher";
 import { loadRecord, type RecordView } from "./prepare";
 import type { EdgeSeeds } from "./resolve";
 import type { ElementSet, SetChange } from "./types";
@@ -75,35 +78,50 @@ function slugOf(name: string): string {
     return slug === "" ? "set" : slug;
 }
 
-/** A nested write's savepoint: each key's value before it, and the group's state when it began. */
-interface Savepoint {
-    readonly values: Map<SetId, ElementSet | undefined>;
-    readonly minted: number;
-    readonly order: number;
-}
+/** What caused a change of the slice, as the dispatcher reports it. */
+type SliceCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
-/**
- * The open write group: each touched key's value before the group, the ids it minted, the
- * savepoints of the writes open inside it, innermost last, and what caused it.
- */
-interface Group {
-    readonly before: Map<SetId, ElementSet | undefined>;
-    readonly minted: SetId[];
-    readonly saves: Savepoint[];
-    readonly cause: SetChange["cause"];
-}
-
-/** The kept-set slice and the state beside it. */
+/** The kept sets and the state beside them. */
 export class SetsStore implements RecordView {
-    private readonly records = new Map<SetId, ElementSet>();
+    /** The dispatcher whose `sets` slice holds the records and whose commands write them. */
+    readonly dispatcher: Dispatcher;
     private readonly issued = new Set<SetId>();
+    /** Ids minted for a write not yet sealed; dropped once no group is open. */
+    private readonly pending = new Set<SetId>();
     private readonly tombstones = new Map<SetId, Tombstone>();
     private readonly listeners = new Set<(change: SetChange) => void>();
     private readonly commitListeners = new Set<(changes: readonly SetChange[]) => void>();
     private readonly seeds = new Map<SetId, { readonly counters: Map<string, number>; version: number }>();
     private highestOrder = 0;
-    private group: Group | null = null;
-    private listed: readonly ElementSet[] | null = null;
+    private listed: { readonly writes: number; readonly list: readonly ElementSet[] } | null = null;
+    /** The records as the listeners were last told of them. */
+    private told = new Map<SetId, ElementSet>();
+    /** The history position the listeners were last told at, to tell a restore's direction. */
+    private position = 0;
+
+    /**
+     * Keep sets in a dispatcher's `sets` slice.
+     * @param dispatcher - The session's dispatcher; one of its own, over the set ops alone, when
+     *     absent.
+     */
+    constructor(dispatcher?: Dispatcher) {
+        this.dispatcher = dispatcher ?? new Dispatcher({ definitions: SET_DEFINITIONS });
+        const beside = this.dispatcher.events.project;
+        this.dispatcher.events.project = (change) => {
+            beside?.(change);
+            if (change.slices.includes("sets")) {
+                this.tell(change.cause);
+            }
+        };
+    }
+
+    /**
+     * The slice, live.
+     * @returns The records by id.
+     */
+    private get records(): ReadonlyMap<SetId, ElementSet> {
+        return this.dispatcher.state.sets;
+    }
 
     /**
      * One live record.
@@ -123,19 +141,25 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * Every live record by order, ties by id: the same frozen array until a write.
+     * Every live record by order, ties by id: the same frozen array until the slice is written.
      * @returns The records.
      */
     list(): readonly ElementSet[] {
-        this.listed ??= Object.freeze(
-            [...this.records.values()].sort((a, b) => a.order - b.order || compareIds(a.id, b.id)),
-        );
+        const writes = this.dispatcher.lane.writes("sets");
+        if (this.listed?.writes !== writes) {
+            this.listed = {
+                writes,
+                list: Object.freeze(
+                    [...this.records.values()].sort((a, b) => a.order - b.order || compareIds(a.id, b.id)),
+                ),
+            };
+        }
 
-        return this.listed;
+        return this.listed.list;
     }
 
     /**
-     * Every id ever issued and committed.
+     * Every id ever issued and sealed.
      * @returns The register.
      */
     register(): ReadonlySet<SetId> {
@@ -206,19 +230,23 @@ export class SetsStore implements RecordView {
 
     /**
      * Mint an id for a name: `set_<slug>`, then `_2`, `_3` and on, skipping the register, the
-     * live ids and the ids already minted in the open group. Only inside a write group.
+     * live ids and the ids minted for writes not yet sealed.
      * @param name - The trimmed name.
-     * @returns The id, pending until the group commits.
+     * @returns The id, issued once the step that writes it is sealed.
      */
     mint(name: string): SetId {
-        const group = this.requireGroup("mint");
+        if (this.dispatcher.idle) {
+            // Nothing is open, so an id still pending belongs to a write that was rolled back.
+            this.pending.clear();
+        }
+
         const base = `set_${slugOf(name)}`;
         let id = base;
-        for (let suffix = 2; this.issued.has(id) || this.records.has(id) || group.minted.includes(id); suffix++) {
+        for (let suffix = 2; this.issued.has(id) || this.records.has(id) || this.pending.has(id); suffix++) {
             id = `${base}_${suffix}`;
         }
 
-        group.minted.push(id);
+        this.pending.add(id);
 
         return id;
     }
@@ -232,79 +260,30 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * Write one record. Only inside a write group.
-     * @param record - A frozen record from `prepare`, or restored.
+     * Note a record a set op is about to write: its order is never given out again. Called by the
+     * set service, never rewound.
+     * @param record - The record.
      */
-    put(record: ElementSet): void {
-        this.touch(record.id);
-        this.records.set(record.id, record);
+    written(record: ElementSet): void {
         this.highestOrder = Math.max(this.highestOrder, record.order);
     }
 
     /**
-     * Remove one record. Only inside a write group.
-     * @param id - Its id.
+     * Keep an id in the register: the step that wrote it has been sealed.
+     * @param id - The id.
      */
-    delete(id: SetId): void {
-        this.touch(id);
-        this.records.delete(id);
+    issue(id: SetId): void {
+        this.issued.add(id);
+        this.pending.delete(id);
     }
 
     /**
-     * Run one write group: every `mint`, `put` and `delete` inside commits together, or, when
-     * `write` throws, none of them does. A nested call joins the open group as a savepoint: when
-     * it throws, its own writes and mints are undone and the group goes on.
-     * @param write - The writes.
-     * @param cause - What the listeners are told caused it, for an outermost group.
-     * @returns What `write` returned.
+     * Tombstone a record about to be removed, newest last, so `sets.restore` can bring it back.
+     * @param record - The record.
      */
-    transact<T>(write: () => T, cause: SetChange["cause"] = "command"): T {
-        const outer = this.group;
-        const group: Group = outer ?? { before: new Map(), minted: [], saves: [], cause };
-        // A nested call is a savepoint: when it throws, only its own writes and mints are undone
-        // and the outer group carries on, so a refused door inside a group leaves no trace.
-        const save = {
-            values: new Map<SetId, ElementSet | undefined>(),
-            minted: group.minted.length,
-            order: this.highestOrder,
-        };
-        group.saves.push(save);
-        this.group = group;
-        let result: T;
-        try {
-            result = write();
-        } catch (error) {
-            for (const [id, record] of save.values) {
-                if (record === undefined) {
-                    this.records.delete(id);
-                } else {
-                    this.records.set(id, record);
-                }
-            }
-
-            group.minted.length = save.minted;
-            this.highestOrder = save.order;
-            this.listed = null;
-            throw error;
-        } finally {
-            group.saves.pop();
-            this.group = outer;
-        }
-
-        const parent = group.saves.at(-1);
-        if (parent !== undefined) {
-            for (const [id, record] of save.values) {
-                if (!parent.values.has(id)) {
-                    parent.values.set(id, record);
-                }
-            }
-        }
-
-        if (outer === null) {
-            this.commit(group);
-        }
-
-        return result;
+    bury(record: ElementSet): void {
+        this.tombstones.delete(record.id);
+        this.tombstones.set(record.id, Object.freeze({ id: record.id, name: record.name, record }));
     }
 
     /**
@@ -320,15 +299,16 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * Load a stored slice into this empty store: every record validated in load mode and `put`,
-     * the register and the tombstones restored. One write group, told as `load`. Internal.
+     * Load a stored slice into this empty store, as the baseline: every record validated in load
+     * mode, the register and the tombstones restored, and the listeners told once, as `load`.
+     * Internal.
      * @param stored - What {@link toLogicalRecords} returned, after any JSON round trip.
      *
      * A record's `createdFrom` of a kind this version does not know is kept as given and written
      * back unchanged, as an unknown definition kind is (design 12.5). A tombstone whose id is also
      * a live record is dropped: a tombstone speaks only for an absent id.
      * @throws `E_BAD_COMMAND` for a malformed slice, record or tombstone, or two records with one
-     *     id; an Error for a non-empty store.
+     *     id; an Error for a non-empty store, or once the history has recorded a step.
      */
     loadLogicalRecords(stored: unknown): void {
         const value = stored as { records?: unknown; register?: unknown; tombstones?: unknown } | null;
@@ -374,11 +354,16 @@ export class SetsStore implements RecordView {
                   ];
         });
 
-        this.transact(() => {
+        // The baseline: what history starts from, recorded as no step.
+        this.dispatcher.seed((draft) => {
             for (const record of records) {
-                this.put(record);
+                draft.sets.set(record.id, record);
             }
-        }, "load");
+        });
+        for (const record of records) {
+            this.written(record);
+        }
+
         for (const id of [...value.register, ...records.map((record) => record.id), ...tombstones.map((t) => t.id)]) {
             this.issued.add(id);
         }
@@ -389,10 +374,12 @@ export class SetsStore implements RecordView {
                 this.highestOrder = Math.max(this.highestOrder, tombstone.record.order);
             }
         }
+
+        this.tell("load");
     }
 
     /**
-     * Listen to committed changes: one call per touched key per group.
+     * Listen to committed changes: one call per changed key per change of the slice.
      * @param listener - The listener.
      * @returns A function that stops listening.
      */
@@ -405,7 +392,7 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * Hear each committed group whole, before any per-key listener: the change notification
+     * Hear each change of the slice whole, before any per-key listener: the change notification
      * (`./notify`) re-resolves live sets here, ahead of `set:changed`.
      * @param listener - The listener, handed every change of the group.
      * @returns A function that stops listening.
@@ -419,59 +406,34 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * The open group.
-     * @param verb - What needs it, for the message.
-     * @returns The group.
-     * @throws An Error outside a write group.
+     * Tell the listeners what changed since they were last told: the diff of the slice.
+     * @param cause - What changed it. A rollback puts back what nobody was told of, so it tells
+     *     nobody.
      */
-    private requireGroup(verb: string): Group {
-        if (this.group === null) {
-            throw new Error(`SetsStore.${verb} runs inside transact().`);
+    private tell(cause: SliceCause | "load"): void {
+        const was = this.told;
+        const now = new Map(this.records);
+        this.told = now;
+        const { position } = this.dispatcher.history;
+        const moved = position < this.position ? "undo" : "redo";
+        this.position = position;
+        if (cause === "rollback") {
+            return;
         }
 
-        return this.group;
-    }
-
-    /**
-     * Remember a key's value before the group first touched it.
-     * @param id - The key.
-     */
-    private touch(id: SetId): void {
-        const { before, saves } = this.requireGroup("put and delete");
-        const prior = this.records.get(id);
-        if (!before.has(id)) {
-            before.set(id, prior);
-        }
-
-        const save = saves.at(-1);
-        if (save !== undefined && !save.values.has(id)) {
-            save.values.set(id, prior);
-        }
-
-        this.listed = null;
-    }
-
-    /**
-     * Commit a group: register its ids, tombstone what it removed, tell the listeners.
-     * @param group - The group.
-     */
-    private commit(group: Group): void {
-        for (const id of group.minted) {
-            this.issued.add(id);
-        }
-
+        const told: SetChange["cause"] = cause === "restore" ? moved : cause;
         const changes: SetChange[] = [];
-        for (const [id, before] of group.before) {
-            const after = this.records.get(id);
+        for (const id of new Set([...was.keys(), ...now.keys()])) {
+            const before = was.get(id);
+            const after = now.get(id);
             if (before === after) {
                 continue;
             }
 
             if (after === undefined) {
-                this.bury(before as ElementSet);
-                changes.push({ id, change: "removed", fields: [], set: null, cause: group.cause });
+                changes.push({ id, change: "removed", fields: [], set: null, cause: told });
             } else if (before === undefined) {
-                changes.push({ id, change: "created", fields: [], set: after, cause: group.cause });
+                changes.push({ id, change: "created", fields: [], set: after, cause: told });
             } else {
                 const fields: ("name" | "definition" | "order")[] = [];
                 if (before.name !== after.name) {
@@ -486,7 +448,10 @@ export class SetsStore implements RecordView {
                     fields.push("order");
                 }
 
-                changes.push({ id, change: "updated", fields, set: after, cause: group.cause });
+                // Written and put back within one step (renamed and renamed back): no change.
+                if (fields.length > 0) {
+                    changes.push({ id, change: "updated", fields, set: after, cause: told });
+                }
             }
         }
 
@@ -514,15 +479,6 @@ export class SetsStore implements RecordView {
                 }
             }
         }
-    }
-
-    /**
-     * Tombstone a removed record, newest last.
-     * @param record - The record removed.
-     */
-    private bury(record: ElementSet): void {
-        this.tombstones.delete(record.id);
-        this.tombstones.set(record.id, Object.freeze({ id: record.id, name: record.name, record }));
     }
 }
 

@@ -25,15 +25,16 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
-import { DataManager } from "../../src/managers/DataManager";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager } from "../../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { NodePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
-import { Node } from "../../src/Node";
+import { Node, placeNodeRow } from "../../src/Node";
 import { Styles } from "../../src/Styles";
 
 const NODE_STYLE: NodeStyleConfig = {
@@ -129,7 +130,7 @@ function createHarness(): Harness {
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     const layoutEngine = new FixedTestLayout();
-    layoutManager.layoutEngine = layoutEngine;
+    layoutManagerInternals.setEngine(layoutManager, layoutEngine);
 
     const context = new DefaultGraphContext(
         () => styles,
@@ -169,10 +170,10 @@ function addNode(harness: Harness, id: string, pinOnDrag = true): Node {
     // THE ROW IS THE POINT. A pin lives in the position array at the node's index, so a node that
     // never reached the graph builder has nowhere to record one -- which is a real state, asserted
     // separately below, and not the state a pin test should be run in.
-    node.index = harness.rows;
+    placeNodeRow(node, harness.rows);
     harness.rows += 1;
-    harness.dataManager.positions.grow(harness.rows);
-    harness.dataManager.nodes.set(id, node);
+    harness.dataManager[WRITABLE_LANE].grow(harness.rows);
+    dataManagerInternals.adoptNode(harness.dataManager, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
     return node;
@@ -249,7 +250,7 @@ describe("Node.index and the pin lifecycle", () => {
 
         const replacement = new FixedTestLayout();
         replacement.addNode(node);
-        harness.layoutManager.layoutEngine = replacement;
+        layoutManagerInternals.setEngine(harness.layoutManager, replacement);
 
         assert.strictEqual(node.isPinned(), true, "the pin belongs to the node's row, not to an engine");
 

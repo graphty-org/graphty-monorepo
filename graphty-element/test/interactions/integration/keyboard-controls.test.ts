@@ -8,7 +8,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
@@ -28,7 +28,7 @@ function get2DInputController(graph: Graph):
     | undefined {
     const cameraManager = graph.camera;
     // Access via internal input registry
-     
+
     const anyManager = cameraManager as any;
     if (anyManager.activeInputHandler?.applyKeyboardInertia) {
         return anyManager.activeInputHandler;
@@ -47,7 +47,7 @@ function get2DCameraController(graph: Graph):
       }
     | undefined {
     const controller = graph.camera.getActiveController();
-     
+
     const anyController = controller as any;
     if (anyController.velocity) {
         return anyController;
@@ -69,7 +69,6 @@ function get3DCameraState(graph: Graph): {
         throw new Error("No active camera controller");
     }
 
-     
     const camera = controller.camera as any;
     return {
         alpha: camera.alpha ?? 0,
@@ -96,7 +95,7 @@ describe("Keyboard Controls Integration", () => {
             await configureGraph(graph, { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Wait for camera to be activated
             await new Promise((resolve) => setTimeout(resolve, 100));
@@ -251,7 +250,7 @@ describe("Keyboard Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Disable input controller
-             
+
             const anyInput = inputController as any;
             if (anyInput.disable) {
                 anyInput.disable();
@@ -288,7 +287,7 @@ describe("Keyboard Controls Integration", () => {
             await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Wait for camera to be activated
             await new Promise((resolve) => setTimeout(resolve, 100));

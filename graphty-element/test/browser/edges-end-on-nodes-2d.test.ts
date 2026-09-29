@@ -10,6 +10,7 @@
 import { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
+import { operationQueueOf } from "../../src/Graph";
 import { Graphty } from "../../src/graphty-element";
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
@@ -53,9 +54,9 @@ async function mount2D(configure: (element: Graphty) => void): Promise<Graphty> 
     host.append(element);
 
     await new Promise((resolve) => setTimeout(resolve, 400));
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 
     return element;
 }

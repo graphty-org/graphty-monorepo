@@ -17,7 +17,7 @@ import { assert, it } from "vitest";
 
 import { createEdgeCounter, identityColumnsOf } from "../../src/data/edgeIdentity";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../src/data/ingest";
+import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 const LARGE = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BENCH_SCALE === "large";
 const SIZES: readonly { label: string; n: number; m: number; projection: string }[] = [

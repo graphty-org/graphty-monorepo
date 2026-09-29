@@ -85,6 +85,20 @@ When the element fix genuinely cannot land first -- a release is in flight, the 
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
 record. It is not done until the element is fixed and the workaround is deleted.
 
+### Easy things easy, hard things possible
+
+Every public API and extension point has a simple path and an advanced path. The simple path's
+first working example fits in about 15 lines of author code and names no internal concept: no
+snapshot rows, compressed sparse rows, typed arrays, masks, cost formulas or descriptor
+bookkeeping. The advanced path exposes the machinery for authors who need speed or control, and
+the simple path wraps it, so the parity rule for extension points still holds.
+
+A spec or design for a public API is not reviewed until an author who sees only the published
+docs, and never the repository, has written its canonical example and compiled it against the
+published types. Every review workflow includes a developer-experience lens and the developer
+personas in `design/designloom/personas/`, alongside security, evolution and implementability. A
+spec whose simplest example needs internal knowledge fails review.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -339,7 +353,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
 
 **graphty:**
-- Browser-based tests (Playwright)
+- `browser` - Browser-based tests (Playwright)
+- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
 - `default` - Node.js tests
@@ -645,6 +660,25 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
 - Release workflow reuses CI artifacts (no rebuild)
+
+### Breaking changes and major releases
+
+Every major release costs every consumer a migration, so keep them few: think ahead and group
+breaking changes into as few majors as possible.
+
+- Before adding a breaking (`!`) commit to a published package, find the other breaking changes
+  already planned or in flight for that package -- open pull requests carrying `!` commits,
+  deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
+  in the same major.
+- Release runs on every merge to master, so a group of breaking changes cannot be assembled by
+  merging several pull requests one after another: each merge would publish its own major. Put
+  the grouped changes on one branch (or merge one pull request into the other) and release them
+  with one merge.
+- Prefer deprecating now and removing in the next major that is already planned over a major of
+  its own. A breaking change that can wait for the next grouped major waits.
+- A pull request that will bump a published package's major says so in its description, lists
+  the breaking changes it groups, and names any known breaking change it deliberately leaves for
+  a later major, with the reason.
 
 ### Module System
 

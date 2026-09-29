@@ -21,13 +21,13 @@ import type { Edge } from "../../src/Edge";
 import { isGraphtyError } from "../../src/errors";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
-import { LayoutEngine, type Position } from "../../src/layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals, type Position } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { DataManager } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager } from "../../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import type { Node } from "../../src/Node";
@@ -167,7 +167,7 @@ describe("the hold", () => {
     it("refuses a layout write onto a held row that has a coordinate, and nothing else", () => {
         const positions = new ElementPositions(3);
         const probe = new Probe();
-        probe.attachPositions(positions);
+        layoutEngineInternals.attachPositions(probe, positions);
         const [member, held, fresh] = [node("m", 0, positions), node("h", 1, positions), node("f", 2, positions)];
         assert.isTrue(probe.write(held, 5), "a held row with no coordinate takes its first one");
         probe.setHoldMask(maskOf(2, [1]), 2);
@@ -193,20 +193,23 @@ describe("the hold", () => {
         const run = (hold: boolean): ElementPositions => {
             const positions = new ElementPositions(5);
             const engine = build();
-            engine.attachPositions(positions);
+            layoutEngineInternals.attachPositions(engine, positions);
             const nodes = Array.from({ length: 5 }, (_, index) => node(`n${String(index)}`, index, positions));
-            engine.addNodes(nodes);
-            engine.addEdges(nodes.slice(1).map((dst, index) => edge(nodes[index], dst)));
+            layoutEngineInternals.addNodes(engine, nodes);
+            layoutEngineInternals.addEdges(
+                engine,
+                nodes.slice(1).map((dst, index) => edge(nodes[index], dst)),
+            );
             nodes.forEach((n, index) => {
-                engine.setNodePosition(n, { x: index * 10, y: index % 2, z: 0 });
+                layoutEngineInternals.setNodePosition(engine, n, { x: index * 10, y: index % 2, z: 0 });
             });
             if (hold) {
                 engine.setHoldMask(maskOf(5, [0, 1]), 5);
             } else {
                 positions.setPinned(0, true);
                 positions.setPinned(1, true);
-                engine.pin(nodes[0]);
-                engine.pin(nodes[1]);
+                layoutEngineInternals.pin(engine, nodes[0]);
+                layoutEngineInternals.pin(engine, nodes[1]);
             }
 
             for (let step = 0; step < 50; step++) {
@@ -245,17 +248,17 @@ describe("the hold", () => {
         it(`${name} does not release a held node the reader unpins`, () => {
             const positions = new ElementPositions(3);
             const engine = build();
-            engine.attachPositions(positions);
+            layoutEngineInternals.attachPositions(engine, positions);
             const nodes = Array.from({ length: 3 }, (_, index) => node(`n${String(index)}`, index, positions));
-            engine.addNodes(nodes);
+            layoutEngineInternals.addNodes(engine, nodes);
             const first = edge(nodes[0], nodes[1]);
-            engine.addEdges([first, edge(nodes[1], nodes[2])]);
+            layoutEngineInternals.addEdges(engine, [first, edge(nodes[1], nodes[2])]);
             nodes.forEach((n, index) => {
-                engine.setNodePosition(n, { x: index * 10, y: 0, z: 0 });
+                layoutEngineInternals.setNodePosition(engine, n, { x: index * 10, y: 0, z: 0 });
             });
             engine.setHoldMask(maskOf(3, [0]), 3);
 
-            engine.unpin(nodes[0]);
+            layoutEngineInternals.unpin(engine, nodes[0]);
             for (let step = 0; step < 30; step++) {
                 engine.step();
             }
@@ -316,7 +319,7 @@ describe("a scope on a layout manager", () => {
         const layouts = manager();
         let error: unknown;
         try {
-            await layouts.setLayout("circular", {}, { nodes: ["a"] });
+            await layoutManagerInternals.setLayout(layouts, "circular", {}, { nodes: ["a"] });
         } catch (caught) {
             error = caught;
         }
@@ -327,8 +330,8 @@ describe("a scope on a layout manager", () => {
 
     it("carries a scope a one-shot layout cannot use without refusing, and holds nothing", async () => {
         const layouts = manager();
-        await layouts.setLayout("ngraph", {}, { nodes: ["a"] });
-        await layouts.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(layouts, "ngraph", {}, { nodes: ["a"] });
+        await layoutManagerInternals.setLayout(layouts, "circular", {});
 
         assert.deepEqual(layouts.scope, { nodes: ["a"] }, "the scope is still carried");
         assert.isNull(layouts.layoutEngine?.holdMask ?? null, "but a static layout holds nothing");

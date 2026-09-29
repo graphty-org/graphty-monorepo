@@ -9,8 +9,9 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { hashEdgeMember, hashNodeId } from "../../../src/catalog/sets/hash";
 import { IDENTITY_COLUMNS, identityColumnsOf, pairsOrdered, stableEdgeMember } from "../../../src/data/edgeIdentity";
-import { Graph } from "../../../src/Graph";
-import dataManagerSource from "../../../src/managers/DataManager.ts?raw";
+import { Graph, operationQueueOf } from "../../../src/Graph";
+// The data manager ingests through the session's ingest module, which the graph primitives write for.
+import ingestSource from "../../../src/session/project/ingest.ts?raw";
 import simpleCsv from "../../helpers/corpus/csv/simple-edges.csv?raw";
 import helloDot from "../../helpers/corpus/dot/hello.gv?raw";
 import minimalGexf from "../../helpers/corpus/gexf/minimal.gexf?raw";
@@ -85,7 +86,7 @@ describe("DataManager fills the identity columns", () => {
     for (const [kind, data] of SOURCES) {
         it(`after a ${kind} load, every edge carries its ordinal within the load`, async () => {
             await graph.addDataFromSource(kind, { data });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const snapshot = graph.getDataManager().getSnapshot();
             assertIdentity(snapshot, kind);
@@ -103,7 +104,7 @@ describe("DataManager fills the identity columns", () => {
             { source: "a", target: "b" },
             { source: "a", target: "b" },
         ]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const snapshot = graph.getDataManager().getSnapshot();
         assertIdentity(snapshot, "records");
@@ -135,8 +136,8 @@ describe("DataManager fills the identity columns", () => {
 
     it("decides repeated edges through the Node-safe survivorship function", async () => {
         // The source says so: one decision function, no second copy of the policy switch.
-        assert.include(dataManagerSource, "decideRepeat(");
-        assert.notInclude(dataManagerSource, 'policy === "first"');
+        assert.include(ingestSource, "decideRepeat(");
+        assert.notInclude(ingestSource, 'policy === "first"');
 
         const expectedAmong: Record<Exclude<DuplicatePolicy, "error">, number[]> = {
             keep: [3, 3, 3],
@@ -151,9 +152,9 @@ describe("DataManager fills the identity columns", () => {
             edges: [1, 2, 3].map((weight) => ({ source: "a", target: "b", weight })),
         });
         for (const [policy, among] of Object.entries(expectedAmong)) {
-            graph.styles.config.data.knownFields.repeatedEdges = policy as DuplicatePolicy;
+            void graph.getSession().config.set({ data: { knownFields: { repeatedEdges: policy as DuplicatePolicy } } });
             await graph.addDataFromSource("json", { data }, { replace: true });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             const snapshot = graph.getDataManager().getSnapshot();
             assert.deepEqual([...identityColumnsOf(snapshot).edgeAmong], among, policy);
             assertIdentity(snapshot, policy);

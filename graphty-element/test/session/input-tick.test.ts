@@ -123,8 +123,9 @@ describe("the input tick", () => {
         // The mint at the start, the publish at the end.
         assert.strictEqual(tick(harness), before + 2);
         await run.rerun();
-        // Queued for the re-run clears the result, then a mint and a publish.
-        assert.strictEqual(tick(harness), before + 5);
+        // A mint and a publish: the re-run keeps the result it replaces while it is queued (the
+        // result is project state, in the runs slice), so queueing moves nothing.
+        assert.strictEqual(tick(harness), before + 4);
         harness.session.dispose();
     });
 });

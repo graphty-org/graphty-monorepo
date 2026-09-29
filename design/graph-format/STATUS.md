@@ -26,7 +26,7 @@ verification, benchmarks and the two resolved pre-1.0 gaps are in "F1 landing").
 | Module (src/)               | Design sections   | Contents                                                                                                                                                                                                                                                                                                                                               |
 | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `index.ts`                  | 12.2              | The only public barrel: explicit named exports of exactly the 126 names of 12.2 (4 classes, 24 functions, 5 constants incl. the error class, 93 types).                                                                                                                                                                                                |
-| `constants.ts`, `errors.ts` | 11.2, 12.2        | `INVALID_INDEX`, `MAX_COUNT`, `FORMAT_VERSION`, `SNAPSHOT_BRAND`; internal `ALIGNMENT`, `IS_LITTLE_ENDIAN`, `WIRE_*`, `CONTAINER_MAGIC`, `ENDIAN_PROBE`; `GraphFormatError` with the 29 codes.                                                                                                                                                         |
+| `constants.ts`, `errors.ts` | 11.2, 12.2        | `INVALID_INDEX`, `MAX_COUNT`, `FORMAT_VERSION`, `SNAPSHOT_BRAND`; internal `ALIGNMENT`, `IS_LITTLE_ENDIAN`, `WIRE_*`, `CONTAINER_MAGIC`, `ENDIAN_PROBE`; `GraphFormatError` with the 30 codes.                                                                                                                                                         |
 | `types/`                    | 12.2              | `columns.ts`, `snapshot.ts`, `builder.ts`, `wire.ts` transcribe every interface; the four classes are `*Contract` interfaces the classes implement, with the public names re-exported type-only from the class modules. `internal.ts` holds the construction contracts (SnapshotParts, MutableColumnParts, TableParts, ViewValues / ViewCache).        |
 | `ids/`                      | 4                 | `NodeIdMap` (identity / dense / numeric / string / mixed, lazy reverse map, typed wire form), `Utf8Store` (lazy encode / decode), `EdgeIdIndex`.                                                                                                                                                                                                       |
 | `columns/`                  | 5                 | Every dtype (`f32 f64 i32 u32 u8 bool dict string list json`), strides, validity bitmaps, defaults and fills, roles, mutability, `AttributeTable`, dictionaries, dtype inference and widening, growable staging arrays, remap / gather / scatter helpers, `withComponents`.                                                                            |
@@ -1198,19 +1198,19 @@ implemented". No code, test or document changed for them and every one stays on 
 
 ### Verification (from the monorepo root, 2026-09-16)
 
-| Command | Result |
-| --- | --- |
-| `nx run-many --target=lint --projects=graph-format,graph-io` | pass |
-| `nx run-many --target=build --projects=graph-format,graph-io` | pass, graph-format first |
-| `nx run-many --target=test --projects=graph-format,graph-io` | 59 files / 1309 tests; 76 files / 4273 tests (34 skipped without `IO_BENCH=1`) |
-| `nx run graph-format:coverage` | 95.96 percent lines, 95.88 branches |
-| `nx run graph-io:coverage` | 97.16 percent lines, 95.23 branches |
-| `./tools/merge-coverage.sh` | merged; graph-format 96.0, graph-io 97.2 |
-| `tsc --noEmit -p tsconfig.strict-consumer.json` (both) | pass |
-| `pnpm exec knip` | clean, exit 0 |
-| `pnpm install --frozen-lockfile` | pass |
-| `nx show projects --with-target=nx-release-publish` | lists both |
-| `./tools/prepush.sh` | pass |
+| Command                                                       | Result                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `nx run-many --target=lint --projects=graph-format,graph-io`  | pass                                                                           |
+| `nx run-many --target=build --projects=graph-format,graph-io` | pass, graph-format first                                                       |
+| `nx run-many --target=test --projects=graph-format,graph-io`  | 59 files / 1309 tests; 76 files / 4273 tests (34 skipped without `IO_BENCH=1`) |
+| `nx run graph-format:coverage`                                | 95.96 percent lines, 95.88 branches                                            |
+| `nx run graph-io:coverage`                                    | 97.16 percent lines, 95.23 branches                                            |
+| `./tools/merge-coverage.sh`                                   | merged; graph-format 96.0, graph-io 97.2                                       |
+| `tsc --noEmit -p tsconfig.strict-consumer.json` (both)        | pass                                                                           |
+| `pnpm exec knip`                                              | clean, exit 0                                                                  |
+| `pnpm install --frozen-lockfile`                              | pass                                                                           |
+| `nx show projects --with-target=nx-release-publish`           | lists both                                                                     |
+| `./tools/prepush.sh`                                          | pass                                                                           |
 
 knip is CLEAN, which the move checklist did not expect: it predicted exit 1 on two unused exports in
 `graphty/src/components/shell/readings/nodeMetricReading.ts`. Those were fixed in the monorepo before
@@ -1245,12 +1245,12 @@ code, id, node order or report field changes. Equivalence was checked over 3200 
 keywords, zero-based numbering, across eight option sets) with no mismatch on node count, edge count,
 id-map order, the label and originalId columns, any edge endpoint or the issue list.
 
-| Benchmark | Before | After |
-| --- | --- | --- |
-| 100k vertices + 1M arcs | 3340 ms (3.34 us/edge) | 790 ms (0.79 us/edge) |
-| doubling 25k / 50k / 100k arcs | 2563 / 2599 / 2619 ms | 71 / 85 / 123 ms |
-| 100k vertices, no arcs | 2355 ms | 49 ms |
-| 200k vertices, no arcs | 9593 ms | 102 ms |
+| Benchmark                      | Before                 | After                 |
+| ------------------------------ | ---------------------- | --------------------- |
+| 100k vertices + 1M arcs        | 3340 ms (3.34 us/edge) | 790 ms (0.79 us/edge) |
+| doubling 25k / 50k / 100k arcs | 2563 / 2599 / 2619 ms  | 71 / 85 / 123 ms      |
+| 100k vertices, no arcs         | 2355 ms                | 49 ms                 |
+| 200k vertices, no arcs         | 9593 ms                | 102 ms                |
 
 Pajek is now the joint fastest importer per edge instead of the slowest by four times.
 
@@ -1263,7 +1263,7 @@ count and requires under 8x the time; linear is about 4x and the defect was abou
 
 1. GEXF whole-document parsing -- NOT A GAP, the note was stale. GEXF runs one SAX-style pass:
    `importer.ts` feeds `textChunks()` into the shared `tokenizeXml` with a `GexfReader implements
-   XmlHandler`, the same tokenizer GraphML uses, and `fast-xml-parser` is out of graph-io's runtime
+XmlHandler`, the same tokenizer GraphML uses, and `fast-xml-parser` is out of graph-io's runtime
    entirely (devDependency for one independent-reader fidelity probe; its absence from src is pinned
    by `test/build-output.test.ts`). Measured at the landing: GEXF 1.64 us/edge against GraphML's 2.51
    over 200k edges in both the stream and Uint8Array shapes, doubling ratios 1.93 / 2.04 / 2.04 over
@@ -1307,7 +1307,7 @@ count and requires under 8x the time; linear is about 4x and the defect was abou
   stub and skips, as the sibling build-output tests do. The rehearsal missed it because it ran only
   graph-io's tests after the plain build.
 - `remote-logger`'s `GET /remote-logger.js endpoint > response contains the bundled RemoteLogClient
-  code` failed once with ECONNRESET during a loaded pre-push run and passed 33/33 on three isolated
+code` failed once with ECONNRESET during a loaded pre-push run and passed 33/33 on three isolated
   reruns; a graph-io audit test failed once and passed on rerun, which the timing-noise caveat above
   already predicts. Both are flakes, neither is related to the landing.
 
@@ -1320,12 +1320,12 @@ What moved, all in one push (the ordering is not optional -- `nx release` aborts
 declared range no longer admits the version being released, which is what stranded every release at
 0.1.0 -> 0.2.0 until `6b4777df`):
 
-| Change | Where |
-| --- | --- |
-| `0.2.1` -> `1.0.0`, by a `feat(graph-format)!:` commit | `graph-format/package.json` |
-| peer `^0.2.0` -> `^1.0.0` | `graph-io/package.json`, `webgpu-graph-algorithms/package.json` |
+| Change                                                                                   | Where                                                                                |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `0.2.1` -> `1.0.0`, by a `feat(graph-format)!:` commit                                   | `graph-format/package.json`                                                          |
+| peer `^0.2.0` -> `^1.0.0`                                                                | `graph-io/package.json`, `webgpu-graph-algorithms/package.json`                      |
 | dependency `workspace:*` -> `workspace:^` (pnpm publishes `workspace:*` as an EXACT pin) | `graph-io/package.json`, its lockfile importer, `graph-io/test/build-output.test.ts` |
-| rule 3 corrected in place; 13.2's repetition with it; 17.7 appended | `design/graph-format/graph-format-design.md` |
+| rule 3 corrected in place; 13.2's repetition with it; 17.7 appended                      | `design/graph-format/graph-format-design.md`                                         |
 
 `FORMAT_VERSION` stays `1` and the wire stays `[1, 0]`. Nothing about the data model changed: 13.5's
 implication runs invariant change -> npm major, never the other way, so a major cut with no invariant

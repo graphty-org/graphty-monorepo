@@ -15,7 +15,7 @@
 import { Axis, type TransformNode } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
 
 const WIDTH = 1280;
@@ -69,14 +69,14 @@ describe("label declutter performance", () => {
         await g.addNodes(nodes);
         await g.addEdges(edges);
         await g.setLayout("fixed", { dim: 3 });
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
         await g.getSession().styles.add({
             name: "labels",
             target: "node",
             selector: { match: "everything" },
             set: { "node.label": "LABEL" },
         });
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
 
         // The repaint that builds the labels lands across the next few frames.
         for (let at = 0; at < 8; at++) {

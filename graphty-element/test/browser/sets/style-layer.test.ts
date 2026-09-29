@@ -8,7 +8,7 @@
 import { Color3, type InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { ElementSession } from "../../../src/session/types";
 
 /** The colour the layer paints. */
@@ -30,7 +30,7 @@ describe("a style layer naming a set, on screen", () => {
         await graph.init();
         await graph.addNodes(IDS.map((id) => ({ id })));
         await graph.addEdges(IDS.slice(1).map((id, index) => ({ src: IDS[index], dst: id })));
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -42,7 +42,7 @@ describe("a style layer naming a set, on screen", () => {
      * Render a few frames so the painter's writes reach the meshes.
      */
     const frames = async (): Promise<void> => {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await graph.getSession().styles.settled();
         for (let frame = 0; frame < 10; frame++) {
             graph.scene.render();

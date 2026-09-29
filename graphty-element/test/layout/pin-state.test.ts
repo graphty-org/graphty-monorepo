@@ -31,15 +31,17 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
-import { DataManager } from "../../src/managers/DataManager";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager } from "../../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { NodePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
-import { Node } from "../../src/Node";
+import { Node, placeNodeRow } from "../../src/Node";
 import { Styles } from "../../src/Styles";
 
 const NODE_STYLE: NodeStyleConfig = {
@@ -95,9 +97,9 @@ function createHarness(): Harness {
         scene,
         add(id: string): Node {
             const node = new Node(context, id, NODE_PAINT, { id } as unknown as AdHocData, { pinOnDrag: true });
-            node.index = nextIndex++;
-            dataManager.positions.grow(nextIndex);
-            dataManager.nodes.set(id, node);
+            placeNodeRow(node, nextIndex++);
+            dataManager[WRITABLE_LANE].grow(nextIndex);
+            dataManagerInternals.adoptNode(dataManager, node);
             dataManager.nodeCache.set(id, node);
             return node;
         },
@@ -132,12 +134,12 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("c");
         harness.add("d");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const held = harness.coordsOf(pinned);
         const movedBefore = harness.coordsOf(harness.dataManager.nodes.get("c") as Node);
         pinned.pin();
 
-        await harness.layoutManager.setLayout("spiral", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "spiral", {});
 
         assert.isTrue(pinned.isPinned(), "the pin survived the engine that was told about it");
         assert.deepStrictEqual(harness.coordsOf(pinned), held, "and so did the coordinates it was holding");
@@ -156,29 +158,42 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        const circular = { id: "circular", engine: "circular", options: {}, dimension: "3d" } as const;
+        await layoutManagerInternals.apply(harness.layoutManager, circular, { restoring: false });
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.updateLayoutDimension(true);
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { ...circular, dimension: "2d" },
+            { restoring: false },
+        );
 
         assert.isTrue(pinned.isPinned(), "switching to 2D did not release the reader's pins");
         assert.deepStrictEqual(harness.coordsOf(pinned), held);
     });
 
-    it("keeps the pin when a style template brings its own layout", async () => {
+    it("keeps the pin when the layout slice names a new layout", async () => {
         harness = createHarness();
         const pinned = harness.add("a");
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { id: "circular", engine: "circular", options: {}, dimension: "3d" },
+            { restoring: false },
+        );
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.applyTemplateLayout("spiral", {});
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { id: "spiral", engine: "spiral", options: {}, dimension: "3d" },
+            { restoring: false },
+        );
 
-        assert.isTrue(pinned.isPinned(), "applying a template did not release the reader's pins");
+        assert.isTrue(pinned.isPinned(), "the layout hook's new engine did not release the reader's pins");
         assert.deepStrictEqual(harness.coordsOf(pinned), held);
     });
 
@@ -196,14 +211,21 @@ describe("a pin outlives the engine that was told about it", () => {
         const pinned = harness.add("a");
         const other = harness.add("b");
         harness.add("c");
-        const link = { srcId: pinned.id, dstId: other.id, srcNode: pinned, dstNode: other };
-        harness.dataManager.edges.set("a-b", link as unknown as Edge);
+        const link = {
+            id: "a-b",
+            index: INVALID_INDEX,
+            srcId: pinned.id,
+            dstId: other.id,
+            srcNode: pinned,
+            dstNode: other,
+        };
+        dataManagerInternals.adoptEdge(harness.dataManager, link as unknown as Edge);
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.setLayout("d3", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "d3", {});
         for (let step = 0; step < 20; step++) {
             harness.layoutManager.step();
         }
@@ -228,9 +250,9 @@ describe("a pin outlives the engine that was told about it", () => {
         const pinned = harness.add("a");
         harness.add("b");
 
-        await harness.layoutManager.setLayout("ngraph", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "ngraph", {});
         pinned.pin();
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
         assert.doesNotThrow(() => {
             pinned.unpin();
@@ -248,7 +270,7 @@ describe("a pin outlives the engine that was told about it", () => {
         const free = harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const heldBefore = harness.coordsOf(pinned);
         const freeBefore = harness.coordsOf(free);
         pinned.pin();
@@ -256,7 +278,9 @@ describe("a pin outlives the engine that was told about it", () => {
         // A fourth node re-seats the whole ring, so every node free to move has somewhere new to
         // be and standing still means something.
         const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.addNode(engine, arrival);
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.deepStrictEqual(harness.coordsOf(pinned), heldBefore, "the pinned node did not move");
@@ -271,10 +295,12 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         pinned.pin();
 
-        harness.layoutManager.layoutEngine?.setNodePosition(pinned, { x: 12, y: -34, z: 5 });
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.setNodePosition(engine, pinned, { x: 12, y: -34, z: 5 });
 
         const after = harness.coordsOf(pinned);
         assert.closeTo(after.x, 12, 1e-3, "a drag is a deliberate placement and lands on a pinned row");
@@ -283,7 +309,7 @@ describe("a pin outlives the engine that was told about it", () => {
 
         // And it stays there: the next recompute must not undo the drag either.
         const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
+        layoutEngineInternals.addNode(engine, arrival);
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.deepStrictEqual(harness.coordsOf(pinned), after, "the layout did not take the placement back");
@@ -295,7 +321,7 @@ describe("a pin outlives the engine that was told about it", () => {
         // it.
         harness = createHarness();
         harness.add("a");
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
         const orphan = new Node(harness.context, "orphan", NODE_PAINT, { id: "orphan" } as unknown as AdHocData, {
             pinOnDrag: true,
@@ -328,15 +354,15 @@ describe("a pin survives the freeze that renumbers every node", () => {
 
         const stubs = ["a", "b", "c"].map((id, index) => {
             const stub = { id, index, dispose: () => undefined } as unknown as Node;
-            dm.nodes.set(id, stub);
+            dataManagerInternals.adoptNode(dm, stub);
             dm.nodeCache.set(id, stub);
             return stub;
         });
         const [a, , c] = stubs;
 
-        dm.positions.grow(3);
-        dm.positions.write(c.index, 11, 22, 33);
-        assert.isTrue(dm.positions.setPinned(c.index, true), "c is pinned at row 2");
+        dm[WRITABLE_LANE].grow(3);
+        dm[WRITABLE_LANE].write(c.index, 11, 22, 33);
+        assert.isTrue(dm[WRITABLE_LANE].setPinned(c.index, true), "c is pinned at row 2");
 
         // Removing a re-numbers everything above it, which is the whole point of the case.
         dm.removeNodeAndIncidentEdges(a.id);

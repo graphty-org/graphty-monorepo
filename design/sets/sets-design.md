@@ -2263,8 +2263,8 @@ clipped` and what each means (section 4.1), with `listed` in the studio's meanin
     only; `static scopeInput` on the published `Algorithm` class, the declaration a plugin
     writes, typed `ScopeInputDeclaration` (`"none" | "subgraph"`, exported from `./extend`), and
     the derived `AlgorithmDescriptor.scopeInput`; the reserved `scopeAs`. `Algorithm` also gains
-    the `@internal` `static parallelEdges` and the protected `input()` and `edgeRecord()`, which a
-    subclass can see although they are not documented for plugins. `ScopedInput`
+    the `@internal` `static parallelEdges` and the protected `input()`, which a subclass can see
+    although they are not documented for plugins. `ScopedInput`
     exposes graph-format's `GraphSnapshot`, `NodeMask` and `EdgeMask`, tying `./extend` to
     graph-format 1.x.
 11. **The persisted form** (section 12): the record shape, the file key `sets`, the project-wide

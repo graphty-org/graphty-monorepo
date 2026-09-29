@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
@@ -40,7 +39,6 @@ describe("MaxFlowAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "max-flow");
             assert.strictEqual(AlgClass, MaxFlowAlgorithm);
         });
-
     });
 
     describe("Configuration", () => {
@@ -68,6 +66,26 @@ describe("MaxFlowAlgorithm", () => {
             });
         }
 
+        it("rejects a source and sink that are one node with E_OPTION_RANGE", async () => {
+            const graph = await createMockGraph(UNDIRECTED);
+            const algo = new MaxFlowAlgorithm(graph, { source: "B", sink: "B" });
+
+            const error = await algo.compute(detachedRunContext()).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_OPTION_RANGE");
+            assert.strictEqual(error.details.option, "sink");
+        });
+
+        it("has nothing to measure on a single node with a self-loop", async () => {
+            const graph = await createMockGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "A" }] });
+
+            assert.isNull(await new MaxFlowAlgorithm(graph).compute(detachedRunContext()));
+        });
+
         it("says when the ends were chosen automatically and when no flow path exists", async () => {
             const graph = await createMockGraph(UNDIRECTED);
             const output = await new MaxFlowAlgorithm(graph).compute(detachedRunContext());
@@ -81,15 +99,44 @@ describe("MaxFlowAlgorithm", () => {
 
         it("adds neither note when both ends are given and flow exists", async () => {
             const graph = await createMockGraph(UNDIRECTED);
-            const output = await new MaxFlowAlgorithm(graph, { source: "A", sink: "B" }).compute(
-                detachedRunContext(),
-            );
+            const output = await new MaxFlowAlgorithm(graph, { source: "A", sink: "B" }).compute(detachedRunContext());
 
             assert.ok(output);
             assert.strictEqual(output.graph?.maxFlow, 1);
             const notes = output.caveats.notes.join("\n");
             assert.notMatch(notes, /chosen automatically/);
             assert.notMatch(notes, /no directed path/i);
+        });
+    });
+
+    describe("Capacity", () => {
+        it("adds up parallel capacities, a negative one included, before the flow runs", async () => {
+            const graph = await createMockGraph({
+                nodes: [{ id: "s" }, { id: "t" }],
+                edges: [
+                    { srcId: "s", dstId: "t", capacity: 5 },
+                    { srcId: "s", dstId: "t", capacity: -3 },
+                ],
+            });
+            const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(detachedRunContext());
+
+            assert.ok(output);
+            assert.strictEqual(output.graph?.maxFlow, 2);
+            for (const edge of output.edges ?? []) {
+                assert.deepStrictEqual(edge.values, { value: 2, capacity: 2, utilization: 1 });
+            }
+        });
+
+        it("counts a lone negative capacity as none", async () => {
+            const graph = await createMockGraph({
+                nodes: [{ id: "s" }, { id: "t" }],
+                edges: [{ srcId: "s", dstId: "t", capacity: -3 }],
+            });
+            const output = await new MaxFlowAlgorithm(graph, { source: "s", sink: "t" }).compute(detachedRunContext());
+
+            assert.ok(output);
+            assert.strictEqual(output.graph?.maxFlow, 0);
+            assert.deepStrictEqual(output.edges?.[0].values, { value: 0, capacity: 0, utilization: 0 });
         });
     });
 });

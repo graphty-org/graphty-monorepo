@@ -75,9 +75,9 @@ and redo work, merge `a778a43f`), so graphty-element 3.0.0 carries both.
   whose ports differ in other ways stay legacy until the algorithms 3.0 removal deletes them. The
   first step of that removal, checking the ports against recorded legacy results instead of live
   legacy code, is finished on an unmerged branch.
-- **E1: partial.** Bipartite matching, link prediction, max flow and min cut still run legacy
-  code on this branch; the branches that move them are finished and wait
-  only to be merged. `algorithmGraph()` and `AlgorithmGraphView` are to be removed in 3.0.0 in
+- **E1: partial.** Bipartite matching, link prediction, max flow and min cut run on the
+  indexed ports, and `Algorithm.edgeRecord` is gone; max flow reads each edge's capacity from
+  the store's `graphty.capacity` edge column. `algorithmGraph()` and `AlgorithmGraphView` are to be removed in 3.0.0 in
   favour of a snapshot accessor with edge ids and attribute columns; third-party layouts are to
   get the snapshot layout contract, with the built-in layouts on it.
 - **IO1: partial.** DOT, GML and Pajek through graph-io, detection through graph-io's sniffers,

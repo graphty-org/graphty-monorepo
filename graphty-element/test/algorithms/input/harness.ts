@@ -89,12 +89,10 @@ export class InputGraph {
         edges: Map<string, { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }>;
         getSnapshot: () => GraphSnapshot;
         undirected: GraphStore["undirected"];
-        getEdge: (id: string) => { data?: Record<string, unknown> } | undefined;
     } {
         return {
             nodes: this.nodes,
             edges: this.edges,
-            getEdge: (id) => this.edges.get(id),
             getSnapshot: () => this.store.getSnapshot(),
             undirected: (snapshot) => this.store.undirected(snapshot),
         };

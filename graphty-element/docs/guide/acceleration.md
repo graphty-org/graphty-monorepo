@@ -178,15 +178,20 @@ say how many were. A `bfs` with a `targetNode` is the same: it stops early, whic
 cannot, so it runs on the CPU and throws under `required`.
 
 `hits`, `katz` and `eigenvector` have exceptions of the same kind. A `katz` run with `normalized`
-switched off, or over a graph where every node has the same number of neighbours, takes the CPU
-implementation, and so does an `eigenvector` run that follows edge direction or runs over a graph
+switched off, over a graph where every node has the same number of neighbours, or with an `alpha`
+too large for its series to be certain to converge on that graph, takes the CPU implementation.
+That last one is checked against a bound on the graph's largest eigenvalue: a hub with d
+neighbours raises it to about the square root of d, so at the default `alpha` of 0.1 a graph stays
+on the CPU once its busiest region is roughly as dense as a hub of 100 neighbours, or a hub of 10
+whose neighbours have 10 each. So does an `eigenvector` run that follows edge direction or runs over a graph
 with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 
 An algorithm the element does not route to the device at all (`betweenness`, `closeness`,
-`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim` and `scc` today) runs on the
-CPU and says `"f64"` under `acceleration="required"` too, rather than throwing.
+`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim`, `scc`, `k-core` and
+`louvain` today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather
+than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

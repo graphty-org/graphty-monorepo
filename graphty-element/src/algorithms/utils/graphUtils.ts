@@ -77,3 +77,26 @@ export function requireNodeOption(
     }
     return id;
 }
+
+/**
+ * Refuse `endpoints: true` for a method that walks no paths.
+ *
+ * HITS, Katz and eigenvector centrality carry an `endpoints` option in their schemas, where it
+ * has always been accepted and read by nothing: whether a path's two ends count is a question for
+ * betweenness, and none of these methods has an answer to it. A reader who switched it on was told nothing, so the run now says so
+ * rather than publishing a result that looks as though the option was honoured. `false`, the
+ * default, is accepted, so a saved document that carries the default still loads and runs.
+ * @param algorithm - The method, for the message.
+ * @param endpoints - The option as the caller resolved it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when `endpoints` is true.
+ */
+export function refuseEndpoints(algorithm: string, endpoints: boolean): void {
+    if (endpoints) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "run",
+            message: `${algorithm} walks no paths, so the endpoints option has nothing to include; leave it false.`,
+            details: { algorithm, option: "endpoints", value: true, permitted: [false] },
+        });
+    }
+}

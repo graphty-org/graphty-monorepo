@@ -401,11 +401,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * THE DECISION IS TAKEN ONCE, HERE, BEFORE ANY WORK STARTS. The controller answers "the policy
      * is off", "no accelerator", "below `acceleration.minNodes`" or "this accelerator does not
      * implement that" up front, and under `acceleration="required"` it throws `E_NO_ACCELERATOR`
-     * rather than answering quietly. Two answers stay on the CPU even under `"required"`, because
-     * the device is not the element's to offer for them: a capability the element does not
-     * forward (betweenness and closeness today) never asks the controller, and a call the
-     * dispatcher itself keeps on the CPU port (an option or a graph shape the device's kernel is
-     * not defined for) runs there. Both say `f64`. After the work has started there is no second decision: a
+     * rather than answering quietly. A capability the element does not forward (betweenness,
+     * closeness, k-core and Louvain today) never asks the controller, so it runs on the CPU and
+     * says `f64` even under `"required"`. A call the dispatcher itself keeps on the CPU port (an
+     * option or a graph shape the device's kernel is not defined for, such as a Katz `alpha` whose
+     * series may diverge) runs there and says `f64` under `"auto"`; under `"required"` it throws
+     * `E_NO_ACCELERATOR`, because the run was promised the device. After the work has started there is no second decision: a
      * failure from the accelerator propagates with its code and fails the run, because a number
      * that silently came from somewhere else is worse than no number.
      * @param capability - The accelerator member this work would use, such as `"pageRank"`.

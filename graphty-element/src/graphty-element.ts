@@ -10,6 +10,7 @@ import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } f
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -3665,6 +3666,70 @@ export class Graphty extends LitElement {
         // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
         this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * Which renderer draws the graph: `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU
+     * where the browser has it.
+     *
+     * Read once, when the element is first drawn; set it in markup or before the element is
+     * connected. Where WebGPU is asked for and the browser cannot open it, the graph is drawn
+     * with WebGL and {@link rendererStatus} says why -- the choice is made before the first
+     * frame, never by switching mid-run.
+     * @remarks
+     * WebGL stays the default because WebXR has no WebGPU binding in any shipping browser: under
+     * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
+     * else differs and the measured frame times.
+     * @returns What the consumer asked for. `"webgl"` unless it was set.
+     * @since 3.0.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element renderer="auto"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "renderer", reflect: true })
+    get renderer(): RendererRequest {
+        return this.#graph.rendererRequest;
+    }
+    /**
+     * Sets the renderer the element opens when it is first drawn.
+     *
+     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
+     * `attributeChangedCallback`, and a throw there would leave the element unrendered.
+     */
+    set renderer(value: RendererRequest) {
+        const oldValue = this.#graph.rendererRequest;
+
+        try {
+            this.#graph.setRenderer(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * Which renderer is drawing, and why when it is not the one asked for.
+     *
+     * `active` is `"webgl"` or `"webgpu"`; `reason` is set only when WebGPU was asked for and
+     * WebGL is drawing instead (no `navigator.gpu`, or no adapter or device could be opened).
+     * Null until the element has initialised its renderer, which it does once connected; the
+     * `render-initialized` event fires after.
+     * @returns The status, or null before the renderer has been chosen.
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await element.updateComplete;
+     * const { active, reason } = element.rendererStatus ?? {};
+     * ```
+     */
+    get rendererStatus(): RendererStatus | null {
+        return this.#graph.rendererStatus;
     }
 
     /**

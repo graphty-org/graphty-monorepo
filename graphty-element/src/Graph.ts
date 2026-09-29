@@ -105,6 +105,12 @@ import {
     type ViewMasks,
 } from "./managers";
 import { layoutManagerInternals } from "./managers/LayoutManager";
+import {
+    openWebGPUEngine,
+    RENDERER_REQUESTS,
+    type RendererRequest,
+    type RendererStatus,
+} from "./managers/RenderManager";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -353,6 +359,14 @@ export class Graph implements GraphContext {
     readonly eventManager: EventManager;
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
+    /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
+    private readonly managers: Map<string, Manager>;
+    /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
+    private readonly useMockInput: boolean;
+    /** Which renderer {@link Graph.init} opens; see {@link Graph.setRenderer}. */
+    #rendererRequest: RendererRequest = "webgl";
+    /** Which renderer is drawing, set by {@link Graph.init}; null before it. */
+    #rendererStatus: RendererStatus | null = null;
     private dataManager: DataManager;
     private layoutManager: LayoutManager;
     private statsManager: StatsManager;
@@ -402,6 +416,7 @@ export class Graph implements GraphContext {
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      */
     constructor(element: Element | string, useMockInput = false) {
+        this.useMockInput = useMockInput;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -438,14 +453,7 @@ export class Graph implements GraphContext {
         this.element.innerHTML = "";
 
         // get a canvas element for rendering
-        this.canvas = document.createElement("canvas");
-        this.canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
-        this.canvas.setAttribute("touch-action", "none");
-        this.canvas.setAttribute("autofocus", "true");
-        this.canvas.setAttribute("tabindex", "0");
-        this.canvas.style.width = "100%";
-        this.canvas.style.height = "100%";
-        this.canvas.style.touchAction = "none";
+        this.canvas = this.createCanvas();
         this.element.appendChild(this.canvas);
 
         // Initialize RenderManager
@@ -818,27 +826,7 @@ export class Graph implements GraphContext {
         this.setupBackgroundClickHandler();
 
         // Initialize InputManager
-        const inputConfig: InputManagerConfig = {
-            useMockInput: useMockInput,
-            touchEnabled: true,
-            keyboardEnabled: true,
-            pointerLockEnabled: false,
-            recordInput: false,
-            // Mod+Z and Shift+Mod+Z on the focused canvas move this graph's history.
-            history: {
-                undo: () => this.session.undo(),
-                redo: () => this.session.redo(),
-            },
-        };
-        this.inputManager = new InputManager(
-            {
-                scene: this.scene,
-                engine: this.engine,
-                canvas: this.canvas,
-                eventManager: this.eventManager,
-            },
-            inputConfig,
-        );
+        this.inputManager = this.createInputManager();
 
         // Initialize GraphContext
         const contextConfig: GraphContextConfig = {
@@ -888,7 +876,7 @@ export class Graph implements GraphContext {
         });
 
         // Setup lifecycle manager
-        const managers = new Map<string, Manager>([
+        const managers = (this.managers = new Map<string, Manager>([
             ["event", this.eventManager],
             ["queue", this.operationQueue],
             ["stats", this.statsManager],
@@ -899,7 +887,7 @@ export class Graph implements GraphContext {
             ["algorithm", this.algorithmManager],
             ["input", this.inputManager],
             ["selection", this.selectionManager],
-        ]);
+        ]));
         this.lifecycleManager = new LifecycleManager(managers, this.eventManager, [
             "event",
             "queue",
@@ -1179,6 +1167,139 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Chooses the renderer {@link Graph.init} opens. Read once, by `init`: a graph already drawing
+     * keeps its renderer, and a change after that is refused.
+     * @param request - `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU where the
+     *     browser has it. Where it does not, WebGL draws and {@link Graph.rendererStatus} says why.
+     */
+    setRenderer(request: RendererRequest): void {
+        if (!RENDERER_REQUESTS.includes(request)) {
+            throw new TypeError(`renderer must be "webgl", "webgpu" or "auto", not ${JSON.stringify(request)}`);
+        }
+
+        if (this.#rendererStatus !== null && request !== this.#rendererRequest) {
+            throw new Error(
+                `the renderer is chosen once, when the graph is first drawn; it is ${this.#rendererStatus.active} ` +
+                    `and cannot become "${request}" now`,
+            );
+        }
+
+        this.#rendererRequest = request;
+    }
+
+    /**
+     * The renderer asked for through {@link Graph.setRenderer}.
+     * @returns The request; `"webgl"` unless something else was set.
+     */
+    get rendererRequest(): RendererRequest {
+        return this.#rendererRequest;
+    }
+
+    /**
+     * Which renderer is drawing, and why when it is not the one asked for.
+     * @returns The status once {@link Graph.init} has chosen; null before.
+     */
+    get rendererStatus(): RendererStatus | null {
+        return this.#rendererStatus;
+    }
+
+    /**
+     * Opens the renderer asked for. The graph is built on a WebGL engine, because a WebGPU engine
+     * initialises asynchronously and the scene cannot exist before it does; so when WebGPU is asked
+     * for and available, the scene and everything bound to it is rebuilt here on a fresh canvas --
+     * before the managers are initialised, so nothing has drawn or attached yet.
+     */
+    private async openRenderer(): Promise<void> {
+        const requested = this.#rendererRequest;
+        if (requested === "webgl") {
+            this.#rendererStatus = { requested, active: "webgl", reason: null };
+            return;
+        }
+
+        const canvas = this.createCanvas();
+        const opened = await openWebGPUEngine(canvas);
+        if (typeof opened === "string") {
+            this.#rendererStatus = { requested, active: "webgl", reason: opened };
+            return;
+        }
+
+        const background = this.scene.clearColor;
+        this.renderManager.dispose();
+        this.inputManager.dispose();
+        this.canvas.replaceWith(canvas);
+        this.canvas = canvas;
+        // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
+        opened.resize();
+
+        this.renderManager = new RenderManager(canvas, this.eventManager, { engine: opened });
+        this.engine = this.renderManager.engine;
+        this.scene = this.renderManager.scene;
+        this.camera = this.renderManager.camera;
+        this.scene.clearColor = background;
+        this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
+        this.updateManager.rebindScene(this.camera);
+        this.inputManager = this.createInputManager();
+        this.graphContext = new DefaultGraphContext(
+            () => this.styles,
+            this.dataManager,
+            this.layoutManager,
+            this.dataManager.meshCache,
+            this.scene,
+            this.statsManager,
+            this.graphContext.getConfig(),
+            this.needRays,
+        );
+        this.setupBackgroundClickHandler();
+        this.managers.set("render", this.renderManager);
+        this.managers.set("input", this.inputManager);
+        this.#rendererStatus = { requested, active: "webgpu", reason: null };
+    }
+
+    /**
+     * Builds the canvas the graph draws on, not yet in the document.
+     * @returns The canvas.
+     */
+    private createCanvas(): HTMLCanvasElement {
+        const canvas = document.createElement("canvas");
+        canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
+        canvas.setAttribute("touch-action", "none");
+        canvas.setAttribute("autofocus", "true");
+        canvas.setAttribute("tabindex", "0");
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.touchAction = "none";
+        return canvas;
+    }
+
+    /**
+     * Builds the input manager over the current scene and canvas.
+     * @returns The input manager.
+     */
+    private createInputManager(): InputManager {
+        const inputConfig: InputManagerConfig = {
+            useMockInput: this.useMockInput,
+            touchEnabled: true,
+            keyboardEnabled: true,
+            pointerLockEnabled: false,
+            recordInput: false,
+            // Mod+Z and Shift+Mod+Z on the focused canvas move this graph's history.
+            history: {
+                undo: () => this.session.undo(),
+                redo: () => this.session.redo(),
+            },
+        };
+        return new InputManager(
+            {
+                scene: this.scene,
+                engine: this.engine,
+                canvas: this.canvas,
+                eventManager: this.eventManager,
+            },
+            inputConfig,
+        );
+    }
+
+    /**
      * Initializes the graph instance, setting up managers, styles, and rendering pipeline.
      */
     async init(): Promise<void> {
@@ -1187,6 +1308,9 @@ export class Graph implements GraphContext {
         }
 
         try {
+            // The renderer is chosen before anything is drawn, and never again.
+            await this.openRenderer();
+
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
                 this.statsManager.enableProfiling();
@@ -5918,9 +6042,12 @@ export class Graph implements GraphContext {
             handTracking: xrConfig.input.handTracking,
         });
 
-        // Determine which modes are available by actually checking device support
-        const vrAvailable = xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
-        const arAvailable = xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
+        // Determine which modes are available by actually checking device support. WebXR draws
+        // through an XRWebGLLayer and has no WebGPU binding in any shipping browser, so under
+        // WebGPU both modes are reported unavailable rather than offered and failing on entry.
+        const webgl = this.#rendererStatus?.active !== "webgpu";
+        const vrAvailable = webgl && xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
+        const arAvailable = webgl && xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
 
         // Create XR UI manager
         this.xrUIManager = new XRUIManager(this.element as HTMLElement, vrAvailable, arAvailable, xrConfig.ui);

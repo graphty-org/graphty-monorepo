@@ -2,11 +2,13 @@ import {
     Color3,
     Color4,
     Engine,
+    EngineStore,
     HemisphericLight,
     Logger,
     PhotoDome,
     Quaternion,
     Scene,
+    Tools,
     TransformNode,
     Vector3,
     WebGPUEngine,
@@ -26,8 +28,156 @@ import type { Manager } from "./interfaces";
  * Configuration options for RenderManager
  */
 interface RenderManagerConfig {
-    useWebGPU?: boolean;
+    /**
+     * The engine to draw with, already initialised. Left out, a WebGL engine is built on the
+     * canvas. A WebGPU engine has to be passed in: its initialisation is asynchronous and a scene
+     * cannot be built on it before that finishes -- see {@link openWebGPUEngine}.
+     */
+    engine?: Engine | WebGPUEngine;
     backgroundColor?: string;
+}
+
+/** Which renderer a graph asks for: WebGL, WebGPU, or WebGPU when the browser has it. */
+export type RendererRequest = "webgl" | "webgpu" | "auto";
+
+/** The renderers a graph can be drawn with. */
+export type ActiveRenderer = "webgl" | "webgpu";
+
+/** Every value a {@link RendererRequest} can take, for validating a string from an attribute. */
+export const RENDERER_REQUESTS: readonly RendererRequest[] = ["webgl", "webgpu", "auto"];
+
+/**
+ * Which renderer a graph is drawn with, and why when it is not the one asked for.
+ */
+export interface RendererStatus {
+    /** What was asked for. */
+    readonly requested: RendererRequest;
+    /** What is drawing. */
+    readonly active: ActiveRenderer;
+    /**
+     * Why WebGPU was asked for (`"webgpu"` or `"auto"`) and WebGL is drawing instead: the browser
+     * has no `navigator.gpu`, or no adapter or device could be opened. Null when the renderer is
+     * the one asked for, and under `"webgl"`.
+     */
+    readonly reason: string | null;
+}
+
+/** The two modules Babylon compiles a GLSL shader for WebGPU with. */
+interface ShaderCompilers {
+    readonly glslang: unknown;
+    readonly twgsl: unknown;
+}
+
+/** The compilers once loaded; they are global to the page, so every graph shares one load. */
+let shaderCompilers: Promise<ShaderCompilers> | null = null;
+
+/**
+ * Loads one compiler's script from Babylon's CDN and instantiates its WebAssembly.
+ * @param name - Which compiler; its script defines a global of the same name.
+ * @returns The instantiated compiler.
+ */
+async function loadCompiler(name: "glslang" | "twgsl"): Promise<unknown> {
+    const base = `${Tools._DefaultCdnUrl}/${name}/${name}`;
+    await Tools.LoadBabylonScriptAsync(`${base}.js`);
+    const factory = (self as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[name];
+    if (factory === undefined) {
+        throw new Error(`${name}.js loaded but defined no ${name}`);
+    }
+
+    return factory(`${base}.wasm`);
+}
+
+/**
+ * Forgets the loaded compilers, so the next WebGPU graph fetches them again. For the test that
+ * refuses the fetch.
+ * @internal
+ */
+export function forgetShaderCompilers(): void {
+    shaderCompilers = null;
+}
+
+/**
+ * Loads glslang and twgsl from Babylon's CDN, the files and paths Babylon itself would use.
+ *
+ * Loaded here rather than left to Babylon because Babylon's own load has no failure path: a
+ * script that does not arrive leaves its promise unsettled and the shaders silently unbuilt.
+ * @returns The two compilers, for `WebGPUEngine.initAsync`.
+ */
+async function loadShaderCompilers(): Promise<ShaderCompilers> {
+    shaderCompilers ??= (async (): Promise<ShaderCompilers> => {
+        // One after the other, in Babylon's order: loading twgsl's script before glslang has
+        // instantiated makes glslang's WebAssembly fail to link.
+        const glslang = await loadCompiler("glslang");
+        const twgsl = await loadCompiler("twgsl");
+        return { glslang, twgsl };
+    })();
+
+    try {
+        return await shaderCompilers;
+    } catch (error) {
+        // A failed load is not remembered: the next graph asks the network again.
+        shaderCompilers = null;
+        throw error;
+    }
+}
+
+/**
+ * Opens a WebGPU engine on a canvas, or says why it cannot.
+ *
+ * This is capability detection, done once before the scene exists: a browser without WebGPU, or
+ * one whose adapter or device cannot be opened, gets WebGL and the reason. Nothing switches
+ * renderer once a frame has been drawn.
+ * @param canvas - A canvas that has no context yet; a canvas holding a WebGL context cannot give
+ *     out a WebGPU one.
+ * @returns The initialised engine, or the reason there is none.
+ */
+export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGPUEngine | string> {
+    if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
+        return "this browser has no WebGPU (navigator.gpu is undefined)";
+    }
+
+    // Asked first, and apart from the engine: an engine that fails to open is half built, and it
+    // has already registered itself as Babylon's last created engine.
+    if ((await navigator.gpu.requestAdapter()) === null) {
+        return "this browser has WebGPU but no adapter (navigator.gpu.requestAdapter() returned null)";
+    }
+
+    // The element's lines and arrow caps are GLSL shader materials. Babylon compiles GLSL for
+    // WebGPU with glslang and twgsl, two WebAssembly modules it fetches from its CDN on the first
+    // compile -- and until they arrive, or for ever when they cannot be fetched, every one of those
+    // meshes is skipped and the frame is drawn without it. So they are fetched here, before the
+    // scene exists, and a page that cannot reach them draws with WebGL instead.
+    let compilers: ShaderCompilers;
+    try {
+        compilers = await loadShaderCompilers();
+    } catch (error) {
+        return (
+            "WebGPU is available but the GLSL compiler it needs could not be loaded from " +
+            `${Tools._DefaultCdnUrl}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    const engine = new WebGPUEngine(canvas, { antialias: true });
+    try {
+        // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
+        // is given, though its type and its docs ask for the instance itself.
+        await engine.initAsync({ glslang: Promise.resolve(compilers.glslang) }, { twgsl: compilers.twgsl });
+        return engine;
+    } catch (error) {
+        try {
+            engine.dispose();
+        } catch {
+            // Disposing an engine that never opened reads state it never built.
+        }
+
+        const at = EngineStore.Instances.indexOf(engine);
+        if (at !== -1) {
+            EngineStore.Instances.splice(at, 1);
+        }
+
+        // Babylon rejects with a bare string when the device cannot be had.
+        return `WebGPU could not be opened: ${error instanceof Error ? error.message : String(error)}`;
+    }
 }
 
 /**
@@ -82,13 +232,11 @@ export class RenderManager implements Manager {
         Logger.LogLevels = Logger.ErrorLogLevel;
 
         // Create engine
-        if (this.config.useWebGPU) {
-            this.engine = new WebGPUEngine(this.canvas);
-        } else {
-            this.engine = new Engine(this.canvas, true, {
+        this.engine =
+            this.config.engine ??
+            new Engine(this.canvas, true, {
                 preserveDrawingBuffer: true, // Required for screenshots
             });
-        }
 
         // Create scene
         this.scene = new Scene(this.engine);
@@ -134,11 +282,6 @@ export class RenderManager implements Manager {
      */
     async init(): Promise<void> {
         try {
-            // Initialize WebGPU engine if used
-            if (this.engine instanceof WebGPUEngine) {
-                await this.engine.initAsync();
-            }
-
             // Wait for scene to be ready
             await this.scene.whenReadyAsync();
 

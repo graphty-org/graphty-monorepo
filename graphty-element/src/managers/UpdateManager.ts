@@ -261,7 +261,7 @@ export class UpdateManager implements Manager {
     private framingHasNothingToFrame = false;
 
     /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
-    private readonly drawWatcher: Nullable<Observer<Scene>>;
+    private drawWatcher: Nullable<Observer<Scene>>;
 
     /**
      * Creates a new update manager
@@ -292,6 +292,18 @@ export class UpdateManager implements Manager {
         // only thing that knows a draw finished. Watching the scene -- rather than counting update
         // passes -- is what keeps the flag honest when frames are pumped by hand: `stepFrames`
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
+        this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
+            this.noteFrameDrawn();
+        });
+    }
+
+    /**
+     * Follows the graph onto the scene and camera of the renderer chosen at init, which replace
+     * the ones this manager was built with. The old scene is disposed, and its watcher with it.
+     * @param camera - The new scene's camera manager.
+     */
+    rebindScene(camera: CameraManager): void {
+        this.camera = camera;
         this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
         });

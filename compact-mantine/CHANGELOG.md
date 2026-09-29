@@ -1,3 +1,13 @@
+## 0.8.12 (2026-09-29)
+
+### 🩹 Fixes
+
+- **compact-mantine:** draw the attribute glyph's dot as a filled disc ([c617d5e4](https://github.com/graphty-org/graphty-monorepo/commit/c617d5e4))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.11 (2026-09-28)
 
 ### 🚀 Features

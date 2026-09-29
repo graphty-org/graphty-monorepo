@@ -340,6 +340,27 @@ function declaredIterationBound(
 }
 
 /**
+ * The option values a run would use: the caller's, with the declared defaults filled in. What a
+ * plugin's `costUnits` is handed, so an option that multiplies the work is priced.
+ * @param descriptor - The algorithm's descriptor.
+ * @param params - The parameters the run would use.
+ * @returns The values.
+ */
+function withDefaults(
+    descriptor: AlgorithmDescriptor,
+    params: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> {
+    const values: Record<string, unknown> = {};
+    for (const option of descriptor.options) {
+        if (option.default !== undefined) {
+            values[option.name] = option.default;
+        }
+    }
+
+    return { ...values, ...params };
+}
+
+/**
  * Why an algorithm cannot run on this graph, when it cannot.
  *
  * Every test here reads a requirement the descriptor declares against a fact the statistics
@@ -716,13 +737,14 @@ export function estimateCost(input: CostInput): CostEstimate {
     // calibration all scale them exactly as they scale a built-in's.
     // costUnits counts every iteration itself, so no iteration bound is guessed when it is declared.
     const costUnits = registeredAlgorithmByKey(descriptor.key)?.costUnits;
-    const declaredUnits = costUnits?.(nodes, edges);
+    const optionValues = withDefaults(descriptor, input.params);
+    const declaredUnits = costUnits?.(nodes, edges, optionValues);
     const ownUnits = declaredUnits !== undefined && isUsableCount(declaredUnits) ? declaredUnits : undefined;
     const iterationsAreGuessed = costClass === "iterative" && declared === undefined && ownUnits === undefined;
     const units = (ownUnits ?? workUnits(costClass, nodes, edges, iterations)) * sampleFactor;
     const unitsOf =
         ownUnits !== undefined && costUnits !== undefined
-            ? (n: number, m: number): number => costUnits(n, m)
+            ? (n: number, m: number): number => costUnits(n, m, optionValues)
             : (n: number, m: number, i: number): number => workUnits(costClass, n, m, i);
 
     const measurement = measurements?.get(input.algorithm);

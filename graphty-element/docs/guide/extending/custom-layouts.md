@@ -1,6 +1,200 @@
 # Custom layouts
 
-A layout decides where nodes sit. There are two kinds and you pick one by extending the matching
+Available from graphty-element 2.7.
+
+A layout decides where nodes sit. The quickest way to write one is `defineLayout`: give it an id
+and a `place` function that returns where each node goes. The element does everything else.
+
+## Your first layout: rows by tier
+
+Each node with a `tier` attribute goes on the row for its tier; nodes on the same row are spaced
+out from left to right.
+
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-tiers",
+    dimensions: 2,
+    options: { tier: { type: "attribute", default: "tier" }, spacing: 2 },
+    place(graph, { options }) {
+        const positions = new Map();
+        const used = new Map();
+        for (const node of graph.nodes()) {
+            const tier = node.number(options.tier);
+            if (tier === undefined) continue; // no tier: left unplaced
+            const column = used.get(tier) ?? 0;
+            used.set(tier, column + 1);
+            positions.set(node.id, [column * options.spacing, tier * options.spacing]);
+        }
+        return positions;
+    },
+});
+```
+
+Use it:
+
+```ts
+await element.setLayout("acme-tiers", { spacing: 3 });
+```
+
+That is the whole plugin. `place` receives the graph and the options, already checked and
+filled in with their defaults, and returns a `Map` from node id to `[x, y]` or `[x, y, z]`.
+
+- **Positions are in scene units**, the units the camera and the node sizes use. A node at the
+  default size is 1 unit across, so a spacing of 2 leaves a node's width between neighbours.
+  Nothing multiplies what you return. +x is right and +y is up, so tier 0 is the bottom row and a
+  column that runs down the screen uses negative y.
+- **A node you leave out of the map is not placed** by your layout. So is one you map to `null`
+  or to a position that is not finite. Here, a node with no tier is left alone.
+- **`tier` is an attribute option.** Its value is the NAME of an attribute -- the key on the node
+  record as loaded, `tier` for `{ id: 1, tier: 2 }` -- and the reader can point it at another one
+  (`{ tier: "level" }`) without touching your code. `node.number(name)` reads that attribute as a
+  number, or `undefined` when the node has none.
+- **`tier * spacing` assumes whole-number tiers.** For a continuous score (0.0 to 1.0), cut it into
+  bands first: `Math.min(bands - 1, Math.floor(score * bands))`, with `bands` an option such as
+  `bands: { type: "integer", default: 4, min: 1, max: 20 }` -- the short form takes `min` and `max`
+  as the full option does.
+- **In strict TypeScript**, type your maps when you call a method on what they hold:
+  `new Map<NodeId, Point>()`, with `NodeId` and `Point` imported as types from
+  `@graphty/graphty-element/extend`. A `for...of` loop needs no annotation.
+
+`element` is the `<graphty-element>` on your page: `document.querySelector("graphty-element")`.
+With a bundler, import `defineLayout` from `@graphty/graphty-element/extend` as above. With no
+build step, import it from the self-contained bundle instead
+(`https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js`); the
+[extending overview](./index) has a whole working page.
+
+### Rows by a text category
+
+The more common request. `graph.groupBy(name)` hands over the nodes grouped by an attribute's
+value, groups in readable order ("2" before "10"); a node without the attribute is in no group,
+so it is left unplaced.
+
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-category-rows",
+    dimensions: 2,
+    options: { category: { type: "attribute", default: "category" }, spacing: 2 },
+    place(graph, { options }) {
+        const positions = new Map();
+        let row = 0;
+        for (const nodes of graph.groupBy(options.category).values()) {
+            nodes.forEach((node, column) => positions.set(node.id, [column * options.spacing, row * options.spacing]));
+            row++;
+        }
+        return positions;
+    },
+});
+```
+
+Use it, with your data's own column in place of the default:
+
+```ts
+await element.setLayout("acme-category-rows", { category: "department" });
+```
+
+### Nodes at coordinates your data already carries
+
+`z` is an optional attribute (`default: null`): unbound until the reader picks a column, and
+`node.number(undefined)` is `undefined`, so a 2D dataset is not refused.
+
+```ts
+import { defineLayout } from "@graphty/graphty-element/extend";
+
+defineLayout({
+    id: "acme-precomputed",
+    options: {
+        x: { type: "attribute", default: "x" },
+        y: { type: "attribute", default: "y" },
+        z: { type: "attribute", default: null },
+    },
+    place(graph, { options }) {
+        const positions = new Map();
+        for (const node of graph.nodes()) {
+            const x = node.number(options.x);
+            const y = node.number(options.y);
+            if (x !== undefined && y !== undefined) positions.set(node.id, [x, y, node.number(options.z) ?? 0]);
+        }
+        return positions;
+    },
+});
+```
+
+Use it:
+
+```ts
+await element.setLayout("acme-precomputed", { z: "z" });
+```
+
+Coordinates from NetworkX's `spring_layout` fall between -1 and 1, and a node is 1 unit across,
+so they overlap: multiply them in `place` (a `scale: 50` option) or ask NetworkX for a larger
+`scale`.
+
+## What the element does for you
+
+- **It lists your layout beside the built-ins.** `session.catalog.layouts()` and
+  `layoutDescriptor("acme-tiers")` describe it, with its options, so a picker offers it and a
+  settings form renders its options. Its name is the id in sentence case ("Acme tiers") unless you
+  give `name`; add `description` for a sentence a picker shows.
+- **It checks the reader's options.** A misspelt option is refused with `E_UNKNOWN_OPTION`, a
+  value out of range with `E_OPTION_RANGE`, and a missing one gets its default.
+- **It leaves pinned nodes alone.** A node the reader dragged and pinned stays where it is, whatever
+  `place` returns for it. To arrange the others around it, `context.fixed(id)` says where a pinned
+  node is, or `null` for a node your layout may place.
+- **It handles 2D and 3D.** `dimensions: 2` declares a flat layout; without it a layout may use
+  three. In a 3D view a 2D position gets z = 0; in a 2D view a 3D position loses its z.
+  `context.dimensions` says which view you are drawing into.
+- **It keeps randomness repeatable.** `context.random()` gives seeded numbers in [0, 1), so the
+  same graph is laid out the same way every time. Set `random: true` for a different arrangement
+  each run: the element then adds a `seed` option, and a reader who passes `{ seed: 7 }` gets the
+  same arrangement again.
+- **It redraws when the graph changes.** Nodes and edges added later are laid out by calling
+  `place` again.
+
+## When something is wrong
+
+Every mistake is a `GraphtyError` whose message starts with your call or your layout's id, so the
+first line is the one to search for.
+
+| You wrote                                                                              | You get                                                                                                                                                             |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a definition with no `place`, or a malformed member                                    | at once, from `defineLayout`: `E_BAD_COMMAND`, `defineLayout("acme-tiers"): "place" must be a function; got undefined.`                                             |
+| an id with capitals, spaces or dots                                                    | at once: `E_BAD_COMMAND`. An id is lower-case words joined by hyphens, led by your own prefix, because saved documents record it                                    |
+| an attribute name no node carries (a typo, or a missing column)                        | from `setLayout`: `E_OPTION_RANGE`, naming the attribute and listing the ones the nodes do carry                                                                    |
+| a map keyed by the wrong kind of id (`String(node.id)` on numeric ids, a loop counter) | from `setLayout`: `E_EXTENSION_FAILED`, `place() returned 34 positions but no key matches a node id (got "1"; node ids here are numbers)`. Key the map by `node.id` |
+| code in `place` that throws                                                            | from `setLayout`: `E_EXTENSION_FAILED`, `acme-tiers: place() threw (TypeError: ...)`, with your original error as `cause`                                           |
+
+Some things do not stop the layout but are never silent: nodes with no number at an attribute
+you read, keys in your map that are not nodes, and a `place` that holds the page for more than
+200 ms. The layout completes and the console says so, whether or not logging is on:
+`acme-tiers: 2 of 3 nodes have no number at "tier" (1 holds text, e.g. "NA"); they were left out.`
+
+In TypeScript, a misspelt option is a compile error. Its first line spells out the whole options
+type; read the LAST line, which names the mistake:
+
+```text
+error TS2551: Property 'teir' does not exist on type
+  'OptionValuesOf<{ readonly tier: { readonly type: "attribute"; ... } }>'.
+  Did you mean 'tier'?
+```
+
+## When you need more
+
+`defineLayout` covers a layout computed in one pass over the graph. Move to the advanced tier
+below for a live layout (a simulation the element steps frame by frame), for writing coordinates
+straight into the element's position array on very large graphs, or for work in a worker or on the
+GPU. A long `place` stays responsive by awaiting `context.progress(done / total)` inside its loop.
+
+To graduate, register an advanced layout under the SAME id and delete the `defineLayout` call:
+documents, configurations and saved option sets that name the id keep working, because
+`layoutDescriptor(id)` publishes the entry your advanced version starts from.
+
+## Advanced: full control
+
+An advanced layout is a class. There are two kinds and you pick one by extending the matching
 base class:
 
 - **`LayoutEngine`** -- a simulation the element steps every frame, until it reports itself
@@ -11,16 +205,21 @@ base class:
 Both register with `LayoutEngine.register(MyLayout)`, and from that moment the layout is in the
 catalogue a picker reads and is chosen by the name you gave it.
 
-## One key, not two
+### One key, not two
 
 A layout has exactly one name: `static type` on the class, and `descriptor.id` must equal it.
 Registration refuses a class where the two disagree, because the element derives one from the
 other in several places and a mismatch fails silently.
 
-## A single-pass layout
+### A single-pass layout
 
 ```ts
-import { LayoutEngine, type LayoutDescriptor, type Node, SimpleLayoutEngine } from "@graphty/graphty-element/extend";
+import {
+    type AuthoredLayoutDescriptor,
+    LayoutEngine,
+    type Node,
+    SimpleLayoutEngine,
+} from "@graphty/graphty-element/extend";
 
 // Declared with its members required and taken as `Partial<GridOptions>` below. A mapped type
 // carries an implicit index signature, which is what lets the base class -- whose own options
@@ -39,7 +238,7 @@ class GridLayout extends SimpleLayoutEngine {
     static override maxDimensions: 2 | 3 = 3;
 
     /** What a picker reads, and the one place this layout's options are declared. */
-    static override descriptor: LayoutDescriptor = {
+    static override descriptor: AuthoredLayoutDescriptor = {
         id: "acme-grid",
         plainName: "Grid",
         technicalName: "Row-and-column placement",
@@ -100,15 +299,16 @@ straight through. The element's own static layouts are written this way. A layou
 finished graph, the existing nodes stay where they are and only the new ones are placed, and
 `this.startPositions(dim)` offers the current coordinates as a starting point.
 
-## A live simulation
+### A live simulation
 
 ```ts
 import {
+    type AuthoredLayoutDescriptor,
     type Edge,
     type EdgePosition,
     LayoutEngine,
-    type LayoutDescriptor,
     type Node,
+    type NodeIdType,
     type Position,
 } from "@graphty/graphty-element/extend";
 
@@ -116,7 +316,7 @@ class RingLayout extends LayoutEngine {
     static override type = "acme-ring";
     static override maxDimensions: 2 | 3 = 3;
 
-    static override descriptor: LayoutDescriptor = {
+    static override descriptor: AuthoredLayoutDescriptor = {
         id: "acme-ring",
         plainName: "Ring walk",
         technicalName: "Ring walk simulation",
@@ -142,7 +342,8 @@ class RingLayout extends LayoutEngine {
     readonly #stride: number;
     readonly #nodes: Node[] = [];
     readonly #edges: Edge[] = [];
-    readonly #placed = new Map<Node, { x: number; y: number; z: number }>();
+    /** Where each node is, by node id: an edge names its ends by id. */
+    readonly #placed = new Map<NodeIdType, { x: number; y: number; z: number }>();
     readonly #pinned = new Set<Node>();
     #arrived = false;
 
@@ -159,7 +360,7 @@ class RingLayout extends LayoutEngine {
 
     addNode(n: Node): void {
         this.#nodes.push(n);
-        this.#placed.set(n, { x: 0, y: 0, z: 0 });
+        this.#placed.set(n.id, { x: 0, y: 0, z: 0 });
         this.#arrived = false;
     }
 
@@ -178,7 +379,7 @@ class RingLayout extends LayoutEngine {
 
             const angle = (index / this.#nodes.length) * Math.PI * 2;
             const goal = { x: Math.cos(angle) * this.#radius, y: 0, z: Math.sin(angle) * this.#radius };
-            const at = this.#placed.get(node) ?? { x: 0, y: 0, z: 0 };
+            const at = this.#placed.get(node.id) ?? { x: 0, y: 0, z: 0 };
             const next = {
                 x: approach(at.x, goal.x, this.#stride),
                 y: approach(at.y, goal.y, this.#stride),
@@ -186,23 +387,28 @@ class RingLayout extends LayoutEngine {
             };
 
             moved ||= next.x !== at.x || next.y !== at.y || next.z !== at.z;
-            this.#placed.set(node, next);
+            this.#placed.set(node.id, next);
         });
 
         this.#arrived = !moved;
     }
 
     getNodePosition(n: Node): Position {
-        return this.#placed.get(n) ?? { x: 0, y: 0, z: 0 };
+        return this.#at(n.id);
     }
 
     /** Called when the reader drags a node and drops it. */
     setNodePosition(n: Node, p: Position): void {
-        this.#placed.set(n, { x: p.x, y: p.y, z: p.z ?? 0 });
+        this.#placed.set(n.id, { x: p.x, y: p.y, z: p.z ?? 0 });
     }
 
     getEdgePosition(e: Edge): EdgePosition {
-        return { src: this.getNodePosition(e.srcNode), dst: this.getNodePosition(e.dstNode) };
+        // An edge names its two ends by id; look them up rather than reaching into the edge.
+        return { src: this.#at(e.srcId), dst: this.#at(e.dstId) };
+    }
+
+    #at(id: NodeIdType): Position {
+        return this.#placed.get(id) ?? { x: 0, y: 0, z: 0 };
     }
 
     pin(n: Node): void {
@@ -236,7 +442,7 @@ function approach(from: number, to: number, maxDelta: number): number {
 LayoutEngine.register(RingLayout);
 ```
 
-## Using it
+### Using it
 
 ```ts
 await graph.setLayout("acme-ring", { radius: 200 });
@@ -246,7 +452,7 @@ await graph.setLayout("acme-ring", { radius: 200 });
 <graphty-element layout="acme-ring"></graphty-element>
 ```
 
-## Four optional members, each with a working default
+### Four optional members, each with a working default
 
 Override one only if your engine needs it. Each is declared on the base class, so your editor
 offers it and the element calls it by name.
@@ -258,14 +464,14 @@ offers it and the element calls it by name.
 | `removeEdge(e: Edge): void`    | does nothing                                     | the same, for edges                                                             |
 | `updatePositions(nodes): void` | steps up to ten times, stopping early if settled | your engine can place a newcomer without re-running the simulation              |
 
-## Positions are the element's job
+### Positions are the element's job
 
 The element copies your coordinates into its shared position array after the pre-steps and after
 every step batch. Do not call `publishPositions()` yourself: forgetting it used to render
 perfectly and leave `session.positions` unfilled for every node, with no symptom until a drag, a
 re-freeze or an accelerator read the array.
 
-## A pinned node is not yours to move, and you do not have to know that
+### A pinned node is not yours to move, and you do not have to know that
 
 A reader who drags a node pins it, and a pin now survives a layout change, a 2D/3D toggle and a
 template apply. The refusal lives in the element, on the write your coordinates pass through, so
@@ -277,10 +483,12 @@ through `publishPositions()` -- which is called for you -- or through `setNodePo
 element calls when the reader drops a node and which is a deliberate placement rather than a
 layout opinion.
 
-Read the pin with `session.positions.isPinned(index)` if your engine wants to, for instance to
-treat pinned nodes as fixed anchors rather than computing a position it knows will be dropped.
+An engine is never handed the session. If yours wants to treat pinned nodes as fixed anchors,
+rather than computing a position it knows will be dropped, it tracks them itself: the element calls
+`pin(n)` and `unpin(n)` on the engine when the reader pins or releases a node, as the ring above
+does.
 
-## Say whether you read edge weights
+### Say whether you read edge weights
 
 ```ts
 class RingWalk extends LayoutEngine {
@@ -298,7 +506,7 @@ layout that ignores weights advertises a control that changes nothing.
 Likewise, you do not have to assign `this.config`. The element rebuilds your engine from the
 options the consumer actually gave when the drawing mode changes.
 
-## Laying out one set while holding the rest
+### Laying out one set while holding the rest
 
 A consumer can ask a layout to move only some nodes -- `setLayout(type, opts, { scope })` -- and
 hold every other node still. An engine is refused that request (`E_UNSUPPORTED`) unless its class
@@ -338,7 +546,7 @@ override setHoldMask(mask: NodeMask | null, rows: number): void {
 The hold is never a pin: it is not saved as one and unpinning does not release it. `holdMask`
 reads the current mask back.
 
-## Finding it again
+### Finding it again
 
 ```ts
 import { layoutDescriptor, layoutIdForEngine } from "@graphty/graphty-element/catalog";
@@ -348,7 +556,7 @@ layoutIdForEngine("acme-ring"); // "acme-ring" -- one key, not two
 session.catalog.layouts(); // every layout a picker may offer
 ```
 
-## How it is refused
+### How it is refused
 
 | What is wrong                                                                                    | Code                                          |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
@@ -379,15 +587,16 @@ constructor(opts: { radius?: number } = {}) {
 }
 ```
 
-## Deliberate limits
+### Deliberate limits
 
 **A layout cannot add an engine to an existing arrangement.** A third force-directed
 implementation cannot register under `force`: the arrangement table is the element's editorial
 judgement about which of its own engines to prefer, which is not a judgement a third party can
 make on the element's behalf. Register your own key.
 
-**There is no progress and no cancellation** anywhere in the layout path, for a built-in or a
-plugin. A single-pass engine that takes a long time holds the frame.
+**There is no progress and no cancellation** for an engine class, built-in or registered. A
+single-pass engine that takes a long time holds the frame. (A `defineLayout` layout has both:
+`context.progress()` yields to the page, and `context.signal` aborts when the layout is replaced.)
 
 **A saved document's `graph.layout` is inert.** Nothing reads it back yet, for a built-in layout
 or a registered one.

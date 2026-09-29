@@ -13,7 +13,7 @@ import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@grapht
 import { z } from "zod/v4";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
-import { SharedImplementationMap } from "../catalog/pluginRegistry";
+import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
 import { readonlyPositions, writableLane } from "../data/lane";
@@ -735,12 +735,13 @@ export abstract class LayoutEngine {
      * are authored centrally in the layout catalogue where several engines may sit behind one
      * public name.
      * @param cls - The layout engine class.
+     * @param options - How to register it; `strict` refuses a different layout under a taken id.
      * @returns The same class, so a declaration can register itself in one expression.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when the class declares no `static type`, no
      * `static descriptor`, or a descriptor whose `id` disagrees with its `static type`; or with
      * `E_DUPLICATE_PLUGIN` when the name or the descriptor id is one the element itself ships.
      */
-    static register<T extends LayoutEngineClass>(cls: T): T {
+    static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T {
         const declared = cls as RegisterableLayout;
         const { type, descriptor } = declared;
 
@@ -806,14 +807,17 @@ export abstract class LayoutEngine {
         // wrote, because the engine is where the fact is true: a descriptor that claimed weights
         // for an engine whose arrangement ignores them would put a live control in front of a
         // reader that changes nothing.
-        publishLayoutDescriptor({
-            descriptor: {
-                ...descriptor,
-                honoursWeights: declared.honoursWeights ?? false,
-                scoped: declared.scoped ?? false,
+        publishLayoutDescriptor(
+            {
+                descriptor: {
+                    ...descriptor,
+                    honoursWeights: declared.honoursWeights ?? false,
+                    scoped: declared.scoped ?? false,
+                },
+                type,
             },
-            type,
-        });
+            options,
+        );
         layoutEngineRegistry.set(type, cls);
         return cls;
     }

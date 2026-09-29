@@ -27,7 +27,7 @@ picture; the records are the only before-and-after for those.
 | graphty-element | Algorithms/Combined / Centrality Vs Community (`algorithms-combined--centrality-vs-community`)             | the same Louvain colours under PageRank sizes | Louvain is applied last                                                                                | `element-shipped-port-adapters/README.md` (2)                  |
 | graphty-element | Algorithms/Combined / Community Structure With Path (`algorithms-combined--community-structure-with-path`) | the same Louvain colours under the path       | Louvain is applied last                                                                                | `element-shipped-port-adapters/README.md` (2)                  |
 
-(1) `element-stories/README.md`, which arrives with the merge of `mig/element-migration-visual-review-r2`,
+(1) [element-stories](element-stories/README.md)
 compares all 178 graphty-element stories between master and the branch at `48ff1b3a` and reaches
 the same four layout changes. It supersedes the table of `element-layout-stories`, which keeps
 the real-GPU captures and the numeric check of the three engines with no story.

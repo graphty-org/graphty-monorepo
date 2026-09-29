@@ -931,7 +931,8 @@ interface SnapshotReplacement {
 
 /**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
- * no node left, and no edge appeared or disappeared between two nodes that were already there.
+ * no node left, and the edges between two nodes that were already there are exactly the ones that
+ * were there before.
  *
  * That is what an interactive add looks like -- a new node, perhaps with edges to existing ones --
  * and it is the one change after which a static layout keeps every existing node where it was
@@ -958,15 +959,120 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
         maskSet(old, row, true);
     }
 
+    // The edges between existing nodes must be the SAME edges, not merely as many: a freeze that
+    // swaps one for another rewires the picture as surely as one that adds an edge. Compared as
+    // unordered pairs with their multiplicity, because a static layout reads neither direction nor
+    // edge identity.
+    const n = next.nodeCount;
+    const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
+    const before = new Map<number, number>();
+    const had = previous.edgeList();
+    for (let e = 0; e < previous.edgeCount; e++) {
+        const a = remap === null ? had.src[e] : remap[had.src[e]];
+        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
+        const key = pair(a, b);
+        before.set(key, (before.get(key) ?? 0) + 1);
+    }
+
     const { src, dst } = next.edgeList();
     let between = 0;
     for (let e = 0; e < next.edgeCount; e++) {
-        if (maskTest(old, src[e]) && maskTest(old, dst[e])) {
-            between++;
+        if (!maskTest(old, src[e]) || !maskTest(old, dst[e])) {
+            continue;
         }
+
+        const key = pair(src[e], dst[e]);
+        const left = before.get(key) ?? 0;
+        if (left === 0) {
+            return null;
+        }
+
+        before.set(key, left - 1);
+        between++;
     }
 
     return between === previous.edgeCount ? old : null;
+}
+
+/**
+ * Move the new rows of a re-run into the frame the held rows are drawn in.
+ *
+ * A re-run after an add arranges the whole enlarged graph, and its existing rows land somewhere
+ * other than where they are held: a circle of ten is rotated against the circle of nine it
+ * replaces, and Kamada-Kawai re-centres and rescales its answer. Taking a newcomer's coordinate
+ * from that other frame as it stands can put it on top of a held node. So the similarity
+ * transform (rotation about z, uniform scale, translation) that best maps the re-run's existing
+ * rows onto their held places, in the least-squares sense, is fitted and applied to every row that
+ * is not held. With a single existing row it is a translation.
+ *
+ * ponytail: the rotation is fitted in the xy plane only, so a 3D arrangement that turned about
+ * another axis keeps that turn; a full 3D fit (Kabsch) is the upgrade if a 3D picture shows it.
+ * @param column - the re-run, scene units, stride 3; the rows not in `keep` are rewritten
+ * @param positions - the element's array, holding the drawn coordinates of the rows in `keep`
+ * @param keep - the held rows
+ */
+function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): void {
+    const rows = column.length / 3;
+    const held: Coords[] = [];
+    const drawn = { x: 0, y: 0, z: 0 };
+    const pairs: number[] = [];
+    for (let row = 0; row < rows; row++) {
+        if (maskTest(keep, row) && positions.isPlaced(row) && Number.isFinite(column[3 * row])) {
+            positions.read(row, drawn);
+            held.push({ ...drawn });
+            pairs.push(row);
+        }
+    }
+
+    if (pairs.length === 0) {
+        return;
+    }
+
+    const from = { x: 0, y: 0, z: 0 };
+    const to = { x: 0, y: 0, z: 0 };
+    pairs.forEach((row, i) => {
+        from.x += column[3 * row] / pairs.length;
+        from.y += column[3 * row + 1] / pairs.length;
+        from.z += column[3 * row + 2] / pairs.length;
+        to.x += held[i].x / pairs.length;
+        to.y += held[i].y / pairs.length;
+        to.z += held[i].z / pairs.length;
+    });
+
+    // The least-squares similarity in the plane, as one complex factor a = sum(conj(r) h) / sum|r|^2.
+    let re = 0;
+    let im = 0;
+    let norm = 0;
+    pairs.forEach((row, i) => {
+        const rx = column[3 * row] - from.x;
+        const ry = column[3 * row + 1] - from.y;
+        const hx = held[i].x - to.x;
+        const hy = held[i].y - to.y;
+        re += rx * hx + ry * hy;
+        im += rx * hy - ry * hx;
+        norm += rx * rx + ry * ry;
+    });
+
+    if (norm === 0 || (re === 0 && im === 0)) {
+        re = 1;
+        im = 0;
+    } else {
+        re /= norm;
+        im /= norm;
+    }
+
+    const scale = Math.hypot(re, im);
+    for (let row = 0; row < rows; row++) {
+        if (maskTest(keep, row) || !Number.isFinite(column[3 * row])) {
+            continue;
+        }
+
+        const dx = column[3 * row] - from.x;
+        const dy = column[3 * row + 1] - from.y;
+        column[3 * row] = to.x + re * dx - im * dy;
+        column[3 * row + 1] = to.y + im * dx + re * dy;
+        column[3 * row + 2] = to.z + scale * (column[3 * row + 2] - from.z);
+    }
 }
 
 /**
@@ -985,6 +1091,8 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * reads `graph` places only the new nodes and leaves every existing one where it was. The
  * existing coordinates are also offered to the layout as its start (`startPositions`), which is
  * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
+ * The new nodes' coordinates are then carried into the frame the existing nodes are drawn in, by
+ * the rotation, scale and shift that best maps the re-run's existing nodes onto their held places.
  */
 export abstract class SimpleLayoutEngine extends LayoutEngine {
     static type: string;
@@ -1074,6 +1182,20 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * The graph {@link SimpleLayoutEngine.graph} was derived from, as the element stores it: directed
+     * or not, with every edge it holds and the same node rows. For an undirected graph, or an engine
+     * driven without an element, it is `graph` itself.
+     *
+     * Read it for what making a graph undirected loses: a reciprocal pair (a->b and b->a) is one
+     * edge of `graph`, carrying only one of the two weights.
+     * @returns the stored graph
+     */
+    protected get sourceGraph(): GraphSnapshot {
+        this.#loaded ??= this.#load();
+        return this.#loaded.source ?? this.#loaded.snapshot;
+    }
+
+    /**
      * The coordinates to start this run from, in layout units, `dim` values per row of
      * the protected `graph`: the element's current coordinates when the run follows an
      * add, otherwise null. An unplaced row is NaN.
@@ -1152,8 +1274,11 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * it is (see the class comment). A load is excluded because its chunks are one graph arriving,
      * not a reader adding to a finished one: a circle whose first chunk was held would be drawn as
      * two overlapping circles.
+     *
+     * Called by the element's layout manager on every freeze; an engine never calls it itself.
      * @param change - the freeze
      * @param loading - whether a load is still streaming records in
+     * @internal
      */
     reload(change: SnapshotReplacement, loading: boolean): void {
         this.stale = true;
@@ -1357,6 +1482,10 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         // later publish of the same answer cannot move it either: NaN is never written.
         const keep = this.#keep;
         this.#keep = null;
+        if (keep !== null && loaded?.positions) {
+            alignToHeld(this.#column, loaded.positions, keep);
+        }
+
         if (keep !== null) {
             for (let row = 0; row < this.#column.length / 3; row++) {
                 if (maskTest(keep, row)) {

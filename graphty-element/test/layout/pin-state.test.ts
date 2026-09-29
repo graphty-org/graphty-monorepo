@@ -369,6 +369,63 @@ describe("a static layout after the graph grows", () => {
 
         assert.notDeepEqual(harness.coordsOf(free), before, "the ring was re-seated for four nodes");
     });
+
+    it("re-arranges the whole graph when the same freeze swaps one edge between existing nodes for another", async () => {
+        // As many edges between the existing nodes as before, but not the same ones: a-b is gone
+        // and a-d is new, so the picture of the existing nodes has changed and nothing is held.
+        harness = createHarness();
+        const nodes = ["a", "b", "c", "d"].map((id) => harness?.add(id) as Node);
+        harness.dataManager.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+            { source: "c", target: "d" },
+        ]);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "spectral", {});
+        const before = nodes.map((node) => harness?.coordsOf(node));
+
+        const ab = [...harness.dataManager.edges.values()].find((e) => e.srcId === "a" && e.dstId === "b");
+        assert.isDefined(ab, "the a-b edge exists");
+        harness.dataManager.removeEdge(ab.id);
+        const arrival = harness.add("e");
+        harness.dataManager.addEdges([{ source: "a", target: "d" }]);
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.notDeepEqual(
+            nodes.map((node) => harness?.coordsOf(node)),
+            before,
+            "the rewired nodes were arranged again",
+        );
+    });
+
+    it("draws the new node clear of the held nodes it was added among, and moves none of them", async () => {
+        // The re-run arranges ten nodes on a circle and the nine held ones sit on a circle of
+        // nine, so the tenth slot of the new circle is only a few degrees from a held node. Taken
+        // as it stands, the new node lands almost on top of it; carried into the held circle's
+        // frame, it lands in the gap between two of them.
+        harness = createHarness();
+        const existing: Node[] = [];
+        for (let i = 0; i < 9; i++) {
+            existing.push(harness.add(`n${String(i)}`));
+        }
+
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", { dim: 2 });
+        const held = existing.map((node) => harness?.coordsOf(node) ?? { x: 0, y: 0, z: 0 });
+        const gap = (p: { x: number; y: number; z: number }, q: { x: number; y: number; z: number }): number =>
+            Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+        const spacing = Math.min(...held.slice(1).map((p, i) => gap(p, held[i])));
+
+        const arrival = harness.add("n9");
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+        const nearest = Math.min(...held.map((p) => gap(p, placed)));
+
+        assert.isAbove(nearest, spacing / 4, "the new node is not drawn on top of a held one");
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            held,
+            "no held node moved",
+        );
+    });
 });
 
 describe("a pin survives the freeze that renumbers every node", () => {

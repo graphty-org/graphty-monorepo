@@ -34,6 +34,15 @@ the real-GPU captures and the numeric check of the three engines with no story.
 
 (2) Arrives with the merge of `mig/merge-element-adapters-on-shipped-ports-r2`.
 
+Two static-layout fixes change no story. Kamada-Kawai now sums the weights of a reciprocal pair
+(a->b and b->a) instead of keeping only the first; the one weighted Kamada-Kawai story,
+Layout/3D / Kamada Kawai Weighted, draws the Les Miserables data, whose 254 edges hold no
+reciprocal pair. After an add, a static layout now carries the new nodes into the frame of the
+nodes it holds, so a new node no longer lands on a held one, and it holds nothing when the edges
+between existing nodes were swapped rather than only added to; no story adds a node to a graph a
+static layout has already drawn (the one story that adds nodes at runtime, AI Control, runs the
+default force layout).
+
 One story is not a change: Styles/Label / Animation differs between two renders of the same
 build because its label keeps animating.
 
@@ -53,6 +62,4 @@ branch adds captures here, and anything it finds that is not listed.
 | graphty-element | Algorithms/Flow (bipartite matching)                                                   | the matching pairs alice with backend and carol with senior_dev, where it paired alice with senior_dev and carol with backend | the matching port visits nodes in index order and ignores arc direction by default                                                                          |
 | graphty-element | Algorithms/Flow (max flow, min cut)                                                    | net flow shown on opposite directed edges; Karger's cut is the same on every run                                              | the flow port reports the net flow of a pair within capacity; the Karger port is seeded                                                                     |
 | graphty-element | Data (CSV, JSON, DOT, GML, Pajek stories)                                              | none expected in the drawing; tooltips and data panels can show text ids and missing null keys                                | graph-io reads the files: JSON keys with null values are dropped, mixed-type CSV columns widen to text, CSV ids stay text, a Neo4j node gains its `:ID` key |
-| graphty-element | Layout stories with a static layout and added nodes                                    | a node added after the layout ran no longer lands on a held node                                                              | added nodes are carried into the held frame                                                                                                                 |
-| graphty-element | Layout/3D / Kamada Kawai Weighted on reciprocal edges                                  | positions on graphs with both a-to-b and b-to-a weighted edges                                                                | the weights of both directions are summed                                                                                                                   |
 | graphty-element | every story, once the undo work of pull request #553 is in                             | not known yet                                                                                                                 | #553 changed the data layer and layout manager; it had no story comparison against this branch                                                              |

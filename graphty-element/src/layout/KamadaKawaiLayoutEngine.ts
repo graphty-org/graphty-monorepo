@@ -37,22 +37,30 @@ function edgeWeights(g: GraphSnapshot): NumericVector | null {
  * Summed first because Kamada-Kawai keeps one distance per pair of nodes: left to itself it would
  * take the shortest of two parallel edges, so the order a file listed them in -- or which of the
  * two was heavier -- would decide the picture instead of the connection they make together.
- * @param g - the undirected graph
+ *
+ * The sum is taken over `source`, the graph as stored, and not over `g`: turning a directed graph
+ * undirected has already collapsed a reciprocal pair (a->b and b->a) into one edge carrying only
+ * the first edge's weight, so summing after that would drop the other half.
+ * @param g - the undirected graph the layout reads
+ * @param source - the graph `g` was derived from, with the same node rows; `g` itself when undirected
  * @returns the graph with the distance column, or null
  */
-function withDistances(g: GraphSnapshot): GraphSnapshot | null {
-    const weights = edgeWeights(g);
+function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot | null {
+    const weights = edgeWeights(source);
     if (weights === null || weights.every((w) => w === 1)) {
         return null;
     }
 
-    const { src, dst } = g.edgeList();
     const n = g.nodeCount;
-    const pairKey = (e: number): number => Math.min(src[e], dst[e]) * n + Math.max(src[e], dst[e]);
+    const pairKey = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
     const summed = new Map<number, number>();
-    for (let e = 0; e < g.edgeCount; e++) {
-        summed.set(pairKey(e), (summed.get(pairKey(e)) ?? 0) + weights[e]);
+    const stored = source.edgeList();
+    for (let e = 0; e < source.edgeCount; e++) {
+        const key = pairKey(stored.src[e], stored.dst[e]);
+        summed.set(key, (summed.get(key) ?? 0) + weights[e]);
     }
+
+    const { src, dst } = g.edgeList();
 
     let clamped = 0;
     for (const w of summed.values()) {
@@ -73,7 +81,7 @@ function withDistances(g: GraphSnapshot): GraphSnapshot | null {
 
     const distance = new Float64Array(g.edgeCount);
     for (let e = 0; e < g.edgeCount; e++) {
-        distance[e] = 1 / Math.max(summed.get(pairKey(e)) ?? 1, WEIGHT_EPSILON);
+        distance[e] = 1 / Math.max(summed.get(pairKey(src[e], dst[e])) ?? 1, WEIGHT_EPSILON);
     }
 
     return g.withColumns(undefined, { [DISTANCE_COLUMN]: distance });
@@ -169,7 +177,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     doLayout(): void {
         this.stale = false;
         const dim = layoutDim(this.config.dim);
-        const weighted = this.config.weighted ? withDistances(this.graph) : null;
+        const weighted = this.config.weighted ? withDistances(this.graph, this.sourceGraph) : null;
         this.result = kamadaKawai(weighted ?? this.graph, {
             dist: this.distances(),
             pos: this.startPositions(dim) ?? this.rowsOfRecord(this.config.pos, dim),

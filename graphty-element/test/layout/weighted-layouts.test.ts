@@ -354,6 +354,16 @@ describe("edge weights and the two layouts that read them", () => {
             assert.isTrue(samePlaces(parallel, reversed), "the order the parallel edges arrived in changes nothing");
             assert.isTrue(samePlaces(parallel, summed), "and edges of 2 and 3 arrange exactly as one edge of 5");
         });
+
+        it("sums the two directions of a reciprocal pair on a directed graph", () => {
+            // Making a directed graph undirected merges a->b and b->a into one edge that keeps only
+            // the first weight, so a sum taken after that sees 2 and not 5, and the picture would
+            // depend on which direction the file listed first.
+            const reciprocal = arrange(kamadaKawai(), graphOf([["a", "b", 2], ["b", "a", 3], ["b", "c", 1]]));
+            const summed = arrange(kamadaKawai(), graphOf([["a", "b", 5], ["b", "c", 1]]));
+
+            assert.isTrue(samePlaces(reciprocal, summed), "edges of 2 and 3 in opposite directions arrange as one edge of 5");
+        });
     });
 
     it("advertises which engines read weights at all, so a picker offers the option on those two only", () => {

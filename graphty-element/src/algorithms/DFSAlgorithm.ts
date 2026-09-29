@@ -1,4 +1,4 @@
-import { indexed } from "@graphty/algorithms";
+import { depthFirstSearch } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -177,7 +177,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         const { value, precision } = await run((_dispatch, s) => {
             const view = recursive && targetIndex !== undefined ? withoutArcsOf(s, targetIndex) : s;
             return Promise.resolve(
-                indexed.depthFirstSearch(view, sourceIndex, {
+                depthFirstSearch(view, sourceIndex, {
                     arcOrder: declarationArcOrder(view),
                     order: preOrder ? "pre" : "post",
                     target: view === s ? targetIndex : undefined,

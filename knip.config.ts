@@ -104,10 +104,9 @@ const config: KnipConfig = {
                 "test/types/**/*.test-d.ts",
                 // the config test/unit/golden-helper.test.ts runs a child vitest with
                 "test/helpers/golden-cases/vitest.config.ts",
-                "examples/**/*.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Storybook implicit dependencies

@@ -49,7 +49,7 @@ TypeScript library for positioning nodes in graphs. A port of layout algorithms 
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/algorithms/)
 
-Comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
+Comprehensive TypeScript graph algorithms library with 60+ algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
 
 [View package](./algorithms)
 

@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { syncClustering } from "../../../src/indexed/sync.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { type SynCConfig } from "../../../src/research/sync-legacy.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId, SynCConfig } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 const fixtures: FacadeFixture[] = [...undirectedFixtures(), ...directedFixtures()];

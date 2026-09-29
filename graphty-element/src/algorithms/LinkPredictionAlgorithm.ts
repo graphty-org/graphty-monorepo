@@ -7,7 +7,7 @@
  * thing it painted.
  */
 
-import { indexed } from "@graphty/algorithms";
+import { adamicAdarPrediction, commonNeighborsPrediction } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -18,8 +18,8 @@ import type { OptionsSchema } from "./types/OptionSchema";
 
 /** The two scoring methods, by the name the `method` option takes. */
 const METHODS = {
-    "adamic-adar": indexed.adamicAdarPrediction,
-    "common-neighbors": indexed.commonNeighborsPrediction,
+    "adamic-adar": adamicAdarPrediction,
+    "common-neighbors": commonNeighborsPrediction,
 } as const;
 
 /** Zod-based options schema for link prediction. */

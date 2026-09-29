@@ -7,9 +7,9 @@
 
 import { expect } from "vitest";
 
-import type { Graph } from "../../src/core/graph.js";
-import { toSnapshotOrNull } from "../../src/indexed/to-snapshot.js";
 import { legacyResult } from "./golden.js";
+import type { Graph } from "./legacy-graph.js";
+import { toSnapshotOrNull } from "./to-snapshot.js";
 
 /** A named legacy graph, the shape `test/unit/indexed/port-fixtures.ts` returns. */
 export interface FacadeFixture {
@@ -36,7 +36,7 @@ interface FacadeParityOptions {
  * @param tolerance - See {@link FacadeParityOptions}
  * @param at - Where in the result this is, for the failure message
  */
-export function expectSame(actual: unknown, expected: unknown, tolerance: number, at: string): void {
+function expectSame(actual: unknown, expected: unknown, tolerance: number, at: string): void {
     if (typeof expected === "number" && typeof actual === "number") {
         if (actual === expected || (Number.isNaN(actual) && Number.isNaN(expected))) {
             return;

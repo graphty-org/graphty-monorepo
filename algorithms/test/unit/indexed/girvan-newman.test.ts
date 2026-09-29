@@ -1,11 +1,11 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { girvanNewman } from "../../../src/indexed/girvan-newman.js";
 import { modularity } from "../../../src/indexed/modularity.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 

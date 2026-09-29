@@ -25,8 +25,8 @@ import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { toAlgorithmGraph } from "../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
+import { byId, referenceSnapshot } from "../helpers/reference-snapshot";
 
 /** Two triangles joined by a path, with a parallel pair and a reciprocal pair. */
 const MULTI: MockGraphOpts = {
@@ -172,11 +172,14 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
             it(`hits, ${name}`, async () => {
                 const graph = await graphWith(opts);
                 const { values, precision } = await measured(graph, new HITSAlgorithm(graph));
-                const reference = hits(toAlgorithmGraph(graph.getDataManager(), "directed"));
+                const s = referenceSnapshot(graph.getDataManager(), "directed");
+                const reference = hits(s);
+                const hubs = byId(s, reference.hubs);
+                const authorities = byId(s, reference.authorities);
                 assert.strictEqual(precision, "f64");
                 for (const [id, value] of values) {
-                    const hub = reference.hubs[String(id)];
-                    const authority = reference.authorities[String(id)];
+                    const hub = hubs.get(id) as number;
+                    const authority = authorities.get(id) as number;
                     close(value.hub, hub, `hub of ${String(id)}`);
                     close(value.authority, authority, `authority of ${String(id)}`);
                     close(value.value, (hub + authority) / 2, `value of ${String(id)}`);
@@ -186,22 +189,22 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
             it(`katz, ${name}`, async () => {
                 const graph = await graphWith(opts);
                 const { values, precision } = await measured(graph, new KatzCentralityAlgorithm(graph));
-                const reference = katzCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+                const s = referenceSnapshot(graph.getDataManager(), "undirected");
+                const reference = byId(s, katzCentrality(s).scores);
                 assert.strictEqual(precision, "f64");
                 for (const [id, value] of values) {
-                    close(value.value, reference[String(id)], `score of ${String(id)}`);
+                    close(value.value, reference.get(id), `score of ${String(id)}`);
                 }
             });
 
             it(`eigenvector, ${name}`, async () => {
                 const graph = await graphWith(opts);
                 const { values, precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
-                const reference = eigenvectorCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-                    maxIterations: 1000,
-                });
+                const s = referenceSnapshot(graph.getDataManager(), "undirected");
+                const reference = byId(s, eigenvectorCentrality(s, { maxIterations: 1000 }).scores);
                 assert.strictEqual(precision, "f64");
                 for (const [id, value] of values) {
-                    close(value.value, reference[String(id)], `score of ${String(id)}`);
+                    close(value.value, reference.get(id), `score of ${String(id)}`);
                 }
             });
         }
@@ -210,13 +213,13 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
             const graph = await graphWith(LES_MIS);
             const hitsRun = await measured(graph, new HITSAlgorithm(graph, { normalized: false }));
             const katzRun = await measured(graph, new KatzCentralityAlgorithm(graph, { normalized: false }));
-            const hitsRef = hits(toAlgorithmGraph(graph.getDataManager(), "directed"), { normalized: false });
-            const katzRef = katzCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-                normalized: false,
-            });
+            const directed = referenceSnapshot(graph.getDataManager(), "directed");
+            const undirected = referenceSnapshot(graph.getDataManager(), "undirected");
+            const hitsRef = byId(directed, hits(directed, { normalized: false }).hubs);
+            const katzRef = byId(undirected, katzCentrality(undirected, { normalized: false }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(hitsRun.values.get(id)?.hub, hitsRef.hubs[String(id)], `hub of ${String(id)}`);
-                close(katzRun.values.get(id)?.value, katzRef[String(id)], `katz of ${String(id)}`);
+                close(hitsRun.values.get(id)?.hub, hitsRef.get(id), `hub of ${String(id)}`);
+                close(katzRun.values.get(id)?.value, katzRef.get(id), `katz of ${String(id)}`);
             }
         });
     });

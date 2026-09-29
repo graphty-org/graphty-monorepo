@@ -1,12 +1,12 @@
 import { GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { type MCLOptions } from "../../../src/clustering/mcl-legacy.js";
-import { Graph } from "../../../src/core/graph.js";
-import { exactArcWeights, labelsToGroups } from "../../../src/indexed/facade.js";
 import { markovClustering } from "../../../src/indexed/markov.js";
 import { modularity } from "../../../src/indexed/modularity.js";
+import { exactArcWeights, labelsToGroups } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { MCLOptions } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

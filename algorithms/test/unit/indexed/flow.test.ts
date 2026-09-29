@@ -1,12 +1,12 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, maskTest } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
-import { type MaxFlowResult as LegacyMaxFlowResult } from "../../../src/flow/ford-fulkerson.js";
-import { resolveNode } from "../../../src/indexed/facade.js";
 import { bipartiteFlowNetwork, maxFlow, type MaxFlowResult, minSTCut } from "../../../src/indexed/flow.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
+import { resolveNode } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { LegacyMaxFlowResult } from "../../helpers/legacy-types.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm } from "./port-fixtures.js";
 
 interface FlowFixture {

@@ -1,5 +1,4 @@
-import type { NodeId as AlgorithmNodeId } from "@graphty/algorithms";
-import { type F64, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type F64, type GraphSnapshot, INVALID_INDEX, type NodeId as AlgorithmNodeId } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";

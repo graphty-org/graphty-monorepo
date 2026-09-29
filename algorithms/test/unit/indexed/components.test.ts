@@ -1,9 +1,9 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { connectedComponents, weaklyConnectedComponents } from "../../../src/indexed/components.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 /** Two disjoint triangles a-b-c and d-e-f plus the isolated node z. Indices follow insertion order. */

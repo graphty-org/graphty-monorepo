@@ -1,7 +1,6 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import {
     accelerated,
     type AcceleratedAlgorithms,
@@ -16,8 +15,9 @@ import {
     type PageRankResultLike,
     type ScoresResultLike,
     type SsspResultLike,
-    toSnapshot,
 } from "../../../src/index.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm } from "./port-fixtures.js";
 
 function pathGraph(): Graph {

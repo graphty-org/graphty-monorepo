@@ -1,11 +1,11 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { dijkstra } from "../../../src/indexed/dijkstra.js";
-import { exactArcWeights, fromAdjacencyMap } from "../../../src/indexed/facade.js";
 import { astar, bidirectionalDijkstra, type PathResult } from "../../../src/indexed/point-to-point.js";
+import { exactArcWeights, fromAdjacencyMap } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 

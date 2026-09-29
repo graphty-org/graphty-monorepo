@@ -1,13 +1,13 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { DeltaPageRank, deltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
-import { exactArcWeights } from "../../../src/indexed/facade.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import type { NodeId } from "../../../src/types/index.js";
+import { exactArcWeights } from "../../helpers/facade.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, gnm } from "./port-fixtures.js";
 
 /** Legacy pageRank switches to its delta engine when `useDelta !== false && n > 100`. */

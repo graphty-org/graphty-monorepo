@@ -14,7 +14,7 @@ Find the maximum flow from a source to a sink in a network with edge capacities.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { maxFlow } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("source", "a", 10); // the weight is the capacity
@@ -28,7 +28,7 @@ const network = builder.freeze();
 const source = network.ids.requireIndex("source");
 const sink = network.ids.requireIndex("sink");
 
-const result = indexed.maxFlow(network, source, sink);
+const result = maxFlow(network, source, sink);
 console.log(result.maxFlow); // 15
 
 // Flow on each edge, by edge index; negative means against the edge's direction
@@ -47,7 +47,7 @@ for (let e = 0; e < network.edgeCount; e++) {
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { maxFlow } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("s", "a", 3);
@@ -58,8 +58,8 @@ const network = builder.freeze();
 const s = network.ids.requireIndex("s");
 const t = network.ids.requireIndex("t");
 
-console.log(indexed.maxFlow(network, s, t, { algorithm: "edmonds-karp" }).maxFlow); // 4
-console.log(indexed.maxFlow(network, s, t, { algorithm: "ford-fulkerson" }).maxFlow); // 4
+console.log(maxFlow(network, s, t, { algorithm: "edmonds-karp" }).maxFlow); // 4
+console.log(maxFlow(network, s, t, { algorithm: "ford-fulkerson" }).maxFlow); // 4
 ```
 
 ## Minimum Cut
@@ -70,7 +70,7 @@ Find the cheapest set of edges whose removal separates the source from the sink.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { minSTCut } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("server", "router1", 1);
@@ -79,15 +79,15 @@ builder.addEdge("router1", "client", 1);
 builder.addEdge("router2", "client", 1);
 const network = builder.freeze();
 
-const cut = indexed.minSTCut(network, network.ids.requireIndex("server"), network.ids.requireIndex("client"));
+const cut = minSTCut(network, network.ids.requireIndex("server"), network.ids.requireIndex("client"));
 console.log(cut.cutValue); // 2
 const edgeName = (e: number) =>
     `${String(network.ids.idOf(network.edgeSource(e)))}-${String(network.ids.idOf(network.edgeTarget(e)))}`;
 console.log(Array.from(cut.cutEdges, edgeName)); // ["server-router1", "server-router2"]
 ```
 
-`cut.side` is a node mask of the source side. Without a source and a sink, `indexed.stoerWagner(graph)` finds the global
-minimum cut deterministically, and `indexed.kargerMinCut(graph, { iterations, randomSeed })` finds it by random
+`cut.side` is a node mask of the source side. Without a source and a sink, `stoerWagner(graph)` finds the global
+minimum cut deterministically, and `kargerMinCut(graph, { iterations, randomSeed })` finds it by random
 contraction.
 
 ::: info Max-Flow Min-Cut Theorem
@@ -100,7 +100,7 @@ The maximum flow value equals the minimum cut capacity. This fundamental theorem
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { maxFlow } from "@graphty/algorithms";
 
 // Road capacity between depots
 const builder = new GraphBuilder({ directed: true });
@@ -112,7 +112,7 @@ builder.addEdge("hub2", "store2", 40);
 builder.addEdge("hub2", "store3", 70);
 const roads = builder.freeze();
 
-const toStore2 = indexed.maxFlow(roads, roads.ids.requireIndex("warehouse"), roads.ids.requireIndex("store2"));
+const toStore2 = maxFlow(roads, roads.ids.requireIndex("warehouse"), roads.ids.requireIndex("store2"));
 console.log(`Max delivery to store2: ${String(toStore2.maxFlow)} units`); // Max delivery to store2: 100 units
 ```
 
@@ -124,10 +124,10 @@ to every right node, and capacity 1 everywhere.
 <!-- doc-check -->
 
 ```typescript
-import { indexed } from "@graphty/algorithms";
+import { bipartiteFlowNetwork, maxFlow } from "@graphty/algorithms";
 
 // Match workers to jobs they can do
-const net = indexed.bipartiteFlowNetwork(
+const net = bipartiteFlowNetwork(
     ["alice", "bob", "carol"],
     ["job1", "job2", "job3"],
     [
@@ -137,7 +137,7 @@ const net = indexed.bipartiteFlowNetwork(
         ["carol", "job3"],
     ],
 );
-const result = indexed.maxFlow(net.snapshot, net.source, net.sink);
+const result = maxFlow(net.snapshot, net.source, net.sink);
 console.log(result.maxFlow); // 3
 ```
 

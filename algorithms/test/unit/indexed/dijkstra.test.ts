@@ -1,10 +1,10 @@
 import { expandEdges, GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { PathWalkError } from "../../../src/errors.js";
 import { dijkstra, walkPredArcs, walkPredEdges } from "../../../src/indexed/dijkstra.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 // a = 0, b = 1, c = 2, d = 3 (insertion order, invariant I14); z = 4 when isolated.

@@ -1,10 +1,10 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { findAllIsomorphisms, isGraphIsomorphic } from "../../../src/indexed/isomorphism.js";
-import type { NodeId } from "../../../src/types/index.js";
 import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { gnm } from "./port-fixtures.js";
 

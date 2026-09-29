@@ -20,20 +20,24 @@ numbers and "A1 has not started" are no longer current.
 
 ## Finished state (2026-09-29)
 
-The graph-format migration is complete on `feat/graph-format-migration`. Pull request #587
-merged an earlier state of the branch into master on 2026-09-29 (merge `719c506d`), but no
-release was cut from it: master's packages are still algorithms 2.1.2, layout 1.10.5 and
-graphty-element 2.6.2. That merge did put breaking commits on master -- layout's `feat(layout)!:`
-45ded070 and `fix(layout)!:` d5668514, and graphty-element's `fix(graphty-element)!:` ea80b527 --
-and the release workflow (`.github/workflows/release.yml`) releases the newest master commit whose
-CI, GPU and Hosts lanes are all green. So the first green master commit publishes layout 2.0.0 and
-graphty-element 3.0.0 from the unfinished state, without the algorithms 3.0 removal, unless a
-release is held until the rest of the branch reaches master. About 100 commits made on the branch after that merge -- the algorithms
-3.0 removal, the plugin algorithm accessor, the snapshot layout contract, the format writers, the
-data-source adapter from a graph-io importer, and graph-format and graph-io as regular
-dependencies -- are on no pull request yet. They reach master through a new pull request from
-`feat/graph-format-migration` to master, and that pull request is where the owner reviews the
-story changes listed in `visual-changes/README.md`. Every count below except the parser row is printed by `node
+The graph-format migration is complete on `feat/graph-format-migration`, and nothing is left
+undone. Pull request #587 merged an earlier state of the branch into master on 2026-09-29 (merge
+`719c506d`); no release was cut from it, so master's packages are still algorithms 2.1.2, layout
+1.10.5 and graphty-element 2.6.2. That merge put breaking commits on master -- layout's
+`feat(layout)!:` 45ded070 and `fix(layout)!:` d5668514, and graphty-element's
+`fix(graphty-element)!:` ea80b527 -- and the release workflow (`.github/workflows/release.yml`)
+releases the newest master commit whose CI, GPU and Hosts lanes are all green, so no release may
+be cut from master until the rest of the branch reaches it.
+
+The rest of the branch -- the algorithms 3.0 removal, the plugin algorithm accessor, the snapshot
+layout contract, the format writers and export, the data-source adapter from a graph-io importer,
+and graph-format and graph-io as regular dependencies -- goes to master through a second pull
+request from `feat/graph-format-migration`, opened on 2026-09-29 after #587 had merged. It
+supersedes #553, whose branch is merged into this one. That pull request is where the owner
+reviews the story changes listed in `visual-changes/README.md`; that review is the only step
+between the branch and its release, and only the owner can take it.
+
+Every count below except the parser row is printed by `node
 tools/count-migration-state.mjs` (after `pnpm exec nx run-many -t build`); the parser row is
 what `tools/check-data-source-migration.mjs` and `tools/check-legacy-use.mjs` enforce. The versions are those `pnpm exec nx release --dry-run
 --skip-publish` computes from the branch's commits.
@@ -53,9 +57,10 @@ graph API fails `tools/check-legacy-use.mjs` (the baseline file `tools/legacy-us
 is deleted), and any element data source that parses a file itself fails
 `tools/check-data-source-migration.mjs`. Both run in CI and in `tools/prepush.sh`.
 
-If no release is cut before it, merging that pull request releases graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0 (the one breaking
-release window the owner chose on 2026-09-28), with graph-format 1.2.0, graph-io 0.3.10 and
-webgpu-graph-algorithms 0.6.13. Every accepted result difference of the flow, cut, matching and
+Merging that pull request releases graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0 (the
+one breaking release window the owner chose on 2026-09-28), with graph-format 1.2.0, graph-io
+0.3.10, webgpu-graph-algorithms 0.6.13, graphty 0.8.19, compact-mantine 0.8.12, graph-samples
+0.1.8 and remote-logger 1.3.12 (checked after master was merged into the branch on 2026-09-29). Every accepted result difference of the flow, cut, matching and
 isomorphism functions, and of the rest of the removal, is in a BREAKING CHANGE footer of a
 `feat` or `fix` commit on `algorithms/` (8962e042, and the commit that completes
 `algorithms/docs/guide/migrating-to-3.md`), because nx's changelog renders only feat, fix and
@@ -129,7 +134,7 @@ and redo work, merge `a778a43f`), so graphty-element 3.0.0 carries both.
   and graph-io are regular dependencies of graphty-element only, and it closes when the branch
   reaches master; #503 closes with the DOT, GML and Pajek branch.
 
-Open pull requests: #587 (this branch to master; merged 2026-09-29, see "Finished state" for what is still to reach master). #490 (instanced edges) and #513 (force layout
+Open pull requests: the second pull request from this branch to master (see "Finished state"); #587, the first, merged on 2026-09-29. #490 (instanced edges) and #513 (force layout
 on an accelerator) stay separate and are not absorbed here. #549, #550 and #552 (GPU all-pairs,
 label propagation and triangles, betweenness) are routed from the element under issue #558.
 

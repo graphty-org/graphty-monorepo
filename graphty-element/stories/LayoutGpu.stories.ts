@@ -236,10 +236,11 @@ function publishedCaption(canvasElement: HTMLElement): string {
  * reads each story's composed args, so it would see meta-level defaults too.)
  *
  * THE NODES ARE THE DEFAULT SHAPE, NOT `sphere`. The element draws every frame whether or not
- * anything moved, and a `sphere` is Babylon's 32-segment UV sphere: 150 of them are 2.08 million
- * indices a frame against the default shape's 76 thousand. In the capture browser's software
- * renderer that kept the GPU process drawing about six frames a second, so the page never had a
- * frame free for a screenshot, and `page.screenshot` timed out after 30 seconds on CI.
+ * anything moved, and a `sphere` is Babylon's 32-segment UV sphere: with 150 of them the scene
+ * draws 2.08 million indices a frame, against about 146 thousand with the default shape. In the
+ * capture browser's software renderer that kept the GPU process drawing about six frames a second,
+ * so the page never had a frame free for a screenshot, and `page.screenshot` timed out after 30
+ * seconds on CI.
  */
 const STORY_STYLES: Parameters<typeof storySetup>[0] = {
     edge: { "edge.color": "#666666" },

@@ -364,6 +364,15 @@ describe("edge weights and the two layouts that read them", () => {
 
             assert.isTrue(samePlaces(reciprocal, summed), "edges of 2 and 3 in opposite directions arrange as one edge of 5");
         });
+
+        it("sums a reciprocal pair of unit weights too, when every stored weight is 1", () => {
+            // Every edge weighs 1, but a->b and b->a together are one connection of 2; the pair must
+            // not fall back to distance 1 just because no edge anywhere weighs anything else.
+            const reciprocal = arrange(kamadaKawai(), graphOf([["a", "b", 1], ["b", "a", 1], ["b", "c", 1]]));
+            const summed = arrange(kamadaKawai(), graphOf([["a", "b", 2], ["b", "c", 1]]));
+
+            assert.isTrue(samePlaces(reciprocal, summed), "edges of 1 and 1 in opposite directions arrange as one edge of 2");
+        });
     });
 
     it("advertises which engines read weights at all, so a picker offers the option on those two only", () => {

@@ -1000,10 +1000,10 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * A re-run after an add arranges the whole enlarged graph, and its existing rows land somewhere
  * other than where they are held: a circle of ten is rotated against the circle of nine it
  * replaces, and Kamada-Kawai re-centres and rescales its answer. Taking a newcomer's coordinate
- * from that other frame as it stands can put it on top of a held node. So the similarity
- * transform (rotation about z, uniform scale, translation) that best maps the re-run's existing
- * rows onto their held places, in the least-squares sense, is fitted and applied to every row that
- * is not held. With a single existing row it is a translation.
+ * from that other frame as it stands can put it on top of a held node. So the re-run is moved onto
+ * the held picture -- shifted centroid onto centroid, turned about z (mirrored first when that
+ * fits better) by the least-squares rotation, and scaled by the ratio of the two spreads -- and
+ * that move is applied to every row that is not held. With a single existing row it is a shift.
  *
  * ponytail: the rotation is fitted in the xy plane only, so a 3D arrangement that turned about
  * another axis keeps that turn; a full 3D fit (Kabsch) is the upgrade if a 3D picture shows it.
@@ -1039,38 +1039,53 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
         to.z += held[i].z / pairs.length;
     });
 
-    // The least-squares similarity in the plane, as one complex factor a = sum(conj(r) h) / sum|r|^2.
+    // The turn is the least-squares rotation in the plane, the angle of sum(conj(r) h), tried also
+    // on the mirrored re-run, sum(r h), because a re-run can come back mirrored (a spectral
+    // eigenvector's sign is arbitrary) and a mirror is no rotation at all: fitted without it, the
+    // factor sums to about zero. The scale is the ratio of the two spreads, never the fitted
+    // factor's length, which shrinks toward zero whenever the re-run matches the held picture
+    // poorly and would pile every newcomer onto the held nodes' centroid.
     let re = 0;
     let im = 0;
-    let norm = 0;
+    let mirrorRe = 0;
+    let mirrorIm = 0;
+    let spreadFrom = 0;
+    let spreadTo = 0;
     pairs.forEach((row, i) => {
         const rx = column[3 * row] - from.x;
         const ry = column[3 * row + 1] - from.y;
+        const rz = column[3 * row + 2] - from.z;
         const hx = held[i].x - to.x;
         const hy = held[i].y - to.y;
+        const hz = held[i].z - to.z;
         re += rx * hx + ry * hy;
         im += rx * hy - ry * hx;
-        norm += rx * rx + ry * ry;
+        mirrorRe += rx * hx - ry * hy;
+        mirrorIm += rx * hy + ry * hx;
+        spreadFrom += rx * rx + ry * ry + rz * rz;
+        spreadTo += hx * hx + hy * hy + hz * hz;
     });
 
-    if (norm === 0 || (re === 0 && im === 0)) {
-        re = 1;
-        im = 0;
-    } else {
-        re /= norm;
-        im /= norm;
-    }
-
-    const scale = Math.hypot(re, im);
+    // Held rows on one line fit a turn and its mirror across that line equally well, and rounding
+    // alone would pick either; the mirror has to win by more than rounding, or the newcomers of a
+    // re-run that already matches (the fixed layout's) would be reflected across the line.
+    const tie = 1e-6 * Math.sqrt(spreadFrom * spreadTo);
+    const mirror = Math.hypot(mirrorRe, mirrorIm) > Math.hypot(re, im) + tie;
+    const turnRe = mirror ? mirrorRe : re;
+    const turnIm = mirror ? mirrorIm : im;
+    const length = Math.hypot(turnRe, turnIm);
+    const cos = length === 0 ? 1 : turnRe / length;
+    const sin = length === 0 ? 0 : turnIm / length;
+    const scale = spreadFrom === 0 || spreadTo === 0 ? 1 : Math.sqrt(spreadTo / spreadFrom);
     for (let row = 0; row < rows; row++) {
         if (maskTest(keep, row) || !Number.isFinite(column[3 * row])) {
             continue;
         }
 
         const dx = column[3 * row] - from.x;
-        const dy = column[3 * row + 1] - from.y;
-        column[3 * row] = to.x + re * dx - im * dy;
-        column[3 * row + 1] = to.y + im * dx + re * dy;
+        const dy = (mirror ? -1 : 1) * (column[3 * row + 1] - from.y);
+        column[3 * row] = to.x + scale * (cos * dx - sin * dy);
+        column[3 * row + 1] = to.y + scale * (sin * dx + cos * dy);
         column[3 * row + 2] = to.z + scale * (column[3 * row + 2] - from.z);
     }
 }
@@ -1092,7 +1107,8 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
  * existing coordinates are also offered to the layout as its start (`startPositions`), which is
  * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
  * The new nodes' coordinates are then carried into the frame the existing nodes are drawn in, by
- * the rotation, scale and shift that best maps the re-run's existing nodes onto their held places.
+ * the turn (or mirror), scale and shift that best map the re-run's existing nodes onto their held
+ * places.
  */
 export abstract class SimpleLayoutEngine extends LayoutEngine {
     static type: string;
@@ -1278,7 +1294,6 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * Called by the element's layout manager on every freeze; an engine never calls it itself.
      * @param change - the freeze
      * @param loading - whether a load is still streaming records in
-     * @internal
      */
     reload(change: SnapshotReplacement, loading: boolean): void {
         this.stale = true;

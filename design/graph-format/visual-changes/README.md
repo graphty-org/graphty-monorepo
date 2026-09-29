@@ -35,13 +35,14 @@ the real-GPU captures and the numeric check of the three engines with no story.
 (2) Arrives with the merge of `mig/merge-element-adapters-on-shipped-ports-r2`.
 
 Two static-layout fixes change no story. Kamada-Kawai now sums the weights of a reciprocal pair
-(a->b and b->a) instead of keeping only the first; the one weighted Kamada-Kawai story,
-Layout/3D / Kamada Kawai Weighted, draws the Les Miserables data, whose 254 edges hold no
-reciprocal pair. After an add, a static layout now carries the new nodes into the frame of the
-nodes it holds, so a new node no longer lands on a held one, and it holds nothing when the edges
-between existing nodes were swapped rather than only added to; no story adds a node to a graph a
-static layout has already drawn (the one story that adds nodes at runtime, AI Control, runs the
-default force layout).
+(a->b and b->a) instead of keeping only the first, even when every stored weight is 1; the one
+weighted Kamada-Kawai story, Layout/3D / Kamada Kawai Weighted, draws the Les Miserables data,
+whose 254 edges hold no reciprocal pair, and the other Kamada-Kawai stories turn weights off. After
+an add, a static layout now carries the new nodes into the frame of the nodes it holds (turned,
+mirrored or rescaled as the re-run needs), so a new node no longer lands on a held one, and it
+holds nothing when the edges between existing nodes were swapped rather than only added to; no
+story adds a node to a graph a static layout has already drawn (the one story that adds nodes at
+runtime, AI Control, runs the default force layout).
 
 One story is not a change: Styles/Label / Animation differs between two renders of the same
 build because its label keeps animating.

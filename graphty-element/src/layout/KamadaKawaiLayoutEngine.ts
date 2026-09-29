@@ -32,7 +32,7 @@ function edgeWeights(g: GraphSnapshot): NumericVector | null {
 
 /**
  * The graph with one distance per edge, `1 / w` where `w` is the SUM of the weights of every edge
- * between the same two nodes, or null when every weight is 1 and there is nothing to read.
+ * between the same two nodes, or null when every such sum is 1 and there is nothing to read.
  *
  * Summed first because Kamada-Kawai keeps one distance per pair of nodes: left to itself it would
  * take the shortest of two parallel edges, so the order a file listed them in -- or which of the
@@ -47,7 +47,7 @@ function edgeWeights(g: GraphSnapshot): NumericVector | null {
  */
 function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot | null {
     const weights = edgeWeights(source);
-    if (weights === null || weights.every((w) => w === 1)) {
+    if (weights === null) {
         return null;
     }
 
@@ -58,6 +58,12 @@ function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot |
     for (let e = 0; e < source.edgeCount; e++) {
         const key = pairKey(stored.src[e], stored.dst[e]);
         summed.set(key, (summed.get(key) ?? 0) + weights[e]);
+    }
+
+    // Decided on the sums, not on the stored weights: a reciprocal pair of weight 1 sums to 2 and
+    // must read as distance 1/2 whether or not some other edge of the graph happens to weigh more.
+    if ([...summed.values()].every((w) => w === 1)) {
+        return null;
     }
 
     const { src, dst } = g.edgeList();

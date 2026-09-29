@@ -1125,6 +1125,23 @@ export class Dispatcher {
     }
 
     /**
+     * Whether any command with this op is dispatched and not yet done or cancelled.
+     * @param op - The op, such as `layout.set`.
+     * @returns True while one is pending.
+     */
+    hasPendingOp(op: string): boolean {
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (job.command.op === op && job.status !== "done" && job.status !== "cancelled") {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Do one command now, and throw what it throws, for a synchronous door. A queued command
      * starts beside the queue rather than waiting for a turn, as `skipQueue` always did. Routed
      * into a transaction, an immediate command that is refused throws here too, having reverted

@@ -469,6 +469,16 @@ export class LayoutManager implements Manager {
      */
     restoring: () => boolean = () => false;
 
+    /**
+     * Whether a new layout has been asked for and is waiting its turn. While one is, the frame
+     * loop does not step the engine it will replace: the new engine starts from the arrangement
+     * it finds, so a frame that stepped the old one in between -- or paid the old one's owed
+     * pre-steps -- would make where the new layout starts, and so where it ends, depend on
+     * whether a frame happened to fall between a load landing and the layout being built.
+     * @returns True while one is.
+     */
+    replacing: () => boolean = () => false;
+
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
 
@@ -530,6 +540,16 @@ export class LayoutManager implements Manager {
      * ignored, so the element's own restarts cannot undo the pause.
      */
     set running(value: boolean) {
+        this.setRunning(value, true);
+    }
+
+    /**
+     * Start or stop stepping the layout; see {@link LayoutManager.running}.
+     * @param value - True to step it.
+     * @param reheatSettled - Whether starting a settled simulation reheats it, which a resume
+     *     wants and a layout that has just been built does not.
+     */
+    private setRunning(value: boolean, reheatSettled: boolean): void {
         const next = value && !this._paused;
         const resuming = next && !this._running;
         const resting = !next && this._running;
@@ -547,7 +567,12 @@ export class LayoutManager implements Manager {
         // ONLY THE BRIDGE HAS A SETTLE COUNT TO RESTART. The one-shot engines are finished when
         // they are finished, and `ngraph` never reports settled, so neither has anything a
         // reheat could mean.
-        if (resuming && this.layoutEngine instanceof SimulationLayoutEngine && this.layoutEngine.isSettled) {
+        if (
+            reheatSettled &&
+            resuming &&
+            this.layoutEngine instanceof SimulationLayoutEngine &&
+            this.layoutEngine.isSettled
+        ) {
             this.layoutEngine.reheat();
         }
     }
@@ -935,7 +960,13 @@ export class LayoutManager implements Manager {
                 // rendered perfectly while leaving every node unplaced.
                 engine.publishPositions();
 
-                this.running = true;
+                // STARTED, NOT RESUMED, so a simulation its pre-steps settled is not reheated. The
+                // frame loop stops a settled layout, and when one of its frames landed while the
+                // pre-steps were awaited -- and a graph loaded before any layout was built reads
+                // as settled -- this was a false-to-true that `running` takes for a reader
+                // pressing play. The reheat sent Fruchterman-Reingold back to 70% of its budget
+                // and ran fifteen more iterations, so the same seed drew two different graphs.
+                this.setRunning(true, false);
 
                 this.logger.debug("Layout initialized", {
                     type,
@@ -1559,7 +1590,9 @@ export class LayoutManager implements Manager {
         // Nothing steps while undo, redo, a restore or a rollback is on its way to the position
         // array either: the `arrangement` hook places the restored coordinates, and a step before
         // it has run would move the arrangement being restored. The frames after it step again.
-        if (this.#building > 0 || this.restoring()) {
+        //
+        // Nor while a new layout waits its turn: see `replacing`.
+        if (this.#building > 0 || this.restoring() || this.replacing()) {
             return;
         }
 

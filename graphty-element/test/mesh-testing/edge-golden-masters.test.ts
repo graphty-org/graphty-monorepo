@@ -99,7 +99,7 @@ describe("Edge Golden Masters", () => {
 
                 assert.instanceOf(mesh, PatternedLineMesh);
                 assert.equal(mesh.pattern, lineType);
-                assert.isAbove(mesh.meshes.length, 0, "a pattern with no elements draws nothing");
+                assert.isAbove(mesh.elements.length, 0, "a pattern with no elements draws nothing");
             });
         });
 
@@ -155,11 +155,11 @@ describe("Edge Golden Masters", () => {
 
         test("without patternCount the element count follows the line's length", () => {
             const mesh = makeEdge({ style: { line: { type: "dot" } } }) as PatternedLineMesh;
-            const initial = mesh.meshes.length;
+            const initial = mesh.elements.length;
 
             mesh.update(new Vector3(0, 0, 0), new Vector3(50, 0, 0));
 
-            assert.isAbove(mesh.meshes.length, initial, "a longer edge gets more dots");
+            assert.isAbove(mesh.elements.length, initial, "a longer edge gets more dots");
         });
 
         test("patternCount pins the element count whatever the line does", () => {
@@ -169,16 +169,16 @@ describe("Edge Golden Masters", () => {
             // would give the caller no way to stop that.
             const mesh = makeEdge({ style: { line: { type: "dot", patternCount: 5 } } }) as PatternedLineMesh;
 
-            assert.equal(mesh.meshes.length, 5);
+            assert.equal(mesh.elements.length, 5);
             mesh.update(new Vector3(0, 0, 0), new Vector3(50, 0, 0));
-            assert.equal(mesh.meshes.length, 5);
+            assert.equal(mesh.elements.length, 5);
         });
 
         [2, 3, 8, 20].forEach((patternCount) => {
             test(`patternCount ${patternCount} produces exactly that many elements`, () => {
                 const mesh = makeEdge({ style: { line: { type: "dash", patternCount } } }) as PatternedLineMesh;
 
-                assert.equal(mesh.meshes.length, patternCount);
+                assert.equal(mesh.elements.length, patternCount);
             });
         });
 
@@ -367,7 +367,9 @@ describe("Edge Golden Masters", () => {
             for (const lineType of ALL_LINE_TYPES) {
                 const mesh = makeEdge({ style: { line: { type: lineType } } });
                 const drawn =
-                    mesh instanceof PatternedLineMesh ? mesh.meshes.length > 0 : (mesh as Mesh).getTotalVertices() > 0;
+                    mesh instanceof PatternedLineMesh
+                        ? mesh.elements.length > 0
+                        : (mesh as Mesh).getTotalVertices() > 0;
 
                 assert.isTrue(drawn, `line type "${lineType}" produced nothing to draw`);
             }

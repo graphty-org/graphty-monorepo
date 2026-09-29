@@ -1,4 +1,4 @@
-import { AbstractMesh, Mesh, Ray, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, Ray, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import _ from "lodash";
@@ -14,7 +14,6 @@ import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
-import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
 import { Node, NodeIdType } from "./Node";
 
 interface InterceptPoint {
@@ -82,6 +81,10 @@ function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | nul
  * starts with no entry and is recomputed rather than skipped on a stamp its old mesh earned.
  */
 const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
+
+/** Scratch ends of one curve segment, so placing a curve allocates nothing per segment. */
+const curveFrom = new Vector3();
+const curveTo = new Vector3();
 
 /**
  * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
@@ -171,14 +174,19 @@ export class Edge {
     arrowTailMesh: ArrowCap | null = null;
 
     /**
-     * The batch this edge's line is one thin instance of, or null when the line is a mesh of this
-     * edge's own -- which is every bezier, patterned, animated and 2D line. See
-     * {@link EdgeMesh.lineBatch} for why only one style is batched so far.
+     * The batch this edge's line is drawn from, or null for a patterned line, whose elements are
+     * slots in batches of their own (see `PatternedLineMesh`). See {@link EdgeMesh.lineBatch}.
      */
     private lineBatch: EdgeLineBatch | null = null;
 
-    /** Which slot of {@link Edge.lineBatch} draws this edge, and -1 when there is no batch. */
-    private lineSlot = -1;
+    /**
+     * Which slots of {@link Edge.lineBatch} draw this edge: one for a straight line, and one per
+     * segment of a curve, which is a run of straight segments. Empty when there is no batch.
+     */
+    private lineSlots: number[] = [];
+
+    /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
+    private lineIsCurve = false;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -314,12 +322,46 @@ export class Edge {
             return null;
         }
 
+        const batch = this.lineBatch;
+
         return {
-            name: this.lineBatch.name,
-            length: this.lineBatch.lengthOf(this.lineSlot),
-            visibility: this.lineBatch.mesh.visibility,
-            centre: this.lineBatch.centreOf(this.lineSlot),
+            name: batch.name,
+            // A curve's length is its whole run's.
+            length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
+            visibility: batch.mesh.visibility,
+            centre: batch.centreOf(this.lineSlots[0]),
         };
+    }
+
+    /**
+     * The points this edge's curve is drawn through, or null when its line is not a curve.
+     *
+     * A curve is a run of slots in a shared batch and has no mesh of its own whose vertices say
+     * how far it bows, so the points are read back out of the slots: where each segment starts,
+     * and where the last one ends.
+     * @returns The points, in order along the curve, as fresh vectors.
+     */
+    get drawnCurve(): Vector3[] | null {
+        const batch = this.lineBatch;
+
+        if (batch === null || !this.lineIsCurve) {
+            return null;
+        }
+
+        const points = this.lineSlots.map((slot) => batch.endsOf(slot)[0]);
+        points.push(batch.endsOf(this.lineSlots[this.lineSlots.length - 1])[1]);
+
+        return points;
+    }
+
+    /**
+     * The elements a patterned line is drawn as -- each dash, dot or segment, in order along the
+     * line -- and none for any other line. Each is a slot in a batch shared by every element of
+     * its shape, so this is the only place to ask which shapes an edge draws.
+     * @returns The elements.
+     */
+    get drawnPattern(): readonly ArrowCap[] {
+        return this.mesh instanceof PatternedLineMesh ? this.mesh.elements : [];
     }
 
     /**
@@ -464,22 +506,9 @@ export class Edge {
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
         this.mesh = this.createLine(paint.meshKey, style);
 
-        // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
-        const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
-        if (graphRoot) {
-            // Neither a batched line nor a cap is parented here: a batch parents its one mesh
-            // when it is built, which puts every edge in it under the same transform.
-            if (this.lineBatch === null) {
-                if (this.mesh instanceof PatternedLineMesh) {
-                    // PatternedLineMesh is a wrapper with an array of meshes
-                    for (const mesh of this.mesh.meshes) {
-                        mesh.parent = graphRoot;
-                    }
-                } else {
-                    this.mesh.parent = graphRoot;
-                }
-            }
-        }
+        // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
+        // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
+        // under the graph's transform for XR gestures.
 
         // create the label and the arrow glyphs if configured
         this.syncContent(style, true);
@@ -558,37 +587,7 @@ export class Edge {
         const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
         const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
 
-        // PHASE 5: Bezier curves need geometry recreation (can't transform)
-        const style = this.currentStyle;
-        if (style.line?.bezier) {
-            // Dispose old mesh
-            if (this.mesh instanceof PatternedLineMesh) {
-                this.mesh.dispose();
-            } else if (!this.mesh.isDisposed()) {
-                this.mesh.dispose();
-            }
-
-            // Create new bezier mesh with current positions
-            this.mesh = EdgeMesh.create(
-                this.context.getMeshCache(),
-                {
-                    styleId: this.meshKey,
-                    width: style.line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                    color: style.line.color ?? "#FFFFFF",
-                },
-                style,
-                this.context.getScene(),
-                finalSrcPoint,
-                finalDstPoint,
-            );
-
-            this.mesh.isPickable = false;
-            this.mesh.metadata = this.mesh.metadata ?? {};
-            this.mesh.metadata.parentEdge = this;
-        } else {
-            // Non-bezier edges: Transform existing mesh
-            this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
-        }
+        this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
 
         // Update label position if exists
         if (this.label) {
@@ -679,11 +678,10 @@ export class Edge {
     private paintFrom(meshKey: string, style: EdgeStyleConfig): void {
         // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
-        // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
-        const meshDisposed =
-            this.mesh instanceof PatternedLineMesh
-                ? false // PatternedLineMesh is always "alive" (check individual meshes if needed)
-                : this.mesh.isDisposed();
+        // A patterned line says so with a flag rather than a method. It used to be read as always
+        // alive, so a view-mode switch -- which disposes it and repaints the edge with the same
+        // style -- skipped the rebuild and left the line disposed.
+        const meshDisposed = this.mesh instanceof PatternedLineMesh ? this.mesh.isDisposed : this.mesh.isDisposed();
 
         // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
         // role is `mesh`, with the colour and the opacity folded back into the string by
@@ -759,37 +757,13 @@ export class Edge {
             this.context.getScene(),
         );
 
-        // recreate edge line mesh
-        // PHASE 5: For bezier curves, need to pass current positions
-        let srcPoint: Vector3 | undefined;
-        let dstPoint: Vector3 | undefined;
-        if (style.line?.bezier) {
-            const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
-            if (lnk) {
-                const { srcPoint: arrowSrc, dstPoint: arrowDst } = this.transformArrowCap();
-                srcPoint = arrowSrc ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
-                dstPoint = arrowDst ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
-            }
-        }
+        // recreate edge line mesh; the next update places it, because the endpoint cache was
+        // invalidated above
+        this.mesh = this.createLine(meshKey, style);
 
-        this.mesh = this.createLine(meshKey, style, srcPoint, dstPoint);
-
-        // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
-        const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
-        if (graphRoot) {
-            // Neither a batched line nor a cap is parented here: a batch parents its one mesh
-            // when it is built, which puts every edge in it under the same transform.
-            if (this.lineBatch === null) {
-                if (this.mesh instanceof PatternedLineMesh) {
-                    // PatternedLineMesh is a wrapper with an array of meshes
-                    for (const mesh of this.mesh.meshes) {
-                        mesh.parent = graphRoot;
-                    }
-                } else {
-                    this.mesh.parent = graphRoot;
-                }
-            }
-        }
+        // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
+        // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
+        // under the graph's transform for XR gestures.
 
         // Update the label and the arrow glyphs.
         //
@@ -809,19 +783,12 @@ export class Edge {
      *
      * {@link EdgeMesh.lineBatch} makes the choice, and it makes it from the style and the scene,
      * so one call site cannot get a different answer from another. What comes back is what
-     * {@link Edge.mesh} points at either way: the batch's mesh, or this edge's own.
+     * {@link Edge.mesh} points at either way: the batch's mesh, or the pattern's own wrapper.
      * @param meshKey - Which appearance this edge is drawn with.
      * @param style - The resolved style to draw from.
-     * @param srcPoint - Where the line starts, which only a bezier needs at build time.
-     * @param dstPoint - Where the line ends, likewise.
-     * @returns The mesh the line is drawn by.
+     * @returns What the line is drawn by.
      */
-    private createLine(
-        meshKey: string,
-        style: EdgeStyleConfig,
-        srcPoint?: Vector3,
-        dstPoint?: Vector3,
-    ): AbstractMesh | PatternedLineMesh {
+    private createLine(meshKey: string, style: EdgeStyleConfig): AbstractMesh | PatternedLineMesh {
         const options = {
             styleId: meshKey,
             width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -831,7 +798,9 @@ export class Edge {
         this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, this.context.getScene());
 
         if (this.lineBatch) {
-            this.lineSlot = this.lineBatch.acquire();
+            // A curve's run of slots is sized to its length when it is first placed.
+            this.lineIsCurve = style.line?.bezier === true;
+            this.lineSlots = [this.lineBatch.acquire()];
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
             // is unpickable as a whole, and the back-reference was only ever written and never
@@ -840,14 +809,7 @@ export class Edge {
             return this.lineBatch.mesh;
         }
 
-        const mesh = EdgeMesh.create(
-            this.context.getMeshCache(),
-            options,
-            style,
-            this.context.getScene(),
-            srcPoint,
-            dstPoint,
-        );
+        const mesh = EdgeMesh.create(this.context.getMeshCache(), options, style, this.context.getScene());
 
         mesh.isPickable = false;
         mesh.metadata = mesh.metadata ?? {};
@@ -865,9 +827,12 @@ export class Edge {
      */
     private releaseLine(): void {
         if (this.lineBatch) {
-            this.lineBatch.release(this.lineSlot);
+            for (const slot of this.lineSlots) {
+                this.lineBatch.release(slot);
+            }
+
             this.lineBatch = null;
-            this.lineSlot = -1;
+            this.lineSlots = [];
             return;
         }
 
@@ -1106,13 +1071,11 @@ export class Edge {
         const drawn = this.renderVisible;
 
         if (this.lineBatch) {
-            this.lineBatch.setDrawn(this.lineSlot, drawn);
-        } else if (this.mesh instanceof PatternedLineMesh) {
-            for (const segment of this.mesh.meshes) {
-                if (!segment.isDisposed()) {
-                    segment.setEnabled(drawn);
-                }
+            for (const slot of this.lineSlots) {
+                this.lineBatch.setDrawn(slot, drawn);
             }
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.setDrawn(drawn);
         } else if (!this.mesh.isDisposed()) {
             // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
             // isPickable here would lose whatever the edge style asked for on the way back.
@@ -1146,14 +1109,13 @@ export class Edge {
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
-        if (this.lineBatch) {
-            this.lineBatch.place(this.lineSlot, srcPoint, dstPoint);
+        if (this.lineBatch && this.lineIsCurve) {
+            this.placeCurve(this.lineBatch, srcPoint, dstPoint);
+        } else if (this.lineBatch) {
+            this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
         } else if (this.mesh instanceof PatternedLineMesh) {
-            // Pattern lines: Update mesh positions in world space
+            // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
-        } else if (this.mesh.metadata?.is2DLine) {
-            // PHASE 2: 2D solid lines use Simple2DLineRenderer position updates
-            Simple2DLineRenderer.updatePositions(this.mesh as Mesh, srcPoint, dstPoint);
         } else if (this.mesh.metadata?.isBezierCurve) {
             // PHASE 5: Bezier curves have baked-in geometry, no transformation needed
             // The curve geometry is already in world coordinates from createBezierLine()
@@ -1161,6 +1123,43 @@ export class Edge {
         } else {
             // Solid lines: Transform via position/rotation/scaling
             EdgeMesh.transformMesh(this.mesh, srcPoint, dstPoint);
+        }
+    }
+
+    /**
+     * Draw this edge's curve as a run of straight segments, one slot each, between two points.
+     *
+     * A CURVE IS A RUN OF THE SAME SLOTS A STRAIGHT LINE TAKES (issue #444). The curve renderer
+     * already drew a curve as a strip of independent straight quads -- no joins between them -- so
+     * one slot per quad draws the same segments. It used to dispose and rebuild a mesh of its own
+     * every time an endpoint moved; now the run grows or shrinks to the curve's point count and
+     * each segment is a matrix write.
+     * @param batch - The batch the run is in.
+     * @param srcPoint - Where the curve starts.
+     * @param dstPoint - Where it ends.
+     */
+    private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint);
+        const segments = flat.length / 3 - 1;
+
+        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
+        // slot goes, which must not happen in the middle of re-sizing a run.
+        while (this.lineSlots.length < segments) {
+            this.lineSlots.push(batch.acquire());
+        }
+
+        while (this.lineSlots.length > Math.max(1, segments)) {
+            const slot = this.lineSlots.pop();
+
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
+        }
+
+        for (let i = 0; i < this.lineSlots.length; i++) {
+            curveFrom.fromArray(flat, i * 3);
+            curveTo.fromArray(flat, i * 3 + 3);
+            batch.place(this.lineSlots[i], curveFrom, curveTo);
         }
     }
 

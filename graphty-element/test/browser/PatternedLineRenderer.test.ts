@@ -19,125 +19,129 @@ function createTestScene(): { scene: Scene; engine: Engine; cleanup: () => void 
     return { scene, engine, cleanup };
 }
 
-test("createPatternMesh applies 2D material when is2DMode is true", () => {
+test("a 2D pattern element is a slot drawn with a StandardMaterial, lying in the XY plane", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        const mesh = PatternedLineRenderer.createPatternMesh(
+        const element = PatternedLineRenderer.createPatternElement(
             "diamond",
             0.1,
             "#ff0000",
             1.0,
             scene,
             undefined,
-            undefined,
-            true, // is2DMode
+            true,
         );
+        element.placeFlat(new Vector3(1, 2, 0));
 
-        // Should use StandardMaterial (2D)
-        assert(mesh.material instanceof StandardMaterial, "Expected StandardMaterial for 2D mode");
+        assert(element.batchMesh?.material instanceof StandardMaterial, "Expected StandardMaterial for 2D mode");
+        assert.strictEqual(element.batchMesh.metadata?.is2D, true, "Expected is2D metadata to be true");
 
-        // Should be rotated to XY plane
-        assert.strictEqual(mesh.rotation.x, Math.PI / 2, "Expected rotation to XY plane");
-
-        // Should have is2D metadata
-        assert.strictEqual(mesh.metadata.is2D, true, "Expected is2D metadata to be true");
+        // The shape is built in the XZ plane; its slot turns it a quarter turn about X into XY, as
+        // the per-element mesh's own rotation did.
+        const up = Vector3.TransformNormal(new Vector3(0, 0, 1), element.transform).normalize();
+        assert.closeTo(Math.abs(up.y), 1, 1e-6, "the shape's Z axis lies along world Y");
+        assert.isTrue(element.position.equalsWithEpsilon(new Vector3(1, 2, 0), 1e-6), "placed where asked");
     } finally {
         cleanup();
     }
 });
 
-test("createPatternMesh applies 3D shader when is2DMode is false", () => {
+test("a 3D pattern element is a slot drawn by the billboard shader", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        const mesh = PatternedLineRenderer.createPatternMesh(
+        const element = PatternedLineRenderer.createPatternElement(
             "diamond",
             0.1,
             "#ff0000",
             1.0,
             scene,
             undefined,
-            undefined,
-            false, // is2DMode
+            false,
         );
 
-        // Should use ShaderMaterial (3D)
-        assert(mesh.material instanceof ShaderMaterial, "Expected ShaderMaterial for 3D mode");
-
-        // Should NOT have is2D metadata
-        assert.strictEqual(mesh.metadata?.is2D, undefined, "Expected is2D metadata to be undefined in 3D mode");
+        assert(element.batchMesh?.material instanceof ShaderMaterial, "Expected ShaderMaterial for 3D mode");
+        assert.strictEqual(element.batchMesh.metadata?.is2D, undefined, "Expected no is2D metadata in 3D mode");
+        assert.isNotNull(element.drawnAppearance, "direction, size and colour are the slot's own");
     } finally {
         cleanup();
     }
 });
 
-test("createPatternMesh applies 3D shader when is2DMode is undefined (default)", () => {
+test("a pattern element is drawn in 3D by default", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        const mesh = PatternedLineRenderer.createPatternMesh(
-            "diamond",
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-            undefined,
-            undefined,
-            // is2DMode not provided (undefined)
-        );
+        const element = PatternedLineRenderer.createPatternElement("diamond", 0.1, "#ff0000", 1.0, scene);
 
-        // Should use ShaderMaterial (3D) by default
-        assert(mesh.material instanceof ShaderMaterial, "Expected ShaderMaterial for default (3D) mode");
+        assert(element.batchMesh?.material instanceof ShaderMaterial, "Expected ShaderMaterial for default (3D) mode");
     } finally {
         cleanup();
     }
 });
 
-test("createPatternMesh works with all pattern types in 2D mode", () => {
+test("every discrete pattern builds a 2D element", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        const patterns = ["dot", "star", "diamond", "box", "dash"] as const;
-
-        for (const pattern of patterns) {
-            const mesh = PatternedLineRenderer.createPatternMesh(
+        for (const pattern of ["dot", "star", "diamond", "box", "dash"] as const) {
+            const element = PatternedLineRenderer.createPatternElement(
                 pattern,
                 0.1,
                 "#ff0000",
                 1.0,
                 scene,
                 undefined,
-                undefined,
-                true, // is2DMode
+                true,
             );
 
-            assert(mesh.material instanceof StandardMaterial, `Expected StandardMaterial for pattern: ${pattern}`);
-            assert.strictEqual(mesh.metadata.is2D, true, `Expected is2D metadata for pattern: ${pattern}`);
+            assert(element.batchMesh?.material instanceof StandardMaterial, `Expected StandardMaterial for ${pattern}`);
+            assert.strictEqual(element.batchMesh.metadata?.is2D, true, `Expected is2D metadata for ${pattern}`);
         }
     } finally {
         cleanup();
     }
 });
 
-test("createPatternMesh works with shape type override in 2D mode", () => {
+test("a shape override picks the alternating pattern's other shape", () => {
     const { scene, cleanup } = createTestScene();
 
     try {
-        // Create dash-dot pattern with specific shape type (for alternating patterns)
-        const mesh = PatternedLineRenderer.createPatternMesh(
-            "dash-dot",
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-            "circle", // Override with circle shape
-            undefined,
-            true, // is2DMode
-        );
+        const dash = PatternedLineRenderer.createPatternElement("dash-dot", 0.1, "#ff0000", 1.0, scene, "box", true);
+        const dot = PatternedLineRenderer.createPatternElement("dash-dot", 0.1, "#ff0000", 1.0, scene, "circle", true);
 
-        assert(mesh.material instanceof StandardMaterial, "Expected StandardMaterial for 2D mode");
-        assert.strictEqual(mesh.metadata.is2D, true, "Expected is2D metadata");
+        assert.notStrictEqual(dash.batchMesh, dot.batchMesh, "the two shapes of a dash-dot line are two batches");
+        assert.strictEqual(dot.name, "pattern-dash-dot-circle");
+    } finally {
+        cleanup();
+    }
+});
+
+// Issue #444: every element used to be a mesh with a material of its own. Elements of one shape
+// now share one batch -- in 3D whatever their colour or width, since the billboard shader reads
+// both per slot; in 2D the colour is the material's, so it splits the batch.
+test("elements of one shape share one batch, and 2D splits it only by what its material holds", () => {
+    const { scene, cleanup } = createTestScene();
+
+    try {
+        const meshesBefore = scene.meshes.length;
+        const red = PatternedLineRenderer.createPatternElement("dot", 0.1, "#ff0000", 1.0, scene);
+        const blue = PatternedLineRenderer.createPatternElement("dot", 0.3, "#0000ff", 1.0, scene);
+        assert.strictEqual(red.batchMesh, blue.batchMesh, "3D: one batch for every colour and width");
+        assert.strictEqual(scene.meshes.length, meshesBefore + 1, "and it is one scene object");
+
+        const red2D = PatternedLineRenderer.createPatternElement("dot", 0.1, "#ff0000", 1.0, scene, undefined, true);
+        const wide2D = PatternedLineRenderer.createPatternElement("dot", 0.3, "#ff0000", 1.0, scene, undefined, true);
+        const blue2D = PatternedLineRenderer.createPatternElement("dot", 0.1, "#0000ff", 1.0, scene, undefined, true);
+        assert.strictEqual(red2D.batchMesh, wide2D.batchMesh, "2D: the width is the slot's scale");
+        assert.notStrictEqual(red2D.batchMesh, blue2D.batchMesh, "2D: the colour is the material's");
+
+        for (const element of [red, blue, red2D, wide2D, blue2D]) {
+            element.dispose();
+        }
+
+        assert.strictEqual(scene.meshes.length, meshesBefore, "the last element takes its batch with it");
     } finally {
         cleanup();
     }

@@ -139,7 +139,11 @@ uniform vec3 cameraPosition;
 attribute vec3 arrowDirection; // Line direction
 attribute float arrowSize;     // World-space arrow length
 attribute vec3 arrowColor;
+// Where a pattern segment is cut off, per instance: the last segment of a zigzag or a sinewave is
+// clipped to the room left on its line, and -1 leaves a segment (and every arrow cap) whole.
+attribute float arrowClip;
 varying vec3 vColor;
+varying float vClip;
 #else
 // Individual meshes (pattern elements)
 uniform vec3 lineDirection;
@@ -161,6 +165,7 @@ void main() {
     vec3 lineDir = arrowDirection;
     float scale = arrowSize;
     vColor = arrowColor;
+    vClip = arrowClip;
 #else
     vec3 lineDir = lineDirection;
     float scale = size;
@@ -194,20 +199,27 @@ precision highp float;
 // Uniforms
 #ifdef INSTANCES
 varying vec3 vColor;
+varying float vClip;
 #else
 uniform vec3 color;
+uniform float clipEndX;        // X-axis clipping: -1.0 = disabled, >= 0.0 = clip at this X
 #endif
 uniform float opacity;
-uniform float clipEndX;        // X-axis clipping: -1.0 = disabled, >= 0.0 = clip at this X
 
 // Varyings
 varying vec3 vLocalPosition;  // Local position from vertex shader
 
 void main() {
-    // Shader-based clipping: Discard fragments beyond clipEndX
-    // clipEndX < 0.0 means clipping is disabled
-    // Only clip if clipEndX is meaningfully less than segment length (0.75)
-    if (clipEndX >= 0.0 && clipEndX < 0.74 && vLocalPosition.x > clipEndX) {
+#ifdef INSTANCES
+    float clipX = vClip;
+#else
+    float clipX = clipEndX;
+#endif
+
+    // Shader-based clipping: Discard fragments beyond clipX
+    // clipX < 0.0 means clipping is disabled
+    // Only clip if clipX is meaningfully less than segment length (0.75)
+    if (clipX >= 0.0 && clipX < 0.74 && vLocalPosition.x > clipX) {
         discard;
     }
 
@@ -877,7 +889,7 @@ void main() {
      * Apply the filled arrow shader to a mesh
      *
      * Uses tangent billboarding: arrow aligns with line direction in screen space.
-     * lineDirection is passed as a uniform (set via setLineDirection method).
+     * lineDirection is passed as a uniform.
      * @param mesh - Mesh to apply shader to
      * @param options - Styling options
      * @param scene - Babylon.js scene
@@ -1010,22 +1022,6 @@ void main() {
         mesh.setBoundingInfo(new BoundingInfo(new Vector3(-reach, -reach, -reach), new Vector3(reach, reach, reach)));
     }
     /**
-     * Set the line direction for a filled arrow mesh
-     *
-     * PATTERN ELEMENTS ONLY, NOW. An arrow cap reads its direction out of a per-instance buffer
-     * and is pointed with {@link ArrowCap.place}; a pattern element is still a mesh of its own
-     * with its own material, and this is how that material's uniform is written.
-     * @param mesh - Filled arrow mesh built by {@link FilledArrowRenderer.applyShader}
-     * @param direction - Line direction vector (normalized)
-     */
-    static setLineDirection(mesh: AbstractMesh, direction: Vector3): void {
-        if (mesh.material) {
-            const material = mesh.material as ShaderMaterial;
-            material.setVector3("lineDirection", direction);
-        }
-    }
-
-    /**
      * Draw one arrow cap as a slot in its scene's batch for `key`, building that batch's mesh
      * with `build` the first time the scene needs it.
      *
@@ -1083,7 +1079,7 @@ void main() {
      * @param scene - Babylon.js scene
      * @returns The same mesh
      */
-    private static applyInstancedShader(mesh: Mesh, opacity: number, scene: Scene): Mesh {
+    static applyInstancedShader(mesh: Mesh, opacity: number, scene: Scene): Mesh {
         this.registerShaders();
 
         const material = new ShaderMaterial(
@@ -1091,16 +1087,15 @@ void main() {
             scene,
             { vertex: "filledArrow", fragment: "filledArrow" },
             {
-                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor"],
+                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip"],
                 // `world` is the batch mesh's own transform, which Babylon's instancing include
                 // multiplies a thin instance's slot matrix by. Without it in this list the
                 // include declares the uniform and nothing ever writes it, so the whole batch
                 // would sit at the origin and ignore `graph-root`.
-                uniforms: ["world", "viewProjection", "cameraPosition", "opacity", "clipEndX"],
+                uniforms: ["world", "viewProjection", "cameraPosition", "opacity"],
             },
         );
         material.setFloat("opacity", opacity);
-        material.setFloat("clipEndX", -1.0);
         this.cameraTracked.add(material);
         // See applyShader (issue #388).
         material.blockDirtyMechanism = true;

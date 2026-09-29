@@ -1,13 +1,12 @@
 /**
  * In 2D every edge must start and end on its nodes.
  *
- * A 2D edge is a flat quad laid in the XY plane: its length and angle come from its endpoints'
- * coordinates. A node carrying a Z the camera cannot see makes that length the 3D distance while
+ * A 2D edge is a flat quad laid in the XY plane, drawn as a slot in a batch: its length and
+ * angle come from its endpoints' coordinates. A node carrying a Z the camera cannot see makes that length the 3D distance while
  * the angle is the 2D one, so the line overshoots its nodes and ends in empty space. The graph
  * below is the one the "Camera Controls 2D" and "Selection 2D Mode" stories draw: the view mode
  * set in script, the default layout (no `layout` assigned), pre-steps and a seed.
  */
-import { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
@@ -82,21 +81,21 @@ function assertEdgesEndOnNodes(element: Graphty, what: string): void {
         const src = edge.srcNode.mesh.position;
         const dst = edge.dstNode.mesh.position;
         const centreGap = Math.hypot(dst.x - src.x, dst.y - src.y);
-        if (!(edge.mesh instanceof AbstractMesh)) {
+        // A 2D line is a slot in a shared batch (issue #444), so its drawn extent is read off the
+        // edge, not off a mesh of its own.
+        const line = edge.drawnLine;
+        if (line === null) {
             assert.fail(`${what}: edge ${edge.id} should be a solid 2D line`);
         }
 
-        const { minimumWorld: min, maximumWorld: max } = edge.mesh.getBoundingInfo().boundingBox;
-        const drawnLength = Math.hypot(max.x - min.x, max.y - min.y);
-
         assert.isAtMost(
-            drawnLength,
+            line.length,
             centreGap + 0.5,
-            `${what}: edge ${edge.id} is drawn ${drawnLength.toFixed(2)} long between nodes ` +
+            `${what}: edge ${edge.id} is drawn ${line.length.toFixed(2)} long between nodes ` +
                 `${centreGap.toFixed(2)} apart, so it runs past its nodes`,
         );
         assert.isAtMost(
-            Math.abs((min.x + max.x) / 2 - (src.x + dst.x) / 2) + Math.abs((min.y + max.y) / 2 - (src.y + dst.y) / 2),
+            Math.abs(line.centre.x - (src.x + dst.x) / 2) + Math.abs(line.centre.y - (src.y + dst.y) / 2),
             0.5,
             `${what}: edge ${edge.id} should be centred between its nodes`,
         );

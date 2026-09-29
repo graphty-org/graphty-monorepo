@@ -2,10 +2,10 @@
  * PatternedLineMesh - Manages pattern meshes for a single edge line
  *
  * Architecture:
- * - Individual meshes in world space (no parent/child hierarchy)
+ * - Every element is a slot in a batch shared with every element of its shape, in every edge
+ *   (see `PatternedLineRenderer.createPatternElement`), so a patterned line adds no scene object
  * - Uses FilledArrowRenderer shader for billboarding
- * - Adaptive mesh density (add/remove meshes as line length changes)
- * - Proven 35x faster than thin instances for position updates
+ * - Adaptive element density (add/remove slots as line length changes)
  * @remarks
  * This class implements Phases 1-4 of design/rendering/mesh-based-patterned-lines.md.
  * That document is a DESIGN NOTE, not a generator input: nothing in tools/ or
@@ -20,9 +20,9 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
 
-import { Mesh, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
+import { type Mesh, type Scene, Vector3 } from "@babylonjs/core";
 
-import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import type { ArrowCap } from "./ArrowCapBatch";
 import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
@@ -66,7 +66,6 @@ export function patternElementPeriod(meshWidth: number): number {
     return meshWidth + meshWidth * 0.5;
 }
 
-
 /**
  * Number of meshes a discrete pattern needs to cover a line of the given length.
  *
@@ -108,7 +107,6 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
 
     return 2 + Math.max(0, numInterior);
 }
-
 
 /**
  * Distances along the line, measured from its start, at which each discrete pattern
@@ -171,7 +169,11 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
  * Manages pattern meshes for a single edge line with adaptive mesh density
  */
 export class PatternedLineMesh {
-    meshes: Mesh[] = []; // Individual pattern meshes in world space
+    /**
+     * One slot per pattern element, in order along the line. Not meshes: each is a slot in the
+     * batch every element of its shape is drawn from (issue #444).
+     */
+    elements: ArrowCap[] = [];
     pattern: PatternType;
     lineDirection = new Vector3(1, 0, 0);
     private lastLength = 0;
@@ -240,6 +242,12 @@ export class PatternedLineMesh {
      * @param end - Ending point of the line
      */
     update(start: Vector3, end: Vector3): void {
+        // A disposed line stays disposed: re-sizing it would take fresh slots for elements nothing
+        // will ever give back.
+        if (this.isDisposed) {
+            return;
+        }
+
         const newLength = Vector3.Distance(start, end);
         this.lineDirection = end.subtract(start).normalize();
 
@@ -248,21 +256,11 @@ export class PatternedLineMesh {
             this.adjustMeshCount(newLength);
         }
 
-        // Update positions (world space)
-        const positions = this.calculatePositions(start, end);
-        for (let i = 0; i < this.meshes.length; i++) {
-            this.meshes[i].position = positions[i];
-
-            // CRITICAL: Update lineDirection uniform for billboarding shader (only in 3D mode)
-            // This makes pattern meshes face the camera like arrowheads do
-            if (!this.is2DMode) {
-                FilledArrowRenderer.setLineDirection(this.meshes[i], this.lineDirection);
-            }
-        }
+        this.placeElements(start, end);
 
         // For connected patterns, clip last segment to fit exactly
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
-        if (patternDef.connected && this.meshes.length > 0) {
+        if (patternDef.connected && this.elements.length > 0) {
             this.clipLastSegment(newLength);
         }
 
@@ -270,88 +268,50 @@ export class PatternedLineMesh {
     }
 
     /**
+     * Draw or stop drawing every element of this line.
+     *
+     * Only the hiding half does anything, as for a batched line: showing it again is the next
+     * placement's job, which the visibility mask asks for by invalidating the edge's endpoints.
+     * @param drawn - Whether the line is on screen.
+     */
+    setDrawn(drawn: boolean): void {
+        for (const element of this.elements) {
+            element.setDrawn(drawn);
+        }
+    }
+
+    /**
      * Clip the last segment to fit exactly to line end
      * Uses shader-based clipping instead of mesh scaling (only in 3D mode)
-     * All segments use identical 0.75 geometry (for instancing)
+     * All segments use identical 0.75 geometry
      * @param lineLength - Total length of the line
      */
     private clipLastSegment(lineLength: number): void {
-        // Clipping only applies to 3D mode (uses shader uniforms)
+        // Clipping only applies to 3D mode (the clip is the billboard shader's)
         if (this.is2DMode) {
             return;
         }
 
-        const lastIndex = this.meshes.length - 1;
-        const lastMesh = this.meshes[lastIndex];
+        const lastIndex = this.elements.length - 1;
 
         // Calculate how much of the last segment should be visible
         const fullSegmentsLength = lastIndex * PatternedLineMesh.SEGMENT_LENGTH;
         const remainingLength = Math.max(0, lineLength - fullSegmentsLength);
 
-        // Set clip uniform on the last segment's material
-        const material = lastMesh.material as ShaderMaterial;
         // If remainder is nearly full segment (>0.74), don't clip
-        if (remainingLength > 0.74) {
-            material.setFloat("clipEndX", -1.0); // Disable clipping
-        } else {
-            material.setFloat("clipEndX", remainingLength);
-        }
-
-        // Reset scaling (no longer needed)
-        lastMesh.scaling.set(1, 1, 1);
+        this.elements[lastIndex].setClip(remainingLength > 0.74 ? -1 : remainingLength);
     }
 
     /**
-     * Dispose all pattern meshes and the ShaderMaterial each one owns.
-     *
-     * DEFECT REPAIRED HERE -- an unbounded per-frame cost that survived the meshes:
-     * this used to call `mesh.dispose()` with Babylon's default arguments, and
-     * `AbstractMesh.dispose(doNotRecurse = false, disposeMaterialAndTextures = false)`
-     * does NOT dispose the material. Every pattern element owns its OWN `ShaderMaterial`
-     * (there is no material sharing on this path), so each disposal orphaned one material
-     * that stayed registered in `PatternedLineRenderer`'s and `FilledArrowRenderer`'s
-     * `activeMaterials` sets forever. Those sets are walked once per frame to push the
-     * camera position uniform, so the per-frame cost grew monotonically with every style
-     * edit -- change the line style four times and the fourth graph pays for all four.
-     *
-     * The `catch` inside those per-frame walks, which looks like it would evict a dead
-     * material, CANNOT fire: `ShaderMaterial.setVector3` does not throw on a disposed
-     * material, it simply records the value. So eviction had to become explicit.
-     *
-     * Two belts here, deliberately. `releaseMaterial` unregisters eagerly, and
-     * `dispose(false, true)` disposes the material so the `onDisposeObservable` hook
-     * installed by `FilledArrowRenderer.applyShader` unregisters it a second time (a no-op
-     * on a Set). Confirmed safe by inspection before changing it: `applyShader` is the only
-     * code that assigns a material on this path and it constructs a fresh `ShaderMaterial`
-     * per call, so no material here is shared with another mesh and disposing it cannot
-     * blank out someone else's geometry.
+     * Give up every element's slot. A batch goes with the last element drawn from it, taking its
+     * mesh and its material, so nothing is left in the scene.
      */
     dispose(): void {
-        for (const mesh of this.meshes) {
-            PatternedLineMesh.disposePatternMesh(mesh);
+        for (const element of this.elements) {
+            element.dispose();
         }
-        this.meshes = [];
+        this.elements = [];
         this.isDisposed = true;
-    }
-
-    /**
-     * Dispose one pattern mesh together with the ShaderMaterial it exclusively owns.
-     *
-     * Shared by {@link PatternedLineMesh.dispose} and by the shrink branch of
-     * {@link PatternedLineMesh.adjustMeshCount}. Both paths leaked identically before this
-     * repair, and the adjust path leaks far more often: it runs whenever the layout moves
-     * the endpoints far enough to change the optimal count, which during a force-directed
-     * simulation is many times a second.
-     * @param mesh - The pattern mesh to destroy
-     */
-    private static disposePatternMesh(mesh: Mesh): void {
-        const { material } = mesh;
-        if (material instanceof ShaderMaterial) {
-            PatternedLineRenderer.releaseMaterial(material);
-        }
-
-        // doNotRecurse = false, disposeMaterialAndTextures = true.
-        mesh.dispose(false, true);
     }
 
     /**
@@ -368,20 +328,28 @@ export class PatternedLineMesh {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
         const meshCount = this.calculateOptimalMeshCount(length, patternDef);
 
-        // Phase 3: Create meshes with alternating shapes for multi-shape patterns
+        // Phase 3: Create elements with alternating shapes for multi-shape patterns
         for (let i = 0; i < meshCount; i++) {
-            const mesh = this.createPatternMesh(i);
-            this.meshes.push(mesh);
+            this.elements.push(this.createPatternElement(i));
         }
 
-        // Set initial positions and lineDirection
-        const positions = this.calculatePositions(start, end);
-        for (let i = 0; i < this.meshes.length; i++) {
-            this.meshes[i].position = positions[i];
+        this.placeElements(start, end);
+    }
 
-            // Set lineDirection uniform for billboarding (only in 3D mode)
-            if (!this.is2DMode) {
-                FilledArrowRenderer.setLineDirection(this.meshes[i], this.lineDirection);
+    /**
+     * Put every element where it goes along the line, pointing along it in 3D.
+     * @param start - Starting point of the line
+     * @param end - Ending point of the line
+     */
+    private placeElements(start: Vector3, end: Vector3): void {
+        const positions = this.calculatePositions(start, end);
+        for (let i = 0; i < this.elements.length; i++) {
+            if (this.is2DMode) {
+                this.elements[i].placeFlat(positions[i]);
+            } else {
+                // The billboard shader faces the element to the camera about this direction, as
+                // it does an arrowhead.
+                this.elements[i].place(positions[i], this.lineDirection);
             }
         }
     }
@@ -394,7 +362,7 @@ export class PatternedLineMesh {
      */
     private needsMeshCountAdjustment(newLength: number): boolean {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
-        const currentCount = this.meshes.length;
+        const currentCount = this.elements.length;
         const optimalCount = this.calculateOptimalMeshCount(newLength, patternDef);
 
         return Math.abs(currentCount - optimalCount) > 1; // Hysteresis: ±1 mesh
@@ -408,24 +376,24 @@ export class PatternedLineMesh {
     private adjustMeshCount(newLength: number): void {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
         const optimalCount = this.calculateOptimalMeshCount(newLength, patternDef);
-        const currentCount = this.meshes.length;
+        const currentCount = this.elements.length;
+
+        // The segment that was last may have been clipped to the end of the line. Once it is no
+        // longer last it has to be drawn whole again, or the line keeps a gap where its end was.
+        if (!this.is2DMode && currentCount > 0) {
+            this.elements[currentCount - 1].setClip(-1);
+        }
 
         if (optimalCount > currentCount) {
-            // Phase 3: Add meshes with correct alternating shapes
+            // Phase 3: Add elements with correct alternating shapes
             for (let i = 0; i < optimalCount - currentCount; i++) {
-                // Use current count + i to get the next mesh index in sequence
-                const meshIndex = currentCount + i;
-                const mesh = this.createPatternMesh(meshIndex);
-                this.meshes.push(mesh);
+                // Use current count + i to get the next element index in sequence
+                this.elements.push(this.createPatternElement(currentCount + i));
             }
         } else if (optimalCount < currentCount) {
-            // Remove meshes
             const toRemove = currentCount - optimalCount;
             for (let i = 0; i < toRemove; i++) {
-                const mesh = this.meshes.pop();
-                if (mesh) {
-                    PatternedLineMesh.disposePatternMesh(mesh);
-                }
+                this.elements.pop()?.dispose();
             }
         }
     }
@@ -480,7 +448,7 @@ export class PatternedLineMesh {
         const totalLength = Vector3.Distance(start, end);
         const meshWidth = this.getRenderedMeshSize();
 
-        const offsets = discreteMeshOffsets(totalLength, meshWidth, this.meshes.length);
+        const offsets = discreteMeshOffsets(totalLength, meshWidth, this.elements.length);
 
         return offsets.map((offset) => start.add(direction.scale(offset)));
     }
@@ -504,7 +472,7 @@ export class PatternedLineMesh {
     ): Vector3[] {
         const direction = end.subtract(start).normalize();
 
-        const meshCount = this.meshes.length;
+        const meshCount = this.elements.length;
         const positions: Vector3[] = [];
 
         // Position segments at fixed 0.75 intervals (same geometry for all)
@@ -586,12 +554,12 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Create a single pattern mesh
-     * Phase 3: Updated to handle alternating patterns via mesh index
-     * @param meshIndex - Index of the mesh in the sequence (for alternating patterns)
-     * @returns The created pattern mesh
+     * Create a single pattern element
+     * Phase 3: Updated to handle alternating patterns via element index
+     * @param meshIndex - Index of the element in the sequence (for alternating patterns)
+     * @returns The element: a slot in its shape's batch
      */
-    private createPatternMesh(meshIndex: number): Mesh {
+    private createPatternElement(meshIndex: number): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
         // Phase 3: For multi-shape patterns, determine which shape to use based on index
@@ -603,25 +571,15 @@ export class PatternedLineMesh {
             shapeType = patternDef.shapes[shapeIndex].type;
         }
 
-        // All segments use FIXED 0.75 geometry (for instancing)
-        // No custom segment length passed - uses default 0.75
-        const mesh = PatternedLineRenderer.createPatternMesh(
+        // All connected segments use the same fixed 0.75 geometry; the last is clipped instead.
+        return PatternedLineRenderer.createPatternElement(
             this.pattern,
             this.width,
             this.color,
             this.opacity,
             this.scene,
             shapeType,
-            undefined, // segmentLength
             this.is2DMode,
         );
-
-        // Initialize as non-clipped (will be updated in clipLastSegment if needed, only in 3D mode)
-        if (patternDef.connected && !this.is2DMode) {
-            const material = mesh.material as ShaderMaterial;
-            material.setFloat("clipEndX", -1.0); // -1.0 = no clipping
-        }
-
-        return mesh;
     }
 }

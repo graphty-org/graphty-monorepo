@@ -53,14 +53,17 @@ describe("Edge 2D Patterns Integration", () => {
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh is a PatternedLineMesh
-        assert("meshes" in edge.mesh, "Edge mesh should be a PatternedLineMesh with meshes property");
+        assert("elements" in edge.mesh, "Edge mesh should be a PatternedLineMesh with elements property");
         const patternMesh = edge.mesh as unknown as PatternedLineMesh;
 
         // Verify pattern meshes use StandardMaterial in 2D mode
-        assert(patternMesh.meshes.length > 0, "PatternedLineMesh should have at least one mesh");
-        for (const mesh of patternMesh.meshes) {
-            assert(mesh.material instanceof StandardMaterial, "Pattern mesh should use StandardMaterial in 2D mode");
-            assert.strictEqual(mesh.metadata?.is2D, true, "Pattern mesh should have is2D metadata");
+        assert(patternMesh.elements.length > 0, "PatternedLineMesh should have at least one mesh");
+        for (const mesh of patternMesh.elements) {
+            assert(
+                mesh.batchMesh?.material instanceof StandardMaterial,
+                "Pattern mesh should use StandardMaterial in 2D mode",
+            );
+            assert.strictEqual(mesh.batchMesh?.metadata?.is2D, true, "Pattern mesh should have is2D metadata");
         }
 
         // Cleanup
@@ -107,17 +110,21 @@ describe("Edge 2D Patterns Integration", () => {
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh is a PatternedLineMesh
-        assert("meshes" in edge.mesh, "Edge mesh should be a PatternedLineMesh with meshes property");
+        assert("elements" in edge.mesh, "Edge mesh should be a PatternedLineMesh with elements property");
         const patternMesh = edge.mesh as unknown as PatternedLineMesh;
 
         // Verify pattern meshes do NOT use StandardMaterial in 3D mode (use ShaderMaterial)
-        assert(patternMesh.meshes.length > 0, "PatternedLineMesh should have at least one mesh");
-        for (const mesh of patternMesh.meshes) {
+        assert(patternMesh.elements.length > 0, "PatternedLineMesh should have at least one mesh");
+        for (const mesh of patternMesh.elements) {
             assert(
-                !(mesh.material instanceof StandardMaterial),
+                !(mesh.batchMesh?.material instanceof StandardMaterial),
                 "Pattern mesh should NOT use StandardMaterial in 3D mode",
             );
-            assert.strictEqual(mesh.metadata?.is2D, undefined, "Pattern mesh should NOT have is2D metadata in 3D mode");
+            assert.strictEqual(
+                mesh.batchMesh?.metadata?.is2D,
+                undefined,
+                "Pattern mesh should NOT have is2D metadata in 3D mode",
+            );
         }
 
         // Cleanup
@@ -189,19 +196,49 @@ describe("Edge 2D Patterns Integration", () => {
             const edge = edgeBetween(graph, nodeId1, nodeId2);
             assert(edge, `Edge ${edgeId} should exist`);
 
-            assert("meshes" in edge.mesh, `Edge ${edgeId} should be a PatternedLineMesh with meshes property`);
+            assert("elements" in edge.mesh, `Edge ${edgeId} should be a PatternedLineMesh with elements property`);
             const patternMesh = edge.mesh as unknown as PatternedLineMesh;
-            assert(patternMesh.meshes.length > 0, `Edge ${edgeId} should have at least one mesh`);
+            assert(patternMesh.elements.length > 0, `Edge ${edgeId} should have at least one mesh`);
 
-            for (const mesh of patternMesh.meshes) {
+            for (const mesh of patternMesh.elements) {
                 assert(
-                    mesh.material instanceof StandardMaterial,
+                    mesh.batchMesh?.material instanceof StandardMaterial,
                     `Pattern ${pattern} should use StandardMaterial in 2D mode`,
                 );
             }
         }
 
         // Cleanup
+        graph.dispose();
+    });
+
+    // Switching the view mode disposes every patterned line and asks each edge to paint itself
+    // again with the style it already has. A patterned line used to answer "not disposed" whatever
+    // had happened to it, so an unchanged style skipped the rebuild -- and the next frame's update
+    // then grew the disposed line a fresh run of 3D elements, billboarded in a 2D view.
+    test("A patterned edge is drawn again, flat, after switching from 3D to 2D", async () => {
+        const graph = new Graph(container);
+
+        await styleEveryEdge(graph, { "edge.style": "dash", "edge.color": "darkgrey" });
+        await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "node2", x: 5, y: 0, z: 0 }));
+        await graph.addEdge(asData({ source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.operationQueue.waitForCompletion();
+        graph.getUpdateManager().stepFrames(2);
+
+        const edge = edgeBetween(graph, "node1", "node2");
+        assert(edge, "Edge should exist");
+        assert.isAbove(edge.drawnPattern.length, 0, "the dashed line is drawn in 3D");
+
+        await graph.setViewMode("2d");
+        await graph.operationQueue.waitForCompletion();
+        graph.getUpdateManager().stepFrames(2);
+
+        assert.isAbove(edge.drawnPattern.length, 0, "the dashed line is drawn again in 2D");
+        for (const element of edge.drawnPattern) {
+            assert(element.batchMesh?.material instanceof StandardMaterial, "and drawn flat");
+        }
+
         graph.dispose();
     });
 });

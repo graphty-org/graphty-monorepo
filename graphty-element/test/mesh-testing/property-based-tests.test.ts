@@ -189,7 +189,7 @@ describe("Property-Based Tests", () => {
                         );
 
                         if (edge instanceof PatternedLineMesh) {
-                            assert.isAbove(edge.meshes.length, 0);
+                            assert.isAbove(edge.elements.length, 0);
                             return;
                         }
 
@@ -235,7 +235,7 @@ describe("Property-Based Tests", () => {
                             ctx.scene,
                         ) as PatternedLineMesh;
 
-                        assert.equal(edge.meshes.length, patternCount);
+                        assert.equal(edge.elements.length, patternCount);
                     },
                 ),
                 { numRuns: 30 },

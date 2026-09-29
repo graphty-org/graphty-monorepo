@@ -287,6 +287,22 @@ export class EdgeLineBatch {
         return new Vector3(this.matrices[at], this.matrices[at + 1], this.matrices[at + 2]);
     }
 
+    /**
+     * Where the line in one slot starts and ends, read back out of its matrix: the unit segment
+     * runs from -0.5 to 0.5 along the slot's z basis vector, about its translation.
+     * @param index - The slot.
+     * @returns The two ends, as fresh vectors the caller may keep.
+     */
+    endsOf(index: number): [Vector3, Vector3] {
+        const at = index * FLOATS_PER_SLOT;
+        const centre = this.centreOf(index);
+        const half = new Vector3(this.matrices[at + 8], this.matrices[at + 9], this.matrices[at + 10]).scaleInPlace(
+            0.5,
+        );
+
+        return [centre.subtract(half), centre.add(half)];
+    }
+
     /** Upload everything written since the last upload, in one call. */
     flush(): void {
         if (!this.dirty || this.gone) {

@@ -26,6 +26,9 @@ import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
+/** The line types drawn as a run of pattern elements rather than as one line. */
+const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
+
 interface EdgeMeshOptions {
     styleId: string;
     width: number;
@@ -254,7 +257,6 @@ void main() {
         dstPoint?: Vector3,
     ): AbstractMesh | PatternedLineMesh {
         const lineType = style.line?.type ?? "solid";
-        const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
 
         // PHASE 5: Bezier curves use CustomLineRenderer with multi-point paths (individual meshes, no caching)
         // Each bezier curve has unique geometry based on src/dst points, so can't be cached
@@ -310,10 +312,9 @@ void main() {
 
         // PHASE 2: Solid lines in 2D mode use Simple2DLineRenderer
         // 2D mode uses world-space StandardMaterial meshes instead of billboard shaders
+        // Its rectangle is laid along the unit segment, so transformMesh places it like a 3D line.
         if (lineType === "solid" && this.is2DMode(scene)) {
-            return Simple2DLineRenderer.create(
-                new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
-                new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
+            return Simple2DLineRenderer.createBatchMesh(
                 options.width / 40, // Convert back from scaled width to match 3D line thickness
                 options.color,
                 style.line?.opacity ?? 1.0,
@@ -333,28 +334,27 @@ void main() {
     }
 
     /**
-     * The thin-instance batch that draws one edge appearance, when this style can be batched.
+     * The thin-instance batch that draws one edge appearance, or null for a patterned line.
      *
-     * THE ONE STYLE THIS DRAWS, FOR NOW: a straight solid line in 3D, which is what the default
-     * edge style and the great majority of every graph is made of. That line used to be an
-     * `InstancedMesh` per edge -- a scene object and about 12.7 KB of heap each -- and it is the
-     * one branch of {@link EdgeMesh.create} whose geometry is already a shared unit segment
-     * placed by a world matrix, so moving it into a batch changes where the matrix lives and
-     * nothing else. No shader is edited: the line shader composes `finalWorld` through Babylon's
-     * `instancesDeclaration` / `instancesVertex` includes, which carry the thin-instance branch.
+     * EVERY LINE BUT A PATTERNED ONE IS A SLOT HERE (issues #419 and #444), and the choice is the
+     * one {@link EdgeMesh.create} makes, in the same order, so a style draws what it always drew:
      *
-     * Every other edge -- bezier, patterned, animated, and everything in 2D -- answers null here
-     * and is drawn exactly as it was, one mesh at a time. Those are separate pieces of work with
-     * separate reviews, and each of them needs something a single slot cannot express yet (a run
-     * of slots for a curve's segments, per-instance colour for a 2D line's material).
+     * - a curve is a run of slots in the solid line's batch, one per straight segment, placed by
+     *   the edge as its ends move (`Edge.placeCurve`) -- in 2D as well, which is what it drew
+     * - a patterned line answers null: its elements are slots in batches of their own, kept by
+     *   `PatternedLineMesh`
+     * - a solid line in 2D is a slot in a batch of flat rectangles (`Simple2DLineRenderer`)
+     * - an animated line is a slot in a batch of the animated greased line, whose shader reads
+     *   `finalWorld` and so draws thin instances as it drew instanced meshes
+     * - everything else is the straight solid 3D line
      *
-     * The colour, the width and the opacity stay folded into the key, so there are exactly as
-     * many batches as there were cached source meshes.
+     * A slot is sixteen floats; the mesh and the material are the batch's, so the colour, the
+     * width and the opacity stay folded into the key, and there is one batch per appearance.
      * @param cache - The mesh cache, which owns the batches so that they die when it does.
      * @param options - Edge mesh options including styleId, width, and color.
      * @param style - Full edge style configuration.
      * @param scene - Babylon.js scene.
-     * @returns The batch to take a slot in, or null for an edge this path cannot draw.
+     * @returns The batch to take a slot in, or null for a patterned line.
      */
     static lineBatch(
         cache: MeshCache,
@@ -363,22 +363,36 @@ void main() {
         scene: Scene,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
-        const batchable =
-            this.USE_CUSTOM_RENDERER &&
-            lineType === "solid" &&
-            style.line?.bezier !== true &&
-            !style.line?.animationSpeed &&
-            !this.is2DMode(scene);
+        const key = `edge-style-${options.styleId}`;
+        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
 
-        if (!batchable) {
+        if (style.line?.bezier) {
+            return cache.getBatch(key, staticLine, scene);
+        }
+
+        if (PATTERNED_TYPES.includes(lineType)) {
             return null;
         }
 
-        return cache.getBatch(
-            `edge-style-${options.styleId}`,
-            () => this.createStaticLine(options, style, scene, cache),
-            scene,
-        );
+        if (lineType === "solid" && this.is2DMode(scene)) {
+            return cache.getBatch(
+                `${key}-2d`,
+                () =>
+                    Simple2DLineRenderer.createBatchMesh(
+                        options.width / 40, // Convert back from scaled width to match 3D line thickness
+                        options.color,
+                        style.line?.opacity ?? 1.0,
+                        scene,
+                    ),
+                scene,
+            );
+        }
+
+        if (style.line?.animationSpeed) {
+            return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
+        }
+
+        return cache.getBatch(key, staticLine, scene);
     }
 
     /**

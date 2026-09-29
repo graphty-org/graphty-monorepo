@@ -135,41 +135,47 @@ workarounds available to them and no way to know they are not alone.
 
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.0.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.2.1 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.2.0 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.0 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
-| `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
-| `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.1.0 | React wrapper application (private, Mantine UI) |
+| `@graphty/graph-format` | `graph-format/` | 1.1.2 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | 0.3.9 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
+| `@graphty/algorithms` | `algorithms/` | 2.1.2 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) over the graph-format snapshot |
+| `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
+| `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
+| `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (private, Mantine UI) |
+| `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
+| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
+| `@graphty/visual-review` | `visual-review/` | 0.0.0 | Visual review of Storybook stories: capture in CI, compare with baselines in git, accept in a local page (private) |
 
 ## Monorepo Structure
 
 ```
 graphty-monorepo/
-├── graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
-├── graph-io/             # @graphty/graph-io package (depends on graph-format)
-├── webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
+|-- graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
+|-- graph-io/             # @graphty/graph-io package (depends on graph-format)
+|-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
-├── algorithms/           # @graphty/algorithms package
-├── layout/               # @graphty/layout package (depends on graph-format, graph-samples)
-├── graphty-element/      # @graphty/graphty-element package
-├── graphty/              # @graphty/graphty React app
-├── tools/                # Build scripts
-│   ├── merge-coverage.sh # Coverage report merging
-│   ├── run-tests.sh      # Runs one CI test shard locally, with CI's command
-│   ├── prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
-│   ├── commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
-│   └── validate-outputs.cjs  # Build output validation
-├── design/               # Architecture and design documents
-├── .github/workflows/    # CI/CD workflows
-├── nx.json               # Nx configuration
-├── pnpm-workspace.yaml   # pnpm workspace config
-├── tsconfig.base.json    # Shared TypeScript config (project references)
-├── vite.shared.config.ts # Shared Vite config factory
-├── vitest.shared.config.ts # Shared Vitest config factory
-└── eslint.config.js      # Shared ESLint config
+|-- algorithms/           # @graphty/algorithms package
+|-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
+|-- graphty-element/      # @graphty/graphty-element package
+|-- graphty/              # @graphty/graphty React app
+|-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
+|-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
+|-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- tools/                # Build scripts
+|   |-- merge-coverage.sh # Coverage report merging
+|   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
+|   |-- prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
+|   |-- commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
+|   `-- validate-outputs.cjs  # Build output validation
+|-- design/               # Architecture and design documents
+|-- .github/workflows/    # CI/CD workflows
+|-- nx.json               # Nx configuration
+|-- pnpm-workspace.yaml   # pnpm workspace config
+|-- tsconfig.base.json    # Shared TypeScript config (project references)
+|-- vite.shared.config.ts # Shared Vite config factory
+|-- vitest.shared.config.ts # Shared Vitest config factory
+`-- eslint.config.js      # Shared ESLint config
 ```
 
 ## Development Commands

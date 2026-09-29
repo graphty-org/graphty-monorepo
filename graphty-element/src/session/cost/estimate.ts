@@ -461,9 +461,9 @@ interface OwnCostModel {
  * FLOOR of what was measured across graph shapes, and each is held to a stopwatch, on its typical
  * and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
  *
- * PageRank, betweenness and closeness were refitted on 2026-09-29, when the element moved them off
- * a freshly built `@graphty/algorithms` Graph and onto the dispatcher's CPU port over the snapshot
- * (`Algorithm.accelerated`): typed-array kernels 5x to 100x faster than the Map-based code the
+ * PageRank, betweenness, closeness and eigenvector centrality were refitted on 2026-09-29, when
+ * the element moved them off a freshly built `@graphty/algorithms` Graph and onto the dispatcher's
+ * CPU port over the snapshot (`Algorithm.accelerated`): typed-array kernels 5x to 100x faster than the Map-based code the
  * 2026-09-23 rates were fitted on.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
@@ -514,24 +514,34 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates) =>
             ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (2.25 * rates.iterativeElementsPerSecond),
     },
-    /* Power iteration x <- (A + I)x: a setup that indexes the nodes and builds the adjacency, then
-       up to k passes of n + m each (k = 1,000 by default). How many passes depends on the spectral
-       gap, which nothing the estimate sees predicts: 1 or 2 on a path, 4 or 5 on clique rings and
-       dense random graphs, 10 to 63 on random m >= 2n and scale-free graphs, 122 to 338 on trees,
-       128 to 264 on random m = 1.2n, 199 to over 1,000 on grids and 478 to over 1,000 on stars, so
-       the whole bound is charged. Measured on 2026-09-23 on those shapes at 10,000 to 200,000
-       nodes: the setup at 191 to 1,051 ns per element of n + m, at most 48 ns per unit of
-       log2(n + m), and a pass at 3.3 to 7.8 ns per element over 1,000-pass runs. Pinned at 51 ns
-       per unit of log2(n + m) (1 / (6.5 * the iterative rate)) and 9.5 ns per pass (1 / (35 * the
-       iterative rate)): 1.3x to 3.1x over graphs that run the whole bound, 5x to 45x over graphs
-       that converge early. Mean degree does not predict the pass count either (a grid and random
-       m = 2n both have mean degree 4, and take over 199 and about 33). The class model charged each
-       pass at the iterative rate, 333 ns per element. */
+    /* Power iteration x <- (A + I)x over the snapshot: a linear setup (the undirected view and the
+       deduplicated neighbour rows), then up to k passes of n + m each (k = 1,000 by default). How
+       many passes depends on the spectral gap, which nothing the estimate sees predicts, so the
+       whole bound is charged, and graphs that converge early read as pessimistic by 1,000 / their
+       pass count:
+       - a path settles in 1 or 2 passes: every node but the two ends has the same degree, so the
+         start vector (1 everywhere) changes only near the ends and meets the per-node tolerance at
+         once (about 900x over);
+       - random m = 5n settles in about 11: its degrees cluster round 10, so the start vector is
+         already close, and its spectral gap is wide (about 300x);
+       - scale-free settles in about 50: its hubs dominate the leading eigenvector (about 45x);
+       - random m = 1.2n takes 200 to 370, growing with n: it is barely past its percolation
+         threshold, so its gap is narrow (about 4x to 9x);
+       - trees take 120 to 160, grids 60 to over 1,000 (small grids never converge, and throw) and
+         stars 550 to 1,000, so those run most or all of the bound.
+       Measured on 2026-09-29 across random (m = 1.2n to 20n), scale-free, planted-partition, grid,
+       path, tree, star and clique-ring graphs of 10,000 to 2,000,000 nodes: the setup plus one
+       pass at 11 to 37 ns per element of n + m, a pass at 1.6 to 7 ns (15 ns on random m = 1.2n
+       at 2,000,000 nodes, whose vectors no longer fit the cache, but that graph stops after about
+       115 passes), and a whole run at most 4.4 ns per element per pass of the bound (a star of
+       1,000,000). Pinned at 5.6 ns per element per pass, 1 / (60 * the iterative rate), with the
+       setup charged as 5 more passes. The model fitted on 2026-09-23 to the Map-based code before
+       the snapshot port charged 9.5 ns per pass plus 51 ns per unit of log2(n + m) of setup, and
+       read 3.6x to 4.1x over a 10,000-node grid. */
     eigenvector: {
-        term: (iterations) => `(n + m) log2(n + m) + k(n + m) with k=${group(iterations)}`,
+        term: (iterations) => `(k + 5)(n + m) with k=${group(iterations)}`,
         seconds: (nodes, edges, rates, iterations) =>
-            ((nodes + edges) * (Math.log2(Math.max(2, nodes + edges)) / 6.5 + iterations / 35)) /
-            rates.iterativeElementsPerSecond,
+            ((iterations + 5) * (nodes + edges)) / (60 * rates.iterativeElementsPerSecond),
     },
 };
 

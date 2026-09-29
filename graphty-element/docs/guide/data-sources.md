@@ -168,15 +168,15 @@ Most graph formats state whether their edges point, and the importer reports wha
 A GML file with no `directed` key, a GEXF file with no `defaultedgetype`, is not silent: both
 formats define that omission as undirected, and so does graphty-element.
 
-| Format  | Where it states direction                                             | When it states nothing                                                                            |
-| ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge                   | An absent attribute means undirected, unless the edges themselves say otherwise                   |
-| GraphML | `edgedefault` on `<graph>`, and `directed` per edge                   | An absent attribute states nothing; GraphML requires it                                           |
-| GML     | the `directed` key, 1 or 0 (a quoted `"1"` is read too)               | An absent key means undirected                                                                    |
-| DOT     | the opening `graph` or `digraph` keyword                              | A body with no keyword (`{ a -> b }`) states nothing; each edge's operator sets its own direction |
-| Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                                        |
-| CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                                                |
-| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                                      |
+| Format  | Where it states direction                                             | When it states nothing                                                                             |
+| ------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge                   | An absent attribute means undirected, unless the edges themselves say otherwise                    |
+| GraphML | `edgedefault` on `<graph>`, and `directed` per edge                   | An absent attribute states nothing; GraphML requires it                                            |
+| GML     | the `directed` key, 1 or 0 (a quoted `"1"` is read too)               | An absent key means undirected                                                                     |
+| DOT     | the opening `graph` or `digraph` keyword                              | A body with no keyword (`{ a -> b }`) states nothing; every edge, `->` or `--`, follows `directed` |
+| Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                                         |
+| CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                                                 |
+| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                                       |
 
 Read it back from the session:
 
@@ -232,11 +232,54 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
 - a JSON record graph-io cannot read under the id and endpoint keys the element resolved -- a node
   without the key or repeating an earlier id, an edge without both keys -- reaches the element as
   the file wrote it, and the element reads it with its own keys;
-- a GML node or Pajek vertex declared twice keeps its first declaration, as the element keeps the
-  first record of a repeated id; a DOT node written in several statements has the attributes of
-  all of them, the later ones winning, as Graphviz draws it;
+- a GML node declared twice keeps its first declaration, as the element keeps the first record
+  of a repeated id. A Pajek vertex written on two lines is one node: the first line's values win,
+  and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
+  0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
+  them, the later ones winning, as Graphviz draws it;
 - a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
   wrote.
+
+### Changes from graphty-element 2.x
+
+Before 3.0 the element read DOT, GML and Pajek with parsers of its own. graph-io reads them as
+Graphviz, NetworkX and Pajek define them, so some files load differently. Random graphs in all
+three formats load exactly as before; these are the edge cases that do not.
+
+DOT:
+
+- a text with no `graph` or `digraph` header, an unclosed brace or string, a malformed attribute
+  list, and a `#` comment that does not start its line fail with `E_PARSE_FAILED`;
+- a `strict` graph merges parallel edges, as Graphviz does (`strict digraph { a -> b; a -> b }` has
+  one edge; it had two);
+- `node [ ... ]` and `edge [ ... ]` defaults now reach the nodes and edges after them;
+- `"x" + "y"` is the one id `xy`, and a line ended by a backslash continues on the next;
+- nodes arrive in the order they are first named: `{a b} -> {c d}` gives a, b, c, d (it gave
+  a, c, d, b).
+
+GML:
+
+- the three refusals above (an unquoted word as a value, `directed true`, a string spanning lines);
+- a node whose `id` is not an integer or a string (`id 1.5`) is left out and reported;
+- character entities are decoded (`a&amp;b` is `a&b`), and a bare `NAN` or `INF` is a number, not
+  the text it was;
+- a quoted number stays a string, an integer beyond 2^53 becomes a string, and a key repeated in
+  one list becomes an array;
+- when a file holds a second top-level `graph` block the first one loads (before, nothing did).
+
+Pajek:
+
+- a file with no `*Vertices` section fails with `E_PARSE_FAILED`. `*Vertices 3` declares vertices
+  1 to 3 whether or not they have lines, so a vertex with no line is a node with no attributes,
+  and nodes arrive in vertex-number order whatever order the lines are in;
+- an edge is dropped and reported when it names a vertex outside that range, carries a weight that
+  is not a number (`1 2 abc`), or names its ends by label (`"a" "b"`); 2.x kept all three;
+- a vertex line with a single coordinate (`1 "a" 0.5`) is reported and keeps only its id, and an
+  unquoted word after the number (`1 5`) is the label, not x;
+- coordinates are stored as 32-bit floats, so a value with more than about seven significant
+  digits changes (`0.123456789` loads as `0.12345679`);
+- Pajek keywords after the coordinates (`ic Red`, `c Blue`, `l "x"`) are kept on the record under
+  those keys, and `*Matrix` and `*Edgeslist` sections are read.
 
 ## Dynamic GEXF
 

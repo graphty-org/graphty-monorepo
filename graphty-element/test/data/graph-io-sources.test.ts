@@ -338,7 +338,6 @@ describe("the CSV parser dependency", () => {
     });
 });
 
-
 /**
  * Read a source that is expected to refuse its input.
  * @param source - the data source
@@ -375,6 +374,63 @@ describe("GML, DOT and Pajek read through graph-io", () => {
                 ["2", "b"],
             ],
         );
+    });
+
+    test("Pajek merges a vertex written twice, the first line's values winning", async () => {
+        const { nodes } = await collect(
+            new PajekDataSource({ data: '*Vertices 2\n1 0.1 0.2\n1 "z" 0.9 0.9\n2\n*Edges\n1 2' }),
+        );
+
+        assert.deepStrictEqual(nodes, [{ id: "1", label: "z", x: 0.1, y: 0.2 }, { id: "2" }]);
+    });
+
+    test("Pajek drops edges 2.x kept: an undeclared vertex, a word weight, ends named by label", async () => {
+        const { edges } = await collect(
+            new PajekDataSource({ data: '*Vertices 2\n1 "a"\n2 "b"\n*Edges\n1 5\n1 2 abc\n"a" "b"\n1 2' }),
+        );
+
+        assert.deepStrictEqual(edges, [{ source: "1", target: "2", directed: false }]);
+    });
+
+    test("Pajek stores coordinates as 32-bit floats and reads an unquoted word as the label", async () => {
+        const { nodes } = await collect(new PajekDataSource({ data: "*Vertices 2\n1 5\n2 0.123456789 0.5\n" }));
+
+        assert.deepStrictEqual(nodes, [
+            { id: "1", label: "5" },
+            { id: "2", x: 0.12345679, y: 0.5 },
+        ]);
+    });
+
+    test("DOT strict graphs merge parallel edges, as Graphviz does", async () => {
+        const { edges } = await collect(new DOTDataSource({ data: "strict digraph { a -> b; a -> b }" }));
+
+        assert.deepStrictEqual(edges, [{ source: "a", target: "b" }]);
+    });
+
+    test("DOT concatenates quoted ids and names nodes in first-mention order", async () => {
+        const { nodes } = await collect(new DOTDataSource({ data: 'digraph { "x" + "y"; {a b} -> {c d} }' }));
+
+        assert.deepStrictEqual(
+            nodes.map((node) => node.id),
+            ["xy", "a", "b", "c", "d"],
+        );
+    });
+
+    test("DOT with no graph keyword states no direction and gives its edges none", async () => {
+        const source = new DOTDataSource({ data: "{ a -> b; b -- c }" });
+        const { edges } = await collect(source);
+
+        assert.isNull(source.declaredDirection);
+        assert.deepStrictEqual(edges, [
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+        ]);
+    });
+
+    test("GML leaves out a node whose id is not an integer or a string", async () => {
+        const { nodes } = await collect(new GMLDataSource({ data: "graph [ node [ id 1.5 ] node [ id 2 ] ]" }));
+
+        assert.deepStrictEqual(nodes, [{ id: 2 }]);
     });
 
     test("Pajek with no line section declares no direction", async () => {

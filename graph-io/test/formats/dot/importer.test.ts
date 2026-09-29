@@ -858,6 +858,9 @@ describe("dot importer: sniff and metadata", () => {
         expect(dotImporter.sniff?.(encode("digraph/* c */G{a->b}"))).toBe(0.95);
         expect(dotImporter.sniff?.(encode("/* unterminated"))).toBe(0);
         expect(dotImporter.sniff?.(encode("// only"))).toBe(0);
+        // a GML list, whatever the keyword's case: DOT never has "[" after the header keyword
+        expect(dotImporter.sniff?.(encode("Graph [ node [ id 1 ] ]"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph\n[ node [ id 1 ] ]"))).toBe(0);
     });
 
     it("declares its format, extensions and mime types", () => {

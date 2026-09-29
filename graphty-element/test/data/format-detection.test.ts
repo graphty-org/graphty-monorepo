@@ -130,6 +130,11 @@ describe("detectFormat", () => {
             assert.deepStrictEqual(detectFormats({ sample: "graph,id,name\ng1,1,x" }), ["csv"]);
         });
 
+        test("does not name a GML list with a capitalised keyword DOT", () => {
+            // neither reader loads it (GML keys are case-sensitive), so it is an unknown format
+            assert.deepStrictEqual(detectFormats({ sample: "Graph [ node [ id 1 ] ]" }), []);
+        });
+
         test("detects a single-column neo4j-admin node file as CSV", () => {
             assert.deepStrictEqual(detectFormats({ sample: ":ID\n1\n2\n" }), ["csv"]);
         });

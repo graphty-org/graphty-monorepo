@@ -137,31 +137,31 @@ workarounds available to them and no way to know they are not alone.
 
 ```
 graphty-monorepo/
-├── graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
-├── graph-io/             # @graphty/graph-io package (depends on graph-format)
-├── webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
+|-- graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
+|-- graph-io/             # @graphty/graph-io package (depends on graph-format)
+|-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
-├── algorithms/           # @graphty/algorithms package
-├── layout/               # @graphty/layout package (depends on graph-format, graph-samples)
-├── graphty-element/      # @graphty/graphty-element package
-├── graphty/              # @graphty/graphty React app
+|-- algorithms/           # @graphty/algorithms package
+|-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
+|-- graphty-element/      # @graphty/graphty-element package
+|-- graphty/              # @graphty/graphty React app
 |-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
 |-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
 |-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
-├── tools/                # Build scripts
-│   ├── merge-coverage.sh # Coverage report merging
-│   ├── run-tests.sh      # Runs one CI test shard locally, with CI's command
-│   ├── prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
-│   ├── commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
-│   └── validate-outputs.cjs  # Build output validation
-├── design/               # Architecture and design documents
-├── .github/workflows/    # CI/CD workflows
-├── nx.json               # Nx configuration
-├── pnpm-workspace.yaml   # pnpm workspace config
-├── tsconfig.base.json    # Shared TypeScript config (project references)
-├── vite.shared.config.ts # Shared Vite config factory
-├── vitest.shared.config.ts # Shared Vitest config factory
-└── eslint.config.js      # Shared ESLint config
+|-- tools/                # Build scripts
+|   |-- merge-coverage.sh # Coverage report merging
+|   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
+|   |-- prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
+|   |-- commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
+|   `-- validate-outputs.cjs  # Build output validation
+|-- design/               # Architecture and design documents
+|-- .github/workflows/    # CI/CD workflows
+|-- nx.json               # Nx configuration
+|-- pnpm-workspace.yaml   # pnpm workspace config
+|-- tsconfig.base.json    # Shared TypeScript config (project references)
+|-- vite.shared.config.ts # Shared Vite config factory
+|-- vitest.shared.config.ts # Shared Vitest config factory
+`-- eslint.config.js      # Shared ESLint config
 ```
 
 ## Development Commands

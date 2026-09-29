@@ -136,6 +136,37 @@ describe("2D edges end on their nodes", () => {
         assertEdgesEndOnNodes(element, "pinned in 3D");
     });
 
+    test("a position with a Z placed while the view is 2D", async () => {
+        const element = await mount2D((el) => {
+            el.viewMode = "2d";
+            el.layoutConfig = { seed: 42 };
+        });
+
+        // A script, an import or a restore can carry a Z into a 2D graph; the engine draws on
+        // the plane whatever the coordinates it is handed say.
+        const { history } = element.graph.getSession();
+        const steps = history.steps.length;
+        await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        assertEdgesEndOnNodes(element, "a Z placed in 2D");
+        const d = element.graph.getNode("d");
+        assert.closeTo(d?.mesh.position.x ?? Number.NaN, 1, 0.01, "the X it was given is kept");
+        assert.closeTo(d?.mesh.position.y ?? Number.NaN, 1, 0.01, "the Y it was given is kept");
+        assert.strictEqual(history.steps.length, steps + 1, "the placement is one step, and only one");
+
+        // Putting the node on the plane is not a step of its own, so undo and redo still work.
+        const session = element.graph.getSession();
+        await session.undo();
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.isTrue(session.canRedo, "undoing the placement leaves it to redo");
+        await session.redo();
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await operationQueueOf(element.graph).waitForCompletion();
+        assertEdgesEndOnNodes(element, "redone in 2D");
+    });
+
     test("the default layout, with only the view mode set", async () => {
         const element = await mount2D((el) => {
             el.viewMode = "2d";

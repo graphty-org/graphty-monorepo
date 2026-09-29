@@ -187,6 +187,8 @@ function addNode(harness: Harness, id: string, pinOnDrag = true): Node {
 function dragAndDrop(node: Node): void {
     assert.isDefined(node.dragHandler, "the Node constructor installs the drag handler");
     node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+    // A drop pins what the pointer PLACED; picking a node up and putting it down is a click.
+    node.dragHandler.onDragUpdate(new Vector3(1, 0, 0));
     node.dragHandler.onDragEnd();
 }
 

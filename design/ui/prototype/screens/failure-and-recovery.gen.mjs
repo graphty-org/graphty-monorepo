@@ -126,7 +126,7 @@ function resultsPanel(project, chip, projectRows, cat = "", chipOpen = false) {
 function graphPanel(project, chip, sets) {
     return `<aside class="k-panel" aria-label="Graph">${head(project, chip)}<div class="k-scroll"><section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn">${I("plus")}</span></div><ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul></section><section class="k-section"${sets ? "" : " data-empty"}${sb("sets")}><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn">${I("plus")}</span></div><ul class="k-list">${sets}</ul></section><section class="k-section"><div class="k-section-head">Styles<span class="k-grow"></span><span class="k-icon-btn">${I("plus")}</span></div><ul class="k-list"><li class="k-item"><span class="k-chit" style="background:#D55E00"></span><span class="k-ellipsis">Flagged accounts</span></li><li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Density</span><span class="k-kind">base</span></li></ul></section></div></aside>`;
 }
-const toolbar = `<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span><span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span></div>`;
+const toolbar = `<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span><span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span></div>`;
 function canvas({ img, alt = "", legend = "", stage = "", toast = "" }) {
     const pic = img ? `<img class="k-light-only" src="${img.replace("{t}", "light")}" alt="${alt}"><img class="k-dark-only" src="${img.replace("{t}", "dark")}" alt="${alt}">` : "";
     return `<div class="k-canvas">${img || stage ? `<div class="k-stage">${pic}${stage}</div>` : ""}${legend ? `<div class="k-legend-card">${legend}</div>` : ""}<div class="k-toolbar-dock"${sb("dock")}>${toast}${toolbar}</div><span class="k-help">${I("circle-help")}</span></div>`;
@@ -216,20 +216,27 @@ const btw = (o = {}) => res({ name: "Betweenness", id: "btw", ...o });
 const CONV = { distance: "Distance = value", similarity: "Distance = 1 / value" };
 const reading = (role) => `<span class="fr-reading"${sb("reading")}>${CONV[role]}</span>`;
 const outOfDate = `<span class="fr-state-word">${I("triangle-alert", "k-i-sm")}Out of date</span>`; // its editor is open, so the one verb, Re-run (keeps Run 1), is in the editor's header
-// The run's own question. choice: "" (unanswered: Choose..., Run disabled), "distance", "similarity".
-const ANSWER = { distance: "a longer or costlier step", similarity: "a closer or stronger link" };
-function weightAsk(choice = "", { focus = false } = {}) {
-    const f = choice
-        ? `<span class="k-field k-span"${focus ? " data-focus" : ""}>${ANSWER[choice]}${I("chevron-down", "k-i-sm k-caret")}</span>`
-        : `<span class="k-field k-span" data-placeholder${focus ? " data-focus" : ""}>Choose...${I("chevron-down", "k-i-sm k-caret")}</span>`;
+// The run's own question: a radio group, the same four answers in the same order as every page
+// that asks it (sets-and-paths, option-form-cost), each with one line on what it does to this run.
+// choice: "" (nothing chosen: Enter and Run do nothing), "distance", "similarity".
+const ANSWERS = [
+    ["similarity", "a closer or stronger link", "similarity", "Distance = 1 / value"],
+    ["distance", "a longer or costlier step", "distance", "Distance = value"],
+    ["capacity", "more can pass through", "capacity", "Betweenness refuses it; max flow reads it"],
+    ["none", "Don't use value", "", "Unweighted: every tie counts the same"],
+];
+function weightAsk(choice = "", { focus = false, editing = false } = {}) {
+    const rows = ANSWERS.map(([id, words, term, line]) => `<div class="fr-wq-row" role="radio" aria-checked="${id === choice}"><span class="fr-wq-radio"></span><span class="k-grow">${words}${term ? ` <span class="k-secondary">${term}</span>` : ""}<br><span class="k-secondary">${line}</span></span></div>`).join("");
+    const hint = choice ? (editing ? "Asked for this run. Run 1 keeps the answer it ran with." : "Asked for this run.") : "Asked for this run. Nothing is chosen, so Enter and Run do nothing until you pick one.";
     return `<div class="fr-hot"${sb("weight")}><div class="k-fieldrow"><span class="k-legend">Weight</span><div class="k-fields"><span class="k-field k-span">value${I("chevron-down", "k-i-sm k-caret")}</span></div></div>
-        <div class="k-fieldrow"><span class="k-legend fr-ask">In this run, a bigger value means:</span><div class="k-fields">${f}</div></div></div>`;
+        <div class="fr-wq${focus ? " fr-wq-focus" : ""}" role="radiogroup" aria-labelledby="fr-wq-t"><div class="fr-ask" id="fr-wq-t">For value, a higher number means...</div>${rows}</div>
+        <div class="k-secondary fr-wq-hint">${hint}</div></div>`;
 }
 // A betweenness form: the Catalog's run form (new) or the result's editor (open).
 function btwForm({ choice = "", focus = false, runOff = false, top = "", verb = "Run" } = {}) {
-    return `<div class="k-popover" style="position:static;width:248px"${sb("editor")}><div class="k-popover-head">Betweenness<span class="k-grow"></span><span class="k-btn${runOff ? "" : " k-btn-secondary"}"${runOff ? ' aria-disabled="true"' : ""}${sb("run")}>${verb}</span><span class="k-icon-btn">${I("x")}</span></div><div class="k-popover-body">
+    return `<div class="k-popover" style="position:static;width:300px"${sb("editor")}><div class="k-popover-head">Betweenness<span class="k-grow"></span><span class="k-btn${runOff ? "" : " k-btn-secondary"}"${runOff ? ' aria-disabled="true"' : ""}${sb("run")}>${verb}</span><span class="k-icon-btn">${I("x")}</span></div><div class="k-popover-body">
         <div class="k-fieldrow"><span class="k-legend">Scope</span><div class="k-fields"><span class="k-field k-span">Full graph<span class="k-grow"></span><span class="k-secondary k-num">77</span></span></div></div>
-        ${weightAsk(choice, { focus })}
+        ${weightAsk(choice, { focus, editing: verb !== "Run" })}
         <div class="k-fieldrow"><span class="k-legend">Normalized</span><div class="k-fields"><span class="k-switch" aria-checked="true"></span></div></div>
         ${top}</div></div>`;
 }
@@ -240,7 +247,7 @@ const FORMX = 306, FORMY = 200;
 const a = [];
 a.push({
     id: "a1", title: "The load step describes value and asks nothing about its meaning",
-    sub: "miserables.json dropped on a blank project. The load step shows the edge column value as data only: whole numbers, their range and their spread. What a bigger value means is not a property of the column; each run that reads value asks it. The project keeps its blank name until Load commits.",
+    sub: "miserables.json dropped on a blank project. The load step shows the edge column value as data only: whole numbers, their range and their spread. What a higher value means is not a property of the column; each run that reads value asks it. The project keeps its blank name until Load commits.",
     html: app(resultsPanel("Untitled project", "Full graph", "", lmCatalog()),
         canvas({}) + table({ scope: "", cols: [{ name: "label" }], rows: [] }),
         right(`${I("network")}<span class="k-name">Untitled project</span>`, "")) +
@@ -248,37 +255,34 @@ a.push({
         ${data("Read as", "JSON, nodes and links")}${data("Nodes", String(N.full.nodes))}${data("Edges", `${N.full.edges}, undirected`)}${data("Isolated nodes", String(N.full.isolated))}
         <div class="fr-q"${sb("question")}><div class="fr-q-head"><span class="k-strong">Edge attribute value</span><span class="k-secondary k-num">whole numbers, ${N.valueRange[0]} to ${N.valueRange[1]}; most edges 1 to 3</span></div>
         <div class="k-hist fr-hist">${N.valueBars.map((h) => `<i style="height:${h ? `${h}%` : 0}"></i>`).join("")}</div>
-        <div class="k-secondary">A measure that reads value asks, each time it runs, what a bigger value means.</div>
+        <div class="k-secondary">A measure that reads value asks, each time it runs, what a higher value means.</div>
         </div></div><div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Load</span></div></div></div>`,
     notes: [[1080, 300, "Load step: a modal step (interaction-patterns 3.5 level 5). compact-mantine: modal with ModalFooter; DataRow for the counts."], [1080, 430, "The column is described by its data only. No role question at load, and no default the runs inherit: the meaning has one home, the run (proposed; graph-conventions 2 keeps 'no role guessed')."], [1080, 560, "Value histogram: ChartRow. Most edges 1 to 3: the fixture's own value counts."]],
 });
 a.push({
-    id: "a2", title: "The run asks what a bigger value means, and waits",
-    sub: "Alex clicks Betweenness in the Catalog. Its run form reads the weight column value and asks \"In this run, a bigger value means:\" with nothing chosen. Run stays disabled until he answers. The graph's Statistics describe value only by its data.",
+    id: "a2", title: "The run asks what a higher value means, and waits",
+    sub: "Alex clicks Betweenness in the Catalog. Its run form reads the weight column value and asks \"For value, a higher number means...\" with nothing chosen. Run stays disabled until he answers. The graph's Statistics describe value only by its data.",
     html: app(resultsPanel(LM, "Full graph", "", lmCatalog(false, "", true)),
-        canvas({ img: lmImg("all"), alt: "Les Miserables colored by group", legend: groupLegend() }) + table({ scope: "Full graph: 77 nodes. Sorted by degree.", cols: lmCols("betweenness", ""), rows: N.asDistance.map((r) => lmRow(r.label, r.group, r.degree, "")) }),
+        canvas({ img: lmImg("all"), alt: "Les Miserables colored by group", legend: groupLegend() }) + table({ scope: "Full graph: <span data-fx=\"datasets.lesmis.nodes\" data-fx-noun=\"nodes\">77 nodes</span>. Sorted by degree.", cols: lmCols("betweenness", ""), rows: N.asDistance.map((r) => lmRow(r.label, r.group, r.degree, "")) }),
         right(graphRow, lmStats())) +
         at(FORMX, FORMY, btwForm({ runOff: true })) +
-        at(FORMX + 96, FORMY - 34, `<div class="k-tooltip" style="position:static;max-width:230px">Choose what a bigger value means first</div>`),
-    notes: [[570, 150, "Run form: interaction-pattern-entries 6.2; interface-templates 10 (Weight after the scope). compact-mantine: Popout with FieldRow; Select with a placeholder; Button disabled with a TooltipShortcut naming why."], [570, 420, "The question is a run option owned by graphty-element, asked in every run that reads a weight, with no prefill from the column (proposed). If the extra click costs too much, the prefill can come back."], [960, 390, "Weight column: DataRow. Name, unit and range; it claims no meaning, so there is nothing on the column to change."]],
+        at(FORMX + 150, FORMY - 34, `<div class="k-tooltip" style="position:static;max-width:230px">Choose what a higher value means first</div>`),
+    notes: [[570, 150, "Run form: interaction-pattern-entries 6.2; interface-templates 10 (Weight after the scope). compact-mantine: Popout with FieldRow; Radio group with nothing chosen; Button disabled with a TooltipShortcut naming why. Enter in the group does nothing until an answer is chosen."], [570, 420, "The question is a run option owned by graphty-element, asked in every run that reads a weight, with no prefill from the column (proposed). If the extra click costs too much, the prefill can come back."], [960, 390, "Weight column: DataRow. Name, unit and range; it claims no meaning, so there is nothing on the column to change."]],
 });
 a.push({
-    id: "a3", title: "Three answers, each naming its conversion",
-    sub: "Alex opens Choose... Each answer carries one line saying how the run will turn value into a length. He thinks of a number on an edge as a length and picks a longer or costlier step.",
+    id: "a3", title: "Four answers, each naming what it does to this run",
+    sub: "The question is a radio group with nothing chosen. Each answer carries one line saying how the run will turn value into a length. He thinks of a number on an edge as a length and picks a longer or costlier step; Run turns on.",
     html: app(resultsPanel(LM, "Full graph", "", lmCatalog(false, "", true)),
-        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: 77 nodes. Sorted by degree.", cols: lmCols("betweenness", ""), rows: N.asDistance.map((r) => lmRow(r.label, r.group, r.degree, "")) }),
+        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: <span data-fx=\"datasets.lesmis.nodes\" data-fx-noun=\"nodes\">77 nodes</span>. Sorted by degree.", cols: lmCols("betweenness", ""), rows: N.asDistance.map((r) => lmRow(r.label, r.group, r.degree, "")) }),
         right(graphRow, lmStats())) +
-        at(FORMX, FORMY, btwForm({ runOff: true, focus: true })) +
-        at(FORMX + 16, FORMY + 190, `<div class="k-menu" style="position:static;min-width:236px"${sb("answers")}>
-        <div class="k-menu-item" data-described data-hover><span class="k-check-col"></span><span>a longer or costlier step<span class="k-menu-desc">Distance = value</span></span></div>
-        <div class="k-menu-item" data-described><span class="k-check-col"></span><span>a closer or stronger link<span class="k-menu-desc">Distance = 1 / value, such as a count of shared scenes</span></span></div></div>`),
-    notes: [[620, 150, "Select with described options (kit k-menu-desc, proposed to compact-mantine as an option description slot). Glossary 11 answers; 'more can pass through' is offered only by flow measures, which read value as capacity. Not weighting at all is the Weight field's own choice, None for this run, so it is not a third answer here."], [620, 470, "Each option's line is its conversion, the same words the result's state line will show. No list of the measures that read each role."]],
+        at(FORMX, FORMY, btwForm({ choice: "distance", focus: true })),
+    notes: [[620, 150, "Radio group (compact-mantine Radio, figma-spec 5.6), the same four answers in the same order on every page that asks: a closer or stronger link, a longer or costlier step, more can pass through, Don't use value (glossary 11). Nothing is preselected, so no answer is one Enter away; the arrow keys move and choose, as in any radio group."], [620, 470, "Each answer's line is its conversion, the same words the result's state line will show. More can pass through is offered, and betweenness refuses it by name, as on screens/option-form-cost.html."]],
 });
 a.push({
     id: "a4", title: "A plausible ranking, and no error",
     sub: "Betweenness ran at once. It read value as a length, so the heaviest co-appearances count as the longest ties and paths go around them. The result's state line names the conversion it used: Distance = value.",
     html: app(resultsPanel(LM, "Full graph", btw({ trail: `<span class="k-secondary k-num">10:12</span>`, sub: `<span class="k-num">Run 1.</span> ${reading("distance")}` }), lmCatalog()),
-        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: 77 nodes. Sorted by betweenness.", cols: lmCols("betweenness", `0 to ${N.asDistance[0].value}`), rows: wrong }),
+        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: <span data-fx=\"datasets.lesmis.nodes\" data-fx-noun=\"nodes\">77 nodes</span>. Sorted by betweenness.", cols: lmCols("betweenness", `0 to ${N.asDistance[0].value}`), rows: wrong }),
         right(graphRow, lmStats())),
     notes: [[320, 150, "Run row: ActionRow (interface-templates 3), its time at the end of the name line. The state line names the conversion ('Distance = value'), next to the Weight column row that says value counts shared scenes (proposed)."], [770, 620, `Table: DataTable. ${N.asDistance[1].label} second and ${N.asDistance[2].label} third read as plausible; nothing on screen is wrong-looking.`]],
 });
@@ -286,20 +290,20 @@ a.push({
     id: "a5", title: "The trust check: change the answer where it was given",
     sub: "Alex opens the result. Its editor shows the same question with his answer. He changes it to a closer or stronger link. This run's option changed, so Run 1 is Out of date at once, with one verb, Re-run (keeps Run 1); its numbers stay, marked, until he asks. Nothing on the column changed, and no other result is touched.",
     html: app(resultsPanel(LM, "Full graph", btw({ open: true, trail: `<span class="k-secondary k-num">10:12</span>`, sub: `<span class="k-num">Run 1.</span> ${outOfDate}` }), lmCatalog()),
-        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: 77 nodes. Sorted by betweenness.", cols: lmCols("betweenness", "Out of date"), rows: wrong }),
+        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: <span data-fx=\"datasets.lesmis.nodes\" data-fx-noun=\"nodes\">77 nodes</span>. Sorted by betweenness.", cols: lmCols("betweenness", "Out of date"), rows: wrong }),
         right(graphRow, lmStats()), 1) +
         at(FORMX, FORMY, btwForm({ choice: "similarity", focus: true, verb: "Re-run (keeps Run 1)", top: topNodes(N.asDistance, "Top nodes, Run 1 (Distance = value)") })),
-    notes: [[570, 150, "Result editor: interaction-pattern-entries 6.2; the same form as the run; its verb is Re-run. compact-mantine: Popout, FieldRow, Select."], [570, 560, "Out of date and its one verb Re-run (keeps Run 1) (glossary 10; interaction-pattern-entries 7.2). The table's column header carries the state too (7.2 Feedback); old values stay until the new run lands (7.1). Undo label 'Change weight meaning' (content-design 3)."]],
+    notes: [[570, 150, "Result editor: interaction-pattern-entries 6.2; the same form as the run; its verb is Re-run. compact-mantine: Popout, FieldRow, Radio group."], [570, 560, "Out of date and its one verb Re-run (keeps Run 1) (glossary 10; interaction-pattern-entries 7.2). The table's column header carries the state too (7.2 Feedback); old values stay until the new run lands (7.1). Undo label 'Change weight meaning' (content-design 3)."]],
 });
 a.push({
     id: "a6", title: "Re-run: the ranking the data supports",
     sub: `Read as a closer link, strong ties are short. Marius climbs from ${ord(N.rankAsDistance.Marius)} to ${ord(N.rankAsSimilarity.Marius)}; Javert falls from ${ord(N.rankAsDistance.Javert)} to ${ord(N.rankAsSimilarity.Javert)}. Run 2's state line names the new conversion, Distance = 1 / value; Run 1 stays in the list under it with its own.`,
     html: app(resultsPanel(LM, "Full graph", btw({ trail: `<span class="k-secondary k-num">10:15</span>`, sub: `<span class="k-num">Run 2.</span> ${reading("similarity")}` }) + btw({ trail: `<span class="k-secondary k-num">10:12</span>`, sub: `<span class="k-num">Run 1.</span> ${reading("distance")}` }), lmCatalog()),
-        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: 77 nodes. Sorted by betweenness, Run 2.", cols: lmCols("betweenness", `0 to ${N.asSimilarity[0].value}`), rows: right_ }),
+        canvas({ img: lmImg("all"), alt: "", legend: groupLegend() }) + table({ scope: "Full graph: <span data-fx=\"datasets.lesmis.nodes\" data-fx-noun=\"nodes\">77 nodes</span>. Sorted by betweenness, Run 2.", cols: lmCols("betweenness", `0 to ${N.asSimilarity[0].value}`), rows: right_ }),
         right(graphRow, lmStats())),
     notes: [[770, 620, "Numbers: screens/failure-and-recovery-numbers.py (NetworkX betweenness, 1/value lengths). Undo label of the run: 'Re-run betweenness'."]],
 });
-page("weight-role-trap.html", "The quiet trap: a weight read the wrong way", "Les Miserables, 77 characters and 254 co-appearances. The edge column value counts shared scenes. Read as a length it gives a believable, wrong betweenness ranking with no error. What a bigger value means is asked by each run, never set on the column. Six states: the load step, the run's question, its answers, the wrong result, the change and the re-run.", a);
+page("weight-role-trap.html", "The quiet trap: a weight read the wrong way", "Les Miserables, 77 characters and 254 co-appearances. The edge column value counts shared scenes. Read as a length it gives a believable, wrong betweenness ranking with no error. What a higher value means is asked by each run, never set on the column. Six states: the load step, the run's question, its answers, the wrong result, the change and the re-run.", a);
 
 // ---------------------------------------------------------------- B: the variant trap
 const f1Stats = lmStats({ role: "similarity", nodes: String(WV.nodes), edges: `${WV.edges} of ${N.full.edges}`, comps: String(WV.components), iso: String(WV.isolated) });
@@ -340,7 +344,7 @@ const stepsPop = (rows, z = 80) => `<div class="fr-abs" style="left:66px;top:58p
 const stats60 = lmStats({ role: "similarity", nodes: String(N.allThreeSteps.nodes), edges: `${N.allThreeSteps.edges} of ${N.full.edges}`, comps: String(N.allThreeSteps.components), iso: String(N.allThreeSteps.isolated) });
 const stats75 = lmStats({ role: "similarity", nodes: String(N.largestOff.nodes), edges: `${N.largestOff.edges} of ${N.full.edges}`, comps: String(N.largestOff.components), iso: String(N.largestOff.isolated) });
 const lmBtwTable = (scope, profile, rows) => table({ scope, cols: lmCols("betweenness", profile), rows });
-const on60 = `<span class="fr-state-word">on 60 of 77</span><span class="k-grow"></span><span class="k-btn k-btn-secondary"${sb("rerun")}>Re-run</span>`;
+const on60 = `<span class="fr-state-word" style="white-space:nowrap">on 60 of 77</span><span class="k-grow"></span><span class="k-btn k-btn-secondary"${sb("rerun")}>Re-run (keeps Run 1)</span>`;
 c.push({
     id: "c1", title: "Fewer characters than expected",
     sub: `Alex asked who holds the story together without Valjean and Javert. The chip says ${N.allThreeSteps.nodes} of ${N.full.nodes} nodes, 3 steps, not the ${N.largestOff.nodes} he expected, and ${N.allThreeSteps.betweenness[1].label} is second.`,

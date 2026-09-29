@@ -316,3 +316,63 @@ The next milestone asks nothing about SVG, PDF, the recipe format, authorship or
 ### Participant view was a trap
 
 Not written as done. The page is screens/navigation.html (earlier entries called it storyboards/navigation, which does not exist). After round 5 its participant view rendered blank. On 2026-09-29 a new 768 px participant-view shot exists (shots/screens__navigation-storyboard--study--768.png), it is no longer blank, and the check passes on that page alone. The entry says done only when the check also passes on every other page (see the correction above).
+
+## After the round-6 sessions
+
+How each item in `owner-feedback.md` was handled after the sixth simulated study round. The full reasons are under "Round 6" in `study/decision-log.md`. The rule from round 5 stands: an item is written as done only after the kit's check (`kit/check.mjs`) passes on every page and, for the participant view, the 768 px shot exists. Round 6 showed that the check itself was not working: its task mode reported "0 problems on 0 pages", so it checked nothing. It now fails when it checks no pages, the facilitator pastes its full output into each round's file, and any failure stops the round. Nothing below is written as done.
+
+### Correction: the avatar, "Export files" and the rail redraw are not done
+
+Still not written as done. Round 6's passing check was empty, so it proved nothing about these pages. The avatar, "Export files" and the old rail are still retired strings the check fails on, and the item closes only when the repaired check passes on every page.
+
+### Review 1: Export... in the project-name menu
+
+Unchanged in design: Export... stays in the project-name menu and in Main menu > File. The Export dialog now says which data a file came from: "Export again, on April data", and saved rows and file names carry the data period. Rank exports as a plain number with ties in their own column, so the file opens as numbers in Excel and pandas.
+
+### Review 2: styles under the selection
+
+The legend stays the place to change a group's colour. "Use these styles" from a recipe is narrowed further: it replaces only whole-graph layers that paint the same property and keeps layers scoped to a set, which the reader made on purpose. It applies at once and says what it did ("Replaced 3 layers, kept 2. Undo"). A style layer made from a run now names that run and opens it. The too-close colour check now also covers graphty-element's own default palette.
+
+### Review 3: the "M" avatar
+
+Not written as done (see the correction above). A note's author appears in the note editor on every edit ("Saving as: <name>. Change...").
+
+### Review 4: why Results was on the left
+
+Results stays on the rail as a studio decision. Round 6 tested the label "Runs" against "Results"; "Runs" did not do better (16 of 20 direct against 39 of 44), so the label stays Results. Finding how a run was set up held its gain. Moving runs to the rail made one list, a run's Top nodes, pull clicks meant for a node's own value; the list stays, and a selected node's rank is now pinned above it as one line that opens the table row. Values stay where the owner suggested, on the selected node and in the table, and computed values never appear under a node's Attributes.
+
+### Show the before and after for the reviews
+
+Unchanged. The next milestone shows the before and after only for pages the repaired check passes, and asks nothing.
+
+### Structure from graphty's ontology; data management as one area
+
+Loading data no longer declares what a column means: the Weight column role and the "Change..." link on a data source are removed, and each run asks what a bigger amount means. A recipe is recognized by every way a file comes in (File > Open..., Add a source, a drop) and opens one Apply dialog; graphty-element does the recognizing. Hosting country, telemetry and the organization-wide Assistant switch are still unanswered in `owner-feedback.md`; the data page now shows each as "Not decided yet" instead of a blank label. They are not asked again.
+
+### SVG now, PDF later, and the grey check stays
+
+Unchanged. The too-close colour check now covers every pair of colours, names the pair and the colour vision it models, and suggests colours that clear every neighbour.
+
+### Authorship on notes and recipes
+
+As decided: the author is recorded as given, blank if none is set. The author setting says "Applies to notes you save from now on", and a newly set name is never added to earlier notes; offering to do so was turned down because it rewrites the recorded author.
+
+### No separate Note tool
+
+Recorded in `owner-feedback.md` as a reversible decision made on the owner's behalf. The mock template still drew a Note tool, which participants met in round 6; it is removed from the template, and the check fails if it returns.
+
+### After undoing a filter step, show the one-line notice (undo version B)
+
+Kept. For a cleared selection, the notice alone was compared with the notice plus Ctrl+Z: wrong end states went unnoticed in 5 of 8 sessions with the notice alone and 0 of 8 with Ctrl+Z. The notice plus Ctrl+Z ships; "Bring it back" stays on the notice, and the notice-only version is retired.
+
+### The keyboard walk uses Shift+Arrow
+
+Unchanged.
+
+### Do not re-ask decided questions
+
+The next milestone asks nothing about hosting, telemetry, the Assistant switch, SVG and PDF, authorship or where Results lives.
+
+### Participant view was a trap
+
+Not written as done. In round 6 a single Esc both closed the undo page's steps list and left the participant view, resetting the page, which spoiled four sessions. The rule is now: Esc does one thing per press, starting with the innermost open item, and leaves the participant view only when nothing is open. Every page is fixed to follow it, the kit's gate proves it by opening the steps list and pressing Esc, and every page gets a 768 px touch shot.

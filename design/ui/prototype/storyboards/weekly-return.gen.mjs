@@ -61,6 +61,15 @@ const recon = `${marchCommunities} groups in March, ${aprilCommunities} in April
 const lostNames = `Communities ${lostGroups.map((g) => g.name.replace("Community ", "")).join(", ")}`;
 const stayLine = `${ST.monthsInTen} in 10 pairs of accounts that shared a group in March still share one in April`;
 const top2 = UP.top[1];
+// The selected group's four counts, each with its noun: its March accounts that stayed, left or went
+// silent, and the accounts that joined it (new to the data or from other groups). No verdict word.
+const CS = A.compareSelection;
+const gStayed = CS.marchMembersStillInIt;
+const gLeft = CS.marchMembersLeftIt;
+const gSilent = CS.marchMembersSilent;
+const gJoined = CS.joinedFromOtherGroups + CS.joinedNew;
+if (gStayed + gLeft + gSilent + CS.onlyMarchInCommunity !== ringC.marchSize || gStayed + gJoined !== ringC.aprilSize) throw new Error("the group's counts do not reconcile");
+const silentBadge = `<span class="k-badge k-num">${Z.singletonCommunities} silent</span>`;
 
 // ---------- chrome ----------
 function rail(active, badge = 0) {
@@ -140,7 +149,7 @@ function toolbar(pathTool = false, bar = "") {
     const sec = pathTool
         ? `<div class="k-secondary-bar"><span class="k-secondary">From</span><span class="k-field k-id">${P.from}</span><span class="k-secondary">To</span><span class="k-field k-id">${P.to}</span><span class="k-field">Filtered graph${i("chevron-down", "k-i-sm k-caret")}</span><span class="k-btn">Run</span></div>`
         : bar;
-    return `${sec}<div class="k-toolbar" role="toolbar"><span class="k-tool"${pathTool ? "" : ' aria-pressed="true"'}>${i("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${i("chevron-down", "k-i-sm")}</span><span class="k-tool"${pathTool ? ' aria-pressed="true"' : ""}>${i("route", "k-i-lg")}</span><span class="k-tool">${i("sticky-note", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${i("zap", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${i("square", "k-i-lg")}</span><span class="k-tool-caret">${i("chevron-down", "k-i-sm")}</span></div>`;
+    return `${sec}<div class="k-toolbar" role="toolbar"><span class="k-tool"${pathTool ? "" : ' aria-pressed="true"'}>${i("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${i("chevron-down", "k-i-sm")}</span><span class="k-tool"${pathTool ? ' aria-pressed="true"' : ""}>${i("route", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${i("zap", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${i("square", "k-i-lg")}</span><span class="k-tool-caret">${i("chevron-down", "k-i-sm")}</span></div>`;
 }
 // Legends run top-first, in the Styles list's order (Figma lists top-first), in every frame.
 const sizeKey = (marks, note) =>
@@ -152,7 +161,7 @@ function commLegend(which) {
     const rows = lg.rows.map((r) => `<div class="k-lg-row"><span class="k-chit" style="background:${r.color}"></span>${r.name}<span class="k-value">${num(r.count)}</span></div>`).join("");
     return `${sizeKey([lo, 10, 100, max], `domain ${lo} to ${num(max)}`)}
       <div class="k-lg-title" style="margin-top:4px">Community color <span class="k-secondary">Louvain community</span></div>${rows}
-      <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, ${lg.other.communities} communities<span class="k-value">${num(lg.other.count)}</span></div>`;
+      <div class="k-lg-row"><span class="k-chit" style="background:#BDBDBD"></span>Other, ${lg.other.communities} communities<span class="k-value">${num(lg.other.count)}</span></div><div class="k-lg-sub">${lg.other.holds}</div>`;
 }
 const prBlock = `<div class="k-lg-title">PageRank color <span class="k-secondary">PageRank, log scale</span></div>
       <div class="k-ramp k-ramp-wide"></div><div class="k-lg-row k-secondary"><span>${sig(upDom[0])}</span><span class="k-grow"></span><span>${sig(upDom[1])}</span></div>
@@ -178,7 +187,7 @@ const S = {};
 S.start = {
     title: "Monday: the start screen, Recent projects",
     say: "graphty opens on Recent projects. Last month's case project is first, its thumbnail the graph as it was on screen.",
-    html: `<div class="wr-startpage"><div class="k-start">
+    html: `<div class="wr-startpage"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu"><span class="k-rail-pill">${i("menu")}</span></div></nav><div class="k-start">
       <h1>Recent projects</h1>
       <div class="k-thumbs">
         <div class="k-thumb" data-hover>${img("transactions-march-communities", `${PROJECT}: March transfers colored by community`)}<div class="k-thumb-label"><b>${PROJECT}</b><br><span class="k-secondary">Transfers, ${num(M.nodes)} accounts. Edited Apr 3</span></div></div>
@@ -385,8 +394,8 @@ S.replay = {
             pinned: true,
             rows: [
                 rrow("chart-column", "Degree", cur, "Replayed"),
-                rrow("group", "Louvain communities", cur, `Replayed; ${aprilCommunities} groups, was ${marchCommunities}`),
-                rrow("sigma", BASELINE, `<span class="k-warn-glyph">!</span><span class="k-btn k-btn-secondary">Re-run</span>`, "Out of date; a few minutes", " data-hover"),
+                rrow("group", "Louvain communities", cur, `Replayed; ${aprilCommunities} groups, was ${marchCommunities} ${silentBadge}`),
+                rrow("sigma", BASELINE, `<span class="k-warn-glyph">!</span><span class="k-btn k-btn-secondary">Re-run</span>`, "Out of date; a few minutes. Re-run keeps Run 1.", " data-hover"),
             ],
         }),
         canvas({ drawing: "transactions-april-communities", alt: "April transfers colored by community, March colors carried over", legend: commLegend("april") }),
@@ -434,8 +443,8 @@ const pickPopover = `<div class="k-popover" style="left:306px;top:161px"><div cl
   <div class="k-group-head">Partitions on April data</div><div class="k-result">Weakly connected components<span class="k-grow"></span><span class="k-secondary k-num">${A.stats.components}</span></div><div class="k-result">kind (attribute)<span class="k-grow"></span><span class="k-secondary k-num">3</span></div>
   <div class="k-prose k-tertiary wr-wrap">Both runs keep the 5 seeded re-runs made with them (seeds 12 to 16); the comparison reads those and runs nothing.</div></div></div>`;
 S["compare-pick"] = {
-    title: "Wednesday: Compare with... on the Louvain result",
-    say: "On the Louvain row, Compare with... lists the run on the March data first, because Update with new data keeps it for this question. The picker says the comparison runs nothing new.",
+    title: "Wednesday: Compare with another run... on the Louvain result",
+    say: "On the Louvain row, Compare with another run... lists the run on the March data first, because Update with new data keeps it for this question. The picker says the comparison runs nothing new.",
     html: app([
         rail("results"),
         resultsPanel({
@@ -446,10 +455,10 @@ S["compare-pick"] = {
         graphInspector({ april: true }),
     ]),
     notes: [
-        [[65, 170, 225, 50], "Compare with... is one of the result row's actions, also in its context menu and in Quick actions.", "task-flows.md 8.2; interface-templates.md 3", "ActionRow actions, ActionIcon"],
+        [[65, 170, 225, 50], "Compare with another run... is one of the result row's actions, also in its context menu and in Quick actions.", "task-flows.md 8.2; interface-templates.md 3", "ActionRow actions, ActionIcon"],
         [[306, 161, 240, 330], "The picker lists what a partition can be compared with, the earlier run first, and says where the noise floor comes from: the seeded re-runs each run already has.", "task-flows.md 8.2; graph-conventions.md 4", "Popover, SearchInput, ResultRow, ProseBlock"],
     ],
-    waits: ["Compare with...: the comparison surface (interface-specification.md 7.4)", "the seeded re-runs: 'A partition-similarity measure ... and a multi-seed stability run'"],
+    waits: ["Compare with another run...: the comparison surface (interface-specification.md 7.4)", "the seeded re-runs: 'A partition-similarity measure ... and a multi-seed stability run'"],
 };
 const grewRows = L.grew
     .map((r) => `<tr${r.name === ringC.name ? ' aria-selected="true"' : ""}><td>${r.name}</td><td class="k-n">${num(r.marchSize)}</td><td class="k-n">${num(r.aprilSize)}</td><td class="k-n">+${r.change}</td><td class="k-n">+${r.pctChange}%</td><td class="k-n">${r.newAccounts}</td><td class="k-n">${f2(r.holdsInReruns)}</td></tr>`)
@@ -463,10 +472,20 @@ const cmpMain = `<main class="k-main"><div class="wr-cmp">${side("transactions-c
   <div class="k-legend-card" style="left:12px;bottom:12px"><div class="k-lg-title">Only on one side</div><div class="k-lg-row"><span class="wr-semi wr-semi-l"></span>only in March<span class="k-value">${num(D.accountsRemoved)}</span></div><div class="k-lg-row"><span class="wr-semi wr-semi-r"></span>only in April<span class="k-value">${num(D.accountsAdded)}</span></div><div class="k-lg-row k-secondary">in both: unmarked</div><div class="k-lg-row k-secondary">2 more: Size: degree, Community color (one domain on both sides)</div></div></div>${cmpDock}</main>`;
 const cmpRight = `<aside class="k-right" aria-label="Comparison">${headerRows({ one: `<span class="k-btn k-btn-secondary">Save comparison</span><span class="k-btn">Done</span>`, two: `<span class="k-tabs"><span class="k-tab" aria-selected="true">Comparison</span></span><span class="k-grow"></span>` })}
   <div class="k-typerow">${i("git-compare-arrows")}<span class="k-name k-ellipsis">Louvain communities, March and April</span></div>
-  <div class="k-scroll wr-dw"><section class="k-section"><div class="k-section-head">Groups</div>
+  <div class="k-scroll wr-dw"><section class="k-section"><div class="k-section-head">${ringC.name}</div>
+    <div class="k-data"><span class="k-name">accounts, March to April</span><span class="k-value">${ringC.marchSize} to ${ringC.aprilSize}</span></div>
+    <div class="k-data"><span class="k-name">stayed</span><span class="k-value">${gStayed}</span></div>
+    <div class="k-data"><span class="k-name">left for other groups</span><span class="k-value">${gLeft}</span></div>
+    <div class="k-data"><span class="k-name">joined (${CS.joinedNew} new to the data, ${CS.joinedFromOtherGroups} from other groups)</span><span class="k-value">${gJoined}</span></div>
+    <div class="k-data"><span class="k-name">silent: no April transfers</span><span class="k-value">${gSilent}</span></div>
+    <div class="k-data"><span class="k-name">holds in March's 5 re-runs</span><span class="k-value">${f2(CS.holdsInMarchReruns)}</span></div>
+    <div class="k-data"><span class="k-name">holds in April's 5 re-runs</span><span class="k-value">${f2(CS.holdsInAprilReruns)}</span></div>
+    <div class="k-data"><span class="k-name">Watchlist members in it</span><span class="k-value">${W.inCurrentData} of ${W.members}</span></div>
+    <div class="k-row"><span class="k-btn k-btn-secondary">Create set</span><span class="k-btn k-btn-ghost">Add note...</span></div></section>
+  <section class="k-section"><div class="k-section-head">Groups</div>
     <div class="k-prose wr-wrap wr-lead">${recon}.</div>
     <div class="k-data"><span class="k-name">matched groups</span><span class="k-value">${matched}</span></div>
-    <div class="k-data"><span class="k-name">new groups</span><span class="k-value">${L.unmatchedApril}</span></div>
+    <div class="k-data"><span class="k-name">new groups</span><span class="k-value">${silentBadge} ${L.unmatchedApril}</span></div>
     <div class="k-data"><span class="k-name">lost groups (listed below)</span><span class="k-value">${lostGroups.length}</span></div>
     <div class="k-prose wr-wrap k-secondary">${Z.singletonCommunities} of the new groups are single accounts with no April transfers.</div></section>
   <section class="k-section"><div class="k-section-head">Agreement</div>
@@ -474,12 +493,6 @@ const cmpRight = `<aside class="k-right" aria-label="Comparison">${headerRows({ 
     <div class="k-data"><span class="k-name">without the ${Z.count} silent in April</span><span class="k-value">${ST.monthsWithoutDormantInTen} in 10</span></div>
     <div class="k-data"><span class="k-name">two runs on March's data</span><span class="k-value">${inTen(ST.marchRerunInTen)}</span></div>
     <div class="k-data"><span class="k-name">two runs on April's data</span><span class="k-value">${inTen(ST.aprilRerunInTen)}</span></div></section>
-  <section class="k-section"><div class="k-section-head">${ringC.name}</div>
-    <div class="k-data"><span class="k-name">March to April</span><span class="k-value">${ringC.marchSize} to ${ringC.aprilSize}</span></div>
-    <div class="k-data"><span class="k-name">new in April</span><span class="k-value">${ringC.newAccounts}</span></div>
-    <div class="k-data"><span class="k-name">Watchlist members in it</span><span class="k-value">${W.inCurrentData} of ${W.members}</span></div>
-    <div class="k-data"><span class="k-name">holds in April's 5 re-runs</span><span class="k-value">${f2(ringC.holdsInReruns)}</span></div>
-    <div class="k-row"><span class="k-btn k-btn-secondary">Create set</span><span class="k-btn k-btn-ghost">Add note...</span></div></section>
   <section class="k-section"><div class="k-section-head">Lost groups</div>
     <div class="k-prose wr-wrap k-secondary">March groups with no April match; their accounts are now in other groups.</div>
     <table class="k-table wr-tight wr-lost"><thead><tr><th>March group</th><th class="k-n">accounts</th><th>most now in</th></tr></thead><tbody>${lostGroups.map((g) => `<tr><td>${g.name}</td><td class="k-n">${g.marchSize}</td><td>${g.mostlyTo}</td></tr>`).join("")}</tbody></table></section></div></aside>`;
@@ -491,7 +504,7 @@ S.compare = {
     say: `${ringC.name} is selected in the difference list, so its ${ringC.marchSize} March accounts and ${ringC.aprilSize} April accounts carry the selection ring on each side, and accounts only in April carry the right half-ring. The agreement rows say what they are computed on.`,
     html: app([rail("results"), resultsPanel({ rows: [rrow("chart-column", "Degree", cur), rrow("group", "Louvain communities", `<span class="k-secondary">comparing</span>`, "", ' aria-selected="true"'), rrow("sigma", BASELINE, cur)] }), cmpMain, cmpRight]),
     notes: [
-        [[1199, 90, 241, 450], "The group counts reconcile in one sentence, each count with its own noun, and the lost groups are listed with where their accounts went. Agreement is said as what it means, beside the same without the silent accounts and what two runs on one month's data give. Numbers, never a verdict.", "task-flows.md 8.2, the three checks; graph-conventions.md 4", "DataRow, ProseBlock"],
+        [[1199, 90, 241, 450], "The selected group comes first. The group counts reconcile in one sentence, each count with its own noun, and the lost groups are listed with where their accounts went. Agreement is said as what it means, beside the same without the silent accounts and what two runs on one month's data give. The selected group is four counts, each under its noun (stayed, left, joined, silent), and how well it holds in each month's re-runs; the silent accounts are counted apart wherever a group count changes. Numbers, never a verdict: the tool runs no test that would earn one.", "task-flows.md 8.2, the three checks; graph-conventions.md 4", "DataRow, ProseBlock"],
         [[298, 540, 901, 360], `The difference list: ${ringC.name} is ninth by change, selected; selecting a row selects its accounts on both sides, matched by id. 'holds in April's re-runs' is a proposed column.`, "interaction-pattern-entries.md 4.9; framework-changes.md, the difference list", "DataTable"],
         [[298, 0, 901, 40], "Each side names its data version and what is selected; both share one drawing budget and one color domain.", "state-matrix.md 4.6; interface-templates.md 18", "split canvas container (missing), ResizeHandle"],
         [[310, 392, 212, 136], "Only-on-one-side is a form, not a hue: a half-ring left for March only, right for April only; in both is unmarked.", "canvas-drawing.md 6, ring 3; 11", "legend (graphty-element)"],
@@ -747,7 +760,8 @@ const css = `
   .wr-caret { display: inline-block; width: 1px; height: 13px; background: var(--cm-text); vertical-align: -2px; margin-inline-start: 1px; }
   .wr-cites { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 8px 4px 16px; }
   .wr-cites .k-badge { gap: 4px; height: auto; min-height: 16px; padding: 2px 4px; }
-  .wr-startpage { width: 1440px; height: 900px; background: var(--cm-bg); }
+  .wr-startpage { position: relative; width: 1440px; height: 900px; background: var(--cm-bg); }
+  .wr-startpage > .k-rail { position: absolute; left: 0; top: 0; height: 900px; }
   .wr-startpage .k-start { max-width: 880px; padding-top: 96px; }
   .wr-start-actions { display: flex; gap: 8px; margin-top: 24px; }
   .wr-toast .k-progress { width: 64px; }
@@ -964,7 +978,7 @@ const frames = [
             extras: [crop(S.compare.html.replace(cmpRight, cmpRightLost), [1199, 90, 241, 400], "d"), crop(S.compare.html, [298, 120, 450, 300], "b", 322), crop(S.compare.html, [749, 120, 450, 300], "c", 322), crop(S["compare-pick"].html, [306, 161, 240, 330], "a")],
         }),
         where: "Wednesday 10:20. Results panel, then the comparison surface.",
-        does: `On the Louvain row, Compare with..., then March data, Apr 3 (close-up a): two steps. She clicks the row for ${ringC.name}, the one holding her Watchlist.`,
+        does: `On the Louvain row, Compare with another run..., then March data, Apr 3 (close-up a): two steps. She clicks the row for ${ringC.name}, the one holding her Watchlist.`,
         sees: `${ringC.name} grew from ${ringC.marchSize} to ${ringC.aprilSize} accounts, ${ringC.newAccounts} of them new, and holds together in all of April's re-runs. Its accounts carry the selection ring on both sides; on April, the new ones carry the right half-ring too (close-ups b and c, March and April at 300%). The grouping as a whole: ${stayLine}, and two runs on March's own data keep ${inTen(ST.marchRerunInTen)}. The ${lostGroups.length} lost groups are listed with where most of their accounts went (close-up d, the panel scrolled).`,
         trust: "Is a community difference larger than a re-run on the same data produces?",
         said: "Three in ten I can say in a meeting. Is that low just because of the dead accounts again? And what I'll actually use is 22 to 32 and the seven names.",
@@ -1169,7 +1183,7 @@ ${board}
     <p>The project holds both data versions, the saved comparison, the set with its note and the kept path, so next month starts the same way this one did.</p>
     <p><b>Steps.</b> Reopen: 1. Update with new data: 3 (Update with new data..., the files, Load); by Add data by mistake, 4 (Add data..., the files, Replace data instead, Load). Re-run: 1. Compare: 2, then Create set 1, Save comparison 1, Done 1. Follow-up: Select members 1, sort 1, select the rows 2, Edges tab 1. Note: 2 plus typing. Figure: scope 3 (Select members, Select neighbors, Filter to) and Run layout 1; PageRank 1, Color by 1, Fit to current scope 1; the path 4 (Path tool, From, To, Run) and Keep path 1; Export 3 (Export..., 2x, Export).</p>
     <p><b>Waits on graphty-element.</b> Frames 2 to 7 need data versions, Replace data and the load preview; frame 9 needs the comparison surface, a partition-similarity measure with its seeded re-runs, and comparison membership as an attribute; frames 10 and 11 need that attribute, object selection for the set's inspector, and notes; frame 13 needs a layout scope for Run layout on a filter; frame 14 needs object selection for the found path's inspector; frame 15 needs the legend drawn into the exported figure. Each is absent from the product until it lands (interface-specification.md 7.4); everything else is buildable now.</p>
-    <p><b>Not drawn here.</b> Esc or Cancel on the load step (the project returns unchanged, focus back on the File menu); a note's quoted value marked when the live value later differs; the Compare with... picker once the earlier run has been discarded by a later Update with new data; the gray check beyond the slide above.</p>
+    <p><b>Not drawn here.</b> Esc or Cancel on the load step (the project returns unchanged, focus back on the File menu); a note's quoted value marked when the live value later differs; the Compare with another run... picker once the earlier run has been discarded by a later Update with new data; the gray check beyond the slide above.</p>
     <p><b>On a 14-inch laptop.</b> At 1366 by 768 (<a href="../shots/screens__weekly-return--compare-1366.png">screenshot of the comparison</a>) both sides and the difference list still fit, but each side is 413 px wide with a drawing 275 px tall, the legend covers about a third of side A, the side headers wrap to two lines, and the selected row, ninth by change, sits below the fold. Proposed: close the left panel on entry below 1440 px, keep side headers to one line, scroll the selected row into view, and fold the legend to its title on a narrow side.</p>
   </div>
   <h2>Open findings for the study</h2>

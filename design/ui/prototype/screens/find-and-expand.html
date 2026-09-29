@@ -95,7 +95,7 @@
     <div class="fe-findbar2"><span class="k-field fe-scope">This graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
     <div class="k-scroll fe-hits">
       <div class="k-group-head">Nodes <span class="k-secondary k-num">&nbsp;1</span></div>
-      <div class="k-result" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-id"><b>ACC-233575</b></span><span class="k-grow"></span><span class="k-secondary">riskScore 98</span></div><div class="fe-foot k-secondary">Enter goes to it; Enter again selects it. Searching the full graph: 3,000 nodes.</div></div></aside>
+      <div class="k-result" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-id"><b>ACC-233575</b></span><span class="k-grow"></span><span class="k-secondary">riskScore 98</span></div><div class="fe-foot k-secondary">Enter goes to it; Enter again selects it. Searching the full graph: <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>.</div></div></aside>
   <main class="k-main">
     <div class="k-canvas">
       <div class="k-stage"><img class="k-light-only" src="find-and-expand/seed-hover-light.svg" alt="3,000 accounts as density, ACC-233575 drawn as a point with the hover mark"><img class="k-dark-only" src="find-and-expand/seed-hover-dark.svg" alt="3,000 accounts as density, ACC-233575 drawn as a point with the hover mark"></div>
@@ -104,9 +104,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -115,7 +115,7 @@
     </div>
     <section class="k-dock" aria-label="Table">
       <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-      <div class="k-scope">Full graph: 3,000 nodes. Sorted by riskScore.</div>
+      <div class="k-scope">Full graph: <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>. Sorted by riskScore.</div>
       <div class="k-table-wrap"><table class="k-table"><thead><tr><th>id</th><th>kind <span class="k-profile">3 values</span></th><th>country</th><th class="k-n">riskScore <span class="k-profile">0 to 98, sorted</span></th><th>flagged</th><th class="k-n">degree</th></tr></thead><tbody><tr ><td class="k-id">ACC-233575</td><td>personal</td><td>US</td><td class="k-n">98</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">8</td></tr><tr ><td class="k-id">ACC-577269</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">8</td></tr><tr ><td class="k-id">ACC-782213</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">7</td></tr><tr ><td class="k-id">ACC-642959</td><td>personal</td><td>NG</td><td class="k-n">96</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-753261</td><td>personal</td><td>BR</td><td class="k-n">95</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">12</td></tr><tr ><td class="k-id">ACC-309606</td><td>personal</td><td>PH</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-946224</td><td>personal</td><td>US</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-242954</td><td>personal</td><td>US</td><td class="k-n">92</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr></tbody></table></div>
     </section></main>
   
@@ -153,7 +153,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section" data-empty>
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -171,9 +171,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -182,7 +182,7 @@
     </div>
     <section class="k-dock" aria-label="Table">
       <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-      <div class="k-scope">Full graph: 3,000 nodes. Sorted by riskScore.</div>
+      <div class="k-scope">Full graph: <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>. Sorted by riskScore.</div>
       <div class="k-table-wrap"><table class="k-table"><thead><tr><th>id</th><th>kind <span class="k-profile">3 values</span></th><th>country</th><th class="k-n">riskScore <span class="k-profile">0 to 98, sorted</span></th><th>flagged</th><th class="k-n">degree</th></tr></thead><tbody><tr aria-selected="true"><td class="k-id">ACC-233575</td><td>personal</td><td>US</td><td class="k-n">98</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">8</td></tr><tr ><td class="k-id">ACC-577269</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">8</td></tr><tr ><td class="k-id">ACC-782213</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">7</td></tr><tr ><td class="k-id">ACC-642959</td><td>personal</td><td>NG</td><td class="k-n">96</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-753261</td><td>personal</td><td>BR</td><td class="k-n">95</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">12</td></tr><tr ><td class="k-id">ACC-309606</td><td>personal</td><td>PH</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-946224</td><td>personal</td><td>US</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-242954</td><td>personal</td><td>US</td><td class="k-n">92</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr></tbody></table></div>
     </section></main>
   
@@ -227,7 +227,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section" data-empty>
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -245,9 +245,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -256,7 +256,7 @@
     </div>
     <section class="k-dock" aria-label="Table">
       <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-      <div class="k-scope">Full graph: 3,000 nodes. Sorted by riskScore.</div>
+      <div class="k-scope">Full graph: <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>. Sorted by riskScore.</div>
       <div class="k-table-wrap"><table class="k-table"><thead><tr><th>id</th><th>kind <span class="k-profile">3 values</span></th><th>country</th><th class="k-n">riskScore <span class="k-profile">0 to 98, sorted</span></th><th>flagged</th><th class="k-n">degree</th></tr></thead><tbody><tr aria-selected="true"><td class="k-id">ACC-233575</td><td>personal</td><td>US</td><td class="k-n">98</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">8</td></tr><tr ><td class="k-id">ACC-577269</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">8</td></tr><tr ><td class="k-id">ACC-782213</td><td>personal</td><td>BR</td><td class="k-n">97</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">7</td></tr><tr ><td class="k-id">ACC-642959</td><td>personal</td><td>NG</td><td class="k-n">96</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-753261</td><td>personal</td><td>BR</td><td class="k-n">95</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">12</td></tr><tr ><td class="k-id">ACC-309606</td><td>personal</td><td>PH</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-946224</td><td>personal</td><td>US</td><td class="k-n">93</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr><tr ><td class="k-id">ACC-242954</td><td>personal</td><td>US</td><td class="k-n">92</td><td><span class="k-chit" style="background:#D55E00"></span>true</td><td class="k-n">9</td></tr></tbody></table></div>
     </section></main>
   
@@ -313,7 +313,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section" data-empty>
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -331,9 +331,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -402,7 +402,7 @@
     <div class="fe-findbar2"><span class="k-field fe-scope">This graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
     <div class="k-scroll fe-hits">
       <div class="k-group-head">Nodes <span class="k-secondary k-num">&nbsp;1</span></div>
-      <div class="k-result fe-hit2" aria-selected="true" data-hover><svg class="k-i "><use href="../kit/icons.svg#circle-dot"/></svg><span class="fe-hit-text"><span class="k-id"><b>ACC-782213</b></span><span class="k-secondary fe-outside"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span>Left out by <span class="fe-nb">ACC-233575</span> and neighbors</span></span></span><span class="k-grow"></span><span class="k-icon-btn fe-hit-add" data-hover title="Add selection to step"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div><div class="fe-foot k-secondary">Enter goes to it; Enter again selects it. Searching the full graph: 3,000 nodes.</div></div></aside>
+      <div class="k-result fe-hit2" aria-selected="true" data-hover><svg class="k-i "><use href="../kit/icons.svg#circle-dot"/></svg><span class="fe-hit-text"><span class="k-id"><b>ACC-782213</b></span><span class="k-secondary fe-outside"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span>Left out by <span class="fe-nb">ACC-233575</span> and neighbors</span></span></span><span class="k-grow"></span><span class="k-icon-btn fe-hit-add" data-hover title="Add selection to step"><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div><div class="fe-foot k-secondary">Enter goes to it; Enter again selects it. Searching the full graph: <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>.</div></div></aside>
   <main class="k-main">
     <div class="k-canvas">
       <div class="k-stage"><img class="k-light-only" src="find-and-expand/boundary-light.svg" alt="ACC-233575 and its 8 neighbors"><img class="k-dark-only" src="find-and-expand/boundary-dark.svg" alt="ACC-233575 and its 8 neighbors"></div>
@@ -412,9 +412,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -452,7 +452,7 @@
 </div>
 <div class="k-tooltip" style="left:252px;top:206px;white-space:nowrap;max-width:none">Add selection to step<br><span class="k-secondary">1 node, to ACC-233575 and neighbors</span></div>
 <div class="fe-caption"><span class="k-step">5</span><b>A hit the filter leaves out</b><span>Transactions, filtered to 9 accounts</span></div>
-<div class="fe-notes"><span class="fe-pin" style="left:190px;top:38px">1</span><span class="fe-pin" style="left:250px;top:150px">2</span><span class="fe-pin" style="left:150px;top:283px">3</span><span class="fe-pin" style="left:1215px;top:172px">4</span><span class="fe-pin" style="left:540px;top:552px">5</span><ol class="fe-notelist"><li><span class="k-step">1</span><span>The chip states the scope every number describes: Filtered: 9 of 3,000 nodes (interface-templates 7). Missing from compact-mantine (interface-specification 7.3); Mantine <b>Pill</b> with a Light popover.</span></li><li><span class="k-step">2</span><span>Find searches the full graph, so the hit is listed; its second line names the step that leaves it out, and wraps rather than being cut by the row's button (proposed). The + shows only on hover and focus. <b>ResultRow</b>, trailing <b>ActionIcon</b>.</span></li><li><span class="k-step">3</span><span>The list still ends by naming what Find searched: the full graph, 3,000 nodes, although the chip reads 9.</span></li><li><span class="k-step">4</span><span>Selected but not drawn: a state line says why. The rank and Connections both name their scope, on: full graph, because it differs from the chip (content-design 5).</span></li><li><span class="k-step">5</span><span>The legend's not-drawn line counts the selected node the filter leaves out, with Add selection to step (proposed with screens/find.html).</span></li></ol></div>
+<div class="fe-notes"><span class="fe-pin" style="left:190px;top:38px">1</span><span class="fe-pin" style="left:250px;top:150px">2</span><span class="fe-pin" style="left:150px;top:283px">3</span><span class="fe-pin" style="left:1215px;top:172px">4</span><span class="fe-pin" style="left:540px;top:552px">5</span><ol class="fe-notelist"><li><span class="k-step">1</span><span>The chip states the scope every number describes: Filtered: 9 of 3,000 nodes (interface-templates 7). Missing from compact-mantine (interface-specification 7.3); Mantine <b>Pill</b> with a Light popover.</span></li><li><span class="k-step">2</span><span>Find searches the full graph, so the hit is listed; its second line names the step that leaves it out, and wraps rather than being cut by the row's button (proposed). The + shows only on hover and focus. <b>ResultRow</b>, trailing <b>ActionIcon</b>.</span></li><li><span class="k-step">3</span><span>The list still ends by naming what Find searched: the full graph, <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>, although the chip reads 9.</span></li><li><span class="k-step">4</span><span>Selected but not drawn: a state line says why. The rank and Connections both name their scope, on: full graph, because it differs from the chip (content-design 5).</span></li><li><span class="k-step">5</span><span>The legend's not-drawn line counts the selected node the filter leaves out, with Add selection to step (proposed with screens/find.html).</span></li></ol></div>
 </section>
 
 <section class="fe-state" id="t-grow" aria-label="Select all, then grow the step one hop out">
@@ -468,7 +468,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section" data-empty>
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -486,9 +486,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -550,7 +550,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section" data-empty>
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -568,9 +568,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -633,7 +633,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section" data-empty>
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -651,9 +651,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -707,7 +707,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section">
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -725,9 +725,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -794,7 +794,7 @@
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i "><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span></span></li></ul>
       </section>
       <section class="k-section">
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" ><svg class="k-i "><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -812,9 +812,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -889,9 +889,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -960,9 +960,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -1043,9 +1043,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -1126,9 +1126,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>

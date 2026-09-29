@@ -8,7 +8,7 @@
 // citation graph that is only counted (past the drawing limit, nothing is drawn).
 //
 // Canvas rules followed (design/ui/framework/canvas-drawing.md): light canvas #F5F5F5, dark
-// #1E1E1E; unstyled node gray #808080, Other #505050; selection a two-tone ring (dark #1A1A1A and
+// #1E1E1E; unstyled node gray #808080, Other #BDBDBD (light grey, apart from black and from the unstyled grey); selection a two-tone ring (dark #1A1A1A and
 // white, the band with more contrast against the canvas outside); hover a one-tone hairline
 // after a 2 px gap; keyboard focus three bands after a 2 px gap; labels 12 px with a halo in the
 // canvas color, culled by collision (a label whose box meets one already placed is dropped;
@@ -27,7 +27,7 @@ const W = 1200;
 const H = 800;
 const OKABE_ITO = ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 const GRAY = "#808080";
-const OTHER = "#505050";
+const OTHER = "#BDBDBD";
 const THEMES = {
     light: { canvas: "#F5F5F5", ink: "#1A1A1A", halo: "#F5F5F5", edge: "#808080", outer: "#1A1A1A", inner: "#FFFFFF", fillEdge: "#8A8A8A" },
     dark: { canvas: "#1E1E1E", ink: "#F0F0F0", halo: "#1E1E1E", edge: "#808080", outer: "#FFFFFF", inner: "#1A1A1A", fillEdge: "#6E6E6E" },
@@ -296,6 +296,9 @@ function emit(name, render) {
     svgs.push(name);
 }
 const round = (x, d = 3) => Number(x.toFixed(d));
+// 3 significant figures, the precision a measure shows (content-design.md 5); fixed decimals would store
+// 0.054 for 0.0536 and the formatter could not show it right.
+const sig3 = (x) => Number(x.toPrecision(3));
 function summary(adj, edgesLen, directed = false) {
     const n = adj.length;
     const deg = adj.map((l) => l.length);
@@ -415,7 +418,7 @@ const louvain = (nb0, seed) => {
             title: "Karate club colored by faction, Mr. Hi selected",
         }),
     );
-    const rows = raw.nodes.map((_, i) => ({ id: String(i + 1), label: label(i), faction: faction[i], degree: deg[i], betweenness: round(bc[i]) }));
+    const rows = raw.nodes.map((_, i) => ({ id: String(i + 1), label: label(i), faction: faction[i], degree: deg[i], betweenness: sig3(bc[i]) }));
     datasets.karate = {
         title: "Zachary's karate club",
         file: "karate.gml",
@@ -583,7 +586,7 @@ const louvain = (nb0, seed) => {
     emit("lesmis-step3-find-zoom", (theme) =>
         drawGraph({ theme, pos: posZ, edges, color: (i) => colorOfGroup(group[i]), size, labels: s3, marks: { selected: th }, keep: keep3, title: "Les Miserables after three filter steps, zoomed to 200% about Thenardier, selected" }),
     );
-    const rows = names.map((name, i) => ({ id: String(i), label: name, group: group[i], degree: deg[i], betweenness: round(bc[i]) }));
+    const rows = names.map((name, i) => ({ id: String(i), label: name, group: group[i], degree: deg[i], betweenness: sig3(bc[i]) }));
     // Per step: live degree read on the filtered graph beside the full-graph degree
     // (conceptual-model.md 3); betweenness stays the full-graph run's.
     const stepStats = (keepList) => {
@@ -593,7 +596,7 @@ const louvain = (nb0, seed) => {
         const subAdj = keepList.map((i) => adj[i].filter((m) => keep.has(m)).map((m) => at.get(m)));
         const e = subAdj.reduce((a, l) => a + l.length, 0) / 2;
         const k = keepList.length;
-        const row = (i) => ({ label: names[i], group: group[i], degree: fdeg(i), fullDegree: deg[i], betweenness: round(bc[i]) });
+        const row = (i) => ({ label: names[i], group: group[i], degree: fdeg(i), fullDegree: deg[i], betweenness: sig3(bc[i]) });
         const byDeg = (a, b) => b.degree - a.degree || b.fullDegree - a.fullDegree;
         return {
             nodes: k,
@@ -653,7 +656,7 @@ const louvain = (nb0, seed) => {
                 const at = new Map(s1.map((i, j) => [i, j]));
                 const sub = s1.map((i) => adj[i].filter((m) => at.has(m)).map((m) => at.get(m)));
                 const bs = betweenness(sub);
-                return s1.map((i, j) => ({ label: names[i], betweenness: round(bs[j]) })).sort((x, y) => y.betweenness - x.betweenness || x.label.localeCompare(y.label));
+                return s1.map((i, j) => ({ label: names[i], betweenness: sig3(bs[j]) })).sort((x, y) => y.betweenness - x.betweenness || x.label.localeCompare(y.label));
             })(),
             belowFirstStepWithStep2Off: (() => { const k = new Set(s2off); return s2off.filter((i) => adj[i].filter((m) => k.has(m)).length < 2).length; })(),
             // Statistics after each on/off combination of the three steps, in their order ("1-3" is
@@ -1617,7 +1620,9 @@ const louvain = (nb0, seed) => {
         const zoom = 3;
         const cw = W / zoom, ch = H / zoom;
         const crop = [cx - cw / 2, cy - ch / 2, cw, ch];
-        emit("transactions-path", (theme) => {
+        // The cheapest route by amount as a longer step (sets-and-paths state 10) is drawn with the
+        // same camera, so stepping between the two readings keeps the drawing still.
+        for (const [name, route] of [["transactions-path", routes[0]], ["transactions-path-cheapest", asDistance.p]]) emit(name, (theme) => {
             const T = THEMES[theme];
             const k = 1 / zoom; // marks keep their screen size at 300%
             const pts = route.map((i) => pos[i]);
@@ -2145,11 +2150,14 @@ const louvain = (nb0, seed) => {
                 note: "the canvas legend's rows for the Community color layer: colored communities with counts, then Other",
                 march: (() => {
                     const rows = [1, 2, 3, 4, 5, 6, 7].map((c) => ({ name: `Community ${c}`, color: colorM(c), count: sizeM[c] }));
-                    return { rows, other: { communities: Object.keys(sizeM).length - 7, count: n - rows.reduce((t, r) => t + r.count, 0) } };
+                    return { rows, other: { communities: Object.keys(sizeM).length - 7, count: n - rows.reduce((t, r) => t + r.count, 0), holds: `Communities 8 to ${Object.keys(sizeM).length}` } };
                 })(),
                 april: (() => {
                     const rows = Object.keys(sizeA).map(Number).filter((c) => colorA(c) !== OTHER).map((c) => ({ name: nameA(c), color: colorA(c), count: sizeA[c] })).sort((x, y) => y.count - x.count);
-                    return { rows, other: { communities: Object.keys(sizeA).length - rows.length, count: n2 - rows.reduce((t, r) => t + r.count, 0) } };
+                    // what Other holds, for the line under its legend row: communities carried on from March, and new ones
+                    const others = Object.keys(sizeA).map(Number).filter((c) => colorA(c) === OTHER);
+                    const carried = others.filter((c) => matchOf[c]).length;
+                    return { rows, other: { communities: Object.keys(sizeA).length - rows.length, count: n2 - rows.reduce((t, r) => t + r.count, 0), holds: `${carried} carried on from March's 8 to ${Object.keys(sizeM).length}, ${others.length - carried} new` } };
                 })(),
             },
             rows: byPR.slice(0, 40).map(rowA),
@@ -2322,7 +2330,28 @@ const louvain = (nb0, seed) => {
                     onlyMarchInView: onlyMarch.filter((i) => inView(pos[i])).length,
                     onlyMarchInCommunity: hullM.filter((i) => closed.has(i)).length,
                     marchMembersStillInIt: hullM.filter((i) => !closed.has(i) && commA[at.get(i)] === grown).length,
-                    marchMembersLeftIt: hullM.filter((i) => !closed.has(i) && commA[at.get(i)] !== grown).length,
+                    marchMembersLeftIt: hullM.filter((i) => !closed.has(i) && commA[at.get(i)] !== grown && degA[at.get(i)] > 0).length,
+                    // The group's four counts (weekly return, the comparison): stayed and left are its March
+                    // accounts; silent are its March accounts with no April transfers (each now a group of
+                    // one); joined are its April accounts that were not in it in March, new to the data or not.
+                    marchMembersSilent: hullM.filter((i) => !closed.has(i) && degA[at.get(i)] === 0).length,
+                    joinedFromOtherGroups: hullA.filter((j) => alive[j] < n && commM[alive[j]] !== grownMarch).length,
+                    joinedNew: hullA.filter((j) => alive[j] >= n).length,
+                    // Stability for both months, as the difference list's column: best Jaccard match over
+                    // five seeded re-runs on that month's data, averaged.
+                    holdsInMarchReruns: (() => {
+                        const mem = new Set(hullM);
+                        const rrs = [12, 13, 14, 15, 16].map((sd) => (sd === 12 ? commM2 : louvain(nbM, sd)));
+                        let sum = 0;
+                        for (const rr of rrs) {
+                            const ov = new Map();
+                            for (const i of mem) ov.set(rr[i], (ov.get(rr[i]) ?? 0) + 1);
+                            const sz = sizes(rr);
+                            sum += Math.max(...[...ov].map(([x, v]) => v / (mem.size + sz[x] - v)));
+                        }
+                        return round(sum / rrs.length, 2);
+                    })(),
+                    holdsInAprilReruns: holds(grown),
                     newInRing: newInRing.map((j) => ({ id: ids2[alive[j]], ...pct(zA[j]) })),
                 },
                 newAccountFlows: {
@@ -2940,7 +2969,7 @@ datasets.citations = {
 // The resting app frame for three datasets (screens/frame-at-rest.html?dataset=<id>): the header,
 // the drawing, the legend and the Statistics rows, so the frame never shows a different graph from
 // the one the task loads.
-function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, altSized = alt, deg, weight, sizeOf, legend, attributes }) {
+function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, altSized = alt, deg, weight, sizeOf, legend, attributes, labelBudget = null }) {
     const d = datasets[ds];
     const s = d.stats;
     const max = Math.max(...deg);
@@ -2965,7 +2994,7 @@ function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, 
         altSized,
         nodes: d.nodes,
         edges: d.edges,
-        edgesLine: `${d.directed ? "directed" : "undirected"}; ${weight ? `${weight}, not used yet` : "no numeric edge column"}`,
+        edgesLine: `${d.directed ? "directed" : "undirected"}; ${weight ? `${weight}: each run that uses it asks what it means` : "no numeric edge column"}`,
         density: s.density,
         componentsName: d.directed ? "Weak components" : "Connected components",
         components: `${s.components.toLocaleString("en-US")}${s.isolated ? ` (${s.isolated} isolate${s.isolated === 1 ? "" : "s"})` : ""}`,
@@ -2975,6 +3004,9 @@ function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, 
         attributes,
         legend,
         sizeMarks: legend ? marks : null,
+        // how many nodes the drawing tries to label (the highest-degree ones); the collision cull
+        // keeps fewer, counted from the drawing by screens/counts-numbers.mjs
+        labelBudget,
     };
 }
 {
@@ -2984,6 +3016,7 @@ function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, 
     const other = Object.keys(L.groupColors).filter((g) => L.groupColors[g] === OTHER);
     L.frame = frameOf({
         ds: "lesmis",
+        labelBudget: 18, // the drawing's labels: budget.slice(0, 18) above
         project: "Les Miserables",
         graphRow: "Co-appearances",
         drawing: "canvas/lesmis-groups-onesize-{theme}.svg",
@@ -3006,6 +3039,7 @@ function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, 
     const order = Object.keys(P.moduleColors).filter((m) => m !== "Unassigned").sort((a, b) => mods[b] - mods[a] || a.localeCompare(b));
     P.frame = frameOf({
         ds: "ppi",
+        labelBudget: 22, // the drawing's labels: budget.slice(0, 22) above
         project: "Human protein interactions",
         graphRow: "Interactions",
         drawing: "canvas/ppi-modules-onesize-{theme}.svg",
@@ -3113,6 +3147,7 @@ function frameOf({ ds, project, graphRow, drawing, alt, drawingSized = drawing, 
     arraysOf.ppiEvidence = { deg };
     datasets.ppiEvidence.frame = frameOf({
         ds: "ppiEvidence",
+        labelBudget: 12, // the drawing's labels: budget.slice(0, 12) above
         project: "Human protein interactions",
         graphRow: "Evidence rows",
         drawing: "canvas/ppi-evidence-plain-{theme}.svg",
@@ -3377,6 +3412,103 @@ const tasks = {};
         facts: { measure: "pagerank", weight: "confidence" },
         refs: ["datasets.ppi.frame"],
     });
+    // Rounds 4 and 5 ran these tasks with no entry here, so --tasks could not see their screens. Each
+    // question is the moderator's wording as the sessions record it; the dataset is the one the
+    // question is about, and a screen drawn on another dataset is reported by --tasks, not hidden.
+    add("calculation-stopped", {
+        question: "A long calculation on the citation graph stopped partway through. Decide what you can still trust on the screen, and get a result you can use.",
+        dataset: "citations",
+        file: C.file,
+        facts: { nodes: C.nodes, edges: C.edges },
+        refs: ["datasets.citations.sampledBetweenness", "datasets.citations.betweennessCost"],
+    });
+    if (datasets.alertsAugust) {
+        add("dated-trace", {
+            question: "Money arrived in the flagged account in early August. Follow where it went next and tell me whether the order of the transfers makes sense.",
+            dataset: "alertsAugust",
+            file: datasets.alertsAugust.file,
+            facts: { account: datasets.alertsAugust.seed, numbers: "kit/alerts.json, august" },
+            refs: ["datasets.alertsAugust"],
+        });
+    }
+    add("gray-figure-signed", {
+        question: "Make a black-and-white figure of the fold changes for a journal that prints in gray, and tell me which genes went up the most.",
+        dataset: "ppi",
+        file: P.file,
+        facts: tasks["figure-for-reviewer"].facts,
+        refs: ["datasets.ppi.encodings", "datasets.ppi.expression"],
+    });
+    add("money-in-and-out", {
+        question: "Your manager wants the ten accounts in the March transfers that take in far more money than they send out, with the amounts, by end of day.",
+        dataset: "transactions",
+        file: T.file,
+        facts: { nodes: T.nodes, edges: T.edges, weight: "amount" },
+        refs: ["datasets.transactions.frame", "datasets.transactions.rows"],
+    });
+    add("notes-with-names", {
+        question: "A colleague opens this project next week and will read your notes beside her own. Make sure she can tell which ones are yours.",
+        dataset: "transactions",
+        file: T.file,
+        facts: { author: "as given in Preferences, blank if none is set" },
+        refs: ["datasets.transactions.frame"],
+    });
+    add("restyle-two-groups", {
+        question: "Two of the groups are drawn in colors you cannot tell apart. Fix that so a colleague can read the picture.",
+        dataset: "ppi",
+        file: P.file,
+        facts: { column: "module", colors: P.moduleColors },
+        refs: ["datasets.ppi.moduleColors", "datasets.ppi.attributes"],
+    });
+    add("team-colors-file", {
+        question: "Your team always draws its networks the same way, and a colleague just mailed you the file with those colors and sizes. Make this project look like the team's.",
+        // the screens this task uses show the case project after April's update
+        dataset: "transactionsApril",
+        file: A.files.transfers.file,
+        facts: { nodes: A.nodes, edges: A.edges },
+        refs: ["datasets.transactionsApril.legends"],
+    });
+    add("top-200-past-limit", {
+        question: "This citation graph is too big to draw. Find the 200 patents that sit most in between, then look at who surrounds the first one.",
+        dataset: "citations",
+        file: C.file,
+        facts: { nodes: C.nodes, edges: C.edges, keep: 200, measure: "betweenness (sampled)" },
+        refs: ["datasets.citations.sampledBetweenness", "datasets.citations.drawingLimit"],
+    });
+    add("two-runs-compared", {
+        question: "Yesterday you ranked the Les Miserables characters one way. A colleague asks you to rank them again with one thing changed, and to tell her what differs between the two rankings and how each was made.",
+        dataset: "lesmis",
+        file: L.file,
+        facts: { nodes: L.nodes, measure: "betweenness" },
+        refs: ["datasets.lesmis.topByBetweenness", "datasets.lesmis.filterSteps"],
+    });
+    add("weekly-update", {
+        question: "Last month's transfers project needs this month's file. Update it, and explain why the number of groups changed.",
+        dataset: "transactionsApril",
+        file: A.files.transfers.file,
+        facts: tasks["this-weeks-export"].facts,
+        refs: ["datasets.transactionsApril.versionDiff", "datasets.transactionsApril.louvain", "datasets.transactionsApril.dormant"],
+    });
+    add("weight-end-to-end", {
+        question: "The transfers have an amount on each one. Find the cheapest route between two accounts and the most central accounts, and tell me what each answer used.",
+        dataset: "transactions",
+        file: T.file,
+        facts: { from: T.setsAndPaths.path.from.id, to: T.setsAndPaths.path.to.id, weight: "amount" },
+        refs: ["datasets.transactions.setsAndPaths.path"],
+    });
+    add("load-a-messy-export", {
+        question: "Your bank's case system just exported March's transfers as a spreadsheet file. Bring it in, and tell me whether what you are looking at is what you think it is.",
+        dataset: "transactions",
+        file: T.file,
+        facts: { nodes: T.nodes, edges: T.edges },
+        refs: ["datasets.transactions.columns", "datasets.transactions.firstRows"],
+    });
+    add("real-change-or-noise", {
+        question: "April's transfers replaced March's in your case project, and the ring's group looks different now. Tell me whether the accounts really changed, or whether it only came out differently this time.",
+        dataset: "transactionsApril",
+        file: A.files.transfers.file,
+        facts: tasks["this-weeks-export"].facts,
+        refs: ["datasets.transactionsApril.agreement", "datasets.transactionsApril.louvain"],
+    });
     // The screens each task shows, first to last. kit/check.mjs --tasks opens each with ?task=<id>
     // and fails when one draws or names another dataset: the screen after Load is always the file
     // just loaded, and no task borrows another project's screen.
@@ -3413,6 +3545,20 @@ const tasks = {};
         "read-the-numbers": ["screens/load-step.html#graphml", "screens/frame-at-rest.html", "screens/filter-chip.html#proteins", "screens/results-panel.html#finished"],
         "top-50-to-excel": ["screens/results-panel.html#finished", "screens/results-panel.html#in-the-table", "screens/table-dock.html#ranked"],
         "weight-at-first-run": ["screens/option-form-cost.html#weight-refused", "screens/option-form-cost.html#weight-meaning", "screens/results-panel.html#finished"],
+        // Rounds 4 and 5, as the sessions used them.
+        "calculation-stopped": ["screens/gpu-lost-run.html", "screens/results-panel.html#failed", "screens/results-panel.html#failed-run", "screens/results-panel.html#refused", "screens/results-panel.html#finished-sampled", "screens/notices-errors.html"],
+        "dated-trace": ["screens/alert-triage.html#case-open", "screens/alert-triage.html#case-hop2", "screens/alert-triage.html#case-trace", "screens/alert-triage.html#case-trace-menu"],
+        "gray-figure-signed": ["screens/colour-by-value.html", "screens/styles-list.html", "screens/export-dialog.html#figure-grey", "screens/table-dock.html#ranked"],
+        "money-in-and-out": ["screens/frame-at-rest.html", "screens/run-and-read.html#catalog", "screens/run-and-read.html#money", "screens/run-and-read.html#money-read", "screens/table-dock.html#large", "screens/export-dialog.html#table"],
+        "notes-with-names": ["screens/notes-panel.html", "screens/take-a-note.html", "screens/preferences.html"],
+        "restyle-two-groups": ["screens/frame-at-rest.html", "screens/inspector.html#one-node", "screens/colour-by-value.html", "screens/styles-list.html"],
+        "team-colors-file": ["screens/data-panel.html", "screens/replace-and-recipe.html#s-recipe-pick", "screens/replace-and-recipe.html#s-bind-recipe", "screens/replace-and-recipe.html#s-recipe-applied"],
+        "top-200-past-limit": ["screens/past-drawing-limit.html", "screens/option-form-cost.html#sample-over-budget", "screens/results-panel.html#finished-sampled", "screens/past-drawing-limit.html#keep", "screens/past-drawing-limit.html#kept", "screens/find.html#s7"],
+        "two-runs-compared": ["screens/navigation.html", "screens/results-panel.html#compare-with", "screens/comparison.html", "screens/table-dock.html#ranked"],
+        "weekly-update": ["screens/weekly-return.html", "screens/data-panel.html", "screens/version-history.html", "screens/comparison.html"],
+        "weight-end-to-end": ["screens/frame-at-rest.html", "screens/sets-and-paths.html", "screens/run-and-read.html#money", "screens/results-panel.html#finished"],
+        "load-a-messy-export": ["screens/load-transfers.html", "screens/load-step.html#report", "screens/frame-at-rest.html", "screens/data-panel.html"],
+        "real-change-or-noise": ["screens/weekly-return.html#compare-pick", "screens/weekly-return.html#compare", "screens/weekly-return.html#followup", "screens/comparison.html", "screens/version-history.html"],
     };
     for (const [id, pages] of Object.entries(PAGES)) if (tasks[id]) tasks[id].pages = pages;
     const get = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), { datasets });

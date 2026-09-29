@@ -121,7 +121,7 @@
       <p>She chooses Main menu, Recipes, Save as a recipe... The Export dialog opens with only Recipe checked; she names it Expression overlay. Scope is grayed out, because a recipe holds no data; its tooltip says so.</p>
       <p><b>She sees</b> the preview's first line: no data inside, no genes, interactions, fold-change values, positions or notes. Below it, what travels (two color layers, the confidence filter, overview readings), what stays behind, including her 38-gene knockdown set, and, under "The person who opens it sees", the "Expects:" list exactly as it will appear on Tom's screen. It names the network she made the recipe on, ppi-core-300.graphml, and says it is not inside. Under the list, each input says where it comes from. The gene id reads "Their table", as a join always does. The fold change starts at "The network", because her layer reads the network's log2FoldChange; she switches it to "Their table" and gives the name Tom's sheets use, log2FC, and the list above changes to say so. Module and confidence stay "The network".</p>
       <span class="s-lab">What we expect her to say</span><div class="s-expect">"So that's what Tom gets. The network off the shared drive and his own log2FC, not the old fold change in the network. Good, that column is from the 2024 screen."</div>
-      <p><b>Then</b> she exports one file: Expression overlay, a recipe. (Where each input comes from is a new field in the recipe file, a published format, so it is proposed for the owner's decision.)</p>
+      <p><b>Then</b> she exports one file: Expression overlay, a recipe. The recipe records who saved it and when, taken from her project's author setting.</p>
       <a class="s-link" href="../screens/recipe-apply.html#export">Full screen: Export the recipe</a>
     </div>
   </section>
@@ -164,7 +164,7 @@
       <h3><span class="k-step">3</span>Tom drops the recipe on the start screen</h3>
       <div class="s-who">Tom, lab manager, 13-inch laptop between two meetings.</div>
       <p>He drags the attachment onto the page, his first move with any file. The page lights up "Drop to open".</p>
-      <p><b>He sees</b> a card at the top: Expression overlay, a recipe waiting for data, saved by Maren on Sep 26 2026. (Who saved it is a proposed field: a recipe does not record its author today, and adding it changes a published file format, so it is the owner's decision.) The card says what the recipe does and "No data inside.", then "Expects:" and the same two lines Maren saw in her preview: the network the recipe was made on, ppi-core-300.graphml, which is not in the recipe, and his own table with a log2FC column. Before he adds anything it answers the question he always asks: his data stays on this computer, and the recipe names no server, so graphty contacts none.</p>
+      <p><b>He sees</b> a card at the top: Expression overlay, a recipe waiting for data, saved by Maren on Sep 26 2026. A recipe records who saved it and when, from the author setting of the project it was saved in. The card says what the recipe does and "No data inside.", then "Expects:" and the same two lines Maren saw in her preview: the network the recipe was made on, ppi-core-300.graphml, which is not in the recipe, and his own table with a log2FC column. Before he adds anything it answers the question he always asks: his data stays on this computer, and the recipe names no server, so graphty contacts none.</p>
       <span class="s-lab">What we expect him to say</span><div class="s-expect">"ppi-core-300, that's the one on the shared drive. And my own list with log2FC. These hits aren't published; it stays on this laptop? Then I'll add them."</div>
       <p><b>Then</b> he clicks Add data... and picks the network the card named, on the shared drive; he does not need the email to know which. His table is in another folder; he means to add it next. Choosing a file makes an Untitled project holding the recipe; from here on, Cancel and Undo come back to that project, not to the start screen.</p>
       <a class="s-link" href="../screens/recipe-apply.html#start">Full screen: A recipe waiting for data (the earlier card)</a>
@@ -214,7 +214,7 @@
         <div class="k-modal-body" style="padding:0">
           <div class="b-sec"><h3>Your files</h3><div class="b-files">
             <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-id">ppi-core-300.graphml</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span></span>
-            <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, log2FC, padj</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+            <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, log2FC, padj</span></div></div>
           <div class="b-sec"><div class="b-big k-num"><span><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> genes matched</span></div>
             <div class="b-line"><span class="k-secondary">Your table's</span><span class="k-id">symbol</span><span class="k-secondary">against the network's protein names; letter case must match, as the recipe sets.</span></div>
             <div class="b-line" style="margin-top:4px"><b class="k-num"><span data-fx="datasets.ppi.expression.unmatchedCount">12</span> did not match.</b><span class="k-secondary">They stay in your table and are not colored.</span></div>
@@ -241,7 +241,7 @@
   <section class="s-fr">
     <div class="s-pics">
       <div class="s-dlg"><div class="k-modal" role="img" aria-label="log2FC found in his table; Apply is ready">
-        <div class="s-dlg-cut" style="border-top:0;border-bottom:1px dashed var(--cm-border-strong)">Above: his files and the 84 of 96, frame 5.</div>
+        <div class="s-dlg-cut" style="border-top:0;border-bottom:1px dashed var(--cm-border-strong)">Above: his files and the <span data-fx="datasets.ppi.expression.matched" data-fx-of="datasets.ppi.expression.rows">84 of 96</span>, frame 5.</div>
         <div class="k-modal-body" style="padding:0">
           <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">
             <span class="k-caption">Need</span><span class="k-caption">Your column</span><span class="k-caption">On your data</span><span class="k-caption">Used by</span>
@@ -317,7 +317,7 @@
         <div class="k-modal-body" style="padding:0">
           <div class="b-sec"><h3>Your files</h3><div class="b-files">
             <svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-id">ppi-core-300.graphml</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</span><span></span>
-            <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09-core.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, logFC, PValue</span><span class="k-btn k-btn-ghost">Change...</span></div></div>
+            <svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">qpcr-hits-2026-09-core.csv</span><span class="k-secondary k-num"><span data-fx="datasets.ppi.expression.rows">96</span> rows: symbol, logFC, PValue</span></div></div>
           <div class="b-sec"><div class="b-big k-num"><span><span data-fx="datasets.ppi.expression.matched">84</span> of <span data-fx="datasets.ppi.expression.rows">96</span> genes matched</span></div>
             <div class="b-line"><span class="k-secondary"><span data-fx="datasets.ppi.expression.unmatchedCount">12</span> did not match.</span><span class="k-btn k-btn-ghost">Show the 12</span></div></div>
           <div class="b-sec"><h3>What the recipe reads from the data</h3><div class="b-grid">

@@ -73,7 +73,7 @@ def views_section(count=0, rows=""):
 
 def toolbar(armed="select", toast_html=""):
     tools = []
-    for icon, name in (("mouse-pointer-2", "select"), ("route", "path"), ("sticky-note", "note")):
+    for icon, name in (("mouse-pointer-2", "select"), ("route", "path")):
         pressed = ' aria-pressed="true"' if armed == name else ""
         tools.append(f'<span class="k-tool"{pressed}>{ic(icon, "k-i k-i-lg")}</span>' + ('<span class="k-tool-caret">' + ic("chevron-down", "k-i k-i-sm") + '</span>' if name == "select" else ""))
     return ('<div class="k-toolbar-dock">' + toast_html + '<div class="k-toolbar" role="toolbar">' + "".join(tools)
@@ -105,17 +105,19 @@ def right(typerow_html, body, who=None, zoom="Fit"):  # who: kept for callers; t
     return (f'<aside class="k-right" aria-label="Inspector"><div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">{zoom}{ic("chevron-down", "k-i k-i-sm")}</span></div>'
             f'{typerow_html}<div class="k-scroll">{body}</div></aside>')
 
-def typerow(icon, name, kind, verbs=""):
+def typerow(icon, name, kind, verbs="", line3=""):
     return (f'<div class="k-typerow at-typerow"><div class="at-l1"><svg class="k-i"><use href="../kit/icons.svg#{icon}"/></svg><span class="k-name k-id k-ellipsis k-grow">{name}</span>'
-            f'<span class="k-icon-btn">{ic("ellipsis")}</span></div><div class="at-l2"><span class="k-secondary k-grow k-ellipsis">{kind}</span>{verbs}</div></div>')
+            f'<span class="k-icon-btn">{ic("ellipsis")}</span></div><div class="at-l2"><span class="k-secondary k-grow k-ellipsis">{kind}</span>{verbs}</div>{line3}</div>')
 
-# The node's verbs: the Select neighbors split button (a neighborhood glyph, never the share
-# glyph, which reads as Export), Filter to, Pin.
+PATH_TO = f'<div class="at-l3"><span class="k-btn k-btn-secondary k-btn-block at-paths" role="button" aria-label="Path to another node">{ic("route")}Path to...</span></div>'
+
+# The node's verbs: the Neighbors split button (a neighborhood glyph, never the share glyph, which
+# reads as Export) and Pin, then Path to... on its own line, as screens/inspector.html draws a node.
 def node_verbs(open_=False):
     o = ' data-open' if open_ else ""
     x = "true" if open_ else "false"
     return (f'<span class="at-split"{o}><span class="at-nbmain" role="button" aria-label="Neighbors: filter to neighbors, 1 hop" data-tip="Filter to neighbors, 1 hop  Shift+N">{ic("waypoints", "k-i k-i-sm")}Neighbors</span><span class="at-caret" role="button" aria-label="Neighbors options" aria-haspopup="menu" aria-expanded="{x}">{ic("chevron-down", "k-i k-i-sm")}</span></span>'
-            f'<span class="k-icon-btn">{ic("funnel")}</span><span class="k-icon-btn">{ic("pin")}</span>')
+            f'<span class="k-icon-btn" role="button" aria-label="Pin" data-tip="Pin">{ic("pin")}</span>')
 
 def data(name, value, cls=""):
     return f'<div class="k-data"><span class="k-name">{name}</span><span class="k-value {cls}">{value}</span></div>'
@@ -156,7 +158,7 @@ def node_inspector(r, members="1 set", open_menu=False, in_full=None, extra=""):
     body += section("Memberships", arow(members, ic("chevron-right", "k-i k-i-sm k-secondary")))
     body += style_row(r["alert"]) + extra
     body += section("Export", "", f'<span class="k-icon-btn">{ic("plus")}</span>', " data-empty")
-    return typerow("circle-dot", r["id"], "Node", node_verbs(open_menu)), body
+    return typerow("circle-dot", r["id"], "Node", node_verbs(open_menu), PATH_TO), body
 
 def legend(count, points=None, extra=""):
     line = ""
@@ -217,6 +219,8 @@ HEAD = """<!doctype html>
   .at-typerow {{ display: block; height: auto; padding: 8px 8px 6px 16px; }}
   .at-l1, .at-l2 {{ display: flex; align-items: center; gap: 8px; min-height: 24px; }}
   .at-l2 {{ padding-inline-start: 24px; gap: 2px; }}
+  .at-l3 {{ padding: 4px 0 2px 24px; }}
+  .at-paths {{ gap: 6px; }}
   .at-split {{ display: inline-flex; align-items: center; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); height: 24px; }}
   .at-nbmain {{ display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; white-space: nowrap; }}
   .at-split .at-caret {{ width: 24px; padding: 0; border-inline-start: 1px solid var(--cm-border-strong); }}

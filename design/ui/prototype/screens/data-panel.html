@@ -11,7 +11,6 @@
   /* States: an element with data-on shows only in the states it lists; no hash is state 1 */
   body:not(:has(.anchor:target)) [data-on]:not([data-on~="1"]) { display: none !important; }
   body:has(#s1:target, #s1a:target) [data-on]:not([data-on~="1"]) { display: none !important; }
-  body:has(#s2:target, #s2a:target) [data-on]:not([data-on~="2"]) { display: none !important; }
   body:has(#s3:target, #s3a:target) [data-on]:not([data-on~="3"]) { display: none !important; }
   body:has(#s4:target, #s4a:target) [data-on]:not([data-on~="4"]) { display: none !important; }
   body:has(#s5:target, #s5a:target) [data-on]:not([data-on~="5"]) { display: none !important; }
@@ -76,9 +75,9 @@
   .dp-list .k-trail { white-space: nowrap; color: var(--cm-text-secondary); }
   .dp-list .k-item.src { align-items: flex-start; }
   .dp-list .k-item.src > .fold, .dp-list .k-item.src > svg { margin-top: 8px; }
-  .dp-list .k-item.src > .k-trail { margin-top: 4px; }
-  .dp-loaded { display: block; margin: 2px 0; padding: 0 0 2px; font-size: 11px; line-height: 16px; color: var(--cm-text); }
-  .dp-loaded[data-flash] { background: var(--cm-bg-selected); border-radius: 5px; }
+  .dp-src-act { align-self: flex-start; margin: 4px 0 2px; }
+  /* State 8: the chip lands on the row, its Update with new data... focused */
+  body:has(#s8:target, #s8a:target) #src-mar .dp-src-act { outline: 1px solid var(--cm-border-selected); outline-offset: 1px; }
   .dp-weight { display: block; font-size: 11px; line-height: 16px; }
   .dp-acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 8px 8px 16px; }
   .dp-foot { padding: 2px 8px 8px 16px; font-size: 11px; line-height: 16px; }
@@ -90,14 +89,12 @@
   .dp-open dt::after { content: ": "; }
   .dp-open dd { display: inline; margin: 0; }
   .dp-open dd::after { content: ""; display: block; margin-bottom: 2px; }
-  /* State 8: the file chip selects its source row and opens the row's menu there */
+  /* State 8: the file chip selects its source row */
   body:has(#s8:target, #s8a:target) #src-mar::before { background: var(--cm-bg-selected); }
   body:has(#s8:target, #s8a:target) #chip-mar { background: var(--cm-bg-selected); }
-  .dp-rowmenu { left: 262px; top: 176px; width: 236px; }
 
   /* Right column */
   .dp-state { padding: 2px 8px 6px 16px; font-size: 11px; line-height: 16px; color: var(--cm-text); }
-  .k-header2 .zoom { gap: 2px; padding: 0 4px; }
   .k-legend-card { max-width: 232px; }
 
   /* Dialog bodies */
@@ -115,9 +112,9 @@
 </style>
 </head>
 <body data-dataset="transactions">
-<span class="anchor" id="s1"></span><span class="anchor" id="s1a"></span><span class="anchor" id="s2"></span><span class="anchor" id="s2a"></span><span class="anchor" id="s3"></span><span class="anchor" id="s3a"></span><span class="anchor" id="s4"></span><span class="anchor" id="s4a"></span><span class="anchor" id="s5"></span><span class="anchor" id="s5a"></span><span class="anchor" id="s6"></span><span class="anchor" id="s6a"></span><span class="anchor" id="s7"></span><span class="anchor" id="s7a"></span><span class="anchor" id="s8"></span><span class="anchor" id="s8a"></span>
+<span class="anchor" id="s1"></span><span class="anchor" id="s1a"></span><span class="anchor" id="s3"></span><span class="anchor" id="s3a"></span><span class="anchor" id="s4"></span><span class="anchor" id="s4a"></span><span class="anchor" id="s5"></span><span class="anchor" id="s5a"></span><span class="anchor" id="s6"></span><span class="anchor" id="s6a"></span><span class="anchor" id="s7"></span><span class="anchor" id="s7a"></span><span class="anchor" id="s8"></span><span class="anchor" id="s8a"></span>
 <div class="m-bar" aria-label="Mock states">
-  <a href="#s1">1 After the first load</a><a href="#s2">2 Change the load</a><a href="#s3">3 Add a table</a><a href="#s4">4 Update: columns match</a><a href="#s5">5 Update: columns differ</a><a href="#s6">6 A month on</a><a href="#s7">7 Sent and saved</a><a href="#s8">8 File chip clicked</a>
+  <a href="#s1">1 After the first load</a><a href="#s3">3 Add a table</a><a href="#s4">4 Update: columns match</a><a href="#s5">5 Update: columns differ</a><a href="#s6">6 A month on</a><a href="#s7">7 Sent and saved</a><a href="#s8">8 File chip clicked</a>
   <label><input type="checkbox" id="dark"> Dark</label>
   <label><input type="checkbox" id="annot"> Annotations</label>
 </div>
@@ -130,8 +127,8 @@
       <div class="k-title-line"><span class="k-project">Payments network review</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
       <a class="k-privacy" onclick="document.getElementById('sent').scrollIntoView({block:'start'})">Nothing has been sent from this project</a>
       <div class="dp-chips">
-        <span class="k-chip" id="chip-mar" role="button" data-on="1 2 3 4 5 8" onclick="location.hash='s8'" data-tip="transfers-2026-03.csv, opened from this computer. Opens its row in Data, with Update with new data... first."><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span>
-        <span class="k-chip" role="button" data-on="6 7" onclick="location.hash='s8'" data-tip="transfers-2026-04.csv, opened from this computer. Opens its row in Data, with Update with new data... first."><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
+        <span class="k-chip" id="chip-mar" role="button" data-on="1 2 3 4 5 8" onclick="location.hash='s8'" data-tip="transfers-2026-03.csv, opened from this computer. Opens its row in Data, with Update with new data... focused."><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-03.csv</span></span>
+        <span class="k-chip" role="button" data-on="6 7" onclick="location.hash='s8'" data-tip="transfers-2026-04.csv, opened from this computer. Opens its row in Data, with Update with new data... focused."><svg class="k-i k-i-sm"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span></span>
         <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div>
     </div>
@@ -143,22 +140,19 @@
         <div class="k-section-head">Sources</div>
         <ul class="dp-list" role="tree" aria-label="Sources">
           <!-- March transfers -->
-          <li class="k-item src" id="src-mar" role="treeitem" aria-expanded="true" data-on="1 2 3 4 5 8"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">transfers-2026-03.csv</span></span><span class="l2"><span data-fx="datasets.transactions.edges">9,113</span> rows, one edge each; repeat pairs are not merged. Read Apr 2.</span><span class="dp-loaded an-t an-r" data-n="5" id="loaded-a">Loaded: transfers-2026-03.csv, direction followed, amount not used yet. <a class="k-link" onclick="location.hash='s2'">Change...</a></span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="More for transfers-2026-03.csv"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></li>
+          <li class="k-item src" id="src-mar" role="treeitem" aria-expanded="true" data-on="1 2 3 4 5 8"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">transfers-2026-03.csv</span></span><span class="l2 an-t an-r" data-n="5"><span data-fx="datasets.transactions.edges">9,113</span> rows, one edge each; repeat pairs are not merged. Direction followed. Read Apr 2.</span><span class="k-btn k-btn-secondary dp-src-act" data-on="1 3 4 5" role="button" onclick="location.hash='s4'">Update with new data...</span><span class="k-btn k-btn-secondary dp-src-act an-t an-r" data-n="18" data-on="8" role="button" onclick="location.hash='s4'">Update with new data...</span></span></li>
           <!-- April transfers -->
-          <li class="k-item src" role="treeitem" aria-expanded="true" data-on="6 7"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">transfers-2026-04.csv</span></span><span class="l2"><span data-fx="datasets.transactionsApril.edges">8,370</span> rows, one edge each; repeat pairs are not merged. Read May 4.</span><span class="dp-loaded an-t an-r" data-n="5" id="loaded-b">Loaded: transfers-2026-04.csv, direction followed, amount used as similarity. <a class="k-link" onclick="location.hash='s2'">Change...</a></span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="More for transfers-2026-04.csv"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></li>
+          <li class="k-item src" role="treeitem" aria-expanded="true" data-on="6 7"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">transfers-2026-04.csv</span></span><span class="l2 an-t an-r" data-n="5"><span data-fx="datasets.transactionsApril.edges" data-fx-version="named">8,370</span> rows, one edge each; repeat pairs are not merged. Direction followed. Read May 4.</span><span class="k-btn k-btn-secondary dp-src-act" role="button" onclick="location.hash='s4'">Update with new data...</span></span></li>
           <!-- Its columns -->
           <li class="k-item" role="treeitem" data-level="2"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#type"/></svg><span class="two"><span class="l1"><span class="k-id">from_account</span></span><span class="l2">Where each transfer starts</span></span></li>
           <li class="k-item" role="treeitem" data-level="2"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#type"/></svg><span class="two"><span class="l1"><span class="k-id">to_account</span></span><span class="l2">Where each transfer ends</span></span></li>
-          <li class="k-item an-t an-r" data-n="6" role="treeitem" data-level="2"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#hash"/></svg><span class="two"><span class="l1"><span class="k-id">amount</span><span class="k-secondary">numbers, USD</span></span>
-            <span class="l2 fact dp-weight" data-on="1 2 3 4 5 8">Weight: amount, not used yet. A run that can use it asks what a larger amount means.</span>
-            <span class="l2 fact dp-weight" data-on="6 7">Weight: amount, used as similarity. <a class="k-link">Change...</a></span></span></li>
+          <li class="k-item an-t an-r" data-n="6" role="treeitem" data-level="2"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#hash"/></svg><span class="two"><span class="l1"><span class="k-id">amount</span><span class="k-secondary">numbers</span></span><span class="l2 fact dp-weight">$ (USD). Each run that uses it asks what a higher amount means.</span></span></li>
           <li class="k-item" role="treeitem" data-level="2"><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#calendar"/></svg><span class="two"><span class="l1"><span class="k-id">timestamp</span></span><span class="l2">Date and time</span></span></li>
           <!-- The joined account table -->
-          <li class="k-item an-t an-r" data-n="7" role="treeitem" aria-expanded="false" data-on="4 5"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">accounts-2026-03.csv</span></span><span class="l2">Joined on id: <span data-fx="datasets.transactions.nodes">3,000</span> accounts matched</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="More for accounts-2026-03.csv"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></li>
-          <li class="k-item an-t an-r" data-n="7" role="treeitem" aria-expanded="false" data-on="6 7"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">accounts-2026-04.csv</span></span><span class="l2">Joined on id: <span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts matched</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="More for accounts-2026-04.csv"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></span></li>
+          <li class="k-item src an-t an-r" data-n="7" role="treeitem" aria-expanded="false" data-on="4 5"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">accounts-2026-03.csv</span></span><span class="l2">Joined on id: <span data-fx="datasets.transactions.nodes">3,000</span> accounts matched</span><span class="k-btn k-btn-secondary dp-src-act" role="button" onclick="location.hash='s4'">Update with new data...</span></span></li>
+          <li class="k-item src an-t an-r" data-n="7" role="treeitem" aria-expanded="false" data-on="6 7"><span class="fold"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-right"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">accounts-2026-04.csv</span></span><span class="l2">Joined on id: <span data-fx="datasets.transactionsApril.nodes" data-fx-version="named">3,093</span> accounts matched</span><span class="k-btn k-btn-secondary dp-src-act" role="button" onclick="location.hash='s4'">Update with new data...</span></span></li>
         </ul>
         <div class="dp-acts an-t an-r" data-n="8">
-          <span class="k-btn k-btn-secondary" onclick="location.hash='s4'">Update with new data...</span>
           <span class="k-btn k-btn-ghost" onclick="location.hash='s3'"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg>Add a table...</span>
         </div>
       </section>
@@ -193,16 +187,16 @@
         <div class="dp-sent"><b>Sent: nothing.</b> The Assistant is off and no data source is connected. <a class="k-link" href="data-location.html">Where your data goes</a></div>
         <dl class="dp-open">
           <dt>Who hosts graphty, and where</dt><dd>Not decided yet</dd>
-          <dt>Usage statistics and crash reports</dt><dd>Not decided yet</dd>
+          <dt>Usage data</dt><dd>Off until you say yes. If you do, it never holds a node name, a value or a file's contents.</dd>
           <dt>Assistant off for a whole organization</dt><dd>Not decided yet</dd>
         </dl>
         <div class="dp-foot k-secondary" data-on="1 2 3 4 5 8">Saved: nothing yet. Every file an export writes is listed here.</div>
         <div class="k-caption dp-caption" data-on="6 7">Saved to this computer</div>
         <ul class="dp-list" role="tree" aria-label="Saved to this computer" data-on="6 7">
-          <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">april-communities.svg</span></span><span class="l2">Figure and methods text, May 4</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again with these settings..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
-          <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">accounts-by-pagerank.csv</span></span><span class="l2">Table of accounts and methods text, May 4</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again with these settings..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
+          <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">april-communities.svg</span></span><span class="l2">Figure and methods text, April data, May 4</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again, on April data..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
+          <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis k-id">accounts-by-pagerank.csv</span></span><span class="l2">Table of accounts and methods text, April data, May 4</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again, on April data..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
           <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">Mule ring triage</span></span><span class="l2">Recipe: definitions, no data, Apr 20</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again with these settings..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
-          <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">Payments network review</span></span><span class="l2">Project file, with its data, Apr 2</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again with these settings..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
+          <li class="k-item" role="treeitem"><svg class="k-i"><use href="../kit/icons.svg#download"/></svg><span class="two"><span class="l1"><span class="k-ellipsis">Payments network review</span></span><span class="l2">Project file, with March data, Apr 2</span></span><span class="k-trail"><span class="k-icon-btn" role="button" aria-label="Export again, on April data..."><svg class="k-i"><use href="../kit/icons.svg#refresh-cw"/></svg></span></span></li>
         </ul>
       </section>
     </div>
@@ -215,7 +209,7 @@
     <div class="k-legend-card" data-on="6 7">
       <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
       <div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Community 1<span class="k-value">359</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Community 2<span class="k-value">168</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Community 3<span class="k-value">127</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>Community 5<span class="k-value">126</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Community 4<span class="k-value">111</span></div><div class="k-lg-row"><span class="k-chit" style="background:#F0E442"></span>Community 7<span class="k-value">74</span></div><div class="k-lg-row"><span class="k-chit" style="background:#CC79A7"></span>Community 6<span class="k-value">58</span></div>
-      <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, 58 communities<span class="k-value">2,070</span></div>
+      <div class="k-lg-row"><span class="k-chit" style="background:#BDBDBD"></span>Other, 58 communities<span class="k-value">2,070</span></div><div class="k-lg-sub">19 carried on from March's 8 to 35, 39 new</div>
       <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to 842</span></div>
     </div>
     <div class="k-toolbar-dock">
@@ -223,7 +217,7 @@
         <span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
         <span class="k-toolbar-sep"></span>
-        <span class="k-tool" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-tool k-tool-label" role="button" aria-pressed="false" aria-label="Quick actions" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span>
         <span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div>
@@ -233,51 +227,23 @@
 
   <!-- Right column: the graph, nothing selected -->
   <aside class="k-right" aria-label="Inspector">
-    <div class="k-header1 an-t an-r" data-n="12"><span class="k-grow"></span></div>
-    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost zoom k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-header1 an-t an-r" data-n="12"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
     <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Transfers</span><span class="k-secondary">Graph</span></div>
     <div class="k-scroll">
       <section class="k-section an-t an-r" data-n="13">
         <div class="k-section-head">Overview</div>
-        <div class="dp-state" data-on="1 2 3 4 5 8">Loaded: transfers-2026-03.csv, direction followed, amount not used yet. <a class="k-link" onclick="flash()">Change...</a></div>
-        <div class="dp-state" data-on="6 7">Loaded: transfers-2026-04.csv, direction followed, amount used as similarity. <a class="k-link" onclick="flash()">Change...</a></div>
+        <div class="dp-state" data-on="1 2 3 4 5 8">Loaded: transfers-2026-03.csv, direction followed. amount: $ (USD). Each run that uses it asks what a higher amount means.</div>
+        <div class="dp-state" data-on="6 7">Loaded: transfers-2026-04.csv, direction followed. amount: $ (USD). Each run that uses it asks what a higher amount means.</div>
         <div class="k-data" data-on="1 2 3 4 5 8"><span class="k-name">accounts</span><span class="k-value" data-fx="datasets.transactions.nodes">3,000</span></div>
         <div class="k-data" data-on="1 2 3 4 5 8"><span class="k-name">transfers (rows)</span><span class="k-value" data-fx="datasets.transactions.edges">9,113</span></div>
-        <div class="k-data" data-on="6 7"><span class="k-name">accounts</span><span class="k-value" data-fx="datasets.transactionsApril.nodes">3,093</span></div>
-        <div class="k-data" data-on="6 7"><span class="k-name">transfers (rows)</span><span class="k-value" data-fx="datasets.transactionsApril.edges">8,370</span></div>
+        <div class="k-data" data-on="6 7"><span class="k-name">accounts</span><span class="k-value" data-fx="datasets.transactionsApril.nodes" data-fx-version="named">3,093</span></div>
+        <div class="k-data" data-on="6 7"><span class="k-name">transfers (rows)</span><span class="k-value" data-fx="datasets.transactionsApril.edges" data-fx-version="named">8,370</span></div>
         <div class="k-data"><span class="k-name">direction</span><span class="k-value">directed</span></div>
       </section>
       <section class="k-section" data-collapsed><div class="k-section-head">Style stack</div></section>
       
     </div>
   </aside>
-
-  <!-- State 2: Change... opens the load's choices, beside the source row -->
-  <div class="k-popover an-t" data-n="14" data-on="2" style="left:306px;top:150px;width:280px">
-    <div class="k-popover-head">How transfers-2026-03.csv was loaded<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Close" onclick="location.hash='s1'"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
-    <div class="k-popover-body">
-      <div class="k-fieldrow"><span class="k-legend">Direction</span>
-        <div class="k-fields"><span class="k-seg k-seg-fill k-span"><span aria-pressed="true">Followed</span><span>Ignored</span></span></div></div>
-      <p class="pop-p">from_account sends to to_account.</p>
-      <div class="k-fieldrow"><span class="k-legend">Each row is</span>
-        <div class="k-fields"><span class="k-field k-span">One transfer<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
-      <div class="k-fieldrow"><span class="k-legend">Empty cells</span>
-        <div class="k-fields"><span class="k-field k-span">Read as missing<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
-      <div class="k-fieldrow"><span class="k-legend">amount</span>
-        <div class="k-fields"><span class="k-field k-span">Not used yet<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
-      <p class="pop-p">Kept as a column. A run that can use it asks what a larger amount means; you can also say it here.</p>
-    </div>
-    <div class="foot"><span class="k-btn k-btn-secondary" onclick="location.hash='s1'">Cancel</span><span class="k-btn" aria-disabled="true">Read again</span></div>
-  </div>
-
-  <!-- State 8: the file chip opens its source row, with the row's menu and Update with new data... first -->
-  <div class="k-menu dp-rowmenu an-t" data-n="18" data-on="8" role="menu" aria-label="transfers-2026-03.csv">
-    <div class="k-menu-item" data-hover role="menuitem" onclick="location.hash='s4'">Update with new data...</div>
-    <div class="k-menu-item" role="menuitem" onclick="location.hash='s2'">Change how it was loaded...</div>
-    <div class="k-menu-item" role="menuitem">Show file</div>
-    <div class="k-menu-sep"></div>
-    <div class="k-menu-item" aria-disabled="true" role="menuitem">Remove table</div>
-  </div>
 
   <!-- State 3: Add a table (a join) -->
   <div class="k-backdrop" data-on="3"><div class="k-modal an-t an-r" data-n="15" role="dialog" aria-label="Add a table">
@@ -300,15 +266,15 @@
     <div class="k-modal-head">Update with new data<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Close" onclick="location.hash='s1'"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="k-modal-body">
       <div class="dg-sec"><div class="k-caption">New files, in place of March's</div>
-        <div class="dg-file"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span><span class="k-secondary"><span data-fx="datasets.transactionsApril.edges">8,370</span> transfers, March had <span data-fx="datasets.transactions.edges">9,113</span></span></div>
-        <div class="dg-file"><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">accounts-2026-04.csv</span><span class="k-secondary"><span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts, March had <span data-fx="datasets.transactions.nodes">3,000</span></span></div></div>
+        <div class="dg-file"><svg class="k-i"><use href="../kit/icons.svg#file"/></svg><span class="k-id">transfers-2026-04.csv</span><span class="k-secondary"><span data-fx="datasets.transactionsApril.edges" data-fx-version="named">8,370</span> transfers, March had <span data-fx="datasets.transactions.edges">9,113</span></span></div>
+        <div class="dg-file"><svg class="k-i"><use href="../kit/icons.svg#table"/></svg><span class="k-id">accounts-2026-04.csv</span><span class="k-secondary"><span data-fx="datasets.transactionsApril.nodes" data-fx-version="named">3,093</span> accounts, March had <span data-fx="datasets.transactions.nodes">3,000</span></span></div></div>
       <div class="dg-sec an-t an-r" data-n="17"><div class="k-caption">Columns</div>
-        <p class="dg-p fact" data-on="4"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-check"/></svg> All <span data-fx="datasets.transactionsApril.columnsMatched">7</span> columns match March's, so everything built on them carries over.</p>
+        <p class="dg-p fact" data-on="4"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-check"/></svg> All <span data-fx="datasets.transactionsApril.columnsMatched" data-fx-version="named">7</span> columns match March's, so everything built on them carries over.</p>
         <div class="k-issue" data-on="5"><span class="k-warn-glyph">!</span><div class="k-issue-body"><b>Columns differ from March:</b><span class="k-fact">riskScore is missing; flagged now reads as categories (Y, N), not yes or no. The next step asks how to read them.</span></div></div></div>
       <div class="dg-sec"><div class="k-caption">Accounts</div>
-        <div class="k-data"><span class="k-name">found by id</span><span class="k-value"><span data-fx="datasets.transactionsApril.versionDiff.accountsKept">2,961</span> of <span data-fx="datasets.transactions.nodes">3,000</span></span></div>
-        <div class="k-data"><span class="k-name">new in April</span><span class="k-value" data-fx="datasets.transactionsApril.versionDiff.accountsAdded">132</span></div>
-        <div class="k-data"><span class="k-name">not in April</span><span class="k-value" data-fx="datasets.transactionsApril.versionDiff.accountsRemoved">39</span></div>
+        <div class="k-data"><span class="k-name">found by id</span><span class="k-value"><span data-fx="datasets.transactionsApril.versionDiff.accountsKept" data-fx-version="named">2,961</span> of <span data-fx="datasets.transactions.nodes">3,000</span></span></div>
+        <div class="k-data"><span class="k-name">new in April</span><span class="k-value" data-fx="datasets.transactionsApril.versionDiff.accountsAdded" data-fx-version="named">132</span></div>
+        <div class="k-data"><span class="k-name">not in April</span><span class="k-value" data-fx="datasets.transactionsApril.versionDiff.accountsRemoved" data-fx-version="named">39</span></div>
         <p class="dg-p k-secondary">Sets keep members that are not in April, marked.</p></div>
       <div class="dg-sec"><div class="k-caption">What stays</div>
         <p class="dg-p fact">Replaces accounts and transfers. Keeps styles, sets, notes and runs; the runs replay on April's data. March stays in Versions.</p></div>
@@ -324,49 +290,51 @@
   <!-- Annotation keys, one per state -->
   <div class="an an-key">
     <h2 data-on="1">1. After the first load: March transfers, one file</h2>
-    <h2 data-on="2">2. Change... on the source row opens the load's choices</h2>
     <h2 data-on="3">3. Add a table: the bank's account file, joined on id</h2>
     <h2 data-on="4">4. Update with new data: April's columns match, so Replace is the main button</h2>
     <h2 data-on="5">5. Update with new data: the columns differ, so matching comes first</h2>
     <h2 data-on="6">6. A month on: April is current</h2>
     <h2 data-on="7">7. A month on: the privacy line scrolls to Sent and saved</h2>
-    <h2 data-on="8">8. The file chip opens its source row, with Update with new data... first</h2>
+    <h2 data-on="8">8. The file chip opens its source row, with Update with new data... focused</h2>
     <p class="blocked"><b>Blocked in part:</b> the load record, the weight state of each column, the join report and the data versions are graphty-element's; the app reads them and computes none of it. Needed in the element: per-column weight state and data versions with import reports (element-needs.md; framework-changes.md, "graphty-element proposals"). The sent-and-saved log is the app's own record of its exports and sends.</p>
     <ol>
       <li><b>Rail: main menu, Graph, Data, Results, Notes, Assistant.</b> Data is a collection the project owns: where its data comes from and where it went. Results is the place for runs; a run's values are read on the node, in the inspector and the table. <i>framework-changes.md, "Places: the rail becomes Graph, Data, Notes and the Assistant" and "Results is a rail place that holds runs"; information-architecture.md 4.</i> <code>NavRail</code>.</li>
-      <li><b>Left header, on every rail panel:</b> the project name, the privacy line under it (a link to Sent and saved below), the file chip and the filter chip. The file chip is the current data file; clicking it opens Data with that file's row selected and its menu open, Update with new data... first (state 8), because on the still screen 8 of 16 clicked the chip to bring in next month's file. <i>framework-changes.md, "Interface specification: the rail, the header..." and "A file chip names the file the graph was read from"; content-design.md 5.</i> Mantine <code>Anchor</code>, <code>Pill</code>; filter chip.</li>
+      <li><b>Left header, on every rail panel:</b> the project name, the privacy line under it (a link to Sent and saved below), the file chip and the filter chip. The file chip is the current data file; clicking it opens Data with that file's row selected and its Update with new data... focused (state 8), because on the still screen 8 of 16 clicked the chip to bring in next month's file. <i>framework-changes.md, "Interface specification: the rail, the header..." and "A file chip names the file the graph was read from"; content-design.md 5.</i> Mantine <code>Anchor</code>, <code>Pill</code>; filter chip.</li>
       <li><b>Panel header: one Export...</b>, a default (not filled) button. Export is a verb on things that already have homes, so it has starting places (here, the project-name menu, the table dock, Ctrl+Shift+E) and one dialog. No Export button remains in the right column. <i>framework-changes.md, "Output homes: data's new homes, and export's starting places"; interface-templates.md 20.</i> Mantine <code>Button</code>.</li>
-      <li><b>Sources: each file, its columns under it.</b> A source row names the file, how many rows it has and when it was read, and says that each row is one edge, so a count is never read as account pairs; its menu holds Update with new data..., Change how it was loaded..., Show file, Remove table. <i>output-homes.md, the homes table (proposed rows); objects.md.</i> <code>Tree</code>, <code>ActionRow</code>.</li>
-      <li><b>The load's choices stay on the source row</b> after the load step closes: "Loaded: {file}, direction followed, amount not used yet. Change...". The graph's Overview quotes the same sentence as its state line (13). Change... opens the choices (state 2). <i>study round 3, finding 7 ("Loaded with" vanished after load); content-design.md 3, State line.</i> <code>ProseBlock</code>, Mantine <code>Anchor</code>.</li>
-      <li><b>Each numeric edge column shows its weight state</b> in one of three sentences, the same words on every screen: "Weight: {column}, not used yet. Change...", "Weight: {column}, used as {meaning}. Change...", or, when the file has no numeric edge column, "No numeric edge column". Read from graphty-element, never composed by the app. <i>framework-changes.md, "Content design: every number names what it counts" and "Message catalog: new published keys" (proposed keys, owner's call); study round 3, finding 1.</i> <code>DataRow</code> with a second line.</li>
+      <li><b>Sources: each file, its columns under it.</b> A source row names the file, how many rows it has and when it was read, and says that each row is one edge, so a count is never read as account pairs. Its one verb, Update with new data..., sits under those facts; the row has no menu and no link to change the load, because in the sixth study a link on the load line drew 27 wrong first clicks, and the four wrong answers on the tree test's weight task all ended under Sources. <i>output-homes.md, the homes table (proposed rows); objects.md.</i> <code>Tree</code>, <code>ActionRow</code>.</li>
+      <li><b>The load's facts stay on the source row</b> after the load step closes: direction followed here, and the amount's unit on its column row (6), so the file name is not said twice. The graph's Overview gathers them into one state line (13), in the words the frame uses: "Loaded: {file}, direction followed. amount: $ (USD). Each run that uses it asks what a higher amount means." Facts only, with no link: a column's meaning as a weight is asked by each run, never set on the data. <i>study round 3, finding 7 ("Loaded with" vanished after load); content-design.md 3, State line.</i> <code>ProseBlock</code>, Mantine <code>Anchor</code>.</li>
+      <li><b>Each numeric edge column shows its weight state</b> under its name: its unit, then "Each run that uses it asks what a higher {column} means.", the sentence the Loaded line uses; when the file has no numeric edge column, the source says "No numeric edge column". The meaning a run used is read on the run, never here. Read from graphty-element, never composed by the app. <i>framework-changes.md, "Content design: every number names what it counts" and "Message catalog: new published keys" (proposed keys, owner's call); study round 3, finding 1.</i> <code>DataRow</code> with a second line.</li>
       <li data-on="4 5 6 7"><b>A joined table is a source too</b>, collapsed to one row with its match count; expanded it lists the columns it added. <i>framework-changes.md, "Output homes" (Add a table).</i> <code>Tree</code>.</li>
-      <li data-on="1 2 3 8"><b>A joined table is a source too</b> (none yet): after Add table, the account file appears here, collapsed to its match count. <i>framework-changes.md, "Output homes" (Add a table).</i> <code>Tree</code>.</li>
-      <li><b>Update with new data... and Add a table...</b> sit under the sources they change, where the round-3 tree test looked for them. <i>study round 3, finding 18; framework-changes.md, "Output homes".</i> Mantine <code>Button</code> (default and subtle).</li>
+      <li data-on="1 3 8"><b>A joined table is a source too</b> (none yet): after Add table, the account file appears here, collapsed to its match count. <i>framework-changes.md, "Output homes" (Add a table).</i> <code>Tree</code>.</li>
+      <li><b>Update with new data... on each source row, and Add a table... under the list</b>, where the round-3 tree test looked for them. A joined table's row updates the same way. <i>study round 3, finding 18; framework-changes.md, "Output homes".</i> Mantine <code>Button</code> (default and subtle).</li>
       <li><b>Versions: the data versions, newest first.</b> A click on a past version opens it read-only in the Version history mode (<a href="version-history.html#s2">March open</a>), which replaces the inspector and exits with Done. Version history... opens the whole list, with recipes, opens and runs. <i>interaction-patterns.md 3.7; interface-templates.md 17; information-architecture.md 3.</i> <code>Tree</code>, <code>ActionRow</code>.</li>
       <li><b>Applied recipes</b>, the one section for anything applied from a file: a recipe that holds only colors and sizes, such as fraud-team-colors, is a row here like any other, and there is no second section for it. Each row has one verb: show what it added (the Source facet of the style stack and Results). "+" opens the one Apply dialog (<a href="recipe-apply.html#binding">drawn here</a>). Empty, the header stays in secondary ink with its "+" and one line says what a recipe is. <i>output-homes.md, the recipe row; framework-changes.md, "Terminology after round 5".</i> <code>ControlSection</code>, <code>ActionRow</code>, <code>ToggleIconButton</code>.</li>
-      <li><b>Sent and saved from this project:</b> the reading home for every output. First what was sent (with the reason it is nothing), then every file written, newest first, with what it held and when; each row's verb exports again with the same settings. No password or key is ever shown here. It is the evidence the privacy line (2) points to. Three questions have no answer yet (who hosts graphty, usage statistics and crash reports, and turning the Assistant off for a whole organization); each reads "Not decided yet", never a label and an empty colon. <i>framework-changes.md, "Output homes"; study round 3, finding 26 and the did-anything-leave task.</i> <code>ControlSection</code>, <code>ProseBlock</code>, <code>Tree</code>.</li>
-      <li><b>Right header row 1 is empty</b>: no avatar, no Export. <i>framework-changes.md, "Interface specification: the rail, the header and the inspector's sections".</i> Open question: whether row 1 folds away.</li>
-      <li><b>The graph, nothing selected: Overview and Style stack.</b> There is no Results section here; runs live in the Results place on the rail. Overview opens with the load sentence as its state line; its Change... jumps to the source row here. The transfer count says it counts rows ("transfers (rows)"), the same unit the main frame uses. <i>framework-changes.md, "Interface specification" and "Results is a rail place that holds runs"; content-design.md 3.</i> <code>ControlSection</code>, <code>DataRow</code>.</li>
-      <li value="14" data-on="2"><b>The load's choices</b>, in a popover beside the row: direction, what a row is, empty cells, and each numeric edge column's use. "Read again" makes a new data version and keeps styles, sets and notes; it stays disabled until a choice changes. <i>interface-templates.md 20a (the load step's options); framework-changes.md, "Load step: the weight's meaning is asked at the first weighted run".</i> <code>Popout</code>, <code>PopoutHeader</code>, Mantine <code>SegmentedControl</code>, <code>StyleSelect</code>.</li>
+      <li><b>Sent and saved from this project:</b> the reading home for every output. First what was sent (with the reason it is nothing), then every file written, newest first, with what it held and when; each row's verb exports again with the same settings. No password or key is ever shown here. It is the evidence the privacy line (2) points to. Usage data is off until the reader says yes at first use, and never holds graph content, as the owner decided; the row uses the same words as Where your data goes. Two questions have no answer yet (who hosts graphty, and turning the Assistant off for a whole organization); each reads "Not decided yet", never a label and an empty colon. <i>framework-changes.md, "Output homes"; study round 3, finding 26 and the did-anything-leave task.</i> <code>ControlSection</code>, <code>ProseBlock</code>, <code>Tree</code>.</li>
+      <li><b>Right header: one row, the zoom at its right</b>; no avatar, no Export. <i>framework-changes.md, "Interface specification: the rail, the header and the inspector's sections".</i></li>
+      <li><b>The graph, nothing selected: Overview and Style stack.</b> There is no Results section here; runs live in the Results place on the rail. Overview opens with the load sentence as its state line. The transfer count says it counts rows ("transfers (rows)"), the same unit the main frame uses. <i>framework-changes.md, "Interface specification" and "Results is a rail place that holds runs"; content-design.md 3.</i> <code>ControlSection</code>, <code>DataRow</code>.</li>
       <li value="15" data-on="3"><b>Add a table</b> names the file, the key it matches on, the match count before anything changes, and the columns it adds. The one filled button is Add table. <i>framework-changes.md, "Output homes" (Add a table, a join); task-flows.md 8, "size before loading".</i> Mantine <code>Modal</code>, <code>ModalFooter</code>, <code>DataRow</code>.</li>
       <li value="16" data-on="4 5"><b>Update with new data</b> compares the new files with the current version before anything changes: counts beside March's, accounts found by id, new and gone. Add as another graph keeps March as its own graph. <i>framework-changes.md, "Output homes"; interface-templates.md 20a.</i> Mantine <code>Modal</code>, <code>ModalFooter</code>, <code>DataRow</code>.</li>
       <li data-on="4 5"><b>Columns decide the main button.</b> When every column matches, Replace is filled and focused. When any differs, the filled button is Continue to matching, and Replace happens after the matching step. <i>study round 3, finding 18; framework-changes.md, "Output homes".</i> Mantine <code>Button</code>; <code>k-issue</code> row.</li>
-      <li value="18" data-on="8"><b>The file chip's click lands on its source.</b> The row is selected and its menu is open where the row is, with Update with new data... first and focused, then Change how it was loaded..., Show file and (disabled for the first file) Remove table. Esc closes the menu and leaves the row selected. <i>study round 4, first click on the still screen (8 of 16 clicked the chip) and the weekly-update sessions.</i> Mantine <code>Menu</code>.</li>
+      <li value="18" data-on="8"><b>The file chip's click lands on its source.</b> The row is selected and its Update with new data... has focus, so Enter opens the update. Esc leaves the row selected. <i>study round 4, first click on the still screen (8 of 16 clicked the chip) and the weekly-update sessions.</i> Mantine <code>Menu</code>.</li>
     </ol>
   </div>
 </div>
 <script>
-  // The file chip and Overview's Change... bring the source row's load line into view and mark it briefly.
   // State 7 is state 6 with the panel scrolled to Sent and saved, as the privacy line leaves it.
   function scrollSent() { if (/^#s7a?$/.test(location.hash)) document.getElementById("sent").scrollIntoView({ block: "start" }); }
   addEventListener("hashchange", scrollSent); addEventListener("load", scrollSent);
-  function flash() {
-    const el = [...document.querySelectorAll(".dp-loaded")].find((e) => e.offsetParent);
-    if (!el) return;
-    el.scrollIntoView({ block: "center" });
-    el.setAttribute("data-flash", "");
-    setTimeout(() => el.removeAttribute("data-flash"), 1200);
-  }
+  // Esc closes what the state has open (a dialog, or the row the file chip selected), as Cancel
+  // does, and marks the key used (kit/README.md, "The Esc rule").
+  addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !/^#s(3|4|5|8)a?$/.test(location.hash)) return;
+    e.preventDefault();
+    location.hash = "s1";
+  });
+</script>
+<script>
+// State 8: the file chip lands on its row with Update with new data... focused, for real, so a
+// keyboard or screen-reader participant arrives there too.
+addEventListener("hashchange", () => { if (/^#s8a?$/.test(location.hash)) document.querySelector('#src-mar .dp-src-act[data-on~="8"]')?.focus({ preventScroll: true }); });
 </script>
 </body>
 </html>

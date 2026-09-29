@@ -197,7 +197,7 @@ const graphInspector = ({ notes = [], viewOnly = false, filtered = false, stack 
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span>${viewOnly ? "" : '<span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span>'}</div>
         <div class="sr"><span class="n">Nodes</span><span class="v">${filtered ? S.nodes : P.nodes}</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">${fmt(filtered ? S.edges : P.edges)}</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">${fmt(filtered ? S.edges : P.edges)}</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         ${filtered ? "" : `<div class="sr"><span class="n">Density</span>${I("info", "ii")}<span class="v">${P.stats.density}</span></div>
         <div class="sr"><span class="n">Connected components</span>${I("info", "ii")}<span class="v">${P.stats.components} (${P.stats.isolated} isolates)</span></div>`}
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">${P.attributes.filter((a) => !a.name.includes("(edge)")).length}</span></div>
@@ -486,7 +486,6 @@ ${swOn} { background: var(--k-annot); color: #fff; font-weight: 600; }
   .bgsw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: none; background: linear-gradient(135deg, #F5F5F5 0 50%, #1E1E1E 50% 100%); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
 
   /* The legend, as screens/styles-list.html */
-  .k-ramp-measure { background: linear-gradient(90deg, ${BT.palette.join(", ")}); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
   .ticks { position: relative; height: 16px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
   .ticks span { position: absolute; top: 0; transform: translateX(-50%); }
   .ticks span:first-child { transform: none; }

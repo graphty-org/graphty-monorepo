@@ -30,7 +30,19 @@
         if (el) el.setAttribute("data-kit-problem", msg);
     };
 
-    // ---------- 1. numbers from the fixtures ----------
+    // ---------- 1. numbers from the fixtures: the scope formatter ----------
+    // One formatter writes every count and measure a page shows (kit/README.md, "The scope
+    // formatter"): the fixture's value at the measure's fixed precision, its unit or counted noun,
+    // "N of M" when it is part of a whole, the data version when that is not the version on screen,
+    // and the set when it departs from the page's. A page types the same text, so it reads offline;
+    // when the typed text differs, the page throws and the checks fail.
+    //
+    // Fixed precision (content-design.md 5, "Numbers"): a computed measure shows 3 significant figures,
+    // a non-zero value under 0.001 in its own e-notation ("3.85e-4"), so one measure never shows at two
+    // precisions (0.57 beside 0.570); money shows cents. data-fx-digits still sets fixed decimals.
+    const MEASURES = /^(betweenness|closeness|pagerank|eigenvector|density|averageDegree|meanDegree|modularity\w*|clustering\w*|reciprocity)$/;
+    const MONEY = /^(amount|inSum|outSum|moneyIn|moneyOut|moneyNet|total)$/;
+    const sig3 = (v) => (v === 0 ? "0" : Math.abs(v) < 0.001 ? v.toExponential(2).replace(/e([+-])0*(\d)/, "e$1$2").replace("e+", "e") : v.toLocaleString("en-US", { minimumSignificantDigits: 3, maximumSignificantDigits: 3 }));
     const fmt = (v, digits) => {
         if (Array.isArray(v)) return v.map((x) => fmt(x, digits)).join(" to "); // a range
         if (typeof v === "number") {
@@ -47,16 +59,96 @@
     const get = (root, path) => path.split(".").reduce((o, k) => (o == null ? undefined : k === "length" && Array.isArray(o) ? o.length : o[k]), root);
     const same = (a, b) => a.replace(/\s+/g, "") === b.replace(/\s+/g, ""); // markup spacing is not a disagreement
     const bound = [];
+    // A counted noun agrees with its number: "1 protein", "300 proteins"; "person|people" names both.
+    const noun = (n, word) => {
+        if (!word) return "";
+        const [one, many] = word.includes("|") ? word.split("|") : [word.replace(/ies$/, "y").replace(/(?<![aeiou]s)s$/, ""), word];
+        return n === 1 ? one : many;
+    };
+    const measureOf = (key) => key.split(".").filter((k) => !/^\d+$/.test(k) && k !== "length").pop() || "";
+    const datasetOf = (key) => /^datasets\.(\w+)\./.exec(key)?.[1] || "";
+    let fx = null; // { fixtures, alerts, ds, current, verify, setsOf, value } once loaded
+
+    // The formatter. key: the fixture key; o: { digits, noun, of (the whole's key), unit, set,
+    // measure, version ("named" when the page already names the version beside it) }.
+    const format = (key, o = {}) => {
+        const k = key.trim().replace(/\{ds\}/g, fx.ds);
+        const v = fx.value(k, o.el);
+        if (v === undefined) return undefined;
+        const m = o.measure || measureOf(k);
+        const kds = datasetOf(k);
+        const num = o.digits != null ? fmt(v, o.digits)
+            : typeof v === "number" && MONEY.test(m) ? fmt(v, 2)
+            : typeof v === "number" && MEASURES.test(m) && !Number.isInteger(v) ? sig3(v)
+            : fmt(v);
+        let text = num;
+        if (o.of) {
+            const w = fx.value(o.of.trim().replace(/\{ds\}/g, fx.ds), o.el);
+            if (w !== undefined) text = `${num} of ${fmt(w, o.digits)}`;
+        }
+        if (o.noun) text += ` ${noun(typeof v === "number" ? v : NaN, o.noun)}`;
+        if (o.unit) text = o.unit === "$" ? `$${text}` : `${text} ${o.unit}`;
+        // The data version, when the value is another version's than the one on screen.
+        const ver = (d) => fx.fixtures.datasets[d]?.version || /, ([A-Z][a-z]+ \d{4})$/.exec(fx.fixtures.datasets[d]?.title || "")?.[1] || "";
+        if (o.version !== "named" && kds && fx.ds && kds !== fx.ds && ver(kds) && ver(fx.ds) && ver(kds) !== ver(fx.ds)) text += ` (${ver(kds)} data)`;
+        const set = o.set || fx.current;
+        const g = o.measureGroup || m;
+        if (set !== fx.current || (fx.setsOf.get(g)?.size ?? 1) > 1) text = fmtSet(text, set);
+        return { text, num, set, key: k };
+    };
+    const optsOf = (el) => ({
+        el,
+        digits: el.dataset.fxDigits || undefined,
+        noun: el.dataset.fxNoun,
+        of: el.dataset.fxOf,
+        unit: el.dataset.fxUnit,
+        set: el.dataset.fxSet,
+        measureGroup: el.dataset.fxMeasure,
+        version: el.dataset.fxVersion,
+    });
+    const bindEl = (el) => {
+        if (el.hasAttribute("data-kit-fx")) return;
+        el.setAttribute("data-kit-fx", "");
+        if (el.dataset.fx) {
+            const r = format(el.dataset.fx, optsOf(el));
+            if (r) {
+                const typed = el.textContent;
+                if (fx.verify && typed.trim() && !same(typed, r.text)) problem(`kit: ${location.pathname.split("/").slice(-2).join("/")} types "${typed.trim()}" where ${el.dataset.fx} is "${r.text}"`, el);
+                if (el.textContent !== r.text) el.textContent = r.text;
+                bound.push({ key: r.key, set: r.set, text: r.num });
+            }
+        }
+        for (const pair of (el.dataset.fxAttr || "").split(";").filter((x) => x.trim())) {
+            const i = pair.indexOf(":");
+            const attr = pair.slice(0, i).trim();
+            const v = fx.value(pair.slice(i + 1).trim().replace(/\{ds\}/g, fx.ds), el);
+            if (v === undefined) continue;
+            let text = fmt(v).replace(/\{theme\}/g, el.dataset.fxTheme || "light");
+            if ((attr === "src" || attr === "href") && !/^([a-z]+:|\/|\.)/.test(text)) text = new URL(text, kitUrl).href;
+            const typed = el.getAttribute(attr);
+            const typedAbs = typed && (attr === "src" || attr === "href") ? new URL(typed, location.href).href : typed;
+            if (fx.verify && typed && typedAbs !== text) problem(`kit: ${attr}="${typed}" where ${pair.slice(i + 1).trim()} is "${text}"`, el);
+            if (typed !== text) el.setAttribute(attr, text);
+        }
+        if (el.dataset.fxIf) {
+            const v = fx.value(el.dataset.fxIf.trim().replace(/\{ds\}/g, fx.ds), el);
+            el.hidden = v === undefined || v === null || v === false || v === "" || (Array.isArray(v) && !v.length);
+        }
+    };
+    // Markup a page's script writes after load (a state it draws on a click) is bound the same way.
+    const bindNew = (root = document) => {
+        if (!fx) return;
+        for (const el of root.querySelectorAll("[data-fx]:not([data-kit-fx]), [data-fx-attr]:not([data-kit-fx]), [data-fx-if]:not([data-kit-fx])")) bindEl(el);
+    };
 
     async function bindFixtures() {
         const els = [...document.querySelectorAll("[data-fx], [data-fx-attr], [data-fx-if]")];
-        if (!els.length) return;
         const load = async (name) => {
             const r = await fetch(new URL(name, kitUrl));
             if (!r.ok) throw new Error(`kit: cannot load kit/${name} (${r.status})`);
             return r.json();
         };
-        const needsAlerts = els.some((el) => /alerts:/.test(el.dataset.fx || "") || /alerts:/.test(el.dataset.fxAttr || ""));
+        const needsAlerts = els.some((el) => /alerts:/.test(el.dataset.fx || "") || /alerts:/.test(el.dataset.fxAttr || "")) || document.body.hasAttribute("data-fx-alerts");
         const [fixtures, alerts] = await Promise.all([load("fixtures.json"), needsAlerts ? load("alerts.json") : null]);
         const task = params.get("task");
         if (task && !fixtures.tasks?.[task]) problem(`kit: ?task=${task} is not a task in kit/fixtures.json`);
@@ -65,53 +157,43 @@
         // The typed text is the default dataset's; only check it when the page shows that dataset.
         const verify = !params.has("dataset") && !params.has("task");
         const value = (key, el) => {
-            const k = key.trim().replace(/\{ds\}/g, ds);
-            const v = k.startsWith("alerts:") ? get(alerts, k.slice(7)) : get(fixtures, k);
-            if (v === undefined) problem(`kit: fixture key missing: ${k}`, el);
+            const v = key.startsWith("alerts:") ? get(alerts, key.slice(7)) : get(fixtures, key);
+            if (v === undefined) problem(`kit: fixture key missing: ${key}`, el);
             return v;
         };
         const current = document.body.dataset.set || "full graph";
         const setsOf = new Map();
         for (const el of document.querySelectorAll("[data-fx][data-fx-set], [data-fx][data-fx-measure]")) {
-            const m = el.dataset.fxMeasure || el.dataset.fx.split(".").pop();
+            const m = el.dataset.fxMeasure || measureOf(el.dataset.fx);
             setsOf.set(m, (setsOf.get(m) || new Set()).add(el.dataset.fxSet || current));
         }
-        for (const el of els) {
-            if (el.dataset.fx) {
-                const v = value(el.dataset.fx, el);
-                if (v === undefined) continue;
-                let text = fmt(v, el.dataset.fxDigits);
-                const set = el.dataset.fxSet || current;
-                const m = el.dataset.fxMeasure || el.dataset.fx.split(".").pop();
-                if (set !== current || (setsOf.get(m)?.size ?? 1) > 1) text = fmtSet(text, set);
-                const typed = el.textContent;
-                if (verify && typed.trim() && !same(typed, text)) problem(`kit: ${location.pathname.split("/").slice(-2).join("/")} types "${typed.trim()}" where ${el.dataset.fx} is "${text}"`, el);
-                el.textContent = text;
-                bound.push({ key: el.dataset.fx.replace(/\{ds\}/g, ds), set, text });
-            }
-            for (const pair of (el.dataset.fxAttr || "").split(";").filter((s) => s.trim())) {
-                const i = pair.indexOf(":");
-                const attr = pair.slice(0, i).trim();
-                const v = value(pair.slice(i + 1), el);
-                if (v === undefined) continue;
-                let text = fmt(v).replace(/\{theme\}/g, el.dataset.fxTheme || "light");
-                if ((attr === "src" || attr === "href") && !/^([a-z]+:|\/|\.)/.test(text)) text = new URL(text, kitUrl).href;
-                const typed = el.getAttribute(attr);
-                const typedAbs = typed && (attr === "src" || attr === "href") ? new URL(typed, location.href).href : typed;
-                if (verify && typed && typedAbs !== text) problem(`kit: ${attr}="${typed}" where ${pair.slice(i + 1).trim()} is "${text}"`, el);
-                el.setAttribute(attr, text);
-            }
-            if (el.dataset.fxIf) {
-                const v = value(el.dataset.fxIf, el);
-                el.hidden = v === undefined || v === null || v === false || v === "" || (Array.isArray(v) && !v.length);
-            }
-        }
+        fx = { fixtures, alerts, ds, current, verify, setsOf, value };
+        for (const el of els) bindEl(el);
         // A page that builds markup from the fixtures (a legend, a list) listens for this event.
-        // expect(el, text) checks the typed text the same way data-fx does.
+        // expect(el, text) checks the typed text the same way data-fx does. count(key, opts) is the
+        // formatter for a page's own script: it returns the bound markup,
+        // <span data-fx="key" ...>text</span>, so what the script writes is the formatter's; opts as
+        // the data-fx-* attributes (digits, noun, of, unit, set, version).
         const expect = (el, text) => {
             if (verify && el && el.textContent.trim() && !same(el.textContent, text)) problem(`kit: typed "${el.textContent.trim().slice(0, 80)}" where the fixture gives "${text.slice(0, 80)}"`, el);
         };
-        document.dispatchEvent(new CustomEvent("kit:fixtures", { detail: { fixtures, alerts, ds, task, get: (k) => value(k), fmt, fmtSet, expect } }));
+        const esc = (x) => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+        // o.expect: the number a page's own model computed for this count; a different fixture value is a
+        // kit problem, so a live simulator (screens/filter-chip.html) is checked against the fixtures.
+        const count = (key, o = {}) => {
+            const r = format(key, o);
+            if (!r) return "";
+            if (o.expect != null) {
+                const v = value(key.trim().replace(/\{ds\}/g, ds));
+                if (typeof v === "number" && Math.abs(v - o.expect) > 1e-9 * Math.max(1, Math.abs(v))) problem(`kit: ${location.pathname.split("/").slice(-2).join("/")} computes ${o.expect} where ${key} is ${v}`);
+            }
+            const attrs = Object.entries({ digits: o.digits, noun: o.noun, of: o.of, unit: o.unit, set: o.set, version: o.version }).filter(([, v]) => v != null).map(([k, v]) => ` data-fx-${k}="${esc(v)}"`).join("");
+            bound.push({ key: r.key, set: r.set, text: r.num });
+            return `<span data-fx="${esc(r.key)}"${attrs} data-kit-fx>${esc(r.text)}</span>`;
+        };
+        window.kitCount = count;
+        window.kitValue = (k) => value(k.trim().replace(/\{ds\}/g, ds));
+        document.dispatchEvent(new CustomEvent("kit:fixtures", { detail: { fixtures, alerts, ds, task, get: (k) => value(k.trim().replace(/\{ds\}/g, ds)), fmt, fmtSet, expect, count } }));
     }
 
     // ---------- 2. tooltips ----------
@@ -394,6 +476,9 @@
     // An open modal (a shown k-backdrop) makes the app behind it inert, as compact-mantine's Modal
     // traps focus: Tab and a screen reader stay in the dialog (WCAG 2.4.3). Redone when a page's
     // #state shows or hides a backdrop.
+    // Only after the reader has done something: a page opened on a dialog state keeps its drawing.
+    let touched = false;
+    for (const ev of ["keydown", "pointerdown"]) addEventListener(ev, () => (touched = true), { capture: true });
     const modals = (apply = true) => {
         for (const el of document.querySelectorAll("[data-kit-modal-inert]")) {
             el.inert = false;
@@ -416,10 +501,52 @@
                 el.inert = true;
                 el.setAttribute("data-kit-modal-inert", "");
             }
+            // An opened dialog takes focus, as compact-mantine's Modal does (WCAG 2.4.3); closing
+            // it returns focus to the control that opened it (rescueFocus, below).
+            const a = document.activeElement;
+            if (apply && touched && (!a || a === document.body || a.closest("[inert]") || !a.checkVisibility())) {
+                const first = [...bd.querySelectorAll(`[data-autofocus], ${INTERACTIVE}`)].find((x) => x.checkVisibility() && !x.closest("[aria-disabled=true]"));
+                first?.focus({ preventScroll: true });
+            }
         }
     };
     addEventListener("hashchange", () => requestAnimationFrame(modals));
+    // A color chit says its color to a screen reader: a legend that is only swatches and names
+    // leaves a reader who cannot see the swatch unable to match it to the drawing or to what a
+    // sighted colleague says ("the orange ones"). WCAG 1.1.1 and 1.4.1.
+    const OKABE_ITO = { "230,159,0": "orange", "86,180,233": "sky blue", "0,158,115": "bluish green", "240,228,66": "yellow", "0,114,178": "blue", "213,94,0": "red-orange", "204,121,167": "reddish purple", "0,0,0": "black", "128,128,128": "gray, unstyled", "189,189,189": "light gray" };
+    const colorName = (rgb) => {
+        const [r, g, b] = rgb.map((v) => v / 255);
+        const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+        const shade = l < 0.3 ? "dark " : l > 0.75 ? "light " : "";
+        if (d < 0.08) return l < 0.12 ? "black" : l > 0.95 ? "white" : `${shade}gray`;
+        let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h = (h * 60 + 360) % 360;
+        const hue = h < 15 || h >= 345 ? "red" : h < 40 ? (l < 0.4 ? "brown" : "orange") : h < 65 ? "yellow" : h < 160 ? "green" : h < 195 ? "teal" : h < 255 ? "blue" : h < 290 ? "purple" : "pink";
+        return shade + hue;
+    };
+    const nameChits = () => {
+        for (const el of document.querySelectorAll(".k-chit")) {
+            if (el.hasAttribute("aria-label") || el.hasAttribute("aria-hidden") || el.closest("[data-kit], [inert], svg, [role=img]")) continue;
+            const cs = getComputedStyle(el);
+            let name = null;
+            if (/conic-gradient/.test(cs.backgroundImage)) name = "several colors";
+            else if (/linear-gradient/.test(cs.backgroundImage)) name = "a color scale";
+            else {
+                const m = /rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)/.exec(cs.backgroundColor);
+                if (!m || m[4] === "0") continue;
+                name = OKABE_ITO[`${m[1]},${m[2]},${m[3]}`] ?? colorName([m[1], m[2], m[3]].map(Number));
+            }
+            el.setAttribute("role", "img");
+            el.setAttribute("aria-label", name);
+        }
+    };
+    const pageH1 = () => {
+        const h1 = document.querySelector("h1.k-sr[data-kit]");
+        if (h1) h1.hidden = [...document.querySelectorAll("h1:not([data-kit]), [role=heading][aria-level='1']")].some((h) => h.checkVisibility());
+    };
     function rolesAndKeys() {
+        nameChits();
         modals(false); // the other passes see the app behind a dialog; modals() at the end makes it inert
         pictures();
         // A drawing's light and dark twins say the same sentence: an empty alt on one twin would
@@ -617,13 +744,11 @@
             h1.setAttribute("data-kit", "");
             h1.textContent = document.title || "graphty";
             document.body.prepend(h1);
-            const pageH1 = () => {
-                h1.hidden = [...document.querySelectorAll("h1:not([data-kit]), [role=heading][aria-level='1']")].some((h) => h.checkVisibility());
-            };
-            pageH1();
             // :target can settle only after load, when the browser scrolls to the fragment
             for (const ev of ["load", "hashchange"]) addEventListener(ev, () => requestAnimationFrame(pageH1));
         }
+        // again on every pass: the participant view hides the page's own h1 after this first ran
+        pageH1();
         modals();
     }
     const ACTIVATE = /^(button|checkbox|switch|radio|tab|option|treeitem|menuitem|menuitemcheckbox|menuitemradio|link)$/;
@@ -775,7 +900,29 @@
         place();
         v?.addEventListener("resize", place);
         v?.addEventListener("scroll", place);
-        addEventListener("keydown", (e) => e.key === "Escape" && !e.defaultPrevented && leaveStudy());
+        // The Esc rule (kit/README.md, "The Esc rule"): Esc does one thing per press, innermost open
+        // item first, and leaves the participant view only when nothing is open. A page's handler that
+        // closes, cancels or clears something calls preventDefault(). As a net under a page that forgot,
+        // an Esc that changed the page (anything outside the kit's own tooltip) is also taken as used.
+        // The decision waits until every listener has run, window listeners added after this one too.
+        let watch = null;
+        addEventListener("keydown", (e) => {
+            if (e.key !== "Escape") return;
+            const got = [];
+            watch = new MutationObserver((rs) => got.push(...rs));
+            watch.got = got;
+            watch.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+        }, true);
+        addEventListener("keydown", (e) => {
+            if (e.key !== "Escape" || !watch) return;
+            const w = watch;
+            watch = null;
+            // Only what the key's own handlers changed, during this dispatch: a frame loading or a
+            // timer firing a moment later is not the key being used.
+            const used = [...w.got, ...w.takeRecords()].some((r) => !kitOwned(r.target) && !(r.type === "attributes" && /^(data-kit|tabindex$)/.test(r.attributeName)));
+            w.disconnect();
+            setTimeout(() => !e.defaultPrevented && !used && leaveStudy());
+        });
     };
 
     // ---------- start ----------
@@ -789,6 +936,107 @@
             });
         }
     };
+    // ---------- focus a redraw would drop ----------
+    // A page that redraws with innerHTML removes the control the reader was on, and focus falls to
+    // the page body: a screen reader starts again from the top (WCAG 2.4.3). After each redraw,
+    // focus goes to the same control in the new markup or, when the control left with its action
+    // (Bring it back), to the one the reader was on before it (kit/README.md, "Keys").
+    const KEY_ATTRS = ["id", "data-act", "data-i", "data-k", "data-step", "data-tog", "data-state", "data-id", "aria-label"];
+    const sigOf = (el) => {
+        if (el.closest("[data-kit]")) return null;
+        const attrs = KEY_ATTRS.filter((a) => el.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join("");
+        const cls = el.classList[0] ? `.${CSS.escape(el.classList[0])}` : "";
+        // A name that changes with the state (a drawing's alt, a chip's count) must not lose the match.
+        const loose = `${el.tagName.toLowerCase()}${cls}${KEY_ATTRS.filter((a) => a !== "aria-label" && el.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join("")}`;
+        return { css: `${el.tagName.toLowerCase()}${cls}${attrs}`, text: attrs ? "" : words(el).slice(0, 40), loose };
+    };
+    let lastFocus = null;
+    let trail = [];
+    document.addEventListener("focusin", (e) => {
+        const el = e.target;
+        if (!(el instanceof Element) || el === document.body) return;
+        const s = sigOf(el);
+        if (!s) return;
+        lastFocus = el;
+        trail = trail.filter((t) => t.css !== s.css || t.text !== s.text).concat([s]).slice(-8);
+    });
+    const rescueFocus = () => {
+        if (!lastFocus || (lastFocus.isConnected && lastFocus.checkVisibility()) || (document.activeElement && document.activeElement !== document.body)) return;
+        const live = (x) => x.checkVisibility() && !x.closest("[inert]");
+        for (const s of [...trail].reverse()) {
+            const alike = [...document.querySelectorAll(s.loose)].filter(live);
+            const el = [...document.querySelectorAll(s.css)].find((x) => (!s.text || words(x).startsWith(s.text)) && live(x)) ?? (alike.length === 1 ? alike[0] : null);
+            if (el) {
+                el.focus({ preventScroll: true });
+                if (document.activeElement === el) return;
+            }
+        }
+    };
+    // ---------- focus a page's own bar would hide ----------
+    // A page's sticky or fixed bar (a state switcher, a study bar) can sit over the control Tab just
+    // reached, since the browser scrolls only what is off screen (WCAG 2.4.11). Scroll it clear.
+    const pageBar = (n) => {
+        for (let x = n; x && x !== document.body; x = x.parentElement) {
+            const cs = getComputedStyle(x);
+            if ((cs.position === "sticky" || cs.position === "fixed") && x.getBoundingClientRect().width >= innerWidth * 0.6 && !x.closest("[data-kit]")) return x;
+        }
+        return null;
+    };
+    // A #state link lands below the bar, not under it.
+    const padForBar = () => {
+        let h = 0;
+        for (const x of document.querySelectorAll("body > *, body > * > *")) {
+            const cs = getComputedStyle(x);
+            if ((cs.position === "sticky" || cs.position === "fixed") && parseFloat(cs.top) === 0 && !x.closest("[data-kit]") && x.checkVisibility()) {
+                const r = x.getBoundingClientRect();
+                if (r.width >= innerWidth * 0.6 && r.height < innerHeight / 3) h = Math.max(h, r.height);
+            }
+        }
+        document.documentElement.style.scrollPaddingTop = h ? `${Math.ceil(h) + 8}px` : "";
+    };
+    padForBar();
+    for (const ev of ["load", "resize"]) addEventListener(ev, padForBar);
+    document.addEventListener("focusin", (e) => {
+        const el = e.target;
+        if (!(el instanceof Element) || el === document.body || pageBar(el)) return;
+        requestAnimationFrame(() => {
+            const r = el.getBoundingClientRect();
+            if (!r.height || r.bottom < 0 || r.top > innerHeight) return;
+            const x = Math.min(innerWidth - 1, Math.max(0, r.left + Math.min(r.width / 2, 12)));
+            for (const y of [r.top + 1, r.bottom - 1]) {
+                const over = document.elementFromPoint(x, Math.min(innerHeight - 1, Math.max(0, y)));
+                const bar = over && !el.contains(over) && pageBar(over);
+                if (!bar) continue;
+                const b = bar.getBoundingClientRect();
+                if (b.top <= r.top) scrollBy(0, r.top - b.bottom - 8);
+                else scrollBy(0, r.bottom - b.top + 8);
+                return;
+            }
+        });
+    });
+    // A state switch (a #hash) that hides the control the reader pressed leaves focus nowhere. Focus
+    // goes where the new state draws it (data-focus-ring), or else to the state itself, so a screen
+    // reader starts reading there and not from the top of the page (WCAG 2.4.3).
+    // A control hidden (not removed) by a page's own script, as a dialog's Esc does, drops focus too.
+    new MutationObserver(() => requestAnimationFrame(rescueFocus)).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    let lastHash = location.hash;
+    addEventListener("hashchange", () => requestAnimationFrame(() => {
+        const a = document.activeElement;
+        const sameState = location.hash === lastHash;
+        lastHash = location.hash;
+        if (a && a !== document.body && a.checkVisibility()) return;
+        // A page that opened or closed a dialog without a state switch: back where the reader was.
+        if (sameState) return rescueFocus();
+        const drawn = [...document.querySelectorAll("[data-focus-ring]")].find((x) => x.checkVisibility() && !x.closest("[inert], [data-kit-frame=before]"));
+        let t = drawn;
+        if (!t) {
+            try { t = document.querySelector(decodeURIComponent(location.hash)); } catch { t = null; }
+            if (t && !t.checkVisibility()) t = t.parentElement?.closest("section, [id]") ?? t.parentElement;
+            if (!t || !t.checkVisibility()) return;
+            if (!t.matches(INTERACTIVE) && !t.hasAttribute("tabindex")) t.setAttribute("tabindex", "-1");
+        }
+        t.focus({ preventScroll: true });
+    }));
     const start = () => {
         nameIconButtons();
         rolesAndKeys();
@@ -798,8 +1046,10 @@
             if (queued || recs.every((r) => [...r.addedNodes].every((n) => n.nodeType !== 1 || n.matches("[data-kit], .k-group")))) return;
             queued = requestAnimationFrame(() => {
                 queued = 0;
+                bindNew();
                 nameIconButtons();
                 rolesAndKeys();
+                rescueFocus();
             });
         }).observe(document.body, { subtree: true, childList: true });
         bindFixtures()
@@ -811,8 +1061,9 @@
                     // Again whenever the page draws or switches a state, since pages build some of
                     // their markup after this point.
                     let q = 0;
-                    const again = () => q || (q = requestAnimationFrame(() => ((q = 0), hideNotes())));
+                    const again = () => q || (q = requestAnimationFrame(() => ((q = 0), hideNotes(), pageH1())));
                     hideNotes();
+                    pageH1();
                     addEventListener("hashchange", again);
                     addEventListener("load", again);
                     new MutationObserver(again).observe(document.body, { subtree: true, childList: true });

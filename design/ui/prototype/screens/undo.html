@@ -58,7 +58,6 @@
     <span class="k-tab" role="tab" data-state="s0">0. Before the stray click</span>
     <span class="k-tab" role="tab" data-state="s3">1. After the wrong step</span>
     <span class="k-tab" role="tab" data-state="restore">1b. Ctrl+Z: selection back</span>
-    <span class="k-tab" role="tab" data-state="notice">1n. The line only (other arm)</span>
     <span class="k-tab" role="tab" data-state="s2">2. One undo</span>
     <span class="k-tab" role="tab" data-state="list">2b. Show in steps</span>
     <span class="k-tab" role="tab" data-state="s1">3. Two undos: the good step off too</span>
@@ -68,7 +67,6 @@
   </span>
   <label><input type="checkbox" id="left" checked> Left panel open</label>
   <label><input type="checkbox" id="menu"> Edit menu open</label>
-  <label>Arm <select id="arm"><option value="undo">The line, and Ctrl+Z restores</option><option value="notice">The line only</option></select></label>
   <label><input type="checkbox" id="annot" checked> Annotations</label>
   <label>Theme <select id="theme"><option value="">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
   <a href="#study" id="studylink">Participant view</a>
@@ -77,7 +75,8 @@
 <div class="u-frame"><div class="k-app u-app" id="app"></div></div>
 <div class="u-notes">
   <p><b>For the facilitator only; never show this part to a participant.</b> Les Miserables (<span data-fx="datasets.lesmis.nodes">77</span> characters) has been narrowed in three filter steps: keep characters with at least 2 connections, keep characters with at least 5 connections, leave out group 8 (the students at the barricade). The middle step is the mistake; the first and last are work to keep. A stray click on empty canvas has also just cleared a hand-built selection of Valjean and the <span data-fx="datasets.lesmis.filterSteps.valjeanNeighborsAfterStep3">17</span> characters beside him. The table was on its Selected scope, so its rows stay, marked as the selection just cleared.</p>
-  <p><b>How a cleared selection comes back.</b> Clearing a selection (Esc, or a click on empty canvas) keeps it in one slot and says so on the undo line: "Selection cleared (<span class="u-nsel">18</span> nodes)" with <b>Bring it back</b>. While the slot holds it and nothing undoable has happened since, Ctrl+Z brings it back instead of undoing a filter step, and Edit &gt; Undo says so: "Undo Restore selection (<span class="u-nsel">18</span> nodes)". The line then reads "Selection restored (<span class="u-nsel">18</span> nodes)". Restoring never touches the undo or Redo lists, so a Redo waiting before the stray click is still there, and Ctrl+Shift+Z never clears the selection again. Any new selection or any undoable change (a tick, a delete, an Undo or a Redo) empties the slot. There is no separate command or key for it. Both lines are the undo line's own message with a parameter, and the slot belongs to graphty-element's history, so every page that embeds the graph gets the same behavior. <b>The other arm</b> (Arm: the line only) draws the same line and Bring it back, but Ctrl+Z always undoes the last filter step; the next study compares the two in separate sessions.</p>
+  <p><b>How a cleared selection comes back.</b> Clearing a selection (Esc, or a click on empty canvas) keeps it in one slot and says so on the undo line: "Selection cleared (<span class="u-nsel">18</span> nodes)" with <b>Bring it back</b>. While the slot holds it and nothing undoable has happened since, Ctrl+Z brings it back instead of undoing a filter step, and Edit &gt; Undo says so: "Undo Restore selection (<span class="u-nsel">18</span> nodes)". The line then reads "Selection restored (<span class="u-nsel">18</span> nodes)". Restoring never touches the undo or Redo lists, so a Redo waiting before the stray click is still there, and Ctrl+Shift+Z never clears the selection again. Any new selection or any undoable change (a tick, a delete, an Undo or a Redo) empties the slot. There is no separate command or key for it. Both lines are the undo line's own message with a parameter, and the slot belongs to graphty-element's history, so every page that embeds the graph gets the same behavior.</p>
+  <p><b>Why Ctrl+Z restores (sixth study).</b> Two designs ran in separate sessions, 8 each, same personas, same task. With the line alone, where Ctrl+Z always undid the last filter step, 5 of 8 lost the selection for good: all five had seen or heard "Selection cleared (<span class="u-nsel">18</span> nodes)" and pressed Ctrl+Z while it showed, which undid a filter step and emptied the slot. With the restore, 0 of 8 lost it. On first click, 13 of 16 chose Bring it back and 3 chose Ctrl+Z, so the line and its action stay. Mean ease, 1 to 7: 5.12 with the restore and 3.62 with the line alone over all 16 sessions. Four sessions were reset by the test page when Esc closed the steps list and also left the participant view (a fault of the test page, since fixed, not of the design): three in the restore design and one in the line-alone design. Without them, ease is 5.20 with the restore (5 sessions) and 3.86 with the line alone (7 sessions); the gap holds either way. The line-alone design is retired.</p>
   <p><b>How undo works here.</b> Undo never removes a filter step. Undoing a step unticks it: its row stays in the steps list, turned off, and ticking it again brings it back at any time, even after Redo is gone. Only Delete step, on a row's menu, removes a step. Ticking a step on or off is an ordinary undoable change, and like any change it clears Redo; nothing is lost, because the row stays. Every Undo and Redo shows one line in the notice area above the toolbar, "Undone: Filter out group 8" with <b>Show in steps</b>, whether or not the filter chip is in view. The line is announced politely and never takes focus; its action opens the steps list with focus on that step's row. It stays until the next change (a tick, a delete, a selection change or Show in steps), never on a timer, and Undos in a row add to it: after two it reads "Undone: Filter out group 8 and Filter to degree &gt;= 5". The steps list is the filter chip's own list, row for row.</p>
   <p><b>Participant view.</b> No bar, no notes, no annotations, starting in state 1. Give the task aloud, in these words: "After your last few actions the numbers changed in a way you did not expect. Get back to where you were, without losing work you meant to keep." Do not name any menu, button or key.</p>
   <p><b>What to record.</b> Whether the selection comes back first (Ctrl+Z or Bring it back) or after a filter change, which empties the slot and loses it; the first thing they reach for (the undo key, Edit, the chip, the table's scope line, the rail); whether they read the line after the first Undo and see that it names <b>Filter out group 8</b>, the step worth keeping; whether they find the steps list, and how (the chip or the line's action); whether they tick group 8 back on or press Redo; and the end state. Done is state 5: <b><span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes, 2 of 3 steps</b> (the degree step off, group 8 on) with the same characters selected again. Also run once with the left panel closed.</p>
@@ -101,8 +100,8 @@ let FS, LEGEND, SEL_GROUPS, SELECTED, NSEL, NN;
 function fromFixtures(L) {
   const F = L.filterSteps;
   const rows = (list) => list.map((r) => [r.label, r.group, r.degree, r.fullDegree, r.betweenness]);
-  const st = (b) => ({ n: b.nodes, e: b.edges, c: b.components, d: b.density, top: rows(b.top), sel: rows(b.selection) });
-  FS = { 1: st(F.byStep[0]), 2: st(F.byStep[1]), 3: st(F.byStep[2]), off: st(F.step2OffStats) };
+  const st = (b, k) => ({ n: b.nodes, e: b.edges, c: b.components, d: b.density, top: rows(b.top), sel: rows(b.selection), k: `datasets.lesmis.filterSteps.${k}` });
+  FS = { 1: st(F.byStep[0], "byStep.0"), 2: st(F.byStep[1], "byStep.1"), 3: st(F.byStep[2], "byStep.2"), off: st(F.step2OffStats, "step2OffStats") };
   // Legends: the four largest groups, then "N more".
   const legend = (groups) => {
     const g = Object.entries(groups).map(([k, n]) => [+k, n]).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
@@ -117,15 +116,19 @@ function fromFixtures(L) {
   Object.assign(STEPS[0], { rule: first, name: `Filter to ${first}`, reads: Number(first.match(/\d+$/)[0]) });
 }
 const DRAWING = { 1: "step1", 2: "step2", 3: "step3", off: "step2off" };
+// Every count a participant reads is written through the kit's scope formatter: a bound span typed with
+// the text the formatter writes, which kit.js checks (kit/README.md, "The scope formatter").
+const K_NN = "datasets.lesmis.nodes", K_SEL = "datasets.lesmis.filterSteps.byStep.2.selection.length";
+const cnt = (key, n, { of, ofN, noun } = {}) => `<span data-fx="${key}"${of ? ` data-fx-of="${of}"` : ""}${noun ? ` data-fx-noun="${noun}"` : ""}>${n.toLocaleString("en-US")}${of ? ` of ${ofN.toLocaleString("en-US")}` : ""}${noun ? ` ${n === 1 ? noun.replace(/s$/, "") : noun}` : ""}</span>`;
+const selN = () => cnt(K_SEL, NSEL, { noun: "nodes" });
 
 // The model. steps: the filter list, in order, each on or off; undo never removes a row. hist and
 // redo: undo entries, each "add" (a filter step was added; undoing it unticks the row), "toggle"
 // (a step's checkbox) or "del" (Delete step, the only way a row leaves). sel: whether the hand-built
 // selection is on; slot: true while a cleared selection is held (graphty-element's history, outside
-// the undo and Redo lists); back: it was restored. arm: "undo" (Ctrl+Z restores from the slot) or
-// "notice" (only the line's Bring it back does). notice: the undo line, {verb, names, is, text,
+// the undo and Redo lists); back: it was restored. notice: the undo line, {verb, names, is, text,
 // action}; shown: the steps the line named.
-const S = { steps: [], hist: [], redo: [], sel: false, slot: false, back: false, scope: "sel", notice: null, rmenu: null, menu: false, hmenu: false, pop: false, left: true, arm: "undo", tab: null, focus: null, shown: null };
+const S = { steps: [], hist: [], redo: [], sel: false, slot: false, back: false, scope: "sel", notice: null, rmenu: null, menu: false, hmenu: false, pop: false, left: true, tab: null, focus: null, shown: null };
 
 // Which fixture state the on steps make; null when the first step is off (not drawn in this mock).
 function keyOf(steps) {
@@ -133,8 +136,8 @@ function keyOf(steps) {
   return { "0,1,2": "3", "0,1": "2", "0": "1", "0,2": "off" }[on] ?? null;
 }
 const label = (e) => e.t === "add" ? STEPS[e.i].name : e.t === "del" ? `Delete step ${STEPS[e.i].name}` : `Turn ${e.off ? "off" : "on"} step ${STEPS[e.i].name}`;
-// Ctrl+Z restores only in the "undo" arm, only while the slot holds a cleared selection.
-const restoring = () => S.arm === "undo" && S.slot && !S.sel;
+// Ctrl+Z restores only while the slot holds a cleared selection.
+const restoring = () => S.slot && !S.sel;
 function say(t) { document.getElementById("msg").textContent = t; }
 
 // Undoing "add" unticks the row and Redo ticks it again; the row never leaves the list.
@@ -158,8 +161,8 @@ function notice(verb, es) {
 // The same line (graphty.undo.done) with the selection as its parameter: cleared, or restored.
 function selNotice(verb) {
   S.notice = verb === "cleared"
-    ? { verb, names: [], is: [], text: `Selection cleared (${NSEL} nodes)`, action: "Bring it back", act: "restore" }
-    : { verb, names: [], is: [], text: `Selection restored (${NSEL} nodes)` };
+    ? { verb, names: [], is: [], text: `Selection cleared (${NSEL} nodes)`, html: `Selection cleared (${selN()})`, action: "Bring it back", act: "restore" }
+    : { verb, names: [], is: [], text: `Selection restored (${NSEL} nodes)`, html: `Selection restored (${selN()})` };
   // Spoken as on every page: the key, not the button's words ("Selection cleared (3 nodes). Ctrl+Z brings it back.").
   say(`Heard, politely: "${S.notice.text}.${verb === "cleared" ? ` ${MOD}+Z brings it back.` : ""}"`);
 }
@@ -223,7 +226,7 @@ function run(name, arg, arg2) {
 }
 
 function menuHtml() {
-  const u = restoring() ? ` Restore selection (${NSEL} nodes)` : S.hist.length ? " " + label(S.hist[S.hist.length - 1]) : null, r = S.redo.length ? label(S.redo[S.redo.length - 1]) : null;
+  const u = restoring() ? ` Restore selection (${selN()})` : S.hist.length ? " " + label(S.hist[S.hist.length - 1]) : null, r = S.redo.length ? label(S.redo[S.redo.length - 1]) : null;
   const chev = `<span class="k-sub">${I("chevron-right", "k-i k-i-sm")}</span>`;
   const sub = (t, x = "") => `<div class="k-menu-item"${x}><span class="k-check-col"></span>${t}${chev}</div>`;
   // Newest first; choosing one reverses it and every newer one, and says how many.
@@ -235,7 +238,7 @@ function menuHtml() {
 <div class="k-menu-item" role="menuitem" data-not-in-mock><span class="k-check-col"></span>Quick actions...<span class="k-shortcut">${MOD}+K</span></div><div class="k-menu-sep"></div>
 ${sub("File", " data-not-in-mock")}${sub("Edit", " data-hover")}${["View", "Selection", "Algorithms", "Recipes", "Preferences", "Help"].map((t) => sub(t, " data-not-in-mock")).join("")}</div>
 <div class="k-menu" id="editmenu" style="left:256px;top:101px;min-width:320px" role="menu" aria-label="Edit">
-<div class="k-menu-item" role="menuitem" data-act="undo"${u ? "" : ' aria-disabled="true"'}><span class="k-check-col"></span>${u ? "Undo" + u : "Undo"}<span class="k-shortcut">${MOD}+Z</span></div>
+<div class="k-menu-item" role="menuitem" data-act="undo"${u ? "" : ' aria-disabled="true"'}><span class="k-check-col"></span><span>${u ? "Undo" + u : "Undo"}</span><span class="k-shortcut">${MOD}+Z</span></div>
 <div class="k-menu-item" role="menuitem" data-act="redo"${r ? "" : ' aria-disabled="true"'}><span class="k-check-col"></span>${r ? "Redo " + r : "Redo"}<span class="k-shortcut">${MOD}+Shift+Z</span></div>
 <div class="k-menu-item" role="menuitem" data-act="hist" aria-haspopup="menu" aria-expanded="${S.hmenu}"${S.hmenu ? " data-hover" : ""}><span class="k-check-col"></span>Undo history${chev}</div>
 <div class="k-menu-sep"></div>
@@ -294,8 +297,8 @@ function annots(key) {
   if (S.shown?.length && S.pop && !S.menu) b.push(`<b>Show in steps</b> opened the list with focus on the first row the line named, ${STEPS[S.shown[0]].name}, now off; ${S.shown.length > 1 ? "every row it named is marked" : "the row is marked"} until the list closes. Focus moves only because the reader chose it.` + cite(`framework-changes.md (the undo line for a filter step).`));
   if (key === "off" && !S.menu) b.push(`<b>The fix.</b> The wrong step off, group 8 on: ${FS.off.n} of ${NN}, "2 of 3 steps". Both rows stay.` + cite(`conceptual-model.md 6.1 (filter steps); interface-templates.md 7.`));
   if (!S.sel && S.scope === "sel" && !S.menu && !S.shown?.length) b.push(`<b>Selection lost, rows kept.</b> The ${NSEL} rows stay, marked as the selection just cleared; the scope line offers Show filtered graph.` + cite(`interaction-patterns.md 3.1; message-catalog.md graphty.table.scope. Built with: DataTable; Button, subtle.`));
-  if (S.notice?.verb === "cleared" && !S.menu) b.push(`<b>The selection line</b>, at the moment of loss: the undo line's own message with the selection as its parameter. ${S.arm === "undo" ? `Ctrl+Z brings the ${NSEL} back first, before any filter step, and never touches Redo;` : `In this arm Ctrl+Z still undoes the last filter step;`} Bring it back does the same from the line. Any new selection or undoable change empties the slot.` + cite(`framework-changes.md (Ctrl+Z restores a cleared selection); message-catalog.md graphty.undo.done. Owned by graphty-element's history. Built with: compact-mantine Notification (toast), one action, autoClose off.`));
-  if (S.notice?.verb === "restored" && !S.menu) b.push(`<b>Selection restored.</b> Nothing entered the undo list and Redo is as it was; Ctrl+Shift+Z never clears the selection again. The next Ctrl+Z undoes the last filter step.` + cite(`framework-changes.md (Ctrl+Z restores a cleared selection); message-catalog.md graphty.undo.done.`));
+  if (S.notice?.verb === "cleared" && !S.menu) b.push(`<b>The selection line</b>, at the moment of loss: the undo line's own message with the selection as its parameter. Ctrl+Z brings the ${NSEL} back first, before any filter step, and never touches Redo; Bring it back does the same from the line. Any new selection or undoable change empties the slot.` + cite(`framework-changes.md (Ctrl+Z restores a cleared selection); message-catalog.md graphty.undo.done. Owned by graphty-element's history. Built with: compact-mantine Notification (toast), one action, autoClose off.`));
+  if (S.notice?.verb === "restored" && !S.menu) b.push(`<b>Selection restored.</b> Nothing entered the undo list and Redo is as it was; Ctrl+Shift+Z never clears the selection again. The next Ctrl+Z undoes the last filter step. Focus stays where it was when Ctrl+Z was pressed; after a click or Enter on Bring it back, whose button leaves the line, focus goes back to where the reader came from (the drawing, here), never to the page body. The spoken line is the same either way: \"Selection restored (${NSEL} nodes).\"` + cite(`framework-changes.md (Ctrl+Z restores a cleared selection); message-catalog.md graphty.undo.done.`));
   if (g8 && !g8.on && !S.menu) b.push(`<b>Undo unticks.</b> The first press unticked <b>Filter out group 8</b>, the step worth keeping${deg.on ? "" : ", the second the wrong step"}; ${deg.on ? "it stays" : "both stay"} in the list. Redo ticks again until the next change; after that, the checkbox still does.` + cite(`interaction-patterns.md 3.4; conceptual-model.md 1; framework-changes.md (undoing a step unticks it; Redo keys).`));
   if (S.notice?.act === "show" && !S.menu) b.push(`<b>The undo line</b>, on every Undo and Redo, chip in view or not: it names the step, and Show in steps opens the list at its row. Announced politely; never takes focus. It stays until the next change, with no timer, and Undos in a row add to it: after two it names both steps, so the good step taken by the second press is never replaced unread.` + cite(`message-catalog.md graphty.undo.done, graphty.redo.done; framework-changes.md (the undo line stays until the next change). Built with: compact-mantine Notification (toast), one action, autoClose off.`));
   if (S.menu) {
@@ -303,7 +306,7 @@ function annots(key) {
     if (S.hmenu) b.push(`Undo history, interim: newest first, each entry named as its step is; a cleared selection is never an entry. To take out one filter step, delete it on the filter chip.` + cite(`interaction-patterns.md 3.4; figma-crosswalk.md 4.3; framework-changes.md. Built with: Mantine Menu, submenu.`));
   }
   if (S.sel && !S.menu) b.push((!S.back ? `The hand-built selection, ${NSEL} nodes, before the stray click. Click empty canvas or press Esc to lose it.` : `${NSEL} nodes selected again; the chip is unchanged and nothing entered the undo history.`) + ` The inspector is cut to its first sections here.` + cite(`interaction-pattern-entries.md 4.4; interface-templates.md 8. Built with: DataTable selected rows; the inspector.`));
-  return a.join("") + `<div style="position:absolute;left:1206px;top:${S.sel && !S.menu ? 630 : 250}px;width:228px;display:flex;flex-direction:column;gap:8px">${b.map((h) => `<div class="k-annot-note" style="position:static;max-width:none">${h}</div>`).join("")}</div>`;
+  return a.join("") + `<div style="position:absolute;left:1206px;top:${S.sel && !S.menu ? 460 : 250}px;max-height:${S.sel && !S.menu ? 432 : 642}px;overflow:auto;width:228px;display:flex;flex-direction:column;gap:8px">${b.map((h) => `<div class="k-annot-note" style="position:static;max-width:none">${h}</div>`).join("")}</div>`;
 }
 
 function render() {
@@ -316,20 +319,20 @@ function render() {
   const list = S.scope === "sel" ? D.sel : D.top;
   const mark = (k) => S.sel && SELECTED.has(k) ? ' aria-selected="true"' : !S.sel && S.scope === "sel" ? " data-member" : "";
   const rows = list.map(([k, g, d, f, bt]) => `<tr${mark(k)}><td class="k-id">${k}</td><td><span class="k-chit" style="background:${C[g] || "#000000"}"></span>${g}</td><td class="k-n">${d}</td><td class="k-n k-secondary">${f !== d ? f : ""}</td><td class="k-n">${bt.toFixed(3)}</td></tr>`).join("");
-  const scope = S.scope === "filtered" ? `Filtered graph: ${D.n} of ${NN} nodes. Sorted by degree.`
-    : S.sel ? `Selected: ${NSEL} of ${D.n} nodes. Sorted by degree.`
-    : `Selected: none, showing the selection just cleared<span class="k-btn k-btn-ghost u-act" data-act="filtered">Show filtered graph</span>`;
+  const scope = S.scope === "filtered" ? `<span>Filtered graph: ${cnt(`${D.k}.nodes`, D.n, { of: K_NN, ofN: NN, noun: "nodes" })}. Sorted by degree.</span>`
+    : S.sel ? `<span>Selected: ${cnt(K_SEL, NSEL, { of: `${D.k}.nodes`, ofN: D.n, noun: "nodes" })}. Sorted by degree.</span>`
+    : `<span>Selected: none, showing the selection just cleared</span><span class="k-btn k-btn-ghost u-act" data-act="filtered">Show filtered graph</span>`;
   const t = S.notice;
-  const toast = t ? `<div class="k-toast" role="status" aria-live="polite">${t.text}${t.action ? `<span class="k-toast-action" role="button" tabindex="0" data-act="${t.act}">${t.action}</span>` : ""}</div>` : "";
+  const toast = t ? `<div class="k-toast" role="status" aria-live="polite"><span>${t.html ?? t.text}</span>${t.action ? `<span class="k-toast-action" role="button" tabindex="0" data-act="${t.act}">${t.action}</span>` : ""}</div>` : "";
   // The chip drops "Filtered:" when the longer "2 of 3 steps" would not fit (as screens/filter-chip.html).
   const insp = S.sel
-    ? `<div class="k-typerow">${I("circle-dot")}<span class="k-name k-num">${NSEL} nodes</span><span class="k-secondary">Nodes</span><span class="k-icon-btn" aria-label="Filter to" data-not-in-mock>${I("funnel")}</span><span class="k-icon-btn" aria-label="Create set" data-not-in-mock>${I("group")}</span></div>
+    ? `<div class="k-typerow">${I("circle-dot")}<span class="k-name k-num">${selN()}</span><span class="k-secondary">Nodes</span><span class="k-icon-btn" aria-label="Filter to" data-not-in-mock>${I("funnel")}</span><span class="k-icon-btn" aria-label="Create set" data-not-in-mock>${I("group")}</span></div>
 <div class="k-scroll"><section class="k-section"><div class="k-section-head">Appearance</div>
 <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:${C[2]}"></span>group</span></span></div></div>
 <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill">degree</span></span></div></div></section>
 <section class="k-section"><div class="k-section-head">Selection colors</div>${SEL_GROUPS.map(([g, c]) => `<div class="k-data"><span class="k-name"><span class="k-chit" style="background:${C[g]}"></span> group ${g}</span><span class="k-value k-num">${c}</span></div>`).join("")}</section>
 <section class="k-section" data-empty><div class="k-section-head">Export<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add export" data-not-in-mock>${I("plus")}</span></div></section></div>`
-    : `<div class="k-typerow">${I("network")}<span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div><div class="k-scroll"><section class="k-section"><div class="k-section-head">Statistics</div><div class="k-prose k-secondary">${I("funnel", "k-i k-i-sm")} On: filtered graph, <span class="k-num">${D.n} of ${NN}</span> nodes</div><div class="k-data"><span class="k-name">edges</span><span class="k-value k-num">${D.e}</span></div><div class="k-data"><span class="k-name">components</span><span class="k-value k-num">${D.c}</span></div><div class="k-data"><span class="k-name">density</span><span class="k-value k-num">${D.d.toFixed(3)}</span></div></section><section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a style layer" data-not-in-mock>${I("plus")}</span></div>
+    : `<div class="k-typerow">${I("network")}<span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div><div class="k-scroll"><section class="k-section"><div class="k-section-head">Statistics</div><div class="k-prose k-secondary">${I("funnel", "k-i k-i-sm")} On: filtered graph, <span class="k-num">${cnt(`${D.k}.nodes`, D.n, { of: K_NN, ofN: NN, noun: "nodes" })}</span></div><div class="k-data"><span class="k-name">edges</span><span class="k-value k-num">${D.e}</span></div><div class="k-data"><span class="k-name">components</span><span class="k-value k-num">${D.c}</span></div><div class="k-data"><span class="k-name">density</span><span class="k-value k-num">${D.d.toFixed(3)}</span></div></section><section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a style layer" data-not-in-mock>${I("plus")}</span></div>
 <ul class="k-list" role="tree" aria-label="Style stack"><li class="k-item" data-not-in-mock><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
 <li class="k-item" data-not-in-mock><span class="k-chit" style="background:conic-gradient(#E69F00 0 25%,#56B4E9 0 50%,#009E73 0 75%,#0072B2 0)"></span><span class="k-ellipsis">Group color</span></li>
 <li class="k-item" data-not-in-mock><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section></div>`;
@@ -340,9 +343,9 @@ function render() {
   app.innerHTML = `
 <nav class="k-rail" aria-label="Main"><div role="button" class="k-rail-btn" data-act="menu" aria-label="Main menu"${S.menu ? ' aria-pressed="true"' : ""}><span class="k-rail-pill">${I("menu")}</span></div><div class="k-rail-sep"></div>
 ${rail("network", "Graph", ` data-act="left" aria-pressed="${S.left}"`)}${rail("database", "Data", " data-not-in-mock")}${rail("flask-conical", "Results", " data-not-in-mock")}${rail("sticky-note", "Notes", " data-not-in-mock")}<div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences" data-not-in-mock>Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
-<aside class="k-panel" aria-label="Graph"><div class="k-panel-head"><div class="k-title-line"><span class="k-project">Les Miserables</span>${I("chevron-down", "k-i k-i-sm k-secondary")}</div><a class="k-privacy" data-not-in-mock>Nothing has been sent from this project</a><span class="k-chip k-chip-btn" role="button" tabindex="0" data-act="pop" aria-expanded="${S.pop}" data-tip="Filtered: ${D.n} of ${NN} nodes &middot; ${steps}">${I("funnel", "k-i k-i-sm")}<span class="k-num">${on === total ? "Filtered: " : ""}${D.n} of ${NN} nodes &middot; ${steps}</span>${I("chevron-down", "k-i k-i-sm k-caret")}</span></div>
+<aside class="k-panel" aria-label="Graph"><div class="k-panel-head"><div class="k-title-line"><span class="k-project">Les Miserables</span>${I("chevron-down", "k-i k-i-sm k-secondary")}</div><a class="k-privacy" data-not-in-mock>Nothing has been sent from this project</a><span class="k-chip k-chip-btn" role="button" tabindex="0" data-act="pop" aria-expanded="${S.pop}" data-tip="Filtered: ${D.n} of ${NN} nodes &middot; ${steps}">${I("funnel", "k-i k-i-sm")}<span class="k-num">${on === total ? "Filtered: " : ""}${cnt(`${D.k}.nodes`, D.n, { of: K_NN, ofN: NN, noun: "nodes" })} &middot; ${steps}</span>${I("chevron-down", "k-i k-i-sm k-caret")}</span></div>
 <div class="k-scroll"><section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn" aria-label="Find a graph" data-not-in-mock>${I("search")}</span><span class="k-icon-btn" aria-label="Add a graph" data-not-in-mock>${I("plus")}</span></div>
-<ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">${NN} nodes</span></li></ul></section>
+<ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">${cnt(K_NN, NN, { noun: "nodes" })}</span></li></ul></section>
 <section class="k-section"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a set or path" data-not-in-mock>${I("plus")}</span></div>
 <ul class="k-list"><li class="k-item" data-not-in-mock>${I("group")}<span class="k-ellipsis">The barricade</span><span class="k-kind">rule</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">13</span></span></li></ul></section>
 </div></aside>
@@ -350,7 +353,7 @@ ${rail("network", "Graph", ` data-act="left" aria-pressed="${S.left}"`)}${rail("
 <img class="k-light-only" data-act="clear" src="../kit/canvas/lesmis-${drawing}-light.svg" alt="${alt}">
 <img class="k-dark-only" data-act="clear" src="../kit/canvas/lesmis-${drawing}-dark.svg" alt="${alt}"></div>
 <div class="k-legend-card"><div class="k-lg-title">Group color <span class="k-secondary">group</span></div>${lg}</div>
-<div class="k-toolbar-dock">${toast}<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true" aria-label="Move">${I("mouse-pointer-2", "k-i k-i-lg")}</span><span class="k-tool" aria-label="Path" data-not-in-mock>${I("route", "k-i k-i-lg")}</span><span class="k-tool" aria-label="Note" data-not-in-mock>${I("sticky-note", "k-i k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool" aria-label="Quick actions" data-not-in-mock>${I("zap", "k-i k-i-lg")}</span></div></div>
+<div class="k-toolbar-dock">${toast}<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true" aria-label="Move">${I("mouse-pointer-2", "k-i k-i-lg")}</span><span class="k-tool" aria-label="Path" data-not-in-mock>${I("route", "k-i k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool" aria-label="Quick actions" data-not-in-mock>${I("zap", "k-i k-i-lg")}</span></div></div>
 <span class="k-help" data-not-in-mock>${I("circle-help")}</span></div>
 <section class="k-dock" aria-label="Table"><div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab" data-not-in-mock>Edges</span><span class="k-grow"></span><span class="k-icon-btn" aria-label="Search the table" data-not-in-mock>${I("search")}</span><span class="k-icon-btn" aria-label="Table options" data-not-in-mock>${I("ellipsis")}</span></div>
 <div class="k-scope" role="status">${scope}</div>
@@ -375,12 +378,11 @@ ${S.pop && S.left ? popHtml() : ""}${S.menu ? menuHtml() : ""}${annots(key)}`;
 // Named states, held on screen (no timeout), for the tabs and for #s1&menu style links used by shots.
 function go(state) {
   say("");
-  if (state === "notice") { S.arm = "notice"; $("arm").value = "notice"; }
   Object.assign(S, { steps: [0, 1, 2].map((i) => ({ i, on: true })), hist: [0, 1, 2].map((i) => ({ t: "add", i })), redo: [], sel: true, slot: false, back: false, scope: "sel", notice: null, pop: false, rmenu: null, shown: null, tab: state });
   if (state !== "s0") act.clear();
   // Every state past the stray click brings the selection back first, except "off": fixing the
   // filter first is an undoable change, which empties the slot and loses the selection.
-  if (!["s0", "s3", "notice", "off"].includes(state)) act.restore();
+  if (!["s0", "s3", "off"].includes(state)) act.restore();
   if (state === "s2" || state === "list") act.undo();
   if (state === "list") act.show();
   if (state === "s1" || state === "tick") { act.undo(); act.undo(); }
@@ -393,7 +395,6 @@ const $ = (id) => document.getElementById(id);
 $("tabs").addEventListener("click", (e) => { const t = e.target.closest("[data-state]"); if (t) { S.menu = false; go(t.dataset.state); } });
 $("menu").addEventListener("change", (e) => { S.menu = e.target.checked; S.hmenu = false; render(); });
 $("left").addEventListener("change", (e) => { S.left = e.target.checked; render(); });
-$("arm").addEventListener("change", (e) => { S.arm = e.target.value; render(); });
 $("theme").addEventListener("change", (e) => { if (e.target.value) document.documentElement.dataset.theme = e.target.value; else delete document.documentElement.dataset.theme; });
 $("studylink").addEventListener("click", () => setTimeout(() => location.reload(), 0));
 function activate(t) {
@@ -429,9 +430,11 @@ document.addEventListener("keydown", (e) => {
   if ((e.key === "Enter" || e.key === " ") && (t.getAttribute?.("role") === "button" || t.getAttribute?.("role") === "menuitem")) { e.preventDefault(); activate(t); return; }
   if (e.key === "Escape") {
     if (S.rmenu != null) { e.preventDefault(); const i = S.rmenu; S.rmenu = null; render(); $("app").querySelector(`.fc-step[data-step="${i}"]`)?.focus(); }
-    else if (S.menu) { S.menu = false; S.hmenu = false; render(); }
-    else if (S.pop) { S.pop = false; S.shown = null; render(); $("app").querySelector(".k-chip")?.focus(); }
-    else run("clear");
+    // One thing per press, innermost first; each branch marks the key used (kit/README.md, "The Esc
+    // rule"), so only an Esc with nothing open and nothing selected leaves the participant view.
+    else if (S.menu) { e.preventDefault(); S.menu = false; S.hmenu = false; render(); }
+    else if (S.pop) { e.preventDefault(); S.pop = false; S.shown = null; render(); $("app").querySelector(".k-chip")?.focus(); }
+    else if (S.sel) { e.preventDefault(); run("clear"); }
     return;
   }
   if (!(e.ctrlKey || e.metaKey)) return;
@@ -449,13 +452,12 @@ fromFixtures(JSON.parse(fixturesRequest.responseText).datasets.lesmis);
 const h = new URLSearchParams(location.hash.slice(1));
 if (h.has("study")) document.body.classList.add("study");
 S.menu = h.has("menu"); S.hmenu = h.has("hist"); S.left = !h.has("closed");
-if (h.has("notice")) S.arm = "notice";
-$("arm").value = S.arm;
 document.querySelectorAll(".u-nsel").forEach((x) => { x.textContent = NSEL; });
 // Older links (flows/undo-and-ways-back.html) name states in words; their "b" (a retired version) is ignored.
-const ALIAS = { "three-steps": "s3", "selection-lost": "s3", "edit-undo": "s3", "undo-once": "s2", "undo-twice": "s1", "turn-off": "off", "selection-back": "fix", good: "fix" };
+// "notice" was the retired line-only design; it opens the same moment in the shipped one.
+const ALIAS = { notice: "s3", "three-steps": "s3", "selection-lost": "s3", "edit-undo": "s3", "undo-once": "s2", "undo-twice": "s1", "turn-off": "off", "selection-back": "fix", good: "fix" };
 if (h.has("edit-undo")) S.menu = true;
-const start = ["s0", "s3", "restore", "notice", "s2", "list", "s1", "tick", "off", "fix", ...Object.keys(ALIAS)].find((k) => h.has(k)) || "s3";
+const start = ["s0", "s3", "restore", "s2", "list", "s1", "tick", "off", "fix", ...Object.keys(ALIAS)].find((k) => h.has(k)) || "s3";
 go(ALIAS[start] || start);
 if (h.has("pop")) { S.pop = true; render(); }
 </script>

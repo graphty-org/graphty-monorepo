@@ -97,13 +97,13 @@
         <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- module</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#E69F00"></span>module</span></span></div></div>
         <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#E69F00"></span> Proteasome</span><span class="k-value">40</span></div>
         <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#56B4E9"></span> Ribosome</span><span class="k-value">56</span></div>
-        <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#505050"></span> Other</span><span class="k-value">30</span></div>
+        <div class="k-data"><span class="k-name"><span class="k-chit" style="background:#BDBDBD"></span> Other</span><span class="k-value">30</span></div>
       </div>
     </div></div>
     <div class="cell" style="display:flex;flex-direction:column;gap:16px">
       <div class="k-tooltip"><b>Valjean</b><br><span class="k-secondary">group 2, degree 36</span></div>
-      <div class="k-toast">14 nodes removed<span class="k-toast-action">Undo</span></div>
-      <div class="k-toast">Running Louvain on 3,000 nodes<div class="k-progress"><i style="width:40%"></i></div><span class="k-toast-action">Cancel</span></div>
+      <div class="k-toast"><span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span> removed<span class="k-toast-action">Undo</span></div>
+      <div class="k-toast">Running Louvain on <span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span><div class="k-progress"><i style="width:40%"></i></div><span class="k-toast-action">Cancel</span></div>
       <div class="k-secondary-bar"><span class="k-secondary">From</span><span class="k-field k-id">Fantine</span><span class="k-secondary">To</span><span class="k-field" data-placeholder>Pick a node</span><span class="k-btn">Run</span></div>
     </div>
   </div>
@@ -138,11 +138,11 @@
     <div class="canvas-sample k-canvas">
       <div class="k-stage"><img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts as density, 14 flagged accounts selected">
       <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts as density, 14 flagged accounts selected"></div>
-      <div class="k-legend-card"><div class="k-lg-title">Density</div><div class="k-lg-row"><span class="k-ramp" style="background:linear-gradient(90deg,#80808038,#808080f2)"></span><span class="k-value">fewer to more accounts</span></div><div class="k-notdrawn">3,000 nodes drawn as density. <a>Show nodes</a></div></div>
+      <div class="k-legend-card"><div class="k-lg-title">Density</div><div class="k-lg-row"><span class="k-ramp" style="background:linear-gradient(90deg,#80808038,#808080f2)"></span><span class="k-value">fewer to more accounts</span></div><div class="k-notdrawn"><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span> drawn as density. <a>Show nodes</a></div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
     </div>
     <div class="canvas-sample k-canvas">
-      <div class="k-legend-card"><div class="k-notdrawn" style="border:0;margin:0;padding:0">124,318 nodes not drawn. <a>Narrow the graph...</a></div></div>
+      <div class="k-legend-card"><div class="k-notdrawn" style="border:0;margin:0;padding:0"><span data-fx="datasets.citations.nodes" data-fx-noun="nodes">124,318 nodes</span> not drawn. <a>Narrow the graph...</a></div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
     </div>
   </div>
@@ -179,7 +179,7 @@
       <div class="k-flow">
         <div class="k-flow-step"><h3><span class="k-step">1</span> Open a file</h3>Drop transfers-2026-03.csv on the start screen.</div>
         <div class="k-flow-arrow">&rarr;</div>
-        <div class="k-flow-step"><h3><span class="k-step">2</span> Check the load step</h3>3,000 nodes, 9,113 edges; no issues.</div>
+        <div class="k-flow-step"><h3><span class="k-step">2</span> Check the load step</h3><span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>, 9,113 edges; no issues.</div>
         <div class="k-flow-arrow">&rarr;</div>
         <div class="k-flow-step" data-branch><h3><span class="k-step">2a</span> A column fails</h3>amount has 12 blank cells: Load anyway or fix.</div>
       </div>

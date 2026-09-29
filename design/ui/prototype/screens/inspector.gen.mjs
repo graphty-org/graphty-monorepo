@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FIX = JSON.parse(readFileSync(join(here, "../kit/fixtures.json"), "utf8"));
 const fx = FIX.datasets;
 // Louvain colors as screens/results-panel.py draws them: the categorical palette by community number.
-const lvColor = (c) => FIX.canvas.categorical[c - 1] ?? "#505050";
+const lvColor = (c) => FIX.canvas.categorical[c - 1] ?? "#BDBDBD";
 const ppi = fx.ppi;
 const tx = fx.transactions;
 const PI = ppi.inspector;
@@ -136,7 +136,7 @@ const privacy = `<a class="k-privacy">Nothing has been sent from this project</a
 
 const toolbar = `<div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
   <span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span>
-  <span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i-lg")}</span>
+  <span class="k-tool">${I("route", "k-i-lg")}</span>
   <span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span>
 </div></div><span class="k-help">${I("circle-help")}</span>`;
 
@@ -289,7 +289,7 @@ const edgeInspector = `${header}
 ${typeRow({ glyph: "spline", name: `<a>TP53</a> -- <a>BRCA1</a>`, kind: "Edge", verbs: nbSplit() + btn("funnel", "Filter to") + btn("group", "Create set") })}
 <div class="k-scroll">
   <section class="k-section ins-props">${act("Endpoints", "TP53, BRCA1")}</section>
-  ${section("Attributes", data("confidence", PI.edge.confidence.toFixed(2), "", "", { from: fromFile(PPI_FILE) + "; not used yet by any run" }))}
+  ${section("Attributes", data("confidence", PI.edge.confidence.toFixed(2), "", "", { from: fromFile(PPI_FILE) + "; no run has used it" }))}
   ${section("Memberships", act("In", '<span class="k-secondary">no set</span>', ""))}
   ${appearance([L.module(), L.degree(), L.base("808080", "color, width")])}
   ${notesSection}
@@ -340,14 +340,16 @@ ${typeRow({ glyph: "scan", name: "2 selected", nameClass: "k-num", kind: "Nodes"
   ${exportSection}
 </div>`;
 // The Path tool's bar, as sets-and-paths draws it, armed from Paths between... with both ends.
-const confState = "confidence, not used yet";
+// A run's weight is its own record ("none, hops counted"); the graph states only that each run asks.
+const confState = "none, hops counted";
+const graphWeight = "confidence: asked by each run";
 const pathBar = ({ to = `<span class="k-field k-id" style="width:140px">SMAD3</span>`, run = true, state = "" } = {}) => `<div class="ins-pbar" role="group" aria-label="Path tool">
   <div class="ins-pbar-row"><span class="ins-plbl">From</span><span class="k-field k-id" style="width:140px">TP53</span><span class="ins-plbl">To</span>${to}<span class="k-btn"${run ? "" : ' aria-disabled="true"'} role="button">Run</span></div>
   <div class="ins-pbar-row"><span class="ins-plbl">Scope</span><span class="k-field" style="width:110px">Full graph${I("chevron-down", "k-i-sm k-caret")}</span><span class="ins-plbl">Weight</span><span class="k-field" style="width:162px">${confState}${I("chevron-down", "k-i-sm k-caret")}</span></div>${state}
 </div>`;
 const barDock = (bar, pathTool = true) => `<div class="k-toolbar-dock">${bar}<div class="k-toolbar" role="toolbar">
   <span class="k-tool"${pathTool ? "" : ' aria-pressed="true"'} aria-label="Select">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret" aria-label="More tools">${I("chevron-down", "k-i-sm")}</span>
-  <span class="k-tool"${pathTool ? ' aria-pressed="true"' : ""} aria-label="Path">${I("route", "k-i-lg")}</span><span class="k-tool" aria-label="Note">${I("sticky-note", "k-i-lg")}</span>
+  <span class="k-tool"${pathTool ? ' aria-pressed="true"' : ""} aria-label="Path">${I("route", "k-i-lg")}</span>
   <span class="k-toolbar-sep"></span><span class="k-tool" aria-label="Quick actions">${I("zap", "k-i-lg")}</span>
 </div></div><span class="k-help">${I("circle-help")}</span>`;
 // Show as style layer, from a Results row (study round 1's Style by this, on a result).
@@ -528,7 +530,7 @@ const slModules = Object.entries(SL.neighborsOf.TP53.reduce((a, x) => ((a[x.modu
     .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
 const sliceLegend = `<div class="k-legend-card">
   <div class="k-lg-title">Module color <span class="k-secondary">module</span></div>
-  ${slModules.slice(0, 4).map(([m, n]) => `<div class="k-lg-row">${chit(MOD[m] ?? "#505050")}${m}<span class="k-value k-num">${n}</span></div>`).join("")}
+  ${slModules.slice(0, 4).map(([m, n]) => `<div class="k-lg-row">${chit(MOD[m] ?? "#BDBDBD")}${m}<span class="k-value k-num">${n}</span></div>`).join("")}
   <div class="k-lg-row k-secondary">${slModules.length - 4} more</div>
 </div>`;
 const staleRow = (name, value) =>
@@ -543,7 +545,7 @@ const filteredInspector = oneNodeInspector({
 const undoToast = `<div class="k-toast">Filter to neighbors, 1 hop: ${SL.nodes} nodes<span class="k-toast-action">Undo</span></div>`;
 const sliceCanvas = `<div class="k-canvas">${stage("ppi-tp53", `TP53 and its ${SL.nodes - 1} neighbors, ${SL.edges} interactions, colored by module; TP53 selected`)}${sliceLegend}<div class="k-toolbar-dock"><div style="margin-bottom:8px">${undoToast}</div><div class="k-toolbar" role="toolbar">
   <span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span>
-  <span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i-lg")}</span>
+  <span class="k-tool">${I("route", "k-i-lg")}</span>
   <span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span>
 </div></div><span class="k-help">${I("circle-help")}</span></div>`;
 
@@ -613,7 +615,7 @@ const c4Dock = `<section class="k-dock ins-dock" aria-label="Table">
 </section>`;
 const rowInspector = oneNodeInspector({
     name: "PRPF8",
-    attrs: data("module", P8.module, "", chit(MOD[P8.module] ?? "#505050") + " ", { from: fromFile(PPI_FILE) }) + data("degree", P8.degree, R(rankOf("degree", P8.degree)), sizeGlyph + " ", { from: COUNTED }) + more("1 more attribute"),
+    attrs: data("module", P8.module, "", chit(MOD[P8.module] ?? "#BDBDBD") + " ", { from: fromFile(PPI_FILE) }) + data("degree", P8.degree, R(rankOf("degree", P8.degree)), sizeGlyph + " ", { from: COUNTED }) + more("1 more attribute"),
     results: data("Louvain", `Community ${C4.community}`, `${C4.size} nodes`, chit(C4C) + " ") + data("PageRank", P8.pagerank.toFixed(5), R(rankOf("pagerank", P8.pagerank))) + data("Betweenness", P8.betweenness.toFixed(4), R(rankOf("betweenness", P8.betweenness))),
     conn: act("", `${P8.degree} neighbors`),
     memberships: `<div class="ins-dr" role="button" aria-label="Community ${C4.community}, Louvain community, ${C4.size} nodes"><span class="k-name">${I("group", "k-i-sm")}Community ${C4.community}</span><span class="k-value k-secondary">Louvain, ${C4.size}</span></div>`,
@@ -675,7 +677,7 @@ const resultInspector = `${header}
 ${typeRow({
     glyph: "sigma", name: "Betweenness", nameClass: "", kind: "Result",
     verbs: btn("refresh-cw", "Re-run") + btn("table", "Show in table, sorted"),
-    line3: `<div class="ins-l3 ins-l3two"><span class="k-btn k-btn-secondary k-btn-block" role="button">${I("git-compare-arrows", "k-i-sm")}Compare with...</span><span class="k-btn k-btn-secondary k-btn-block" role="button">${I("palette", "k-i-sm")}Show as style layer</span></div>`,
+    line3: `<div class="ins-l3 ins-l3two"><span class="k-btn k-btn-secondary k-btn-block" role="button">${I("git-compare-arrows", "k-i-sm")}Compare with another run...</span><span class="k-btn k-btn-secondary k-btn-block" role="button">${I("palette", "k-i-sm")}Show as style layer</span></div>`,
 })}
 <div class="ins-state-line ins-ok" role="status">${I("circle-check", "k-i-sm")}<span>Finished. Current: the graph has not changed since it ran.</span></div>
 <div class="k-scroll">
@@ -720,10 +722,10 @@ const restInspector = ({ chip = false } = {}) => {
 ${typeRow({ glyph: "network", name: "Interactions", nameClass: "", kind: "Graph", verbs: "" })}
 <div class="k-scroll">
   ${section("Overview",
-      act("", "Overview: General", `<span class="k-btn k-btn-ghost ins-chg" role="button">Change...</span>`) +
+      act("", "Overview: General", `<span class="k-btn k-btn-ghost ins-chg" role="button">Change overview...</span>`) +
       `<div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">${chip ? `${SL.nodes} of ${ppi.nodes}` : ppi.nodes}</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">${chip ? `${SL.edges} of ${fmt(ppi.edges)}` : fmt(ppi.edges)}</span></div></div>` +
       (chip ? `<div class="k-prose ins-note ins-fact">Of the filtered graph: TP53 and neighbors.</div>` : data("density", FR.density, "", "", { menu: false }) + data("components", FR.components, "", "", { menu: false })) +
-      data("Edges", "undirected", "", "", { menu: false }) + data("Weight", confState) + act("Attributes", `${FR.attributes} attributes`, I("table", "k-i-sm k-secondary")) +
+      data("Edges", "undirected", "", "", { menu: false }) + data("Weight", graphWeight, "", "", { menu: false }) + act("Attributes", `${FR.attributes} attributes`, I("table", "k-i-sm k-secondary")) +
       act("Layout", "Force-directed", btn("play", "Run layout")),
       { trail: btn("ellipsis", "Overview menu") })}
   ${section(`Style stack ${topWins}`, stackList(restStack) + lookRow, { trail: btn("plus", "Add a style layer") })}
@@ -808,7 +810,7 @@ const states = [
         sub: `The graph's own inspector, before anything is clicked. Overview reads the graph (${ppi.nodes} proteins, ${fmt(ppi.edges)} interactions, what the edges carry). Style stack is the whole ordered list of style layers, top wins, each with its legend, and the Look under it. Results lists every run on this graph, newest first; a row opens that result. The left panel holds only the project's objects: graphs, sets and paths, views.`,
         html: frame(ppiPanel(), restCanvas, restInspector(),
             ann(906, 60, 280, "<b>Nothing selected</b> has three sections, Overview, Style stack and Results (proposed after round 3, owner review: styles and results belong where the selection is read). The first line names the graph; it has no verbs (interface-specification 4.2, Nothing).") +
-            ann(906, 120, 280, "<b>Overview</b>: the Overview row with Change..., the headline readings (MetricRow), then the Edges row in the weight's own words, &quot;confidence, not used yet&quot; (content design after round 3), the Attributes row opening the table, and Layout with Run layout. ActionRow, MetricRow.") +
+            ann(906, 120, 280, "<b>Overview</b>: the Overview row with Change overview..., the headline readings (MetricRow), then the Edges row and the weight in the words decided after round 6, &quot;confidence: asked by each run&quot; (a column's meaning as a weight is asked by each run, never set on the data), the Attributes row opening the table, and Layout with Run layout. ActionRow, MetricRow.") +
             ann(906, 330, 280, "<b>Style stack</b>: every layer, top first, with a drag handle and the caption &quot;top wins&quot;; each layer's legend nests under it (Module color's five largest modules, then &quot;5 more&quot;). The <b>Look</b> row has a visible label. &quot;+&quot; adds a layer to the top. Tree (treegrid mode), Select.") +
             ann(906, 560, 280, "<b>Results</b>, newest first: each run with its one-line summary in the weight's words. A row opens the result as its own inspector (the Betweenness state). A needs-action strip leads the section when a run is out of date (the crop further down). &quot;+&quot; is Run..., the catalog. ActionRow.") +
             ann(330, 60, 280, "<b>Rail</b>: main menu, Graph, Data, Notes, Assistant; Results left the rail. <b>Graph panel</b>: graphs, sets and paths, views -- no Styles. Under the project name, the privacy line links to Data, Sent and saved. The header has no avatar and no Export button.")),
@@ -882,10 +884,10 @@ const states = [
     {
         id: "two",
         title: "Two nodes: TP53 and SMAD3, Paths between...",
-        sub: `She wants to know how TP53 reaches SMAD3. With exactly two nodes selected, the first line gains a labeled button, Paths between... It arms the Path tool with From and To already filled in, TP53 and SMAD3, in the order she selected them. The bar is the Path tool's own: Scope is the full graph, and Weight says confidence is not used yet, so the search will count hops. Run finds every shortest path.`,
+        sub: `She wants to know how TP53 reaches SMAD3. With exactly two nodes selected, the first line gains a labeled button, Paths between... It arms the Path tool with From and To already filled in, TP53 and SMAD3, in the order she selected them. The bar is the Path tool's own: Scope is the full graph, and Weight says none, so the search will count hops. Run finds every shortest path.`,
         html: frame(ppiPanel(), twoCanvas, twoInspector(true),
             ann(906, 60, 280, "<b>Paths between...</b> (study round 1): a secondary Button on a third line, shown only when the selection is exactly two nodes. It arms the Path tool; it no longer opens a form beside the inspector, so there is one way a path search looks, the one in sets-and-paths.") +
-            ann(330, 560, 300, "<b>The Path tool's bar</b> (interface-templates 14; sets-and-paths): From and To filled from the selection in selection order; Scope, the one control for where the search runs; Weight in the weight's own words, &quot;confidence, not used yet&quot;. Choosing confidence there asks what it means the first time (load step after round 3). SecondaryToolbar, SearchInput, StyleSelect.") +
+            ann(330, 560, 300, "<b>The Path tool's bar</b> (interface-templates 14; sets-and-paths): From and To filled from the selection in selection order; Scope, the one control for where the search runs; Weight reads &quot;none, hops counted&quot;; choosing confidence there asks what a higher confidence means, on this run (load step after round 3). SecondaryToolbar, SearchInput, StyleSelect.") +
             ann(906, 200, 280, "<b>Statistics</b>: the two are not adjacent, so edges between reads 0. <b>Attributes</b>: nothing is shared, so one &quot;N differ&quot; row. <b>Results</b>: per run, a range, or two communities.")),
     },
     {
@@ -954,9 +956,9 @@ const states = [
     {
         id: "result",
         title: "A result as its own inspector: Betweenness",
-        sub: `She clicks Betweenness in Results. The inspector becomes the result's: a state line saying it is finished and current, how it ran (scope, and what it did with the weight), the distribution of its ${ppi.nodes} values, the highest proteins, and its runs. Compare with... and Show as style layer are labeled buttons. Esc, or a click on empty canvas, returns to TP53, which stayed selected on the canvas.`,
+        sub: `She clicks Betweenness in Results. The inspector becomes the result's: a state line saying it is finished and current, how it ran (scope, and what it did with the weight), the distribution of its ${ppi.nodes} values, the highest proteins, and its runs. Compare with another run... and Show as style layer are labeled buttons. Esc, or a click on empty canvas, returns to TP53, which stayed selected on the canvas.`,
         html: frame(ppiPanel(), ppiCanvas(), resultInspector,
-            ann(906, 60, 280, "<b>A result is its own inspector kind</b> (proposed after round 3): first line, the method's name over the kind word Result; Re-run and Show in table as ActionIcons; <b>Compare with...</b> and <b>Show as style layer</b> as labeled secondary Buttons on a third line.") +
+            ann(906, 60, 280, "<b>A result is its own inspector kind</b> (proposed after round 3): first line, the method's name over the kind word Result; Re-run and Show in table as ActionIcons; <b>Compare with another run...</b> and <b>Show as style layer</b> as labeled secondary Buttons on a third line.") +
             ann(906, 180, 280, "<b>State line</b>: finished, running, failed or out of date, with its reason (state-matrix, Result). One line under the type row, role status.") +
             ann(906, 250, 280, "<b>Run</b>: Scope and the weight in its three-state words, with one line on what the weight did (content design after round 3). Weight opens the meaning question.") +
             ann(906, 380, 280, "<b>Values</b>: the distribution on the scale the automatic layer uses (log, heavy tail), median and the count at zero. <b>Highest</b>: the top three with ranks, each selecting its protein; the rest in the table. <b>Runs</b>: every run of this method, one here.") +
@@ -1147,9 +1149,7 @@ body:has(.ins-state:target) .ins-screen { box-shadow: none; }
 .ins-thumb { position: absolute; right: 2px; top: 30px; width: 6px; border-radius: 3px; background: var(--cm-border-strong); }
 
 /* Canvas: the count badge on the outline of a selection past the cap (canvas-drawing 6) */
-.ins-badge { position: absolute; transform: translate(-50%, -140%); padding: 2px 8px; border-radius: 10px; background: #1A1A1A; color: #fff; font-size: 11px; font-weight: 550; white-space: nowrap; box-shadow: 0 0 0 2px #fff; }
-:root[data-theme="dark"] .ins-badge, :root:has(#ins-th-dark:checked) .ins-badge { background: #fff; color: #1A1A1A; box-shadow: 0 0 0 2px #1A1A1A; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not(:has(#ins-th-light:checked)) .ins-badge { background: #fff; color: #1A1A1A; box-shadow: 0 0 0 2px #1A1A1A; } }
+.ins-badge { position: absolute; transform: translate(-50%, -140%); padding: 2px 8px; border-radius: 10px; background: var(--k-mark-out); color: var(--k-mark-in); font-size: 11px; font-weight: 550; white-space: nowrap; box-shadow: 0 0 0 2px var(--k-mark-in); }
 .ins-menu .k-menu-label { font-weight: 550; }
 .ins-tip { position: absolute; z-index: 70; white-space: nowrap; max-width: none; }
 

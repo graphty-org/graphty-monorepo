@@ -53,7 +53,7 @@ hex color for chrome; ink on the dark menu and tooltip is `var(--k-menu-ink2)` (
 `var(--k-menu-ink3)` (disabled), and the canvas is `var(--k-canvas)` and `var(--k-canvas-ink)`. A mark a page draws over a drawing in CSS or
 inline SVG (a selection ring, a hull, focus bands, a badge on the canvas) takes the drawings' own two-tone band,
 `var(--k-mark-out)` outside and `var(--k-mark-in)` inside, and a fill edge is `var(--k-fill-edge)`. Data colors (chits, legend entries, table swatches) use the values in
-`fixtures.json` (Okabe-Ito first, `#808080` unstyled, `#505050` Other).
+`fixtures.json` (Okabe-Ito first, `#808080` unstyled, `#BDBDBD` Other: a light grey kept apart from black and from the unstyled grey, and every legend names what Other holds).
 
 **Icons.** `<svg class="k-i"><use href="../kit/icons.svg#search"/></svg>`; sizes `k-i-sm` (12),
 default (16), `k-i-lg` (24, toolbar tools). The list of names is in `build-icons.mjs`.
@@ -96,6 +96,15 @@ Inspector, Graph panel and Tools, and every arrival announcement starts with tha
 walk it is "Walking the drawing". An undo or redo line, like every notice, clears when the reader moves to another node or filter
 step, never on a timer, and Undos in a row add to it ("Undone: Filter out group 8 and Filter to degree >= 5"). A filter step's name is the same in
 its row, its undo label and Undo history ("Filter out group 8"); one step is taken out with its own delete on the filter chip.
+A question with a few fixed answers, such as "For amount, a higher number means...", is a radio
+group with nothing chosen, its answers in the same order on every page (a closer or stronger link, a
+longer or costlier step, more can pass through, Don't use {column}); Enter and Run do nothing until
+one is chosen, and the arrows move and choose as in any radio group. A stepper ("Route 1 of 2")
+steps with its previous and next buttons, and with Left and Right while it has focus. A link that
+opens another place (a style layer's "From run:") moves focus to that place's heading, and that place's back
+arrow or Esc returns focus to the link. When an action's button leaves with it (Bring it back),
+focus goes back to where the reader came from, never to the page body. A commit a sighted reader
+sees in place is still spoken ("Note added to Mule ring. Ctrl+Z removes it.").
 
 **Type helpers.** `k-num` (tabular figures on every number that sits in a column or changes),
 `k-id` (identifiers: slashed zero, distinct l and I), `k-mono` (expressions), `k-secondary`,
@@ -299,43 +308,84 @@ Its numbers are all in `datasets.citations`: `stats` (the General overview readi
 Every page loads it right after `kit.css` (the skeleton above). It does five things, and a page
 writes no code for them.
 
-**Numbers on a page come from the fixtures.** Put the fixture's key on the element and type the
-value it holds; the typed text is what shows offline:
+**Numbers on a page come from the fixtures, through one formatter.** Put the fixture's key on the
+element and type the text the formatter writes; the typed text is what shows offline:
 
 ```html
-<span data-fx="datasets.ppi.nodes">300</span> proteins
+<span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>
+<span data-fx="datasets.ppi.filtered.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">56 of 300 proteins</span>
 <span data-fx="datasets.lesmis.stats.density" data-fx-digits="4">0.0868</span>
-<span data-fx="alerts:august.alerts.length">50</span> alerts        <!-- alerts: reads kit/alerts.json -->
+<span data-fx="alerts:august.alerts.length" data-fx-noun="alerts">50 alerts</span>        <!-- alerts: reads kit/alerts.json -->
 <img data-fx-attr="src:datasets.{ds}.frame.drawing; alt:datasets.{ds}.frame.alt" data-fx-theme="light" src="..." alt="...">
 <div data-fx-if="datasets.{ds}.frame.legend"> ... </div>           <!-- hidden when the value is empty -->
 ```
 
-kit.js replaces the text with the fixture's value, formatted (commas on integers, `data-fx-digits`
-for fixed decimals, an array as a range "-2.52 to 3.15"). **When the typed text differs from the
-fixture, or the key does not exist, the page throws**, the element gets an annotation-ink outline,
-and `shoot.mjs` and `check.mjs` fail and name both. So two pages can never show two numbers for the
-same fixture value. `{ds}` in a key is the page's dataset: `?dataset=<id>` in the URL, else the
-dataset of `?task=<id>`, else `<body data-dataset="...">`. The typed text is only checked when the
-page shows its own dataset.
+**The scope formatter.** At least eight confirmed round-6 findings were one defect: a number that
+does not say what it was counted on (degree 40 against 41, units dropped after a filter, "Export
+again" with no version, an agreement sentence against "0 of the top 50"). So one formatter, in
+kit.js, writes every count and measure a participant reads, always the same way:
 
-**The set a number is counted over** (the rule proposed for `content-design.md` 5 in
-`framework-changes.md`, "A number names its set only when the set departs"). `<body data-set>` is
-the page's current set ("full graph" when absent, or "filtered graph" under a filter step).
-`data-fx-set="..."` names an element's set. kit.js appends ", on: {set}" when that set is not the
-page's current one, or when the same measure (`data-fx-measure`, default the key's last part) shows
-over two sets on the page -- then both name theirs. Type the text with the suffix.
+| Part | Attribute | Written as |
+|---|---|---|
+| the value | `data-fx="<key>"` | the fixture's value, commas on integers, a range as "-2.52 to 3.15" |
+| a fixed precision | (by measure) or `data-fx-digits` | a computed measure (betweenness, closeness, PageRank, density, average degree, modularity) at 3 significant figures, a non-zero value under 0.001 in its own e-notation, as `content-design.md` 5 sets it: 0.570, 0.0868, 7.70, 3.85e-4; money in cents; one measure never shows at two precisions |
+| the counted noun or unit | `data-fx-noun="proteins"`, `data-fx-unit="USD"` (`"$"` goes before) | "1 protein", "300 proteins" (`"person|people"` names both forms) |
+| part of a whole | `data-fx-of="<key of the whole>"` | "56 of 300 proteins" |
+| the data version | automatic; `data-fx-version="named"` when the words beside it already name it | a value from another version than the one on screen says so: "3,000 accounts (March 2026 data)" on an April page. The version is the one the dataset's title names |
+| the set | `data-fx-set`, `data-fx-measure` | ", on: filtered graph" (below) |
+
+**When the typed text differs from what the formatter writes, or the key does not exist, the page
+throws**, the element gets an annotation-ink outline, and `shoot.mjs` and `check.mjs` fail and name
+both. So two pages can never show two numbers for the same fixture value. `{ds}` in a key is the
+page's dataset: `?dataset=<id>` in the URL, else the dataset of `?task=<id>`, else `<body
+data-dataset="...">`. The typed text is only checked when the page shows its own dataset. Markup a
+page's script draws after load (a state it switches to on a click) is bound the same way.
+
+**The gate fails every count the formatter did not write** (`check.mjs`, read in the participant
+view inside product frames): a number with a counted noun ("1,262 interactions"), "N of M" on its
+own ("27 of 77"), or a statistic after its label ("density 0.296"), unless every number in it
+sits inside a `data-fx` element. Not read: table cells (rows from the fixtures), SVG text, a
+threshold in prose ("past about 2,000 accounts", "top 10", "first 5 of 150"), 0 and 1 (they cannot
+disagree between pages), "N of M" that counts steps, routes, runs or results replayed, a place in a
+list ("rank 247 of 300", "neighbor 2 of 6", "2 of 6 from RPA2", "rows 1 to 7 of 1,863", a stepper's
+"4 of 10"), "N node names". A number the reader set rather than the data (a top-N length, "18 of
+100"; the reader's own selection announced by a live region) is typed inside `data-fx-param`, and
+only that. Every number binds to a key that means it: a count derived from other fixture values
+(a path's other proteins, a selection's memberships, a hop's kinds) is computed by
+`screens/counts-numbers.mjs` into `fixtures.scenarios.onScreen`, never bound to a key that merely
+holds the same value. A page that builds its markup in a script calls `count()` (below) or types
+`<span data-fx=...>`; a live simulator (`screens/filter-chip.html`) binds each drawn state to
+`scenarios.filterChip` (`screens/filter-chip-numbers.mjs`, which fails unless the page's own model
+agrees with `datasets.lesmis.filterSteps`, `datasets.ppi.filtered` and `scenarios.failureAndRecovery`),
+and passes its own count as `expect`, so kit.js reports any disagreement.
+
+**Generated pages.** The counts on these pages were bound in the page itself, and their generators
+do not emit the bindings yet: `screens/styles-list.gen.mjs`, `inspector.gen.mjs`, `table-dock.gen.mjs`,
+`export-dialog.gen.mjs`, `first-look.gen.mjs`, `version-history.gen.mjs`, `notes-panel.gen.mjs`,
+`preferences.gen.mjs`, `results-panel.py`, `run-and-read.py`, `option-form-cost.py`,
+`alert-triage/src/build.py`, `find-and-expand/build.mjs`, `storyboards/weekly-return.gen.mjs` and
+`flows/sets-and-paths.gen.py`. Several of those pages were also edited by hand after they were last
+generated. Before running one, port the page's `data-fx` spans into it (the generator writes
+`<span data-fx=... data-fx-noun=...>`, or the shared `count()` shape); run as it is, it drops them
+and the gate fails the page.
 
 **Markup built from the fixtures** (a legend, a list): listen for the event kit.js sends once the
 fixtures are loaded, and check the typed markup with `expect`:
 
 ```html
 <script>
-document.addEventListener("kit:fixtures", ({ detail: { get, ds, fmt, expect } }) => {
+document.addEventListener("kit:fixtures", ({ detail: { get, ds, fmt, expect, count } }) => {
   const f = get(`datasets.${ds}.frame`);   // a missing key is a kit problem, as with data-fx
+  el.innerHTML = `Filtered: ${count("datasets.ppi.filtered.nodes", { of: "datasets.ppi.nodes", noun: "proteins" })}`;
   ...
 });
 </script>
 ```
+
+`count(key, { noun, of, unit, digits, set, version, expect })` is the formatter for a page's own script (also `window.kitCount` once the fixtures load, and `window.kitValue(key)`): it
+returns the bound markup (`<span data-fx=...>56 of 300 proteins</span>`), so a count a script writes
+is the formatter's too. A page script that renders before the fixtures load writes the same
+`<span data-fx ...>` markup with the text typed, and kit.js binds and checks it when it appears.
 
 **Tooltips.** Every `k-icon-btn`, `k-tool`, `k-tool-caret`, `k-help` and `[data-tip]` shows a
 tooltip on hover (after 400 ms) and on keyboard focus, drawn as compact-mantine's: dark, one line.
@@ -396,10 +446,28 @@ will see this way: round 2's participants read the design notes as broken produc
   on a page with no element whose id is `study` (there `#study` is a section link), is the
   participant view. It shows a small, faint control in the bottom-right corner of the visible screen
   (a 32 px touch target, pinned there however far a tablet is zoomed or panned), and Esc does the
-  same: both drop `study` from the address and reload, keeping the page's other states. Esc leaves
-  only when the page did not use the key: a page whose Esc closes a menu or a popover calls
-  `preventDefault()`. A scripted render (`kit/shoot.mjs --study`) shows no control. Checked at iPad
-  width, 768 by 1024 with touch.
+  same: both drop `study` from the address and reload, keeping the page's other states. A scripted
+  render (`kit/shoot.mjs --study`) shows no control. Checked at iPad width, 768 by 1024 with touch
+  (`kit/shoot.mjs --touch`, which writes `...--768-touch.png`).
+
+**The Esc rule** (every page). In round 6 one Esc both closed the undo page's steps list and reset
+the page, which cost four sessions. So:
+
+1. A handler that closes, cancels or clears something (a menu, a popover, a steps list, a gesture,
+   a selection) calls `e.preventDefault()`.
+2. Esc does one thing per press, starting with the innermost open item: a menu inside a popover
+   closes before the popover, the popover before the selection is cleared.
+3. The participant view is left only by an Esc with nothing open: when no handler marked the key
+   and the press changed nothing on the page. kit.js waits until every listener has run, and takes
+   any change to the page (outside its own tooltip) as the key used, so a handler that forgot
+   `preventDefault()` still does not reset the page.
+4. A handler that has nothing to close does not use the key (no `preventDefault()`, no redraw), so
+   Esc from rest always leaves.
+
+`check.mjs` checks both halves on every page: from rest, up to five presses must leave the view;
+after each control that opens something (a chip, a menu button, anything with `aria-haspopup` or
+`aria-expanded`) is clicked, one Esc must not. `prove-gate.mjs` opens the undo page's steps list,
+presses Esc, and requires the page to still be in the participant view with the list closed.
 
 ## The kit check
 
@@ -429,8 +497,19 @@ takes this list as problems; `--typed` and `--strict` are accepted and do nothin
 
 ## The gate
 
-Before a study round, every task screen passes the gate: `node kit/check.mjs --all` with no
-problem, and `node kit/prove-gate.mjs` showing each rule still fails on a planted violation. The
+Before a study round, every task screen passes the gate, and the round does not start until it does:
+
+```bash
+node kit/check.mjs --all        # every page: no problem
+node kit/check.mjs --tasks      # every task's screens: no problem, and more than 0 screens checked
+node kit/prove-gate.mjs         # every rule still fails on a planted violation: "all N proofs hold"
+```
+
+The facilitator pastes the output of all three into the round's file (`study/round-N/gate.md`)
+before the first session or first click. Any failure stops the round: a gate that checked nothing
+passed nothing (round 6 ran on "0 problems on 0 pages", and every mock defect participants hit
+survived). `--tasks` exits 1 when it checks 0 task screens, and a run that checks no page at all
+exits 1. `--task=<id>` limits `--tasks` to some tasks. The
 check reads each page as rendered (every state it switches to by `#hash` or `?query` included; the
 states it stacks are all on the page at once) and fails it on:
 
@@ -438,15 +517,19 @@ states it stacks are all on the page at once) and fails it on:
    control as current misleads the owner as much as the control misleads a participant. The list
    is `retired` in `kit/terms.json` ("Export files", an avatar letter, "Style files", "Undo back to
    here", the Previous selection key, "Default for new runs", "weight 0.98", the Print look's
-   "within ... of 0 drawn as no change" and "result" used to mean a value). `study/index.html`, the
-   record of past rounds, is exempt.
+   "within ... of 0 drawn as no change", "result" used to mean a value, the invented tie rule's
+   "within 1%" and "near #8", a column's "not used yet", and "Change..." on a data source; the note
+   editor's "Saving as: Marcus. Change..." is the author setting and stays). `study/index.html` and
+   `study/coverage.html`, the records of past rounds, are exempt (they quote retired terms as history).
 2. **A required string** missing from the page and state `kit/terms.json` maps it to, read inside
    product frames in the participant view, so a design note never satisfies it. One global list
    would fail every page, so each string names its states: Ctrl+Enter on the note editor, "Near
    tie" on the ranked table, "Not run:" on a refused run, "Money in" and "Links in (count)" on the
    transfers, "Selection restored" on the restore, "on 60 of 77" on a value computed on a subset.
+   (The ranked table's "Near tie" is withdrawn with the invented tie rule.)
    A state the sheet names that the page does not have yet fails as "required state not drawn".
-3. **A count that differs from `kit/fixtures.json`**: a typed count no fixture holds, a bound number
+3. **A count the scope formatter did not write**, and **a count that differs from
+   `kit/fixtures.json`**: a typed count no fixture holds, a bound number
    that is not its fixture's, two pages showing one fixture value differently, and, on a page that
    declares its dataset (`<body data-dataset>` or `?dataset=`), a node or edge count in the Graphs
    row, the table's scope line or a nodes or edges reading that is not that dataset's. A count bound
@@ -456,18 +539,26 @@ states it stacks are all on the page at once) and fails it on:
    live on the Results rail place), a Previous selection command (Ctrl+Z restores a cleared
    selection), or an Apply dialog without "Use these styles" (there is one Apply dialog).
 
+5. **The Esc rule** (above, "The Esc rule").
+
 And on **the old frame**: a rail other than main menu, Graph, Data, Results, Notes, Assistant (a
 rail with only the main menu is the start screen's), two right columns, an avatar, an Export
-button in a header row, or Styles in the Graph panel.
+button in a header row, Styles in the Graph panel, or a Note tool on the toolbar (there is no Note
+tool: a note starts from Add note... or the Notes panel).
 
 **Before frames.** A frame kept to show what a design replaced carries `data-frame="before"`. The
 gate and the shell skip it, `kit.css` captions it "Before", and the participant view hides it.
 
 **Proof.** `node kit/prove-gate.mjs` serves pages that pass with one violation planted
-(`check.mjs --plant <page>@<text>@<replacement>`, nothing on disk changes) and expects each to
-fail with its named problem: a retired string (and the same string inside a Before frame, which
-passes), a required string, a count against the page's dataset, a typed count, a bound number,
-each of the three two-homes rules, an avatar and a rail without Results.
+(`check.mjs --plant <page>@<text>@<replacement>[@*]`, `@*` for every occurrence; any served file,
+`kit/kit.js` included; nothing on disk changes) and expects each to fail with its named problem: a
+retired string (and the same string inside a Before frame, which passes) and each of the four new
+ones, a required string (the note editor's "Ctrl+Enter": the page as drawn passes, and removing it
+from one state fails that state alone), a count against the page's dataset, a typed count, a bound
+number, a count the formatter did not write, each of the three two-homes rules, an avatar, a rail
+without Results, a Note tool, `--tasks` checking nothing, and the Esc rule (the steps list closes on
+Esc and the page stays in the participant view; with the page's `preventDefault()` and kit.js's
+net both removed, the check fails).
 
 ## Tasks: `fixtures.tasks`
 
@@ -499,6 +590,12 @@ needed most:
   the fixtures.
 - `keyboard-walk`, `keyboard-walk-shift-arrow`: the proteins, TP53 and its neighbors, the graph the
   walk mock loads (Shift+Arrow walks; plain arrows stay on the camera).
+- Rounds 4 and 5 ran eleven tasks with no entry, so `--tasks` never saw their screens; they have
+  one now, with the moderator's wording: `calculation-stopped`, `dated-trace`, `gray-figure-signed`,
+  `money-in-and-out`, `notes-with-names`, `restyle-two-groups`, `team-colors-file`,
+  `top-200-past-limit`, `two-runs-compared`, `weekly-update`, `weight-end-to-end`, and round 6's
+  `load-a-messy-export` and `real-change-or-noise`. Each names the dataset its question is about;
+  a screen it borrows from another dataset is reported by `--tasks`, not hidden.
 - Each task also lists its `pages`, the screens it shows first to last (with a `#state` where a page
   stacks several), which `check.mjs --tasks` walks. A task never borrows a screen of another dataset:
   where one is missing, the check says so, and the screen is the work, not the task.
@@ -535,7 +632,7 @@ page never reads a side file: `failureAndRecovery` (NetworkX on the published Le
 weighted betweenness both ways, closeness with and without the correction, the three filter steps;
 `python3 screens/failure-and-recovery-numbers.py`), `comparison` (the March and April ranks;
 `node screens/comparison-numbers.mjs`), `tableDock` (every account's row, unrounded measures;
-`node screens/table-dock-numbers.mjs`), `pastLimitTop200` (the 200 most cited patents a "Keep top rows" step keeps, their citations and drawing, modeled; `node screens/past-drawing-limit-numbers.mjs`, which also writes `screens/img/pdl-top200-{theme}.svg`). Each script sets its own entry and leaves the rest;
+`node screens/table-dock-numbers.mjs`), `pastLimitTop200` (the 200 most cited patents a "Keep top rows" step keeps, their citations and drawing, modeled; `node screens/past-drawing-limit-numbers.mjs`, which also writes `screens/img/pdl-top200-{theme}.svg`), `filterChip` (each drawn state of the filter chip mock; `node screens/filter-chip-numbers.mjs`), `onScreen` (counts derived from other fixture values, such as a path's other proteins or a selection's memberships; `node screens/counts-numbers.mjs`, run last). Each script sets its own entry and leaves the rest;
 `gen-canvas.mjs` keeps them when it rewrites the file. Run `gen-canvas.mjs` first, then the scripts.
 `datasets.alertsAugust` names the alert queue's month so a task can point at it; its numbers stay in
 `alerts.json`.
@@ -614,6 +711,8 @@ region (`k-canvas`, `k-main`, `k-stage`).
 places a dialog without dimming what is behind it, as most Figma dialogs do. `data-focus-ring` on
 any control draws compact-mantine's keyboard focus ring in a static mock. `k-link` is an inline
 text command (Anchor).
+
+**Toolbar:** Select (with its caret), Path, Quick actions, the view mode. There is no Note tool.
 
 **Status bar:** the design has none. Running work is the notice, and what is not drawn is the
 legend's not-drawn line. `k-status` exists only for a mock that proposes one.
@@ -697,6 +796,16 @@ control without visible text a name. `kit/template.html` is marked up this way; 
 is `--cm-border-selected`, which `kit.css` lifts in dark so it measures 3:1 on a selected row. Live
 keyboard focus (`:focus-visible`) draws the same ring on every page.
 
+kit.js also keeps focus off the page body on every page, as `framework-changes.md` ("Focus never
+falls to the page body") asks: after a redraw it puts focus back on the same control, or, when
+the control left with its action, on the one the reader was on before; an opened `k-backdrop`
+dialog takes focus on its first control once the reader has pressed or clicked anything; a #state
+switch that hides the pressed control focuses the new state's `data-focus-ring` control, else the
+state itself. A page that means focus to land somewhere else sets it itself, in the same event.
+A page's own sticky bar never hides the focused control or a #state's top (WCAG 2.4.11).
+Every `k-chit` gets its color in words as its name (`framework-changes.md`, "A legend swatch says
+its color"); give one an `aria-label` only to say something more specific.
+
 **No control inside a control.** A row's own button (Style by this, Select painted, an info
 button) sits beside the row's button, never inside it; a split button's `aria-expanded` goes on its
 caret. Inside a picture (`role="img"`, the walk's focus pill) nothing is a control: draw a pressed
@@ -731,6 +840,7 @@ node kit/shoot.mjs --full storyboards/first-look.html     # the whole scrolling 
 node kit/shoot.mjs --out open-file-hover.png screens/open-file.html
 node kit/shoot.mjs index.html screens/a.html screens/b.html   # several at once
 node kit/shoot.mjs --study screens/find.html              # the study view: design notes hidden, ...--study.png
+node kit/shoot.mjs --touch --study screens/undo.html      # 768 x 1024, touch, as on an iPad: ...--768-touch.png
 node kit/shoot.mjs --stale --dry                          # list every PNG older than its page or the kit
 node kit/shoot.mjs --stale                                # and render them again
 ```

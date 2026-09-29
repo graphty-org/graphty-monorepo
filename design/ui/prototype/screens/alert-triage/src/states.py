@@ -377,9 +377,9 @@ add("case-trace-menu", "13b. Where did the money go next? Out, from Aug 6",
 
 def time_order(r):
     if r["senderHop"] == 0: return '<span class="k-secondary">starts the trace</span>'
-    if r["earlierThanHopBefore"]: return f'<span class="at-order">{ic("clock", "k-i k-i-sm")} earlier than the hop before ({when(r["reachedAt"])})</span>'
-    return "in order"
-TRACE_HEAD = [("source", 0), ("target", 0), ("time (UTC)", 0), ("amount (USD)", 1), ("sender's hop", 1), ("time order", 0)]
+    if r["earlierThanHopBefore"]: return f'<span class="at-order">{ic("clock", "k-i k-i-sm")} no: earlier than the hop before ({when(r["reachedAt"])})</span>'
+    return "yes"
+TRACE_HEAD = [("source", 0), ("target", 0), ("time (UTC)", 0), ("amount (USD)", 1), ("sender's hop", 1), ("Dates in order", 0)]
 tr_rows = [(" data-member" if r["source"] == SEED["id"] else "", [(r["source"], "k-id"), (r["target"], "k-id"), (when(r["time"]), "k-num"), (usd(r["amount"]), "k-n"),
             ("start" if r["senderHop"] == 0 else str(r["senderHop"]), "k-n"), (time_order(r), "")]) for r in TS["rows"]]
 tr_foot = (f'<span>Selection {SEED["id"]}, on the full graph</span>'
@@ -393,9 +393,10 @@ a = app(rail(), left(chip(f'Filtered: {TS["nodes"]} of 3,000 nodes'), ref_rows_s
         + dock(["Nodes", "Edges"], "Edges", f'Filtered graph: {TS["edges"]} of {n(A["edges"])} edges. Sorted by time; the selection\'s {TFOOT["transfersOutFrom"]} marked.', TRACE_HEAD, tr_rows, foot=tr_foot),
         right(*node_inspector(seed_in_step, members="2 sets", in_full=f'{SEED["degree"]} neighbors: in {SEED["in"]}, out {SEED["out"]}')))
 add("case-trace", "13c. The trace: each transfer in time order, and the money in against the money out",
-    f'The step {STEP_TR} keeps {TS["nodes"]} accounts and the {TS["edges"]} transfers among them dated {TR["fromLabel"]} or later. The drawing has arrows along each transfer. The Edges tab, in time order, gives each transfer the hop of its sender and checks it against the transfer that reached that sender: {TS["earlierThanHopBefore"]} is earlier than the hop before, drawn dashed with a clock and named in its row, so it cannot be the same money. The footer splits the selected account\'s money at the From date: {usd(TFOOT["moneyInBefore"])} USD in before {TR["fromLabel"]}, {usd(TFOOT["moneyOutFrom"])} USD out from then on. Most of what went out never came in through this file, which is the question Sarah takes to the account statement.',
+    f'The step {STEP_TR} keeps {TS["nodes"]} accounts and the {TS["edges"]} transfers among them dated {TR["fromLabel"]} or later. The drawing has arrows along each transfer. The Edges tab, in time order, gives each transfer the hop of its sender, and its Dates in order column checks the transfer\'s date against the transfer that reached that sender: {TS["earlierThanHopBefore"]} is earlier than the hop before, drawn dashed with a clock and named in its row, so it cannot be the same money. The column checks dates only, not amounts; the money is on the drawing, where each account reads Received and Sent over this trace\'s transfers alone (ACC-274887: Received {usd(TS["traceMoney"]["ACC-274887"]["received"])} USD / Sent {usd(TS["traceMoney"]["ACC-274887"]["sent"])} USD, this trace), so money sent on without arriving in the trace shows at a glance. The footer splits the selected account\'s money at the From date: {usd(TFOOT["moneyInBefore"])} USD in before {TR["fromLabel"]}, {usd(TFOOT["moneyOutFrom"])} USD out from then on. Most of what went out never came in through this file, which is the question Sarah takes to the account statement.',
     state("case-trace", a, [
         note(560, 60, "Filter chip: the dated step counts like any Neighbors step. interface-templates 7.", 220),
+        note(330, 700, "Received and Sent under each account are summed over the step's transfers only, the weighted in- and out-degree on amount on the filtered graph; the inspector's Money in and Money out stay on the full graph. Computed by graphty-element (proposed).", 260),
         note(330, 470, "Arrows on a directed graph, by default; the dashed edge with a clock is a transfer earlier than the one that reached its sender. canvas-drawing (proposed).", 260),
         note(560, 860, "The step's table footer splits the selection's total at the step's From date: Money in before, Money out from then on. It reads the full graph, and says so, because a step that follows money out holds none of the money that came in. Computed by graphty-element (proposed).", 320)]))
 

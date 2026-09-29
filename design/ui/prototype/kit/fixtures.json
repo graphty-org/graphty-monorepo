@@ -4,7 +4,7 @@
   "light": "#F5F5F5",
   "dark": "#1E1E1E",
   "nodeGray": "#808080",
-  "otherGray": "#505050",
+  "otherGray": "#BDBDBD",
   "categorical": [
    "#E69F00",
    "#56B4E9",
@@ -99,21 +99,21 @@
      "label": "9",
      "faction": "Officer",
      "degree": 5,
-     "betweenness": 0.056
+     "betweenness": 0.0559
     },
     {
      "id": "2",
      "label": "2",
      "faction": "Mr. Hi",
      "degree": 9,
-     "betweenness": 0.054
+     "betweenness": 0.0539
     },
     {
      "id": "14",
      "label": "14",
      "faction": "Mr. Hi",
      "degree": 5,
-     "betweenness": 0.046
+     "betweenness": 0.0459
     }
    ],
    "rows": [
@@ -129,7 +129,7 @@
      "label": "2",
      "faction": "Mr. Hi",
      "degree": 9,
-     "betweenness": 0.054
+     "betweenness": 0.0539
     },
     {
      "id": "3",
@@ -143,14 +143,14 @@
      "label": "4",
      "faction": "Mr. Hi",
      "degree": 6,
-     "betweenness": 0.012
+     "betweenness": 0.0119
     },
     {
      "id": "5",
      "label": "5",
      "faction": "Mr. Hi",
      "degree": 3,
-     "betweenness": 0.001
+     "betweenness": 0.000631
     },
     {
      "id": "6",
@@ -178,21 +178,21 @@
      "label": "9",
      "faction": "Officer",
      "degree": 5,
-     "betweenness": 0.056
+     "betweenness": 0.0559
     },
     {
      "id": "10",
      "label": "10",
      "faction": "Officer",
      "degree": 2,
-     "betweenness": 0.001
+     "betweenness": 0.000848
     },
     {
      "id": "11",
      "label": "11",
      "faction": "Mr. Hi",
      "degree": 3,
-     "betweenness": 0.001
+     "betweenness": 0.000631
     },
     {
      "id": "12",
@@ -213,7 +213,7 @@
      "label": "14",
      "faction": "Mr. Hi",
      "degree": 5,
-     "betweenness": 0.046
+     "betweenness": 0.0459
     },
     {
      "id": "15",
@@ -255,7 +255,7 @@
      "label": "20",
      "faction": "Mr. Hi",
      "degree": 3,
-     "betweenness": 0.032
+     "betweenness": 0.0325
     },
     {
      "id": "21",
@@ -283,21 +283,21 @@
      "label": "24",
      "faction": "Officer",
      "degree": 5,
-     "betweenness": 0.018
+     "betweenness": 0.0176
     },
     {
      "id": "25",
      "label": "25",
      "faction": "Officer",
      "degree": 3,
-     "betweenness": 0.002
+     "betweenness": 0.00221
     },
     {
      "id": "26",
      "label": "26",
      "faction": "Officer",
      "degree": 3,
-     "betweenness": 0.004
+     "betweenness": 0.00384
     },
     {
      "id": "27",
@@ -311,28 +311,28 @@
      "label": "28",
      "faction": "Officer",
      "degree": 4,
-     "betweenness": 0.022
+     "betweenness": 0.0223
     },
     {
      "id": "29",
      "label": "29",
      "faction": "Officer",
      "degree": 3,
-     "betweenness": 0.002
+     "betweenness": 0.00179
     },
     {
      "id": "30",
      "label": "30",
      "faction": "Officer",
      "degree": 4,
-     "betweenness": 0.003
+     "betweenness": 0.00292
     },
     {
      "id": "31",
      "label": "31",
      "faction": "Officer",
      "degree": 4,
-     "betweenness": 0.014
+     "betweenness": 0.0144
     },
     {
      "id": "32",
@@ -437,10 +437,10 @@
     "3": "#D55E00",
     "4": "#009E73",
     "5": "#CC79A7",
-    "6": "#505050",
-    "7": "#505050",
+    "6": "#BDBDBD",
+    "7": "#BDBDBD",
     "8": "#56B4E9",
-    "10": "#505050"
+    "10": "#BDBDBD"
    },
    "topByBetweenness": [
     {
@@ -483,35 +483,35 @@
      "label": "Thenardier",
      "group": 4,
      "degree": 16,
-     "betweenness": 0.075
+     "betweenness": 0.0749
     },
     {
      "id": "27",
      "label": "Javert",
      "group": 4,
      "degree": 17,
-     "betweenness": 0.054
+     "betweenness": 0.0543
     },
     {
      "id": "51",
      "label": "Mlle.Gillenormand",
      "group": 5,
      "degree": 7,
-     "betweenness": 0.048
+     "betweenness": 0.0476
     },
     {
      "id": "58",
      "label": "Enjolras",
      "group": 8,
      "degree": 15,
-     "betweenness": 0.043
+     "betweenness": 0.0426
     },
     {
      "id": "16",
      "label": "Tholomyes",
      "group": 3,
      "degree": 9,
-     "betweenness": 0.041
+     "betweenness": 0.0406
     }
    ],
    "topByDegree": [
@@ -541,14 +541,14 @@
      "label": "Javert",
      "group": 4,
      "degree": 17,
-     "betweenness": 0.054
+     "betweenness": 0.0543
     },
     {
      "id": "25",
      "label": "Thenardier",
      "group": 4,
      "degree": 16,
-     "betweenness": 0.075
+     "betweenness": 0.0749
     },
     {
      "id": "23",
@@ -562,28 +562,28 @@
      "label": "Enjolras",
      "group": 8,
      "degree": 15,
-     "betweenness": 0.043
+     "betweenness": 0.0426
     },
     {
      "id": "62",
      "label": "Courfeyrac",
      "group": 8,
      "degree": 13,
-     "betweenness": 0.005
+     "betweenness": 0.00527
     },
     {
      "id": "64",
      "label": "Bossuet",
      "group": 8,
      "degree": 13,
-     "betweenness": 0.031
+     "betweenness": 0.0308
     },
     {
      "id": "63",
      "label": "Bahorel",
      "group": 8,
      "degree": 12,
-     "betweenness": 0.002
+     "betweenness": 0.00219
     }
    ],
    "rows": [
@@ -704,7 +704,7 @@
      "label": "Tholomyes",
      "group": 3,
      "degree": 9,
-     "betweenness": 0.041
+     "betweenness": 0.0406
     },
     {
      "id": "17",
@@ -767,35 +767,35 @@
      "label": "Thenardier",
      "group": 4,
      "degree": 16,
-     "betweenness": 0.075
+     "betweenness": 0.0749
     },
     {
      "id": "26",
      "label": "Cosette",
      "group": 5,
      "degree": 11,
-     "betweenness": 0.024
+     "betweenness": 0.0238
     },
     {
      "id": "27",
      "label": "Javert",
      "group": 4,
      "degree": 17,
-     "betweenness": 0.054
+     "betweenness": 0.0543
     },
     {
      "id": "28",
      "label": "Fauchelevent",
      "group": 0,
      "degree": 4,
-     "betweenness": 0.026
+     "betweenness": 0.0265
     },
     {
      "id": "29",
      "label": "Bamatabois",
      "group": 2,
      "degree": 8,
-     "betweenness": 0.008
+     "betweenness": 0.00804
     },
     {
      "id": "30",
@@ -809,7 +809,7 @@
      "label": "Simplice",
      "group": 2,
      "degree": 4,
-     "betweenness": 0.009
+     "betweenness": 0.00864
     },
     {
      "id": "32",
@@ -865,7 +865,7 @@
      "label": "Pontmercy",
      "group": 4,
      "degree": 3,
-     "betweenness": 0.007
+     "betweenness": 0.00693
     },
     {
      "id": "40",
@@ -879,7 +879,7 @@
      "label": "Eponine",
      "group": 4,
      "degree": 11,
-     "betweenness": 0.011
+     "betweenness": 0.0115
     },
     {
      "id": "42",
@@ -921,7 +921,7 @@
      "label": "Mme.Burgon",
      "group": 7,
      "degree": 2,
-     "betweenness": 0.026
+     "betweenness": 0.0263
     },
     {
      "id": "48",
@@ -935,28 +935,28 @@
      "label": "Gillenormand",
      "group": 5,
      "degree": 7,
-     "betweenness": 0.02
+     "betweenness": 0.0202
     },
     {
      "id": "50",
      "label": "Magnon",
      "group": 5,
      "degree": 2,
-     "betweenness": 0
+     "betweenness": 0.000217
     },
     {
      "id": "51",
      "label": "Mlle.Gillenormand",
      "group": 5,
      "degree": 7,
-     "betweenness": 0.048
+     "betweenness": 0.0476
     },
     {
      "id": "52",
      "label": "Mme.Pontmercy",
      "group": 5,
      "degree": 2,
-     "betweenness": 0
+     "betweenness": 0.000351
     },
     {
      "id": "53",
@@ -991,21 +991,21 @@
      "label": "Mabeuf",
      "group": 8,
      "degree": 11,
-     "betweenness": 0.028
+     "betweenness": 0.0277
     },
     {
      "id": "58",
      "label": "Enjolras",
      "group": 8,
      "degree": 15,
-     "betweenness": 0.043
+     "betweenness": 0.0426
     },
     {
      "id": "59",
      "label": "Combeferre",
      "group": 8,
      "degree": 11,
-     "betweenness": 0.001
+     "betweenness": 0.00125
     },
     {
      "id": "60",
@@ -1019,42 +1019,42 @@
      "label": "Feuilly",
      "group": 8,
      "degree": 11,
-     "betweenness": 0.001
+     "betweenness": 0.00125
     },
     {
      "id": "62",
      "label": "Courfeyrac",
      "group": 8,
      "degree": 13,
-     "betweenness": 0.005
+     "betweenness": 0.00527
     },
     {
      "id": "63",
      "label": "Bahorel",
      "group": 8,
      "degree": 12,
-     "betweenness": 0.002
+     "betweenness": 0.00219
     },
     {
      "id": "64",
      "label": "Bossuet",
      "group": 8,
      "degree": 13,
-     "betweenness": 0.031
+     "betweenness": 0.0308
     },
     {
      "id": "65",
      "label": "Joly",
      "group": 8,
      "degree": 12,
-     "betweenness": 0.002
+     "betweenness": 0.00219
     },
     {
      "id": "66",
      "label": "Grantaire",
      "group": 8,
      "degree": 10,
-     "betweenness": 0
+     "betweenness": 0.00015
     },
     {
      "id": "67",
@@ -1068,28 +1068,28 @@
      "label": "Gueulemer",
      "group": 4,
      "degree": 10,
-     "betweenness": 0.005
+     "betweenness": 0.00496
     },
     {
      "id": "69",
      "label": "Babet",
      "group": 4,
      "degree": 10,
-     "betweenness": 0.005
+     "betweenness": 0.00496
     },
     {
      "id": "70",
      "label": "Claquesous",
      "group": 4,
      "degree": 10,
-     "betweenness": 0.005
+     "betweenness": 0.00486
     },
     {
      "id": "71",
      "label": "Montparnasse",
      "group": 4,
      "degree": 9,
-     "betweenness": 0.004
+     "betweenness": 0.00387
     },
     {
      "id": "72",
@@ -1117,7 +1117,7 @@
      "label": "Brujon",
      "group": 4,
      "degree": 7,
-     "betweenness": 0
+     "betweenness": 0.000439
     },
     {
      "id": "76",
@@ -1217,27 +1217,27 @@
      },
      {
       "label": "Javert",
-      "betweenness": 0.073
+      "betweenness": 0.0726
      },
      {
       "label": "Thenardier",
-      "betweenness": 0.067
+      "betweenness": 0.0674
      },
      {
       "label": "Tholomyes",
-      "betweenness": 0.061
+      "betweenness": 0.0609
      },
      {
       "label": "Enjolras",
-      "betweenness": 0.045
+      "betweenness": 0.0453
      },
      {
       "label": "Mme.Thenardier",
-      "betweenness": 0.038
+      "betweenness": 0.0379
      },
      {
       "label": "Cosette",
-      "betweenness": 0.03
+      "betweenness": 0.0304
      },
      {
       "label": "Bossuet",
@@ -1245,7 +1245,7 @@
      },
      {
       "label": "Mlle.Gillenormand",
-      "betweenness": 0.025
+      "betweenness": 0.0254
      },
      {
       "label": "Gillenormand",
@@ -1253,63 +1253,79 @@
      },
      {
       "label": "Eponine",
-      "betweenness": 0.015
+      "betweenness": 0.0151
      },
      {
       "label": "Bamatabois",
-      "betweenness": 0.013
+      "betweenness": 0.0134
      },
      {
       "label": "Pontmercy",
-      "betweenness": 0.01
+      "betweenness": 0.0104
      },
      {
       "label": "Simplice",
-      "betweenness": 0.01
+      "betweenness": 0.00986
      },
      {
       "label": "Courfeyrac",
-      "betweenness": 0.008
+      "betweenness": 0.00829
      },
      {
       "label": "Claquesous",
-      "betweenness": 0.006
+      "betweenness": 0.00556
      },
      {
       "label": "Babet",
-      "betweenness": 0.005
+      "betweenness": 0.0055
      },
      {
       "label": "Gueulemer",
-      "betweenness": 0.005
+      "betweenness": 0.0055
      },
      {
       "label": "Montparnasse",
-      "betweenness": 0.004
+      "betweenness": 0.00389
      },
      {
       "label": "Bahorel",
-      "betweenness": 0.003
+      "betweenness": 0.00323
      },
      {
       "label": "Joly",
-      "betweenness": 0.003
-     },
-     {
-      "label": "Combeferre",
-      "betweenness": 0.002
-     },
-     {
-      "label": "Feuilly",
-      "betweenness": 0.002
+      "betweenness": 0.00323
      },
      {
       "label": "Mabeuf",
-      "betweenness": 0.002
+      "betweenness": 0.00217
+     },
+     {
+      "label": "Combeferre",
+      "betweenness": 0.00183
+     },
+     {
+      "label": "Feuilly",
+      "betweenness": 0.00183
      },
      {
       "label": "Brujon",
-      "betweenness": 0.001
+      "betweenness": 0.000584
+     },
+     {
+      "label": "Magnon",
+      "betweenness": 0.000362
+     },
+     {
+      "label": "Fauchelevent",
+      "betweenness": 0.000292
+     },
+     {
+      "label": "Mme.Pontmercy",
+      "betweenness": 0.000292
+     },
+     {
+      "label": "Grantaire",
+      "betweenness": 0.00025
      },
      {
       "label": "Anzelma",
@@ -1356,15 +1372,7 @@
       "betweenness": 0
      },
      {
-      "label": "Fauchelevent",
-      "betweenness": 0
-     },
-     {
       "label": "Favourite",
-      "betweenness": 0
-     },
-     {
-      "label": "Grantaire",
       "betweenness": 0
      },
      {
@@ -1377,10 +1385,6 @@
      },
      {
       "label": "Lt.Gillenormand",
-      "betweenness": 0
-     },
-     {
-      "label": "Magnon",
       "betweenness": 0
      },
      {
@@ -1401,10 +1405,6 @@
      },
      {
       "label": "Mme.Magloire",
-      "betweenness": 0
-     },
-     {
-      "label": "Mme.Pontmercy",
       "betweenness": 0
      },
      {
@@ -1559,14 +1559,14 @@
         "group": 4,
         "degree": 17,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Thenardier",
         "group": 4,
         "degree": 15,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Fantine",
@@ -1580,28 +1580,28 @@
         "group": 8,
         "degree": 15,
         "fullDegree": 15,
-        "betweenness": 0.043
+        "betweenness": 0.0426
        },
        {
         "label": "Courfeyrac",
         "group": 8,
         "degree": 13,
         "fullDegree": 13,
-        "betweenness": 0.005
+        "betweenness": 0.00527
        },
        {
         "label": "Bossuet",
         "group": 8,
         "degree": 13,
         "fullDegree": 13,
-        "betweenness": 0.031
+        "betweenness": 0.0308
        },
        {
         "label": "Bahorel",
         "group": 8,
         "degree": 12,
         "fullDegree": 12,
-        "betweenness": 0.002
+        "betweenness": 0.00219
        }
       ],
       "selection": [
@@ -1617,14 +1617,14 @@
         "group": 4,
         "degree": 17,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Thenardier",
         "group": 4,
         "degree": 15,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Fantine",
@@ -1645,56 +1645,56 @@
         "group": 5,
         "degree": 11,
         "fullDegree": 11,
-        "betweenness": 0.024
+        "betweenness": 0.0238
        },
        {
         "label": "Gueulemer",
         "group": 4,
         "degree": 10,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Babet",
         "group": 4,
         "degree": 10,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Claquesous",
         "group": 4,
         "degree": 10,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00486
        },
        {
         "label": "Montparnasse",
         "group": 4,
         "degree": 9,
         "fullDegree": 9,
-        "betweenness": 0.004
+        "betweenness": 0.00387
        },
        {
         "label": "Bamatabois",
         "group": 2,
         "degree": 8,
         "fullDegree": 8,
-        "betweenness": 0.008
+        "betweenness": 0.00804
        },
        {
         "label": "Gillenormand",
         "group": 5,
         "degree": 7,
         "fullDegree": 7,
-        "betweenness": 0.02
+        "betweenness": 0.0202
        },
        {
         "label": "Mlle.Gillenormand",
         "group": 5,
         "degree": 6,
         "fullDegree": 7,
-        "betweenness": 0.048
+        "betweenness": 0.0476
        },
        {
         "label": "Judge",
@@ -1759,14 +1759,14 @@
         "group": 4,
         "degree": 17,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Thenardier",
         "group": 4,
         "degree": 15,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Fantine",
@@ -1780,7 +1780,7 @@
         "group": 8,
         "degree": 15,
         "fullDegree": 15,
-        "betweenness": 0.043
+        "betweenness": 0.0426
        }
       ],
       "groups": {
@@ -1827,35 +1827,35 @@
         "group": 8,
         "degree": 15,
         "fullDegree": 15,
-        "betweenness": 0.043
+        "betweenness": 0.0426
        },
        {
         "label": "Thenardier",
         "group": 4,
         "degree": 13,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Courfeyrac",
         "group": 8,
         "degree": 13,
         "fullDegree": 13,
-        "betweenness": 0.005
+        "betweenness": 0.00527
        },
        {
         "label": "Bossuet",
         "group": 8,
         "degree": 13,
         "fullDegree": 13,
-        "betweenness": 0.031
+        "betweenness": 0.0308
        },
        {
         "label": "Javert",
         "group": 4,
         "degree": 12,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Fantine",
@@ -1869,7 +1869,7 @@
         "group": 8,
         "degree": 12,
         "fullDegree": 12,
-        "betweenness": 0.002
+        "betweenness": 0.00219
        }
       ],
       "selection": [
@@ -1885,14 +1885,14 @@
         "group": 4,
         "degree": 13,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Javert",
         "group": 4,
         "degree": 12,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Fantine",
@@ -1906,21 +1906,21 @@
         "group": 4,
         "degree": 10,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Babet",
         "group": 4,
         "degree": 10,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Claquesous",
         "group": 4,
         "degree": 10,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00486
        },
        {
         "label": "Mme.Thenardier",
@@ -1934,21 +1934,21 @@
         "group": 4,
         "degree": 9,
         "fullDegree": 9,
-        "betweenness": 0.004
+        "betweenness": 0.00387
        },
        {
         "label": "Cosette",
         "group": 5,
         "degree": 8,
         "fullDegree": 11,
-        "betweenness": 0.024
+        "betweenness": 0.0238
        },
        {
         "label": "Bamatabois",
         "group": 2,
         "degree": 8,
         "fullDegree": 8,
-        "betweenness": 0.008
+        "betweenness": 0.00804
        },
        {
         "label": "Judge",
@@ -1990,14 +1990,14 @@
         "group": 5,
         "degree": 4,
         "fullDegree": 7,
-        "betweenness": 0.02
+        "betweenness": 0.0202
        },
        {
         "label": "Mlle.Gillenormand",
         "group": 5,
         "degree": 4,
         "fullDegree": 7,
-        "betweenness": 0.048
+        "betweenness": 0.0476
        }
       ],
       "topByFullDegree": [
@@ -2027,14 +2027,14 @@
         "group": 4,
         "degree": 12,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Thenardier",
         "group": 4,
         "degree": 13,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Fantine",
@@ -2048,7 +2048,7 @@
         "group": 8,
         "degree": 15,
         "fullDegree": 15,
-        "betweenness": 0.043
+        "betweenness": 0.0426
        }
       ],
       "groups": {
@@ -2084,14 +2084,14 @@
         "group": 4,
         "degree": 11,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Javert",
         "group": 4,
         "degree": 10,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Mme.Thenardier",
@@ -2105,35 +2105,35 @@
         "group": 4,
         "degree": 9,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Babet",
         "group": 4,
         "degree": 9,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Claquesous",
         "group": 4,
         "degree": 9,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00486
        },
        {
         "label": "Tholomyes",
         "group": 3,
         "degree": 8,
         "fullDegree": 9,
-        "betweenness": 0.041
+        "betweenness": 0.0406
        },
        {
         "label": "Montparnasse",
         "group": 4,
         "degree": 8,
         "fullDegree": 9,
-        "betweenness": 0.004
+        "betweenness": 0.00387
        }
       ],
       "selection": [
@@ -2156,14 +2156,14 @@
         "group": 4,
         "degree": 11,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Javert",
         "group": 4,
         "degree": 10,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Mme.Thenardier",
@@ -2177,42 +2177,42 @@
         "group": 4,
         "degree": 9,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Babet",
         "group": 4,
         "degree": 9,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00496
        },
        {
         "label": "Claquesous",
         "group": 4,
         "degree": 9,
         "fullDegree": 10,
-        "betweenness": 0.005
+        "betweenness": 0.00486
        },
        {
         "label": "Montparnasse",
         "group": 4,
         "degree": 8,
         "fullDegree": 9,
-        "betweenness": 0.004
+        "betweenness": 0.00387
        },
        {
         "label": "Bamatabois",
         "group": 2,
         "degree": 8,
         "fullDegree": 8,
-        "betweenness": 0.008
+        "betweenness": 0.00804
        },
        {
         "label": "Cosette",
         "group": 5,
         "degree": 7,
         "fullDegree": 11,
-        "betweenness": 0.024
+        "betweenness": 0.0238
        },
        {
         "label": "Judge",
@@ -2254,14 +2254,14 @@
         "group": 5,
         "degree": 3,
         "fullDegree": 7,
-        "betweenness": 0.02
+        "betweenness": 0.0202
        },
        {
         "label": "Mlle.Gillenormand",
         "group": 5,
         "degree": 3,
         "fullDegree": 7,
-        "betweenness": 0.048
+        "betweenness": 0.0476
        }
       ],
       "topByFullDegree": [
@@ -2277,14 +2277,14 @@
         "group": 4,
         "degree": 10,
         "fullDegree": 17,
-        "betweenness": 0.054
+        "betweenness": 0.0543
        },
        {
         "label": "Thenardier",
         "group": 4,
         "degree": 11,
         "fullDegree": 16,
-        "betweenness": 0.075
+        "betweenness": 0.0749
        },
        {
         "label": "Fantine",
@@ -2305,14 +2305,14 @@
         "group": 5,
         "degree": 7,
         "fullDegree": 11,
-        "betweenness": 0.024
+        "betweenness": 0.0238
        },
        {
         "label": "Eponine",
         "group": 4,
         "degree": 7,
         "fullDegree": 11,
-        "betweenness": 0.011
+        "betweenness": 0.0115
        }
       ],
       "groups": {
@@ -2341,7 +2341,7 @@
        "group": 4,
        "degree": 15,
        "fullDegree": 17,
-       "betweenness": 0.054
+       "betweenness": 0.0543
       },
       {
        "label": "Fantine",
@@ -2355,7 +2355,7 @@
        "group": 4,
        "degree": 13,
        "fullDegree": 16,
-       "betweenness": 0.075
+       "betweenness": 0.0749
       },
       {
        "label": "Mme.Thenardier",
@@ -2369,35 +2369,35 @@
        "group": 5,
        "degree": 10,
        "fullDegree": 11,
-       "betweenness": 0.024
+       "betweenness": 0.0238
       },
       {
        "label": "Gueulemer",
        "group": 4,
        "degree": 9,
        "fullDegree": 10,
-       "betweenness": 0.005
+       "betweenness": 0.00496
       },
       {
        "label": "Babet",
        "group": 4,
        "degree": 9,
        "fullDegree": 10,
-       "betweenness": 0.005
+       "betweenness": 0.00496
       },
       {
        "label": "Claquesous",
        "group": 4,
        "degree": 9,
        "fullDegree": 10,
-       "betweenness": 0.005
+       "betweenness": 0.00486
       },
       {
        "label": "Eponine",
        "group": 4,
        "degree": 8,
        "fullDegree": 11,
-       "betweenness": 0.011
+       "betweenness": 0.0115
       }
      ],
      "selection": [
@@ -2413,7 +2413,7 @@
        "group": 4,
        "degree": 15,
        "fullDegree": 17,
-       "betweenness": 0.054
+       "betweenness": 0.0543
       },
       {
        "label": "Fantine",
@@ -2427,7 +2427,7 @@
        "group": 4,
        "degree": 13,
        "fullDegree": 16,
-       "betweenness": 0.075
+       "betweenness": 0.0749
       },
       {
        "label": "Mme.Thenardier",
@@ -2441,49 +2441,49 @@
        "group": 5,
        "degree": 10,
        "fullDegree": 11,
-       "betweenness": 0.024
+       "betweenness": 0.0238
       },
       {
        "label": "Gueulemer",
        "group": 4,
        "degree": 9,
        "fullDegree": 10,
-       "betweenness": 0.005
+       "betweenness": 0.00496
       },
       {
        "label": "Babet",
        "group": 4,
        "degree": 9,
        "fullDegree": 10,
-       "betweenness": 0.005
+       "betweenness": 0.00496
       },
       {
        "label": "Claquesous",
        "group": 4,
        "degree": 9,
        "fullDegree": 10,
-       "betweenness": 0.005
+       "betweenness": 0.00486
       },
       {
        "label": "Montparnasse",
        "group": 4,
        "degree": 8,
        "fullDegree": 9,
-       "betweenness": 0.004
+       "betweenness": 0.00387
       },
       {
        "label": "Bamatabois",
        "group": 2,
        "degree": 8,
        "fullDegree": 8,
-       "betweenness": 0.008
+       "betweenness": 0.00804
       },
       {
        "label": "Gillenormand",
        "group": 5,
        "degree": 6,
        "fullDegree": 7,
-       "betweenness": 0.02
+       "betweenness": 0.0202
       },
       {
        "label": "Judge",
@@ -2525,7 +2525,7 @@
        "group": 5,
        "degree": 5,
        "fullDegree": 7,
-       "betweenness": 0.048
+       "betweenness": 0.0476
       }
      ],
      "topByFullDegree": [
@@ -2541,14 +2541,14 @@
        "group": 4,
        "degree": 15,
        "fullDegree": 17,
-       "betweenness": 0.054
+       "betweenness": 0.0543
       },
       {
        "label": "Thenardier",
        "group": 4,
        "degree": 13,
        "fullDegree": 16,
-       "betweenness": 0.075
+       "betweenness": 0.0749
       },
       {
        "label": "Fantine",
@@ -2569,14 +2569,14 @@
        "group": 5,
        "degree": 10,
        "fullDegree": 11,
-       "betweenness": 0.024
+       "betweenness": 0.0238
       },
       {
        "label": "Eponine",
        "group": 4,
        "degree": 8,
        "fullDegree": 11,
-       "betweenness": 0.011
+       "betweenness": 0.0115
       }
      ],
      "groups": {
@@ -2622,7 +2622,7 @@
     "altSized": "Les Miserables colored by group, sized by number of connections, nothing selected",
     "nodes": 77,
     "edges": 254,
-    "edgesLine": "undirected; value, not used yet",
+    "edgesLine": "undirected; value: each run that uses it asks what it means",
     "density": 0.0868,
     "componentsName": "Connected components",
     "components": "1",
@@ -2692,7 +2692,7 @@
      ],
      "other": {
       "label": "Other",
-      "color": "#505050",
+      "color": "#BDBDBD",
       "count": 5,
       "title": "Groups 6, 7 and 10"
      }
@@ -2710,7 +2710,8 @@
       "degree": 36,
       "px": 24
      }
-    ]
+    ],
+    "labelBudget": 18
    }
   },
   "ppi": {
@@ -2786,7 +2787,7 @@
     "Cell cycle": "#CC79A7",
     "MAPK signaling": "#000000",
     "TGF-beta": "#F0E442",
-    "Unassigned": "#505050"
+    "Unassigned": "#BDBDBD"
    },
    "topByDegree": [
     {
@@ -5291,7 +5292,7 @@
       "Cell cycle": "#e1b7ce",
       "MAPK signaling": "#7b7b7b",
       "TGF-beta": "#f3ed9c",
-      "Unassigned": "#a3a3a3"
+      "Unassigned": "#d9d9d9"
      },
      "dark": {
       "Proteasome": "#825f0f",
@@ -5302,7 +5303,7 @@
       "Cell cycle": "#754c63",
       "MAPK signaling": "#0f0f0f",
       "TGF-beta": "#878130",
-      "Unassigned": "#373737"
+      "Unassigned": "#6e6e6e"
      }
     },
     "strongest": [
@@ -6376,7 +6377,7 @@
     "altSized": "Protein interactions colored by module, sized by number of connections, nothing selected",
     "nodes": 300,
     "edges": 1262,
-    "edgesLine": "undirected; confidence, not used yet",
+    "edgesLine": "undirected; confidence: each run that uses it asks what it means",
     "density": 0.0281,
     "componentsName": "Connected components",
     "components": "3 (2 isolates)",
@@ -6450,7 +6451,7 @@
      ],
      "other": {
       "label": "Other",
-      "color": "#505050",
+      "color": "#BDBDBD",
       "count": 26,
       "title": "Unassigned: no module in the file"
      }
@@ -6468,7 +6469,8 @@
       "degree": 34,
       "px": 16
      }
-    ]
+    ],
+    "labelBudget": 22
    },
    "filtered": {
     "note": "the protein graph after one filter step, Filter to module = <module>; counts are on the filtered graph unless named Full",
@@ -8023,7 +8025,7 @@
     "altSized": "3,000 accounts shown as density",
     "nodes": 3000,
     "edges": 9113,
-    "edgesLine": "directed; amount, not used yet",
+    "edgesLine": "directed; amount: each run that uses it asks what it means",
     "density": 0.00101,
     "componentsName": "Weak components",
     "components": "1",
@@ -8052,7 +8054,8 @@
     "degreeLabel": "Total degree 1 to 907, in log-spaced bars",
     "attributes": 9,
     "legend": null,
-    "sizeMarks": null
+    "sizeMarks": null,
+    "labelBudget": null
    }
   },
   "transactionsApril": {
@@ -8764,7 +8767,8 @@
      ],
      "other": {
       "communities": 28,
-      "count": 1851
+      "count": 1851,
+      "holds": "Communities 8 to 35"
      }
     },
     "april": {
@@ -8807,7 +8811,8 @@
      ],
      "other": {
       "communities": 58,
-      "count": 2070
+      "count": 2070,
+      "holds": "19 carried on from March's 8 to 35, 39 new"
      }
     }
    },
@@ -9303,6 +9308,11 @@
     "onlyMarchInCommunity": 0,
     "marchMembersStillInIt": 22,
     "marchMembersLeftIt": 0,
+    "marchMembersSilent": 0,
+    "joinedFromOtherGroups": 3,
+    "joinedNew": 7,
+    "holdsInMarchReruns": 1,
+    "holdsInAprilReruns": 1,
     "newInRing": [
      {
       "id": "ACC-787890",
@@ -12636,7 +12646,8 @@
     "degreeLabel": "Degree 0 to 63, in bars of 4",
     "attributes": 2,
     "legend": null,
-    "sizeMarks": null
+    "sizeMarks": null,
+    "labelBudget": 12
    }
   },
   "alertsAugust": {
@@ -13318,6 +13329,279 @@
     "screens/option-form-cost.html#weight-refused",
     "screens/option-form-cost.html#weight-meaning",
     "screens/results-panel.html#finished"
+   ]
+  },
+  "calculation-stopped": {
+   "question": "A long calculation on the citation graph stopped partway through. Decide what you can still trust on the screen, and get a result you can use.",
+   "dataset": "citations",
+   "file": "patent-citations-sample.csv",
+   "facts": {
+    "nodes": 124318,
+    "edges": 1480221
+   },
+   "refs": [
+    "datasets.citations.sampledBetweenness",
+    "datasets.citations.betweennessCost"
+   ],
+   "pages": [
+    "screens/gpu-lost-run.html",
+    "screens/results-panel.html#failed",
+    "screens/results-panel.html#failed-run",
+    "screens/results-panel.html#refused",
+    "screens/results-panel.html#finished-sampled",
+    "screens/notices-errors.html"
+   ]
+  },
+  "dated-trace": {
+   "question": "Money arrived in the flagged account in early August. Follow where it went next and tell me whether the order of the transfers makes sense.",
+   "dataset": "alertsAugust",
+   "file": "transfers-2026-08.csv",
+   "facts": {
+    "account": "ACC-365386",
+    "numbers": "kit/alerts.json, august"
+   },
+   "refs": [
+    "datasets.alertsAugust"
+   ],
+   "pages": [
+    "screens/alert-triage.html#case-open",
+    "screens/alert-triage.html#case-hop2",
+    "screens/alert-triage.html#case-trace",
+    "screens/alert-triage.html#case-trace-menu"
+   ]
+  },
+  "gray-figure-signed": {
+   "question": "Make a black-and-white figure of the fold changes for a journal that prints in gray, and tell me which genes went up the most.",
+   "dataset": "ppi",
+   "file": "ppi-core-300.graphml",
+   "facts": {
+    "column": "log2FoldChange",
+    "range": [
+     -2.52,
+     3.15
+    ],
+    "otherColumn": "log2FC (this week's qPCR file)",
+    "otherRange": [
+     -2.41,
+     2.98
+    ]
+   },
+   "refs": [
+    "datasets.ppi.encodings",
+    "datasets.ppi.expression"
+   ],
+   "pages": [
+    "screens/colour-by-value.html",
+    "screens/styles-list.html",
+    "screens/export-dialog.html#figure-grey",
+    "screens/table-dock.html#ranked"
+   ]
+  },
+  "money-in-and-out": {
+   "question": "Your manager wants the ten accounts in the March transfers that take in far more money than they send out, with the amounts, by end of day.",
+   "dataset": "transactions",
+   "file": "transfers-2026-03.csv",
+   "facts": {
+    "nodes": 3000,
+    "edges": 9113,
+    "weight": "amount"
+   },
+   "refs": [
+    "datasets.transactions.frame",
+    "datasets.transactions.rows"
+   ],
+   "pages": [
+    "screens/frame-at-rest.html",
+    "screens/run-and-read.html#catalog",
+    "screens/run-and-read.html#money",
+    "screens/run-and-read.html#money-read",
+    "screens/table-dock.html#large",
+    "screens/export-dialog.html#table"
+   ]
+  },
+  "notes-with-names": {
+   "question": "A colleague opens this project next week and will read your notes beside her own. Make sure she can tell which ones are yours.",
+   "dataset": "transactions",
+   "file": "transfers-2026-03.csv",
+   "facts": {
+    "author": "as given in Preferences, blank if none is set"
+   },
+   "refs": [
+    "datasets.transactions.frame"
+   ],
+   "pages": [
+    "screens/notes-panel.html",
+    "screens/take-a-note.html",
+    "screens/preferences.html"
+   ]
+  },
+  "restyle-two-groups": {
+   "question": "Two of the groups are drawn in colors you cannot tell apart. Fix that so a colleague can read the picture.",
+   "dataset": "ppi",
+   "file": "ppi-core-300.graphml",
+   "facts": {
+    "column": "module",
+    "colors": {
+     "Proteasome": "#E69F00",
+     "Ribosome": "#56B4E9",
+     "Complex I": "#009E73",
+     "Spliceosome": "#0072B2",
+     "DNA repair": "#D55E00",
+     "Cell cycle": "#CC79A7",
+     "MAPK signaling": "#000000",
+     "TGF-beta": "#F0E442",
+     "Unassigned": "#BDBDBD"
+    }
+   },
+   "refs": [
+    "datasets.ppi.moduleColors",
+    "datasets.ppi.attributes"
+   ],
+   "pages": [
+    "screens/frame-at-rest.html",
+    "screens/inspector.html#one-node",
+    "screens/colour-by-value.html",
+    "screens/styles-list.html"
+   ]
+  },
+  "team-colors-file": {
+   "question": "Your team always draws its networks the same way, and a colleague just mailed you the file with those colors and sizes. Make this project look like the team's.",
+   "dataset": "transactionsApril",
+   "file": "transfers-2026-04.csv",
+   "facts": {
+    "nodes": 3093,
+    "edges": 8370
+   },
+   "refs": [
+    "datasets.transactionsApril.legends"
+   ],
+   "pages": [
+    "screens/data-panel.html",
+    "screens/replace-and-recipe.html#s-recipe-pick",
+    "screens/replace-and-recipe.html#s-bind-recipe",
+    "screens/replace-and-recipe.html#s-recipe-applied"
+   ]
+  },
+  "top-200-past-limit": {
+   "question": "This citation graph is too big to draw. Find the 200 patents that sit most in between, then look at who surrounds the first one.",
+   "dataset": "citations",
+   "file": "patent-citations-sample.csv",
+   "facts": {
+    "nodes": 124318,
+    "edges": 1480221,
+    "keep": 200,
+    "measure": "betweenness (sampled)"
+   },
+   "refs": [
+    "datasets.citations.sampledBetweenness",
+    "datasets.citations.drawingLimit"
+   ],
+   "pages": [
+    "screens/past-drawing-limit.html",
+    "screens/option-form-cost.html#sample-over-budget",
+    "screens/results-panel.html#finished-sampled",
+    "screens/past-drawing-limit.html#keep",
+    "screens/past-drawing-limit.html#kept",
+    "screens/find.html#s7"
+   ]
+  },
+  "two-runs-compared": {
+   "question": "Yesterday you ranked the Les Miserables characters one way. A colleague asks you to rank them again with one thing changed, and to tell her what differs between the two rankings and how each was made.",
+   "dataset": "lesmis",
+   "file": "miserables.json",
+   "facts": {
+    "nodes": 77,
+    "measure": "betweenness"
+   },
+   "refs": [
+    "datasets.lesmis.topByBetweenness",
+    "datasets.lesmis.filterSteps"
+   ],
+   "pages": [
+    "screens/navigation.html",
+    "screens/results-panel.html#compare-with",
+    "screens/comparison.html",
+    "screens/table-dock.html#ranked"
+   ]
+  },
+  "weekly-update": {
+   "question": "Last month's transfers project needs this month's file. Update it, and explain why the number of groups changed.",
+   "dataset": "transactionsApril",
+   "file": "transfers-2026-04.csv",
+   "facts": {
+    "accountsFile": "accounts-2026-04.csv",
+    "accounts": 3093,
+    "transfers": 8370
+   },
+   "refs": [
+    "datasets.transactionsApril.versionDiff",
+    "datasets.transactionsApril.louvain",
+    "datasets.transactionsApril.dormant"
+   ],
+   "pages": [
+    "screens/weekly-return.html",
+    "screens/data-panel.html",
+    "screens/version-history.html",
+    "screens/comparison.html"
+   ]
+  },
+  "weight-end-to-end": {
+   "question": "The transfers have an amount on each one. Find the cheapest route between two accounts and the most central accounts, and tell me what each answer used.",
+   "dataset": "transactions",
+   "file": "transfers-2026-03.csv",
+   "facts": {
+    "from": "ACC-271813",
+    "to": "ACC-233575",
+    "weight": "amount"
+   },
+   "refs": [
+    "datasets.transactions.setsAndPaths.path"
+   ],
+   "pages": [
+    "screens/frame-at-rest.html",
+    "screens/sets-and-paths.html",
+    "screens/run-and-read.html#money",
+    "screens/results-panel.html#finished"
+   ]
+  },
+  "load-a-messy-export": {
+   "question": "Your bank's case system just exported March's transfers as a spreadsheet file. Bring it in, and tell me whether what you are looking at is what you think it is.",
+   "dataset": "transactions",
+   "file": "transfers-2026-03.csv",
+   "facts": {
+    "nodes": 3000,
+    "edges": 9113
+   },
+   "refs": [
+    "datasets.transactions.columns",
+    "datasets.transactions.firstRows"
+   ],
+   "pages": [
+    "screens/load-transfers.html",
+    "screens/load-step.html#report",
+    "screens/frame-at-rest.html",
+    "screens/data-panel.html"
+   ]
+  },
+  "real-change-or-noise": {
+   "question": "April's transfers replaced March's in your case project, and the ring's group looks different now. Tell me whether the accounts really changed, or whether it only came out differently this time.",
+   "dataset": "transactionsApril",
+   "file": "transfers-2026-04.csv",
+   "facts": {
+    "accountsFile": "accounts-2026-04.csv",
+    "accounts": 3093,
+    "transfers": 8370
+   },
+   "refs": [
+    "datasets.transactionsApril.agreement",
+    "datasets.transactionsApril.louvain"
+   ],
+   "pages": [
+    "screens/weekly-return.html#compare-pick",
+    "screens/weekly-return.html#compare",
+    "screens/weekly-return.html#followup",
+    "screens/comparison.html",
+    "screens/version-history.html"
    ]
   }
  },
@@ -39506,7 +39790,7 @@
     "Community 6": "#CC79A7",
     "Community 7": "#F0E442"
    },
-   "otherColor": "#505050",
+   "otherColor": "#BDBDBD",
    "rows": [
     [
      "ACC-393859",
@@ -88563,6 +88847,123 @@
       0.000502849
      ]
     }
+   },
+   "communities": [
+    {
+     "community": 1,
+     "size": 62,
+     "matchedModule": "Ribosome",
+     "shared": 56,
+     "moduleSize": 56,
+     "color": "#56B4E9",
+     "medianLog2FoldChange": -0.02,
+     "medianLog2FoldChangeRest": 0.05
+    },
+    {
+     "community": 2,
+     "size": 43,
+     "matchedModule": "Proteasome",
+     "shared": 40,
+     "moduleSize": 40,
+     "color": "#E69F00",
+     "medianLog2FoldChange": 0.37,
+     "medianLog2FoldChangeRest": -0.02
+    },
+    {
+     "community": 3,
+     "size": 36,
+     "matchedModule": "Complex I",
+     "shared": 35,
+     "moduleSize": 35,
+     "color": "#009E73",
+     "medianLog2FoldChange": 0.04,
+     "medianLog2FoldChangeRest": 0.01
+    },
+    {
+     "community": 4,
+     "size": 36,
+     "matchedModule": "Spliceosome",
+     "shared": 32,
+     "moduleSize": 32,
+     "color": "#0072B2",
+     "medianLog2FoldChange": -0.29,
+     "medianLog2FoldChangeRest": 0.07
+    },
+    {
+     "community": 5,
+     "size": 31,
+     "matchedModule": "MAPK signaling",
+     "shared": 31,
+     "moduleSize": 31,
+     "color": "#000000",
+     "medianLog2FoldChange": 0.26,
+     "medianLog2FoldChangeRest": 0.01
+    },
+    {
+     "community": 6,
+     "size": 31,
+     "matchedModule": "TGF-beta",
+     "shared": 21,
+     "moduleSize": 21,
+     "color": "#F0E442",
+     "medianLog2FoldChange": -0.04,
+     "medianLog2FoldChangeRest": 0.06
+    },
+    {
+     "community": 7,
+     "size": 30,
+     "matchedModule": "Cell cycle",
+     "shared": 29,
+     "moduleSize": 29,
+     "color": "#CC79A7",
+     "medianLog2FoldChange": 0.14,
+     "medianLog2FoldChangeRest": 0.01
+    },
+    {
+     "community": 8,
+     "size": 29,
+     "matchedModule": "DNA repair",
+     "shared": 29,
+     "moduleSize": 30,
+     "color": "#D55E00",
+     "medianLog2FoldChange": 0.12,
+     "medianLog2FoldChangeRest": 0.01
+    },
+    {
+     "community": 9,
+     "size": 1,
+     "matchedModule": null,
+     "shared": 0,
+     "moduleSize": 56,
+     "color": "#BDBDBD",
+     "medianLog2FoldChange": 0.54,
+     "medianLog2FoldChangeRest": 0.01
+    },
+    {
+     "community": 10,
+     "size": 1,
+     "matchedModule": null,
+     "shared": 0,
+     "moduleSize": 56,
+     "color": "#BDBDBD",
+     "medianLog2FoldChange": -0.41,
+     "medianLog2FoldChangeRest": 0.03
+    }
+   ],
+   "matchedTo": "Module (the file's modules)",
+   "matchedCount": 8,
+   "unmatchedCount": 2,
+   "colorsWithoutMatching": {
+    "1": "#E69F00",
+    "2": "#56B4E9",
+    "3": "#009E73",
+    "4": "#0072B2",
+    "5": "#D55E00",
+    "6": "#CC79A7",
+    "7": "#F0E442",
+    "8": "#000000",
+    "9": "#BDBDBD",
+    "10": "#BDBDBD"
    }
   },
   "findAndExpand": {
@@ -92165,6 +92566,52 @@
      "earlierThanHopBefore": 1,
      "total": 111982.23,
      "totalInOrder": 103586.23,
+     "traceMoney": {
+      "ACC-365386": {
+       "received": 0,
+       "sent": 28231.01
+      },
+      "ACC-274887": {
+       "received": 9260.78,
+       "sent": 29130.16
+      },
+      "ACC-898028": {
+       "received": 9662.37,
+       "sent": 28725.79
+      },
+      "ACC-465572": {
+       "received": 54558.2,
+       "sent": 0
+      },
+      "ACC-512219": {
+       "received": 168.28,
+       "sent": 0
+      },
+      "ACC-640034": {
+       "received": 9788.51,
+       "sent": 9199.75
+      },
+      "ACC-140044": {
+       "received": 18454.76,
+       "sent": 8299.52
+      },
+      "ACC-579763": {
+       "received": 171.85,
+       "sent": 0
+      },
+      "ACC-556231": {
+       "received": 9736.88,
+       "sent": 8396
+      },
+      "ACC-453831": {
+       "received": 22.88,
+       "sent": 0
+      },
+      "ACC-597001": {
+       "received": 157.72,
+       "sent": 0
+      }
+     },
      "rows": [
       {
        "source": "ACC-365386",
@@ -92323,7 +92770,7 @@
     "anchors": {
      "ACC-365386": {
       "x": 12.5,
-      "y": 50
+      "y": 42.5
      },
      "ACC-274887": {
       "x": 37.5,
@@ -92331,43 +92778,681 @@
      },
      "ACC-898028": {
       "x": 37.5,
-      "y": 75
+      "y": 60
      },
      "ACC-465572": {
       "x": 90,
-      "y": 75
+      "y": 67.5
      },
      "ACC-512219": {
       "x": 37.5,
-      "y": 50
+      "y": 42.5
      },
      "ACC-640034": {
       "x": 65,
-      "y": 85.8
+      "y": 67.5
      },
      "ACC-140044": {
       "x": 65,
-      "y": 14.3
+      "y": 17.5
      },
      "ACC-579763": {
       "x": 65,
-      "y": 57.1
+      "y": 47.5
      },
      "ACC-556231": {
       "x": 65,
-      "y": 42.9
+      "y": 37.5
      },
      "ACC-453831": {
       "x": 65,
-      "y": 28.6
+      "y": 27.5
      },
      "ACC-597001": {
       "x": 65,
-      "y": 71.4
+      "y": 57.5
      }
     },
     "drawing": "screens/img/alerts-trace-{theme}.svg"
    }
+  },
+  "onScreen": {
+   "generatedBy": "screens/counts-numbers.mjs -- regenerate instead of editing by hand",
+   "note": "counts the screens show that are derived from other fixture values; each is computed here from kit/fixtures.json, kit/alerts.json or a drawing",
+   "ppiPath": {
+    "nodes": 4,
+    "otherNodes": 296
+   },
+   "qpcr": {
+    "matched": 84,
+    "networkWithoutMatch": 216,
+    "matchedWithHand": 85,
+    "unmatchedAfterHand": 11
+   },
+   "selections": {
+    "tp53Smad3": {
+     "ids": [
+      "TP53",
+      "SMAD3"
+     ],
+     "nodes": 2,
+     "communities": 2,
+     "dnaRepair": 1,
+     "tp53Partners": 1
+    },
+    "tp53Brca1": {
+     "ids": [
+      "TP53",
+      "BRCA1"
+     ],
+     "nodes": 2,
+     "communities": 1,
+     "dnaRepair": 2,
+     "tp53Partners": 2
+    },
+    "trio": {
+     "ids": [
+      "TP53",
+      "BRCA1",
+      "WRN"
+     ],
+     "nodes": 3,
+     "communities": 1,
+     "dnaRepair": 3,
+     "tp53Partners": 3
+    }
+   },
+   "lesmisBetweenness": {
+    "zerosFull": 43,
+    "step1Nodes": 60,
+    "zerosStep1": 28,
+    "zeroRankStep1": 33
+   },
+   "frameLabels": {
+    "lesmis": {
+     "budget": 18,
+     "drawn": 13,
+     "hidden": 5
+    },
+    "ppi": {
+     "budget": 22,
+     "drawn": 15,
+     "hidden": 7
+    },
+    "ppiEvidence": {
+     "budget": 12,
+     "drawn": 10,
+     "hidden": 2
+    }
+   },
+   "augustSeed": {
+    "id": "ACC-365386",
+    "neighbors": 8,
+    "bandNeighbors": 5,
+    "kinds": {
+     "personal": 6,
+     "merchant": 3
+    }
+   },
+   "augustTuition": {
+    "id": "ACC-749505",
+    "accounts": 6,
+    "counterparties": 5,
+    "kinds": {
+     "personal": 2,
+     "merchant": 3,
+     "business": 1
+    }
+   },
+   "marchPath": {
+    "routes": 2,
+    "accounts": 5,
+    "transfers": 5
+   },
+   "augustTrace": {
+    "seedNeighbors": 4
+   },
+   "augustNext": {
+    "id": "ACC-492465",
+    "neighbors": 10
+   },
+   "augustRing": {
+    "members": 12,
+    "counterparties": 34,
+    "accountsNamed": 46
+   }
+  },
+  "filterChip": {
+   "generatedBy": "screens/filter-chip-numbers.mjs -- regenerate instead of editing by hand",
+   "note": "what each drawn state of screens/filter-chip.html leaves: the page's own model, checked against datasets.lesmis.filterSteps, datasets.ppi.filtered and scenarios.failureAndRecovery where the kit holds the state",
+   "states": {
+    "three": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"rule\",false,\"degree\",\">=\",\"2\",null,true],[\"rule\",false,\"degree\",\">=\",\"5\",null,true],[\"rule\",true,\"group\",\"=\",\"8\",null,true]]]",
+     "nodes": 27,
+     "of": 77,
+     "edges": 104,
+     "edgesOf": 254,
+     "components": 1,
+     "largestComponent": 27,
+     "isolated": 0,
+     "averageDegree": 7.7,
+     "density": 0.296,
+     "steps": [
+      {
+       "took": 17,
+       "left": 60,
+       "full": 60
+      },
+      {
+       "took": 20,
+       "left": 40,
+       "full": 41
+      },
+      {
+       "took": 13,
+       "left": 27
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "off": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"rule\",false,\"degree\",\">=\",\"2\",null,true],[\"rule\",false,\"degree\",\">=\",\"5\",null,false],[\"rule\",true,\"group\",\"=\",\"8\",null,true]]]",
+     "nodes": 47,
+     "of": 77,
+     "edges": 142,
+     "edgesOf": 254,
+     "components": 3,
+     "largestComponent": 44,
+     "isolated": 1,
+     "averageDegree": 6.04,
+     "density": 0.131,
+     "steps": [
+      {
+       "took": 17,
+       "left": 60,
+       "full": 60
+      },
+      null,
+      {
+       "took": 13,
+       "left": 47
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "after-removal": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"rule\",true,\"label\",\"=\",\"Valjean\",null,true],[\"lcc\",false,null,null,null,null,true],[\"rule\",true,\"label\",\"=\",\"Javert\",null,true]]]",
+     "nodes": 60,
+     "of": 77,
+     "edges": 192,
+     "edgesOf": 254,
+     "components": 3,
+     "largestComponent": 56,
+     "isolated": 1,
+     "averageDegree": 6.4,
+     "density": 0.108,
+     "steps": [
+      {
+       "took": 1,
+       "left": 76
+      },
+      {
+       "took": 15,
+       "left": 61
+      },
+      {
+       "took": 1,
+       "left": 60
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "proteins": {
+     "dataset": "ppi",
+     "signature": "[\"ppi\",[[\"rule\",false,\"group\",\"=\",\"Ribosome\",null,true]]]",
+     "nodes": 56,
+     "of": 300,
+     "edges": 217,
+     "edgesOf": 1262,
+     "components": 1,
+     "largestComponent": 56,
+     "isolated": 0,
+     "averageDegree": 7.75,
+     "density": 0.141,
+     "steps": [
+      {
+       "took": 244,
+       "left": 56
+      }
+     ],
+     "runs": [
+      300,
+      290
+     ]
+    },
+    "keeps-all": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"lcc\",false,null,null,null,null,true]]]",
+     "nodes": 77,
+     "of": 77,
+     "edges": 254,
+     "edgesOf": 254,
+     "components": 1,
+     "largestComponent": 77,
+     "isolated": 0,
+     "averageDegree": 6.6,
+     "density": 0.0868,
+     "steps": [
+      {
+       "took": 0,
+       "left": 77
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "edit": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"rule\",false,\"degree\",\">=\",\"2\",null,true],[\"rule\",false,\"degree\",\">=\",\"5\",null,true],[\"rule\",true,\"group\",\"=\",\"8\",null,true]]]",
+     "nodes": 27,
+     "of": 77,
+     "edges": 104,
+     "edgesOf": 254,
+     "components": 1,
+     "largestComponent": 27,
+     "isolated": 0,
+     "averageDegree": 7.7,
+     "density": 0.296,
+     "steps": [
+      {
+       "took": 17,
+       "left": 60,
+       "full": 60
+      },
+      {
+       "took": 20,
+       "left": 40,
+       "full": 41
+      },
+      {
+       "took": 13,
+       "left": 27
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "none": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[]]",
+     "nodes": 77,
+     "of": 77,
+     "edges": 254,
+     "edgesOf": 254,
+     "components": 1,
+     "largestComponent": 77,
+     "isolated": 0,
+     "averageDegree": 6.6,
+     "density": 0.0868,
+     "steps": [],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "alloff": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"lcc\",false,null,null,null,null,false],[\"rule\",false,\"degree\",\">=\",\"5\",null,false],[\"rule\",true,\"group\",\"=\",\"8\",null,false]]]",
+     "nodes": 77,
+     "of": 77,
+     "edges": 254,
+     "edgesOf": 254,
+     "components": 1,
+     "largestComponent": 77,
+     "isolated": 0,
+     "averageDegree": 6.6,
+     "density": 0.0868,
+     "steps": [
+      null,
+      null,
+      null
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "many": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"lcc\",false,null,null,null,null,true],[\"rule\",true,\"group\",\"=\",\"1\",null,true],[\"rule\",true,\"group\",\"=\",\"3\",null,true],[\"rule\",false,\"degree\",\">=\",\"2\",null,true],[\"rule\",true,\"label\",\"=\",\"Javert\",null,false],[\"kcore\",false,null,null,null,2,true],[\"rule\",true,\"group\",\"=\",\"0\",null,false],[\"rule\",true,\"label\",\"=\",\"Boulatruelle\",null,true],[\"rule\",false,\"degree\",\">=\",\"3\",null,true],[\"rule\",true,\"group\",\"=\",\"10\",null,true]]]",
+     "nodes": 38,
+     "of": 77,
+     "edges": 175,
+     "edgesOf": 254,
+     "components": 1,
+     "largestComponent": 38,
+     "isolated": 0,
+     "averageDegree": 9.21,
+     "density": 0.249,
+     "steps": [
+      {
+       "took": 0,
+       "left": 77
+      },
+      {
+       "took": 10,
+       "left": 67
+      },
+      {
+       "took": 10,
+       "left": 57
+      },
+      {
+       "took": 10,
+       "left": 47,
+       "full": 60
+      },
+      null,
+      {
+       "took": 1,
+       "left": 46
+      },
+      null,
+      {
+       "took": 0,
+       "left": 46
+      },
+      {
+       "took": 8,
+       "left": 38,
+       "full": 50
+      },
+      {
+       "took": 0,
+       "left": 38
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    },
+    "zero": {
+     "dataset": "lesmis",
+     "signature": "[\"lesmis\",[[\"rule\",false,\"degree\",\">=\",\"2\",null,true],[\"rule\",false,\"degree\",\">=\",\"40\",null,true],[\"rule\",true,\"group\",\"=\",\"8\",null,true]]]",
+     "nodes": 0,
+     "of": 77,
+     "edges": 0,
+     "edgesOf": 254,
+     "components": 0,
+     "largestComponent": 0,
+     "isolated": 0,
+     "averageDegree": null,
+     "density": null,
+     "steps": [
+      {
+       "took": 17,
+       "left": 60,
+       "full": 60
+      },
+      {
+       "took": 60,
+       "left": 0,
+       "full": 0
+      },
+      {
+       "took": 0,
+       "left": 0
+      }
+     ],
+     "runs": [
+      77,
+      60
+     ]
+    }
+   }
+  },
+  "exportDialog": {
+   "generatedBy": "screens/export-dialog-numbers.mjs -- regenerate instead of editing by hand",
+   "note": "the 14 flagged accounts' PageRank rank on the full graph, 1 = highest, ties = equal to 6 decimals as written, tied rows share the block's lowest rank; ringTransfers = March transfers with both ends in the ring",
+   "marchAccounts": 3000,
+   "aprilAccounts": 3093,
+   "march": [
+    {
+     "id": "ACC-753261",
+     "pagerank": 0.000551,
+     "rank": 202,
+     "tiedWith": 1
+    },
+    {
+     "id": "ACC-739987",
+     "pagerank": 0.000512,
+     "rank": 235,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-139419",
+     "pagerank": 0.000477,
+     "rank": 260,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-350110",
+     "pagerank": 0.00047,
+     "rank": 266,
+     "tiedWith": 2
+    },
+    {
+     "id": "ACC-309606",
+     "pagerank": 0.000429,
+     "rank": 302,
+     "tiedWith": 1
+    },
+    {
+     "id": "ACC-242954",
+     "pagerank": 0.000427,
+     "rank": 306,
+     "tiedWith": 1
+    },
+    {
+     "id": "ACC-642959",
+     "pagerank": 0.000422,
+     "rank": 313,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-946224",
+     "pagerank": 0.000419,
+     "rank": 316,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-888258",
+     "pagerank": 0.000387,
+     "rank": 352,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-365386",
+     "pagerank": 0.000385,
+     "rank": 354,
+     "tiedWith": 1
+    },
+    {
+     "id": "ACC-577269",
+     "pagerank": 0.00038,
+     "rank": 360,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-233575",
+     "pagerank": 0.000378,
+     "rank": 362,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-670564",
+     "pagerank": 0.000375,
+     "rank": 371,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-782213",
+     "pagerank": 0.000336,
+     "rank": 475,
+     "tiedWith": 2
+    }
+   ],
+   "april": [
+    {
+     "id": "ACC-946224",
+     "degree": 10,
+     "pagerank": 0.000468,
+     "rank": 65,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-888258",
+     "degree": 10,
+     "pagerank": 0.000433,
+     "rank": 70,
+     "tiedWith": 2
+    },
+    {
+     "id": "ACC-753261",
+     "degree": 12,
+     "pagerank": 0.000428,
+     "rank": 73,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-642959",
+     "degree": 11,
+     "pagerank": 0.000427,
+     "rank": 74,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-139419",
+     "degree": 11,
+     "pagerank": 0.000424,
+     "rank": 76,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-242954",
+     "degree": 10,
+     "pagerank": 0.000398,
+     "rank": 82,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-577269",
+     "degree": 11,
+     "pagerank": 0.00039,
+     "rank": 85,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-782213",
+     "degree": 9,
+     "pagerank": 0.000389,
+     "rank": 86,
+     "tiedWith": 1
+    },
+    {
+     "id": "ACC-233575",
+     "degree": 10,
+     "pagerank": 0.000384,
+     "rank": 88,
+     "tiedWith": 1
+    },
+    {
+     "id": "ACC-309606",
+     "degree": 11,
+     "pagerank": 0.000371,
+     "rank": 94,
+     "tiedWith": 0
+    },
+    {
+     "id": "ACC-365386",
+     "degree": 9,
+     "pagerank": 0.000323,
+     "rank": 160,
+     "tiedWith": 2
+    },
+    {
+     "id": "ACC-350110",
+     "degree": 9,
+     "pagerank": 0.000314,
+     "rank": 176,
+     "tiedWith": 2
+    },
+    {
+     "id": "ACC-739987",
+     "degree": 12,
+     "pagerank": 0.000297,
+     "rank": 213,
+     "tiedWith": 3
+    },
+    {
+     "id": "ACC-670564",
+     "degree": 9,
+     "pagerank": 0.000279,
+     "rank": 271,
+     "tiedWith": 5
+    }
+   ],
+   "ringInApril": 14,
+   "ringTransfers": 28,
+   "ringTransferRows": [
+    {
+     "from_account": "ACC-365386",
+     "to_account": "ACC-946224",
+     "amount": "9047.17"
+    },
+    {
+     "from_account": "ACC-365386",
+     "to_account": "ACC-739987",
+     "amount": "9460.61"
+    },
+    {
+     "from_account": "ACC-946224",
+     "to_account": "ACC-242954",
+     "amount": "9782.05"
+    },
+    {
+     "from_account": "ACC-946224",
+     "to_account": "ACC-670564",
+     "amount": "9468.23"
+    },
+    {
+     "from_account": "ACC-242954",
+     "to_account": "ACC-888258",
+     "amount": "9099.83"
+    },
+    {
+     "from_account": "ACC-242954",
+     "to_account": "ACC-233575",
+     "amount": "9616.72"
+    }
+   ]
   }
  }
 }

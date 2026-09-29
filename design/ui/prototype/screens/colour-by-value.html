@@ -7,8 +7,9 @@
 <link rel="stylesheet" href="../kit/cm.css">
 <link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
 <style>
-  /* Page furniture: seven states stacked, each a 1440 x 900 frame. Open one state alone with its
-     link (#choose, #numbers, #size, #categories, #path, #refused, #legend). The one script at the
+  /* Page furniture: nine states stacked, each a 1440 x 900 frame. Open one state alone with its
+     link (#choose, #numbers, #size, #categories, #path, #refused, #legend,
+     #run-colors, #top-n). The one script at the
      end moves between legend rows with the arrow keys and opens state 7 from a swatch. */
   body { background: var(--cm-bg-secondary); }
   .pagehead { max-width: 1440px; margin: 0 auto; padding: 24px 0 8px; }
@@ -26,6 +27,13 @@
   .st:target { margin: 0; }
   .st:target .st-label, .st:target .an-list { display: none; }
   .st:target .st-frame { box-shadow: none; }
+
+  .backlog { max-width: 1440px; margin: 24px auto 40px; font-size: 13px; line-height: 20px; }
+  .backlog h2 { font-size: 15px; line-height: 24px; font-weight: 600; margin: 0 0 4px; }
+  .backlog p { color: var(--cm-text-secondary); margin: 0 0 8px; max-width: 110ch; }
+  .backlog ol { margin: 0; padding-left: 20px; max-width: 110ch; }
+  .backlog li { margin: 4px 0; }
+  body:has(.st:target) .backlog { display: none; }
 
   /* Annotation layer: hidden until the toggle is on */
   .an, .an-list { display: none; }
@@ -87,7 +95,7 @@
   .cp-sw { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px; }
   .cp-sw .k-chit { width: 16px; height: 16px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); }
   .cp-gh { margin-top: 4px; border-top: 1px solid var(--cm-border); padding-top: 4px; }
-  .ro { display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 4px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text-secondary); font-weight: 450; }
+  .cp-hint { padding: 0 16px 6px; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
 </style>
 </head>
 <body>
@@ -103,6 +111,9 @@
     <a href="#path">5. A run marks only its result</a>
     <a href="#refused">6. A value the channel refuses</a>
     <a href="#legend">7. Change a color from the legend</a>
+    <a href="#run-colors">8. Recolor a group on a run's layer</a>
+    <a href="#top-n">9. Label the top N, in one direction</a>
+    <a href="#element-backlog">On the graphty-element backlog</a>
   </nav>
   <label class="toggle"><input type="checkbox" id="annot"> Show annotations: the framework section behind each element and the compact-mantine component it is built with</label>
 </div>
@@ -121,7 +132,7 @@
       <div class="k-scroll">
         <section class="k-section">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section" data-empty>
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -136,9 +147,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
@@ -232,7 +243,7 @@
       <div class="k-scroll">
         <section class="k-section">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section" data-empty>
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -256,9 +267,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
@@ -298,7 +309,7 @@
       <div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-ramp fc-ramp" style="width:16px"></span>log2FoldChange</span></span><span class="k-icon-btn" aria-pressed="true"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
       <div class="k-section-head" style="height:32px">Stroke<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div class="k-section-head" style="height:32px">Effects<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-      <div class="k-data"><span class="k-name">paints</span><span class="k-value">300 of 300 nodes</span></div>
+      <div class="k-data"><span class="k-name">paints</span><span class="k-value"><span data-fx="datasets.ppi.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="nodes">300 of 300 nodes</span></span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0</span></div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value k-secondary">none</span></div>
     </div>
@@ -351,7 +362,7 @@
       </div>
       <div class="k-typerow" style="padding-left:8px"><span class="k-icon-btn" aria-label="All results (Esc)"><svg class="k-i"><use href="../kit/icons.svg#chevron-left"/></svg></span><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg><span class="k-name k-ellipsis">Degree, Sep 28 10:02</span></div>
       <div class="k-scroll">
-      <div class="k-prose">on: full graph, 300 nodes. Exact.</div>
+      <div class="k-prose">on: full graph, <span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span>. Exact.</div>
       <div class="k-section-head" style="height:32px">Appearance</div>
       <div class="k-row" style="min-height:28px"><span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#ef7818,#662506)"></span><span class="k-grow k-tertiary">Degree color</span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></div>
       <div class="sub">Color set by log2FoldChange color. <a class="k-link">Apply anyway</a></div>
@@ -383,9 +394,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
@@ -414,17 +425,18 @@
   </div>
 
   <!-- Encoding popover opened by the verb, beside its row in the run's record: names the layer it writes -->
-  <div class="k-popover" style="left:306px;top:265px;width:272px">
+  <div class="k-popover" style="left:306px;top:241px;width:272px">
     <div class="k-popover-head">Size: degree<span class="k-grow"></span><span class="k-secondary" style="font-weight:450">new layer on top</span></div>
     <div class="k-popover-body">
       <div class="k-fieldrow"><span class="k-legend">Scale</span><div class="k-fields"><span class="k-field k-span">square root<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
       <div class="k-fieldrow"><span class="k-legend">Steps <span class="k-tertiary">-- cut on log(1 + x), zeros present</span></span><div class="k-fields"><span class="k-field k-num">5</span><span class="k-field">log-spaced<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
-      <div class="k-data"><span class="k-name">0 to 1</span><span class="k-value">10 nodes</span></div>
-      <div class="k-data"><span class="k-name">2 to 3</span><span class="k-value">11 nodes</span></div>
-      <div class="k-data"><span class="k-name">4 to 7</span><span class="k-value">108 nodes</span></div>
-      <div class="k-data"><span class="k-name">8 to 16</span><span class="k-value">159 nodes</span></div>
-      <div class="k-data"><span class="k-name">17 to 34</span><span class="k-value">12 nodes</span></div>
+      <div class="k-data"><span class="k-name">0 to 1</span><span class="k-value"><span data-fx="datasets.ppi.encodings.sizeByDegree.bins.0.count" data-fx-noun="nodes">10 nodes</span></span></div>
+      <div class="k-data"><span class="k-name">2 to 3</span><span class="k-value"><span data-fx="datasets.ppi.encodings.sizeByDegree.bins.1.count" data-fx-noun="nodes">11 nodes</span></span></div>
+      <div class="k-data"><span class="k-name">4 to 7</span><span class="k-value"><span data-fx="datasets.ppi.encodings.sizeByDegree.bins.2.count" data-fx-noun="nodes">108 nodes</span></span></div>
+      <div class="k-data"><span class="k-name">8 to 16</span><span class="k-value"><span data-fx="datasets.ppi.encodings.sizeByDegree.bins.3.count" data-fx-noun="nodes">159 nodes</span></span></div>
+      <div class="k-data"><span class="k-name">17 to 34</span><span class="k-value"><span data-fx="datasets.ppi.encodings.sizeByDegree.bins.4.count" data-fx-noun="nodes">12 nodes</span></span></div>
       <div class="k-fieldrow"><span class="k-legend">Range <span class="k-tertiary">-- CSS px at zoom 1</span></span><div class="k-fields"><span class="k-field k-num">3</span><span class="k-field k-num">10.5</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Smallest mark <span class="k-tertiary">-- kept by graphty-element</span></span><div class="k-fields"><span class="k-field k-span k-secondary">6 px on screen, 1.5 mm in print</span></div></div>
       <div class="k-fieldrow"><span class="k-legend">No value</span><div class="k-fields"><span class="k-field k-span k-secondary">0 nodes, not sized</span></div></div>
     </div>
   </div>
@@ -445,7 +457,7 @@
     <li>Encoding verbs the result shape allows. <span class="cm">options-and-encodings.md 4 (Encoding verbs); task-flows.md 5. compact-mantine: <code>ActionRow</code>.</span></li>
     <li>Top nodes with values; "N more" opens the Nodes tab sorted by this column. <span class="cm">interface-templates.md 10. compact-mantine: <code>DataRow</code>, <code>ActionRow</code>.</span></li>
     <li>Opened by a verb, the encoding popover names the layer it will write. <span class="cm">interface-templates.md 10 (Encoding). compact-mantine: <code>Popout</code> nested slot.</span></li>
-    <li>Node size is a mesh channel, so it is binned: square root of area, 5 steps cut on log(1 + x) because degree has zeros; the Range states its unit. <span class="cm">options-and-encodings.md 5, rule 4 and the default table. compact-mantine: <code>StyleSelect</code>, <code>StyleNumberInput</code>, <code>DataRow</code>.</span></li>
+    <li>Node size is a mesh channel, so it is binned: square root of area, 5 steps cut on log(1 + x) because degree has zeros; the Range states its unit. The smallest mark is a floor graphty-element keeps for every mark, on screen and in a printed figure: no protein draws under 6 px across on screen or 1.5 mm on paper, whatever the zoom, the export width or the size scale says, so a mark's shape (the Print look's up and down triangles) can still be read at the lowest degree. The row reads the floor back; it is not a setting. <span class="cm">On the graphty-element backlog (end of this page). compact-mantine: <code>StyleSelect</code>, <code>StyleNumberInput</code>, <code>DataRow</code>.</span></li>
     <li>The canvas legend lists blocks in stack order, top first: the new size layer, then fold-change color. <span class="cm">options-and-encodings.md 6, item 7. Drawn by graphty-element.</span></li>
   </ol>
 </section>
@@ -464,7 +476,7 @@
       <div class="k-scroll">
         <section class="k-section">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section" data-empty>
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -489,15 +501,15 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
       <section class="k-dock" aria-label="Table">
         <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-        <div class="k-scope">Full graph: 300 nodes. Sorted by degree.</div>
+        <div class="k-scope">Full graph: <span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span>. Sorted by degree.</div>
         <div class="k-table-wrap"><table class="k-table">
           <thead><tr><th>id</th><th>module<span class="th-enc"><span class="chits3"><i style="left:6px;background:#009E73"></i><i style="left:3px;background:#E69F00"></i><i style="left:0;background:#56B4E9"></i></span></span> <span class="k-profile">9 values</span></th><th class="k-n">degree<span class="th-enc"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg></span> <span class="k-profile">0 to 34</span></th><th class="k-n">log2FoldChange <span class="k-profile">-2.52 to 3.15</span></th></tr></thead>
           <tbody>
@@ -587,7 +599,7 @@
 
 <!-- ============================================================== 5 -->
 <section class="st" id="path">
-  <h2 class="st-label">5. A run marks only its result <span>-- Shortest path from TP53 to SMAD3: its layer marks 4 proteins and 3 interactions; every other protein keeps the paint beneath</span></h2>
+  <h2 class="st-label">5. A run marks only its result <span>-- Shortest path from TP53 to SMAD3: its layer marks <span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span> and 3 interactions; every other protein keeps the paint beneath</span></h2>
   <div class="st-frame">
   <div class="k-app">
     <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
@@ -599,7 +611,7 @@
       <div class="k-scroll">
         <section class="k-section">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section" data-empty>
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -612,7 +624,7 @@
         <div class="k-stage"><img class="k-light-only" src="../kit/canvas/ppi-foldchange-path-light.svg" alt="Fold-change colors and degree sizes unchanged; the path TP53, MSH2, UBB, SMAD3 carries a dashed two-tone mark"><img class="k-dark-only" src="../kit/canvas/ppi-foldchange-path-dark.svg" alt="Fold-change colors and degree sizes unchanged; the path TP53, MSH2, UBB, SMAD3 carries a dashed two-tone mark"></div>
         <div class="k-legend-card" style="width:224px">
           <div class="k-lg-title">Shortest path TP53 to SMAD3</div>
-          <div class="k-lg-row"><span class="dashchip"></span>3 steps, 4 proteins</div>
+          <div class="k-lg-row"><span class="dashchip"></span>3 steps, <span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span></div>
           <div class="k-lg-title" style="margin-top:6px">Size: degree <span class="k-secondary">degree</span></div>
           <div class="size-marks">
             <div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div>
@@ -624,9 +636,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
@@ -652,15 +664,14 @@
     </aside>
   </div>
 
-  <!-- The automatic layer's editor: read-only, Edit a copy -->
+  <!-- The automatic layer's editor: edited in place -->
   <div class="k-popover" style="left:936px;top:283px;width:256px">
     <div class="k-popover-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="k-ellipsis">Shortest path TP53 to SMAD3</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="k-popover-body">
-      <div class="k-row" style="min-height:28px"><span class="ro"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>written by the run</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Edit a copy</span></div>
-      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3 k-secondary">on this path: 4 nodes, 3 edges</span></div></div>
-      <div class="k-fieldrow"><span class="k-legend">Highlight</span><div class="k-fields"><span class="k-field k-span3 k-secondary"><span class="dashchip"></span>highlight 1, long dash</span></div></div>
-      <div class="k-data"><span class="k-name">marks</span><span class="k-value">4 of 300 nodes</span></div>
-      <div class="k-prose">This layer writes only to the proteins and interactions on the path. The other 296 proteins keep the paint of the layers beneath it.</div>
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3 k-secondary">on this path: <span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="nodes">4 nodes</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="edges">3 edges</span></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Highlight</span><div class="k-fields"><span class="k-field k-span3"><span class="dashchip"></span>highlight 1, long dash</span></div></div>
+      <div class="k-data"><span class="k-name">marks</span><span class="k-value"><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-of="datasets.ppi.nodes" data-fx-noun="nodes">4 of 300 nodes</span></span></div>
+      <div class="k-prose">This layer writes only to the proteins and interactions on the path. The other <span data-fx="scenarios.onScreen.ppiPath.otherNodes" data-fx-noun="proteins">296 proteins</span> keep the paint of the layers beneath it.</div>
       <div class="k-section-head" style="height:32px">Steps</div>
       <div class="k-data"><span class="k-name k-id">TP53</span><span class="k-value k-secondary">start</span></div>
       <div class="k-data"><span class="k-name k-id">MSH2</span><span class="k-value k-secondary">1</span></div>
@@ -671,17 +682,17 @@
 
   <span class="an k-step" style="left:1194px;top:287px">1</span>
   <span class="an k-step" style="left:1194px;top:319px">2</span>
-  <span class="an k-step" style="left:1170px;top:308px">3</span>
-  <span class="an k-step" style="left:1170px;top:336px">4</span>
-  <span class="an k-step" style="left:1170px;top:440px">5</span>
+  <span class="an k-step" style="left:1170px;top:352px">3</span>
+  <span class="an k-step" style="left:1170px;top:400px">4</span>
+  <span class="an k-step" style="left:1170px;top:462px">5</span>
   <span class="an k-step" style="left:760px;top:450px">6</span>
   <span class="an k-step" style="left:300px;top:640px">7</span>
   </div>
   <ol class="an-list">
     <li>The run's suggested layer, a highlight, on top; its trailing count is how many elements it marks. <span class="cm">canvas-drawing.md 5 (a path is a highlight layer); interface-templates.md 9. compact-mantine: <code>Tree</code> row, <code>TrailingSlot</code>.</span></li>
     <li>Module color switched off with its eye: kept, not deleted, so fold change shows again. <span class="cm">interaction-pattern-entries.md 6.5. compact-mantine: <code>ToggleIconButton</code>.</span></li>
-    <li>An automatic layer is read-only; Edit a copy puts an analyst layer in its place. <span class="cm">interaction-pattern-entries.md 6.2; glossary.md 9. compact-mantine: <code>Button</code> in an <code>ActionRow</code>.</span></li>
     <li>Its selector matches only elements carrying the result, so a non-result element is never visited. <span class="cm">conceptual-model.md 5.1 (an algorithm's layers write only to elements carrying its result); root CLAUDE.md, Algorithm Styles. compact-mantine: <code>FieldRow</code>, read-only.</span></li>
+    <li>A run's layer is edited in place, like any other layer: there is no lock and no copy. A change to its colors is kept against the value it paints (a group, a path step), so it survives a re-run (state 8). <span class="cm">framework-changes.md (legend colors edited on a run's layer survive a re-run). compact-mantine: <code>FieldRow</code>.</span></li>
     <li>Proposed: the editor of a run's layer states its reach in one sentence, so the rule is visible where a reader checks it. <span class="cm">See framework-changes.md. compact-mantine: <code>ProseBlock</code>.</span></li>
     <li>On the canvas the path wears the highlight-1 mark (long dash in a two-tone band); fills and sizes around it are untouched. <span class="cm">canvas-drawing.md 5, 6 (ring 2a). Drawn by graphty-element.</span></li>
     <li>The legend lists the path's entry first, in stack order; the size and fold-change blocks keep their sentences. <span class="cm">options-and-encodings.md 6, item 9. Drawn by graphty-element.</span></li>
@@ -702,7 +713,7 @@
       <div class="k-scroll">
         <section class="k-section">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section" data-empty>
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -716,9 +727,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
@@ -773,7 +784,7 @@
 
 <!-- ============================================================== 7 -->
 <section class="st" id="legend">
-  <h2 class="st-label">7. Change a color from the legend <span>-- the analyst tabbed to Proteasome's swatch and pressed Enter; the picker opens beside it. Her earlier pick, a light blue, is flagged as too close to Ribosome</span></h2>
+  <h2 class="st-label">7. Change a color from the legend <span>-- graphty-element checks every pair of colors in the layer, its own defaults included, and flags three pairs; the analyst tabbed to DNA repair's swatch and pressed Enter. The palette is used up, so the picker suggests colors that clear every neighbor</span></h2>
   <div class="st-frame">
   <div class="k-app">
         <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
@@ -785,7 +796,7 @@
       <div class="k-scroll">
         <section class="k-section">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section" data-empty>
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -794,26 +805,30 @@
     </aside>
     <main class="k-main">
       <div class="k-canvas">
-        <div class="k-stage"><img class="k-light-only" src="img/ppi-modules-picked-light.svg" alt="Colored by module, Proteasome in a picked light blue beside Ribosome's sky blue, Other in light gray, TP53 selected"><img class="k-dark-only" src="img/ppi-modules-picked-dark.svg" alt="Colored by module, Proteasome in a picked light blue beside Ribosome's sky blue, Other in light gray, TP53 selected"></div>
-        <div class="k-legend-card" style="width:208px" role="group" aria-label="Legend: Module color">
+        <div class="k-stage"><img class="k-light-only" src="img/ppi-modules-lightother-light.svg" alt="Colored by module in the default palette, Other in light gray, TP53 selected"><img class="k-dark-only" src="img/ppi-modules-lightother-dark.svg" alt="Colored by module in the default palette, Other in light gray, TP53 selected"></div>
+        <div class="k-legend-card" style="width:232px" role="group" aria-label="Legend: Module color">
           <div class="k-lg-title">Module color <span class="k-secondary">module</span></div>
           <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Ribosome color: Sky blue. Change color" data-tip="Change color: Sky blue"><span class="k-chit" style="background:#56B4E9"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Ribosome, 56 proteins. Select them" data-tip="Select Ribosome">Ribosome<span class="k-value">56</span></span></div>
-          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" data-focus-ring aria-label="Proteasome color: Light blue, picked, too close to Ribosome's Sky blue. Change color" data-tip="Change color: Light blue"><span class="k-chit" style="background:#4AA3DF"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Proteasome, 40 proteins. Select them" data-tip="Select Proteasome">Proteasome<span class="k-value">40</span></span></div>
-          <div class="lg-flag"><span class="k-warn-glyph">!</span><span>Too close to Ribosome's sky blue. <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Proteasome color: Orange. Change color" data-tip="Change color: Orange"><span class="k-chit" style="background:#E69F00"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Proteasome, 40 proteins. Select them" data-tip="Select Proteasome">Proteasome<span class="k-value">40</span></span></div>
           <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Complex I color: Bluish green. Change color" data-tip="Change color: Bluish green"><span class="k-chit" style="background:#009E73"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Complex I, 35 proteins. Select them" data-tip="Select Complex I">Complex I<span class="k-value">35</span></span></div>
           <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Spliceosome color: Blue. Change color" data-tip="Change color: Blue"><span class="k-chit" style="background:#0072B2"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Spliceosome, 32 proteins. Select them" data-tip="Select Spliceosome">Spliceosome<span class="k-value">32</span></span></div>
-          <div class="k-lg-row k-secondary">4 more</div>
-          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Other color: Light gray. Change color" data-tip="Change color: Light gray"><span class="k-chit" style="background:#BDBDBD"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Other, 26 proteins: Unassigned. Select them" data-tip="Select Other">Other<span class="k-value">26</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="MAPK signaling color: Black. Change color" data-tip="Change color: Black"><span class="k-chit" style="background:#000000"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="MAPK signaling, 31 proteins. Select them" data-tip="Select MAPK signaling">MAPK signaling<span class="k-value">31</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" data-focus-ring aria-label="DNA repair color: Vermilion, too close to Proteasome's orange for red-green color blindness. Change color" data-tip="Change color: Vermilion"><span class="k-chit" style="background:#D55E00"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="DNA repair, 30 proteins. Select them" data-tip="Select DNA repair">DNA repair<span class="k-value">30</span></span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Orange (Proteasome) and vermilion are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Cell cycle color: Reddish purple. Change color" data-tip="Change color: Reddish purple"><span class="k-chit" style="background:#CC79A7"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Cell cycle, 29 proteins. Select them" data-tip="Select Cell cycle">Cell cycle<span class="k-value">29</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="TGF-beta color: Yellow, too close to Proteasome's orange for red-green color blindness. Change color" data-tip="Change color: Yellow"><span class="k-chit" style="background:#F0E442"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="TGF-beta, 21 proteins. Select them" data-tip="Select TGF-beta">TGF-beta<span class="k-value">21</span></span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Orange (Proteasome) and yellow are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Other color: Light gray, too close to Cell cycle's reddish purple for red-green color blindness. Change color" data-tip="Change color: Light gray"><span class="k-chit" style="background:#BDBDBD"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Other, 26 proteins. Select them" data-tip="Select Other">Other<span class="k-value">26</span></span></div>
           <div class="lg-sub">Unassigned<span class="k-value">26</span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Reddish purple (Cell cycle) and light gray are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
         </div>
         <div class="k-toolbar-dock">
-          <div class="k-toast" role="status">Proteasome is now light blue, was orange. Too close to Ribosome.<span class="k-toast-action">Undo</span></div>
           <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div>
@@ -838,36 +853,247 @@
   </div>
 
   <!-- The color picker, opened from the legend swatch, beside the legend -->
-  <div class="k-popover" role="dialog" aria-label="Proteasome color" style="left:524px;top:396px;width:240px">
+  <div class="k-popover" role="dialog" aria-label="DNA repair color" style="left:556px;top:352px;width:240px">
     <div class="k-popover-head" style="gap:4px;padding-inline:8px"><span class="k-tabs" role="tablist"><span class="k-tab" role="tab" aria-selected="true">Custom</span><span class="k-tab" role="tab" aria-selected="false">Libraries</span></span><span class="k-grow"></span><span class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="cp-body">
-      <div class="cp-sb" role="img" aria-label="Saturation and brightness"><span class="cp-reticle"></span></div>
-      <div class="cp-slider cp-hue" role="img" aria-label="Hue"><span style="left:57%"></span></div>
-      <div class="cp-val"><span class="k-field" style="width:55px">Hex<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field k-grow k-id">4AA3DF</span><span class="k-field k-num" style="width:44px">100 %</span></div>
-      <div class="cp-name"><span class="k-chit" style="background:#4AA3DF;vertical-align:-2px"></span> Light blue, picked for Proteasome</div>
-      <div class="k-group-head cp-gh">Not used in this layer</div>
-      <div class="cp-sw"><span class="k-chit" style="background:#E69F00" role="button" tabindex="0" aria-label="Orange, not used"></span></div>
+      <div class="cp-sb" role="img" aria-label="Saturation and brightness" style="background:linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(26deg 100% 50%))"><span class="cp-reticle" style="left:100%;top:16%"></span></div>
+      <div class="cp-slider cp-hue" role="img" aria-label="Hue"><span style="left:7%"></span></div>
+      <div class="cp-val"><span class="k-field" style="width:55px">Hex<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-field k-grow k-id">D55E00</span><span class="k-field k-num" style="width:44px">100 %</span></div>
+      <div class="cp-name"><span class="k-chit" style="background:#D55E00;vertical-align:-2px"></span> Vermilion, default for DNA repair</div>
+      <div class="k-group-head cp-gh">Suggested</div>
+      <div class="cp-hint">All 8 palette colors are in use. These clear every color in this layer, for red-green color blindness too.</div>
+      <div class="cp-sw"><span class="k-chit" style="background:#882255" role="button" tabindex="0" aria-label="Wine, clears every color in this layer"></span><span class="k-chit" style="background:#8C510A" role="button" tabindex="0" aria-label="Brown, clears every color in this layer"></span><span class="k-chit" style="background:#332288" role="button" tabindex="0" aria-label="Indigo, clears every color in this layer"></span></div>
       <div class="k-group-head">Used in this layer</div>
-      <div class="cp-sw"><span class="k-chit" style="background:#56B4E9" role="button" tabindex="0" aria-label="Sky blue, used by Ribosome"></span><span class="k-chit" style="background:#009E73" role="button" tabindex="0" aria-label="Bluish green, used by Complex I"></span><span class="k-chit" style="background:#0072B2" role="button" tabindex="0" aria-label="Blue, used by Spliceosome"></span><span class="k-chit" style="background:#000000" role="button" tabindex="0" aria-label="Black, used by MAPK signaling"></span><span class="k-chit" style="background:#D55E00" role="button" tabindex="0" aria-label="Vermilion, used by DNA repair"></span><span class="k-chit" style="background:#CC79A7" role="button" tabindex="0" aria-label="Reddish purple, used by Cell cycle"></span><span class="k-chit" style="background:#F0E442" role="button" tabindex="0" aria-label="Yellow, used by TGF-beta"></span><span class="k-chit" style="background:#BDBDBD" role="button" tabindex="0" aria-label="Light gray, used by Other"></span></div>
+      <div class="cp-sw"><span class="k-chit" style="background:#56B4E9" role="button" tabindex="0" aria-label="Sky blue, used by Ribosome"></span><span class="k-chit" style="background:#E69F00" role="button" tabindex="0" aria-label="Orange, used by Proteasome"></span><span class="k-chit" style="background:#009E73" role="button" tabindex="0" aria-label="Bluish green, used by Complex I"></span><span class="k-chit" style="background:#0072B2" role="button" tabindex="0" aria-label="Blue, used by Spliceosome"></span><span class="k-chit" style="background:#000000" role="button" tabindex="0" aria-label="Black, used by MAPK signaling"></span><span class="k-chit" style="background:#D55E00" role="button" tabindex="0" aria-label="Vermilion, used by DNA repair"></span><span class="k-chit" style="background:#CC79A7" role="button" tabindex="0" aria-label="Reddish purple, used by Cell cycle"></span><span class="k-chit" style="background:#F0E442" role="button" tabindex="0" aria-label="Yellow, used by TGF-beta"></span><span class="k-chit" style="background:#BDBDBD" role="button" tabindex="0" aria-label="Light gray, used by Other"></span></div>
     </div>
   </div>
 
-  <span class="an k-step" style="left:292px;top:668px">1</span>
-  <span class="an k-step" style="left:292px;top:708px">2</span>
-  <span class="an k-step" style="left:504px;top:668px">3</span>
-  <span class="an k-step" style="left:750px;top:400px">4</span>
-  <span class="an k-step" style="left:750px;top:640px">5</span>
-  <span class="an k-step" style="left:292px;top:846px">6</span>
-  <span class="an k-step" style="left:900px;top:790px">7</span>
+  <span class="an k-step" style="left:296px;top:430px">1</span>
+  <span class="an k-step" style="left:296px;top:574px">2</span>
+  <span class="an k-step" style="left:300px;top:540px">3</span>
+  <span class="an k-step" style="left:790px;top:360px">4</span>
+  <span class="an k-step" style="left:790px;top:650px">5</span>
+  <span class="an k-step" style="left:296px;top:762px">6</span>
   </div>
   <ol class="an-list">
-    <li>Each value row is two controls, each its own Tab stop: the swatch ("Proteasome color: Light blue. Change color") and the label ("Proteasome, 40 proteins. Select them"). Clicking the label selects the group, as before; clicking the swatch, or Enter on it, opens the picker. Up and Down move to the same control in the next row, so a keyboard reader can run down the swatches or the labels. <span class="cm">framework-changes.md (legend colors can be edited, named and announced). Drawn by graphty-element, which owns the legend and its keyboard model.</span></li>
-    <li>The too-close flag sits on the entry whose color the reader picked, names both colors in words, and is announced. It never fires on the default palette's own pairs: those are graphty-element's to keep apart, which is where the black and dark-gray pair behind this round's clash is fixed. <span class="cm">framework-changes.md (one color-distance function). graphty-element computes the distance; the Print look's gray check calls the same function, so the two can never disagree about whether two colors are distinguishable.</span></li>
+    <li>Each value row is two controls, each its own Tab stop: the swatch ("DNA repair color: Vermilion. Change color") and the label ("DNA repair, 30 proteins. Select them"). Clicking the label selects the group; clicking the swatch, or Enter on it, opens the picker. Up and Down move to the same control in the next row, so a keyboard reader can run down the swatches or the labels. <span class="cm">framework-changes.md (legend colors can be edited, named and announced). Drawn by graphty-element, which owns the legend and its keyboard model.</span></li>
+    <li>The too-close check runs on every pair of colors in the layer, picked or default. Here all three flags are on graphty-element's own palette: orange against vermilion, orange against yellow, and reddish purple against Other's light gray. Each flag names both colors in words, says which color vision it models ("too close for red-green color blindness (deuteranopia)"), names the other value, and is announced with its row. It sits under the smaller group of the pair, the cheaper one to recolor. Fix... opens this picker. <span class="cm">graphty-element computes the distance: each color as a deuteranope sees it, then the color difference between them; a pair under the line is flagged. The Print look's gray check calls the same function. On the graphty-element backlog (end of this page).</span></li>
     <li>The swatch that opened the picker keeps a pressed look while the picker is open; Esc closes it and returns focus there. <span class="cm">figma-spec 7.1, 7.2 (the chit opens the picker). compact-mantine: <code>CompactColorInput</code>.</span></li>
     <li>The picker is the same one the layer editor uses (Custom and Libraries). The value row reads the color back in words, not only as hex. <span class="cm">framework-changes.md (the color picker's Custom and Libraries tabs). compact-mantine: <code>ColorPickerPanel</code>.</span></li>
-    <li>Colors the layer does not use yet come first; used ones follow, each named with the value that has it, so choosing Orange again is one step and choosing a taken color is a visible choice. <span class="cm">compact-mantine: <code>SWATCH_COLORS_HEXA</code>, set by the caller from graphty-element's palette.</span></li>
-    <li>Other is a light gray and lists what it holds, so the reader never has to guess which values were folded. <span class="cm">options-and-encodings.md 5 (Categories past the palette). The gray is graphty-element's default for Other.</span></li>
-    <li>The change is announced once in the notice, with the old color and the flag, and undoes like any edit. The edit is kept against the value Proteasome, so it survives a re-run. <span class="cm">framework-changes.md (legend colors edited on a run's layer survive a re-run). compact-mantine: <code>Notification</code>.</span></li>
+    <li>With every palette color in use, the picker suggests colors that clear every other color in the layer, for normal and red-green color vision; each is named aloud. With a palette color still free, that color is offered first instead, as before. Used colors follow, each named with the value that has it. <span class="cm">graphty-element supplies the suggestions from the same distance function; compact-mantine: <code>SWATCH_COLORS_HEXA</code>, set by the caller. On the graphty-element backlog.</span></li>
+    <li>Other is a light gray and lists what it holds, so the reader never has to guess which values were folded. Its gray is flagged against reddish purple like any other pair. <span class="cm">options-and-encodings.md 5 (Categories past the palette). The gray is graphty-element's default for Other.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 8 -->
+<section class="st" id="run-colors">
+  <h2 class="st-label">8. Recolor a group on a run's layer <span>-- Louvain's color layer, written by the run: the analyst picked dark gold for Community 8 from its legend swatch. The pick is kept when Louvain runs again, and the check flags it at once against vermilion and orange</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+        <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="img/ppi-louvain-black-light.svg" alt="Colored by Louvain community, Community 8 in a picked dark gold, sized by degree"><img class="k-dark-only" src="img/ppi-louvain-black-dark.svg" alt="Colored by Louvain community, Community 8 in a picked dark gold, sized by degree"></div>
+        <div class="k-legend-card" style="width:232px" role="group" aria-label="Legend: Louvain color">
+          <div class="k-lg-title">Louvain color <span class="k-secondary">community</span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 1 color: Orange. Change color" data-tip="Change color: Orange"><span class="k-chit" style="background:#E69F00"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 1, 62 proteins. Select them" data-tip="Select Community 1">Community 1<span class="k-value">62</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 2 color: Sky blue. Change color" data-tip="Change color: Sky blue"><span class="k-chit" style="background:#56B4E9"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 2, 43 proteins. Select them" data-tip="Select Community 2">Community 2<span class="k-value">43</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 3 color: Bluish green. Change color" data-tip="Change color: Bluish green"><span class="k-chit" style="background:#009E73"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 3, 36 proteins. Select them" data-tip="Select Community 3">Community 3<span class="k-value">36</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 4 color: Blue. Change color" data-tip="Change color: Blue"><span class="k-chit" style="background:#0072B2"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 4, 36 proteins. Select them" data-tip="Select Community 4">Community 4<span class="k-value">36</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 5 color: Vermilion, too close to Community 1's orange for red-green color blindness. Change color" data-tip="Change color: Vermilion"><span class="k-chit" style="background:#D55E00"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 5, 31 proteins. Select them" data-tip="Select Community 5">Community 5<span class="k-value">31</span></span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Orange (Community 1) and vermilion are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 6 color: Reddish purple. Change color" data-tip="Change color: Reddish purple"><span class="k-chit" style="background:#CC79A7"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 6, 31 proteins. Select them" data-tip="Select Community 6">Community 6<span class="k-value">31</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Community 7 color: Black. Change color" data-tip="Change color: Black"><span class="k-chit" style="background:#000000"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 7, 30 proteins. Select them" data-tip="Select Community 7">Community 7<span class="k-value">30</span></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" data-focus-ring aria-label="Community 8 color: Dark gold, picked, too close to Community 5's vermilion and Community 1's orange for red-green color blindness. Change color" data-tip="Change color: Dark gold"><span class="k-chit" style="background:#B8860B"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Community 8, 29 proteins. Select them" data-tip="Select Community 8">Community 8<span class="k-value">29</span></span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Dark gold and vermilion (Community 5) are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Dark gold and orange (Community 1) are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
+          <div class="k-lg-row lg-val"><span class="lg-sw" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Other color: Light gray, too close to Community 6's reddish purple for red-green color blindness. Change color" data-tip="Change color: Light gray"><span class="k-chit" style="background:#BDBDBD"></span></span><span class="lg-lab" role="button" tabindex="0" aria-label="Other, 2 proteins: Communities 9 and 10, one protein each. Select them" data-tip="Select Other">Other<span class="k-value">2</span></span></div>
+          <div class="lg-sub">Communities 9 and 10<span class="k-value">2</span></div>
+          <div class="lg-flag" role="note"><span class="k-warn-glyph">!</span><span>Reddish purple (Community 6) and light gray are too close for red-green color blindness (deuteranopia). <a role="button" tabindex="0">Fix...</a></span></div>
+        </div>
+        <div class="k-toolbar-dock">
+          <div class="k-toast" role="status" style="max-width:380px;white-space:normal">Community 8 is now dark gold, was yellow: too close to vermilion and orange. Kept when Louvain runs again.<span class="k-toast-action">Undo</span></div>
+          <div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item" aria-selected="true"><span class="chits3"><i style="left:6px;background:#009E73"></i><i style="left:3px;background:#56B4E9"></i><i style="left:0;background:#B8860B"></i></span><span class="k-ellipsis">Louvain color</span><span class="k-trail"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+          <div class="k-prose">Louvain color is written by the Louvain run of Sep 28 09:31. A color you pick in it is kept for its community, and a re-run keeps it.</div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <span class="an k-step" style="left:296px;top:360px">1</span>
+  <span class="an k-step" style="left:300px;top:590px">2</span>
+  <span class="an k-step" style="left:900px;top:790px">3</span>
+  <span class="an k-step" style="left:1170px;top:150px">4</span>
+  </div>
+  <ol class="an-list">
+    <li>A run's layer has the same legend as any other: each value row is a swatch and a label, and the swatch opens the same color picker. There is no lock, no read-only state and no copy to make first. <span class="cm">framework-changes.md (legend colors can be edited, named and announced). Drawn by graphty-element.</span></li>
+    <li>The swatch that opened the picker keeps its focus ring after the pick; the picker has closed. Community 8 was yellow, hard to see on the light canvas. Dark gold reads well there, but for red-green color blindness it is nearly the vermilion of Community 5 and close to Community 1's orange, so both flags appear under the row as soon as the pick lands: the check covers picked and default colors alike, and the default orange and vermilion pair is flagged too. <span class="cm">compact-mantine: <code>CompactColorInput</code>.</span></li>
+    <li>The notice says what changed, that the new color is too close to two others, and that the pick is kept for Community 8 when Louvain runs again, with the same seed and options giving the same communities. <span class="cm">framework-changes.md (legend colors edited on a run's layer survive a re-run). compact-mantine: <code>Notification</code>.</span></li>
+    <li>The Style stack lists the run's layer like any other, and one sentence under it says which run wrote it and that picked colors survive a re-run. <span class="cm">compact-mantine: <code>FieldRow</code>, <code>ProseBlock</code>.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================== 9 -->
+<section class="st" id="top-n">
+  <h2 class="st-label">9. Label the top N, in one direction <span>-- the fold-change layer's Text section: Top 5 by log2FoldChange, and a Direction field that reads the column. On a signed column it offers Largest increase or Largest decrease; on an unsigned one, Highest or Lowest</span></h2>
+  <div class="st-frame">
+  <div class="k-app">
+    <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+    <aside class="k-panel" aria-label="Graph">
+      <div class="k-panel-head">
+        <div class="k-title-line"><span class="k-project">Stress response study</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+        <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+      </div>
+      <div class="k-scroll">
+        <section class="k-section">
+          <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
+        </section>
+        <section class="k-section" data-empty>
+          <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        </section>
+        
+        <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">0</span></div></section>
+      </div>
+    </aside>
+    <main class="k-main">
+      <div class="k-canvas">
+        <div class="k-stage"><img class="k-light-only" src="img/ppi-foldchange-topup-light.svg" alt="300 proteins colored by log2 fold change and sized by degree; the five largest increases labeled: CHEK1, WRN, SNRNP70, MRE11, MAPK2"><img class="k-dark-only" src="img/ppi-foldchange-topup-dark.svg" alt="300 proteins colored by log2 fold change and sized by degree; the five largest increases labeled: CHEK1, WRN, SNRNP70, MRE11, MAPK2"></div>
+        <div class="k-legend-card" style="width:240px">
+          <div class="k-lg-title">log2FoldChange color <span class="k-secondary">log2FoldChange</span></div>
+          <span class="k-ramp k-ramp-wide fc-ramp" style="margin-top:4px"></span>
+          <div class="ticks"><span style="left:0">-2.52</span><span class="mid" style="left:44.4%">0</span><span style="left:100%">3.15</span></div>
+          <div class="k-secondary">Linear, diverging at 0. The palest color is 0, not missing.</div>
+          <div class="k-lg-row">Below 0<span class="k-value">148</span></div>
+          <div class="k-lg-row">Above 0<span class="k-value">152</span></div>
+          <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>No value or unstyled<span class="k-value">0</span></div>
+          <div class="k-lg-row"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#type"/></svg>Labels: 5 largest increases, 1 hidden</div>
+        </div>
+        <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+          <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+          
+          <span class="k-toolbar-sep"></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+        </div></div>
+        <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+      </div>
+      
+    </main>
+    <aside class="k-right" aria-label="Inspector">
+      
+      <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+      <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">ppi-core-300</span><span class="k-secondary">Graph</span></div>
+      <div class="k-scroll">
+        <section class="k-section"><div class="k-section-head">Statistics</div>
+          <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">300</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">1,262</span></div><div class="k-metric"><span class="k-secondary">components</span><span class="k-big">3</span></div><div class="k-metric"><span class="k-secondary">density</span><span class="k-big">0.0281</span></div></div>
+        </section><section class="k-section">
+          <div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+          <ul class="k-list">
+            <li class="k-item" aria-selected="true"><span class="k-ramp fc-ramp" style="width:16px"></span><span class="k-ellipsis">log2FoldChange color</span><span class="k-trail"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span></span></li>
+            <li class="k-item"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
+            <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>
+          </ul>
+        </section>
+        <section class="k-section"><div class="k-section-head">Attributes</div>
+          <div class="k-data"><span class="k-name">module</span><span class="k-value">9 values</span></div>
+          <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">-2.52 to 3.15</span></div>
+          <div class="k-data"><span class="k-name">degree</span><span class="k-value">0 to 34</span></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div class="k-popover" style="left:952px;top:283px">
+    <div class="k-popover-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="k-ellipsis">log2FoldChange color</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+    <div class="k-popover-body">
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span">All nodes<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Shape<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Opacity<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Text<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#minus"/></svg></span></div>
+      <div class="k-fieldrow"><span class="k-legend">Label</span><div class="k-fields"><span class="k-field k-span">Top N by log2FoldChange<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">N</span><div class="k-fields"><span class="k-field k-num" style="width:56px">5</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Direction</span><div class="k-fields"><span class="k-field k-span" aria-expanded="true" data-focus-ring>Largest increase<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <div class="k-data"><span class="k-name">labeled</span><span class="k-value">CHEK1, WRN, SNRNP70, MAPK2</span></div>
+      <div class="k-data"><span class="k-name">hidden by overlap</span><span class="k-value">MRE11</span></div>
+      <div class="k-section-head" style="height:32px">Fill<span class="k-grow"></span><span class="k-icon-btn" title="Apply styles and variables"><span class="k4"></span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#minus"/></svg></span></div>
+      <div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-ramp fc-ramp" style="width:16px"></span>log2FoldChange</span></span><span class="k-icon-btn" aria-pressed="true"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
+      <div class="k-section-head" style="height:32px">Stroke<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-section-head" style="height:32px">Effects<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+      <div class="k-data"><span class="k-name">paints</span><span class="k-value"><span data-fx="datasets.ppi.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="nodes">300 of 300 nodes</span></span></div>
+      <div class="k-data"><span class="k-name">no value</span><span class="k-value">0</span></div>
+      <div class="k-data"><span class="k-name">notes</span><span class="k-value k-secondary">none</span></div>
+    </div>
+  </div>
+
+  <!-- The Direction menu, open under its field -->
+  <div class="k-menu" style="left:968px;top:618px;width:236px" role="listbox" aria-label="Direction">
+    <div class="k-menu-label">log2FoldChange has a sign</div>
+    <div class="k-menu-item" role="option" aria-selected="true" data-hover><span class="k-check-col"><svg class="k-i k-i-sm" aria-hidden="true"><use href="../kit/icons.svg#check"/></svg></span>Largest increase</div>
+    <div class="k-menu-item" role="option"><span class="k-check-col"></span>Largest decrease</div>
+    <div class="k-menu-sep"></div>
+    <div class="k-menu-item" role="option"><span class="k-check-col"></span>Largest change, either way</div>
+  </div>
+
+  <span class="an k-step" style="left:936px;top:455px">1</span>
+  <span class="an k-step" style="left:936px;top:592px">2</span>
+  <span class="an k-step" style="left:1212px;top:622px">3</span>
+  <span class="an k-step" style="left:936px;top:626px">4</span>
+  <span class="an k-step" style="left:296px;top:850px">5</span>
+  </div>
+  <ol class="an-list">
+    <li>Labels are the layer's Text section, like any other channel: Top N by the value the layer follows, and N typed by the reader. <span class="cm">options-and-encodings.md 3 (sections in Figma's order). compact-mantine: <code>ControlSection</code>, <code>StyleSelect</code>, <code>StyleNumberInput</code>.</span></li>
+    <li>One Top N rule with a Direction field, not a rule per direction. graphty-element reads the column: a signed column (values on both sides of 0) offers Largest increase and Largest decrease; an unsigned one, such as degree or betweenness, offers Highest and Lowest. Largest change either way, the old ranking by size, stays available below a line. <span class="cm">graphty-element decides which directions a column allows, so every consumer offers the same ones. On the graphty-element backlog (end of this page). compact-mantine: <code>StyleSelect</code>.</span></li>
+    <li>The menu names why it offers these two: the column has a sign. Choosing Largest decrease labels RPS6, MAPK10, RPL17, NDUFS5 and E2F1. <span class="cm">compact-mantine: <code>Menu</code> with a label row.</span></li>
+    <li>The labeled proteins are read back by name, so the reader can check the rule without finding labels on the drawing. MRE11 is fifth but its label would overlap WRN's, so it is listed as hidden, the same way the Export dialog lists it; the inspector's Show label anyway brings it back. <span class="cm">compact-mantine: <code>DataRow</code>.</span></li>
+    <li>The legend says what the labels are, so a figure made from this view carries the rule with it. <span class="cm">options-and-encodings.md 6. Drawn by graphty-element.</span></li>
+  </ol>
+</section>
+
+
+<section class="backlog" id="element-backlog">
+  <h2>On the graphty-element backlog</h2>
+  <p>Everything below is drawn on this page as graphty-element behavior. The app only shows what the element reports; a third party using graphty-element on its own gets the same checks, suggestions, directions and floors.</p>
+  <ol>
+    <li><b>One too-close check for every pair of colors in a layer.</b> It runs on picked and default colors alike and reports each close pair with both color names and the color vision it models, for example "Orange and vermilion are too close for red-green color blindness (deuteranopia)." It simulates deuteranopia, then measures the color difference; a pair under the line is flagged. Today the element's own default palette fails it three times in one layer: orange #E69F00 against vermilion #D55E00, orange against yellow #F0E442, and reddish purple #CC79A7 against Other's light gray #BDBDBD (states 7 and 8). The default palette itself should be revisited so a fresh layer starts with no flags.</li>
+    <li><b>Suggested colors when the palette runs out.</b> With every palette color in use, the element offers colors that clear every other color in the layer by the same check; here wine #882255, brown #8C510A and indigo #332288 for DNA repair (state 7).</li>
+    <li><b>A direction on Top N.</b> The element reads the column: a signed column allows Largest increase and Largest decrease, an unsigned one Highest and Lowest, and Largest change either way stays available. One rule with a direction, not a rule per direction (state 9).</li>
+    <li><b>A smallest mark, on screen and in print.</b> No mark draws under 6 px across on screen or 1.5 mm in a printed figure, whatever the zoom, export width or size scale, so a mark's shape stays readable (state 3).</li>
   </ol>
 </section>
 

@@ -186,7 +186,7 @@
           <div class="k-data"><span class="k-name">max degree</span><span class="k-value k-num">14</span></div>
         </div>
       </div></div>
-      <div class="f-foot"><b>Undo:</b> Mod+Z, or the step's checkbox. From the canvas selection the step reads "Filter out 60 nodes".</div>
+      <div class="f-foot"><b>Undo:</b> Mod+Z, or the step's checkbox. From the canvas selection the step reads "Filter out <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>".</div>
     </section>
 
     <section class="f-card" aria-label="After Hide on canvas">
@@ -203,7 +203,7 @@
       </div></div>
       <div class="f-strip"><span class="f-where">Canvas, bottom left: legend</span><div class="f-strip-body">
         <div class="k-legend-card"><div class="k-lg-row k-secondary">No layer colors by a value</div>
-          <div class="k-notdrawn f-changed"><span class="k-num">60 nodes, 5,302 edges hidden.</span><br><a>Select</a> &nbsp;<a>Show all</a></div></div>
+          <div class="k-notdrawn f-changed"><span class="k-num"><span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>, <span data-fx="datasets.transactions.withoutMerchants.transfersWithAMerchantEnd" data-fx-noun="edges">5,302 edges</span> hidden.</span><br><a>Select</a> &nbsp;<a>Show all</a></div></div>
       </div></div>
       <div class="f-strip"><span class="f-where">Inspector: Statistics</span><div class="f-strip-body">
         <div class="k-data"><span class="k-name">nodes</span><span class="k-value k-num">3,000</span></div>
@@ -265,7 +265,7 @@
         <div class="k-data"><span class="k-name">transfers</span><span class="k-value k-num">9,113</span></div>
         <div class="k-data"><span class="k-name">max degree</span><span class="k-value k-num">907</span></div>
       </div></div>
-      <div class="f-foot"><b>Undo:</b> Mod+Z ("Override color of 60 nodes"). Create set first instead, and the row is a layer named for the set.</div>
+      <div class="f-foot"><b>Undo:</b> Mod+Z ("Override color of <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>"). Create set first instead, and the row is a layer named for the set.</div>
     </section>
   </div>
 
@@ -274,7 +274,7 @@
     <thead><tr><th><span class="cm-visually-hidden">Aspect</span></th><th>Filter out</th><th>Hide on canvas <span class="k-annot-tag f-tag">waits on graphty-element</span></th><th>Paint</th></tr></thead>
     <tbody>
       <tr><th>A layout</th><td>Filtered-out accounts exert no force and keep their positions (simulation layouts).</td><td>Still reads and moves the hidden accounts; the Layout row says how many.</td><td>Unaffected.</td></tr>
-      <tr><th>Its undo entry</th><td>"Filter out kind = merchant" from the value; "Filter out 60 nodes" from the selection</td><td>"Hide 60 nodes on canvas"</td><td>"Color by kind"; or "Create set Merchants" then "Add style layer Merchants"; or "Override color of 60 nodes"</td></tr>
+      <tr><th>Its undo entry</th><td>"Filter out kind = merchant" from the value; "Filter out <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>" from the selection</td><td>"Hide <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span> on canvas"</td><td>"Color by kind"; or "Create set Merchants" then "Add style layer Merchants"; or "Override color of <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>"</td></tr>
       <tr><th>Undone by</th><td>Mod+Z; the step's checkbox turns it off and keeps it; Delete step removes it.</td><td>Mod+Z; Show all on the legend's hidden line; Select, then Show on canvas for some.</td><td>Mod+Z; the layer's eye turns it off; Delete removes it.</td></tr>
     </tbody>
   </table>
@@ -286,11 +286,11 @@
     <tbody>
       <tr><td>Start, a rule</td><td>Table, Nodes: the kind column, value merchant</td><td>the value's menu</td><td>none</td><td>the value's count, 60</td><td>--</td></tr>
       <tr><td>Start, a list</td><td>Canvas: ACC-393859</td><td>Select same value</td><td>none</td><td>"60 selected"</td><td><span class="k-mono">session.selection.apply</span></td></tr>
-      <tr><td>Narrow</td><td>the value's menu; the selection's actions</td><td>Filter out</td><td>"Filter out kind = merchant"; "Filter out 60 nodes"</td><td>the chip reads "Filtered: 2,940 of 3,000 nodes"</td><td><span class="k-mono">session.filters.steps</span>, the recommended name for today's <span class="k-mono">session.visibility.set</span>; ordered filter steps and their undo <span class="f-missing">missing</span>; the chip itself is not built yet</td></tr>
-      <tr><td>Hide</td><td>the selection's overflow; a legend entry's menu; the hide chord</td><td>Hide on canvas</td><td>"Hide 60 nodes on canvas"</td><td>the chip does not move; the legend counts 60 nodes, 5,302 edges hidden</td><td>whether an element is drawn, as its own state: <span class="f-missing">missing</span>; Hide on canvas is not offered until it lands</td></tr>
+      <tr><td>Narrow</td><td>the value's menu; the selection's actions</td><td>Filter out</td><td>"Filter out kind = merchant"; "Filter out <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>"</td><td>the chip reads "Filtered: 2,940 of 3,000 nodes"</td><td><span class="k-mono">session.filters.steps</span>, the recommended name for today's <span class="k-mono">session.visibility.set</span>; ordered filter steps and their undo <span class="f-missing">missing</span>; the chip itself is not built yet</td></tr>
+      <tr><td>Hide</td><td>the selection's overflow; a legend entry's menu; the hide chord</td><td>Hide on canvas</td><td>"Hide <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span> on canvas"</td><td>the chip does not move; the legend counts <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>, <span data-fx="datasets.transactions.withoutMerchants.transfersWithAMerchantEnd" data-fx-noun="edges">5,302 edges</span> hidden</td><td>whether an element is drawn, as its own state: <span class="f-missing">missing</span>; Hide on canvas is not offered until it lands</td></tr>
       <tr><td>Paint every kind</td><td>Table, Nodes: the kind column header's menu</td><td>Color by</td><td>"Color by kind"</td><td>the legend lists all three kinds; the chip does not move</td><td><span class="k-mono">session.styles.encode</span></td></tr>
       <tr><td>Paint a set</td><td>the selection's actions, then the set's Appearance</td><td>Create set; a color</td><td>"Create set Merchants"; "Add style layer Merchants"</td><td>the layer tops Styles; the chip does not move</td><td><span class="k-mono">session.styles.add</span> with a member selector on the set</td></tr>
-      <tr><td>Paint by hand</td><td>the selection's Appearance</td><td>a color</td><td>"Override color of 60 nodes"</td><td>the Overrides row counts 60</td><td>the Overrides layer: <span class="f-missing">missing</span></td></tr>
+      <tr><td>Paint by hand</td><td>the selection's Appearance</td><td>a color</td><td>"Override color of <span data-fx="datasets.transactions.withoutMerchants.merchants" data-fx-noun="nodes">60 nodes</span>"</td><td>the Overrides row counts 60</td><td>the Overrides layer: <span class="f-missing">missing</span></td></tr>
       <tr><td>Recover</td><td>after "Did the chip move the way I meant?"</td><td>Show all (if hidden), then Filter out</td><td>two entries</td><td>the chip moves</td><td>as Hide and Narrow</td></tr>
       <tr><td>Extract</td><td>Graphs: New graph from</td><td>Extract as graph</td><td>"Extract filtered graph (2,940 nodes) as graph"</td><td>the new graph names what it was made from</td><td><span class="f-missing">missing</span> entirely</td></tr>
       <tr><td>Characterize</td><td>Inspector, nothing selected: Statistics</td><td>none (a reading)</td><td>none</td><td>the chip reads Filtered; an earlier run's state line reads Full graph</td><td><span class="k-mono">session.data.statistics()</span>; a run recording which filter steps it read <span class="f-missing">missing</span></td></tr>

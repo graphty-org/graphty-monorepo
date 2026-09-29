@@ -8,6 +8,8 @@
 //   node kit/shoot.mjs --out my-name.png screens/start.html  (one page, a chosen file name)
 //   node kit/shoot.mjs "screens/frame-at-rest.html?dataset=ppi"   (a query string names the shot: ...-dataset-ppi.png)
 //   node kit/shoot.mjs --study screens/find.html             (as a participant sees it: design notes hidden, ...--study.png)
+//   node kit/shoot.mjs --touch --study screens/undo.html     (an iPad: 768 x 1024, touch, a mobile viewport; ...--768-touch.png)
+//   node kit/shoot.mjs --all --touch --study                 (every page check.mjs --all reads, in one run)
 //   node kit/shoot.mjs --stale [--dry]                       (re-render every PNG older than its page or the kit)
 //   node kit/shoot.mjs --tasks [task-id ...]                 (every study task's screens, in order, as the participant sees
 //                                                             them: study view, ?task=<id>; shots/tasks/<id>/NN-<page>.png)
@@ -33,7 +35,7 @@ const proto = resolve(here, "..");
 const { chromium } = await import(resolve(proto, "../../../node_modules/playwright/index.mjs"));
 
 const args = process.argv.slice(2);
-const opt = { dark: false, width: 1440, height: 900, full: false, out: null, study: false, stale: false, dry: false, tasks: false };
+const opt = { dark: false, width: 1440, height: 900, full: false, out: null, study: false, stale: false, dry: false, tasks: false, touch: false, all: false };
 const pages = [];
 for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -46,12 +48,19 @@ for (let i = 0; i < args.length; i++) {
     else if (a === "--stale") opt.stale = true;
     else if (a === "--dry") opt.dry = true;
     else if (a === "--tasks") opt.tasks = true;
+    else if (a === "--touch") Object.assign(opt, { touch: true, width: 768, height: 1024 });
+    else if (a === "--all") opt.all = true;
     else pages.push(a.replace(/^\.?\/?/, ""));
 }
 const shotsDir = join(proto, "shots");
 const manifestPath = join(shotsDir, "manifest.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8").catch(() => "{}"));
-const nameOf = (p, o) => o.out ?? `${p.replace(/\.html(?=$|[?#])/, "").replace(/[/\\]/g, "__").replace(/[?#&=]+/g, "-")}${o.dark ? "--dark" : ""}${o.study ? "--study" : ""}${o.width !== 1440 ? `--${o.width}` : ""}.png`;
+const nameOf = (p, o) => o.out ?? `${p.replace(/\.html(?=$|[?#])/, "").replace(/[/\\]/g, "__").replace(/[?#&=]+/g, "-")}${o.dark ? "--dark" : ""}${o.study ? "--study" : ""}${o.width !== 1440 ? `--${o.width}` : ""}${o.touch ? "-touch" : ""}.png`;
+// --all: the pages kit/check.mjs --all reads.
+if (opt.all) {
+    for (const dir of ["storyboards", "flows", "screens", "study"]) for (const f of (await readdir(join(proto, dir))).sort()) if (f.endsWith(".html") && !f.endsWith(".template.html")) pages.push(`${dir}/${f}`);
+    pages.push("index.html", "kit/template.html", "kit/index.html");
+}
 // One job per page: its options, and the file it writes.
 const jobs = opt.tasks ? [] : pages.map((p) => ({ page: p, o: { ...opt } }));
 if (opt.stale) jobs.push(...(await staleJobs()));
@@ -98,10 +107,13 @@ try {
     await mkdir(shotsDir, { recursive: true });
     const contexts = new Map();
     const contextFor = async (o) => {
-        const k = `${o.width}x${o.height}${o.dark ? "d" : ""}${o.study ? "s" : ""}`;
+        const k = `${o.width}x${o.height}${o.dark ? "d" : ""}${o.study ? "s" : ""}${o.touch ? "t" : ""}`;
         if (!contexts.has(k)) {
-            const c = await browser.newContext({ viewport: { width: o.width, height: o.height }, deviceScaleFactor: 1, colorScheme: o.dark ? "dark" : "light" });
-            if (o.study) await c.addInitScript(() => (window.__kitStudy = true));
+            // --touch: an iPad in portrait; a page with no viewport tag lays out at 980 and is shown zoomed out, as Safari does.
+            const c = await browser.newContext({ viewport: { width: o.width, height: o.height }, deviceScaleFactor: 1, colorScheme: o.dark ? "dark" : "light", ...(o.touch ? { hasTouch: true, isMobile: true } : {}) });
+            // A touch shot opens the participant view by its address, so the facilitator's way out shows
+            // in the corner as it does on the owner's iPad; other study shots hide it.
+            if (o.study && !o.touch) await c.addInitScript(() => (window.__kitStudy = true));
             contexts.set(k, c);
         }
         return contexts.get(k);
@@ -111,7 +123,9 @@ try {
         const problems = [];
         page.on("pageerror", (e) => problems.push(`script error: ${e.message}`));
         page.on("response", (r) => r.status() >= 400 && problems.push(`${r.status()} ${r.url().replace(base, "")}`));
-        await page.goto(base + p, { waitUntil: "networkidle" });
+        const url = o.study && o.touch ? p.replace(/^([^#]*?)(\?[^#]*)?(#.*)?$/, (m, path, q = "", h = "") => `${path}${q ? `${q}&` : "?"}study${h}`) : p;
+        // a page that never goes quiet (a frame that keeps loading) is shot as it stands, and named
+        await page.goto(base + url, { waitUntil: "networkidle", timeout: 30000 }).catch(() => problems.push("the page did not settle in 30 s; shot as it stood"));
         await page.evaluate((dark) => document.documentElement.setAttribute("data-theme", dark ? "dark" : "light"), o.dark);
         await page.evaluate(() => document.fonts.ready);
         if (o.study) await page.waitForFunction(() => window.kitFx !== undefined, null, { timeout: 5000 }).catch(() => {});
@@ -119,7 +133,7 @@ try {
         const out = join(shotsDir, name);
         await mkdir(dirname(out), { recursive: true });
         await page.screenshot({ path: out, fullPage: o.full });
-        manifest[name] = { page: p, dark: o.dark, study: o.study, width: o.width, height: o.height, full: o.full };
+        manifest[name] = { page: p, dark: o.dark, study: o.study, width: o.width, height: o.height, full: o.full, ...(o.touch ? { touch: true } : {}) };
         console.log(out);
         for (const pr of problems) console.error(`  ${p}: ${pr}`);
         if (problems.length) failures.push(p);
@@ -156,6 +170,7 @@ async function staleJobs() {
         // <page path, / as __>[-query][--dark][--study][--width].png
         let rest = name.replace(/\.png$/, "");
         const o = { dark: false, study: false, width: 1440, height: 900, full: false };
+        if (rest.endsWith("-touch")) Object.assign(o, { touch: true, height: 1024 }), (rest = rest.slice(0, -6));
         const w = rest.match(/--(\d+)$/);
         if (w) (o.width = +w[1]), (rest = rest.slice(0, w.index));
         if (rest.endsWith("--study")) (o.study = true), (rest = rest.slice(0, -7));

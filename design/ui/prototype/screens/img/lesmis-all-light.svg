@@ -296,14 +296,14 @@
 <circle cx="635.2" cy="425.1" r="8.9" fill="#E69F00"/>
 <circle cx="606.8" cy="415.6" r="8.9" fill="#E69F00"/>
 <circle cx="731.4" cy="371.4" r="7.5" fill="#009E73"/>
-<circle cx="550.7" cy="572.1" r="6" fill="#505050"/>
+<circle cx="550.7" cy="572.1" r="6" fill="#BDBDBD"/>
 <circle cx="848" cy="423.2" r="10.6" fill="#009E73"/>
 <circle cx="853.2" cy="355.6" r="7.5" fill="#009E73"/>
 <circle cx="595.1" cy="314" r="7.5" fill="#CC79A7"/>
 <circle cx="749.2" cy="196.7" r="6.8" fill="#000000"/>
 <circle cx="752.6" cy="148.9" r="6" fill="#000000"/>
-<circle cx="1130" cy="477.6" r="6" fill="#505050"/>
-<circle cx="1054.2" cy="497.5" r="6.8" fill="#505050"/>
+<circle cx="1130" cy="477.6" r="6" fill="#BDBDBD"/>
+<circle cx="1054.2" cy="497.5" r="6.8" fill="#BDBDBD"/>
 <circle cx="820.6" cy="539.7" r="13.4" fill="#56B4E9"/>
 <circle cx="557.8" cy="457.8" r="9.3" fill="#CC79A7"/>
 <circle cx="492.3" cy="435.2" r="6.8" fill="#CC79A7"/>
@@ -329,8 +329,8 @@
 <circle cx="793.3" cy="428.6" r="10.3" fill="#009E73"/>
 <circle cx="815.6" cy="446.3" r="10" fill="#009E73"/>
 <circle cx="559.4" cy="330.6" r="7.5" fill="#CC79A7"/>
-<circle cx="1006.2" cy="572.9" r="6.8" fill="#505050"/>
-<circle cx="990" cy="619.7" r="6.8" fill="#505050"/>
+<circle cx="1006.2" cy="572.9" r="6.8" fill="#BDBDBD"/>
+<circle cx="990" cy="619.7" r="6.8" fill="#BDBDBD"/>
 <circle cx="866.6" cy="438.6" r="9.3" fill="#009E73"/>
 <circle cx="854.9" cy="597.3" r="9.3" fill="#56B4E9"/>
 </g><g font-family="Inter Variable, Inter, system-ui, sans-serif" font-size="12" fill="#1A1A1A" stroke="#F5F5F5" stroke-width="3" stroke-linejoin="round" paint-order="stroke">

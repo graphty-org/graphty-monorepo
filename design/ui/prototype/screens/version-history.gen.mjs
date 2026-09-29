@@ -61,7 +61,7 @@ const vrow = ({ name, current = false, when, fold = "", sel = false, open = "", 
   `<span class="l2">${when}</span>${first ? `<span class="l2">The first version: nothing to compare with.</span>` : summary}</span></div>` +
   (open ? `<div class="vbody">${open}</div>` : "") + `</li>`;
 
-const openAct = (compare = true) => `<div class="dp-acts"><span class="k-btn k-btn-secondary">Show replay report</span>${compare ? `<span class="k-btn k-btn-ghost">Compare with...</span>` : ""}</div>`;
+const openAct = (compare = true) => `<div class="dp-acts"><span class="k-btn k-btn-secondary">Show replay report</span>${compare ? `<span class="k-btn k-btn-ghost">Compare with another version...</span>` : ""}</div>`;
 
 const versions = {
   list: vrow({ name: "April data", current: true, when: "May 4, from transfers-2026-04.csv", fold: "open", sel: true, mk: "row", open: wcList(wcApril, "March data (Apr 2)") + openAct() }) +
@@ -109,7 +109,7 @@ const legend = (month, naming = month) => {
         <div class="k-lg-title">Community color <span class="k-secondary">Louvain community</span></div>
         <div class="k-lg-note">${NAMING[naming]}</div>
         ${lg.rows.map((r) => `<div class="k-lg-row"><span class="k-chit" style="background:${r.color}"></span>${r.name}<span class="k-value">${fmt(r.count)}</span></div>`).join("")}
-        <div class="k-lg-row"><span class="k-chit" style="background:#505050"></span>Other, ${lg.other.communities} communities<span class="k-value">${fmt(lg.other.count)}</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#BDBDBD"></span>Other, ${lg.other.communities} communities<span class="k-value">${fmt(lg.other.count)}</span></div><div class="k-lg-sub">${lg.other.holds}</div>
         <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to ${max}</span></div>
       </div>`;
 };
@@ -141,14 +141,15 @@ const cap = (t) => `<div class="k-caption cap">${t}</div>`;
 const inspector = (month) => {
   const n = month === "april" ? A : M;
   const file = month === "april" ? "transfers-2026-04.csv" : "transfers-2026-03.csv";
-  const w = month === "april" ? "amount used as similarity" : "amount not used yet";
+  // The load's facts only; a column's meaning as a weight is asked by each run, never set on the data.
+  const w = "amount: each run that uses it asks what a higher amount means";
   return `<aside class="k-right" aria-label="Inspector">
     <div class="k-header1"><span class="k-grow"></span>${zoom}</div>
     <div class="k-typerow">${I("network")}<span class="k-name">${GRAPH}</span><span class="k-secondary">Graph</span></div>
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Overview</div>
-        <div class="dp-state">Loaded: ${file}, direction followed, ${w}. <a class="k-link">Change...</a></div>
+        <div class="dp-state">Loaded: ${file}, direction followed. ${w}.</div>
         ${data("accounts", fmt(n.nodes))}${data("transfers", fmt(n.edges))}${data("direction", "directed")}
       </section>
       <section class="k-section" data-collapsed><div class="k-section-head">Style stack</div></section>
@@ -231,7 +232,7 @@ const K = {
 const states = [
   { n: 1, tab: "1 The list", title: "Data > Versions: April data is current; its What changed is open",
     month: "april", list: versions.list,
-    key: [["head", K.head(false)], ["versions", K.versions], ["row", K.row(`April data against March data: the two jumps (1 to ${A.stats.components} components, ${L.march.communities} to ${L.april.communities} communities) are marked, and each says what the count splits into: ${A.dormant.count} accounts have no transfers in this version. Show replay report opens the replay's report; Compare with... opens the comparison.`)], ["wc", K.wc], ["past", K.past(false)], ["canvas", K.canvas("April data, the current version")], ["legend", K.legend(`April's ${L.april.communities} communities; ${L.matchedPairs} keep March's names, ${L.unmatchedApril} are new.`)], ["toolbar", K.toolbar(false)], ["inspector", K.inspector]] },
+    key: [["head", K.head(false)], ["versions", K.versions], ["row", K.row(`April data against March data: the two jumps (1 to ${A.stats.components} components, ${L.march.communities} to ${L.april.communities} communities) are marked, and each says what the count splits into: ${A.dormant.count} accounts have no transfers in this version. Show replay report opens the replay's report; Compare with another version... opens the comparison.`)], ["wc", K.wc], ["past", K.past(false)], ["canvas", K.canvas("April data, the current version")], ["legend", K.legend(`April's ${L.april.communities} communities; ${L.matchedPairs} keep March's names, ${L.unmatchedApril} are new.`)], ["toolbar", K.toolbar(false)], ["inspector", K.inspector]] },
   { n: 2, tab: "2 Viewing March", title: "Viewing an old version: March data, View only",
     mode: true, month: "march", list: versions.march, restore: "ok",
     key: [["head", K.head(true)], ["versions", K.versions], ["row", K.row(`April's row is closed here and keeps one line: its ${largeCount(wcApril)} large changes, named.`)], ["past", K.past(true)], ["canvas", K.canvas("March data as it stood, read-only")], ["legend", "March was the first data version, so its numbers are by size."], ["toolbar", K.toolbar(true)], ["h1", K.h1], ["restore", K.restore.ok], ["report", K.report]] },

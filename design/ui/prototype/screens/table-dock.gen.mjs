@@ -63,9 +63,9 @@ function ranks(vals) {
     return vals.map((v) => ({ r: first.get(v), tied: count.get(v) > 1 }));
 }
 const rankText = (x) => `#${x.r}${x.tied ? "=" : ""}`;
-// Near ties: a rank whose next rank's value is within NEAR of its own names that rank ("#4, near #5");
-// the tie-rule line states NEAR once.
-const NEAR = 0.01;
+// Ties: "=" marks values equal at the shown precision, and nothing else (the invented near-tie rule and
+// its "near #N" cells were removed after round 6). nearTies is kept only to find nothing.
+const NEAR = 0;
 function nearTies(vals) {
     const r = ranks(vals);
     const order = vals.map((_, i) => i).sort((a, b) => vals[b] - vals[a]);
@@ -76,8 +76,8 @@ function nearTies(vals) {
     }
     return near;
 }
-const rankNearText = (x, near) => (near == null ? rankText(x) : `${rankText(x)}, near #${near}`);
-const TIE_RULE = `<div class="s-agree k-fact s-tierule"><span>Near tie: the next rank's value is within ${NEAR * 100}%, so a small change in the data could swap them. "=" marks an exact tie.</span></div>`;
+const rankNearText = (x) => rankText(x);
+const TIE_RULE = "";
 const usd = (x) => x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const WHY_RANK = "Rank columns wait on graphty-element: the rank over the run's scope, with a rank column on request (element needs, the rank row). Absent until then.";
 // The agreement line: the longest top k that every measure agrees on, then where they part.
@@ -164,7 +164,7 @@ const rail = `<nav class="k-rail" aria-label="Main">
 <div class="k-rail-btn" role="button"><span class="k-rail-pill">${I("sticky-note")}</span>Notes</div></nav>`;
 const toolbar = `<div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar" aria-label="Tools">
 <span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i k-i-sm")}</span>
-<span class="k-tool">${I("route", "k-i k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i k-i-lg")}</span><span class="k-toolbar-sep"></span>
+<span class="k-tool">${I("route", "k-i k-i-lg")}</span><span class="k-toolbar-sep"></span>
 <span class="k-tool">${I("zap", "k-i k-i-lg")}</span><span class="k-toolbar-sep"></span>
 <span class="k-tool">${I("square", "k-i k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i k-i-sm")}</span></div></div>
 <span class="k-help">${I("circle-help")}</span>`;
@@ -205,9 +205,9 @@ const L = F.lesmis;
 const LMV = L.rows.find((r) => r.label === "Valjean");
 const GC = L.groupColors;
 const groupCounts = L.attributes.find((a) => a.name === "group").values;
-const groupSegs = Object.entries(groupCounts).map(([g, n]) => ({ name: `group ${g}`, n, c: GC[g] })).sort((a, b) => b.n - a.n || (a.c === "#505050") - (b.c === "#505050"));
-// Other (#505050) values last, as the legend lists them.
-groupSegs.sort((a, b) => (a.c === "#505050") - (b.c === "#505050") || b.n - a.n);
+const groupSegs = Object.entries(groupCounts).map(([g, n]) => ({ name: `group ${g}`, n, c: GC[g] })).sort((a, b) => b.n - a.n || (a.c === "#BDBDBD") - (b.c === "#BDBDBD"));
+// Other (#BDBDBD) values last, as the legend lists them.
+groupSegs.sort((a, b) => (a.c === "#BDBDBD") - (b.c === "#BDBDBD") || b.n - a.n);
 // Ranks over the 77 characters: degree, and betweenness from its unrounded values.
 const lmDegRank = ranks(L.rows.map((r) => r.degree));
 const lmBtwRank = ranks(T.lesmisBetweennessRaw);
@@ -298,12 +298,12 @@ const s2 = `<section class="s-state" id="header"><h2><a href="#header">The colum
 <div class="k-menu-item" role="menuitem"><span class="k-check-col">&#10003;</span>Sort descending</div>
 <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Sort ascending</div><div class="k-menu-sep"></div>
 <div class="k-menu-item" data-hover role="menuitem"><span class="k-check-col"></span>Filter to...</div>
-<div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Compare with...</div><div class="k-menu-sep"></div>
+<div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Compare columns...</div><div class="k-menu-sep"></div>
 <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Color by degree</div>
 <div class="k-menu-item" role="menuitem"><span class="k-check-col">&#10003;</span>Size: degree</div><div class="k-menu-sep"></div>
 <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>New column<span class="k-sub">${I("chevron-right", "k-i k-i-sm")}</span></div>
 <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Join...</div></div>
-<p>Eight entries, the cap. On a category column Partition by takes the place of Compare with..., which needs numbers; on an edge column Width by replaces Size by. Size by carries a check because a layer already reads this column.</p></figure>
+<p>Eight entries, the cap. On a category column Partition by takes the place of Compare columns..., which needs numbers; on an edge column Width by replaces Size by. Size by carries a check because a layer already reads this column.</p></figure>
 <figure class="s-wide"><figcaption><span class="k-step">4</span>Click on the distribution</figcaption>
 <div class="k-popover s-inline-pop" role="dialog" aria-label="betweenness histogram"><div class="k-popover-head">betweenness<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close">${I("x")}</span></div>
 <div class="k-popover-body"><div class="s-bighist">${distHtml(hpop, { label: "betweenness" })}</div>
@@ -314,7 +314,7 @@ ${topB.map((r) => data(`<span class="k-id">${r.label}</span>`, btw(r.betweenness
 </div>
 <ol class="s-notes k-annot-note"><li><span class="k-step">1</span><div>The caret is DataTable's own 5 by 3 sort indicator, not a chevron icon, so nothing on a header at rest looks like a menu.<br><span class="k-secondary">Framework: figma-spec.md 10.6 (compact-mantine), sort indicator. Built with: DataTable.</span></div></li>
 <li><span class="k-step">2</span><div>Hover-reveal is Figma's pattern for row controls (a layer row's eye and lock). The chevron is also reachable without a pointer: Shift+F10 or the context-menu key on a focused header opens the same menu.<br><span class="k-secondary">Framework: interaction-pattern-entries.md 9.1; figma-crosswalk.md 4.1. Built with: DataTable header variant with an ActionIcon slot.</span></div></li>
-<li><span class="k-step">3</span><div>The column menu: sort, Filter to..., Compare with... (the Scatter view), the encodings, New column, Join..., at most eight entries above submenus.<br><span class="k-secondary">Framework: information-architecture.md 8.3; interface-specification.md 4.1a; output-homes.md 3. Built with: compact-mantine Menu (dark).</span></div></li>
+<li><span class="k-step">3</span><div>The column menu: sort, Filter to..., Compare columns... (the Scatter view), the encodings, New column, Join..., at most eight entries above submenus.<br><span class="k-secondary">Framework: information-architecture.md 8.3; interface-specification.md 4.1a; output-homes.md 3. Built with: compact-mantine Menu (dark).</span></div></li>
 <li><span class="k-step">4</span><div>The popover opens beside the header, 240 wide; its top items are capped at five.<br><span class="k-secondary">Framework: interface-templates.md 12; interface-specification.md 4.1a. Built with: compact-mantine Popover, HistogramRow (band variant needed), DataRow.</span></div></li></ol></section>`;
 
 /* ---------- March transfers ---------- */
@@ -362,7 +362,7 @@ const lg = F.transactionsApril.legends.march;
 const txLegend = `<div class="k-legend-card"><div class="k-lg-title">Community color <span class="k-secondary">community</span></div>
 ${lg.rows.slice(0, 3).map((r) => `<div class="k-lg-row">${chit(r.color)}${r.name.replace("Community ", "")}<span class="k-value k-num">${r.count}</span></div>`).join("")}
 <div class="k-lg-row k-secondary">4 more</div>
-<div class="k-lg-row">${chit(T.otherColor)}Other, ${lg.other.communities} communities<span class="k-value k-num">${fmt(lg.other.count)}</span></div></div>`;
+<div class="k-lg-row">${chit(T.otherColor)}Other, ${lg.other.communities} communities<span class="k-value k-num">${fmt(lg.other.count)}</span></div><div class="k-lg-sub">${lg.other.holds}</div></div>`;
 const ringVals = (k) => ring.map((r) => r[k]);
 const txInspector = (n) => right(`${I("circle-dot")}<span class="k-name k-num">14 nodes</span><span class="k-secondary">Selection</span>`, `<section class="k-section"><div class="k-section-head">Attributes</div>
 ${data("kind", "personal 14", "")}${data("country", "7 values", "")}${data("community", "Community 33", "")}
@@ -393,7 +393,7 @@ const thumbTop = Math.round(((best.start - 1) / (X.nodes - WIN)) * (trackH - 24)
 const menuItem = (label, o = {}) => `<div class="k-menu-item" role="menuitem"${o.hover ? " data-hover" : ""}${o.desc ? " data-described" : ""}><span class="k-check-col">${o.check ? "&#10003;" : ""}</span>${o.desc ? `<span class="k-grow">${label}<span class="k-menu-desc">${o.desc}</span></span>` : label}${o.sub ? `<span class="k-sub">${I("chevron-right", "k-i k-i-sm")}</span>` : ""}</div>`;
 const SEP = `<div class="k-menu-sep"></div>`;
 const newColumnMenu = `<div class="k-menu s-colmenu" role="menu" aria-label="degree column">
-${menuItem("Sort descending")}${menuItem("Sort ascending")}${SEP}${menuItem("Filter to...")}${menuItem("Compare with...")}${SEP}${menuItem("Color by degree")}${menuItem("Size: degree", { check: 1 })}${SEP}
+${menuItem("Sort descending")}${menuItem("Sort ascending")}${SEP}${menuItem("Filter to...")}${menuItem("Compare columns...")}${SEP}${menuItem("Color by degree")}${menuItem("Size: degree", { check: 1 })}${SEP}
 ${menuItem("New column", { sub: 1, hover: 1 })}${menuItem("Join...")}</div>
 <div class="k-menu s-submenu" role="menu" aria-label="New column" data-n="2" data-nb="right">
 ${menuItem("Money in", { desc: "Sum of amount on transfers in, USD", hover: 1 })}${menuItem("Money out", { desc: "Sum of amount on transfers out, USD" })}${menuItem("Money in minus out", { desc: "Money in less money out, USD" })}${SEP}
@@ -442,7 +442,7 @@ for (const [k, x] of [["degreeRank", tp.degR], ["betweennessRank", tp.bcR], ["pa
     if (PP.inspector.tp53[k].from !== x.r) throw new Error(`TP53 ${k}: the kit says ${PP.inspector.tp53[k].from}, this page ${x.r}`);
 const MC = PP.moduleColors;
 const modSegs = Object.entries(PP.attributes.find((a) => a.name === "module").values).map(([name, n]) => ({ name, n, c: MC[name] }))
-    .sort((a, b) => (a.c === "#505050") - (b.c === "#505050") || b.n - a.n);
+    .sort((a, b) => (a.c === "#BDBDBD") - (b.c === "#BDBDBD") || b.n - a.n);
 const MOD_GLYPH = stack([MC["Complex I"], MC.Proteasome, MC.Ribosome]);
 const lg4 = (x) => x.toFixed(4), lg5 = (x) => x.toFixed(5);
 const pCols = [
@@ -474,7 +474,7 @@ const sRanked = state({
 <main class="k-main"><div class="k-canvas"><div class="k-stage">
 <img class="k-light-only" src="../kit/canvas/ppi-modules-light.svg" alt="Protein interactions colored by module, sized by degree, TP53 selected">
 <img class="k-dark-only" src="../kit/canvas/ppi-modules-dark.svg" alt="Protein interactions colored by module, sized by degree, TP53 selected"></div>${pLegend}${toolbar}</div>
-${dock({ tabs: [{ name: "Nodes", on: 1 }, { name: "Edges" }, { name: "Communities: Louvain" }], basis: "64%", exportN: 4, scopeN: 8, scope: "Full graph: 300 nodes, 1 selected. Sorted by pagerank, the run that opened the table.", agree: agreeHtml(pAgree, 3) + TIE_RULE.replace('class="s-agree', 'data-n="7" class="s-agree'),
+${dock({ tabs: [{ name: "Nodes", on: 1 }, { name: "Edges" }, { name: "Communities: Louvain" }], basis: "64%", exportN: 4, scopeN: 8, scope: "Full graph: 300 nodes, 1 selected. Sorted by pagerank, the run that opened the table.", agree: agreeHtml(pAgree, 3),
         tableHtml: table({ cols: pCols, rows: pWin.map((r, k) => ({ index: k + 2, selected: r.id === "TP53",
             cells: [cell(r.id), cell(r.module), cell(`Community ${r.comm}`), cell(r.degree), cell(rankText(r.degR)), cell(lg4(r.bc)), cell(rankNearText(r.bcR, r.bcN)), cell(lg5(r.pr)), cell(rankNearText(r.prR, r.prN))] })), rowcount: PP.nodes + 1 }) })}</main>
 ${right(`${I("circle-dot")}<span class="k-name k-id">TP53</span><span class="k-secondary">Node</span>`, `<section class="k-section"><div class="k-section-head">Attributes</div>
@@ -486,7 +486,7 @@ ${data("module", "DNA repair", "")}${data("community", `Community ${tp.comm}`, "
         ["Export table as CSV... is the table's one exit: every row of this tab and scope (all 300, never a sample), the file's own ids, and every column with the headers shown here (the dialog is drawn below, under Getting rows out).", "Framework: output-homes.md 3, export-table (relabeled in framework-changes.md). Built with: compact-mantine Button, subtle."],
         ["Degree counts as a measure: graphty-element ranks it as it ranks a run's values, so its rank column appears with the first run's and the agreement line counts it.", "Framework: element-needs.md, the rank row (metric values, degree and core number). Proposed in framework-changes.md."],
         [`The Louvain run's column: each protein's community, named as the Results panel names them ("Community ${tp.comm}" for TP53, whose ${LV.groups.find((g) => g.community === tp.comm).size} members include ${LV.groups.find((g) => g.community === tp.comm).fromThatModule} of the file's ${LV.groups.find((g) => g.community === tp.comm).mostFromModule} module). A partition has no rank, so its group header spans one column and names the run's weight, seed and scope. No layer reads it here (the canvas is colored by the file's module), so its count strip is gray; the Communities: Louvain tab lists the ${LV.communities} communities, one row each.`, "Framework: interface-templates.md 16 (a result column; the item tab named by kind and result); information-architecture.md 4, Table tabs. Built with: DataTable column groups (proposed); Mantine Tabs, pills."],
-        [`Near ties, in the rank column itself: "${rankNearText(pByPr[6].prR, pByPr[6].prN)}" means the next pagerank down is within ${NEAR * 100}% of this one, so the order between them should not be quoted as a finding. One line above the grid states the rule once, beside the exact-tie "=". Degree has only exact ties, because degrees are whole numbers. The CSV writes the rank as shown, "=" included.`, "Framework: content-design.md 5, Ranks (near ties proposed in framework-changes.md). Built with: DataTable; compact-mantine ProseBlock. The rank, and so the near-tie mark, waits on graphty-element."],
+        [`Ties, in the rank column itself: "=" marks values equal at the shown precision ("#7="), and nothing else. There is no near-tie mark and no percentage: after round 6 the invented 1-percent rule was removed, because a percentage is not a property of the data and participants read it as rounding. An estimate shows its rank range instead. Degree has only exact ties, because degrees are whole numbers. The CSV writes rank as an integer, with the tie in its own column (screens/export-dialog.html).`, "Framework: content-design.md 5, Ranks. Built with: DataTable. The rank, and so its tie mark, waits on graphty-element."],
         ["A table opened from a run is sorted by that run, highest first, and the scope line names the sort and where it came from. Opened any other way (the Table strip, View > Table), it keeps the reader's last sort.", "Framework: information-architecture.md 8.1, The table's scope; message-catalog.md graphty.table.scope (the sort clause is proposed in framework-changes.md). Built with: compact-mantine ProseBlock."],
     ],
 });
@@ -624,7 +624,7 @@ const s8 = `<section class="s-state" id="more"><h2><a href="#more">Two more tabl
 <div class="k-dock-tabs"><span role="tablist" aria-label="Table" style="display:contents"><span class="k-tab" role="tab" aria-selected="false">Nodes</span><span class="k-tab" role="tab" aria-selected="false">Edges</span><span class="k-tab" role="tab" aria-selected="true">Communities: Louvain</span></span><span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Find in table">${I("search")}</span><span class="k-btn k-btn-ghost">Export table as CSV...</span></div>
 <div class="k-scope">Full graph: ${commSizes.length} communities</div>
 <div class="k-table-wrap">${table({ cols: [{ name: "community", profile: `${commSizes.length} values` }, { name: "members", num: true, sort: "descending", profile: `${commSizes[commSizes.length - 1].n} to ${commSizes[0].n}`, dist: distHtml(histogram(commSizes.map((s) => s.n)), { label: "members" }) }], rows: itemRows.map((r, k) => ({ index: k + 2, cells: [cell(r.name), cell(r.n)] })), rowcount: commSizes.length + 1 })}</div></section></div>
-<p>One row per community, named as the Results panel names them, sorted by size. Between groups and Scatter are views of this tab, reached from a column's Compare with...</p></figure>
+<p>One row per community, named as the Results panel names them, sorted by size. Between groups and Scatter are views of this tab, reached from a column's Compare columns...</p></figure>
 </div>
 <ol class="s-notes k-annot-note"><li><span class="k-step">1</span><div>Loading: headers first, rows streaming, "at least N", sort disabled until done.<br><span class="k-secondary">Framework: state-matrix.md 3, Bottom dock Table Loading (proposed); interaction-pattern-entries.md 7.1. Built with: DataTable, aria-busy.</span></div></li>
 <li><span class="k-step">2</span><div>The item tab: "Communities: Louvain", its kind and its result; opening another result's items replaces it.<br><span class="k-secondary">Framework: information-architecture.md 4, Table tabs; interface-templates.md 16. Built with: Mantine Tabs, pills; DataTable.</span></div></li></ol></section>`;
@@ -864,7 +864,7 @@ const html = `<!doctype html>
   .k-table .s-grouprow th.s-g[colspan="1"] { min-width: 150px; }
   .s-dockstrip { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border-top: 1px solid var(--cm-border); background: var(--cm-bg); font-size: 11px; line-height: 16px; cursor: pointer; }
   .s-dockstrip .k-i { color: var(--cm-icon-secondary); }
-  /* Near ties: a rank column wide enough for "#9, near #10" */
+  /* A rank column wide enough for "#10=" */
   .k-table th.s-rank.s-rankwide:not(.s-fill) { min-width: 84px; width: 84px; }
   .k-table td.s-rankwide { white-space: nowrap; }
   .s-tierule { min-height: 24px; }
@@ -882,7 +882,7 @@ const html = `<!doctype html>
   <h1>Bottom dock table</h1>
   <p>The table under the canvas lists the graph's nodes or edges as rows, one attribute per column. It shows the same selection as the canvas and the inspector, and it is how a keyboard or screen-reader user reads the whole graph. Each state below is the whole app at 1440 by 900 unless it says otherwise. The magenta notes cite the design framework and name the compact-mantine component each part is built with; they are not product UI.</p>
   <p><b>What changed after the first user study.</b> Every run now adds a score column and a rank column under one header that names the run, its method and its scope ("Betweenness exact, unweighted, full graph"; the rank "#2", "of 300"). Once two or more measures are ranked, one line above the table says whether they agree ("MAPK1 and TP53 are the top 2 on all three measures") and opens the rank-against-rank comparison. Rows leave by one route, Export table as CSV..., which writes every row with the original ids and those headers; Export... in the File list no longer offers tables. The counts of components, isolated nodes and path hops open their rows here.</p>
-  <p><b>What changed after the third user study.</b> A table opened from a run is sorted by that run, and its scope line says so ("Sorted by pagerank, the run that opened the table"). Ranks whose values are within 1% say so in the rank cell ("#7, near #8"), with one line above the grid stating the rule, and the CSV keeps the "=" of an exact tie. New column offers weighted degree in money words when the weight is a currency (Money in, Money out, Money in minus out) and names a link count as a count (Links in (count)); on the flagged accounts the three money columns sit beside the counts. Selected rows get a total in a footer under the grid ("Sum of Money in, 14 rows"; "Sum of amount, 5 rows" on the path's transfers). Nothing else changed.</p>
+  <p><b>What changed after the third user study.</b> A table opened from a run is sorted by that run, and its scope line says so ("Sorted by pagerank, the run that opened the table"). Ranks showed near ties in the rank cell, with a rule line above the grid (removed after round 6: an exact tie is "=" at the shown precision, and an estimate shows its rank range). New column offers weighted degree in money words when the weight is a currency (Money in, Money out, Money in minus out) and names a link count as a count (Links in (count)); on the flagged accounts the three money columns sit beside the counts. Selected rows get a total in a footer under the grid ("Sum of Money in, 14 rows"; "Sum of amount, 5 rows" on the path's transfers). Nothing else changed.</p>
   <p><b>What changed after the second user study.</b> Every list of edges now shows when each edge happened, right after its two endpoints: the Edges tab, the path's hops, an account's connections, the walk list and the CSV (new section, The Edges tab). A collapsed table no longer disappears: it leaves a strip labeled Table along the bottom of the canvas, with its counts (new state, Collapsed); the toolbar gets no table button. Each degree column names the graph it was counted on in its own header, "degree (full graph)" or "degree (filtered graph)", so two degree columns cannot be confused. The protein table now carries its Louvain column, with the communities tab beside Nodes and Edges.</p>
   <p><b>Drawn here but waiting on graphty-element</b> (a small magenta <span class="k-annot-tag s-blk" style="position:static;display:inline-block">blocked</span> tag marks each one, and it stays visible with the notes off): the header histogram of any column that is not a result's field (degree, riskScore, the patent columns); every rank column, and so the agreement line (the rank over a run's scope); the color chit in each cell (drawn only in the inset under the first state); and the rows of a graph past the drawing limit. Each is absent from the first release, with no substitute, until the element provides it.</p>
   <div class="s-bar"><label><input type="checkbox" id="annot" checked> Show notes</label>

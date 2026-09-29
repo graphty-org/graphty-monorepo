@@ -58,7 +58,7 @@ const legend = `<div class="k-legend-card" data-annot><div class="k-lg-title">Gr
 function toolbar(pressed = ["select"]) {
     const t = (key, icon, extra = "") => `<span class="k-tool" ${pressed.includes(key) ? 'aria-pressed="true"' : ""} ${extra}>${I(icon, "k-i-lg")}</span>`;
     const caret = `<span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span>`;
-    return `<div class="k-toolbar" role="toolbar">${t("select", "mouse-pointer-2")}${caret}${t("path", "route")}${t("note", "sticky-note", pressed.includes("note") ? "data-annot" : "")}<span class="k-toolbar-sep"></span>${t("quick", "zap", pressed.includes("quick") ? "data-annot" : "")}<span class="k-toolbar-sep"></span>${t("frame", "square")}${caret}</div>`;
+    return `<div class="k-toolbar" role="toolbar">${t("select", "mouse-pointer-2")}${caret}${t("path", "route")}<span class="k-toolbar-sep"></span>${t("quick", "zap", pressed.includes("quick") ? "data-annot" : "")}<span class="k-toolbar-sep"></span>${t("frame", "square")}${caret}</div>`;
 }
 
 function canvas({ drawing = "lesmis-groups-rest", inStage = "", over = "", pressed, toast = "" }) {
@@ -81,7 +81,7 @@ function inspectorGraph() {
 <div class="k-hist" title="Degree distribution">${hist}</div><div class="fl-axis k-secondary k-num"><span>degree 0</span><span>36</span></div>
 <div class="k-row">${I("history")}<span class="k-grow k-ellipsis">Last import: value read as number</span></div>
 <div class="k-row">${I("spline")}<span class="k-grow">Undirected</span></div>
-<div class="k-fieldrow fl-role" data-annot><span class="k-legend">value <span class="fl-mark">-- not used yet</span></span><div class="k-fields"><span class="k-field k-span" data-placeholder>Set up value...${I("chevron-down", "k-i-sm k-caret")}</span></div></div>
+<div class="k-fieldrow fl-role" data-annot><span class="k-legend">value <span class="fl-mark">-- asked by each run</span></span><div class="k-fields"><span class="k-field k-span" data-placeholder>Set up value...${I("chevron-down", "k-i-sm k-caret")}</span></div></div>
 <div class="k-row">${I("table")}<span class="k-grow">3 attributes</span></div></section>${exportSection}</div></aside>`;
 }
 
@@ -105,7 +105,7 @@ const state = (id, label, inner) => `<section class="fl-state" id="${id}"><h2 cl
 // ---------- 1. Start screen (from screens/start-screen.html state 1, Les Miserables hovered) ----------
 const thumb = (img, name, size, hover = false) => `<div class="ss-thumb"${hover ? " data-hover" : ""}><img class="k-light-only" src="../kit/canvas/${img}-light.svg" alt=""><img class="k-dark-only" src="../kit/canvas/${img}-dark.svg" alt=""><div class="ss-thumb-label"><span class="k-grow"><b class="k-ellipsis" style="display:block">${name}</b><span class="k-secondary k-num">${size}</span></span>${I("info", "k-i-sm ss-i")}</div></div>`;
 const s1 = state("s1", "1. Start screen, first run: no recent projects; the pointer rests on Les Miserables", `<div class="fl-start">
-<div class="ss-brand"><span class="ss-menu">${I("network")}graphty${I("chevron-down", "k-i-sm")}</span></div>
+<nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu"><span class="k-rail-pill">${I("menu")}</span></div></nav>
 <div class="ss-col"><h1>Open a graph</h1>
 <p class="ss-privacy" data-annot>${I("lock", "k-i-sm")}Files stay on this computer. graphty reads them in this browser and uploads nothing.</p>
 <div class="ss-h">Samples</div>
@@ -242,10 +242,10 @@ const noteEditor = `<div class="k-popover fl-ne" data-annot><span class="fl-ne-t
 <div class="fl-line"><span class="k-caption">Cites</span><a class="fl-link">Cite a run...</a></div>
 <div class="fl-line"><span class="k-caption">Quotes</span><a class="fl-link">Quote a value...</a></div>
 <div class="k-secondary">Just now</div></div></div>`;
-const s7 = state("s7", "7. Elena writes a note with the Note tool and stops", `${app(graphPanel({ notSaved: false, file: true }), canvas({ drawing: "lesmis-groups-valjean", pressed: ["note"] }), inspectorNode({ betweenness: true, note: noteRow }))}${noteEditor}
+const s7 = state("s7", "7. Elena writes a note from Valjean's menu and stops", `${app(graphPanel({ notSaved: false, file: true }), canvas({ drawing: "lesmis-groups-valjean", pressed: ["note"] }), inspectorNode({ betweenness: true, note: noteRow }))}${noteEditor}
 ${ann(1128, 300, 300, `The Note editor opens beside what the note is about, never over it, and is where the note is written and read, as Figma's comment opens at its pin. "About Valjean" is the check that it landed on the right thing. A note about a node starts with no citation; Cite a run... and Quote a value... add them. framework-changes.md, "Take a note". compact-mantine <b>PopoutPanel</b>; a <b>Textarea</b> while writing.`)}
 ${ann(1128, 560, 300, `The inspector's Notes section lists the note once it exists (two lines at most). ${fr("no inspector lists commentary; here a Notes section, present once a note targets the object (figma-crosswalk.md 4.3).")} compact-mantine <b>Tree</b> row.`)}
-${ann(560, 720, 280, `The Note tool on the toolbar (key C, proposed) is the visible route; Add note in the node's menu is the other. The tool stays armed until Esc, and its click does not change the selection (<i>interaction-pattern-entries.md</i> 5; framework-changes.md). compact-mantine <b>ToolButton</b>.`)}
+${ann(560, 720, 280, `There is no Note tool: a note starts from Add note... in the node's menu, or from the Notes panel. Adding it does not change the selection (<i>interaction-pattern-entries.md</i> 5; framework-changes.md, "Take a note").`)}
 ${ann(310, 640, 240, heard(`in the note's text while she types; Enter adds it and focus stays in the Note editor on the posted note.`, `"Note added to Valjean."`))}
 ${ann(930, 70, 256, `Export... is in the File list (the main menu and the project-name menu), and each object has an Export section. ${fr("Share is the filled header button; here Export... sits in the File list, a recorded departure, and the Export section is Figma's own (figma-crosswalk.md 4.1).")} Mantine <b>Button</b>.`)}`);
 
@@ -281,9 +281,8 @@ body:has(#fl-annot:checked) [data-annot] { outline: 2px dashed var(--k-annot); o
 .fl-mark { color: var(--cm-text-secondary); font-style: italic; }
 .fl-role .k-legend { white-space: nowrap; }
 
-.fl-start { position: relative; height: 900px; background: var(--cm-bg); }
-.ss-brand { display: flex; gap: 4px; align-items: center; height: 48px; padding: 0 8px; border-bottom: 1px solid var(--cm-border); }
-.ss-menu { display: inline-flex; gap: 6px; align-items: center; height: 32px; padding: 0 8px; border-radius: 5px; font-weight: 600; }
+.fl-start { position: relative; display: grid; grid-template-columns: 57px 1fr; align-items: start; height: 900px; background: var(--cm-bg); }
+.fl-start > .k-rail { height: 900px; }
 .ss-col { width: 880px; margin: 0 auto; padding: 40px 0 0; }
 .ss-col h1 { font-size: 15px; line-height: 25px; font-weight: 550; margin: 0 0 4px; }
 .ss-privacy { display: flex; gap: 8px; align-items: center; margin: 0 0 20px; font-size: 13px; line-height: 20px; color: var(--cm-text-secondary); }

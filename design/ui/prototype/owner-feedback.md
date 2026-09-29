@@ -55,3 +55,11 @@ What this asks of the studio (it outranks the Figma paved-path rule wherever the
 ## 2026-09-28 -- participant view is a trap
 
 The owner clicked "Participant view" on screens/undo.html and could not get the options back or leave it: the #study hash hides the bar and nothing offers a way out, and on an iPad editing the address is the only exit. Fix in the kit, for every page with a participant view: Esc returns to the facilitator view, and a small, low-contrast corner control does the same (a participant will not notice it; a facilitator can find it). Test it on a touch device width.
+
+## 2026-09-29 -- the owner's decision on telemetry (one-way door, decided)
+
+- Telemetry is OFF until the user opts in, and graph content is always masked (options 1 and 2 together). At first use the app asks for opt-in.
+- The opt-in text, in the owner's words (the content designer may tighten wording and length but must keep every commitment): "Your data is yours, but please help us. We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions."
+- What is collected when opted in: Sentry Session Replay with every node name, attribute value, label and file content masked; anonymous task events (file loaded, first graph drawn, measure run, result read, style added, export, undo) with timings; errors and performance; a feedback widget. No file contents ever leave the computer.
+- Update the data-handling page ("Where your data goes" / "Sent and saved") and the first-run flow to match, and add the opt-in to the storyboards and task flows. This closes the telemetry question the data page left open.
+- The owner's reason: Sentry on graphty.app will be the real user study, so the first shipped pass must be mostly right, with no trust-busting flaws on first use.

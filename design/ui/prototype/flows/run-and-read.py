@@ -189,21 +189,21 @@ WEIGHT = svg(1100, 760, "The first weighted run and changing the answer: PageRan
     edge([(620, 344), (620, 396)]),
     edge([(620, 462), (620, 510)]),
     edge([(620, 610), (620, 664)], "yes", (630, 642)),
-    edge([(510, 560), (347, 560)], "no: Change...", (380, 552)),
+    edge([(510, 560), (347, 560)], "no: Re-run...", (380, 552)),
     edge([(200, 595), (200, 656)]),
     edge([(40, 690), (20, 690), (20, 430), (396, 430)]),
-    '<text x="30" y="420" class="f-lbl-t">every result that used the answer shows the new line</text>',
+    '<text x="30" y="420" class="f-lbl-t">the new run sits beside the old one, which is kept</text>',
     box("overlay", 200, 50, 260, 56, "Quick actions: Run PageRank", "Sarah, on the March transfers", f"{S}#quick"),
     box("overlay", 620, 50, 300, 60, "Run form: Weight by", "&quot;amount (project answer)&quot; or &quot;None for this run&quot;", f"{OFC}#weight-refused"),
     box("ask", 620, 180, 300, 110, "Does amount have a project answer?"),
     box("overlay", 200, 180, 300, 76, "The meaning question, in the run form", "distance, similarity, capacity, reliability: one line each on what it does to PageRank", f"{OFC}#weight-meaning"),
     box("commit", 960, 180, 240, 56, "Run PageRank unweighted", "the project answer untouched; one undo step", f"{S}#done"),
     box("commit", 620, 320, 270, 48, "Run PageRank", "one undo step; a first answer is part of it", f"{S}#done"),
-    box("check", 620, 430, 440, 64, "State line, read from the run record", "&quot;Weight: amount, used as capacity. Change...&quot; and, when some are blank, how many transfers have no amount", f"{RP}#finished"),
+    box("check", 620, 430, 440, 64, "State line, read from the run record", "&quot;Weight: amount, used as capacity.&quot; and, when some are blank, how many transfers have no amount", f"{RP}#finished"),
     box("ask", 620, 560, 220, 100, "Right meaning?"),
     box("place", 620, 690, 300, 52, "Read: Top nodes and how sure", "", f"{S}#done"),
-    box("overlay", 200, 560, 290, 70, "Change...: the meaning question for amount", "names the 3 results that use the answer", f"{OFC}#weight-meaning"),
-    box("commit", 200, 690, 320, 64, "Change the project answer", "one undo step: &quot;Weight: amount no longer used as capacity. 3 results re-run.&quot;", f"{RP}#outofdate"),
+    box("overlay", 200, 560, 290, 70, "Re-run with another meaning...", "the meaning question for amount, on a new run", f"{OFC}#weight-meaning"),
+    box("commit", 200, 690, 320, 64, "Run again with the new answer", "one undo step: &quot;Run 2 finished. Run 1 is kept.&quot;", f"{RP}#outofdate"),
 ], "dg-weight")
 
 GROUPS = svg(1100, 600, "Communities: run Louvain on the proteins, read the count, modularity and groups, retune the resolution", [
@@ -218,7 +218,7 @@ GROUPS = svg(1100, 600, "Communities: run Louvain on the proteins, read the coun
     edge([(670, 510), (820, 510)], "yes", (730, 502)),
     box("overlay", 180, 50, 280, 56, "Catalog or Quick actions: Louvain", f"Dr. Chen, on {PN} proteins", f"{S}#catalog"),
     box("commit", 560, 50, 300, 56, "Run Louvain", f"{L['weight']} (project answer), seed {L['seed']}; one undo step", f"{RP}#louvain"),
-    box("check", 560, 160, 460, 64, "State line, read from the run record", f"&quot;Weight: {L['weight']}, used as {L['weightRead']}. Change...&quot;; resolution {L['resolution']}; seed {L['seed']}", f"{RP}#louvain"),
+    box("check", 560, 160, 460, 64, "State line, read from the run record", f"&quot;Weight: {L['weight']}, used as {L['weightRead']}.&quot;; resolution {L['resolution']}; seed {L['seed']}", f"{RP}#louvain"),
     box("check", 560, 275, 460, 64, f"{LC} communities and {LS} unconnected nodes", f"modularity {L['modularity']}, read in plain words beside it", f"{RP}#louvain"),
     box("place", 560, 390, 460, 64, "Top groups", "size; hub: the member with the most links inside the group; the file's module most members carry", f"{RP}#louvain-table"),
     box("ask", 560, 510, 220, 100, "Right resolution?"),
@@ -312,8 +312,8 @@ STEPS = [
     ("failed", "the result row; Needs action", "Re-run on CPU",
      "Failed, with the element's sentence and code; the run before is kept and marked. A GPU failure names the path Re-run will take. Never finished quietly on the CPU.",
      "&quot;Re-run Betweenness (sampled)&quot;", "the cause; which values show", "Element, surfaced", "the error's class and verb as data; the GPU policy"),
-    ("state line", "the result row's second line; the editor's first line", "Change... (the weight)",
-     "Read from the run record, never composed by the app: the weight (&quot;Weight: amount, used as capacity. Change...&quot;, &quot;Weight: none for this run&quot;), the scope with counts, exact or estimated, edge reading and engine; the variant word in the name. When some edges have no value in the weight column, a second sentence counts them: &quot;{N} of {M} transfers have no amount. They are left out of weighted paths.&quot;",
+    ("state line", "the result row's second line; the editor's first line", "Re-run with another meaning... (the weight)",
+     "Read from the run record, never composed by the app: the weight (&quot;Weight: amount, used as capacity.&quot;, &quot;Weight: none for this run&quot;), the scope with counts, exact or estimated, edge reading and engine; the variant word in the name. When some edges have no value in the weight column, a second sentence counts them: &quot;{N} of {M} transfers have no amount. They are left out of weighted paths.&quot;",
      "none", "which weight, read which way, over which scope", "Element, surfaced", f"the weight the run read and its meaning, in the run record {MISS}; the count of edges with no value {MISS}"),
     ("read", "the result editor; the Nodes table", "--",
      f"Top nodes first, then how sure, then the distribution (middle, highest and zeros). How sure covers the rows shown and states its line: &quot;{SURE}&quot; The table says the same for the rows it shows. &quot;N more&quot; opens the table sorted by this column. An estimate carries ~ at every value, and its ranks carry their range.",
@@ -336,9 +336,9 @@ WEIGHT_STEPS = [
     ("this run only", "the run form's Weight by", "None for this run",
      "&quot;amount (project answer)&quot; is the default; &quot;None for this run&quot; runs unweighted and leaves the project answer alone. The state line then reads &quot;Weight: none for this run&quot;.",
      "&quot;Run PageRank&quot;", "the state line says none", "Element, surfaced", "<code>session.runs.start</code> with a weight of none exists"),
-    ("change the answer", "Change... on any state line that names amount", "an answer",
-     "Opens the same question for amount, with the current answer marked and the results that use it named. Choosing another answer is one step: every result that used it re-runs if it fits the time limit, and the rest go Out of date with Run. The notice reads &quot;Weight: amount no longer used as capacity. 3 results re-run.&quot; Focus returns to the Change... it came from.",
-     "&quot;Weight: amount no longer used as capacity&quot;; undo restores the answer and the runs before", "the new line on every result that used it", "Element, surfaced", f"re-running the results that read a column's meaning, as one step {MISS}"),
+    ("another answer", "Re-run with another meaning... on a run's state line", "an answer",
+     "Opens the run's form at the meaning question for amount, with this run's answer marked. Choosing another answer and Run makes a new run beside this one; the old run is kept, so nothing already read changes. The meaning belongs to each run, never to the column. The notice reads &quot;Run 2 finished. Run 1 is kept.&quot; Focus moves to the new run.",
+     "&quot;Run 2 finished. Run 1 is kept.&quot;; undo removes the new run", "the new run in Results, beside the old one", "Element, surfaced", "a run's weight answer as part of its record"),
 ]
 MEANINGS = [
     ("a longer or costlier step", "distance", "PageRank reads 1 / amount: small transfers pass more rank than large ones."),
@@ -446,7 +446,7 @@ HTML = f"""<!doctype html>
   {MAIN}
 
   <h2 id="weighted">Branch: the first weighted run, and changing the answer</h2>
-  <p>Sarah runs PageRank on the March transfers and chooses amount in Weight by. A weight column has no meaning until someone says what a bigger number means, and that answer belongs to the project, not to one run: it is asked the first time a run reads the column, and every later run and every Path reads the same answer. The run form's Weight by keeps &quot;None for this run&quot; for a single unweighted run. Every one of the <span data-fx="datasets.transactions.edges">{TXE}</span> March transfers has an amount, so the line counting transfers with no amount does not show here.</p>
+  <p>Sarah runs PageRank on the March transfers and chooses amount in Weight by. A weight column has no meaning until someone says what a higher number means, and that answer belongs to the project, not to one run: it is asked the first time a run reads the column, and every later run and every Path reads the same answer. The run form's Weight by keeps &quot;None for this run&quot; for a single unweighted run. Every one of the <span data-fx="datasets.transactions.edges">{TXE}</span> March transfers has an amount, so the line counting transfers with no amount does not show here.</p>
   {WEIGHT}
   <h3>The four answers, and what each does to PageRank</h3>
   <p>The question reads &quot;For amount, a higher number means...&quot;. Each answer shows the column's words first, the technical term second, and one line on what it does to the measure being run. The lines are written per measure; these are PageRank's.</p>
@@ -474,8 +474,8 @@ HTML = f"""<!doctype html>
 
   <h2>Counts, focus and the keyboard</h2>
   <ul>
-    <li><b>Steps from rest.</b> A cheap run: 1 step, 2 travel (open Results, find the row, click it), or 1 step by Quick actions. Refused by the gate: 2 steps (the row, then Enter on the focused route, Run sampled). Arrives unrun: 2 steps (the row, then Run). Reading a node's rank: 1 more. A retune: 2 (the edit, then Run). The first weighted run: 1 more (an answer, then the same Run). Changing the answer: 2 (Change..., then an answer), from any result that names the column. Re-laying out: 1 step from the Layout row.</li>
-    <li><b>Where focus goes.</b> A Catalog click moves focus to the new result's row; its editor opens beside it when it was refused or arrived unrun, focus on the first route or on Run. Cancel on the row: focus stays on the row, now showing Run. Cancel in the running notice (Results closed): focus goes back to the control that held it before the notice took it. A finished run moves nothing. Choosing a Top node moves the selection, never the left panel. The meaning question in the run form takes focus on its first answer, with nothing chosen; Change... opens it with focus on the current answer, and after the change focus returns to the Change... it came from.</li>
+    <li><b>Steps from rest.</b> A cheap run: 1 step, 2 travel (open Results, find the row, click it), or 1 step by Quick actions. Refused by the gate: 2 steps (the row, then Enter on the focused route, Run sampled). Arrives unrun: 2 steps (the row, then Run). Reading a node's rank: 1 more. A retune: 2 (the edit, then Run). The first weighted run: 1 more (an answer, then the same Run). Another answer: 2 (Re-run with another meaning..., then an answer and Run), from the run. Re-laying out: 1 step from the Layout row.</li>
+    <li><b>Where focus goes.</b> A Catalog click moves focus to the new result's row; its editor opens beside it when it was refused or arrived unrun, focus on the first route or on Run. Cancel on the row: focus stays on the row, now showing Run. Cancel in the running notice (Results closed): focus goes back to the control that held it before the notice took it. A finished run moves nothing. Choosing a Top node moves the selection, never the left panel. The meaning question in the run form takes focus on its first answer, with nothing chosen; Re-run with another meaning... opens it with focus on the run's answer, and after Run focus moves to the new run.</li>
     <li><b>Keyboard.</b> Everything is in Quick actions. Catalog rows are arrow-stepped and Enter runs; the refused editor's routes are one list (arrows choose, Enter commits the chosen route); Top nodes and histogram bars are stepped with arrows and Enter selects. The meaning question is one radio group: arrows choose, and the unavailable answer is skipped by the arrows but still read with its reason.</li>
     <li><b>Announcements.</b> Finished and canceled are polite; progress is spoken when a run starts and then at most every 10 s, never per percent; a failure is assertive, once. A changed answer announces its notice politely: &quot;Weight: amount no longer used as capacity. 3 results re-run.&quot;</li>
     <li><b>First failure, weighted.</b> Reading a result as weighted when it was not, or the other way round. Guarded by the state line, read from the run record on every result, and by one project answer that every run and path reads.</li>

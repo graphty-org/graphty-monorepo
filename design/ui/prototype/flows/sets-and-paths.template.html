@@ -52,6 +52,16 @@
   svg.fork .fl.sub { fill: var(--cm-text-secondary); }
   svg.fork .fclock circle { fill: var(--cm-bg); stroke: var(--cm-text); stroke-width: 1.25; }
   svg.fork .fclock path { fill: none; stroke: var(--cm-text); stroke-width: 1.5; stroke-linecap: round; }
+  /* Section 3: the table dock and the Export dialog it opens, drawn side by side. */
+  .ex-pair { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 12px 0 16px; }
+  .ex-dock { flex: 1 1 640px; min-width: 0; min-height: 0; border: 1px solid var(--cm-border); border-radius: 6px; overflow: hidden; }
+  .ex-dock .k-table { font-size: 11px; }
+  .ex-dock .k-table th, .ex-dock .k-table td { padding-left: 8px; padding-right: 8px; }
+  .ex-modal { flex: 0 1 400px; width: 400px; max-height: none; box-shadow: var(--cm-elevation-500), 0 0 0 1px var(--cm-border); }
+  .ex-sec-head { display: flex; align-items: center; height: 28px; padding: 0 16px; font-weight: 550; }
+  .ex-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 16px; }
+  .ex-item[aria-selected="true"] { background: var(--cm-bg-selected, var(--cm-bg-secondary)); }
+  .ex-detail { margin: 2px 8px 6px 36px; padding: 6px 8px 8px 10px; border-left: 2px solid var(--cm-bg-brand); background: var(--cm-bg-selected, var(--cm-bg-secondary)); display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 8px; align-items: center; }
 </style>
 </head>
 <body>
@@ -220,18 +230,45 @@
   <h2 id="rows">3. The paths as rows</h2>
   <p>What step 5 opens: the Edges tab, 5 rows, the date column right after the two accounts, every
   other column of <code>transfers-2026-03.csv</code>, plus the run's three. Rows stay in hop order.
-  Export table as CSV... writes exactly these rows in this order. Both routes run forward in time,
-  and the state line says so.</p>
-  <table>
-    <thead><tr><th>from_account</th><th>to_account</th><th>timestamp</th><th>hop</th><th>amount</th><th>on paths</th><th>time order</th></tr></thead>
-    <tbody>
-      <tr><td class="k-id">ACC-271813</td><td class="k-id">ACC-946224</td><td class="k-num">2026-03-04 18:23 UTC</td><td class="k-num">1</td><td class="k-num">$3,530.28</td><td>both</td><td class="k-secondary">in order</td></tr>
-      <tr><td class="k-id">ACC-946224</td><td class="k-id">ACC-670564</td><td class="k-num">2026-03-07 00:11 UTC</td><td class="k-num">2</td><td class="k-num">$9,468.23</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
-      <tr><td class="k-id">ACC-946224</td><td class="k-id">ACC-242954</td><td class="k-num">2026-03-07 13:27 UTC</td><td class="k-num">2</td><td class="k-num">$9,782.05</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
-      <tr><td class="k-id">ACC-242954</td><td class="k-id">ACC-233575</td><td class="k-num">2026-03-08 20:29 UTC</td><td class="k-num">3</td><td class="k-num">$9,616.72</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
-      <tr><td class="k-id">ACC-670564</td><td class="k-id">ACC-233575</td><td class="k-num">2026-03-09 10:57 UTC</td><td class="k-num">3</td><td class="k-num">$9,399.31</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
-    </tbody>
-  </table>
+  Export table... in the table dock's tab row opens the one Export dialog with Table chosen, and writes exactly these rows in this order. Both routes run forward in time,
+  and the state line says so. Left, the table dock as step 5 leaves it, the pointer on Export table...; right, the dialog it opens.</p>
+  <div class="ex-pair">
+    <section class="k-dock ex-dock" data-kit-frame aria-label="Table">
+      <div class="k-dock-tabs"><span role="tablist" aria-label="Table" style="display:flex;gap:4px"><span class="k-tab" role="tab" aria-selected="false">Nodes</span><span class="k-tab" role="tab" aria-selected="true">Edges</span></span><span class="k-grow"></span>
+        <span class="k-icon-btn" role="button" aria-label="Find in table" title="Find in table"><svg class="k-i" aria-hidden="true"><use href="../kit/icons.svg#search"/></svg></span><span class="k-btn k-btn-ghost" data-hover data-focus-ring>Export table...</span></div>
+      <div class="k-scope">Selection: 5 transfers, the found paths ACC-271813 to ACC-233575. In hop order.</div>
+      <div class="k-table-wrap"><table class="k-table">
+        <thead><tr><th>from_account</th><th>to_account</th><th>timestamp</th><th class="k-n">hop</th><th class="k-n">amount</th><th>on paths</th><th>time order</th></tr></thead>
+        <tbody>
+          <tr><td class="k-id">ACC-271813</td><td class="k-id">ACC-946224</td><td class="k-num">2026-03-04 18:23 UTC</td><td class="k-n k-num">1</td><td class="k-n k-num">$3,530.28</td><td>both</td><td class="k-secondary">in order</td></tr>
+          <tr><td class="k-id">ACC-946224</td><td class="k-id">ACC-670564</td><td class="k-num">2026-03-07 00:11 UTC</td><td class="k-n k-num">2</td><td class="k-n k-num">$9,468.23</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
+          <tr><td class="k-id">ACC-946224</td><td class="k-id">ACC-242954</td><td class="k-num">2026-03-07 13:27 UTC</td><td class="k-n k-num">2</td><td class="k-n k-num">$9,782.05</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
+          <tr><td class="k-id">ACC-242954</td><td class="k-id">ACC-233575</td><td class="k-num">2026-03-08 20:29 UTC</td><td class="k-n k-num">3</td><td class="k-n k-num">$9,616.72</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
+          <tr><td class="k-id">ACC-670564</td><td class="k-id">ACC-233575</td><td class="k-num">2026-03-09 10:57 UTC</td><td class="k-n k-num">3</td><td class="k-n k-num">$9,399.31</td><td>1 of 2</td><td class="k-secondary">in order</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <div class="k-modal ex-modal" data-kit-frame role="dialog" aria-label="Export">
+      <div class="k-modal-head">Export<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Close"><svg class="k-i" aria-hidden="true"><use href="../kit/icons.svg#x"/></svg></span></div>
+      <div class="k-modal-body">
+        <div class="ex-sec-head">Figures</div>
+        <div class="ex-item"><span class="k-check" role="checkbox" aria-checked="false" aria-label="Figure (.svg)"></span><span class="k-grow">Figure <span class="k-secondary">(.svg)</span></span></div>
+        <div class="ex-item"><span class="k-check" role="checkbox" aria-checked="false" aria-label="Image (.png)"></span><span class="k-grow">Image <span class="k-secondary">(.png)</span></span></div>
+        <div class="ex-sec-head">Rows</div>
+        <div class="ex-item" aria-selected="true"><span class="k-check" role="checkbox" aria-checked="true" aria-label="Table (.csv)"></span><span class="k-grow">Table <span class="k-secondary">(.csv)</span></span><span class="k-secondary">Edges</span></div>
+        <div class="ex-detail" role="group" aria-label="Table settings">
+          <span class="k-secondary">Tab</span><span class="k-seg k-seg-fill" role="radiogroup" aria-label="Tab"><span role="radio" aria-checked="false">Nodes</span><span role="radio" aria-checked="true">Edges</span></span>
+          <span class="k-secondary">Rows</span><span class="k-fact">5 transfers, the selection</span>
+          <span class="k-secondary">Order</span><span>hop order, as the table shows it</span>
+          <span class="k-secondary">Columns</span><span>the file's four and the run's three</span>
+          <span class="k-secondary">Methods</span><span>Always written beside it</span>
+        </div>
+        <div class="ex-sec-head">Project</div>
+        <div class="ex-item"><span class="k-check" role="checkbox" aria-checked="false" aria-label="Project file"></span><span class="k-grow">Project file</span></div>
+      </div>
+      <div class="k-modal-foot"><span class="k-secondary">2 files go to your Downloads folder. Nothing is uploaded.</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Export 2 files</span></div>
+    </div>
+  </div>
 
   <p id="rows-reversed">The reversed search, from ACC-233575 back to ACC-271813 ignoring direction, walks the same
   transfers against the money. Its rows keep the file's own from and to; hop is the walk's order, so
@@ -327,7 +364,7 @@
   proposed Follow time order option.</p>
   <!--GAPS-->
   <ul>
-    <li><b>Compare with..., two sets</b>: how two sets differ, with the statistic named.</li>
+    <li><b>Compare with another set...</b>: how two sets differ, with the statistic named.</li>
     <li><b>Test against chance</b>: whether 16 shared accounts is more than two random lists of 37 and 143 would share. A set chosen by a statistic cannot be tested on it.</li>
     <li><b>Money in and out of an account</b>: totals by direction on the inspector (weighted in-strength and out-strength), which the third study asked for; proposed to graphty-element, with no screen yet.</li>
     <li><b>Merge duplicate accounts</b>: which account's attributes win, and which transfers become parallel.</li>

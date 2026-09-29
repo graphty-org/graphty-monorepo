@@ -239,7 +239,7 @@ function leftPanel({ sets = SETS4, styles = false, list = "", handleFocus = fals
 const toolbar = `<div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i k-i-sm")}</span>
           <span class="k-tool">${I("route", "k-i k-i-lg")}</span>
-          <span class="k-tool">${I("sticky-note", "k-i k-i-lg")}</span>
+          
           <span class="k-toolbar-sep"></span>
           <span class="k-tool">${I("zap", "k-i k-i-lg")}</span>
         </div></div>`;
@@ -975,7 +975,7 @@ const LVG = ppi.louvain;
 const C1 = LVG.groups[0];
 const GC = fx.scenarios.groupCompare;
 if (GC.community !== C1.community || GC.size !== C1.size) throw new Error("scenarios.groupCompare is stale: run node screens/group-compare-numbers.mjs");
-const lvColor = (c) => fx.canvas.categorical[c - 1] ?? "#505050";
+const lvColor = (c) => fx.canvas.categorical[c - 1] ?? "#BDBDBD";
 
 // Where each protein sits on the Louvain drawing (screens/img/results-panel-louvain-*.svg, written by
 // screens/results-panel.py): its 300 filled circles are the proteins in louvain.community order.
@@ -1331,7 +1331,6 @@ const STYLE = `
   .catmenu .startbadge { display: inline-block; margin-inline-start: 4px; padding: 0 4px; border-radius: 3px; font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); box-shadow: inset 0 0 0 1px currentColor; vertical-align: 1px; }
 
   /* Chips and legend marks from the element's resolved paint (canvas-drawing.md 3) */
-  .k-ramp-measure { background: linear-gradient(90deg, ${bcEnc.palette.join(", ")}); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
   .sizechip { width: 16px; height: 12px; flex: none; }
   .dashchip { width: 16px; height: 6px; flex: none; border-radius: 1px; background: repeating-linear-gradient(90deg, var(--k-canvas-ink) 0 5px, var(--k-canvas) 5px 8px); box-shadow: 0 0 0 1px var(--k-canvas-ink); }
   .textchip { width: 16px; flex: none; font-size: 11px; line-height: 12px; font-weight: 550; text-align: center; color: var(--cm-text); }

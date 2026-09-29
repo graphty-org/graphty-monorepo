@@ -519,3 +519,91 @@ Why: the log was telling the owner things that are false, and the owner outranks
 - Redrawing any new design before the kit gate passes.
 - One global list of required strings in `kit/check.mjs`. It would fail every page; strings are mapped per page and per state.
 - Writing this round's triage into `study/round-4/`. That folder is the record of round 4 and is cited as evidence.
+
+## Round 6
+
+Every participant in these rounds is simulated. The evidence behind each item is in `study/round-6/insights.md` and `study/round-6/tree-test.md`. `study/round-5/` is the record of the round before and is cited as evidence only.
+
+### Decisions
+
+**The mock kit (`kit/`): make the gate real.** `node kit/check.mjs --tasks` fails when it checks 0 pages. The take-a-note proof of required strings fails when "Ctrl+Enter" is missing. `prove-gate` gains an Esc proof: open the steps list, press Esc, and the page must still be in the study view. The facilitator pastes the output of `--all`, `--tasks` and `prove-gate` into the round file, and any failure stops the round.
+Why: round 6 ran on a gate that checked nothing ("0 problems on 0 pages"). Every mock defect participants hit survived because of it: the undrawn "(keeps Run 1)", the Note tool, the missing Weighted degree, and numbers that disagree between pages for the fourth round.
+
+**The Esc rule (`kit/README.md`, every page).** A handler that closes, cancels or clears something calls preventDefault(). Esc does one thing per press, starting with the innermost open item, and leaves the study view only when nothing is open. The unmarked branches in `screens/undo.html` and `screens/filter-chip.html` are fixed. Every page gets a 768 px touch shot.
+Why: this is the owner's open "participant view is a trap" item. In round 6 one Esc both closed the steps list and reset the page, which hit four undo sessions. `kit.js` leaves the study view on any Esc that no page marked as handled.
+
+**One scope formatter (`kit/`).** One formatter, reading `kit/fixtures.json`, writes every count and measure as: measure, unit or counted noun, a fixed precision, "N of M", and the data version whenever it differs from what is on screen. `kit/check.mjs` fails any count the formatter did not write, and fails on the retired strings "within 1%", "near #", "not used yet" and "Change..." on a data source. Fixture task entries are added for every round-4 and round-5 task. The Note tool is removed from `kit/template.html`.
+Why: at least eight confirmed findings are one defect, a number that does not say what it was counted on: degree 40 against 41, units dropped after a filter, "Export again" with no version, and an agreement sentence that contradicts "0 of the top 50". Page-by-page fixes have drifted for four rounds.
+
+**Frame at rest (`screens/frame-at-rest.html`).** "Change..." and "not used yet" are removed from the Loaded line. It states facts only: "amount: $ (USD). Each run that uses it asks what a bigger amount means." One right panel is shown.
+Why: this link drew 27 wrong first clicks across three prompts, 15 of 16 of them on the cheapest-route prompt, and it promised a choice that the design makes per run.
+
+**Load step.** The Weight column role is removed. "What will load" shows rows, the money total, the date range with its time zone, the top account, and the line saying where the data stays.
+Why: a load-time weight contradicts asking each run what a bigger amount means. It led to the four wrong answers on tree task 5, which all ended on Data > Sources > its columns.
+
+**Data panel.** Each source row shows its facts plus "Update with new data..." and nothing else. The tree-test tree loses "Change..." under Data > Sources, and "the tie rule, Change..." under the table footer.
+Why: the tree must match the screens, or round 7 re-tests the old design on task 5.
+
+**Sets and paths (`screens/sets-and-paths.html`).** The weight choice is a radio group with nothing selected, on every run, and Enter does nothing until a choice is made. The weight editor opens empty, not prefilled with "a closer or stronger link". The found path shows its money total, and Members reads "3 transfers, $22,397.82". A "Route 1 of 2" stepper with previous and next buttons (arrow keys step while it has focus) appears only when routes tie on cost.
+Why: the severity-4 prefill and highlighted-default defects were decided and never drawn. On the tree task asking how much money moved along a selected route, 12 of 16 opened the path's Members looking for a sum. A tie that is shown but cannot be opened was the finding.
+
+**Navigation (`screens/navigation.html`).** "Not on a bridge edge", "Re-run on 41 of 77 (keeps Run 1)" and a visible Quick actions label are drawn. A style layer made with "Show as style layer" keeps its own name and gains a second line, "From run: <run title as Results shows it>". That line is a link: Enter opens the run and focus moves to the run's heading.
+Why: all five misses on the re-run prompt feared that Re-run would overwrite. On the bridges prompt, 12 of 16 clicked the "Bridges off" layer, the only "Bridges" on screen, and it led nowhere.
+
+**Results panel.** Weighted degree is added to the catalog. The opened run keeps its Top nodes list; when a node is selected, one line is pinned above it: "Valjean: #3 of 77, show in table", which opens that node's table row. The list does not auto-scroll. "Compare with..." is renamed "Compare with another run...". On sampled runs, rank ranges ("#3-#7") come from the run's own error bound on every surface. A community row selects its group on click or Enter, and focus stays on the row.
+Why: tree task 2 fell from 94% to 44% direct because the list pulls clicks. Tree task 1 (100% direct) needs the list, so it stays. On the tree task asking how the biggest group differs from the rest, 7 of 16 opened the run's Compare with... first.
+
+**Inspector.** Computed values sit only under Results, never under Attributes. The account inspector gains "Path to...". The inspector fits at 1440 px without clipping.
+Why: each kind of value gets one home. "Path to..." was decided and never drawn.
+
+**Filter chip (`screens/filter-chip.html`).** The degree step keeps pipeline scope: it counts on what the steps above it left, and nothing changes silently. The row states both counts in black text: "Degree 3 or more: 40 left; 41 on the full graph". There is no switch and no grey print. Neighbor steps get a Scope line. Runs whose scope differs from the current filter say so in black text.
+Why: a severity-4 finding. Making the full graph the default would silently change what step order means for one kind of step. Stating both counts fixes the finding and adds no control. A scope switch is added only if round 7's what-is-left task fails.
+
+**Table dock (`screens/table-dock.html`).** The invented 1% tie rule, the "near #8" cells and the grey rule line are removed. An exact measure shows "=" only when values are equal at the shown precision. An estimate shows its rank range. The table sorts by the run that opened it. The signed, colored change column is in the table.
+Why: the percentage is not a property of the data, and participants read it as rounding. The results panel already draws the honest error-bound form.
+
+**Export dialog (`screens/export-dialog.html`).** Rank exports as an integer column, with a separate Tie column. Sampled estimates export as Rank low and Rank high. The re-export action reads "Export again, on April data". Saved rows and file names carry the data period. Exporting while a filter step is open defaults to that step's transfers.
+Why: "4=" turns the column into text in Excel and pandas; this reverses round 5's keep-the-"=" rule. The version gap and the filter-step default were decided in round 5 and never drawn.
+
+**Replace and recipe (`flows/replace-and-recipe.html`).** The StyleManager rule for "Use these styles" is narrowed: it replaces only whole-graph layers that paint the same property, and keeps layers scoped to a set. The dialog lists by name each layer it will replace, with the match count. Apply acts at once and then shows the notice "Replaced 3 layers, kept 2. Undo". Ctrl+Z is the ordinary undo. Every file intake (File > Open..., Add a source, a drop) recognizes a recipe and opens the one Apply dialog; graphty-element does the recognizing. Main menu > Recipes > Apply a recipe... stays until round 7 shows that File works. The round-7 answer key for tree task 7 adds File > Open... and Add a source.
+Why: the old rule silently removed the reader's own layers. For tree task 7, all 16 opened File first and 5 ended on Add a source. Cutting the menu item in the same round would put two changes on one task.
+
+**Colour by value (`screens/colour-by-value.html`).** The too-close check covers every pair in the layer, including the default palette's orange #E69F00 against vermilion #D55E00. It names the pair and the color vision it models: "Orange and vermilion are too close for red-green color blindness (deuteranopia)." When the palette runs out, it suggests colors that clear every neighbor. Top N gets a direction: highest or lowest, or largest increase or largest decrease on a signed column. Marks have a minimum size on screen and in print. These are drawn as graphty-element behavior and filed on the element backlog.
+Why: round 5's picked-colors-only exemption hid a defect in the element's own palette. Two new Top N rules would add controls where one direction does the job.
+
+**Comparison (`screens/comparison.html`).** Each group keeps its color across partitions by overlap, using the weekly update's matcher, as element work. Each community column uses one statistic, with one sign and one precision, on every surface.
+Why: Ribosome was amber under one partition and blue under another, where amber meant Proteasome. Fold change was a mean in one place and a median with the opposite sign in another.
+
+**Weekly update (`storyboards/weekly-return.html`).** The group shows stayed, left, joined and silent as four counts with their nouns, plus stability for both months. The badge counts silent accounts separately. There is no verdict sentence.
+Why: all three skeptical participants confirmed that they had to assemble this answer themselves. Verdict words imply a statistical test the tool does not run.
+
+**Alert triage (`screens/alert-triage.html`).** The "In order" column is renamed "Dates in order". Each hop account on the dated trace shows "Received $X / Sent $Y, this trace", computed by graphty-element.
+Why: "In order" checks dates, not money, and participants read it as a money check.
+
+**Undo (`screens/undo.html`).** The notice plus the Ctrl+Z restore ships. While "Selection cleared (N nodes)" is showing, Ctrl+Z restores only the selection; the next Ctrl+Z undoes filter steps. The "Bring it back" link and the spoken "Ctrl+Z brings it back" stay. The notice-only arm is retired. Ease is reported with and without the four sessions the Esc bug reset.
+Why: wrong end states went unnoticed in 5 of 8 sessions with the notice alone and 0 of 8 with the restore; all five pressed Ctrl+Z while the notice showed. On first click, 13 of 16 chose "Bring it back".
+
+**Where your data goes.** Hosting country, telemetry and the organization-wide Assistant switch read "Not decided yet" in the participant view, not a label ending in a colon.
+Why: these are open owner questions. This is a drawing defect, not a design finding.
+
+**Taking a note (`screens/take-a-note.html`).** "Saving as: <name>. Change..." shows on every edit. The author setting says "Applies to notes you save from now on." Names are never added to earlier notes.
+Why: the owner decided that the author is recorded as given, blank if none is set.
+
+### Considered and rejected
+
+- Showing the previous run's weight answer as a default, as a preselection or as text under the question. In round 7 it would be a second change on the cheapest-route re-test, and the weight list already traps readers with a highlighted wrong answer. Reconsider in round 8.
+- A scope switch on the degree step, in the row or its popover, and making the full graph the default. Stating both counts fixes the finding without changing what step order means.
+- Cutting or replacing the opened run's Top nodes list. Tree task 1 uses it and scored 100% direct.
+- A "Find a node's rank..." row or a search field in the run panel. The pinned selection line covers it.
+- Data > Apply recipe.... It adds a door where people open File.
+- Cutting Main menu > Recipes > Apply a recipe... this round. It waits for round 7 to show that File works.
+- Moving "Show label anyway" into Appearance before re-testing tree task 15.
+- "Keep for referral", or any referral verb, including a prefilled "Referral: <account>" set name. A named set with a note plus the export default covers it.
+- Offering to put a newly set author name on earlier notes. It rewrites authorship the owner decided is recorded as given.
+- A verdict sentence on real change or noise.
+- "Treat them as tied" and any fixed near-tie percentage.
+- Two new "Top N increases / decreases" label rules.
+- A before-and-after preview mode for "Use these styles", and a special Ctrl+Z rule for it.
+- Changing tree task 16's answer key. The filter has no neighbors-from-a-node step, so it is a real findability miss.
+- "Sent to / Received from" wording and "Keep as a filter step" on the neighbors result. Deferred so tree task 16 re-tests the Scope line alone.
+- Asking the owner again about hosting, telemetry, the Assistant switch, SVG and PDF, authorship or where Results lives.

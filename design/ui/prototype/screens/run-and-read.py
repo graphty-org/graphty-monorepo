@@ -68,7 +68,7 @@ def rail(pressed="Results"):
 TOOLBAR = (
     '<div class="k-toolbar" role="toolbar">'
     f'<span class="k-tool" aria-pressed="true">{i("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">{i("chevron-down", "k-i-sm")}</span>'
-    f'<span class="k-tool">{i("route", "k-i-lg")}</span><span class="k-tool">{i("sticky-note", "k-i-lg")}</span><span class="k-toolbar-sep"></span>'
+    f'<span class="k-tool">{i("route", "k-i-lg")}</span><span class="k-toolbar-sep"></span>'
     f'<span class="k-tool">{i("zap", "k-i-lg")}</span><span class="k-toolbar-sep"></span>'
     f'<span class="k-tool">{i("square", "k-i-lg")}</span><span class="k-tool-caret">{i("chevron-down", "k-i-sm")}</span></div>'
 )
@@ -195,7 +195,7 @@ def runs_of(items, compare=True):
     n = f'<span class="k-secondary k-num">{len(items)}</span>' if items else '<span class="k-secondary">none yet</span>'
     cmp_ = (
         f'<div class="k-row rr-verb" role="button" aria-haspopup="menu"{"" if compare else DISABLED}>{i("git-compare-arrows", "k-secondary")}'
-        '<span class="k-grow">Compare with...</span></div>'
+        '<span class="k-grow">Compare with another run...</span></div>'
     )
     return f'<div class="rr-subhead">Runs of this measure {n}</div>{r}{cmp_}'
 
@@ -267,7 +267,7 @@ def ppi_right(layout_sel=False):
         '<section class="k-section"><div class="k-section-head">Statistics</div>'
         '<div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>'
         f'<div class="k-metrics">{metric("nodes", PN)}{metric("edges", PE)}{metric("components", st["components"])}{metric("average degree", st["averageDegree"])}</div>'
-        '<div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">undirected; confidence, not used yet</span></div>'
+        '<div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">undirected; confidence: each run that uses it asks what it means</span></div>'
         f'<div class="k-row k-secondary">4 more</div></section>{EXPORT}</div></aside>'
     )
 
@@ -710,7 +710,7 @@ STATES = [
             "<b>The finished run opens in place</b>: the back arrow (or Esc) returns to the list of runs, the heading is the run's name (the measure and its date), and the right panel stays the inspector of whatever is selected. Nothing was selected or moved by the run. compact-mantine <b>ControlSection</b>.",
             "<b>The trust check: the state line names scope, exact or estimated, edge reading and engine</b> before any number. task-flows 3; content-design 3. Named on the full graph too (a proposed change). Its one command, Re-run (keeps Run 1), is disabled until an option differs from the run shown.",
             "<b>Appearance: the run's layer, turned off.</b> The eye-off glyph, as Figma's hidden layer. Whether a finished run paints on its own is the owner's open decision (one-way-doors 26), so the canvas stays as Module color painted it. Clicking the eye shows it.",
-            f"<b>Top nodes first, then the distribution</b>, then the options (read here, edited in the options popover), the runs of this measure with Compare with..., and Appearance. {bc['histogram12'][0]} of {PN} proteins sit in the lowest twelfth. No bar is marked: nothing is selected. <b>ChartRow</b>, <b>DataRow</b>. A bar selects the nodes it counts (entries 4.3).",
+            f"<b>Top nodes first, then the distribution</b>, then the options (read here, edited in the options popover), the runs of this measure with Compare with another run..., and Appearance. {bc['histogram12'][0]} of {PN} proteins sit in the lowest twelfth. No bar is marked: nothing is selected. <b>ChartRow</b>, <b>DataRow</b>. A bar selects the nodes it counts (entries 4.3).",
             f"<b>&quot;{ppi['nodes'] - 5} more&quot; opens the Nodes table sorted by this column.</b> Waits on the element's ranking read.",
         ],
     ),
@@ -746,7 +746,7 @@ STATES = [
         spoken=f'"{PICK["id"]}, node. Money in {USD(PICK["moneyIn"])}, rank {PICK["moneyRank"]} of {TN}. Links in (count) {PICK["linksIn"]}, rank {PICK["linksRank"]}."',
         notes=[
             f"<b>Each top account shows both numbers</b>: its money in and its Links in (count) with that count's rank. {PICK['id']} is #{PICK['moneyRank']} by money and #{PICK['linksRank']} by count: {PICK['linksIn']} transfers, fewer and larger. A ranking by count would have hidden it.",
-            "<b>The state line says what was summed</b>: amount, in dollars, on the transfers in. A sum needs no answer to &quot;what does a bigger amount mean&quot;: nothing is converted, so the run does not ask.",
+            "<b>The state line says what was summed</b>: amount, in dollars, on the transfers in. A sum needs no answer to &quot;what does a higher amount mean&quot;: nothing is converted, so the run does not ask.",
             "<b>The table sorts by the run that opened it</b>, with the count and its rank beside, so the two orders are read side by side. The inspector gives each value its rank and its scope.",
         ],
         notes_at=(600, 128, 300),
@@ -864,7 +864,7 @@ STATES = [
         notes=[
             "<b>In a browser without WebGPU, PageRank on these patents is &quot;a few minutes&quot;.</b> A click on an entry of a few minutes or more, one that needs an argument, or one with no cost model creates the result Not run with Run focused and its band. state-matrix 4.10, row 2; task-flows 3, &quot;Needs an argument, or a few minutes or more?&quot;.",
             "<b>PageRank is iterative, so the cost gate does not refuse it</b>: the gate covers exact computations. Proposed wording in framework-changes.md.",
-            "<b>An option edit on a run that has never run applies at once and runs nothing.</b> interaction-patterns 3.3. Run at the head of the state line is the one commit: one undo step, &quot;Run PageRank&quot;. Compare with... and Show as style layer wait for a value.",
+            "<b>An option edit on a run that has never run applies at once and runs nothing.</b> interaction-patterns 3.3. Run at the head of the state line is the one commit: one undo step, &quot;Run PageRank&quot;. Compare with another run... and Show as style layer wait for a value.",
             "<b>Every band word follows the engine in effect</b>: in the catalog menu and Quick actions, the iterative entries read &quot;a few minutes&quot; here.",
         ],
         notes_at=(560, 150, 330),

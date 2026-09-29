@@ -3,7 +3,7 @@
 
 The Results rail place: every run of a measure, with its settings and date, newest first. A run is
 named by the options that differ plus its date, never by how long it took. Opening a run shows its
-record in the place itself (state line, Top nodes, options, its runs, Re-run, Compare with...); the
+record in the place itself (state line, Top nodes, options, its runs, Re-run, Compare with another run...); the
 right panel stays the inspector of the selection, and a node's own values stay there. Runs start from
 Results' "Run a measure...", the main menu's Algorithms, Quick actions and Ctrl+K.
 
@@ -52,8 +52,8 @@ band = lambda w: f'<span class="rp-band">{w}</span>'
 CARET = i("chevron-down", "k-i-sm k-caret")
 
 # The weight, in the three states the round-3 wording decided (content-design; message-catalog, proposed keys).
-W_NOT_YET = lambda col: f"Weight: {col}, not used yet. <a class=\"rp-link\">Change...</a>"
-W_USED = lambda col, meaning: f"Weight: {col}, used as {meaning}. <a class=\"rp-link\">Change...</a>"
+W_NOT_YET = lambda col: "Weight: none for this run."
+W_USED = lambda col, meaning: f"Weight: {col}, used as {meaning}."
 W_NONE = "Weight: no numeric edge column"
 
 
@@ -86,7 +86,7 @@ def panel_head(project, chip="Full graph"):
 
 # ---------------------------------------------------------------- the catalog (main menu > Algorithms, Quick actions)
 FAMILIES = [
-    ("Centrality", ["Betweenness", "Closeness", "Eigenvector", "Harmonic centrality", "HITS", "Katz", "PageRank"]),
+    ("Centrality", ["Betweenness", "Closeness", "Eigenvector", "Harmonic centrality", "HITS", "Katz", "PageRank", "Weighted degree"]),
     ("Community", ["Girvan-Newman", "Label propagation", "Leiden", "Louvain"]),
     ("Path", ["All-pairs distance", "Breadth-first search", "Depth-first search", "Shortest path"]),
     ("Structure", ["K-core", "Maximum bipartite matching", "Minimum spanning tree", "Topological sort"]),
@@ -102,7 +102,7 @@ CIT_BANDS = {
     "Leiden": "under a minute", "Louvain": "under a minute", "All-pairs distance": "over a day", "K-core": "under a minute",
     "Minimum spanning tree": "under a minute", "Link prediction": "a few minutes",
 }
-ARGS = {"Shortest path": "two nodes...", "Maximum flow": "source and sink...", "Minimum cut": "source and sink..."}
+ARGS = {"Weighted degree": "a weight...", "Shortest path": "two nodes...", "Maximum flow": "source and sink...", "Minimum cut": "source and sink..."}
 
 
 HOVER_ALG = ' data-hover id="a-alg"'
@@ -132,7 +132,7 @@ def main_menu():
 
 def quick(query, rows, head):
     r = "".join(
-        f'<div class="k-result"{SELA if k == 0 else ""}>{i("flask-conical")}<span class="k-grow">{n}</span>{band(b)}</div>'
+        f'<div class="k-result"{SELA if k == 0 else ""}{DIS if b.startswith("needs") else ""}>{i("flask-conical")}<span class="k-grow">{n}</span>{band(b)}</div>'
         for k, (n, b) in enumerate(rows)
     )
     return (
@@ -280,10 +280,10 @@ def gi(graph, metrics, rows, layers, off=()):
 CIT_METRICS = [("nodes", CN), ("edges", f'{cit["edges"]:,}'), ("density", "0.000096"), ("average degree", cit["stats"]["averageDegree"])]
 CIT_ROWS = [("edges", "directed; no numeric edge column")]
 PPI_METRICS = [("nodes", PN), ("edges", f'{ppi["edges"]:,}'), ("components", ppi["stats"]["components"]), ("average degree", ppi["stats"]["averageDegree"])]
-PPI_ROWS = lambda w="confidence, not used yet": [("edges", f"undirected; {w}")]
+PPI_ROWS = lambda w="confidence: each run that uses it asks what it means": [("edges", f"undirected; {w}")]
 BC_LAYERS = [(RAMP_CHIP, "Betweenness color"), (SIZE_CHIP, "Size: degree")]
 GI_CIT = gi("Citations 1999 to 2001", CIT_METRICS, CIT_ROWS, [])
-GI_PPI = lambda layers=(), w="confidence, not used yet": gi("Interactions", PPI_METRICS, PPI_ROWS(w), list(layers))
+GI_PPI = lambda layers=(), w="confidence: each run that uses it asks what it means": gi("Interactions", PPI_METRICS, PPI_ROWS(w), list(layers))
 PLACE_CIT = lambda rows, strip="": place("Patent citations", rows, strip)
 PLACE_PPI = lambda rows, strip="": place("Human protein interactions", rows, strip)
 
@@ -340,7 +340,7 @@ def runs(items):
     return subhead("Runs of this measure", f' <span class="k-secondary k-num">{len(items)}</span>') + r
 
 
-CMP_VERB = f'<div class="k-row rp-verb" role="button" aria-haspopup="menu">{i("git-compare-arrows", "k-secondary")}<span class="k-grow">Compare with...</span></div>'
+CMP_VERB = f'<div class="k-row rp-verb" role="button" aria-haspopup="menu">{i("git-compare-arrows", "k-secondary")}<span class="k-grow">Compare with another run...</span></div>'
 
 
 def appearance(layer="", chip="", mode="shown"):
@@ -416,30 +416,7 @@ def rank_ranges(values, eps):
     return out
 
 
-# ponytail: the near-tie line needs the element to report it; 1% is this mock's stand-in for the element's rule
-# (proposed in framework-changes.md, not decided here).
-TIE_REL = 0.01
-
-
-def near_ties(vals):
-    """An exact run's near-ties in words, with the threshold stated (round 3: "no near-ties" is retired)."""
-    up = lambda g: (lambda e: math.ceil(round(g / 10 ** e, 6)) * 10 ** e)(math.floor(math.log10(g)))
-    pct = lambda x: f"{round(x, 6):g}%"
-    gaps = [((a - b) / a * 100, k + 1) for k, (a, b) in enumerate(zip(vals, vals[1:])) if a > 0 and a != b]
-    close = [f"Ranks {r} and {r + 1} differ by less than {pct(up(g))}, under the {pct(TIE_REL * 100)} tie line; treat them as tied." for g, r in gaps if g < TIE_REL * 100]
-    if close:
-        return " ".join(close)
-    g, r = min(gaps)
-    return f"Every step in the top {len(vals)} is over the {pct(TIE_REL * 100)} tie line; the smallest, ranks {r} and {r + 1}, is {pct(round(g, 1))}."
-
-
-assert near_ties([0.4463, 0.4257, 0.4086, 0.408, 0.403]) == "Ranks 3 and 4 differ by less than 0.2%, under the 1% tie line; treat them as tied."
-assert near_ties([0.1379, 0.1139, 0.0695, 0.0687, 0.0642]).startswith("Every step in the top 5 is over the 1% tie line; the smallest, ranks 3 and 4, is 1.2%")
-
-
-def top_nodes(items, more, measure, ranks=None, fmt=lambda v: f"{v:.4f}", after="", focus=False, rank_w=16, head=""):
-    if ranks is None:  # exact: equal values share a rank, and near-ties are said in words
-        after = f'<div class="rp-prose rp-stable" data-tie>{near_ties([x["value"] for x in items])}</div>' + after
+def top_nodes(items, more, measure, ranks=None, fmt=lambda v: f"{v:.4f}", after="", focus=False, rank_w=16, head="", pin=""):
     ranks = ranks or shared_ranks([x["value"] for x in items])
     rows = "".join(
         f'<div class="k-data"><span class="k-num" style="width:{rank_w}px;flex:none;color:var(--cm-text)">{r}</span><span class="k-name k-id" style="color:var(--cm-text)">{x["id"]}</span><span class="k-value k-num">{fmt(x["value"])}</span></div>'
@@ -447,7 +424,26 @@ def top_nodes(items, more, measure, ranks=None, fmt=lambda v: f"{v:.4f}", after=
     )
     link = (f'<div class="k-row rp-verb{" rp-focus" if focus else ""}" role="link" data-tip="Opens the Nodes tab, sorted by {measure}">'
             f'{i("table", "k-secondary")}<span class="k-grow rp-link">{more:,} more in the table</span></div>')
-    return subhead("Top nodes") + head + rows + after + link
+    return subhead("Top nodes") + pin + head + rows + after + link
+
+
+def pinline(node, rank, of, focus=False):
+    """The selected node's place in this run, pinned above Top nodes; it opens the node's row in the table."""
+    return (
+        f'<div class="k-row rp-verb rp-pin{" rp-focus" if focus else ""}" role="link" id="a-pin" data-tip="Opens {node}&#39;s row in the table">{i("circle-dot", "k-secondary")}'
+        f'<span class="k-grow"><span class="k-strong">{node}</span>: <span class="k-num">{rank} of {of}</span>, <span class="rp-link">show in table</span></span></div>'
+    )
+
+
+def node_inspector(name, attrs, results, appearance_html="", sub="Node"):
+    n = results.count("rp-nres")
+    return (
+        f'<aside class="k-right" aria-label="Inspector">{HEAD2}'
+        f'<div class="k-typerow">{i("circle-dot")}<span class="k-name k-id">{name}</span><span class="k-secondary">{sub}</span></div>'
+        f'<div class="k-scroll"><section class="k-section"><div class="k-section-head">Attributes</div>{"".join(datarow(k, v) for k, v in attrs)}</section>'
+        f'{appearance_html}<section class="k-section"><div class="k-section-head">Results <span class="k-count k-num">{n}</span></div>'
+        f'<ul class="k-list" role="tree" aria-label="Results for {name}">{results}</ul></section></div></aside>'
+    )
 
 
 def bin_of(v, hi, n=12):
@@ -493,7 +489,7 @@ DETAILS = lambda rid="", focus=False: f' <a class="rp-link{" rp-focus" if focus 
 NB = lambda d: d.replace(" ", "&nbsp;")  # a date never breaks across lines
 T = dict(
     wcc="Sep 28 09:40", sb="Sep 28 09:52", pr1="Sep 28 10:14", pr2="Sep 28 10:21",
-    cc="Sep 28 09:05", bt="Sep 28 09:12", cl="Sep 28 09:20", lv="Sep 28 09:31", sp="Sep 28 09:40", lm="Sep 28 11:02",
+    cc="Sep 28 09:05", bt="Sep 28 09:12", cl="Sep 28 09:20", lv="Sep 28 09:31", sp="Sep 28 09:40", lm="Sep 28 11:02", lmf="Sep 28 11:20",
 )
 T = {k: NB(v) for k, v in T.items()}
 SB_NAME = RN("Betweenness (sampled)", f'{cit["sampledBetweenness"]["k"]} sources', T["sb"])
@@ -523,6 +519,13 @@ TOAST_RUNNING = (
 )
 
 
+RANK = lambda r: f'<span class="k-secondary k-num rp-rank">{r}</span>'
+nres = lambda icon, name, value, rank="", hover=False, mark="": (
+    f'<li class="k-item rp-nres" role="treeitem"{" data-hover" if hover else ""}>{i(icon)}<span class="k-ellipsis">{name}</span>'
+    f'<span class="k-trail">{mark}</span></li>'
+    f'<li class="rp-line rp-nval" role="none"><span class="k-num">{value}</span>{RANK(rank) if rank else ""}</li>'
+)
+
 # ---------------------------------------------------------------- the frames
 F = []
 
@@ -544,10 +547,10 @@ frame(
     "catalog", "The catalog: main menu, Algorithms, with its marks before any run",
     rail(menu_open=True) + PLACE_PPI([CC]) + MAIN(canvas_ppi()) + GI_PPI(),
     main_menu(),
-    '"Algorithms, menu. Centrality. Betweenness." Arrow keys move; Enter starts the run and opens it in Results. On Closeness: "Closeness, WF-corrected." On Eigenvector: "Eigenvector, warning, 3 components." On Topological sort: "Topological sort, unavailable, needs direction."',
+    '"Algorithms, menu. Centrality. Betweenness." Arrow keys move; Enter starts the run and opens it in Results. On Closeness: "Closeness, WF-corrected." On Eigenvector: "Eigenvector, warning, 3 components." On Weighted degree: "Weighted degree, needs a weight." On Topological sort: "Topological sort, unavailable, needs direction."',
     [
         "<b>Three ways in, one list</b>: Results' own 'Run a measure...', the main menu's Algorithms (drawn here) and Quick actions (Ctrl+K) open the same catalog, read from graphty-element. A run started anywhere lands in the Results place, newest first." + cm("Menu (dark) with a submenu"),
-        "<b>The catalog keeps its marks</b>: the element's six families as labels, names alphabetical; the variant word on Closeness, the precondition on Eigenvector ('3 components'), Topological sort disabled with its reason, and the argument an entry needs ('two nodes...'). No cost word here: everything on 300 proteins is under 10 s." + cm("Menu.Item with a right section"),
+        "<b>The catalog keeps its marks</b>: the element's six families as labels, names alphabetical; the variant word on Closeness, the precondition on Eigenvector ('3 components'), Topological sort disabled with its reason, and the argument an entry needs ('two nodes...'). <b>Weighted degree is new in Centrality</b>: each protein's total confidence over its interactions. It asks for its weight when it runs ('a weight...'), with nothing preselected; the element supplies the entry and its one-line meaning. No cost word here: everything on 300 proteins is under 10 s." + cm("Menu.Item with a right section"),
         "<b>Before anything runs</b>, Results holds only the standing partition the element computes when the file opens, named like every run: 'Connected components, Sep 28 09:05'. The inspector with nothing selected has Overview and Style stack, and no Results section.",
         ONE_HOME,
     ],
@@ -555,14 +558,16 @@ frame(
 )
 
 # 2. Quick actions, with cost words
-CENT = ["Betweenness", "Closeness", "Eigenvector", "Harmonic centrality", "HITS", "Katz", "PageRank"]
+CENT = ["Betweenness", "Closeness", "Eigenvector", "Harmonic centrality", "HITS", "Katz", "PageRank", "Weighted degree"]
+CIT_BANDS["Weighted degree"] = "needs a numeric edge column"
 frame(
     "quick-actions", "Quick actions: the same catalog, each entry with its cost word",
     rail() + PLACE_CIT([SAMPLED_ROW, WCC]) + MAIN(canvas_cit(quick("centrality", [(n, CIT_BANDS[n]) for n in CENT], "Algorithms &middot; Centrality"))) + GI_CIT,
     "",
-    f'"Quick actions. centrality. 7 results. Betweenness, hours." Enter on Betweenness asks the element to run it; past its {CAP}-second limit the element does not run it and offers routes (state 8).',
+    f'"Quick actions. centrality. 8 results. Betweenness, hours." Enter on Betweenness asks the element to run it; past its {CAP}-second limit the element does not run it and offers routes (the second Not run state). On Weighted degree: "Weighted degree, unavailable, needs a numeric edge column."',
     [
         "<b>Cost words on the entry, before the click</b>: on 124,318 patents the element's estimate puts Betweenness, Closeness and Harmonic centrality at hours; the rest are under a minute. The words are the element's bands, read from its cost model, never computed by the app." + cm("QuickActions with ResultRow"),
+        "<b>Weighted degree is listed here too</b>, disabled with its reason: the patents have no numeric edge column to total. On a graph with one it runs like any measure, asking which column and what it means.",
         "<b>Quick actions is the keyboard route and Ctrl+K opens it</b>; the toolbar's lightning tool opens the same list. Catalog entries follow commands and recents in one list.",
         f"<b>What already ran stays in view</b> on the left, each run named by its setting and date: '{SB_NAME}'. The reader can see it before starting another.",
     ],
@@ -594,7 +599,7 @@ frame(
     editor("a-opt", "PageRank", PR_FIELDS("0.7", changed=True) + HELD),
     '"PageRank, damping 0.85, Sep 28 10:14. Run 2 running on WebGPU, under a minute. Cancel, button." In the options popover, on Damping: "Damping, 0.7, changed, waits for Run."',
     [
-        "<b>An opened run shows its record in the place</b>: the back arrow (or Esc) returns to the list; the heading is the run's name, the state line holds its one run command (Cancel while it runs), then the weight used, its options, the runs of this measure, Compare with... and Show as style layer. The right panel stays the inspector of whatever is selected." + cm("ControlSection; Button beside the state line"),
+        "<b>An opened run shows its record in the place</b>: the back arrow (or Esc) returns to the list; the heading is the run's name, the state line holds its one run command (Cancel while it runs), then the weight used, its options, the runs of this measure, Compare with another run... and Show as style layer. The right panel stays the inspector of whatever is selected." + cm("ControlSection; Button beside the state line"),
         "<b>Options are read here and edited in a popover</b> beside the panel, as every definition is. It keeps the Run line: 'Options wait for Run'." + cm("PopoutPanel anchored to the panel"),
         "<b>The held edit is marked</b>, and the box under the options offers Run (queued after this run, with its band) or Reset. Run 1's values stay the ones shown until Run 2 lands: the runs list says which run is shown.",
         "<b>The weight in its third state</b>: the patents have no numeric edge column, and the state line says so.",
@@ -643,7 +648,7 @@ frame(
     [
         "<b>Not run, with Run and its band</b>: the analyst undid the sampled run while it ran, which canceled it, then pressed Redo. Redo brings the run back unrun and never starts work by itself. With no date yet, its name is its measure and settings.",
         f"<b>The band shows before Run</b>, because the estimate ({SAMPLED['seconds']} s in the element's model) is past the 10 s background line. The seed is recorded so the sample can be reproduced.",
-        "<b>Options apply at once and run nothing</b> on a run that has never run. Compare with... and Show as style layer wait for a value.",
+        "<b>Options apply at once and run nothing</b> on a run that has never run. Compare with another run... and Show as style layer wait for a value.",
     ],
 )
 
@@ -678,11 +683,11 @@ SB_FIRST_LOOSE = next(k for k, r in enumerate(SB_RANGES) if "-" in r)
 SB_STABLE = f"Ranks below #{SB_FIRST_LOOSE} may swap between runs."
 SB_TIP = (f"Estimated from {SBV['k']} randomly chosen sources, seed {SBV['seed']}, not from every node. "
           f"Each value is within &plusmn; {SB_EPS} of the exact value in 95 runs out of 100.")
-SB_READINGS = (
+sb_readings = lambda pin="": (
     top_nodes([{"id": t["id"], "value": t["betweenness"]} for t in SBV["top"][:5]], cit["nodes"] - 5, "betweenness (sampled)",
               ranks=SB_RANGES[:5], fmt=lambda v: f"~{v:.4f}", rank_w=72,
               head='<div class="k-data rp-colhead"><span style="width:72px;flex:none;white-space:nowrap">rank, low-high</span><span class="k-name">patent</span><span class="k-value">estimated</span></div>',
-              after=f'<div class="rp-prose rp-stable">{SB_STABLE}</div>')
+              after=f'<div class="rp-prose rp-stable">{SB_STABLE}</div>', pin=pin)
     + subhead("Distribution", f' <span class="k-secondary">{CN} nodes, estimated</span>')
     + datarow("middle", f'~{SBV["middle"]}') + datarow("highest", f'~{SBV["highest"]}') + datarow("zero", f'~{SBV["estimatedZero"]:,} nodes')
 )
@@ -690,7 +695,7 @@ frame(
     "finished-sampled", "Finished, sampled: rank ranges from the run's own error bound",
     rail() + ri(SB_NAME, RERUN(1, disabled=True),
         stateline(f"on: full graph, {CN} nodes", sec(f'Sampled, {SBV["k"]} sources{tipmark(SB_TIP, "What Sampled means")}. Directed. WebGPU.') + DETAILS("rec-sb", True), W_NONE)
-        + SB_READINGS
+        + sb_readings()
         + options([("Scope", "Full graph"), ("Direction", "Directed"), ("Sample size", str(SBV["k"])), ("Seed", str(SBV["seed"]))])
         + runs([("Run 1", f'{SBV["k"]} sources, {T["sb"]}', "shown")]) + CMP_VERB + tail("")) + MAIN(canvas_cit()) + GI_CIT,
     record("rec-sb", "Betweenness (sampled)", [
@@ -713,6 +718,30 @@ frame(
     ],
 )
 
+
+# 9b. Finished, sampled, a patent selected: its range on every surface
+SB_K = SB_FIRST_LOOSE
+SB_SEL, SB_SEL_R = SBV["top"][SB_K], SB_RANGES[SB_K]
+assert "-" in SB_SEL_R
+frame(
+    "sampled-node", "Finished, sampled, a patent selected: its rank range on every surface",
+    rail() + ri(SB_NAME, RERUN(1, disabled=True),
+        stateline(f"on: full graph, {CN} nodes", sec(f'Sampled, {SBV["k"]} sources{tipmark(SB_TIP, "What Sampled means")}. Directed. WebGPU.') + DETAILS(), W_NONE)
+        + sb_readings(pinline(SB_SEL["id"], SB_SEL_R, CN))
+        + options([("Scope", "Full graph"), ("Direction", "Directed"), ("Sample size", str(SBV["k"])), ("Seed", str(SBV["seed"]))])
+        + runs([("Run 1", f'{SBV["k"]} sources, {T["sb"]}', "shown")]) + CMP_VERB + tail(""))
+    + MAIN(canvas_cit())
+    + node_inspector(SB_SEL["id"], [("category", SB_SEL["category"]), ("granted", str(SB_SEL["grantYear"])), ("citations received", str(SB_SEL["citationsReceived"]))],
+                     nres("sigma", "Betweenness (sampled)", f'~{SB_SEL["betweenness"]:.4f}', f"{SB_SEL_R} of {CN}")),
+    "",
+    f'"{SB_SEL["id"]}, node." In Results, above Top nodes: "{SB_SEL["id"]}: rank {SB_SEL_R.replace("#", "").replace("-", " to ")} of {CN}, show in table, link."',
+    [
+        f"<b>The selected node's place, pinned above the list</b>: '{SB_SEL['id']}: {SB_SEL_R} of {CN}, show in table'. It opens that patent's row in the table. Top nodes stays as it was: the list does not scroll or re-sort to the selection." + cm("ActionRow as a link"),
+        f"<b>One range, every surface</b>: a sampled run never shows a single rank. The pinned line, the inspector's Results row ('{SB_SEL_R} of {CN}'), the table's rank column and Top nodes all read the range the run's own error bound gives (&plusmn; {SB_EPS}); none rounds it to '#{SB_K + 1}'.",
+        "<b>The patent is selected from the table or Find</b>: the citations are past the drawing limit, so nothing is drawn, and the inspector on the right reads the patent as usual.",
+    ],
+)
+
 # 10. Finished, painted (option A)
 BT_BODY = lambda mode, tip=False, back="": (
     stateline("on: full graph, 300 nodes, 3 components", sec(f"{exact(tip)}. Undirected. WebGPU.") + DETAILS(), W_NOT_YET("confidence"))
@@ -728,9 +757,9 @@ frame(
     f'"Betweenness, {T["bt"]}, finished. On full graph, 300 nodes." (polite). The first button in the heading: "All results, Esc."',
     [
         f"<b>The run opens in its place</b>: its heading is its name, '{BT_NAME}', and the back arrow or Esc returns to the list. The inspector on the right keeps reading the selection (here the graph, with the run's new layer in its Style stack)." + cm("ActionIcon in the heading"),
-        "<b>The canvas is the feedback</b>: the run's style layer paints every protein, because every protein has a betweenness value (option A of the open decision; CLAUDE.md, Algorithm Styles). State 11 draws option B.",
-        "<b>The trust check, before any number</b>: scope with counts, 'Exact' with its (i) drawn open, edge reading, engine, then the weight in the words decided after round 3: 'Weight: confidence, not used yet. Change...'. Round 1 praised this line more than any other." + cm("InfoCircle, Tooltip"),
-        "<b>Top nodes first, with the tie line stated</b>: 'Every step in the top 5 is over the 1% tie line; the smallest, ranks 3 and 4, is 1.2%.' The element reports it and the app prints it; the 1% is the owner's call. Equal values share a rank (the 10 at zero, '291=').",
+        "<b>The canvas is the feedback</b>: the run's style layer paints every protein, because every protein has a betweenness value (option A of the open decision; CLAUDE.md, Algorithm Styles). The next state draws option B.",
+        "<b>The trust check, before any number</b>: scope with counts, 'Exact' with its (i) drawn open, edge reading, engine, then the weight the run used, as a fact with no link: 'Weight: none for this run.' (a column's meaning as a weight is asked by each run, never set on the data). Round 1 praised this line more than any other." + cm("InfoCircle, Tooltip"),
+        "<b>Top nodes first, with no tie rule</b>: an exact run marks a shared rank with '=' only when values are equal at the precision shown (the 10 at zero, '291='). No fixed near-tie percentage is drawn: it is not a property of the data, and readers took it for rounding.",
         "<b>'Re-run (keeps Run 1)' is quiet until an option changes</b>: the run is current. Its label says the earlier run stays, so a second run never reads as an overwrite.",
     ],
 )
@@ -748,7 +777,7 @@ frame(
     ],
 )
 
-PR2_DONE = row(PR2_NAME, trail=f'<span class="k-icon-btn rp-focus" aria-label="Compare with..." aria-haspopup="menu" aria-expanded="true" id="a-cmp">{i("git-compare-arrows")}</span>', hover=True)
+PR2_DONE = row(PR2_NAME, trail=f'<span class="k-icon-btn rp-focus" aria-label="Compare with another run..." aria-haspopup="menu" aria-expanded="true" id="a-cmp">{i("git-compare-arrows")}</span>', hover=True)
 CMP_MENU = (
     '<div class="k-menu rp-cmpmenu" data-anchor="#a-cmp" data-dy="-8" role="menu" aria-label="Compare PageRank, damping 0.5 with">'
     '<div class="k-menu-label">Earlier runs of PageRank</div>'
@@ -759,13 +788,14 @@ CMP_MENU = (
     '<div class="k-menu-item"><span class="k-check-col"></span>The same run on another data version...</div></div>'
 )
 frame(
-    "compare-with", "Compare with...: earlier runs of the same measure come first",
+    "compare-with", "Compare with another run...: earlier runs of the same measure come first",
     rail() + PLACE_CIT([PR2_DONE, PR1_ROW, SAMPLED_ROW, WCC]) + MAIN(canvas_cit()) + GI_CIT,
     CMP_MENU,
     f'"Compare PageRank, damping 0.5, with, menu. Earlier runs of PageRank. {PR1_NAME}, 1 of 3."',
     [
-        "<b>The run you most likely mean is first</b>: Compare with... on a run lists earlier runs of the same measure, newest first, then the other runs on this graph, then another data version. In the study it listed only other measures, and everyone comparing two PageRank settings looked for the first run and could not find it." + cm("Menu with labels"),
+        "<b>The run you most likely mean is first</b>: Compare with another run... on a run lists earlier runs of the same measure, newest first, then the other runs on this graph, then another data version. In the study it listed only other measures, and everyone comparing two PageRank settings looked for the first run and could not find it." + cm("Menu with labels"),
         "<b>Each entry is a run's full name</b>, so two PageRank runs are told apart by the option that differs, and the comparison names its two sides the same way ('damping 0.5' against 'damping 0.85'), never 'PageRank' against 'PageRank'.",
+        "<b>The command says it compares runs</b>: 'Compare with another run...'. On the task asking how the biggest group differs from the rest, 7 of 16 opened the run's 'Compare with...' first; a group against the rest is on the group's own panel (its row selects it; see the Louvain table state).",
         "<b>The same menu opens from the opened run</b>, under its runs list. A row's Compare button shows on hover and on keyboard focus; Shift+F10 opens the row's menu too.",
     ],
 )
@@ -776,12 +806,6 @@ LV = ppi["louvain"]
 TP_LV = LV["community"]["TP53"]
 TP_LV_SIZE = next(g["size"] for g in LV["groups"] if g["community"] == TP_LV)
 TP_CL_RANK = 1 + sum(x["value"] > CL["tp53"]["closeness"] for x in CL["top"])
-RANK = lambda r: f'<span class="k-secondary k-num rp-rank">{r}</span>'
-nres = lambda icon, name, value, rank="", hover=False, mark="": (
-    f'<li class="k-item rp-nres" role="treeitem"{" data-hover" if hover else ""}>{i(icon)}<span class="k-ellipsis">{name}</span>'
-    f'<span class="k-trail">{mark}</span></li>'
-    f'<li class="rp-line rp-nval" role="none"><span class="k-num">{value}</span>{RANK(rank) if rank else ""}</li>'
-)
 TP_RESULTS = (
     '<section class="k-section"><div class="k-section-head">Results <span class="k-count k-num">4</span></div>'
     '<ul class="k-list" role="tree" aria-label="Results for TP53">'
@@ -816,7 +840,7 @@ frame(
     [
         "<b>A node's results sit with its appearance</b>, in the one inspector: Attributes, Appearance (the whole stack, the rows that paint TP53 marked with the property each wins), then Results, one row per run with TP53's value and its rank 'of 300'. These are facts about the node, so they stay on it; the list of runs is the Results place on the left." + cm("ActionRow with value and rank in the right section"),
         "<b>Each kind of result says what it has for this node</b>: a measure its value and rank, a partition the node's group and its size, a path where the node sits on it. The rank cue 'of 300' is kept: every round-1 participant trusted it.",
-        "<b>The out-of-date mark follows the value</b> wherever it is read: the path used confidence as a distance before the answer changed, so its row carries the same mark as in the needs-action strip (state 17; interaction-pattern-entries 7.2).",
+        "<b>The out-of-date mark follows the value</b> wherever it is read: the path used confidence as a distance before the answer changed, so its row carries the same mark as in the needs-action strip (the out-of-date state; interaction-pattern-entries 7.2).",
         "<b>A row opens its run in Results</b>: the Results place opens on that run (the finished state reads it), and TP53 stays selected in the inspector. The runs themselves are listed once, on the left; the right panel only reads what they say about TP53.",
     ],
 )
@@ -898,7 +922,7 @@ LV_LEGEND = (
 dens = lambda d: "not defined" if d is None else f"{d:.3f}"
 fmt_lfc = lambda v: f"{v:+.2f}".replace("+0.00", "0.00")
 LV_ROWS = "".join(
-    f'<tr><td><span class="k-chit" style="background:{lv_color(g["community"])}"></span> Community {g["community"]}</td><td class="k-n">{g["size"]}</td>'
+    f'<tr{" aria-selected=" + chr(34) + "true" + chr(34) + " data-focus-ring" if g["community"] == 1 else ""}><td><span class="k-chit" style="background:{lv_color(g["community"])}"></span> Community {g["community"]}</td><td class="k-n">{g["size"]}</td>'
     f'<td class="k-n">{g["edgesInside"]}</td><td class="k-n">{g["edgesOut"]}</td>'
     f'<td class="k-n">{dens(g["density"])}</td>'
     f'<td class="k-n">{fmt_lfc(g["meanLog2FoldChange"])} <span class="k-secondary">vs {fmt_lfc(g["meanLog2FoldChangeRest"])}</span></td>'
@@ -945,24 +969,59 @@ frame(
     f'"Louvain finished. On full graph, 300 nodes. {LV["communities"]} communities, modularity {LV["modularity"]}."',
     [
         "<b>What the run found, first</b>: modularity with the file's own modules' beside it (0.663 against 0.716, so a detected grouping is never read as the imported one), the largest group and the single proteins; 'Communities table' opens its items (the next state)." + cm("DataRow, Anchor"),
-        "<b>The weight used, in the decided words</b>: 'Weight: confidence, used as similarity. Change...'. It replaces round 2's '(your answer)', which round 3 readers who had never seen the question could not place (proposed key <code>graphty.weight.used</code>). 'Seeded' with its (i) takes the place of 'Exact'." + cm("InfoCircle"),
+        "<b>The weight used, in the decided words</b>: 'Weight: confidence, used as similarity.' To use another meaning, re-run: the new run sits beside this one. It replaces round 2's '(your answer)', which round 3 readers who had never seen the question could not place (proposed key <code>graphty.weight.used</code>). 'Seeded' with its (i) takes the place of 'Exact'." + cm("InfoCircle"),
         "<b>The engine is named honestly</b>: Louvain has no WebGPU kernel in the element today, so the state line names the CPU, and the record says why.",
         "<b>The run record</b>: method, seed, damping, normalization and weight conversion, then Louvain's numbering rule, then how long it took, which is kept here and never used as the run's name.",
     ],
 )
 
+
+C1 = G[0]
+GROUP_INSPECTOR = (
+    f'<aside class="k-right" aria-label="Inspector">{HEAD2}'
+    f'<div class="k-typerow">{i("group")}<span class="k-name">Community {C1["community"]}</span><span class="k-secondary">Group, Louvain</span></div>'
+    '<div class="k-scroll">'
+    + style_stack([(LV_CHIP, "Louvain color"), (SIZE_CHIP, "Size: degree")], wins={"Louvain color": "color", "Size: degree": "size"})
+    + f'<section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">{C1["size"]}</span></div>'
+    + datarow("hub", f'{C1["hub"]} <span class="k-secondary">degree {C1["hubDegree"]}</span>')
+    + datarow("module", f'{C1["mostFromModule"]} <span class="k-secondary">{C1["fromThatModule"]} of {C1["size"]}</span>')
+    + f'<div class="k-row rp-verb" role="button">{i("table", "k-secondary")}<span class="k-grow">Show members in table</span></div></section>'
+    + f'<section class="k-section"><div class="k-row rp-verb" role="button">{i("git-compare-arrows", "k-secondary")}<span class="k-grow">Compare with the rest</span></div></section>'
+    + "</div></aside>"
+)
+C1_MEMBERS = set(C1["members"])
+assert len(C1_MEMBERS) == C1["size"]
+for theme, (inner, outer) in (("light", ("#FFFFFF", "#1A1A1A")), ("dark", ("#1A1A1A", "#FFFFFF"))):
+    src = open(os.path.join(P, f"screens/img/results-panel-louvain-{theme}.svg")).read()
+    k = [0, 0]
+
+    def mark(m):
+        name = LV_NAMES[k[0]]
+        k[0] += 1
+        if name not in C1_MEMBERS:
+            return m.group(0)
+        k[1] += 1
+        x, y, r = m.group(1), m.group(2), float(m.group(3))
+        c = lambda rr, col: f'<circle cx="{x}" cy="{y}" r="{rr:.1f}" fill="none" stroke="{col}" stroke-width="2"/>'
+        return m.group(0) + c(r + 1, inner) + c(r + 3, outer)
+
+    out = re.sub(r'<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" fill="#[0-9A-Fa-f]{6}"/>', mark, src)
+    assert k == [ppi["nodes"], C1["size"]], k
+    out = out.replace('aria-label="Proteins colored by Louvain community, sized by degree"', f'aria-label="Proteins colored by Louvain community, sized by degree; {C1["size"]} proteins of Community 1 selected"', 1)
+    open(os.path.join(P, f"screens/img/results-panel-louvain-c1-{theme}.svg"), "w").write(out)
+
 # 15. Louvain's groups as a tab in the table dock
 frame(
-    "louvain-table", "A result's items open as a tab in the table: one row per community",
-    rail() + RI_PPI(LV_NAME, RERUN(1, disabled=True), LV_BODY(focus_link=True), icon="group")
-    + '<main class="k-main">' + LV_CANVAS + LV_DOCK + "</main>" + LV_GI,
+    "louvain-table", "A result's items open as a tab in the table: a community row selects its group",
+    rail() + RI_PPI(LV_NAME, RERUN(1, disabled=True), LV_BODY().replace(" rp-focus", ""), icon="group")
+    + '<main class="k-main">' + LV_CANVAS.replace("results-panel-louvain-", "results-panel-louvain-c1-") + LV_DOCK + "</main>" + GROUP_INSPECTOR,
     "",
-    '"Table, Communities: Louvain, sorted by size, descending. 10 rows. Community 1, 62 proteins." Focus lands on the first row.',
+    '"Table, Communities: Louvain, sorted by size, descending. 10 rows. Community 1, 62 proteins, selected." Enter or a click selects the row\'s proteins; focus stays on the row, and the arrow keys move to the next community.',
     [
         "<b>Items open in the dock, never in Results or the inspector</b>: the result's own tab, named by its kind and result, one row per community with size, edges inside and out, density, a data column's mean against the rest, the hub and the file's module most members carry (information-architecture 3, Items and Table tabs). Opening another result's items replaces this tab." + cm("Table, Tabs"),
         "<b>Detected is never read as imported</b>: the module column is headed 'from the file' and counts how many members carry it ('56 of 62').",
         "<b>A density a group cannot have is written out</b> ('not defined' for a single protein).",
-        "Selecting a row selects that community's proteins on the canvas, and the inspector then reads that selection.",
+        f"<b>A community row selects its group, on a click or Enter</b>: its {C1['size']} proteins take the selection ring on the canvas, and the inspector reads the group: Appearance, Members, Compare with the rest. Focus stays on the row, so the reader can arrow through the communities and watch each one light up." + cm("Table row selection"),
     ],
 )
 
@@ -1005,7 +1064,7 @@ frame(
            '<img class="k-dark-only" src="../kit/canvas/lesmis-step1-dark.svg" alt="Les Miserables filtered to degree 2 or more"></div>'
            + LM_GROUP_LEGEND + f'<div class="k-toolbar-dock">{TOOLBAR}</div>{HELP}</div>')
     + gi(LM["frame"]["graphRow"], [("nodes", f"{LM_N} of {LM_ALL}"), ("edges", f'{LM_STEP["edges"]} of {LM["edges"]}'), ("components", LM_STEP["components"]), ("density", LM_STEP["density"])],
-         [("edges", "undirected; value, not used yet")], [(STACK(["#D55E00", "#009E73", "#56B4E9", "#E69F00"]), "Group color"), (RAMP_CHIP, "Betweenness color")], off=("Betweenness color",)),
+         [("edges", "undirected; value: each run that uses it asks what it means")], [(STACK(["#D55E00", "#009E73", "#56B4E9", "#E69F00"]), "Group color"), (RAMP_CHIP, "Betweenness color")], off=("Betweenness color",)),
     record("rec-lm", "Betweenness", [
         ("Method", "Brandes betweenness, exact: every node is a source"),
         ("Seed", '<span class="k-secondary">None: nothing is sampled</span>'),
@@ -1022,6 +1081,71 @@ frame(
         f"<b>The record keeps the scope</b>: the normalization's n is the filtered graph's {LM_N}, and the record names the step that made it. Turning the step off later does not make this result out of date; it keeps its scope (glossary 10, Out of date).",
         "<b>The analyst kept Group color on the canvas</b>, so the run's layer is kept with its eye closed and reads 'not shown'; the ranking is read here and in the table.",
         f"<b>Ties share a rank</b>: the {LM_ZERO} characters with no betweenness all rank {LM_N - LM_ZERO + 1}=.",
+    ],
+)
+
+
+# 16b. Les Miserables on the full graph, Valjean selected: the pinned line
+LMR = LM["rows"]
+assert len(LMR) == LM_ALL
+LMF_RANK = dict(zip((r["label"] for r in LMR), shared_ranks([r["betweenness"] for r in LMR])))
+LMD_RANK = dict(zip((r["label"] for r in LMR), shared_ranks([r["degree"] for r in LMR])))
+LMS_RANK = dict(zip((r["label"] for r in LM_ROWS), shared_ranks([r["betweenness"] for r in LM_ROWS])))
+VJ = next(r for r in LMR if r["label"] == "Valjean")
+LMF_TOP = [{"id": r["label"], "value": r["betweenness"]} for r in LM["topByBetweenness"][:5]]
+LMF_NAME = RN("Betweenness", T["lmf"])
+LMF_BODY = lambda focus=False: (
+    stateline(f'on: full graph, {LM_ALL} nodes, {LM["stats"]["components"]} component', sec(f"{EXACT}. Undirected. WebGPU.") + DETAILS(), W_NOT_YET("value"))
+    + top_nodes(LMF_TOP, LM_ALL - 5, "betweenness", fmt=lambda v: f"{v:.3f}", pin=pinline("Valjean", f'#{LMF_RANK["Valjean"]}', LM_ALL, focus))
+    + options([("Scope", "Full graph"), ("Weight", "None for this run")])
+    + runs([("Run 2", f'full graph, {T["lmf"]}', "shown"), ("Run 1", f'on {LM_N} of {LM_ALL}, {T["lm"]}', "")])
+    + CMP_VERB + appearance("Betweenness color", mode="off") + tail("")
+)
+LM_GROUP_CHIP = STACK(["#D55E00", "#009E73", "#56B4E9", "#E69F00"])
+VJ_INSPECTOR = node_inspector(
+    "Valjean", [("group", str(VJ["group"])), ("degree", f'{VJ["degree"]} <span class="k-secondary">#{LMD_RANK["Valjean"]} of {LM_ALL}</span>')],
+    nres("sigma", LMF_NAME, f'{VJ["betweenness"]:.3f}', f'#{LMF_RANK["Valjean"]} of {LM_ALL}')
+    + nres("sigma", LM_NAME, f'{next(r["betweenness"] for r in LM_ROWS if r["label"] == "Valjean"):.3f}', f'#{LMS_RANK["Valjean"]} of {LM_N}'),
+    style_stack([(LM_GROUP_CHIP, "Group color"), (RAMP_CHIP, "Betweenness color")], wins={"Group color": "color"}, off=("Betweenness color",)),
+)
+LMF_CANVAS = lambda: (
+    '<div class="k-canvas"><div class="k-stage"><img class="k-light-only" src="../kit/canvas/lesmis-groups-valjean-light.svg" alt="Les Miserables colored by group, sized by degree, Valjean selected">'
+    '<img class="k-dark-only" src="../kit/canvas/lesmis-groups-valjean-dark.svg" alt="Les Miserables colored by group, sized by degree, Valjean selected"></div>'
+    + LM_GROUP_LEGEND + f'<div class="k-toolbar-dock">{TOOLBAR}</div>{HELP}</div>'
+)
+LMP = lambda body: ri(LMF_NAME, RERUN(2, disabled=True), body, project=LM["frame"]["project"])
+frame(
+    "node-in-run", "A node selected with a run open: its place pinned above Top nodes",
+    rail() + LMP(LMF_BODY(focus=True)) + MAIN(LMF_CANVAS()) + VJ_INSPECTOR,
+    "",
+    f'"Valjean, node." In Results, above Top nodes: "Valjean: rank {LMF_RANK["Valjean"]} of {LM_ALL}, show in table, link." The list below is read as before, from rank 1.',
+    [
+        f"<b>One pinned line answers 'where does this node place?'</b>: 'Valjean: #{LMF_RANK['Valjean']} of {LM_ALL}, show in table', above Top nodes, only while a node is selected. In the study most people looking for Valjean's score opened this run's Top nodes first and found him only because he is first; the line puts any selected node there, and 'show in table' opens that node's row." + cm("ActionRow as a link"),
+        "<b>Top nodes stays</b>: finding the top five was the task everyone did directly, so the list is unchanged, and it does not scroll or re-sort to the selected node. The line is the only thing that follows the selection.",
+        f"<b>Scope in every name</b>: the inspector lists both runs, each with its scope ('#{LMF_RANK['Valjean']} of {LM_ALL}' on the full graph, '#{LMS_RANK['Valjean']} of {LM_N}' on the filtered one), so 0.570 and 0.419 are never read as one number.",
+        "<b>Exact runs give one rank</b>; a sampled run gives the range in the same slot (the sampled state).",
+    ],
+)
+LMF_TABLE_ROWS = "".join(
+    f'<tr{" aria-selected=" + chr(34) + "true" + chr(34) + " data-focus-ring" if r["label"] == "Valjean" else ""}><td class="k-id">{r["label"]}</td><td>{r["group"]}</td><td class="k-n">{r["degree"]}</td>'
+    f'<td class="k-n">{r["betweenness"]:.3f}</td><td class="k-n">#{LMF_RANK[r["label"]]}</td></tr>'
+    for r in sorted(LMR, key=lambda x: -x["betweenness"])[:14]
+)
+LMF_DOCK = dock(
+    ["Nodes", "Edges"], f"Full graph: {LM_ALL} nodes. Sorted by betweenness, highest first. Valjean's row selected.",
+    th("label") + th("group", "from the file") + th("degree", f'1 to {LM["stats"]["maxDegree"]}', n=True)
+    + th("betweenness", "exact, full graph", n=True, sort="descending") + th("betweenness rank", f"of {LM_ALL}, ties share", n=True),
+    LMF_TABLE_ROWS,
+)
+frame(
+    "node-row", "Show in table: the selected node's row, in the run's order",
+    rail() + LMP(LMF_BODY()) + '<main class="k-main">' + LMF_CANVAS() + LMF_DOCK + "</main>" + VJ_INSPECTOR,
+    "",
+    f'"Table, Nodes, sorted by betweenness, descending. Valjean, rank {LMF_RANK["Valjean"]} of {LM_ALL}, selected." Focus moves to Valjean\'s row; Valjean stays selected.',
+    [
+        "<b>'Show in table' opens the node's own row</b>: the Nodes tab, sorted by this run's column, scrolled to the selected node, with focus on its row. Here Valjean is first; a node ranked 40th opens at row 40, with the rows around it.",
+        "<b>The run stays open in Results</b> and the selection does not change, so the reader can go back to the list without losing the node.",
+        "<b>The rank column keeps 'of 77' and 'ties share'</b>, the same words as the pinned line and the inspector.",
     ],
 )
 
@@ -1130,16 +1254,16 @@ INFO = (
     f'the {CL["zeros"]} isolated proteins score 0 either way. Without it, a node in a small piece can outscore a hub.</div>'
 )
 frame(
-    "variant", "Closeness names its variant on a graph in 3 pieces, and says which ranks are tied",
+    "variant", "Closeness names its variant on a graph in 3 pieces",
     rail() + RI_PPI(CL_NAME, RERUN(1, disabled=True), CL_BODY)
     + MAIN(canvas_ppi("closeness", "Proteins colored by closeness, sized by degree, 12 hubs labeled", CL_LEGEND)) + GI_PPI([(RAMP_CHIP, "Closeness (WF-corrected) color"), (SIZE_CHIP, "Size: degree")]),
     INFO,
-    '"Closeness, WF-corrected, Sep 28 09:20. Variant: Wasserman-Faust corrected." Under Top nodes: "Ranks 3 and 4 differ by less than 0.2%, under the 1% tie line; treat them as tied."',
+    '"Closeness, WF-corrected, Sep 28 09:20. Variant: Wasserman-Faust corrected."',
     [
         "<b>The variant is part of the name</b> wherever the value is read: the run's row and heading in Results, the table column, the legend, the catalog (principles 1, 'The variant is part of the name'; graph-conventions 2, Closeness). Not a warning, and nothing asks before the run: it is a corrected default. The run's name wraps in the heading rather than truncating.",
         f"<b>What the correction does here, honestly</b>: each score is multiplied by the share of the other proteins its node reaches. The main component reaches {CL['mainComponentReach']} of {CL['others']}, so its scores drop by under 1% (MAPK1 {CL['topUncorrected'][0]['value']:.4f} uncorrected, {CL['top'][0]['value']:.4f} corrected) and no rank changes; GSK3B and NOTCH1 score 0 either way.",
         "<b>The definition is an (i), not a menu</b>, drawn open. The alternative is a plain command, 'Run harmonic centrality' (a sibling result, glossary 9), which would give MAPK1 " + f"{CL['harmonicTop'][0]['value']:.4f}." + cm("InfoCircle; ActionRow"),
-        "<b>A near-tie said in words, with its line stated</b>: AKT1 (0.4086) and UBC (0.4080) differ by 0.15%, so 'Ranks 3 and 4 differ by less than 0.2%, under the 1% tie line; treat them as tied.' With Top nodes first it is in view without scrolling (round 3 found it below the fold). The element reports it; the threshold is the owner's call." + cm("ProseBlock"),
+        "<b>Close values keep their own ranks</b>: AKT1 (0.4086) and UBC (0.4080) differ at the precision shown, so they are ranks 3 and 4, with no '=' and no near-tie sentence. An exact run has no error bound to draw a range from." + cm("ProseBlock"),
     ],
     alias="variant-ties",
 )
@@ -1214,6 +1338,7 @@ CSS = """
   .rp-held { margin: 4px 8px 4px 16px; padding: 6px 8px; border-radius: 5px; background: var(--cm-bg-secondary); line-height: 16px; }
   .rp-held-cmds { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
   .rp-verb { color: var(--cm-text); }
+  .k-result[aria-disabled="true"] { color: var(--cm-text-disabled, var(--cm-text-tertiary)); }
   .rp-verb[aria-disabled="true"] { color: var(--cm-text-disabled, var(--cm-text-tertiary)); }
   .rp-off .k-ellipsis { color: var(--cm-text-secondary); }
   .rp-hist { height: 48px; }
@@ -1256,6 +1381,7 @@ CSS = """
   .rp-topwins { padding: 2px 8px 0 16px; font-size: 11px; }
   .rp-pathchip { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--cm-text); flex: none; }
   .rp-nval { padding-top: 0; margin-top: -6px; }
+  .rp-pin { height: auto; min-height: 28px; background: var(--cm-bg-secondary); margin: 0 8px 4px 8px; border-radius: 5px; }
   .rp-rank { min-width: 0; }
   .rp-run .k-value { color: var(--cm-text); }
   .k-data.rp-run .k-value { flex: 1 1 auto; min-width: 0; white-space: normal; text-align: end; }

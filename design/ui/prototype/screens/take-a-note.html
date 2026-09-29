@@ -8,8 +8,8 @@
 <link rel="stylesheet" href="../kit/cm.css">
 <link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
 <style>
-  /* States: one full app per state; the address fragment (#s1 to #s8) picks one, #s1 by default.
-     #s1a to #s8a show the same state with the design notes on. No script. */
+  /* States: one full app per state; the address fragment (#s1 to #s9) picks one, #s1 by default.
+     #s1a to #s9a show the same state with the design notes on. No script. */
   body { overflow: hidden; }
   .st { display: none; position: relative; width: 100vw; height: 100vh; }
   .st:target, .st:has(:target) { display: block; }
@@ -30,7 +30,8 @@
   body:has(#s5:target, #s5a:target) .sw a[href="#s5"],
   body:has(#s6:target, #s6a:target) .sw a[href="#s6"],
   body:has(#s7:target, #s7a:target) .sw a[href="#s7"],
-  body:has(#s8:target, #s8a:target) .sw a[href="#s8"] { background: var(--k-annot); color: #fff; font-weight: 600; }
+  body:has(#s8:target, #s8a:target) .sw a[href="#s8"],
+  body:has(#s9:target, #s9a:target) .sw a[href="#s9"] { background: var(--k-annot); color: #fff; font-weight: 600; }
 
   .an { display: none; }
   body:has(#annot:checked) .an, .st:has(.aon:target) .an { display: block; }
@@ -62,7 +63,6 @@
   .nt-meta { display: flex; gap: 4px; align-items: center; color: var(--cm-text-secondary); }
   .nt-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .tr2 { display: flex; flex-direction: column; line-height: 16px; min-width: 0; white-space: nowrap; }
-  .k-avatar.sm { width: 16px; height: 16px; font-size: 9px; }
   .nt-state { color: var(--cm-text); font-weight: 550; }
   .nt-verb { color: var(--cm-text-brand); }
 
@@ -73,6 +73,8 @@
   .qp-group { padding: 6px 8px 2px; }
   .qp-opt { display: flex; gap: 8px; align-items: center; height: 24px; padding: 0 8px; }
   .qp-opt[aria-selected="true"] { background: var(--cm-bg-selected); }
+  .x-name { width: 400px; }
+  .x-name-help { padding: 4px 16px 0; font-size: 11px; line-height: 16px; }
   .qp-foot { padding: 4px 8px 2px; border-top: 1px solid var(--cm-border); margin-top: 4px; }
 
   /* Note marker on the canvas: a callout in note ink (the canvas ink), never a data color */
@@ -85,7 +87,7 @@
 <body>
 
 <nav class="sw" aria-label="States of this mock">
-  <a href="#s1">1 Add note</a><a href="#s2">2 Writing</a><a href="#s3">3 Added</a><a href="#s4">4 Member note</a><a href="#s5">5 Next session</a><a href="#s6">6 Graph note</a><a href="#s7">7 Result note</a><a href="#s8">8 After new data</a>
+  <a href="#s1">1 Add note</a><a href="#s2">2 Writing</a><a href="#s3">3 Added</a><a href="#s4">4 Member note</a><a href="#s5">5 Next session</a><a href="#s6">6 Graph note</a><a href="#s7">7 Result note</a><a href="#s8">8 After new data</a><a href="#s9">9 Your name</a>
   <label><input type="checkbox" id="annot">Design notes</label>
 </nav>
 
@@ -123,7 +125,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -156,7 +158,7 @@
   </aside>
 </div>
 <div class="k-menu" style="left:1196px;top:132px;width:232px" role="menu">
-  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Compare with...</div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Compare with the rest</div>
   <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Collapse</div>
   <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Hide on canvas</div>
   <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Run layout</div>
@@ -230,7 +232,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -267,7 +269,7 @@
   <div class="k-annot-note" style="left:330px;top:70px"><b>Written where it will be read.</b> The Note editor opens beside its targets, as Figma's comment composer opens at its pin and its thread opens in the same spot. It never covers them. interaction-patterns.md 2, note [c]; proposed for writing too (framework-changes.md). compact-mantine <b>PopoutPanel</b>.</div>
   <span class="k-annot-box" style="left:918px;top:194px;width:256px;height:26px"></span>
   <div class="k-annot-note" style="left:330px;top:250px"><b>About line first.</b> "About Mule ring, 14 accounts" is on screen before a word is typed, so a note meant for the set cannot land on the graph unseen. The wording is the proposed message graphty.note.about.</div>
-  <div class="k-annot-note" style="left:1210px;top:236px"><b>Enter makes a new line; Ctrl+Enter adds</b> (Cmd+Enter on a Mac), said under the box, so a paragraph break never posts a half-written note. <b>Saving as: Marcus</b> is the project's author setting as given, blank if none is set. It appears in the editor only; Change... opens the setting.</div>
+  <div class="k-annot-note" style="left:1210px;top:236px"><b>Enter makes a new line; Ctrl+Enter adds</b> (Cmd+Enter on a Mac), said under the box, so a paragraph break never posts a half-written note. <b>Saving as: Marcus</b> is the author setting as given; with none set it reads "Saving as: no name". It is on every note being written or edited (states 2, 4 and 6), and only there. Change... opens the setting (state 9).</div>
   <div class="k-annot-note" style="left:1210px;top:420px"><b>The writer added this citation</b> with Cite a run... (states 4 and 6 show it unused); nothing is cited for him. Its chip carries the run's settings, so the note says which PageRank it means; a click opens the run's details.</div>
   <div class="k-annot-note" style="left:330px;top:390px"><b>Nothing exists yet.</b> No undo entry until the first text is committed; Esc on an empty note leaves nothing. interaction-pattern-entries.md 6.1. Mantine <b>Textarea</b>.</div>
   <div class="k-annot-note" style="left:1210px;top:580px"><b>The selection is untouched.</b> The inspector still shows Mule ring; the note has no Notes row until it is added. interface-specification.md 3.</div>
@@ -279,6 +281,7 @@
 <!-- ============================ 3 Added ============================ -->
 <section class="st" id="s3"><i class="aon" id="s3a"></i>
 <div class="k-app">
+  <div class="k-sr" role="status">Note added to Mule ring. Ctrl+Z removes it.</div>
   <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
   <aside class="k-panel" aria-label="Graph">
     <div class="k-panel-head">
@@ -308,7 +311,7 @@
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
           <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
-          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 pagerank 0.000551</span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
           
         </div>
         
@@ -321,7 +324,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -360,8 +363,8 @@
 </div>
 
 <div class="an">
-  <div class="k-annot-note" style="left:330px;top:70px"><b>Added: one undo entry, "Add note".</b> Ctrl+Enter (Cmd+Enter on a Mac) or Add committed it; the editor stays open on the posted note. The note records Marcus as its author, but no row or byline names him: every note in this project is by one person. No notice: the note is already on screen. interaction-pattern-entries.md 6.1.</div>
-  <div class="k-annot-note" style="left:330px;top:190px"><b>Note marker</b> in note ink at its targets, drawn by graphty-element, never a data color. canvas-drawing.md 6 and 12. Shown while Note markers is on.</div>
+  <div class="k-annot-note" style="left:330px;top:70px"><b>Added: one undo entry, "Add note".</b> Ctrl+Enter (Cmd+Enter on a Mac) or Add committed it; the editor stays open on the posted note. The note records Marcus as its author, but no row or byline names him: every note in this project is by one person. No notice: the note is already on screen. A screen reader is not left in silence: a polite announcement says "Note added to Mule ring. Ctrl+Z removes it.", as every other commit and undo is spoken, and focus stays in the editor on the posted note. interaction-pattern-entries.md 6.1.</div>
+  <div class="k-annot-note" style="left:330px;top:352px"><b>Note marker</b> in note ink at its targets, drawn by graphty-element, never a data color. canvas-drawing.md 6 and 12. Shown while Note markers is on.</div>
   <span class="k-annot-box" style="left:1202px;top:572px;width:234px;height:108px"></span>
   <div class="k-annot-note" style="left:930px;top:640px"><b>Notes section:</b> appears once a note targets the set; rows clamped to two lines, and "+" opens a new note beside the set. It lists; it is not where a note is written. interface-specification.md 3. <b>Tree</b> rows.</div>
 </div>
@@ -413,7 +416,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -535,7 +538,7 @@
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
           <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
-          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 pagerank 0.000551</span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
           
         </div>
         
@@ -548,7 +551,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -621,7 +624,7 @@
           <div class="nt-text" data-focus>March export from the card platform. Transfers under $10 are cut upstream.<span class="nt-caret"></span></div>
           <div class="nt-hint k-tertiary">Enter, new line. Ctrl+Enter adds the note.</div>
           <div class="nt-line"><span class="k-caption">Cites</span><span class="nt-link">Cite a run...</span></div>
-          
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="nt-link">Quote a value...</span></div>
           <div class="nt-foot"><span class="k-secondary k-grow">Saving as: Marcus. <span class="nt-link">Change...</span></span><span class="k-btn">Add</span></div>
         </div>
         
@@ -630,7 +633,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -735,7 +738,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -862,7 +865,7 @@
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
           <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div><div class="nt-sub"><span class="k-warn-glyph">!</span><span class="nt-state">Earlier data</span><span class="nt-verb">Add current value</span></div>
-          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 pagerank 0.000551</span></div><div class="nt-sub"><span class="k-warn-glyph">!</span><span class="nt-now">now <span class="k-num">0.000428</span></span><span class="k-secondary">in April's data</span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div><div class="nt-sub"><span class="k-warn-glyph">!</span><span class="nt-now">now <span class="k-num">0.000428</span></span><span class="k-secondary">in April's data</span></div>
           
         </div>
         
@@ -875,7 +878,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -912,6 +915,105 @@
   <div class="k-annot-note" style="left:330px;top:250px"><b>The cited run is from an earlier data version:</b> "Earlier data", with its one verb, Add current value, which re-cites the April run as one undo entry, "Edit note". glossary.md 10.</div>
   <div class="k-annot-note" style="left:330px;top:400px"><b>The quote is marked:</b> ACC-753261 was 0.000551 when written and is 0.000428 now. In April ACC-946224 ranks highest in the ring (0.000468), so the note's claim needs checking before the report goes out. The mark "now {value}" is proposed (framework-changes.md).</div>
   <div class="k-annot-note" style="left:930px;top:640px"><b>Needs graphty-element:</b> quoted values marked when the live value differs, and citation freshness. element-needs.md, "A notes collection with targets, citations and quoted values marked when the live value differs".</div>
+</div>
+</section>
+
+<!-- ============================ 9 Your name ============================ -->
+<section class="st" id="s9"><i class="aon" id="s9a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">March transfers</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Transfers</span><span class="k-trail k-num">3,000</span></li></ul></section>
+      <section class="k-section"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-ellipsis">Mule ring</span><span class="k-kind">frozen</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">14</span></span></li></ul></section>
+      
+      <section class="k-section" data-collapsed><div class="k-section-head">Views</div></section>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts as density; Mule ring still selected; a new note about ACC-233575 open beside it, and the name dialog over the app">
+        <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts as density; Mule ring still selected; a new note about ACC-233575 open beside it, and the name dialog over the app">
+        <span class="nm" style="position:absolute;left:calc(50.7% + 118px);top:calc(40.8% - 60px)"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span><span class="k-at tgt" style="left:60.8%;top:41.4%"></span>
+      </div>
+      <div class="k-popover ne" style="left:612px;top:358px">
+        <span class="ne-tail" style="top:34px"></span>
+        <div class="k-popover-head">New note<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ne-body">
+          <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-id">About ACC-233575</span></div>
+          <div class="nt-text" data-focus>Highest riskScore in the ring. Request the KYC file before the SAR goes out.<span class="nt-caret"></span></div>
+          <div class="nt-hint k-tertiary">Enter, new line. Ctrl+Enter adds the note.</div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="nt-link">Cite a run...</span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill">riskScore 98</span></div>
+          <div class="nt-foot"><span class="k-secondary k-grow">Saving as: Marcus. <span class="nt-link">Change...</span></span><span class="k-btn">Add</span></div>
+        </div>
+        
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged accounts <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>other accounts, as density<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow tr2"><span class="k-name">Mule ring</span><span class="k-secondary">Frozen set</span></span>
+      <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#users"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">accounts</span><span class="k-big">14</span></div><div class="k-metric"><span class="k-secondary">countries</span><span class="k-big">7</span></div></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">88 to 98</span></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Members <span class="k-count k-num">14</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">ACC-233575</span><span class="k-value">riskScore 98</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">ACC-577269</span><span class="k-value">riskScore 97</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">ACC-782213</span><span class="k-value">riskScore 97</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">ACC-642959</span><span class="k-value">riskScore 96</span></div>
+        <div class="k-data"><span class="k-name k-id" style="color:var(--cm-text)">ACC-753261</span><span class="k-value">riskScore 95</span></div>
+        <div class="k-row k-secondary">9 more</div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Flagged accounts</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-chit" style="background:#D55E00"></span>D55E00</span></div></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-row">
+          <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:42</span></div>
+          <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        </div>
+      </section>
+    </div>
+  </aside>
+</div>
+<div class="k-backdrop" style="position:absolute"><div class="k-modal x-name" role="dialog" aria-label="Your name on notes and recipes">
+  <div class="k-modal-head">Your name on notes and recipes<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="k-fieldrow"><span class="k-legend">Name</span><div class="k-fields"><span class="k-field k-span" data-focus>Marcus Webb<span class="nt-caret"></span></span></div></div>
+    <div class="k-prose x-name-help"><b>Applies to notes you save from now on.</b> Names are never added to earlier notes.</div>
+    <div class="k-prose k-secondary x-name-help">Recorded exactly as typed. Leave blank to record no name.</div>
+  </div>
+  <div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Save</span></div>
+</div></div>
+<div class="an">
+  <div class="k-annot-note" style="left:330px;top:70px;z-index:80"><b>Change... in "Saving as: Marcus"</b> opens the same dialog as Preferences, Your name on notes and recipes (screens/preferences.html). Marcus is adding his surname. The draft stays open behind it with its text.</div>
+  <div class="k-annot-note" style="left:1010px;top:70px;z-index:80"><b>Forward only.</b> Save changes the name on this note and every later one. The ring note Marcus added earlier keeps "Marcus"; a note saved before any name was set stays blank. Nothing offers to put a name on earlier notes. Owner decision (owner-feedback.md): the author is recorded as given, blank if none is set.</div>
+  <div class="k-annot-note" style="left:1010px;top:640px;z-index:80">compact-mantine <b>Modal</b> with a <b>FieldRow</b> + <b>TextInput</b> and <b>ModalFooter</b>, as in Preferences.</div>
 </div>
 </section>
 

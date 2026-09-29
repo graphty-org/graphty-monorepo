@@ -47,11 +47,15 @@
   .fc-step .fc-tail { height: 24px; }
   .fc-rule { min-width: 0; line-height: 16px; padding: 4px 0; }
   .fc-tail { display: flex; align-items: center; margin-left: auto; flex: none; width: 24px; }
-  .fc-count, .fc-note { flex-basis: 100%; padding-left: 20px; line-height: 16px; }
-  .fc-count { color: var(--cm-text); }
-  .fc-note { color: var(--cm-text-secondary); }
+  .fc-count, .fc-note, .fc-scopeline { flex-basis: 100%; padding-left: 20px; line-height: 16px; }
+  .fc-count, .fc-note, .fc-scopeline { color: var(--cm-text); }
   .fc-step[data-off] .fc-count { color: var(--cm-text-secondary); }
-  .fc-step[data-off] .fc-note { display: none; }
+  .fc-step[data-off] .fc-note, .fc-step[data-off] .fc-scopeline { display: none; }
+  /* a run whose scope is not the current filter says so, in body ink */
+  .fc-runs { width: 300px; padding: 4px 0; }
+  .fc-runs .k-item { height: auto; min-height: 32px; }
+  .fc-runline { padding: 0 16px 4px 40px; line-height: 16px; color: var(--cm-text); }
+  .fc-runline .k-btn { margin-top: 6px; }
   /* the chip's mark on a number that follows the chip, only while the chip is not Full graph */
   .fc-fm { color: var(--cm-text); margin-left: 3px; vertical-align: -1px; cursor: help; flex: none; }
   .k-scope .fc-fm, .fc-stat-scope .fc-fm { margin: 0 4px 0 0; }
@@ -75,6 +79,8 @@
   .fc-ed .fc-fields3 { display: grid; grid-template-columns: 88px 48px 1fr; gap: 8px; padding: 0 8px 0 16px; }
   .fc-ed .fc-fields2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 8px 8px 16px; }
   .fc-ed .fc-line { padding: 4px 16px; line-height: 18px; }
+  .fc-ed .k-data .k-name { flex: none; }
+  .fc-ed .k-data .k-value { flex: 1; white-space: normal; }
   .fc-ed .k-seg > * { cursor: pointer; }
   .fc-ed .k-seg > [aria-disabled="true"] { color: var(--cm-text-disabled); cursor: default; }
   .fc-note-add { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; color: var(--cm-text-secondary); }
@@ -165,7 +171,7 @@
   <div class="k-canvas" id="canvas">
     <div class="k-stage"><svg class="fc-cv" id="cv" viewBox="0 0 1200 800" role="img"></svg></div>
     <div class="k-legend-card" id="legend"></div>
-    <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span><span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span></div></div>
+    <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span><span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span></div></div>
     <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
   </div>
   <section class="k-dock" aria-label="Table">
@@ -233,6 +239,9 @@
         <div class="fc-add"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg>Add step</div></div></div>
     </div>
   </div>
+  <h2>A run whose scope is not the current filter says so</h2>
+  <p>A run keeps the graph it ran on. When that is not what the filter chip keeps now, the run says so in its own row, and Re-run names the graph it would use and that the earlier run stays. It follows the steps above: turn a step off and these lines recount.</p>
+  <div class="fc-specs"><div class="fc-route"><h3>Results</h3><div class="fc-box fc-runs"><ul class="k-list" id="runs"></ul></div></div></div>
   <h2>Counts that measure different things</h2>
   <p>When two counts on one screen count different things, each says what it counts. The protein evidence file has one row per pair of proteins and evidence source, so its <span data-fx="datasets.ppiEvidence.edges">2,298</span> rows join only <span data-fx="datasets.ppiEvidence.pairs">1,262</span> distinct pairs. Density and components count pairs; degree counts every row. The edge count carries the pair count beside it only when the two differ: Les Miserables, the 300-protein network and the March transfers never repeat a pair, so there the clause is left out.</p>
   <div class="fc-specs">
@@ -242,7 +251,7 @@
         <div class="k-data"><span class="k-name">Proteins</span><span class="k-value k-num" data-fx="datasets.ppiEvidence.nodes">300</span></div>
         <div class="fc-stat"><span class="fc-sn">Evidence rows</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.edges">2,298</span> (<span class="k-num" data-fx="datasets.ppiEvidence.pairs">1,262</span> distinct pairs)</div>
         <div class="fc-stat"><span class="fc-sn">Density</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.density">0.0281</span>, of the <span class="k-num" data-fx="datasets.ppiEvidence.pairs">1,262</span> distinct pairs</div>
-        <div class="fc-stat"><span class="fc-sn">Average degree</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.averageDegree">15.32</span>, counting every evidence row</div>
+        <div class="fc-stat"><span class="fc-sn">Average degree</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.averageDegree">15.3</span>, counting every evidence row</div>
         <div class="fc-stat"><span class="fc-sn">Components</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.components">3</span>, of the distinct pairs</div>
       </div>
       <p class="fc-cap">Unfiltered, so no row says "of the filtered graph"; the words say what each count counts instead.</p>
@@ -268,7 +277,7 @@
 <script>
 /* Les Miserables co-appearances (graph-io/test/corpus/json/miserables.json): [name, group, x, y, color, labeled],
    positions from kit/canvas/lesmis-groups-rest-*.svg so this drawing matches the kit's. */
-const LESMIS_N=[["Myriel",1,909.6,224.4,"#0072B2",1],["Napoleon",1,991.8,211.2,"#0072B2",0],["Mlle.Baptistine",1,879.6,269.7,"#0072B2",0],["Mme.Magloire",1,850.4,230.9,"#0072B2",0],["CountessdeLo",1,915.9,145.9,"#0072B2",0],["Geborand",1,960.6,176.1,"#0072B2",0],["Champtercier",1,988.2,242.2,"#0072B2",0],["Cravatte",1,951.8,145.6,"#0072B2",0],["Count",1,991.4,178.5,"#0072B2",0],["OldMan",1,870.8,247.3,"#0072B2",0],["Labarre",2,677.5,481.1,"#E69F00",0],["Valjean",2,698.7,394.3,"#E69F00",1],["Marguerite",3,585.1,225.5,"#D55E00",0],["Mme.deR",2,651.7,469.5,"#E69F00",0],["Isabeau",2,668.4,326.2,"#E69F00",0],["Gervais",2,624.2,465.4,"#E69F00",0],["Tholomyes",3,587.2,166.7,"#D55E00",0],["Listolier",3,592.5,119.9,"#D55E00",0],["Fameuil",3,561.6,132.6,"#D55E00",0],["Blacheville",3,617.9,106.3,"#D55E00",0],["Favourite",3,546.4,112.1,"#D55E00",0],["Dahlia",3,567.0,90.8,"#D55E00",0],["Zephine",3,595.8,85.6,"#D55E00",0],["Fantine",3,626.4,181.0,"#D55E00",1],["Mme.Thenardier",4,785.3,352.8,"#009E73",1],["Thenardier",4,789.4,393.1,"#009E73",1],["Cosette",5,587.1,378.9,"#CC79A7",1],["Javert",4,755.4,392.0,"#009E73",1],["Fauchelevent",0,739.9,241.2,"#000000",0],["Bamatabois",2,642.6,349.5,"#E69F00",0],["Perpetue",3,548.3,179.2,"#D55E00",0],["Simplice",2,674.3,294.9,"#E69F00",0],["Scaufflaire",2,699.4,457.8,"#E69F00",0],["Woman1",2,716.9,323.1,"#E69F00",0],["Judge",2,651.4,400.0,"#E69F00",0],["Champmathieu",2,630.5,375.6,"#E69F00",0],["Brevet",2,605.3,385.3,"#E69F00",0],["Chenildieu",2,635.2,425.1,"#E69F00",0],["Cochepaille",2,606.8,415.6,"#E69F00",0],["Pontmercy",4,731.4,371.4,"#009E73",0],["Boulatruelle",6,550.7,572.1,"#505050",0],["Eponine",4,848.0,423.2,"#009E73",1],["Anzelma",4,853.2,355.6,"#009E73",0],["Woman2",5,595.1,314.0,"#CC79A7",0],["MotherInnocent",0,749.2,196.7,"#000000",0],["Gribier",0,752.6,148.9,"#000000",0],["Jondrette",7,1130.0,477.6,"#505050",0],["Mme.Burgon",7,1054.2,497.5,"#505050",0],["Gavroche",8,820.6,539.7,"#56B4E9",1],["Gillenormand",5,557.8,457.8,"#CC79A7",0],["Magnon",5,492.3,435.2,"#CC79A7",0],["Mlle.Gillenormand",5,530.1,404.4,"#CC79A7",0],["Mme.Pontmercy",5,468.2,354.1,"#CC79A7",0],["Mlle.Vaubois",5,426.2,392.9,"#CC79A7",0],["Lt.Gillenormand",5,524.4,445.2,"#CC79A7",0],["Marius",8,750.6,530.6,"#56B4E9",1],["BaronessT",5,530.1,529.3,"#CC79A7",0],["Mabeuf",8,800.4,553.3,"#56B4E9",1],["Enjolras",8,777.8,559.5,"#56B4E9",1],["Combeferre",8,789.9,588.3,"#56B4E9",1],["Prouvaire",8,795.8,635.6,"#56B4E9",0],["Feuilly",8,767.9,611.1,"#56B4E9",1],["Courfeyrac",8,800.4,605.2,"#56B4E9",1],["Bahorel",8,827.3,576.1,"#56B4E9",1],["Bossuet",8,764.2,584.6,"#56B4E9",1],["Joly",8,822.1,597.0,"#56B4E9",1],["Grantaire",8,827.6,627.6,"#56B4E9",0],["MotherPlutarch",0,681.0,714.4,"#000000",0],["Gueulemer",4,820.2,407.9,"#009E73",0],["Babet",4,831.5,385.0,"#009E73",0],["Claquesous",4,793.3,428.6,"#009E73",0],["Montparnasse",4,815.6,446.3,"#009E73",0],["Toussaint",5,559.4,330.6,"#CC79A7",0],["Child1",10,1006.2,572.9,"#505050",0],["Child2",10,990.0,619.7,"#505050",0],["Brujon",4,866.6,438.6,"#009E73",0],["Mme.Hucheloup",8,854.9,597.3,"#56B4E9",0]];
+const LESMIS_N=[["Myriel",1,909.6,224.4,"#0072B2",1],["Napoleon",1,991.8,211.2,"#0072B2",0],["Mlle.Baptistine",1,879.6,269.7,"#0072B2",0],["Mme.Magloire",1,850.4,230.9,"#0072B2",0],["CountessdeLo",1,915.9,145.9,"#0072B2",0],["Geborand",1,960.6,176.1,"#0072B2",0],["Champtercier",1,988.2,242.2,"#0072B2",0],["Cravatte",1,951.8,145.6,"#0072B2",0],["Count",1,991.4,178.5,"#0072B2",0],["OldMan",1,870.8,247.3,"#0072B2",0],["Labarre",2,677.5,481.1,"#E69F00",0],["Valjean",2,698.7,394.3,"#E69F00",1],["Marguerite",3,585.1,225.5,"#D55E00",0],["Mme.deR",2,651.7,469.5,"#E69F00",0],["Isabeau",2,668.4,326.2,"#E69F00",0],["Gervais",2,624.2,465.4,"#E69F00",0],["Tholomyes",3,587.2,166.7,"#D55E00",0],["Listolier",3,592.5,119.9,"#D55E00",0],["Fameuil",3,561.6,132.6,"#D55E00",0],["Blacheville",3,617.9,106.3,"#D55E00",0],["Favourite",3,546.4,112.1,"#D55E00",0],["Dahlia",3,567.0,90.8,"#D55E00",0],["Zephine",3,595.8,85.6,"#D55E00",0],["Fantine",3,626.4,181.0,"#D55E00",1],["Mme.Thenardier",4,785.3,352.8,"#009E73",1],["Thenardier",4,789.4,393.1,"#009E73",1],["Cosette",5,587.1,378.9,"#CC79A7",1],["Javert",4,755.4,392.0,"#009E73",1],["Fauchelevent",0,739.9,241.2,"#000000",0],["Bamatabois",2,642.6,349.5,"#E69F00",0],["Perpetue",3,548.3,179.2,"#D55E00",0],["Simplice",2,674.3,294.9,"#E69F00",0],["Scaufflaire",2,699.4,457.8,"#E69F00",0],["Woman1",2,716.9,323.1,"#E69F00",0],["Judge",2,651.4,400.0,"#E69F00",0],["Champmathieu",2,630.5,375.6,"#E69F00",0],["Brevet",2,605.3,385.3,"#E69F00",0],["Chenildieu",2,635.2,425.1,"#E69F00",0],["Cochepaille",2,606.8,415.6,"#E69F00",0],["Pontmercy",4,731.4,371.4,"#009E73",0],["Boulatruelle",6,550.7,572.1,"#BDBDBD",0],["Eponine",4,848.0,423.2,"#009E73",1],["Anzelma",4,853.2,355.6,"#009E73",0],["Woman2",5,595.1,314.0,"#CC79A7",0],["MotherInnocent",0,749.2,196.7,"#000000",0],["Gribier",0,752.6,148.9,"#000000",0],["Jondrette",7,1130.0,477.6,"#BDBDBD",0],["Mme.Burgon",7,1054.2,497.5,"#BDBDBD",0],["Gavroche",8,820.6,539.7,"#56B4E9",1],["Gillenormand",5,557.8,457.8,"#CC79A7",0],["Magnon",5,492.3,435.2,"#CC79A7",0],["Mlle.Gillenormand",5,530.1,404.4,"#CC79A7",0],["Mme.Pontmercy",5,468.2,354.1,"#CC79A7",0],["Mlle.Vaubois",5,426.2,392.9,"#CC79A7",0],["Lt.Gillenormand",5,524.4,445.2,"#CC79A7",0],["Marius",8,750.6,530.6,"#56B4E9",1],["BaronessT",5,530.1,529.3,"#CC79A7",0],["Mabeuf",8,800.4,553.3,"#56B4E9",1],["Enjolras",8,777.8,559.5,"#56B4E9",1],["Combeferre",8,789.9,588.3,"#56B4E9",1],["Prouvaire",8,795.8,635.6,"#56B4E9",0],["Feuilly",8,767.9,611.1,"#56B4E9",1],["Courfeyrac",8,800.4,605.2,"#56B4E9",1],["Bahorel",8,827.3,576.1,"#56B4E9",1],["Bossuet",8,764.2,584.6,"#56B4E9",1],["Joly",8,822.1,597.0,"#56B4E9",1],["Grantaire",8,827.6,627.6,"#56B4E9",0],["MotherPlutarch",0,681.0,714.4,"#000000",0],["Gueulemer",4,820.2,407.9,"#009E73",0],["Babet",4,831.5,385.0,"#009E73",0],["Claquesous",4,793.3,428.6,"#009E73",0],["Montparnasse",4,815.6,446.3,"#009E73",0],["Toussaint",5,559.4,330.6,"#CC79A7",0],["Child1",10,1006.2,572.9,"#BDBDBD",0],["Child2",10,990.0,619.7,"#BDBDBD",0],["Brujon",4,866.6,438.6,"#009E73",0],["Mme.Hucheloup",8,854.9,597.3,"#56B4E9",0]];
 const LESMIS_E=[[1,0],[2,0],[3,0],[3,2],[4,0],[5,0],[6,0],[7,0],[8,0],[9,0],[11,10],[11,3],[11,2],[11,0],[12,11],[13,11],[14,11],[15,11],[17,16],[18,16],[18,17],[19,16],[19,17],[19,18],[20,16],[20,17],[20,18],[20,19],[21,16],[21,17],[21,18],[21,19],[21,20],[22,16],[22,17],[22,18],[22,19],[22,20],[22,21],[23,16],[23,17],[23,18],[23,19],[23,20],[23,21],[23,22],[23,12],[23,11],[24,23],[24,11],[25,24],[25,23],[25,11],[26,24],[26,11],[26,16],[26,25],[27,11],[27,23],[27,25],[27,24],[27,26],[28,11],[28,27],[29,23],[29,27],[29,11],[30,23],[31,30],[31,11],[31,23],[31,27],[32,11],[33,11],[33,27],[34,11],[34,29],[35,11],[35,34],[35,29],[36,34],[36,35],[36,11],[36,29],[37,34],[37,35],[37,36],[37,11],[37,29],[38,34],[38,35],[38,36],[38,37],[38,11],[38,29],[39,25],[40,25],[41,24],[41,25],[42,41],[42,25],[42,24],[43,11],[43,26],[43,27],[44,28],[44,11],[45,28],[47,46],[48,47],[48,25],[48,27],[48,11],[49,26],[49,11],[50,49],[50,24],[51,49],[51,26],[51,11],[52,51],[52,39],[53,51],[54,51],[54,49],[54,26],[55,51],[55,49],[55,39],[55,54],[55,26],[55,11],[55,16],[55,25],[55,41],[55,48],[56,49],[56,55],[57,55],[57,41],[57,48],[58,55],[58,48],[58,27],[58,57],[58,11],[59,58],[59,55],[59,48],[59,57],[60,48],[60,58],[60,59],[61,48],[61,58],[61,60],[61,59],[61,57],[61,55],[62,55],[62,58],[62,59],[62,48],[62,57],[62,41],[62,61],[62,60],[63,59],[63,48],[63,62],[63,57],[63,58],[63,61],[63,60],[63,55],[64,55],[64,62],[64,48],[64,63],[64,58],[64,61],[64,60],[64,59],[64,57],[64,11],[65,63],[65,64],[65,48],[65,62],[65,58],[65,61],[65,60],[65,59],[65,57],[65,55],[66,64],[66,58],[66,59],[66,62],[66,65],[66,48],[66,63],[66,61],[66,60],[67,57],[68,25],[68,11],[68,24],[68,27],[68,48],[68,41],[69,25],[69,68],[69,11],[69,24],[69,27],[69,48],[69,41],[70,25],[70,69],[70,68],[70,11],[70,24],[70,27],[70,41],[70,58],[71,27],[71,69],[71,68],[71,70],[71,11],[71,48],[71,41],[71,25],[72,26],[72,27],[72,11],[73,48],[74,48],[74,73],[75,69],[75,68],[75,25],[75,48],[75,41],[75,70],[75,71],[76,64],[76,65],[76,66],[76,63],[76,62],[76,48],[76,58]];
 /* Two datasets: Les Miserables above, and the 300-protein graph from filter-chip-ppi-data.js (the kit's
    drawing of datasets.ppi, generated by filter-chip-ppi-numbers.mjs). A node is [name, group, x, y, color,
@@ -289,7 +298,7 @@ function useData(key) {
   degFull = N.map(() => 0);
   for (const [s, t] of E) if (s !== t) { degFull[s]++; degFull[t]++; }
   $("project").textContent = D.project; $("graph-name").textContent = D.graph; $("graph-name2").textContent = D.graph;
-  $("graph-count").textContent = `${fmt(TOTAL)} ${D.unit}`; $("style-name").textContent = D.style;
+  $("graph-count").innerHTML = fxc(window.kitCount && `datasets.${key}.nodes`, TOTAL, { noun: D.unit }); $("style-name").textContent = D.style;
   document.body.dataset.dataset = key;
 }
 const $ = (id) => document.getElementById(id);
@@ -365,7 +374,28 @@ function applyStep(s, keep) {
   return new Set([...keep].filter((i) => test(val(i), s.op, s.v) !== s.out));
 }
 const readsStructure = (s) => s.t !== "rule" || s.attr === "degree";
+// a neighbor step counts neighbors (a degree rule, a k-core): its row carries a Scope line
+const isNeighbor = (s) => s.t === "kcore" || (s.t === "rule" && s.attr === "degree");
+// a degree rule also counts on the full graph, so its row can state both counts; null for any other step
+const fullLeft = (s) => (s.t === "rule" && s.attr === "degree" ? applyStep(s, ALL).size : null);
 const isOn = (s, i) => (sweep && sweep.ids.has(s.id) ? sweep.target : s.on);
+/* ---------- counts through the kit's scope formatter ---------- */
+// Every count a drawn state shows is bound to its fixture, scenarios.filterChip.states.<state>
+// (screens/filter-chip-numbers.mjs), and kit.js checks this page's own count against it
+// (kit/README.md, "The scope formatter"). A state no fixture holds (a step the reader edits) shows
+// its live count, which the gate would report on a drawn state.
+const stateSignature = () => JSON.stringify([D.key, steps.map((s, i) => [s.t, s.out, s.attr ?? null, s.op ?? null, s.v == null ? null : String(s.v), s.k ?? null, isOn(s, i)])]);
+function stateFx() {
+  const all = window.kitValue?.("scenarios.filterChip.states");
+  if (!all) return null;
+  const sig = stateSignature();
+  const id = Object.keys(all).find((k) => all[k].signature === sig);
+  return id ? `scenarios.filterChip.states.${id}` : null;
+}
+// fxc(key, live, o): the bound count when this state has a fixture, else the same words typed live.
+const fxc = (key, live, o = {}) => key && window.kitCount
+  ? window.kitCount(key, { of: o.of, noun: o.noun, expect: live })
+  : `${fmt(live)}${o.ofN != null ? ` of ${fmt(o.ofN)}` : ""}${o.noun ? ` ${o.noun}` : ""}`;
 function evaluate() {
   let keep = new Set(ALL);
   const per = steps.map((s, i) => {
@@ -377,17 +407,27 @@ function evaluate() {
   });
   return { keep, per };
 }
-// The line under a step, from the reader's side: what the step keeps of the graph it reads. Only for a
-// step that reads structure (degree, components, k-core) on a graph earlier steps changed, or a component
-// step on a graph in pieces. It never names a later step, and it is never styled as a warning.
-const NBR = { ">=": ["at least", "fewer than"], "<=": ["at most", "more than"], "=": ["exactly", "other than"] };
+// The line under a component step on a graph in pieces, from the reader's side: what it keeps of the graph
+// it reads. It never names a later step, and it is never styled as a warning. (A neighbor step says which
+// graph it reads on its Scope line instead.)
 function noteFor(s, r) {
   if (!r) return "";
-  const n = fmt(r.input.size), reads = r.input.size < TOTAL;
   if (s.t === "lcc") return r.pieces > 1 ? `keeps only the largest of the ${r.pieces} connected pieces it reads` : "";
-  if (!reads || !readsStructure(s)) return "";
-  if (s.t === "kcore") return `keeps only nodes with at least ${s.k} neighbors among the kept, of the ${n} it reads`;
-  return `keeps only nodes with ${NBR[s.op][s.out ? 1 : 0]} ${s.v} neighbor${+s.v === 1 ? "" : "s"} among the ${n} it reads`;
+  return "";
+}
+// Degree keeps pipeline scope: it counts on what the steps above it left. Nothing changes silently: when
+// that is not the full graph, the row states both counts ("took out 20 &middot; 40 left; 41 on the full graph"), in the same words as every other row; the rule is named once, in the step's name.
+function degreeWords(s, r, i) {
+  if (!r || !r.input.size || r.input.size === TOTAL || fullLeft(s) == null) return "";
+  const FB = stateFx();
+  return `${r.took ? `took out ${fmt(r.took)} &middot; ` : ""}${fxc(FB && `${FB}.steps.${i}.left`, r.left)} left; ${fxc(FB && `${FB}.steps.${i}.full`, fullLeft(s))} on the full graph`;
+}
+// the Scope line: which graph a neighbor step counts on
+// row: the Scope line's own form ("full graph, 77 characters"); the editor's Scope field reads "Full graph: 77 characters"
+function scopeWords(i, r, row = false) {
+  const FB = stateFx(), prev = steps.slice(0, i).map((x, k) => (isOn(x, k) ? k : -1)).filter((k) => k >= 0).pop();
+  if (prev == null || r.input.size === TOTAL) return `${row ? "full graph," : "Full graph:"} ${fxc(window.kitCount && `datasets.${D.key}.nodes`, TOTAL, { noun: D.unit })}`;
+  return `${row ? "after" : "After"} step ${i}${row ? "," : ":"} ${fxc(FB && `${FB}.steps.${prev}.left`, r.input.size, { of: FB && `${FB}.of`, ofN: TOTAL, noun: D.unit })}`;
 }
 
 /* ---------- words ---------- */
@@ -418,14 +458,18 @@ const names = (ids, n = 5) => {
   const top = [...ids].sort((x, y) => degFull[y] - degFull[x] || N[x][0].localeCompare(N[y][0]));
   return top.slice(0, n).map((i) => N[i][0]).join(", ") + (top.length > n ? ` and ${top.length - n} more` : "");
 };
-function chipForms(kept, on, n, TOTAL, unit) {
+function chipForms(kept, on, n, TOTAL, unit, base = null) {
   const suf = n === 0 ? "" : on === n ? ` &middot; ${plural(n, "step")}` : ` &middot; ${on} of ${n} steps`;
   if (on === 0) return [`Full graph${suf}`];
   // steps that together remove nothing leave the full graph: the chip stays Full graph and says they kept all
   if (kept === TOTAL) return [`Full graph${suf}, kept all`, `Full graph${suf}`];
   const c = new Intl.NumberFormat("en-US", { notation: "compact", maximumSignificantDigits: 2 });
-  return [`Filtered: ${fmt(kept)} of ${fmt(TOTAL)} ${unit}${suf}`, `${fmt(kept)} of ${fmt(TOTAL)} ${unit}${suf}`,
-    `${c.format(kept)} of ${c.format(TOTAL)} ${unit}${suf}`, `${c.format(kept)} of ${c.format(TOTAL)}${suf}`];
+  const kc = fxc(base && `${base}.nodes`, kept, { of: base && `${base}.of`, ofN: TOTAL, noun: unit });
+  // the compact forms only shorten counts of 1,000 or more; below that they are the same bound count
+  const small = TOTAL < 1000 && base;
+  return [`Filtered: ${kc}${suf}`, `${kc}${suf}`,
+    small ? `${fxc(`${base}.nodes`, kept, { of: `${base}.of`, ofN: TOTAL })} ${unit}${suf}` : `${c.format(kept)} of ${c.format(TOTAL)} ${unit}${suf}`,
+    small ? `${fxc(`${base}.nodes`, kept, { of: `${base}.of`, ofN: TOTAL })}${suf}` : `${c.format(kept)} of ${c.format(TOTAL)}${suf}`];
 }
 // the first form that fits the chip's slot; the full form is always the tooltip and the name
 function fitChip(chip, span, forms) {
@@ -442,9 +486,10 @@ function render() {
   // the chip's mark: on every number that follows the chip, only while the chip is not Full graph
   const FM = filtered ? `<svg class="k-i k-i-sm fc-fm" role="img" aria-label="on: filtered graph" data-tip="Follows the filter chip: counted on the filtered graph, ${fmt(keep.size)} of ${fmt(TOTAL)} ${D.unit}"><use href="../kit/icons.svg#funnel"/></svg>` : "";
   // chip
-  const forms = chipForms(keep.size, on, n, TOTAL, D.unit);
+  const FB = stateFx();
+  const forms = chipForms(keep.size, on, n, TOTAL, D.unit, FB);
   fitChip($("chip"), $("chip-text"), forms);
-  $("chip").dataset.tip = forms[0];
+  $("chip").dataset.tip = strip(forms[0]);
   $("chip").setAttribute("aria-label", strip(forms[0]) + ". Filter steps");
   $("chip").setAttribute("aria-expanded", popOpen);
   // popover
@@ -474,13 +519,14 @@ function render() {
   $("rows").innerHTML = top.map((i) => `<tr><td class="k-id">${N[i][0]}</td><td><span class="k-chit" style="background:${N[i][4]}"></span>${N[i][1]}</td>` +
     (filtered ? `<td class="k-n">${degF(i)}</td>` : "") + `<td class="k-n">${degFull[i]}</td></tr>`).join("");
   const emptier = keep.size ? -1 : per.findIndex((p) => p && p.left === 0);
-  $("scope").innerHTML = !filtered ? (on ? `Full graph: all ${fmt(TOTAL)} ${D.unit}; the ${on === 1 ? "step on keeps" : `${on} steps on keep`} all. Sorted by degree (full graph).` : `Full graph: ${fmt(TOTAL)} ${D.unit}. Sorted by degree (full graph).`)
-    : keep.size ? `${FM}Filtered graph: ${fmt(keep.size)} of ${fmt(TOTAL)} ${D.unit}. Sorted by degree (filtered).`
+  const allN = fxc(window.kitCount && `datasets.${D.key}.nodes`, TOTAL, { noun: D.unit });
+  $("scope").innerHTML = !filtered ? (on ? `Full graph: all ${allN}; the ${on === 1 ? "step on keeps" : `${on} steps on keep`} all. Sorted by degree (full graph).` : `Full graph: ${allN}. Sorted by degree (full graph).`)
+    : keep.size ? `${FM}Filtered graph: ${fxc(FB && `${FB}.nodes`, keep.size, { of: FB && `${FB}.of`, ofN: TOTAL, noun: D.unit })}. Sorted by degree (filtered).`
     : `${FM}Filtered graph: 0 of ${fmt(TOTAL)} ${D.unit}, emptied by ${labelHtml(steps[emptier])}.<span class="fc-scope-cmd" role="button" tabindex="0" id="scope-off">Turn off step</span>`;
   if ($("scope-off")) $("scope-off").onclick = () => toggle(steps[emptier].id);
   // statistics: filtered, each count is a sentence naming its graph; a count the last change moved says why beside it
   const m = measure(keep), kn = keep.size;
-  const scope = `, of the filtered graph (${fmt(kn)} of ${fmt(TOTAL)} ${D.unit})`;
+  const scope = `, of the filtered graph (${fxc(FB && `${FB}.nodes`, kn, { of: FB && `${FB}.of`, ofN: TOTAL, noun: D.unit })})`;
   const cause = (k) => {
     if (!lastChange || !(k in lastChange.before) || lastChange.before[k] === m[k]) return "";
     const b = lastChange.before[k];
@@ -491,13 +537,14 @@ function render() {
     : `<div class="k-data"${tip ? ` data-tip="${tip}"` : ""}><span class="k-name">${name}</span><span class="k-value k-num">${shown}</span></div>${k ? cause(k) : ""}`;
   const Unit = D.unit[0].toUpperCase() + D.unit.slice(1);
   $("stat-head").innerHTML = `Statistics${filtered ? FM : ""}`;
-  $("stats").innerHTML = stat(Unit, filtered ? `${fmt(kn)} of ${fmt(TOTAL)}` : fmt(TOTAL), ", in the filtered graph") +
-    stat(D.edges, filtered ? `${fmt(m.edges)} of ${fmt(TOTAL_E)}` : fmt(TOTAL_E), ", in the filtered graph", "", D.edgesTip) +
+  $("stats").innerHTML = stat(Unit, filtered ? fxc(FB && `${FB}.nodes`, kn, { of: FB && `${FB}.of`, ofN: TOTAL }) : fmt(TOTAL), ", in the filtered graph") +
+    stat(D.edges, filtered ? fxc(FB && `${FB}.edges`, m.edges, { of: FB && `${FB}.edgesOf`, ofN: TOTAL_E }) : fmt(TOTAL_E), ", in the filtered graph", "", D.edgesTip) +
     (kn ? stat("Components", fmt(m.components), scope, "components") + stat("Largest component", fmt(m.largest), scope, "largest") +
       stat(`Isolated ${D.unit}`, fmt(m.isolated), scope, "isolated", `${Unit} with no connection in the graph counted`) +
-      stat("Average degree", (2 * m.edges / kn).toPrecision(3), scope) + stat("Density", kn > 1 ? (2 * m.edges / (kn * (kn - 1))).toPrecision(3) : "one node", scope, "", "Share of possible pairs that are connected")
+      stat("Average degree", FB ? fxc(`${FB}.averageDegree`, Number((2 * m.edges / kn).toPrecision(3))) : (2 * m.edges / kn).toPrecision(3), scope) + stat("Density", kn > 1 ? (FB ? fxc(`${FB}.density`, Number((2 * m.edges / (kn * (kn - 1))).toPrecision(3))) : (2 * m.edges / (kn * (kn - 1))).toPrecision(3)) : "one node", scope, "", "Share of possible pairs that are connected")
       : `<div class="k-prose">Nothing left to measure: the filter steps leave no ${D.unit}.</div>`);
   // sets: a rule set's count within the filtered graph, "N of M" when the filter changes it
+  renderRuns(keep, FB);
   $("sets").innerHTML = sets.map((st) => {
     const inn = [...st.members].filter((i) => keep.has(i)).length, mm = st.members.size;
     return `<li class="k-item">${I("group")}<span class="k-ellipsis">${st.name}</span><span class="k-kind">${st.kind}</span><span class="k-trail"><span class="k-paint-slot"></span><span class="k-num">${inn === mm ? mm : `${inn} of ${mm}`}</span>${FM}</span></li>`;
@@ -506,6 +553,23 @@ function render() {
   placeNotes();
 }
 
+// Two stored runs: one on the full graph, one made while only "Filter to degree >= 2" was on.
+const RUNS = [
+  { name: "Betweenness centrality", when: "Sep&nbsp;27&nbsp;14:10", scope: () => ALL },
+  { name: "Closeness centrality", when: "Sep&nbsp;28&nbsp;09:32", scope: () => applyStep(R(false, "degree", ">=", 2), ALL) },
+];
+function renderRuns(keep, FB) {
+  const same = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+  const now = keep.size === TOTAL ? `the full graph, ${fxc(window.kitCount && `datasets.${D.key}.nodes`, TOTAL, { noun: D.unit })}`
+    : fxc(FB && `${FB}.nodes`, keep.size, { of: FB && `${FB}.of`, ofN: TOTAL, noun: D.unit });
+  $("runs").innerHTML = RUNS.map((run, j) => {
+    const sc = run.scope(), n = fxc(FB && `${FB}.runs.${j}`, sc.size, { of: FB && `${FB}.of`, ofN: TOTAL, noun: D.unit });
+    const on = sc.size === TOTAL ? `the full graph, ${fxc(window.kitCount && `datasets.${D.key}.nodes`, TOTAL, { noun: D.unit })}` : n;
+    const line = same(sc, keep) ? `Run on the current filter: ${on}.`
+      : `Run on ${on}. Not the current filter, which keeps ${now}.<br><span class="k-btn k-btn-secondary" role="button">${I("refresh-cw", "k-i k-i-sm")}Re-run on ${keep.size === TOTAL ? "the full graph" : fxc(FB && `${FB}.nodes`, keep.size, { of: FB && `${FB}.of`, ofN: TOTAL })} (keeps Run ${j + 1})</span>`;
+    return `<li class="k-item">${I("sigma")}<span class="k-ellipsis">${run.name}, Run ${j + 1}</span><span class="k-trail k-num">${run.when}</span></li><li class="fc-runline k-num">${line}</li>`;
+  }).join("");
+}
 function renderPop(per) {
   const pop = $("pop");
   pop.hidden = !popOpen;
@@ -518,13 +582,15 @@ function renderPop(per) {
   const rows = steps.map((s, i) => {
     const r = per[i], onNow = isOn(s, i), note = onNow ? noteFor(s, r) : "";
     const countTip = r ? (r.took ? `Took out ${fmt(r.took)}: ${names(r.removed)}.` : "Took out none.") : "Off: takes nothing out.";
-    const count = countWords(s, r);
-    const name = `Step ${i + 1} of ${steps.length}: ${labelSpoken(s)}, ${strip(count)}${note ? ". " + note : ""}`;
+    const count = degreeWords(s, r, i) || countWords(s, r);
+    const scopeLine = onNow && r && isNeighbor(s) ? `Scope: ${scopeWords(i, r, true)}` : "";
+    const name = `Step ${i + 1} of ${steps.length}: ${labelSpoken(s)}, ${strip(count)}${scopeLine ? ". " + strip(scopeLine) : ""}${note ? ". " + note : ""}`;
     return `<div class="k-item fc-step" role="row" tabindex="-1" draggable="${sweep ? "false" : "true"}" data-id="${s.id}"${onNow ? "" : " data-off"}${sweep && sweep.ids.has(s.id) ? " data-preview" : ""}${s.id === focusId ? ' aria-selected="true"' : ""} aria-label="${name}">` +
       `<span class="fc-cb" role="gridcell"><span class="k-check" role="checkbox" aria-checked="${onNow}" aria-label="Step on" data-tip="${onNow ? "Turn off step" : "Turn on step"}"></span></span>` +
       `<span class="fc-text" role="gridcell"><span class="fc-out">${outWord(s)}</span><span class="fc-rule">${ruleHtml(s)}</span></span>` +
       `<span class="fc-tail" role="gridcell"><span class="k-icon-btn fc-more" role="button" aria-label="More" data-tip="More">${I("ellipsis")}</span></span>` +
       `<span class="fc-count k-num" aria-hidden="true" data-tip="${countTip}" data-tip-side="right">${count}</span>` +
+      (scopeLine ? `<span class="fc-scopeline k-num" aria-hidden="true">${scopeLine}</span>` : "") +
       (note ? `<span class="fc-note" aria-hidden="true">${note}</span>` : "") + `</div>`;
   }).join("");
   pop.innerHTML = `<div class="k-popover-head">Filter steps<span class="k-grow"></span>${close}</div>` +
@@ -583,9 +649,9 @@ function renderEditor(s, r, i) {
 function editorWords(s, r, i) {
   return {
     title: `Step ${i + 1}: ${labelHtml(s)}`,
-    scope: i === 0 || !r || r.input.size === TOTAL ? `Full graph: ${fmt(TOTAL)} ${D.unit}` : `After step ${i}: ${fmt(r.input.size)} ${D.unit}`,
-    res: r ? countWords(s, r) : "Off: takes nothing out.",
-    note: noteFor(s, r) ? `<div class="fc-line k-secondary">${noteFor(s, r)}</div>` : "",
+    scope: !r ? `Full graph: ${fxc(window.kitCount && `datasets.${D.key}.nodes`, TOTAL, { noun: D.unit })}` : scopeWords(i, r),
+    res: r ? degreeWords(s, r, i) || countWords(s, r) : "Off: takes nothing out.",
+    note: noteFor(s, r) ? `<div class="fc-line">${noteFor(s, r)}</div>` : "",
   };
 }
 function editorTexts(s, r, i) {
@@ -784,7 +850,7 @@ document.addEventListener("keydown", (ev) => {
   const inField = ev.target.matches?.("input, select");
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !inField) { ev.preventDefault(); doUndo(); return; }
   if (ev.key !== "Escape") return;
-  if (sweep) { sweep = null; render(); return; }                          // a gesture first
+  if (sweep) { ev.preventDefault(); sweep = null; render(); return; }     // a gesture first
   if (!$("menu").hidden) { ev.preventDefault(); hideMenu(true); return; }  // then the menu
   if (popOpen) { ev.preventDefault(); closePop(); }                       // then the popover, focus to the chip
 });
@@ -811,7 +877,9 @@ const NOTES = [
   { sel: "#steps .fc-step", at: [1, 0, 14, 6], text: "Steps in the order they apply, never sorted. Every step reads the graph the steps above it leave, degree included, because degree is a live attribute.", cite: "Framework: interface-templates.md 7; conceptual-model.md 3, Live attributes; interaction-pattern-entries.md 6.9. Built with: Tree rows, treegrid variant (interface-specification.md 7.2)." },
   { sel: "#steps .fc-count", at: [1, 0.5, 14], text: "Under each rule: what the step took out and what is left after it. Hover or focus names who it took out. An off step says it takes nothing out. A step that removes nothing says 'kept all 77' (a component step: 'found 1 piece &middot; kept all 77'), never 'took out 0'.", cite: "Proposed in framework-changes.md (Filter chip: each step row reads 'took out N, M left'). Built with: Tree row, second line, Text in the body color." },
   { sel: "#steps .fc-cb", text: "The checkbox, in the leading slot, turns a step off and keeps it. Drag down the column to sweep several: shown while the pointer is down, committed on release, canceled by leaving the column or Esc. Space turns off the focused step. The feedback is the recount; no notice appears while the popover is open.", cite: "Framework: interaction-pattern-entries.md 6.5; interface-specification.md 2.2. Leading slot and Space are proposed in framework-changes.md. Built with: CompactCheckboxIcon." },
-  { sel: "#steps .fc-note", at: [0, 0.5, -12], text: "When a step reads a graph earlier steps changed, one quiet line says what it keeps of that graph ('keeps only the largest of the 7 connected pieces it reads'). It is worded from the reader's side, never styled as a warning, and never explains a step by a step below it.", cite: "Proposed in framework-changes.md (Filter chip: a step's note says what it keeps, in secondary text); replaces the warning mark and the 'dropped by a later step' line. The per-step record is graphty-element's. Built with: Tree row, third line, Text c=dimmed." },
+  { sel: "#steps .fc-scopeline", at: [0, 0.5, -12], text: "A neighbor step (a degree rule, a k-core) counts neighbors on the graph the steps above it leave, and its row says which graph that is on a Scope line: 'Scope: after step 1, 60 of 77 characters', or 'Scope: full graph, 77 characters' when it is first. Body ink, like every line of the row.", cite: "Framework: conceptual-model.md 3, Live attributes; interface-templates.md 7. Built with: Tree row, third line, Text in the body color." },
+  { sel: "#steps .fc-step", nth: 1, at: [0, 0.35, -12], text: "A degree step keeps pipeline scope: it counts on what the steps above it left, so step order means the same thing for every kind of step. When that is not the full graph, the row states both counts in body ink, in the words every row uses: 'took out 20 &middot; 40 left; 41 on the full graph'. The rule is named once, in the step's name, never restated in other words. There is no switch for which graph it counts on and no grey print; hover still names who it took out.", cite: "Framework: conceptual-model.md 3, Live attributes; content-design.md 5, Counts. Built with: Tree row, second line, Text in the body color." },
+  { sel: "#steps .fc-note", at: [0, 0.5, -12], text: "A component step on a graph in pieces says what it keeps of that graph ('keeps only the largest of the 7 connected pieces it reads'), in body ink, worded from the reader's side, never as a warning and never about a step below it.", cite: "Proposed in framework-changes.md (Filter chip: a step's note says what it keeps)." },
   { sel: "#steps .fc-step", nth: 1, at: [1, 0.5, 14], text: "Enter or a double-click opens the step's editor. The row menu, the context menu, Shift+F10 and the Menu key hold the same commands in the same order. Move up is Ctrl+] and Move down Ctrl+[, Figma's Bring forward and Send backward; the Tree's Alt+Arrow also works. Delete removes the step; Ctrl+Z undoes any change.", cite: "Framework: interaction-pattern-entries.md 6.3, 6.4, 6.7 and 9.3; the chords are proposed in framework-changes.md. Built with: Mantine Menu." },
   { sel: "#add", text: "Add step: Filter to or Filter out, appended at the end. A step with settings opens its editor at once.", cite: "Framework: interaction-pattern-entries.md 6.1. Built with: Mantine Menu." },
   { sel: "#ed-back", at: [0.55, 0.5], text: "The rule editor takes the list's place in the same popover, under a back row. Edits apply as they are made; each field's change is one undo step. The Scope row says which graph the step reads; Result reads like the row, and the step's note repeats under it. A date rule (below the screen) is written here too.", cite: "Framework: interface-templates.md 7 and 10 (the Rule row). Built with: Popout.Panel, FieldRow, SegmentedControl." },
@@ -901,6 +969,8 @@ document.addEventListener("kit:fixtures", ({ detail: { get } }) => {
   document.fonts.ready.then(() => fitChip($("win-chip-btn"), $("win-chip"), forms));
   $("win-hist").insertAdjacentHTML("beforeend", w.transfersPerDay.map((c, d) => `<i style="height:${(100 * c / max).toFixed(1)}%"${d + 1 >= 8 && d + 1 <= 14 ? " data-on" : ""}></i>`).join(""));
 });
+// The counts bind once the kit has read the fixtures: draw again then.
+document.addEventListener("kit:fixtures", () => { useData(D.key); render(); });
 fromHash();
 specWidths();
 document.fonts.ready.then(() => { render(); specWidths(); });

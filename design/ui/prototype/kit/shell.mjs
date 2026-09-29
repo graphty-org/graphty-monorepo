@@ -18,6 +18,7 @@
 //   the stack for that selection).
 // - One right panel: the inspector with nothing selected has no Results section (runs have one
 //   home, the rail place; a value is read on its node and in the table).
+// - The toolbar's lightning button reads "Quick actions" (an icon-only zap tool gets the word).
 // It is idempotent: a page already on the shell comes back unchanged. A frame inside an element
 // marked data-frame="before" (or the older data-shell-keep: a deliberate before-and-after) is left
 // alone; a Styles section marked data-shell-keep stays in the Graph panel (a study arm that tests
@@ -188,6 +189,10 @@ function headers(h) {
     return h;
 }
 
+// The lightning button carries its name: "Quick actions", beside the icon.
+const quickActions = (h) => h.replace(/<span class="k-tool((?: [^"]*)?)"([^>]*)>(<svg\b[^>]*><use href="[^"]*#zap"\/><\/svg>)<\/span>/g,
+    (m, cls, attrs, svg) => `<span class="k-tool k-tool-label${cls}"${/\stitle="/.test(attrs) ? attrs : `${attrs} title="Quick actions Ctrl+K"`}>${svg}Quick actions</span>`);
+
 export function toShell(html) {
     let out = "";
     let at = 0;
@@ -204,7 +209,7 @@ export function toShell(html) {
             o += chunk.slice(at, s) + frame(chunk.slice(s, e));
             at = e;
         }
-        return headers(o + chunk.slice(at));
+        return quickActions(headers(o + chunk.slice(at)));
     };
     for (const [s, e] of keep) {
         if (s < at) continue; // nested in a kept element already

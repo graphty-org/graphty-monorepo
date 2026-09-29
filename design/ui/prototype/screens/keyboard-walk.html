@@ -145,12 +145,12 @@
     <div class="k-panel-head">
       <div class="k-title-line"><span class="k-project">Protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
       <a class="k-privacy">Nothing has been sent from this project</a>
-      <span class="k-chip k-chip-btn" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>33 of 300<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      <span class="k-chip k-chip-btn" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span data-fx="datasets.ppi.tp53Slice.nodes" data-fx-of="datasets.ppi.nodes">33 of 300</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
     </div>
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list" role="listbox" aria-label="Graphs" id="kw-graphs" tabindex="-1" data-rove><li class="k-item" role="option" aria-selected="true" data-say="ppi-core-300, 300 nodes"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis k-id">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+        <ul class="k-list" role="listbox" aria-label="Graphs" id="kw-graphs" tabindex="-1" data-rove><li class="k-item" role="option" aria-selected="true" data-say="ppi-core-300, 300 nodes"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis k-id">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
       </section>
       <section class="k-section" id="kw-sets" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div><ul class="k-list" role="tree" aria-label="Sets and paths" id="kw-setlist"></ul></section>
       
@@ -248,12 +248,12 @@
 <circle data-id="PSMA4" cx="344.7" cy="597.9" r="9.8" fill="#E69F00"/>
 <circle data-id="SHC1" cx="379.1" cy="238.2" r="10.4" fill="#000000"/>
 <circle data-id="RPS13" cx="624.3" cy="96.4" r="10.4" fill="#56B4E9"/>
-<circle data-id="UBC" cx="287.5" cy="314.8" r="13.2" fill="#505050"/>
+<circle data-id="UBC" cx="287.5" cy="314.8" r="13.2" fill="#BDBDBD"/>
 <circle data-id="PSMB2" cx="832.9" cy="143.3" r="10.7" fill="#E69F00"/>
 <circle data-id="DUSP6" cx="349.5" cy="411.3" r="10.4" fill="#000000"/>
 <circle data-id="NDUFA7" cx="458.2" cy="97.6" r="11" fill="#009E73"/>
 <circle data-id="SNRPD3" cx="693.3" cy="655.7" r="10.1" fill="#0072B2"/>
-<circle data-id="HSPA8" cx="254.4" cy="398.4" r="8.6" fill="#505050"/>
+<circle data-id="HSPA8" cx="254.4" cy="398.4" r="8.6" fill="#BDBDBD"/>
 <circle data-id="PSMC6" cx="535.6" cy="70" r="11.2" fill="#E69F00"/>
 <circle data-id="SMAD5" cx="438.9" cy="674" r="10.7" fill="#F0E442"/>
 </g>
@@ -301,16 +301,16 @@
         <div class="k-toolbar" role="toolbar" aria-label="Tools" tabindex="0" id="kw-toolbar" data-rove>
           <span class="k-tool" aria-pressed="true" title="Select" data-say="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool" title="Path" data-say="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool" title="Note" data-say="Note"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool" title="Quick actions" data-say="Quick actions" data-act="quick"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions" data-say="Quick actions" data-act="quick"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool" title="View mode (2D / 3D)" data-say="View mode, 2D, menu button"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
       </div>
       <div class="kw-target" id="kw-target" tabindex="0" role="application" aria-roledescription="graph drawing" aria-label="Graph drawing" aria-describedby="kw-target-desc"></div>
       <span class="kw-sr" id="kw-target-desc">Shift and the arrow keys walk the graph. Enter adds the node the walk is on to the selection. Esc ends the walk. Tab leaves the drawing; the walk is kept for your return. F6 moves between regions.</span>
-      <div class="kw-sr" id="kw-live" aria-live="polite"></div>
+      <div class="kw-sr" id="kw-live" aria-live="polite" data-fx-param></div>
       <div class="kw-sheet" id="kw-sheet" hidden role="dialog" aria-label="Keys" tabindex="0">
         <div class="kw-sheet-head"><b role="heading" aria-level="3">Keys</b><span class="k-grow"></span><span class="k-kbd">Esc</span></div>
         <div class="kw-sheet-body">
@@ -351,7 +351,7 @@
     <section class="k-dock" aria-label="Nodes table">
       <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span>
         <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-      <div class="k-scope" id="kw-scope">Filtered graph: 33 of 300 nodes. Sorted by degree.</div>
+      <div class="k-scope" id="kw-scope">Filtered graph: <span data-fx="datasets.ppi.tp53Slice.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="nodes">33 of 300 nodes</span>. Sorted by degree.</div>
       <div class="k-table-wrap" id="kw-tablewrap"><table class="k-table kw-grid" id="kw-grid" role="grid" aria-label="Nodes, filtered graph" aria-multiselectable="true" aria-rowcount="34" tabindex="0">
         <thead><tr><th>id</th><th>module <span class="k-profile">9 values</span></th><th class="k-n">degree <span class="k-profile">4 to 32</span></th><th class="k-n">degree rank <span class="k-profile">1 to 300</span></th></tr></thead>
         <tbody id="kw-rows"></tbody></table></div>
@@ -377,7 +377,7 @@
 </div>
 
 <script>
-const D = {"nodes":{"TP53":[607.7,376.5,15.2,"DNA repair",32,2],"BRCA1":[773.8,484.4,11.5,"DNA repair",13,16],"RAD51":[760.1,166.7,9,"DNA repair",5,247],"RAD50":[935.9,411.3,10.7,"DNA repair",10,62],"MRE11":[586.5,538.4,9,"DNA repair",5,247],"MSH2":[929.3,217.2,10.1,"DNA repair",8,129],"PALB2":[884,467.7,9,"DNA repair",5,247],"FANCD2":[790.3,262.7,11.2,"DNA repair",12,24],"WRN":[607.5,666.9,11.5,"DNA repair",13,16],"RPA1":[785.6,573.4,9.8,"DNA repair",7,172],"RPA2":[770.8,347.6,11,"DNA repair",11,40],"LTBP1":[599.8,730,10.4,"TGF-beta",9,94],"RPL5":[281.2,223.4,11,"Ribosome",11,40],"PCNA":[802.6,664.4,11.2,"DNA repair",12,24],"RPL14":[269.8,504.7,9.8,"Ribosome",7,172],"RPS8":[464.9,193,12.4,"Ribosome",17,11],"53BP1":[945.6,314,9.8,"DNA repair",7,172],"NDUFS7":[372,498.5,10.4,"Complex I",9,94],"PSMD14":[711.1,71.9,10.1,"Proteasome",8,129],"CDC20":[446.1,589.9,9.4,"Cell cycle",6,217],"NDUFB8":[367.7,135.6,9.8,"Complex I",7,172],"SF3B2":[890.1,559.3,9.4,"Spliceosome",6,217],"PSMA4":[344.7,597.9,9.8,"Proteasome",7,172],"SHC1":[379.1,238.2,10.4,"MAPK signaling",9,94],"RPS13":[624.3,96.4,10.4,"Ribosome",9,94],"UBC":[287.5,314.8,13.2,"Unassigned",21,7],"PSMB2":[832.9,143.3,10.7,"Proteasome",10,62],"DUSP6":[349.5,411.3,10.4,"MAPK signaling",9,94],"NDUFA7":[458.2,97.6,11,"Complex I",11,40],"SNRPD3":[693.3,655.7,10.1,"Spliceosome",8,129],"HSPA8":[254.4,398.4,8.6,"Unassigned",4,271],"PSMC6":[535.6,70,11.2,"Proteasome",12,24],"SMAD5":[438.9,674,10.7,"TGF-beta",10,62]},"nb":{"TP53":[["PALB2",0.98],["RPA1",0.95],["RAD51",0.87],["RPA2",0.86],["FANCD2",0.84],["LTBP1",0.83],["MSH2",0.82],["UBC",0.8],["DUSP6",0.79],["MRE11",0.79],["RAD50",0.78],["CDC20",0.77],["SNRPD3",0.77],["PSMA4",0.76],["WRN",0.75],["BRCA1",0.71],["PSMC6",0.71],["NDUFS7",0.7],["SMAD5",0.62],["NDUFA7",0.57],["NDUFB8",0.55],["PSMB2",0.55],["HSPA8",0.51],["RPL14",0.51],["PSMD14",0.5],["SF3B2",0.5],["RPS13",0.49],["53BP1",0.46],["SHC1",0.43],["PCNA",0.42],["RPL5",0.42],["RPS8",0.42]],"BRCA1":[["WRN",0.91],["FANCD2",0.88],["MRE11",0.82],["PCNA",0.75],["TP53",0.71]],"RAD51":[["TP53",0.87],["53BP1",0.8]],"RAD50":[["RPA1",0.98],["MSH2",0.97],["FANCD2",0.83],["TP53",0.78],["RPA2",0.73]],"MRE11":[["RPA1",0.89],["BRCA1",0.82],["TP53",0.79],["RPA2",0.78],["WRN",0.71]],"MSH2":[["RAD50",0.97],["RPA2",0.91],["TP53",0.82],["FANCD2",0.73]],"PALB2":[["TP53",0.98],["PCNA",0.95],["RPA2",0.9],["FANCD2",0.72]],"FANCD2":[["BRCA1",0.88],["TP53",0.84],["RAD50",0.83],["53BP1",0.73],["MSH2",0.73],["PALB2",0.72]],"WRN":[["BRCA1",0.91],["PCNA",0.76],["TP53",0.75],["MRE11",0.71]],"RPA1":[["RAD50",0.98],["TP53",0.95],["MRE11",0.89]],"RPA2":[["53BP1",0.92],["MSH2",0.91],["PALB2",0.9],["TP53",0.86],["MRE11",0.78],["RAD50",0.73]],"LTBP1":[["SMAD5",0.88],["TP53",0.83]],"RPL5":[["RPS8",0.87],["TP53",0.42]],"PCNA":[["PALB2",0.95],["WRN",0.76],["BRCA1",0.75],["TP53",0.42]],"RPL14":[["UBC",0.79],["TP53",0.51]],"RPS8":[["RPL5",0.87],["RPS13",0.86],["TP53",0.42]],"53BP1":[["RPA2",0.92],["RAD51",0.8],["FANCD2",0.73],["TP53",0.46]],"NDUFS7":[["UBC",0.73],["TP53",0.7]],"PSMD14":[["PSMC6",0.92],["TP53",0.5]],"CDC20":[["TP53",0.77]],"NDUFB8":[["TP53",0.55]],"SF3B2":[["TP53",0.5]],"PSMA4":[["TP53",0.76]],"SHC1":[["DUSP6",0.95],["TP53",0.43]],"RPS13":[["RPS8",0.86],["TP53",0.49]],"UBC":[["TP53",0.8],["RPL14",0.79],["NDUFS7",0.73]],"PSMB2":[["TP53",0.55]],"DUSP6":[["SHC1",0.95],["TP53",0.79]],"NDUFA7":[["TP53",0.57]],"SNRPD3":[["TP53",0.77]],"HSPA8":[["TP53",0.51]],"PSMC6":[["PSMD14",0.92],["TP53",0.71]],"SMAD5":[["LTBP1",0.88],["TP53",0.62]]},"colors":{"Proteasome":"#E69F00","Ribosome":"#56B4E9","Complex I":"#009E73","Spliceosome":"#0072B2","DNA repair":"#D55E00","Cell cycle":"#CC79A7","MAPK signaling":"#000000","TGF-beta":"#F0E442","Unassigned":"#505050"}};
+const D = {"nodes":{"TP53":[607.7,376.5,15.2,"DNA repair",32,2],"BRCA1":[773.8,484.4,11.5,"DNA repair",13,16],"RAD51":[760.1,166.7,9,"DNA repair",5,247],"RAD50":[935.9,411.3,10.7,"DNA repair",10,62],"MRE11":[586.5,538.4,9,"DNA repair",5,247],"MSH2":[929.3,217.2,10.1,"DNA repair",8,129],"PALB2":[884,467.7,9,"DNA repair",5,247],"FANCD2":[790.3,262.7,11.2,"DNA repair",12,24],"WRN":[607.5,666.9,11.5,"DNA repair",13,16],"RPA1":[785.6,573.4,9.8,"DNA repair",7,172],"RPA2":[770.8,347.6,11,"DNA repair",11,40],"LTBP1":[599.8,730,10.4,"TGF-beta",9,94],"RPL5":[281.2,223.4,11,"Ribosome",11,40],"PCNA":[802.6,664.4,11.2,"DNA repair",12,24],"RPL14":[269.8,504.7,9.8,"Ribosome",7,172],"RPS8":[464.9,193,12.4,"Ribosome",17,11],"53BP1":[945.6,314,9.8,"DNA repair",7,172],"NDUFS7":[372,498.5,10.4,"Complex I",9,94],"PSMD14":[711.1,71.9,10.1,"Proteasome",8,129],"CDC20":[446.1,589.9,9.4,"Cell cycle",6,217],"NDUFB8":[367.7,135.6,9.8,"Complex I",7,172],"SF3B2":[890.1,559.3,9.4,"Spliceosome",6,217],"PSMA4":[344.7,597.9,9.8,"Proteasome",7,172],"SHC1":[379.1,238.2,10.4,"MAPK signaling",9,94],"RPS13":[624.3,96.4,10.4,"Ribosome",9,94],"UBC":[287.5,314.8,13.2,"Unassigned",21,7],"PSMB2":[832.9,143.3,10.7,"Proteasome",10,62],"DUSP6":[349.5,411.3,10.4,"MAPK signaling",9,94],"NDUFA7":[458.2,97.6,11,"Complex I",11,40],"SNRPD3":[693.3,655.7,10.1,"Spliceosome",8,129],"HSPA8":[254.4,398.4,8.6,"Unassigned",4,271],"PSMC6":[535.6,70,11.2,"Proteasome",12,24],"SMAD5":[438.9,674,10.7,"TGF-beta",10,62]},"nb":{"TP53":[["PALB2",0.98],["RPA1",0.95],["RAD51",0.87],["RPA2",0.86],["FANCD2",0.84],["LTBP1",0.83],["MSH2",0.82],["UBC",0.8],["DUSP6",0.79],["MRE11",0.79],["RAD50",0.78],["CDC20",0.77],["SNRPD3",0.77],["PSMA4",0.76],["WRN",0.75],["BRCA1",0.71],["PSMC6",0.71],["NDUFS7",0.7],["SMAD5",0.62],["NDUFA7",0.57],["NDUFB8",0.55],["PSMB2",0.55],["HSPA8",0.51],["RPL14",0.51],["PSMD14",0.5],["SF3B2",0.5],["RPS13",0.49],["53BP1",0.46],["SHC1",0.43],["PCNA",0.42],["RPL5",0.42],["RPS8",0.42]],"BRCA1":[["WRN",0.91],["FANCD2",0.88],["MRE11",0.82],["PCNA",0.75],["TP53",0.71]],"RAD51":[["TP53",0.87],["53BP1",0.8]],"RAD50":[["RPA1",0.98],["MSH2",0.97],["FANCD2",0.83],["TP53",0.78],["RPA2",0.73]],"MRE11":[["RPA1",0.89],["BRCA1",0.82],["TP53",0.79],["RPA2",0.78],["WRN",0.71]],"MSH2":[["RAD50",0.97],["RPA2",0.91],["TP53",0.82],["FANCD2",0.73]],"PALB2":[["TP53",0.98],["PCNA",0.95],["RPA2",0.9],["FANCD2",0.72]],"FANCD2":[["BRCA1",0.88],["TP53",0.84],["RAD50",0.83],["53BP1",0.73],["MSH2",0.73],["PALB2",0.72]],"WRN":[["BRCA1",0.91],["PCNA",0.76],["TP53",0.75],["MRE11",0.71]],"RPA1":[["RAD50",0.98],["TP53",0.95],["MRE11",0.89]],"RPA2":[["53BP1",0.92],["MSH2",0.91],["PALB2",0.9],["TP53",0.86],["MRE11",0.78],["RAD50",0.73]],"LTBP1":[["SMAD5",0.88],["TP53",0.83]],"RPL5":[["RPS8",0.87],["TP53",0.42]],"PCNA":[["PALB2",0.95],["WRN",0.76],["BRCA1",0.75],["TP53",0.42]],"RPL14":[["UBC",0.79],["TP53",0.51]],"RPS8":[["RPL5",0.87],["RPS13",0.86],["TP53",0.42]],"53BP1":[["RPA2",0.92],["RAD51",0.8],["FANCD2",0.73],["TP53",0.46]],"NDUFS7":[["UBC",0.73],["TP53",0.7]],"PSMD14":[["PSMC6",0.92],["TP53",0.5]],"CDC20":[["TP53",0.77]],"NDUFB8":[["TP53",0.55]],"SF3B2":[["TP53",0.5]],"PSMA4":[["TP53",0.76]],"SHC1":[["DUSP6",0.95],["TP53",0.43]],"RPS13":[["RPS8",0.86],["TP53",0.49]],"UBC":[["TP53",0.8],["RPL14",0.79],["NDUFS7",0.73]],"PSMB2":[["TP53",0.55]],"DUSP6":[["SHC1",0.95],["TP53",0.79]],"NDUFA7":[["TP53",0.57]],"SNRPD3":[["TP53",0.77]],"HSPA8":[["TP53",0.51]],"PSMC6":[["PSMD14",0.92],["TP53",0.71]],"SMAD5":[["LTBP1",0.88],["TP53",0.62]]},"colors":{"Proteasome":"#E69F00","Ribosome":"#56B4E9","Complex I":"#009E73","Spliceosome":"#0072B2","DNA repair":"#D55E00","Cell cycle":"#CC79A7","MAPK signaling":"#000000","TGF-beta":"#F0E442","Unassigned":"#BDBDBD"}};
 const TOTAL = { nodes: 300, edges: 1262 }, SLICE = { nodes: 33, edges: 59 };
 const params = new URLSearchParams(location.search);
 // Mod is Cmd on macOS and Ctrl elsewhere (interaction pattern entries 9.3); Alt is Option on macOS
@@ -632,7 +632,7 @@ function onCanvasKey(c) {
   }
   if (c === "Escape") {
     if (S.walking) { const at = f; endWalk(); say(`Walk ended at ${at}. ${countPhrase()}`); return true; }  // start and place kept
-    const m = clearSelection(); if (m) say(m); return true;
+    const m = clearSelection(); if (!m) return false; say(m); return true; // nothing to clear: the key is not used (kit/README.md, "The Esc rule")
   }
   return onCommonKey(c);
 }
@@ -661,7 +661,7 @@ function onTableKey(c) {
   if (c === "Escape") { // Esc collapses a row selection to the focused row (9.1); the next Esc clears it
     const id = ROWS[S.row];
     if (!S.setSel && S.sel.length > 1 && S.sel.includes(id)) { setSelection([id]); S.rowAnchor = S.row; say(`${id} alone selected. ${countPhrase()}`); return true; }
-    const m = clearSelection(); say(m ?? "Nothing selected."); return true;
+    const m = clearSelection(); if (!m) return false; say(m); return true;
   }
   return onCommonKey(c);
 }
@@ -1043,7 +1043,7 @@ function renderInspector() {
       + `<div class="k-scroll">${sec(`Members <span class="k-count k-num">${s.members.length}</span>`, list(s.members))}</div>`;
   } else if (S.sel.length === 0) {
     html = type("network", "Protein interactions", "Graph", "")
-      + `<div class="k-scroll">${sec("Graph", row("nodes", "33 of 300") + row("edges", "59 of 1,262") + row("components", "1") + row("edge weight", "confidence"))}</div>`;
+      + `<div class="k-scroll">${sec("Graph", row("nodes", '<span data-fx="datasets.ppi.tp53Slice.nodes" data-fx-of="datasets.ppi.nodes">33 of 300</span>', "33 of 300") + row("edges", '<span data-fx="datasets.ppi.tp53Slice.edges" data-fx-of="datasets.ppi.edges">59 of 1,262</span>', "59 of 1,262") + row("components", "1") + row("edge weight", "confidence"))}</div>`;
   } else if (S.sel.length === 1) {
     const n = node(S.sel[0]), inSets = S.sets.filter((s) => s.members.includes(n.id));
     html = type("circle-dot", n.id, "Node", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("pin", "Pin"), true)

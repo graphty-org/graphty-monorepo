@@ -182,11 +182,11 @@
     </div>
 
     <!-- Find, row 2: the result header (only once something is typed) -->
-    <div class="f-head" data-on="2"><span class="f-count k-num">2 results in all 77 nodes</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
-    <div class="f-head" data-on="3"><span class="f-count k-num">14 results in all 77 nodes</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="2"><span class="f-count k-num">2 results in all <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="3"><span class="f-count k-num">14 results in all <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
     <div class="f-head" data-on="4"><span class="f-count k-num">2 results in this project</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
     <div class="f-head" data-on="10 11 13 14"><span class="f-count k-num">0 results in <span data-fx="datasets.transactionsApril.nodes">3,093</span> accounts</span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
-    <div class="f-head" data-on="5 6"><span class="f-count k-num">0 results in all 77 nodes</span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="f-head" data-on="5 6"><span class="f-count k-num">0 results in all <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" aria-disabled="true"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
     <div class="f-head" data-on="7"><span class="f-count k-num">3 results in all 124,318 nodes</span><span class="k-icon-btn" title="Previous result"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn" title="Next result"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
 
     <div class="k-scroll" data-on="1 2 3 4 5 6 7 10 11 13 14">
@@ -283,7 +283,7 @@
     <div class="k-scroll" data-on="8 9 12 15">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">77 nodes</span></li></ul>
+        <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num"><span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span></li></ul>
       </section>
       <section class="k-section">
         <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -371,10 +371,10 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool" data-on="1 2 3 4 5 6 15"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
-          <span class="k-tool" aria-pressed="true" data-on="8 9 12"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" data-on="1 2 3 4 5 6 15" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+          <span class="k-tool k-tool-label" aria-pressed="true" data-on="8 9 12" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -403,9 +403,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -420,9 +420,9 @@
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool" aria-disabled="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool" aria-disabled="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         </div>
@@ -475,11 +475,11 @@
             <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.0.id">ACC-393859</td><td>merchant</td><td><span class="k-chit" style="background:#E69F00"></span>Community 1</td><td class="k-n" data-fx="datasets.transactionsApril.rows.0.degree">842</td></tr>
             <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.1.id">ACC-697114</td><td>merchant</td><td><span class="k-chit" style="background:#56B4E9"></span>Community 2</td><td class="k-n" data-fx="datasets.transactionsApril.rows.1.degree">513</td></tr>
             <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.2.id">ACC-527694</td><td>merchant</td><td><span class="k-chit" style="background:#0072B2"></span>Community 4</td><td class="k-n" data-fx="datasets.transactionsApril.rows.2.degree">318</td></tr>
-            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.3.id">ACC-293071</td><td>merchant</td><td><span class="k-chit" style="background:#505050"></span>Community 16</td><td class="k-n" data-fx="datasets.transactionsApril.rows.3.degree">250</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.3.id">ACC-293071</td><td>merchant</td><td><span class="k-chit" style="background:#BDBDBD"></span>Community 16</td><td class="k-n" data-fx="datasets.transactionsApril.rows.3.degree">250</td></tr>
             <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.4.id">ACC-694666</td><td>merchant</td><td><span class="k-chit" style="background:#D55E00"></span>Community 5</td><td class="k-n" data-fx="datasets.transactionsApril.rows.4.degree">212</td></tr>
             <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.5.id">ACC-593226</td><td>merchant</td><td><span class="k-chit" style="background:#009E73"></span>Community 3</td><td class="k-n" data-fx="datasets.transactionsApril.rows.5.degree">189</td></tr>
-            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.6.id">ACC-620800</td><td>merchant</td><td><span class="k-chit" style="background:#505050"></span>Community 18</td><td class="k-n" data-fx="datasets.transactionsApril.rows.6.degree">140</td></tr>
-            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.7.id">ACC-317086</td><td>merchant</td><td><span class="k-chit" style="background:#505050"></span>Community 36</td><td class="k-n" data-fx="datasets.transactionsApril.rows.7.degree">128</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.6.id">ACC-620800</td><td>merchant</td><td><span class="k-chit" style="background:#BDBDBD"></span>Community 18</td><td class="k-n" data-fx="datasets.transactionsApril.rows.6.degree">140</td></tr>
+            <tr><td class="k-id" data-fx="datasets.transactionsApril.rows.7.id">ACC-317086</td><td>merchant</td><td><span class="k-chit" style="background:#BDBDBD"></span>Community 36</td><td class="k-n" data-fx="datasets.transactionsApril.rows.7.degree">128</td></tr>
           </tbody>
         </table>
       </div>
@@ -574,7 +574,7 @@
           <div class="k-metric"><span class="k-secondary">weak components</span><span class="k-big k-num" data-fx="datasets.transactionsApril.stats.components">27</span></div>
           <div class="k-metric"><span class="k-secondary">density</span><span class="k-big k-num" data-fx="datasets.transactionsApril.stats.density" data-fx-digits="6">0.000875</span></div>
         </div>
-        <div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">directed; amount, not used yet</span></div>
+        <div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">directed; amount: $ (USD)</span></div>
       </section>
     </div>
 
@@ -591,7 +591,7 @@
           <div class="k-metric"><span class="k-secondary">components</span><span class="k-big k-num" data-fx="datasets.lesmis.filterSteps.byStep.2.components">1</span></div>
           <div class="k-metric"><span class="k-secondary">density</span><span class="k-big k-num" data-fx="datasets.lesmis.filterSteps.byStep.2.density" data-fx-digits="3">0.296</span></div>
         </div>
-        <div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">undirected; value, not used yet</span></div>
+        <div class="k-row"><span class="k-grow">Edges</span><span class="k-secondary">undirected; value: no unit</span></div>
       </section>
     </div>
   </aside>
@@ -619,7 +619,7 @@
 
 <!-- State 2 -->
 <span class="an k-annot-box" data-on="2" style="left:57px;top:112px;width:241px;height:40px"></span>
-<div class="an k-annot-note" data-on="2" style="left:320px;top:100px"><b>1 Result header, as Figma's.</b> The count and what it counted: "in all 77 nodes" says Find looks past the filter -- information-architecture 7, Scope. Previous and Next are the Next finding and Previous finding commands -- interaction-patterns 3.1. <b>Text</b>, two <b>ActionIcon</b>s. No scope select: this project holds one graph (proposed).</div>
+<div class="an k-annot-note" data-on="2" style="left:320px;top:100px"><b>1 Result header, as Figma's.</b> The count and what it counted: "in all <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span>" says Find looks past the filter -- information-architecture 7, Scope. Previous and Next are the Next finding and Previous finding commands -- interaction-patterns 3.1. <b>Text</b>, two <b>ActionIcon</b>s. No scope select: this project holds one graph (proposed).</div>
 <span class="an k-annot-box" data-on="2" style="left:57px;top:152px;width:241px;height:132px"></span>
 <div class="an k-annot-note" data-on="2" style="left:320px;top:250px"><b>2 Hits by kind, ranked.</b> Exact, then prefix (Thenardier), then substring (Mme.Thenardier) -- information-architecture 7. <b>ResultRow</b>. Second line: the group, then what the size layer reads (proposed). <b>Blocked:</b> ranking and every hit but an exact id wait on graphty-element (interface-specification 7.4, the search row); today only an exact id is found.</div>
 <div class="an k-annot-note" data-on="2" style="left:960px;top:150px;max-width:220px"><b>3 The committed hit is brought into view.</b> At 100% Thenardier's label was culled in the densest cluster, so the camera zooms to 200% about him and the freed labels draw -- interaction-patterns 3.1, the camera. The zoom control reads 200%.</div>

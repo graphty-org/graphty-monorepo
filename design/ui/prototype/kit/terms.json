@@ -1,9 +1,10 @@
 {
   "about": "The term sheet kit/check.mjs reads. It is checked against the RENDERED page. A retired string fails anywhere on it, design prose included (prose that describes a retired control as current misleads the owner too); a required string counts only inside product frames in the participant view (?study), so a design note cannot satisfy it. A frame marked data-frame=\"before\" is skipped. 'retired' fails any page that shows the text; 'required' fails the named state when the text is missing, or when the state does not exist yet (a state to draw). Each entry gives its reason. The frame rules (the rail, one right panel, no avatar, no top-right Export) and the two-homes rules are code in check.mjs, named in 'rules' so the sheet lists every gate in one place.",
   "exempt": [
-    "study/index.html"
+    "study/index.html",
+    "study/coverage.html"
   ],
-  "exemptWhy": "The study's own record of past rounds, which quotes retired terms as history.",
+  "exemptWhy": "The study's own records of past rounds (study/index.html) and of what each round tested (study/coverage.html), which quote retired terms as history.",
   "retired": [
     {
       "text": "Export files",
@@ -63,6 +64,47 @@
     {
       "text": "Undo: restore",
       "why": "Edit > Undo names every entry the same way: 'Undo Restore selection (N nodes)'."
+    },
+    {
+      "text": "within 1%",
+      "why": "No invented tie rule: the percentage is not a property of the data. An exact measure shows '=' only when values are equal at the shown precision; an estimate shows its rank range."
+    },
+    {
+      "re": "\\bnear #\\d",
+      "label": "'near #N' in a rank cell",
+      "why": "Rank is an integer; a tie is '=' at the shown precision (exact) or a rank range (estimate). 'near #8' made the rank column text in Excel and pandas."
+    },
+    {
+      "text": "not used yet",
+      "why": "A column's meaning as a weight is asked by each run that uses it, never set on the data: 'amount: $ (USD). Each run that uses it asks what a higher amount means.'"
+    },
+    {
+      "re": "(?<!Saving as:[^\\n.]{0,40}\\.\\s{0,3})Change\\.\\.\\.",
+      "label": "'Change...' on a data source",
+      "why": "A data source states facts only; its one action is 'Update with new data...'. The Loaded line's 'Change...' drew 27 wrong first clicks. (The note editor's 'Saving as: <name>. Change...' is the author setting, not a data source, and stays.)"
+    },
+    {
+      "re": "\\blinked pairs?\\b",
+      "flags": "i",
+      "label": "'linked pairs'",
+      "why": "One noun for a pair of nodes counted once however many rows join them: 'distinct pairs' ('Evidence rows 2,298 (1,262 distinct pairs)')."
+    },
+    {
+      "re": "\\busage statistics\\b",
+      "flags": "i",
+      "label": "'Usage statistics'",
+      "why": "One name for what is sent only after the person says yes: 'Usage data' (Where your data goes, Sent and saved, Preferences > Usage data)."
+    },
+    {
+      "re": "\\bbigger (?:amount|value|number|confidence|weight) means\\b",
+      "flags": "i",
+      "label": "'a bigger <column> means'",
+      "why": "The weight question reads 'For amount, a higher number means...', and the data line echoes it: 'Each run that uses it asks what a higher amount means.' One adjective, higher."
+    },
+    {
+      "re": "Compare with another column",
+      "label": "'Compare with another column...'",
+      "why": "The column menu's scatter view is 'Compare columns...'; 'Compare with another run...' belongs to a run, 'Compare with another version...' to a data version, 'Compare with the rest' to a group or set."
     }
   ],
   "required": [
@@ -77,16 +119,6 @@
         "Ctrl+Enter"
       ],
       "why": "In a note, Enter starts a new line and Ctrl+Enter posts, with a hint under the box."
-    },
-    {
-      "page": "screens/table-dock.html",
-      "states": [
-        "ranked"
-      ],
-      "text": [
-        "Near tie"
-      ],
-      "why": "Near ties are marked in the rank column, with one line stating the tie rule."
     },
     {
       "page": "screens/results-panel.html",

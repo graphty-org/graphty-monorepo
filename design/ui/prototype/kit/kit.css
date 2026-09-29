@@ -12,7 +12,7 @@
     --k-canvas: light-dark(#f5f5f5, #1e1e1e);
     --k-canvas-ink: light-dark(#1a1a1a, #f0f0f0);
     --k-node-gray: #808080;
-    --k-other-gray: #505050;
+    --k-other-gray: #BDBDBD;
     /* Annotation ink: storyboard callouts and step numbers. Deliberately NOT a product color, so
        nobody mistakes an annotation for UI. */
     --k-annot: #c2185b;
@@ -142,7 +142,7 @@ b, strong, th { font-weight: 550; }
 /* Left panel header: project name, chevron, state words, filter chip */
 .k-panel-head { padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
 .k-panel-head .k-title-line { display: flex; align-items: center; gap: 4px; height: 24px; }
-.k-panel-head .k-project { font-size: 13px; line-height: 22px; font-weight: 550; letter-spacing: -0.032px; }
+.k-panel-head .k-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 22px; font-weight: 550; letter-spacing: -0.032px; } /* one line: a long project name ends in an ellipsis, as the title bar in Figma does, instead of spilling over the privacy line */
 /* The privacy line under the project name ("Nothing has been sent from this project"): a fact the
    reader acts on, so body ink, and a link to Data > Sent and saved, so underlined -- in the
    border's gray, not the accent, which the hue budget keeps for live state (visual-language A1).
@@ -349,6 +349,7 @@ b, strong, th { font-weight: 550; }
 .k-legend-card .k-lg-title { font-weight: 550; }
 .k-legend-card .k-lg-row { display: flex; align-items: center; gap: 8px; }
 .k-legend-card .k-lg-row .k-value { margin-inline-start: auto; color: var(--cm-text-secondary); }
+.k-legend-card .k-lg-sub { padding-inline-start: 20px; color: var(--cm-text-secondary); }
 .k-legend-card .k-notdrawn { border-top: 1px solid var(--cm-border); margin-top: 4px; padding-top: 4px; color: var(--cm-text); }
 .k-legend-card .k-notdrawn a { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; }
 
@@ -359,6 +360,7 @@ b, strong, th { font-weight: 550; }
 .k-toolbar { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 8px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
 .k-toolbar-sep { width: 1px; align-self: stretch; margin: -8px 0; background: var(--cm-border); }
 .k-tool { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 5px; color: var(--cm-icon); }
+.k-tool.k-tool-label { display: flex; gap: 4px; width: auto; padding: 0 8px 0 4px; font-size: 11px; color: var(--cm-text); }
 .k-tool:hover { background: var(--cm-bg-hover); }
 .k-tool[aria-pressed="true"] { background: var(--cm-bg-brand); color: #fff; }
 /* The caret's hit area is 24 wide and starts where its tool ends, the chevron in its first 16
@@ -488,7 +490,9 @@ b, strong, th { font-weight: 550; }
 .k-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .k-thumb { border-radius: 5px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--cm-border); }
 .k-thumb img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
-.k-thumb .k-thumb-label { padding: 8px; }
+.k-thumb .k-thumb-label { padding: 8px; font-weight: 550; }
+/* Name on line 1, size on line 2 in secondary ink, as the start screen draws its sample cards. */
+.k-thumb .k-thumb-label > .k-secondary { display: block; font-weight: 400; }
 
 /* ---------- storyboards, flows and documents (not product UI) ---------- */
 .k-doc { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; font-size: 13px; line-height: 20px; letter-spacing: -0.003px; }

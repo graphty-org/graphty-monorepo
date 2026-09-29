@@ -59,60 +59,60 @@ const branch = (id, letter, title, kind, intro, frames, o) => `<h2 id="${id}"><s
 
 // ---------------------------------------------------------------- A
 const A = [
-    { n: "A1", page: "weight-role-trap", state: "a1", title: "The load step asks what value means",
+    { n: "A1", page: "weight-role-trap", state: "a1", title: "The load step shows value as data only",
       who: "Alex, operations analyst, the load step over a blank project.",
-      crops: [[376, 364, 688, 264, 0.85]], boxes: [[388, 488, 664, 32]],
-      body: "He drops miserables.json on a blank project. The edge column value has no declared role, so the load step asks what it measures, with nothing pre-picked; the project still reads Untitled until Load commits. He thinks of a number on an edge as a length and picks a longer or costlier step.",
+      crops: [[360, 288, 720, 324, 0.85]], boxes: [[376, 440, 688, 112]],
+      body: "He drops miserables.json on a blank project. The load step shows the edge column value as data only: whole numbers, 1 to 31, most edges 1 to 3. It says nothing about what a higher value means, because that is not a property of the column: each run that reads value asks it. The project keeps its blank name until Load commits.",
+      expect: "\"Whole numbers on the edges. Fine.\"",
+      then: "the graph loads as Les Miserables." },
+    { n: "A2", page: "weight-role-trap", state: "a2", title: "The run asks what a higher value means",
+      who: "Alex, the Catalog in Results and Betweenness's run form.",
+      crops: [[57, 160, 650, 470, 1]], boxes: [[57, 346, 240, 32], [318, 344, 284, 190]],
+      body: "Results is open on the rail. He clicks Betweenness in its Catalog. The run form reads the weight column value and asks \"For value, a higher number means...\" as four radio buttons with nothing chosen; Enter and Run do nothing until he answers. The graph's Statistics describe value only by its data: \"value, shared scenes, 1 to 31\".",
+      then: "he reads the four answers." },
+    { n: "A3", page: "weight-role-trap", state: "a3", title: "Four answers, each naming its conversion",
+      who: "Alex, Betweenness's run form.",
+      crops: [[306, 200, 300, 420, 1.2]], boxes: [[318, 344, 284, 190]],
+      body: "Each answer carries one line saying how the run will turn value into a length: a closer or stronger link, Distance = 1 / value; a longer or costlier step, Distance = value. More can pass through and Don't use value are there too, in the same order as everywhere the question is asked. Nothing is picked for him. He thinks of a number on an edge as a length and picks a longer or costlier step; Run turns on.",
       expect: "\"A number on an edge. Distance, I suppose.\"",
-      then: "the graph loads as Les Miserables, with value declared a distance." },
-    { n: "A2", page: "weight-role-trap", state: "a2", title: "A plausible ranking, and no error",
-      who: "Alex, the inspector's Results and the table.",
-      crops: [[1199, 300, 241, 100, 1.8], [298, 655, 230, 250, 1], [900, 655, 299, 250, 1]], boxes: [[1232, 362, 190, 24]],
-      body: `He runs Betweenness. It finishes at once and nothing warns. ${N.asDistance[0].label} first, then ${N.asDistance.slice(1, 5).map((x) => x.label).join(", ")}; Marius ${ord(N.rankAsDistance.Marius)}. Under the result's name the row reads "Weight: value, used as distance". The row has no fill, because its editor is not open.`,
+      then: "he presses Run." },
+    { n: "A4", page: "weight-role-trap", state: "a4", title: "A plausible ranking, and no error",
+      who: "Alex, the run's row in Results, and the table.",
+      crops: [[57, 215, 241, 100, 1.8], [298, 655, 236, 250, 1], [920, 655, 279, 250, 1]], boxes: [[57, 249, 240, 56]],
+      body: `Betweenness finishes at once and nothing warns. ${N.asDistance[0].label} first, then ${N.asDistance.slice(1, 5).map((x) => x.label).join(", ")}; Marius ${ord(N.rankAsDistance.Marius)}. Its row in Results names the run and the conversion it used: "Run 1. Distance = value". The row has no fill, because its record is not open.`,
       expect: `"${N.asDistance[1].label} second, ${N.asDistance[2].label} third. Sounds about right."`,
-      then: "the design bets he stops at the line under the name. If he reads past it, see the miss path below." },
-    { n: "A3", page: "weight-role-trap", state: "a3", title: "The trust check shows the reading, bound to the column",
-      who: "Alex, the result's editor.",
-      crops: [[930, 320, 510, 220, 1.05]], boxes: [[943, 426, 248, 88]],
-      body: "He opens the result. The Weight row shows the reading as a value bound to the graph's column, \"value, used as distance\", headed \"from Edges\", with what that means under it: \"Read as a distance: a bigger value is a longer step.\" He does not change it here: the role belongs to the column, and every weighted result reads it from there. Clicking the value opens the Edges editor; Detach, on hover, would change this one run only.",
-      expect: "\"A longer step? These are scene counts.\"",
-      then: "he clicks the value, and the Edges editor opens beside the graph's Statistics." },
-    { n: "A4", page: "weight-role-trap", state: "a4", title: "Re-map the column; the result goes Out of date at once",
-      who: "Alex, the Edges editor and the inspector's Results.",
-      crops: [[944, 140, 496, 290, 1], [1199, 300, 241, 100, 1.4]], boxes: [[958, 312, 188, 28], [1380, 360, 52, 26]],
-      body: "He changes the answer to a closer or stronger link (similarity); graphty converts it for path measures itself. The edit applies the moment the role commits: Betweenness read value, so its row says Out of date with Re-run, the table's column says it too, and its row in the inspector's Results section says so too.",
+      then: "the design bets he stops at the conversion on the row. If he reads past it, see the miss path below." },
+    { n: "A5", page: "weight-role-trap", state: "a5", title: "He changes the answer; Run 1 goes Out of date at once",
+      who: "Alex, Run 1's record, opened from its row in Results.",
+      crops: [[57, 200, 560, 600, 1]], boxes: [[57, 249, 240, 56], [318, 344, 284, 190], [443, 208, 127, 24]],
+      body: "He opens Run 1 from its row. Its record shows the same question with his answer, and the top nodes it produced, headed \"Run 1 (Distance = value)\". He changes the answer to a closer or stronger link. This run's option changed, so Run 1 is Out of date at once, on its row and in the table's column header, with one verb, Re-run (keeps Run 1). Nothing reruns by itself: the old numbers stay, marked, until he asks. Nothing on the column changed, and no other result is touched.",
       expect: "\"So that one's stale now.\"",
-      then: "one undo step, Change role of value." },
-    { n: "A5", page: "weight-role-trap", state: "a5", title: "Nothing reruns by itself",
-      who: "Alex, the inspector's Results.",
-      crops: [[1199, 300, 241, 100, 1.4]], boxes: [[1380, 360, 52, 26]],
-      body: "The editor is closed. The old numbers stay, marked, until he asks. The inspector's Results section, read with nothing selected, is where a result like this is found.",
-      then: "he presses Re-run." },
+      then: "he presses Re-run (keeps Run 1)." },
     { n: "A6", page: "weight-role-trap", state: "a6", title: "The ranking the data supports",
-      who: "Alex, the inspector's Results and the table.",
-      crops: [[1199, 300, 241, 100, 1.8], [298, 655, 230, 250, 1], [900, 655, 299, 250, 1]], boxes: [[1232, 362, 190, 24], [298, 686, 230, 64], [900, 686, 299, 64]],
-      body: `${list(N.asSimilarity, 5)}. Marius moved from ${ord(N.rankAsDistance.Marius)} to ${ord(N.rankAsSimilarity.Marius)}, Javert from ${ord(N.rankAsDistance.Javert)} to ${ord(N.rankAsSimilarity.Javert)}. The row now reads "Weight: value, used as similarity" in the inspector's Results section.`,
+      who: "Alex, the runs in Results, and the table.",
+      crops: [[57, 240, 241, 125, 1.8], [298, 655, 236, 250, 1], [920, 655, 279, 250, 1]], boxes: [[57, 249, 240, 56], [298, 686, 236, 64], [920, 686, 279, 64]],
+      body: `${list(N.asSimilarity, 5)}. Marius moved from ${ord(N.rankAsDistance.Marius)} to ${ord(N.rankAsSimilarity.Marius)}, Javert from ${ord(N.rankAsDistance.Javert)} to ${ord(N.rankAsSimilarity.Javert)}. In Results, Run 2's row names the new conversion, "Distance = 1 / value", and Run 1 stays under it with its own, so both rankings can still be read.`,
       expect: "\"Marius second. OK.\"" },
 ];
 const Ao = {
-    outcome: "The wrong number never looked wrong. What can catch it is the question at load time and the reading the result names, on its row and in its editor. The fix is made once, on the column, and every result that read it is marked.",
-    bet: "The load question prevents the mistake for most analysts, and for those who answer it wrong, the reading line under the result's name (A2) or the editor's bound Weight value (A3) is noticed before a number is quoted. The reading line on the row is a proposal that stays pending until sessions show analysts catch the error from it; the load question is the main guard.",
-    pass: "Before quoting a ranking, the participant says which reading the run used, or changes the role on the column (not by detaching one run).",
-    miss: `Alex reads past "Weight: value, used as distance" in A2, never opens the editor, and pastes ${N.asDistance[2].label} as the third most central character into his deck. Or he opens the editor and detaches the Weight for this one run, leaving every other weighted result wrong. Either one, seen in sessions, means the reading line and the bound value are not doing their job.`,
+    outcome: "The wrong number never looked wrong. What can catch it is the question each weighted run asks, with nothing chosen for him, and the conversion the run names on its row in Results. The fix is made on the run: Run 1 goes Out of date the moment its answer changes, and Re-run keeps it beside Run 2.",
+    bet: "The run's question prevents the mistake for most analysts, and for those who answer it wrong, the conversion on the run's row (A4) is noticed before a number is quoted.",
+    pass: "Before quoting a ranking, the participant says which conversion the run used, or changes the answer in the run's record and re-runs.",
+    miss: `Alex reads past "Distance = value" on the row in A4, never opens the run, and pastes ${N.asDistance[2].label} as the third most central character into his deck. Seen in sessions, that means the conversion on the row is not doing its job.`,
 };
 
 // ---------------------------------------------------------------- B
 const B = [
     { n: "B1", page: "closeness-variant", state: "b1", title: "Closeness names its formula before it runs",
-      who: "Alex, the Results catalog, Les Miserables with Valjean filtered out.",
-      crops: [[676, 40, 520, 260, 1]], boxes: [[951, 152, 240, 32], [683, 150, 260, 72]],
-      body: `Without Valjean the graph falls into ${WV.components} components: the bishop's household of ${WV.household} is cut off from everyone, and ${WV.alone} characters are left alone. He points at Closeness. The row already carries the word WF-corrected, and its tooltip says why: ${WV.components} components, each score scaled by the share of the graph the node can reach.`,
+      who: "Alex, the Catalog in Results, Les Miserables with Valjean filtered out.",
+      crops: [[57, 380, 241, 70, 1.6], [676, 140, 275, 100, 1.2]], boxes: [[57, 414, 240, 32], [683, 150, 260, 72]],
+      body: `Without Valjean the graph falls into ${WV.components} components: the bishop's household of ${WV.household} is cut off from everyone, and ${WV.alone} characters are left alone. He points at Closeness in the Catalog. The row already carries the word WF-corrected, and its tooltip says why: ${WV.components} components, each score scaled by the share of the graph the node can reach.`,
       expect: "\"WF? No idea what that is.\"",
       then: "he runs it." },
     { n: "B2", page: "closeness-variant", state: "b2", title: "The result's name carries the variant",
-      who: "Alex, the inspector's Results and the table.",
-      crops: [[945, 330, 495, 140, 1.1], [298, 655, 230, 250, 1], [900, 655, 299, 250, 1]], boxes: [[955, 400, 236, 64]],
-      body: `The result and its column are named Closeness (WF-corrected): ${list(WV.closenessWF, 5)}. The bishop's household sits low; Myriel is ${ord(WV.myriel.rank)}. Clicking the variant words offers the one alternative that needs no correction, Harmonic centrality.`,
+      who: "Alex, the run's row in Results, and the table.",
+      crops: [[57, 240, 241, 125, 1.6], [955, 398, 238, 70, 1.3], [298, 655, 200, 250, 1], [1000, 655, 199, 250, 1]], boxes: [[57, 305, 240, 56], [955, 400, 236, 64]],
+      body: `The run's row in Results and the table's column are both named Closeness (WF-corrected): ${list(WV.closenessWF, 5)}. The bishop's household sits low; Myriel is ${ord(WV.myriel.rank)}. Clicking the variant words offers the one alternative that needs no correction, Harmonic centrality, as a new run beside this one.`,
       expect: `"${WV.closenessWF[0].label} first. And what's Harmonic?"` },
 ];
 const Bextra = `<h3 class="s-h3">What the same run says without the correction</h3>
@@ -122,7 +122,7 @@ ${WV.closenessWF.slice(0, 5).map((x, i) => `    <tr><td>${i + 1}</td><td>${x.lab
   </tbody></table>
   <p class="k-secondary">Values near and above 1 are expected: lengths are 1 / value, under 1 for every tie of 2 or more shared scenes. Computed with NetworkX by <a href="../screens/failure-and-recovery-numbers.py">failure-and-recovery-numbers.py</a>.</p>`;
 const Bo = {
-    outcome: "graphty never runs the misleading form silently: the correction is chosen for a graph in pieces, named before the run on the Catalog row, and carried in the result's name and column header, so a number copied into a deck carries its formula.",
+    outcome: "graphty never runs the misleading form silently: the correction is chosen for a graph in pieces, named before the run on the Catalog row, and carried in the run's name and the column header, so a number copied into a deck carries its formula.",
     bet: "An analyst who meets an unfamiliar variant word asks what it means (the tooltip, the (i)) before comparing the numbers with another tool's closeness.",
     pass: `Asked why Myriel is ${ord(WV.myriel.rank)} here but first in another tool's output, the participant points at the variant word, or opens its tooltip, and explains the difference in their own words.`,
     miss: "The word reads as noise. The participant compares graphty's Javert first with another tool's Myriel first and decides one of them is broken. The probe: ask what \"WF-corrected\" means to them before showing the tooltip. If most Alex-type participants cannot say, the word needs plainer wording (a two-way door, for the owner).",
@@ -131,33 +131,33 @@ const Bo = {
 // ---------------------------------------------------------------- C
 const C = [
     { n: "C1", page: "filter-step-recovery", state: "c1", title: "Fewer characters than expected",
-      who: "Alex, the inspector's Results and the table.",
-      crops: [[57, 20, 300, 60, 1.8], [298, 655, 230, 250, 1], [900, 655, 299, 250, 1]], boxes: [[70, 33, 184, 26]],
+      who: "Alex, the filter chip and the table.",
+      crops: [[57, 50, 250, 45, 1.8], [298, 655, 230, 250, 1], [900, 655, 299, 250, 1]], boxes: [[73, 60, 174, 24]],
       body: `He wanted to know who holds the story together without Valjean and Javert: Filter out label = Valjean, Filter to Largest component (meant to drop the ${spoken(WV.alone)} characters left alone once Valjean was gone), Filter out label = Javert, then Re-run betweenness. The chip reads ${N.allThreeSteps.nodes} of ${N.full.nodes} nodes, 3 steps. Betweenness puts ${N.allThreeSteps.betweenness[0].label} first and ${N.allThreeSteps.betweenness[1].label} second at ${N.allThreeSteps.betweenness[1].value}, and Myriel is nowhere.`,
       expect: `"${Spoken(N.allThreeSteps.nodes)}? I took out two people."`,
       then: "he opens the chip." },
     { n: "C2", page: "filter-step-recovery", state: "c2", title: "The steps say where the 15 went",
       who: "Alex, the filter steps.",
-      crops: [[57, 40, 545, 180, 1.05]], boxes: [[74, 138, 224, 32], [312, 124, 280, 40]],
+      crops: [[57, 45, 545, 205, 1.05]], boxes: [[74, 138, 224, 32], [312, 124, 280, 40]],
       body: "Each step shows the number of nodes left after it: 76, 61, 60. The drop from 76 to 61 is the middle step. Pointing at it says so in words: 61 left. Took out 15: Myriel, Mlle.Baptistine, Mme.Magloire, Champtercier, Count and 10 more. With Valjean gone, the bishop's household was its own island.",
       expect: `"${Spoken(WV.nodes)} to ${spoken(WV.nodes - WV.leftOutByLargest)}. The bishop's lot."`,
       then: "he looks for a way to take back just that step." },
     { n: "C3", page: "filter-step-recovery", state: "c3", title: "Undo walks back from the newest change",
       who: "Alex, the Edit menu.",
-      crops: [[240, 40, 580, 200, 1]], boxes: [[252, 56, 300, 24], [556, 96, 260, 136]],
+      crops: [[240, 55, 580, 180, 1]], boxes: [[252, 73, 300, 24], [556, 113, 260, 112]],
       body: "Undo reads Undo Re-run betweenness, not the step he wants. Three presses, each labeled, would reach Filter to Largest component, and would take Filter out label = Javert and the run with them. Undo history, a temporary list that goes away once graphty-element can restore a canceled run on Redo, shows the same order; nothing in this branch needs it.",
       expect: "\"Undo goes the wrong way for this.\"",
       then: "he closes the menu and goes back to the steps." },
     { n: "C4", page: "filter-step-recovery", state: "c4", title: "Way back one: turn the step off",
-      who: "Alex, the filter steps.",
-      crops: [[57, 28, 260, 230, 1.3]], boxes: [[74, 138, 224, 32], [70, 33, 210, 26]],
-      body: "He clears the step's checkbox. It stays in the list with -- for its count; the step below recounts and the chip reads 75 of 77 nodes, 2 of 3 steps, at once. Betweenness still describes the old scope, so its row reads \"on: 60 nodes\" with Re-run. That is scope, not staleness, so its row carries no mark.",
+      who: "Alex, the filter steps and the run's row in Results.",
+      crops: [[57, 54, 260, 261, 1.3]], boxes: [[74, 138, 224, 32], [73, 60, 199, 24], [57, 249, 240, 56]],
+      body: "He clears the step's checkbox. It stays in the list with -- for its count; the step below recounts and the chip reads 75 of 77 nodes, 2 of 3 steps, at once. Betweenness still describes the old scope, so its row in Results reads \"on 60 of 77\" with Re-run. That is scope, not staleness, so its row carries no mark.",
       expect: "\"Off. Seventy-five.\"",
       then: "one undo step, Turn off step Filter to Largest component." },
     { n: "C5", page: "filter-step-recovery", state: "c5", title: "Way back two: delete the step",
       who: "The same moment, the other way: Alex, the filter steps.",
-      crops: [[57, 28, 260, 230, 1.3]], boxes: [[70, 33, 184, 26], [74, 106, 224, 64]],
-      more: [{ state: "c5e", crops: [[252, 48, 352, 56, 1]], boxes: [[252, 56, 352, 24]], title: "Edit after the delete" }],
+      crops: [[57, 54, 260, 170, 1.3]], boxes: [[73, 60, 174, 24], [66, 58, 240, 156]],
+      more: [{ state: "c5e", crops: [[252, 69, 356, 32, 1]], boxes: [[252, 73, 356, 24]], title: "Edit after the delete" }],
       body: "With the step's row focused he presses Delete. It goes at once, with no question; the list closes up to two steps, focus moves to the next row, and the chip reads 75 of 77 nodes, 2 steps. Everything happened in sight, so there is no notice. The small inset is Edit afterwards: Undo Delete step Filter to Largest component, so this way back has its own way back.",
       expect: "\"Gone. Seventy-five.\"" },
     { n: "C6", page: "filter-step-recovery", state: "c6", title: "Re-run on the graph he meant",
@@ -174,45 +174,53 @@ const Co = {
 };
 
 // ---------------------------------------------------------------- D
+const KEPT = "Showing Run 1 (damping 0.85). Run 2 wrote nothing.";
 const D = [
     { n: "D1", page: "gpu-lost-run", state: "d1", title: "A re-run on WebGPU, the old values still shown",
-      who: "Emma, network scientist, the inspector's Results and the PageRank editor.",
-      crops: [[920, 100, 520, 290, 1]], boxes: [[1199, 330, 241, 48]],
-      body: "She changed damping from 0.85 to 0.5 and pressed Run. The row shows 62% and the engine, WebGPU; Cancel is in the editor's header. The editor says whose values are on screen until the new ones land: Showing the run before: damping 0.85.",
+      who: "Emma, network scientist, the run's record in Results.",
+      crops: [[57, 90, 241, 290, 1.5]], boxes: [[57, 93, 240, 40], [57, 333, 240, 36]],
+      more: [{ state: "d1", crops: [[592, 792, 313, 40, 1.3]], title: "The running notice" }],
+      body: "She changed damping from 0.85 to 0.5 and pressed Re-run. The run's record is open in place in Results, named PageRank, damping 0.5: 62%, the engine, WebGPU, and Cancel as its one verb. It says whose values are on screen until the new ones land: \"Showing Run 1 (damping 0.85) until this run finishes.\" The running notice over the canvas repeats the run.",
       expect: "\"Let it cook.\"",
       then: "her laptop's graphics driver resets." },
-    { n: "D2", page: "gpu-lost-run", state: "d2", title: "The GPU is lost: a failed row, never a quiet CPU finish",
-      who: "Emma, the inspector's Results and the PageRank editor.",
-      crops: [[920, 100, 520, 300, 1]], boxes: [[1199, 335, 241, 50], [1059, 118, 96, 24], [947, 160, 230, 50]],
-      body: "PageRank says Failed. The editor gives the cause, \"Could not run PageRank: WebGPU lost; new runs use the CPU\", and still shows the run before, damping 0.85. There is one Re-run on CPU, in the editor's header; its tooltip gives the cost, a few minutes on the CPU. The raw code is the last line of Details. Its row in the inspector's Results section carries the failure.",
+    { n: "D2", page: "gpu-lost-run", state: "d2", title: "The GPU is lost: a failed run, never a quiet CPU finish",
+      who: "Emma, the run's record in Results.",
+      crops: [[57, 90, 310, 430, 1.35]], boxes: [[73, 165, 208, 48], [57, 221, 240, 36], [73, 261, 96, 24], [73, 293, 130, 24]],
+      body: `The run fails. Its record gives the cause, "Could not run PageRank: WebGPU lost; new runs use the CPU", and says whose values are on screen: "${KEPT}" Two verbs follow. Re-run on CPU names where the next run goes; its tooltip gives the cost, a few minutes on the CPU. Try WebGPU again asks graphty-element to reach the GPU again: an explicit retry the element owns, not a fallback, and it re-runs nothing by itself. The raw code is the last line of Details.`,
       expect: "\"Driver reset. So this is 0.85 still.\"",
-      then: "she presses Re-run on CPU. When WebGPU comes back, the same button reads plain Re-run." },
+      then: "she goes back to the list before deciding." },
+    { n: "D2B", page: "gpu-lost-run", state: "d2b", title: "Back in the list, the row alone says whose values are shown",
+      who: "Emma, Results.",
+      crops: [[57, 90, 241, 390, 1.45]], boxes: [[57, 217, 240, 154]],
+      body: `The failed run's row keeps its cause, Failed: WebGPU lost, and the same line, "${KEPT}", with Re-run on CPU and Try WebGPU again on the row, so the list answers the question without opening anything. Run 1, damping 0.85, is the row under it.`,
+      then: "she presses Re-run on CPU. Had Try WebGPU again reached the GPU, the graph's Statistics would read Engine: WebGPU and the next run would use it." },
     { n: "D3", page: "gpu-lost-run", state: "d3", title: "A costly run is refused before it starts",
-      who: "Emma, the inspector's Results and the Betweenness editor.",
-      crops: [[880, 140, 560, 300, 0.95]], boxes: [[890, 290, 300, 32], [1060, 158, 90, 28]],
-      body: `PageRank has re-run on the CPU. She asks for Betweenness. With WebGPU lost every run goes to the CPU, where the element estimates exact betweenness at hours, past the 30-second time limit. It arrives refused: its row in the error state with its band, hours; its editor lists the ways forward, cheapest first. Fits the time limit: Sampled, ${K} sources, under a minute; Exact, on 5,318 nodes, under a minute. Past the time limit: Exact, on the full graph, hours. Sampled is the default: it is first and focused, the header's button reads Run sampled, and Enter runs it.`,
+      who: "Emma, the record of Betweenness in Results.",
+      crops: [[57, 90, 241, 410, 1.4]], boxes: [[57, 336, 240, 31], [73, 279, 86, 24], [83, 235, 130, 24]],
+      body: `PageRank has re-run on the CPU as Run 3. She asks for Betweenness. With WebGPU lost every run goes to the CPU, where the element estimates exact betweenness at hours, past the 30-second time limit. It is not started: its record opens in place, reads "Not run: would take hours. The time limit is 30 seconds.", and lists the ways forward, cheapest first. Fits the time limit: Sampled, ${K} sources, under a minute; Exact, on the 5,318 nodes in Drug patents granted in 2001, under a minute, marked "This is a different graph." Past the time limit: Exact, on the full graph, hours. Sampled is the default: it is first and focused, the one verb reads Run sampled, and Enter runs it. Try WebGPU again sits beside the cause, because the GPU is what made it hours.`,
       expect: "\"Sampled is fine for a first look.\"",
       then: "she presses Enter." },
     { n: "D4", page: "gpu-lost-run", state: "d4", title: "The sampled run starts; she cancels it from the notice",
-      who: "Emma, the running notice.",
-      crops: [[1199, 395, 241, 60, 1.3]], more: [{ state: "d4", crops: [[555, 780, 388, 110, 1]], boxes: [[880, 798, 56, 28]], title: "The running notice" }],
-      body: `Betweenness (sampled) runs at once on the CPU, ${K} sources, 18%. Her own baseline for this graph used ${KBIG.k} sources, and the refusal offered only the default size. She presses Cancel on the notice.`,
+      who: "Emma, Results and the running notice.",
+      crops: [[57, 210, 241, 160, 1.5]], boxes: [[57, 217, 240, 88]],
+      more: [{ state: "d4", crops: [[555, 792, 388, 40, 1.3]], boxes: [[882, 800, 52, 24]], title: "The running notice" }],
+      body: `Enter ran the default. Betweenness (sampled) runs at once on the CPU, ${K} sources, 18%, as a new row at the top of Results; the refused Betweenness stays under it, "Not run: would take hours." Her own baseline for this graph used ${KBIG.k} sources, and the refusal offered only the default sample size. She presses Cancel on the running notice.`,
       expect: `"${K} sources. My baseline is ${KBIG.k}."` },
     { n: "D5", page: "gpu-lost-run", state: "d5", title: "Canceled: nothing kept, focus on the row",
-      who: "Emma, the inspector's Results, keyboard in hand.",
-      crops: [[1199, 385, 241, 80, 1.3]], boxes: [[1201, 398, 238, 50]],
-      body: "The notice is gone and nothing of the canceled run is kept. It was the result's first run, so the row reads Not run, with Run. Keyboard focus is on the row, with its ring visible, not lost to the page, so Enter opens its editor. (The page also announces \"Betweenness (sampled) canceled. Run\".)",
+      who: "Emma, Results, keyboard in hand.",
+      crops: [[57, 210, 241, 145, 1.5]], boxes: [[57, 217, 240, 72]],
+      body: "The notice is gone and nothing of the canceled run is kept. It was the run's first attempt, so the row reads Not run, with Run, as a result created unrun does. Keyboard focus is on the row, with its ring visible, not lost to the page, so Enter opens its record. (The page also announces \"Betweenness (sampled) canceled. Run\".)",
       then: "she presses Enter." },
     { n: "D6", page: "gpu-lost-run", state: "d6", title: "Set the sample, and run",
-      who: "Emma, the editor of Betweenness (sampled).",
-      crops: [[920, 240, 520, 250, 1.1]], boxes: [[944, 358, 64, 24]],
-      body: `She tabs to Sample size and types ${KBIG.k}. Under the field: about ${K} fits the time limit; ${KBIG.k} takes ${KBIG.band} and runs in the background. Run, in the header, starts it.`,
+      who: "Emma, the record of Betweenness (sampled) in Results.",
+      crops: [[57, 90, 241, 290, 1.5]], boxes: [[73, 297, 88, 24]],
+      body: `Enter opens the run's record in place. She tabs to Sample size and types ${KBIG.k}. Under the field: about ${K} fits the time limit; ${KBIG.k} takes ${KBIG.band} and runs in the background. Run starts it.`,
       expect: `"${KBIG.band[0].toUpperCase()}${KBIG.band.slice(1)} is fine. Go."` },
 ];
 const Do = {
-    outcome: "Nothing ran on a path Emma did not see named first. The lost GPU showed as one failed result with its cause, the old values kept and named, and a button that says where the next run goes. The costly run was refused before it started with the ways forward listed, the default was the cheap one, and the cancel left nothing behind and put focus where she could act.",
+    outcome: `Nothing ran on a path Emma did not see named first. The lost GPU showed as one failed run with its cause, the old values kept and named ("${KEPT}"), a button that says where the next run goes, and Try WebGPU again, a retry graphty-element performs only when asked. The costly run was refused before it started with the ways forward listed, the default was the cheap one, and the cancel left nothing behind and put focus where she could act.`,
     bet: "After a failure the analyst can say whose values are on screen; at a refusal she chooses a route knowing its cost.",
-    pass: "Asked after D2 which damping the shown PageRank used, the participant says 0.85. At D3 she can say, before choosing, what each route costs.",
+    pass: "Asked after D2 or D2B which damping the shown PageRank used, the participant says 0.85. At D3 she can say, before choosing, what each route costs.",
     miss: "She reads the D2 numbers as the 0.5 run and reports them; or at D3 presses Enter without reading and later quotes the sampled scores as exact. The row's (sampled) name and the scores' estimate marks are the net for the second.",
 };
 
@@ -313,34 +321,35 @@ const html = `<!doctype html>
   <h2>The branches at a glance</h2>
   <div class="s-map">
     <div class="s-h">Branch</div><div class="s-h">Kind of failure</div><div class="s-h">The trap</div><div class="s-h">What gives it away</div><div class="s-h">The way back</div>
-    <div><a href="#branch-a">A. A weight read backwards</a></div><div>Right-looking wrong answer</div><div>Co-appearance counts read as lengths. Betweenness gives a believable, wrong ranking. No error.</div><div>The load question; the reading on the result's row and, bound to the column, in its editor.</div><div>Change the column's role once. Results that read it go Out of date at once, each marked on its row in the inspector's Results section; Re-run.</div>
+    <div><a href="#branch-a">A. A weight read backwards</a></div><div>Right-looking wrong answer</div><div>Co-appearance counts read as lengths. Betweenness gives a believable, wrong ranking. No error.</div><div>The run's own question, with nothing chosen; the conversion named on the run's row in Results.</div><div>Open the run and change the answer. The run goes Out of date at once, on its row in Results and in the table; Re-run keeps the old run beside the new one.</div>
     <div><a href="#branch-b">B. Closeness on a graph in pieces</a></div><div>Right-looking wrong answer</div><div>Without the correction, a cut-off group of 9 would top the ranking.</div><div>The result's name carries its formula, before and after the run.</div><div>The variant words offer Harmonic centrality.</div>
     <div><a href="#branch-c">C. The wrong middle step</a></div><div>Wrong-looking answer</div><div>Filter to Largest component, after Filter out label = Valjean, drops 15 characters, not 1. Every number changes.</div><div>The chip's count, and the count left after each step.</div><div>Turn the step off, delete it, or undo back to it.</div>
-    <div><a href="#branch-d">D. The GPU is lost, so a run becomes costly</a></div><div>No answer</div><div>A GPU run could quietly finish on the CPU; without WebGPU, exact betweenness takes hours.</div><div>A failed result naming its cause; a refusal before the costly run.</div><div>Re-run on CPU, on purpose. A cheaper route by default; Cancel leaves nothing and puts focus on the row.</div>
+    <div><a href="#branch-d">D. The GPU is lost, so a run becomes costly</a></div><div>No answer</div><div>A GPU run could quietly finish on the CPU; without WebGPU, exact betweenness takes hours.</div><div>A failed run in Results naming its cause and whose values are shown; a refusal before the costly run.</div><div>Re-run on CPU, on purpose, or Try WebGPU again. A cheaper route by default; Cancel leaves nothing and puts focus on the row.</div>
     <div><a href="#branch-e">E. Selecting everything</a></div><div>Wrong-looking answer</div><div>Ctrl+A selects 12,113 elements; Ctrl+Z then deletes the set just made.</div><div>One hull with a count; the set's row gone.</div><div>Redo, then Select members on the set.</div>
   </div>
 
-  ${branch("branch-a", "A", "The quiet trap: a weight read backwards", "Right-looking wrong answer", `<p>In Les Miserables the edge column <code>value</code> counts the scenes two characters share, so a bigger number means a closer tie. Betweenness needs lengths. If the counts are read as lengths, the strongest ties become the longest paths, and the ranking that comes out looks reasonable.</p>`, A, Ao)}
+  ${branch("branch-a", "A", "The quiet trap: a weight read backwards", "Right-looking wrong answer", `<p>In Les Miserables the edge column <code>value</code> counts the scenes two characters share, so a higher number means a closer tie. Betweenness needs lengths. If the counts are read as lengths, the strongest ties become the longest paths, and the ranking that comes out looks reasonable.</p>`, A, Ao)}
 
   ${branch("branch-b", "B", "The variant trap: closeness on a graph in pieces", "Right-looking wrong answer", `<p>Alex filters out Valjean, and Les Miserables falls apart into ${WV.components} components. Plain closeness then rewards a node for being close to the few others it can reach. graphty uses the Wasserman-Faust correction, which scales each score by how much of the graph the node can reach, and says so in the name.</p>`, B, Bo).replace(`<div class="s-outcome">`, `${Bextra}\n  <div class="s-outcome">`)}
 
   ${branch("branch-c", "C", "The wrong middle step, and three ways back", "Wrong-looking answer", `<p>Alex wants to know who holds the story together without its two protagonists. He built three filter steps, then re-ran betweenness. With Valjean gone, the bishop's household is its own island, and Filter to Largest component took all of it.</p>`, C, Co)}
 
-  ${branch("branch-d", "D", "The GPU is lost, and a run becomes costly", "No answer", `<p>Past the drawing limit nothing is drawn, so the inspector's Results carries the work. graphty never finishes a GPU run on the CPU without saying so. Losing the GPU also changes what everything else costs: every later run goes to the CPU, which is why exact betweenness is refused at hours two frames later.</p>`, D, Do)}
+  ${branch("branch-d", "D", "The GPU is lost, and a run becomes costly", "No answer", `<p>Past the drawing limit nothing is drawn, so Results on the rail, the inspector and the table carry the work. graphty never finishes a GPU run on the CPU without saying so. Losing the GPU also changes what everything else costs: every later run goes to the CPU, which is why exact betweenness is refused at hours two frames later.</p>`, D, Do)}
 
   ${branch("branch-e", "E", "Selecting everything", "Wrong-looking answer", `<p>graphty-element marks up to 5,000 selected elements one by one. Past that it keeps every id but draws the selection as one outline with a count, because thousands of rings would hide the drawing they sit on. Selecting is not an undo step, so the undo chord does something else.</p>`, E, Eo)}
 
   <h2>What this storyboard decides</h2>
   <p>Where the design documents were silent or unclear, these frames make a choice. Each is proposed in <a href="../framework-changes.md">framework-changes.md</a> with its evidence, and none is final until the study tests it.</p>
   <ul>
-    <li>A result's Weight row shows the reading as a value bound to the graph's column, which opens the Edges editor, with Detach for a deliberate override of one run (A3).</li>
-    <li>A weighted result names its reading on its row (A2, A6). Pending the study: not promoted from Details until sessions show analysts catch the error from the row.</li>
-    <li>The Weight row counts edges read as length 0 (A3).</li>
-    <li>In Statistics, the weight's meaning has its own row, Weight, beside Edges and Direction, so two rows are not both labeled Edges.</li>
-    <li>A result row takes the selected fill only while its editor is open (A2, A3).</li>
+    <li>Runs have one home, Results on the rail: every run of a measure, with its settings and date. Opening a run shows its record in place. Values are still read on the node, in the inspector and in the table.</li>
+    <li>Each weighted run asks what a higher value means, with nothing chosen, and Run stays disabled until it is answered (A2, A3). The column describes only its data.</li>
+    <li>A weighted run names the conversion it used on its row in Results (A4, A6).</li>
+    <li>In Statistics, the weight has its own row, Weight, beside Edges and Direction, so two rows are not both labeled Edges.</li>
+    <li>A run's row takes the selected fill only while its record is open (A4, A5).</li>
     <li>Each filter step shows the count left after it, and pointing at a step names whom it took out (C2), as the filter-chip work already proposes.</li>
-    <li>While a result's editor is open, its one verb (Cancel, Re-run on CPU, Run) sits in the editor's header, not on the row as well (D1, D2).</li>
-    <li>A failed or running result says whose values are on screen: "Showing the run before: damping 0.85" (D1, D2).</li>
+    <li>While a run's record is open its verbs are in the record, and once it is closed they are on the run's row (D1, D2, D2B).</li>
+    <li>A running or failed run says whose values are on screen: "Showing Run 1 (damping 0.85) until this run finishes" while it runs, and "Showing Run 1 (damping 0.85). Run 2 wrote nothing." once it has failed, in its record and on its row (D1, D2, D2B).</li>
+    <li>A run that failed because WebGPU was lost offers Try WebGPU again: an explicit retry that graphty-element performs, not a fallback, and it re-runs nothing by itself (D2, D2B, D3).</li>
     <li>The over-budget refusal lists the routes cheapest first, grouped by whether they fit the time limit, with the first focused and named on the one button: the sampled method is the default (D3), as already proposed for the run-and-read work.</li>
     <li>Canceling from the running notice puts keyboard focus on the result's row (D5), as already proposed for the run-and-read work.</li>
   </ul>
@@ -350,7 +359,7 @@ const html = `<!doctype html>
     <li><a href="../screens/weight-role-trap.html">The quiet trap: a weight read the wrong way</a>: six states.</li>
     <li><a href="../screens/closeness-variant.html">The variant trap: closeness on a graph in pieces</a>: two states.</li>
     <li><a href="../screens/filter-step-recovery.html">The wrong middle step: three ways back</a>: seven states.</li>
-    <li><a href="../screens/gpu-lost-run.html">When the GPU is lost, and when a costly run is canceled</a>: six states.</li>
+    <li><a href="../screens/gpu-lost-run.html">When the GPU is lost, and when a costly run is canceled</a>: seven states.</li>
     <li><a href="../screens/selection-over-cap.html">A selection past the cap</a>: five states.</li>
   </ul>
   <p class="k-secondary">Every screen has a light and dark switch and an annotation layer naming the design section and the compact-mantine component behind each element. Numbers come from the kit's fixtures; the weighted and filtered runs were computed from the same Les Miserables file by <a href="../screens/failure-and-recovery-numbers.py">failure-and-recovery-numbers.py</a>.</p>

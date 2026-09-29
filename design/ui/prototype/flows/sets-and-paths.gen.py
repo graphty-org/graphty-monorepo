@@ -181,7 +181,7 @@ BE = [
 # ---------- Routes not drawn yet (task-flows 10.3), each from the place it would start ----------
 G = {
     "g1": dict(c=0, r=0, k="place", t="Sets and paths:\ntwo sets focused"),
-    "h1": dict(c=1, r=0, k="commit", t="Compare with...\nhow the sets differ", gap=True),
+    "h1": dict(c=1, r=0, k="commit", t="Compare with\nanother set...\nhow the sets differ", gap=True),
     "g2": dict(c=2, r=0, k="place", t="The intersection,\n16 accounts"),
     "h2": dict(c=3, r=0, k="check", t="Is 16 more than\nchance would give?", gap=True),
     "g3": dict(c=4, r=0, k="place", t="Inspector: one\naccount selected"),

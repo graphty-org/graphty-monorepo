@@ -118,7 +118,6 @@
   .catmenu .startbadge { display: inline-block; margin-inline-start: 4px; padding: 0 4px; border-radius: 3px; font-size: var(--k-caption-fs); line-height: var(--k-caption-lh); box-shadow: inset 0 0 0 1px currentColor; vertical-align: 1px; }
 
   /* Chips and legend marks from the element's resolved paint (canvas-drawing.md 3) */
-  .k-ramp-measure { background: linear-gradient(90deg, #ef7818, #d85a09, #b84203, #8e3104, #662506); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
   .sizechip { width: 16px; height: 12px; flex: none; }
   .dashchip { width: 16px; height: 6px; flex: none; border-radius: 1px; background: repeating-linear-gradient(90deg, var(--k-canvas-ink) 0 5px, var(--k-canvas) 5px 8px); box-shadow: 0 0 0 1px var(--k-canvas-ink); }
   .textchip { width: 16px; flex: none; font-size: 11px; line-height: 12px; font-weight: 550; text-align: center; color: var(--cm-text); }
@@ -220,7 +219,7 @@
 #result [data-o="m6"] { left: 662px; top: 448px; }
 #result [data-o="m7"] { left: 1190px; top: 435px; }
 #result [data-o="m8"] { left: 300px; top: 647px; }</style>
-  <h2 class="st-label">1. Color by a result <span>-- nothing is selected, so the inspector shows the graph and its Style stack. Betweenness has run; its automatic layer colors every protein, because every protein has a betweenness value. The layer's editor is open, with its scale read only beside it</span></h2>
+  <h2 class="st-label">1. Color by a result <span>-- nothing is selected, so the inspector shows the graph and its Style stack. Betweenness has run; its automatic layer colors every protein, because every protein has a betweenness value. The layer's editor is open, with its scale beside it</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
       <div class="k-panel-head">
@@ -231,7 +230,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -246,9 +245,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -271,27 +270,27 @@
   <div class="k-popover ed" data-o="ed" data-clamp="8" data-a="ed">
     <div class="k-popover-head ed-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="ed-name">Betweenness color</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="k-popover-body">
-      <div class="k-row" style="min-height:28px"><span class="ro"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>written by the run</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Edit a copy</span></div>
-      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3" data-readonly>has a betweenness value: 300 proteins</span></div></div>
+      <div class="k-row" style="min-height:28px"><span class="k-secondary">From a run; edits survive a re-run.</span></div>
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3" data-readonly>has a betweenness value: <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span></span></div></div>
       <div class="k-section-head" style="height:32px">Fill</div>
       <div data-a="edcolor"><div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-ramp k-ramp-measure" style="width:16px"></span>betweenness</span></span><span class="k-icon-btn" aria-pressed="true"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div></div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><span class="k-ramp k-ramp-measure" style="width:48px"></span><span class="k-fact">betweenness, 0 to 0.138, log scale</span></div></div>
-      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">300 of 300 proteins</span></div>
+      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value"><span data-fx="datasets.ppi.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">300 of 300 proteins</span></span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0 proteins</span></div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value"><span class="k-secondary">none</span></span></div><div class="k-data"><span class="k-name">used by</span><span class="k-value"><span class="k-secondary">no view</span></span></div>
     </div>
   </div><div class="k-popover" style="width:272px" data-o="enc" data-clamp="76" data-a="enc">
-    <div class="k-popover-head">Betweenness as color<span class="k-grow"></span><span class="k-secondary" style="font-weight:450">read only</span></div>
+    <div class="k-popover-head">Betweenness as color</div>
     <div class="k-popover-body">
-      <div class="k-fieldrow"><span class="k-legend">Scale</span><div class="k-fields"><span class="k-field k-span3" data-readonly>Log</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Scale</span><div class="k-fields"><span class="k-field k-span3">Log</span></div></div>
       <div class="k-prose ed-note">Each value is divided by 0.000077, the smallest above 0, before the log.</div>
-      <div class="k-fieldrow"><span class="k-legend">Palette <span class="k-tertiary">-- sequential, 5 steps</span></span><div class="k-fields"><span class="k-field k-span3" data-readonly><span class="k-ramp k-ramp-measure" style="width:24px"></span>Orange to brown</span></div></div>
-      <div class="k-legend" style="padding-left:16px;margin:4px 0 0">Domain <span class="k-tertiary">-- 300 proteins, drawn on the scale</span></div>
+      <div class="k-fieldrow"><span class="k-legend">Palette <span class="k-tertiary">-- sequential, 5 steps</span></span><div class="k-fields"><span class="k-field k-span3"><span class="k-ramp k-ramp-measure" style="width:24px"></span>Orange to brown</span></div></div>
+      <div class="k-legend" style="padding-left:16px;margin:4px 0 0">Domain <span class="k-tertiary">-- <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, drawn on the scale</span></div>
       <div class="k-hist" style="height:48px;margin-bottom:0"><i style="height:13%"></i><i style="height:5%"></i><i style="height:16%"></i><i style="height:18%"></i><i style="height:46%"></i><i style="height:66%"></i><i style="height:100%"></i><i style="height:77%"></i><i style="height:23%"></i><i style="height:4%"></i><i style="height:10%"></i><i style="height:3%"></i></div>
       <div style="padding:0 8px 0 16px"><span class="k-ramp k-ramp-wide k-ramp-measure"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div></div>
-      <div class="k-data"><span class="k-name">at 0</span><span class="k-value">10 proteins, lightest</span></div>
+      <div class="k-data"><span class="k-name">at 0</span><span class="k-value"><span data-fx="datasets.ppi.encodings.betweenness.zeros" data-fx-noun="proteins">10 proteins</span>, lightest</span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0 proteins</span></div>
-      <div class="k-prose">On a straight scale 289 of 300 proteins would share the lightest of the 5 colors.</div>
+      <div class="k-prose">On a straight scale <span data-fx="datasets.ppi.encodings.betweenness.linearFifths.0" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">289 of 300 proteins</span> would share the lightest of the 5 colors.</div>
     </div>
   </div>
   <span class="an k-step" data-o="m0">1</span>
@@ -309,9 +308,9 @@
     <li>Precedence is said once, at the top of the stack: "Top wins each property it sets". The newest layer lands on top. <span class="cm">conceptual-model.md 5.1 (top wins each channel it writes); interface-templates.md 9. compact-mantine: <code>Text</code> size xs with an icon.</span></li>
     <li>A layer row: drag handle, chip, name, origin word. The chip is the strip it paints; "run" says a run added it. The row with its editor open is the focused row (the selected-secondary fill), never the canvas selection. The handle is shown at rest, because people looked for a way to reorder. <span class="cm">visual-language.md A7; interaction-pattern-entries.md 9.1; framework-changes.md, "Style stack rows show a drag handle at rest" (new). compact-mantine: <code>Tree</code> row with a drag handle, a need.</span></li>
     <li>Layers made here carry no origin word, so the one row that did not come from the analyst stands out. <span class="cm">framework-changes.md, "Only a layer that was not made here carries an origin word".</span></li>
-    <li>The editor opens to the left of the inspector, top-aligned to its row, 240 wide, over the canvas and never over chrome. The header names the layer in full, then the eye, Move up, Move down and close. A run's layer is read only; Edit a copy puts one of the analyst's own in its place. <span class="cm">interface-templates.md 10 (Style layer; placement from an inspector row); figma-crosswalk.md 4.2. compact-mantine: <code>Popout.Panel</code> with <code>PopoutHeaderConfig</code>.</span></li>
-    <li><span class="k-annot-tag blk">needs graphty-element</span> The painted count ("paints 300 of 300 proteins") is blocked until graphty-element reports what each layer paints. <span class="cm">interface-templates.md 9, 10; interface-specification.md 7.4, the painted row.</span></li>
-    <li>The scale opens beside the bound Color row, further left, read only because the layer is a run's. It says what it does: log, divided first by the smallest value above 0, and that a straight scale would put 289 of 300 proteins in the lightest color. <span class="cm">interface-templates.md 10 (Encoding), 12; options-and-encodings.md 5, rule 3. compact-mantine: <code>Popout</code>, <code>HistogramRow</code>, <code>RampRow</code>.</span></li>
+    <li>The editor opens to the left of the inspector, top-aligned to its row, 240 wide, over the canvas and never over chrome. The header names the layer in full, then the eye, Move up, Move down and close. A run's layer is edited in place like any other layer. Only Applies to is fixed, because the run decides which proteins are in its result. An edit is saved against the value it paints (for a run's groups, the category value), so it stays when the run runs again; there is no lock and no copy to make. <span class="cm">interface-templates.md 10 (Style layer; placement from an inspector row); figma-crosswalk.md 4.2. compact-mantine: <code>Popout.Panel</code> with <code>PopoutHeaderConfig</code>.</span></li>
+    <li><span class="k-annot-tag blk">needs graphty-element</span> The painted count ("paints <span data-fx="datasets.ppi.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">300 of 300 proteins</span>") is blocked until graphty-element reports what each layer paints. <span class="cm">interface-templates.md 9, 10; interface-specification.md 7.4, the painted row.</span></li>
+    <li>The scale opens beside the bound Color row, further left, and can be changed like any scale; the change stays when Betweenness runs again. It says what it does: log, divided first by the smallest value above 0, and that a straight scale would put <span data-fx="datasets.ppi.encodings.betweenness.linearFifths.0" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">289 of 300 proteins</span> in the lightest color. <span class="cm">interface-templates.md 10 (Encoding), 12; options-and-encodings.md 5, rule 3. compact-mantine: <code>Popout</code>, <code>HistogramRow</code>, <code>RampRow</code>.</span></li>
     <li>The legend's home is the foot of the Style stack: one switch puts it on the canvas or takes it off. Its blocks follow the stack order, so the key and the stack read the same way. <span class="cm">options-and-encodings.md 6, item 7; framework-changes.md, "The legend's switch sits at the foot of the Style stack" (new). compact-mantine: <code>SwitchRow</code>.</span></li>
     <li>The canvas legend stays at the bottom left. Editors now open from the right, so the legend no longer has to move aside while one is open. <span class="cm">state-matrix.md 8 (legend and toolbar never overlap). Drawn by graphty-element.</span></li>
   </ol>
@@ -324,8 +323,8 @@
 #stacked [data-o="m2"] { left: 942px; top: 303px; }
 #stacked [data-o="m3"] { left: 942px; top: 586px; }
 #stacked [data-o="m5"] { left: 300px; top: 601px; }
-#stacked [data-o="m6"] { left: 0px; top: 900px; }</style>
-  <h2 class="st-label">2. Stacked algorithms <span>-- a shortest-path run lands on top of Betweenness color. Its layer marks 4 proteins and 3 interactions; the other 296 keep the color, size and labels the layers beneath gave them</span></h2>
+#stacked [data-o="m6"] { left: 40px; top: 202px; }</style>
+  <h2 class="st-label">2. Stacked algorithms <span>-- a shortest-path run lands on top of Betweenness color. Its layer marks <span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span> and <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span>; the other 296 keep the color, size and labels the layers beneath gave them</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
       <div class="k-panel-head">
@@ -336,7 +335,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -347,13 +346,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="Betweenness colors, degree sizes and hub labels unchanged; the path TP53, MSH2, UBB, SMAD3 carries a dashed two-tone mark"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="Betweenness colors, degree sizes and hub labels unchanged; the path TP53, MSH2, UBB, SMAD3 carries a dashed two-tone mark"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -376,13 +375,13 @@
   <div class="k-popover ed" data-o="ed" data-clamp="8" data-a="ed">
     <div class="k-popover-head ed-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="ed-name">Shortest path TP53 to SMAD3</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="k-popover-body">
-      <div class="k-row" style="min-height:28px"><span class="ro"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>written by the run</span><span class="k-grow"></span><span class="k-btn k-btn-secondary">Edit a copy</span></div>
-      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3" data-readonly>on this path: 4 proteins, 3 interactions</span></div></div>
-      <div class="k-fieldrow"><span class="k-legend">Highlight</span><div class="k-fields"><span class="k-field k-span3" data-readonly><span class="dashchip"></span>long dash</span></div></div>
-      <div class="k-fieldrow"><span class="k-legend">Label</span><div class="k-fields"><span class="k-field k-span3" data-readonly><span class="textchip">Aa</span>name</span></div></div>
-      <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><span class="dashchip"></span><span class="k-secondary">4 proteins, 3 interactions</span></div></div>
-      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">4 of 300 proteins</span></div>
-      <div class="k-data"><span class="k-name"></span><span class="k-value">3 of 1,262 interactions</span></div>
+      <div class="k-row" style="min-height:28px"><span class="k-secondary">From a run; edits survive a re-run.</span></div>
+      <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3" data-readonly>on this path: <span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Highlight</span><div class="k-fields"><span class="k-field k-span3"><span class="dashchip"></span>long dash</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Label</span><div class="k-fields"><span class="k-field k-span3"><span class="textchip">Aa</span>name</span></div></div>
+      <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><span class="dashchip"></span><span class="k-secondary"><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></span></div></div>
+      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value"><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">4 of 300 proteins</span></span></div>
+      <div class="k-data"><span class="k-name"></span><span class="k-value"><span data-fx="datasets.ppi.encodings.path.hops" data-fx-of="datasets.ppi.edges" data-fx-noun="interactions">3 of 1,262 interactions</span></span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0</span></div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value"><span class="k-secondary">none</span></span></div><div class="k-data"><span class="k-name">used by</span><span class="k-value"><span class="k-secondary">no view</span></span></div>
     </div>
@@ -399,10 +398,10 @@
     <li>The path run's automatic layer, a highlight, lands directly on top of the stack. <span class="cm">interface-templates.md 9; interaction-pattern-entries.md 6.1; canvas-drawing.md 5. compact-mantine: <code>Tree</code> row.</span></li>
     <li>Runs and the analyst's own layers interleave by time: nothing is grouped or moved by source, and the list never moves on its own. The analyst reorders by the handle, dropping at a flat position with no "into" zone (frame 11), or with Move up and Move down (Ctrl+] and Ctrl+[). Top to bottom is precedence. <span class="cm">interface-templates.md 9; interaction-pattern-entries.md 6.8; information-architecture.md 11. compact-mantine: <code>Tree</code>, its "into" zone disabled.</span></li>
     <li>The path layer's editor, same width and order as every style-layer editor. The path's steps are not here; they belong to the path, in Sets and paths. <span class="cm">interface-templates.md 10. compact-mantine: <code>Popout.Panel</code>, <code>FieldRow</code>, <code>DataRow</code>.</span></li>
-    <li><span class="k-annot-tag blk">needs graphty-element</span> The painted count is the layer's reach: 4 of 300 proteins and 3 of 1,262 interactions. <span class="cm">interface-specification.md 7.4; root CLAUDE.md, Algorithm Styles.</span></li>
+    <li><span class="k-annot-tag blk">needs graphty-element</span> The painted count is the layer's reach: <span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">4 of 300 proteins</span> and <span data-fx="datasets.ppi.encodings.path.hops" data-fx-of="datasets.ppi.edges" data-fx-noun="interactions">3 of 1,262 interactions</span>. <span class="cm">interface-specification.md 7.4; root CLAUDE.md, Algorithm Styles.</span></li>
     <li>On the canvas the path wears highlight 1. Every other protein keeps what the layers beneath gave it; the algorithm dims nothing it did not select. <span class="cm">canvas-drawing.md 5, 6; root CLAUDE.md, Algorithm Styles. Drawn by graphty-element.</span></li>
     <li>The legend follows the stack. The Hub labels block says that 2 of its 12 names are hidden where labels overlap. <span class="cm">options-and-encodings.md 6, items 7 and 9; canvas-drawing.md 8.</span></li>
-    <li>Results, under the stack, lists the runs newest first. A run and its layer are two things: turning the layer off keeps the run. <span class="cm">framework-changes.md, "Rules for growth: only Graph never leaves the rail" (Results as an inspector section). compact-mantine: <code>Tree</code> rows.</span></li>
+    <li>The runs themselves live in Results on the rail, newest first; the inspector has no Results section with nothing selected. A run and its layer are two things: turning the layer off keeps the run. <span class="cm">decision-log.md, round 5, "Navigation" and "Inspector". compact-mantine: <code>Tree</code> rows.</span></li>
   </ol>
 </section>
 
@@ -421,7 +420,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -432,13 +431,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-hubhover-light.svg" alt="The four layers; the 12 hub proteins carry the one-tone hover hairline"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-hubhover-dark.svg" alt="The four layers; the 12 hub proteins carry the one-tone hover hairline"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -458,7 +457,7 @@
         
       </div>
     </aside></div>
-  <div class="k-tooltip" style="width:232px;white-space:normal" data-o="tip"><b>Hub labels</b> <span class="k-secondary">made here</span><br>Names the top 12 of 300 proteins by degree</div>
+  <div class="k-tooltip" style="width:232px;white-space:normal" data-o="tip"><b>Hub labels</b> <span class="k-secondary">made here</span><br>Names the top <span data-fx="datasets.ppi.encodings.betweenness.hubLabels.count" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">12 of 300 proteins</span> by degree</div>
   <span class="an k-step" data-o="m0">1</span>
   <span class="an k-step" data-o="m1">2</span>
   <span class="an k-step" style="left:724px;top:270px">3</span>
@@ -487,7 +486,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -498,13 +497,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="The four layers, nothing selected"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="The four layers, nothing selected"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -533,7 +532,7 @@
       <div class="k-section-head" style="height:32px;color:var(--cm-text-secondary)">Fill<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div class="k-section-head" style="height:32px;color:var(--cm-text-secondary)">Label<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><div class="size-marks sm"><div><b style="width:4px;height:4px"></b>0 to 1</div><div><b style="width:6px;height:6px"></b>2 to 3</div><div><b style="width:8px;height:8px"></b>4 to 7</div><div><b style="width:10px;height:10px"></b>8 to 16</div><div><b style="width:13px;height:13px"></b>17 to 34</div></div><span class="k-fact">degree</span></div></div>
-      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">300 of 300 proteins</span></div>
+      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value"><span data-fx="datasets.ppi.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">300 of 300 proteins</span></span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0 proteins</span></div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value"><span class="k-secondary">1 note</span></span></div><div class="k-data"><span class="k-name">used by</span><span class="k-value"><span class="k-secondary">no view</span></span></div>
     </div>
@@ -545,7 +544,7 @@
   </div>
   <ol class="an-list">
     <li>The row is focused, its editor open to its left. The editor sits top-aligned to its row but moves up to stay inside the window, as every popover does. <span class="cm">interface-templates.md 10 (placement).</span></li>
-    <li>No read-only line and no Edit a copy: the analyst made this layer. Applies to is a live choice (All proteins, a set, a rule). <span class="cm">interface-templates.md 10. compact-mantine: <code>StyleSelect</code>, <code>ToggleIconButton</code>.</span></li>
+    <li>No origin line: the analyst made this layer, so Applies to is a live choice (All proteins, a set, a rule). On a run's layer only Applies to is fixed; everything else is edited the same way. <span class="cm">interface-templates.md 10. compact-mantine: <code>StyleSelect</code>, <code>ToggleIconButton</code>.</span></li>
     <li>Size is bound to degree: the pill names the attribute where the value would be, and the scale button opens the encoding popover. Fill and Label are empty channel groups: the header in secondary ink with +. <span class="cm">interface-templates.md 10, 11. compact-mantine: <code>VariablePill</code>, <code>ControlSection</code> empty state.</span></li>
     <li><span class="k-annot-tag blk">needs graphty-element</span> The painted count, then No value, Notes and Used by. <span class="cm">interface-templates.md 10; interface-specification.md 7.4.</span></li>
   </ol>
@@ -569,7 +568,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -580,13 +579,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-tp53-light.svg" alt="The four layers, TP53 selected with the two-tone selection ring"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-tp53-dark.svg" alt="The four layers, TP53 selected with the two-tone selection ring"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -642,7 +641,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -653,13 +652,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-tp53-light.svg" alt="The four layers, TP53 selected with the two-tone selection ring"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-tp53-dark.svg" alt="The four layers, TP53 selected with the two-tone selection ring"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -706,7 +705,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -721,9 +720,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -778,7 +777,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -789,13 +788,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-tp53-light.svg" alt="The four layers, TP53 selected"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-tp53-dark.svg" alt="The four layers, TP53 selected"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -868,7 +867,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -879,13 +878,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-tp53-light.svg" alt="The four layers, TP53 selected"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-tp53-dark.svg" alt="The four layers, TP53 selected"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -958,7 +957,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -969,13 +968,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="The same drawing: the eleven layers behind the cut are off, painted over, or paint nothing visible"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="The same drawing: the eleven layers behind the cut are off, painted over, or paint nothing visible"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">1 more: Size: degree</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">1 more: Size: degree</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1025,7 +1024,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1036,13 +1035,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="Unchanged while the drag is in progress"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="Unchanged while the drag is in progress"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">1 more: Size: degree</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">1 more: Size: degree</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1091,7 +1090,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1102,13 +1101,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-modules-light.svg" alt="Proteins colored by module, sized by degree, hubs labeled, path highlighted"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-modules-dark.svg" alt="Proteins colored by module, sized by degree, hubs labeled, path highlighted"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: module</div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">56</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">40</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">35</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Spliceosome<span class="k-value">32</span></div><div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>MAPK signaling<span class="k-value">31</span></div><div class="k-lg-row k-secondary">4 more</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">3 more: Labels, Size: degree; Color by betweenness, covered</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: module</div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">56</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">40</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">35</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Spliceosome<span class="k-value">32</span></div><div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>MAPK signaling<span class="k-value">31</span></div><div class="k-lg-row k-secondary">4 more</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">3 more: Labels, Size: degree; Color by betweenness, covered</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1146,7 +1145,7 @@
 #no-value [data-o="m1"] { left: 942px; top: 483px; }
 #no-value [data-o="m2"] { left: 942px; top: 710px; }
 #no-value [data-o="m3"] { left: 942px; top: 758px; }</style>
-  <h2 class="st-label">13. A layer most proteins have no value for <span>-- qPCR log2FC color reads this week's qPCR file, which names 84 of the 300 proteins. The layer is off; its editor is open</span></h2>
+  <h2 class="st-label">13. A layer most proteins have no value for <span>-- qPCR log2FC color reads this week's qPCR file, which names 84 of the <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>. The layer is off; its editor is open</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
       <div class="k-panel-head">
@@ -1157,7 +1156,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1168,13 +1167,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-modules-light.svg" alt="Proteins colored by module, sized by degree, hubs labeled, path highlighted"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-modules-dark.svg" alt="Proteins colored by module, sized by degree, hubs labeled, path highlighted"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: module</div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">56</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">40</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">35</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Spliceosome<span class="k-value">32</span></div><div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>MAPK signaling<span class="k-value">31</span></div><div class="k-lg-row k-secondary">4 more</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">3 more: Labels, Size: degree; Color by betweenness, covered</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: module</div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">56</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">40</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">35</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Spliceosome<span class="k-value">32</span></div><div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>MAPK signaling<span class="k-value">31</span></div><div class="k-lg-row k-secondary">4 more</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">3 more: Labels, Size: degree; Color by betweenness, covered</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1202,9 +1201,9 @@
       <div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-ramp k-ramp-bluered" style="width:16px"></span>log2FC</span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><span class="k-ramp k-ramp-bluered" style="width:48px"></span><span class="k-fact">log2FC, -2.41 to 2.98, 0 in the middle</span></div></div>
       <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">none while off</span></div>
-      <div class="k-data"><span class="k-name"></span><span class="k-value">84 of 300 proteins when on</span></div>
-      <div data-a="ednovalue"><div class="k-data"><span class="k-name">no value</span><span class="k-value">216 proteins</span></div></div>
-      <div class="k-prose ed-note">Their color comes from the layers beneath: the qPCR file named 84 of the 300 proteins.</div>
+      <div class="k-data"><span class="k-name"></span><span class="k-value"><span data-fx="datasets.ppi.expression.matched" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">84 of 300 proteins</span> when on</span></div>
+      <div data-a="ednovalue"><div class="k-data"><span class="k-name">no value</span><span class="k-value"><span data-fx="scenarios.onScreen.qpcr.networkWithoutMatch" data-fx-noun="proteins">216 proteins</span></span></div></div>
+      <div class="k-prose ed-note">Their color comes from the layers beneath: the qPCR file named 84 of the <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>.</div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value"><span class="k-secondary">none</span></span></div><div class="k-data"><span class="k-name">used by</span><span class="k-value"><span class="k-secondary">no view</span></span></div>
     </div>
   </div>
@@ -1235,7 +1234,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1250,9 +1249,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1304,7 +1303,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1315,13 +1314,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="Unchanged: betweenness colors, degree sizes, hub labels and the path; the covered layer adds nothing"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="Unchanged: betweenness colors, degree sizes, hub labels and the path; the covered layer adds nothing"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, top 12 by degree; Size by |log2FoldChange|, covered</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, top 12 by degree; Size by |log2FoldChange|, covered</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1344,11 +1343,11 @@
   <div class="k-popover ed" data-o="ed" data-clamp="8" data-a="ed">
     <div class="k-popover-head ed-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="ed-name">Size: |log2FoldChange|</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="k-popover-body">
-      <div class="covbox" data-a="edcov"><span class="k-fact">Covered by Size: degree above: it sets the size of all 300 proteins, so this layer paints none.</span><span class="k-btn k-btn-secondary movebtn">Move above</span></div>
+      <div class="covbox" data-a="edcov"><span class="k-fact">Covered by Size: degree above: it sets the size of all <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, so this layer paints none.</span><span class="k-btn k-btn-secondary movebtn">Move above</span></div>
       <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3">All proteins<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
       <div class="k-section-head" style="height:32px">Size<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div data-a="edsize"><div class="k-fieldrow"><span class="k-legend">Size</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>|log2FoldChange|</span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div></div>
-      <div class="k-prose ed-note k-fact" data-a="edsign">By magnitude, sign not shown: 148 proteins went down and 152 went up. Color by log2FoldChange to show the direction.</div>
+      <div class="k-prose ed-note k-fact" data-a="edsign">By magnitude, sign not shown: <span data-fx="datasets.ppi.encodings.foldChange.below0" data-fx-noun="proteins">148 proteins</span> went down and 152 went up. Color by log2FoldChange to show the direction.</div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><div class="size-marks sm"><div><b style="width:4px;height:4px"></b>0 to 0.6</div><div><b style="width:6px;height:6px"></b>0.6 to 1.3</div><div><b style="width:8px;height:8px"></b>1.3 to 1.9</div><div><b style="width:10px;height:10px"></b>1.9 to 2.5</div><div><b style="width:13px;height:13px"></b>2.5 to 3.15</div></div></div></div>
       <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">0 of 300 proteins</span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0 proteins</span></div>
@@ -1392,7 +1391,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1403,13 +1402,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="Betweenness colors, degree sizes, the path, and names on the 12 best-connected proteins"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="Betweenness colors, degree sizes, the path, and names on the 12 best-connected proteins"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1437,7 +1436,7 @@
       <div class="k-section-head" style="height:32px">Label<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div data-a="edlabel"><div class="k-fieldrow"><span class="k-legend">Text</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="textchip">Aa</span>name</span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div></div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><span class="textchip">Aa</span><span class="k-fact">names, top 12 by degree</span></div></div>
-      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">12 of 300 proteins</span></div>
+      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value"><span data-fx="datasets.ppi.encodings.betweenness.hubLabels.count" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">12 of 300 proteins</span></span></div>
       <div class="k-data"><span class="k-name">hidden</span><span class="k-value">2 where labels overlap</span></div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value"><span class="k-secondary">none</span></span></div><div class="k-data"><span class="k-name">used by</span><span class="k-value"><span class="k-secondary">no view</span></span></div>
     </div>
@@ -1473,7 +1472,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1484,13 +1483,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="The four layers, nothing selected"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="The four layers, nothing selected"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1544,7 +1543,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1555,13 +1554,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="The four layers, nothing selected"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="The four layers, nothing selected"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, Size: degree</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, Size: degree</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1608,7 +1607,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1620,13 +1619,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="The four layers, nothing selected"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="The four layers, nothing selected"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, Size: degree</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-secondary">Interactions drawn faint (30%)</div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, Size: degree</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1668,7 +1667,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1679,13 +1678,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-tp53-light.svg" alt="The four layers, TP53 selected with the two-tone selection ring"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-tp53-dark.svg" alt="The four layers, TP53 selected with the two-tone selection ring"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1727,7 +1726,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1738,13 +1737,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-light.svg" alt="Unchanged: betweenness colors, degree sizes, hub labels and the path; the covered layer adds nothing"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-dark.svg" alt="Unchanged: betweenness colors, degree sizes, hub labels and the path; the covered layer adds nothing"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, top 12 by degree; Size by |log2FoldChange|, covered</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div><div class="lg-gap"></div><div class="k-lg-row k-fact">2 more: Labels, top 12 by degree; Size by |log2FoldChange|, covered</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1767,11 +1766,11 @@
   <div class="k-popover ed" data-o="ed" data-clamp="8" data-a="ed">
     <div class="k-popover-head ed-head"><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#eye"/></svg></span><span class="ed-name">Size: |log2FoldChange|</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-up"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
     <div class="k-popover-body">
-      <div class="covbox" data-a="edcov"><span class="k-fact">Covered by Size: degree above: it sets the size of all 300 proteins, so this layer paints none.</span><span class="k-btn k-btn-secondary movebtn">Move above</span></div>
+      <div class="covbox" data-a="edcov"><span class="k-fact">Covered by Size: degree above: it sets the size of all <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, so this layer paints none.</span><span class="k-btn k-btn-secondary movebtn">Move above</span></div>
       <div class="k-fieldrow"><span class="k-legend">Applies to</span><div class="k-fields"><span class="k-field k-span3">All proteins<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
       <div class="k-section-head" style="height:32px">Size<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div data-a="edsize"><div class="k-fieldrow"><span class="k-legend">Size</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>|log2FoldChange|</span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div></div>
-      <div class="k-prose ed-note k-fact" data-a="edsign">By magnitude, sign not shown: 148 proteins went down and 152 went up. Color by log2FoldChange to show the direction.</div>
+      <div class="k-prose ed-note k-fact" data-a="edsign">By magnitude, sign not shown: <span data-fx="datasets.ppi.encodings.foldChange.below0" data-fx-noun="proteins">148 proteins</span> went down and 152 went up. Color by log2FoldChange to show the direction.</div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><div class="size-marks sm"><div><b style="width:4px;height:4px"></b>0 to 0.6</div><div><b style="width:6px;height:6px"></b>0.6 to 1.3</div><div><b style="width:8px;height:8px"></b>1.3 to 1.9</div><div><b style="width:10px;height:10px"></b>1.9 to 2.5</div><div><b style="width:13px;height:13px"></b>2.5 to 3.15</div></div></div></div>
       <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">0 of 300 proteins</span></div>
       <div class="k-data"><span class="k-name">no value</span><span class="k-value">0 proteins</span></div>
@@ -1798,7 +1797,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1809,13 +1808,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-stacked-hubhover-light.svg" alt="Dark theme: the four layers; the 12 hubs carry the hover hairline"><img class="k-dark-only" src="../kit/canvas/ppi-stacked-hubhover-dark.svg" alt="Dark theme: the four layers; the 12 hubs carry the hover hairline"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: betweenness</div><span class="k-ramp k-ramp-wide k-ramp-measure" style="margin-top:4px"></span><div class="ticks"><span style="left:0">0</span><span class="mid" style="left:35.2%">0.001</span><span class="mid" style="left:65.1%">0.01</span><span class="mid" style="left:95.7%">0.1</span></div><div class="k-fact">betweenness, 0 to 0.138, log scale; 10 at 0, lightest</div><div class="lg-gap"></div><div class="k-lg-title">Labels: top 12 by degree</div><div class="k-lg-row"><span class="textchip">Aa</span>names<span class="k-value">12</span></div><div class="k-fact">2 hidden where labels overlap</div><div class="lg-gap"></div><div class="k-lg-title">Size: degree</div><div class="size-marks"><div><b style="width:6px;height:6px"></b>0 to 1</div><div><b style="width:9px;height:9px"></b>2 to 3</div><div><b style="width:12px;height:12px"></b>4 to 7</div><div><b style="width:16px;height:16px"></b>8 to 16</div><div><b style="width:21px;height:21px"></b>17 to 34</div></div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -1835,7 +1834,7 @@
         
       </div>
     </aside></div>
-  <div class="k-tooltip" style="width:232px;white-space:normal" data-o="tip"><b>Hub labels</b> <span class="k-secondary">made here</span><br>Names the top 12 of 300 proteins by degree</div>
+  <div class="k-tooltip" style="width:232px;white-space:normal" data-o="tip"><b>Hub labels</b> <span class="k-secondary">made here</span><br>Names the top <span data-fx="datasets.ppi.encodings.betweenness.hubLabels.count" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">12 of 300 proteins</span> by degree</div>
   <span class="an k-step" style="left:724px;top:270px">1</span>
   <span class="an k-step" style="left:666px;top:420px">2</span>
   </div>
@@ -1851,7 +1850,7 @@
 #group-compare [data-o="m2"] { left: 1396px; top: 235px; }
 #group-compare [data-o="m3"] { left: 1206px; top: 687px; }
 #group-compare [data-o="m4"] { left: 1190px; top: 731px; }</style>
-  <h2 class="st-label">23. Comparing a group with the rest <span>-- Louvain found 10 communities. The analyst selected the biggest, Community 1 (62 proteins), to see what makes it different, and chose two columns to compare it on</span></h2>
+  <h2 class="st-label">23. Comparing a group with the rest <span>-- Louvain found 10 communities. The analyst selected the biggest, Community 1 (<span data-fx="datasets.ppi.louvain.largest" data-fx-noun="proteins">62 proteins</span>), to see what makes it different, and chose two columns to compare it on</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
       <div class="k-panel-head">
@@ -1862,7 +1861,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1877,9 +1876,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector">
@@ -1888,7 +1887,7 @@
       <div class="k-scroll">
         <section class="k-section" data-a="gfacts">
           <div class="k-data"><span class="k-name">created from</span><span class="k-value">Louvain run, <span class="mt" tabindex="0" data-tip="The starting number for a method that uses chance. The same seed gives the same groups.">seed 7</span></span></div>
-          <div class="k-data"><span class="k-name">size</span><span class="k-value">62 proteins</span></div>
+          <div class="k-data"><span class="k-name">size</span><span class="k-value"><span data-fx="datasets.ppi.louvain.largest" data-fx-noun="proteins">62 proteins</span></span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="Interactions with both ends in this group.">edges inside</span></span><span class="k-value">232</span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="Interactions from this group to a protein outside it.">edges out</span></span><span class="k-value">93</span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="The share of the possible connections that exist.">density</span></span><span class="k-value">0.123</span></div>
@@ -1968,7 +1967,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1983,9 +1982,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector">
@@ -2075,7 +2074,7 @@
 #catalog [data-o="m1"] { left: 254px; top: 49px; }
 #catalog [data-o="m2"] { left: 254px; top: 507px; }
 #catalog [data-o="m3"] { left: 254px; top: 548px; }
-#catalog [data-o="m4"] { left: 0px; top: 900px; }</style>
+#catalog [data-o="m4"] { left: 40px; top: 202px; }</style>
   <h2 class="st-label">25. The method catalog: what each method is for <span>-- after the Louvain run, the analyst opens the main menu's Algorithms. Every method says in one plain line what question it answers; one method per family is marked Start here; Degree is listed, and opens what is already counted</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
@@ -2087,7 +2086,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -2102,9 +2101,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -2135,8 +2134,8 @@
     <li>Each method carries one task line under its name: the question it answers, in the reader's words. People picked Louvain "because it's what I know" and wished for "a line that just said use this one if you don't know". <span class="cm">framework-changes.md, "Catalog: a task line per method, and Start here". compact-mantine: <code>Menu</code> (dark), items with a description, a need.</span></li>
     <li>Degree is in the catalog, first under Centrality, because readers look for it there. It runs nothing: degree is already counted, so it opens the degree chart in Overview and the Nodes table's degree column. Its trailing words say so. <span class="cm">framework-changes.md, "Catalog: Degree routes to what is already counted".</span></li>
     <li>"Start here" marks one method per family. In Community it is Leiden: it finds groups like Louvain's and never leaves one in disconnected pieces. Which method carries the mark is catalog data from graphty-element. <span class="cm">element-needs.md (a catalog flag, proposed). compact-mantine: <code>Badge</code>.</span></li>
-    <li>Louvain's line names the one thing Leiden fixes. The catalog opens from the main menu's Algorithms and from Quick actions (Ctrl+K); the Results panel it used to live in is now the inspector's Results section. <span class="cm">framework-changes.md, "Rules for growth: only Graph never leaves the rail"; figma-crosswalk.md 6 (Plugins becomes Algorithms).</span></li>
-    <li>Results, with nothing selected: the runs of this project, newest first. <span class="cm">framework-changes.md (the inspector's Results section).</span></li>
+    <li>Louvain's line names the one thing Leiden fixes. The catalog opens from the main menu's Algorithms and from Quick actions (Ctrl+K); the runs it starts are listed in Results on the rail. <span class="cm">decision-log.md, round 5, "Navigation"; figma-crosswalk.md 6 (Plugins becomes Algorithms).</span></li>
+    <li>Results on the rail: every run of this project, newest first, each opening to its settings, date, Re-run and Compare with another run.... The inspector with nothing selected has no Results section. <span class="cm">decision-log.md, round 5, "Navigation" and "Inspector".</span></li>
   </ol>
 </section>
 
@@ -2154,7 +2153,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -2169,9 +2168,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector">
@@ -2180,7 +2179,7 @@
       <div class="k-scroll">
         <section class="k-section" data-a="gfacts">
           <div class="k-data"><span class="k-name">created from</span><span class="k-value">Louvain run, <span class="mt" tabindex="0" data-tip="The starting number for a method that uses chance. The same seed gives the same groups.">seed 7</span></span></div>
-          <div class="k-data"><span class="k-name">size</span><span class="k-value">62 proteins</span></div>
+          <div class="k-data"><span class="k-name">size</span><span class="k-value"><span data-fx="datasets.ppi.louvain.largest" data-fx-noun="proteins">62 proteins</span></span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="Interactions with both ends in this group.">edges inside</span></span><span class="k-value">232</span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="Interactions from this group to a protein outside it.">edges out</span></span><span class="k-value">93</span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="The share of the possible connections that exist.">density</span></span><span class="k-value">0.123</span></div>
@@ -2250,7 +2249,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -2265,9 +2264,9 @@
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector">
@@ -2276,7 +2275,7 @@
       <div class="k-scroll">
         <section class="k-section" data-a="gfacts">
           <div class="k-data"><span class="k-name">created from</span><span class="k-value">Louvain run, <span class="mt" tabindex="0" data-tip="The starting number for a method that uses chance. The same seed gives the same groups.">seed 7</span></span></div>
-          <div class="k-data"><span class="k-name">size</span><span class="k-value">62 proteins</span></div>
+          <div class="k-data"><span class="k-name">size</span><span class="k-value"><span data-fx="datasets.ppi.louvain.largest" data-fx-noun="proteins">62 proteins</span></span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="Interactions with both ends in this group.">edges inside</span></span><span class="k-value">232</span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="Interactions from this group to a protein outside it.">edges out</span></span><span class="k-value">93</span></div>
           <div class="k-data"><span class="k-name"><span class="mt" tabindex="0" data-tip="The share of the possible connections that exist.">density</span></span><span class="k-value">0.123</span></div>
@@ -2341,7 +2340,7 @@
 #plus-menu [data-o="m3"] { left: 1132px; top: 452px; }
 #plus-menu [data-o="m4"] { left: 1132px; top: 476px; }
 #plus-menu [data-o="m5"] { left: 1190px; top: 369px; }</style>
-  <h2 class="st-label">28. The + menu: an empty layer, a recipe, or a suggested layer <span>-- qPCR log2FC color is on above Module color. The qPCR file names 84 of the 300 proteins, so the other 216 still show their module colors, some in the same pale blues and salmons as a small change. The analyst presses + in the Style stack header</span></h2>
+  <h2 class="st-label">28. The + menu: an empty layer, a recipe, or a suggested layer <span>-- qPCR log2FC color is on above Module color. The qPCR file names 84 of the <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, so the other 216 still show their module colors, some in the same pale blues and salmons as a small change. The analyst presses + in the Style stack header</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
       <div class="k-panel-head">
@@ -2352,7 +2351,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -2363,13 +2362,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-qpcr-modules-light.svg" alt="84 proteins colored by this week's log2 fold change, red up and blue down, over module colors on the other 216; hubs labeled, path highlighted"><img class="k-dark-only" src="../kit/canvas/ppi-qpcr-modules-dark.svg" alt="84 proteins colored by this week's log2 fold change, red up and blue down, over module colors on the other 216; hubs labeled, path highlighted"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: this week's change, log2FC</div><span class="k-ramp k-ramp-wide k-ramp-bluered" style="margin-top:4px"></span><div class="k-fact">log2FC, -2.41 to 2.98, 0 in the middle; 84 of 300 proteins</div><div class="lg-gap"></div><div class="k-lg-title">Color: module</div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">56</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">40</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">35</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Spliceosome<span class="k-value">32</span></div><div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>MAPK signaling<span class="k-value">31</span></div><div class="k-lg-row k-secondary">4 more</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: this week's change, log2FC</div><span class="k-ramp k-ramp-wide k-ramp-bluered" style="margin-top:4px"></span><div class="k-fact">log2FC, -2.41 to 2.98, 0 in the middle; <span data-fx="datasets.ppi.expression.matched" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">84 of 300 proteins</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: module</div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">56</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">40</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">35</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>Spliceosome<span class="k-value">32</span></div><div class="k-lg-row"><span class="k-chit" style="background:#000000"></span>MAPK signaling<span class="k-value">31</span></div><div class="k-lg-row k-secondary">4 more</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -2408,7 +2407,7 @@
     <li>"+" in the Style stack header opens a menu instead of adding a layer at once. People looking for a colleague's styles went to + as often as to the main menu, so the recipe route is here too. <span class="cm">framework-changes.md (Style stack: "+" offers a recipe and suggested layers). compact-mantine: <code>ActionIcon</code> opening a <code>Menu</code>.</span></li>
     <li>Empty layer is what + did before: a layer on top with its editor open, painting nothing until it has a property. <span class="cm">interface-templates.md 9; task-flows.md (first write: "Add style layer").</span></li>
     <li>From a recipe or file... opens the one Apply dialog, the same one the main menu's Recipes and the Data panel open. One noun, recipe: a .graphty file that holds only styles is a recipe too. Only the styles are offered from here; the dialog says what each of the reader's layers it would replace. <span class="cm">glossary.md (recipe); interface-templates.md 20 (Apply recipe); <a href="replace-and-recipe.html">Applying styles from a recipe</a>. compact-mantine: <code>Menu.Item</code>.</span></li>
-    <li><span class="k-annot-tag blk">needs graphty-element</span> Suggested for this graph lists layers graphty-element offers because of what the stack and the columns hold. Nothing is styled until the reader picks one, and each is an ordinary layer they can edit, move, switch off or delete. Here a signed scale sits above a category color that still paints the 216 proteins it leaves, so Mute categories under this scale is offered. <span class="cm">CLAUDE.md, "Graph Styling" (appearance only through a layer); element-needs.md (suggested layers from the stack and the columns, new).</span></li>
+    <li><span class="k-annot-tag blk">needs graphty-element</span> Suggested for this graph lists layers graphty-element offers because of what the stack and the columns hold. Nothing is styled until the reader picks one, and each is an ordinary layer they can edit, move, switch off or delete. Here a signed scale sits above a category color that still paints the <span data-fx="scenarios.onScreen.qpcr.networkWithoutMatch" data-fx-noun="proteins">216 proteins</span> it leaves, so Mute categories under this scale is offered. <span class="cm">CLAUDE.md, "Graph Styling" (appearance only through a layer); element-needs.md (suggested layers from the stack and the columns, new).</span></li>
     <li><span class="k-annot-tag blk">needs graphty-element</span> Shape by kind is offered for a category column: up to 5 shapes, because more cannot be told apart at node size, and one shape, Other, for the rest. Module has 9 values, so the 5 largest (Ribosome, Proteasome, Complex I, Spliceosome, MAPK signaling) get a shape each and the other 4 share Other. It is never applied on load. <span class="cm">canvas-drawing.md 3; options-and-encodings.md 3 (shape).</span></li>
     <li>Module color is on and not covered: qPCR log2FC color above it paints only the 84 proteins the file names, so module colors show through on the rest. <span class="cm">conceptual-model.md 5.1; options-and-encodings.md 6, item 9.</span></li>
   </ol>
@@ -2422,7 +2421,7 @@
 #muted [data-o="m3"] { left: 942px; top: 530px; }
 #muted [data-o="m4"] { left: 1190px; top: 401px; }
 #muted [data-o="m5"] { left: 300px; top: 620px; }</style>
-  <h2 class="st-label">29. After picking Mute categories under this scale <span>-- the suggestion added one layer on top, Modules in gray, with its editor open. It applies only to the 216 proteins with no log2FC, so the 84 colored by the scale are untouched. Ctrl+Z takes it out in one step</span></h2>
+  <h2 class="st-label">29. After picking Mute categories under this scale <span>-- the suggestion added one layer on top, Modules in gray, with its editor open. It applies only to the <span data-fx="scenarios.onScreen.qpcr.networkWithoutMatch" data-fx-noun="proteins">216 proteins</span> with no log2FC, so the 84 colored by the scale are untouched. Ctrl+Z takes it out in one step</span></h2>
   <div class="st-frame" style="width:1440px;height:900px">
   <div class="k-app" style="width:1440px;height:900px"><nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu" data-a="mainmenu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav><aside class="k-panel" aria-label="Graph">
       <div class="k-panel-head">
@@ -2433,7 +2432,7 @@
       <div class="lp-body">
         <section class="k-section lp-fixed">
           <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num">300 nodes</span></li></ul>
+          <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
         </section>
         <section class="k-section lp-sets lp-grow" data-a="sets">
           <div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -2444,13 +2443,13 @@
       </div>
     </aside><main class="k-main"><div class="k-canvas" data-a="canvas">
         <div class="k-stage" data-a="stage"><img class="k-light-only" src="../kit/canvas/ppi-qpcr-grays-light.svg" alt="84 proteins colored by this week's log2 fold change, red up and blue down; the other 216 in light grays; hubs labeled, path highlighted"><img class="k-dark-only" src="../kit/canvas/ppi-qpcr-grays-dark.svg" alt="84 proteins colored by this week's log2 fold change, red up and blue down; the other 216 in light grays; hubs labeled, path highlighted"></div>
-        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span>4 proteins, 3 interactions</div><div class="lg-gap"></div><div class="k-lg-title">Color: this week's change, log2FC</div><span class="k-ramp k-ramp-wide k-ramp-bluered" style="margin-top:4px"></span><div class="k-fact">log2FC, -2.41 to 2.98, 0 in the middle; 84 of 300 proteins</div><div class="lg-gap"></div><div class="k-lg-title">Gray: module, where log2FC has no value</div><div class="k-fact">216 proteins, in grays so none reads as up or down</div><div class="lg-gap"></div><div class="k-lg-row k-fact">1 more: Color: module, covered by Modules in gray</div></div>
+        <div class="k-legend-card" style="width:236px" data-a="legend"><div class="k-lg-title">Highlight: path TP53 to SMAD3</div><div class="k-lg-row"><span class="dashchip"></span><span data-fx="datasets.ppi.encodings.path.nodes.length" data-fx-noun="proteins">4 proteins</span>, <span data-fx="datasets.ppi.encodings.path.hops" data-fx-noun="interactions">3 interactions</span></div><div class="lg-gap"></div><div class="k-lg-title">Color: this week's change, log2FC</div><span class="k-ramp k-ramp-wide k-ramp-bluered" style="margin-top:4px"></span><div class="k-fact">log2FC, -2.41 to 2.98, 0 in the middle; <span data-fx="datasets.ppi.expression.matched" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">84 of 300 proteins</span></div><div class="lg-gap"></div><div class="k-lg-title">Gray: module, where log2FC has no value</div><div class="k-fact"><span data-fx="scenarios.onScreen.qpcr.networkWithoutMatch" data-fx-noun="proteins">216 proteins</span>, in grays so none reads as up or down</div><div class="lg-gap"></div><div class="k-lg-row k-fact">1 more: Color: module, covered by Modules in gray</div></div>
         <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>
+          
           <span class="k-toolbar-sep"></span>
-          <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+          <span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         </div></div>
         <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
       </div></main><aside class="k-right" aria-label="Inspector" data-a="insp">
@@ -2477,7 +2476,7 @@
       <div class="k-section-head" style="height:32px">Fill<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <div data-a="edfill"><div class="k-fieldrow"><span class="k-legend">Color</span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-stack"><span class="k-chit" style="background:#d0d0d0"></span><span class="k-chit" style="background:#bdbdbd"></span><span class="k-chit" style="background:#e3e3e3"></span></span>module</span></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#sliders-horizontal"/></svg></span></div></div></div>
       <div class="k-fieldrow"><span class="k-legend">Legend</span><div class="ed-legend"><span class="k-stack"><span class="k-chit" style="background:#d0d0d0"></span><span class="k-chit" style="background:#bdbdbd"></span><span class="k-chit" style="background:#e3e3e3"></span></span><span class="k-fact">module, in grays: no hue, so none reads as up or down</span></div></div>
-      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value">216 of 300 proteins</span></div>
+      <div class="k-data" data-a="edpaints"><span class="k-name">paints</span><span class="k-value"><span data-fx="scenarios.onScreen.qpcr.networkWithoutMatch" data-fx-of="datasets.ppi.nodes" data-fx-noun="proteins">216 of 300 proteins</span></span></div>
       <div class="k-data"><span class="k-name">notes</span><span class="k-value"><span class="k-secondary">none</span></span></div><div class="k-data"><span class="k-name">used by</span><span class="k-value"><span class="k-secondary">no view</span></span></div>
     </div>
   </div>

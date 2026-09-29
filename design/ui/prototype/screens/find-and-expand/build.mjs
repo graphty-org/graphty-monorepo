@@ -84,7 +84,7 @@ const canvas = ({ img, alt, overlays = "", legend = "", toast = "", notdrawn = "
         <div class="k-toolbar" role="toolbar">
           <span class="k-tool" aria-pressed="true">${icon("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${icon("chevron-down", "k-i-sm")}</span>
           <span class="k-tool">${icon("route", "k-i-lg")}</span>
-          <span class="k-tool">${icon("sticky-note", "k-i-lg")}</span>
+          
           <span class="k-toolbar-sep"></span>
           <span class="k-tool">${icon("zap", "k-i-lg")}</span>
           <span class="k-toolbar-sep"></span>

@@ -26,7 +26,7 @@ swap("const here = dirname(fileURLToPath(import.meta.url));", `const here = ${JS
 swap('const outDir = join(here, "canvas");', `const outDir = ${JSON.stringify(join(scratch, "canvas"))};`);
 swap('join(here, "fixtures.json"),', `${JSON.stringify(join(scratch, "fixtures.json"))},`);
 const a1 = "    const rows = names.map((g, i) => ({ id: g, module: mod[i], degree: deg[i], betweenness: round(bc[i], 4), pagerank: round(pr[i], 5), log2FoldChange: fc[i] }));";
-swap(a1, a1 + "\n    globalThis.__ppiAll = { names, deg: Array.from(deg), bc: Array.from(bc), pr: Array.from(pr), fc: Array.from(fc) };\n");
+swap(a1, a1 + "\n    globalThis.__ppiAll = { names, mod: Array.from(mod), deg: Array.from(deg), bc: Array.from(bc), pr: Array.from(pr), fc: Array.from(fc) };\n");
 writeFileSync(join(scratch, "gen.mjs"), src);
 await import(pathToFileURL(join(scratch, "gen.mjs")).href);
 
@@ -60,6 +60,37 @@ for (const [k, arr] of Object.entries(cols)) {
     const round = (o) => Object.fromEntries(Object.entries(o).map(([kk, v]) => [kk, Number.isInteger(v) ? v : r6(v)]));
     columns[k] = { group: round(box(gv)), rest: round(box(rv)), rankBiserial: Number(rbr(gv, rv).toFixed(2)), groupValues: gv.map(r6), restValues: rv.map(r6) };
 }
+// Every community against the rest, on log2FoldChange: median, the one statistic of that column.
+const modOf = Object.fromEntries(fix.datasets.ppi.rows.map((r) => [r.id, r.module]));
+const colors = fix.datasets.ppi.moduleColors;
+const fcOf = Object.fromEntries(names.map((n, i) => [n, fc[i]]));
+const med = (v) => { const s = [...v].sort((x, y) => x - y); return q(s, 0.5); };
+// The file's modules as member sets, read back from the generator's names (rows holds only 40).
+const modules = {};
+for (const gr of lv.groups) for (const m of gr.members) modules[m] ??= null;
+const modName = globalThis.__ppiAll.mod;
+names.forEach((n, i) => { modules[n] = modName[i]; });
+const modSets = {};
+for (const [n, m] of Object.entries(modules)) if (m !== "Unassigned") (modSets[m] ??= new Set()).add(n);
+const shared = (a, b) => { let k = 0; for (const x of a) if (b.has(x)) k++; return k; };
+const best = (x, cands) => { let top = null, k = -1; for (const [id, set] of cands) { const o = shared(x, set); if (o > k) { k = o; top = id; } } return [top, k]; };
+const comSets = lv.groups.map((gr) => [gr.community, new Set(gr.members)]);
+const modEntries = Object.entries(modSets);
+const used = new Set();
+const communities = lv.groups.map((gr) => {
+    const set = new Set(gr.members);
+    const [m, k] = best(set, modEntries);
+    const [back] = best(modSets[m], comSets);
+    const matched = k > 0 && back === gr.community ? m : null;
+    if (matched) used.add(colors[matched]);
+    const gv = gr.members.map((n) => fcOf[n]), rv = names.filter((n) => !set.has(n)).map((n) => fcOf[n]);
+    return { community: gr.community, size: gr.size, matchedModule: matched, shared: k, moduleSize: modSets[m].size, color: matched ? colors[matched] : null,
+        medianLog2FoldChange: Number(med(gv).toFixed(2)), medianLog2FoldChangeRest: Number(med(rv).toFixed(2)) };
+});
+const free = ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442", "#000000"].filter((c) => !used.has(c));
+for (const c of communities) if (!c.color) c.color = free.shift() ?? "#BDBDBD";
+const louvainDefault = Object.fromEntries(lv.groups.map((gr, i) => [gr.community, i < 8 ? ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442", "#000000"][i] : "#BDBDBD"]));
+
 fix.scenarios ??= {};
 fix.scenarios.groupCompare = {
     generatedBy: "screens/group-compare-numbers.mjs -- regenerate instead of editing by hand",
@@ -68,6 +99,12 @@ fix.scenarios.groupCompare = {
     size: g.size,
     restSize: names.length - g.size,
     columns,
+    communities,
+    matchedTo: "Module (the file's modules)",
+    matchedCount: communities.filter((c) => c.matchedModule).length,
+    unmatchedCount: communities.filter((c) => !c.matchedModule).length,
+    colorsWithoutMatching: louvainDefault,
 };
 writeFileSync(join(kit, "fixtures.json"), JSON.stringify(fix, null, 1));
+for (const c of communities) console.log("Community", c.community, c.size, c.matchedModule, c.shared, c.color, "median", c.medianLog2FoldChange, "vs", c.medianLog2FoldChangeRest);
 for (const [k, c] of Object.entries(columns)) console.log(k, "median", c.group.median, "vs", c.rest.median, "r", c.rankBiserial);

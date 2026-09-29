@@ -46,6 +46,7 @@ body:has(#dl-annot:checked) .dl-row { grid-template-columns: 720px 400px; }
 /* An owner decision still open: mock marker, not product UI */
 .dl-open { display: block; margin: 4px 0 8px; padding: 6px 10px; border: 1px dashed var(--k-annot); border-radius: 5px; background: var(--k-annot-bg); color: var(--k-annot-ink); font-size: 12px; line-height: 18px; }
 .dl-open b { font-weight: 600; }
+.dl-tbd { font-weight: 550; }
 
 /* Annotation layer, off by default */
 .dl-an { display: none; align-self: start; position: static; width: auto; max-width: none; margin-top: 8px; }
@@ -101,7 +102,7 @@ body:has(.dl-state:target) .dl-state { padding: 0; }
 <span class="k-grow"></span><label><input type="checkbox" id="dl-annot"> Show annotations</label>
 <a href="start-screen.html">Start screen</a><a href="data-panel.html#s7">Data &gt; Sent and saved</a><a href="#s3">When something leaves</a><a href="../index.html">Gallery</a></div>
 
-<div class="dl-intro"><p>The start screen says files are read in the browser and not uploaded. People liked that line, but the IT and security reviewers who approve tools could neither check it nor forward it. This page answers them: what stays in the browser, what leaves it and to whom, and what the page does not promise. Its home in the app is Data &gt; Sent and saved, the list of everything this project has sent and written; the privacy line under the project name opens that list, and the list links here. So there is one place that says what left, and one page that says what can. The page now also says how long an Assistant key is kept and how to forget it, and that no password or key ever appears in that list, an exported copy of it, or a project file. Hosting, telemetry, running your own copy and an organization-wide way to turn the Assistant off are not decided yet, nor is where a data-source password is kept; the page marks each one in pink until the owner decides. Section 3 draws what the app itself says, as it happens, when the Assistant or a data-source query sends something. Turn on annotations to see the design rule and the compact-mantine component behind each part.</p></div>
+<div class="dl-intro"><p>The start screen says files are read in the browser and not uploaded. People liked that line, but the IT and security reviewers who approve tools could neither check it nor forward it. This page answers them: what stays in the browser, what leaves it and to whom, and what the page does not promise. Its home in the app is Data &gt; Sent and saved, the list of everything this project has sent and written; the privacy line under the project name opens that list, and the list links here. So there is one place that says what left, and one page that says what can. The page now also says how long an Assistant key is kept and how to forget it, and that no password or key ever appears in that list, an exported copy of it, or a project file. Usage data is decided: it is off until the person says yes at first use, and even then no node name, value, label or file content is in it; the page says what it holds and who reads it. Hosting, running your own copy and an organization-wide way to turn the Assistant off are not decided yet, nor is where a data-source password is kept; the page marks each one in pink until the owner decides. Section 3 draws what the app itself says, as it happens, when the Assistant or a data-source query sends something. Turn on annotations to see the design rule and the compact-mantine component behind each part.</p></div>
 
 <!-- ============================================================ 1. The page -->
 <section class="dl-state" id="s1">
@@ -114,7 +115,7 @@ body:has(.dl-state:target) .dl-state { padding: 0; }
     <div class="dl-row"><div>
       <h1>Where your data goes</h1>
       <p class="dl-lede">graphty draws and analyzes graphs inside your web browser. This page says what stays in the browser, what leaves it, when, and to whom. It is written so you can forward it to whoever approves software where you work.</p>
-      <div class="dl-meta" data-annot><span class="k-grow">Describes graphty 2.0. Updated September 28, 2026.</span>
+      <div class="dl-meta" data-annot><span class="k-grow">Describes graphty 2.0. Updated September 29, 2026.</span>
         <span class="k-btn k-btn-secondary" role="button" tabindex="0" id="dl-copy" data-wired><svg class="k-i k-i-sm"><use href="../kit/icons.svg#link"/></svg>Copy link</span>
         <span class="k-btn k-btn-secondary" role="button" tabindex="0" id="dl-print" data-wired><svg class="k-i k-i-sm"><use href="../kit/icons.svg#download"/></svg>Print or save as PDF</span></div>
     </div>
@@ -124,9 +125,10 @@ body:has(.dl-state:target) .dl-state { padding: 0; }
       <h2>In short</h2>
       <ul>
         <li><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg><span>Files you open are read by this browser and are not uploaded. graphty has no account and no server that receives your data.</span></li>
-        <li><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg><span>Data leaves the browser only through two features, both off until you turn them on: <b>Connect to data source</b> and the <b>Assistant</b>.</span></li>
+        <li><svg class="k-i"><use href="../kit/icons.svg#upload"/></svg><span>Your graph data leaves the browser only through two features, both off until you turn them on: <b>Connect to data source</b> and the <b>Assistant</b>.</span></li>
         <li><svg class="k-i"><use href="../kit/icons.svg#database"/></svg><span>Projects are kept in this browser, on this computer only.</span></li>
         <li data-annot><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg><span>No password or key ever appears in the list of what was sent, in an exported copy of that list, or in a project file.</span></li>
+        <li data-annot><svg class="k-i"><use href="../kit/icons.svg#eye-off"/></svg><span>Usage data is off until you say yes. If you do, it never holds a node name, a value, a label or anything from your files.</span></li>
       </ul>
     </div>
     <div class="k-annot-note dl-an">The sentences a reviewer can quote, in the same words as the start screen's two lines, so every place that talks about data agrees. The fourth names credentials, because in the study every regulated reviewer asked whether a password could end up in a log or a file that gets forwarded; "the list of what was sent" is Data &gt; Sent and saved, and its exported copy is that list's Export log. That the element keeps secrets out of its operation log and project file is an element need (<i>framework-changes.md</i>, "Where your data goes becomes the home of Sent and saved"). <i>content-design.md 2</i>, voice; the start-screen proposal in <i>framework-changes.md</i>. Mantine <b>Paper</b> with a border, <b>List</b> with icons.</div></div>
@@ -155,7 +157,8 @@ body:has(.dl-state:target) .dl-state { padding: 0; }
           <tr><td>A recipe or project file that names a data source</td><td>Nothing, until you confirm. graphty first shows the address the file names.</td><td>That address, once you confirm.</td><td>Only after you confirm.</td></tr>
           <tr><td>The Assistant</td><td>Your question; the graph's counts; each column's name with up to 10 of its values or its range; and the names and values of the nodes it looks up to answer you.</td><td>The provider you choose -- Anthropic, OpenAI or Google -- under your own key and that provider's terms.</td><td>Each time you send a question. Off until you set a provider.</td></tr>
           <tr><td>The Assistant, with a model that runs in the browser</td><td>Nothing from your data.</td><td>The model is downloaded once from its publisher.</td><td>When you first choose that model.</td></tr>
-          <tr><td>Opening graphty</td><td>Nothing from your files. The browser asks for graphty's own code, as for any web page.</td><td>Where graphty is hosted.<span class="dl-open"><b>Owner decision open:</b> who hosts graphty, and where. The page names the host and its country here.</span></td><td>Each time the page loads.</td></tr>
+          <tr><td>Opening graphty</td><td>Nothing from your files. The browser asks for graphty's own code, as for any web page.</td><td>Where graphty is hosted, and in which country. <span class="dl-tbd">Not decided yet.</span><span class="dl-open"><b>Owner decision open:</b> who hosts graphty, and where. The page names the host and its country here.</span></td><td>Each time the page loads.</td></tr>
+          <tr data-annot><td>Usage data, only if you say yes</td><td>Which steps you take (a file loaded, the first graph drawn, a measure run, a result read, a style added, an export, an undo) and how long they take; errors and slowdowns; a replay of the screen with every node name, attribute value, label and file content masked; and anything you write in Send feedback. Never the contents of a file.</td><td>graphty's author, through the error and replay service Sentry. Used only to improve graphty.</td><td>Only after you say yes when graphty first asks. Off until then. Turn it off at any time in Preferences &gt; Usage data.</td></tr>
         </tbody>
       </table>
       <p class="dl-check" data-annot><b>The app says when something leaves.</b> The line under the project's name reads "Nothing has been sent from this project" until something is. After a data-source query it reads "Sent to <span data-ex="host">neo4j.internal.example</span>: 1 query. Nothing else."; after questions to the Assistant, "Sent to the Assistant: 2 questions. Nothing else." The line opens <b>Data &gt; Sent and saved</b>, which lists every send with its time and address, and <b>See what was sent</b> on each shows exactly what went. <b>Export log</b> there writes the list to a file you can attach to a review.</p>
@@ -168,11 +171,11 @@ body:has(.dl-state:target) .dl-state { padding: 0; }
         <li>No account, and no sign-in to graphty.</li>
         <li>No file contents, graph data, results or notes, except through the features listed above.</li>
         <li>No fonts, icons or code from other sites while you work: they come with graphty.</li>
-        <li>Usage statistics and crash reports:<span class="dl-open"><b>Owner decision open:</b> whether graphty collects any. If none, this line reads "None: graphty collects no usage statistics and no crash reports." If some, it lists each, what it contains and where it goes, and how to turn it off.</span></li>
+        <li>No usage data unless you say yes, and never your graph: node names, values, labels and file contents are masked before anything is sent.</li>
       </ul>
       <p class="dl-check"><b>Check it yourself.</b> Open your browser's developer tools, choose the Network tab, and use graphty as usual. Requests go only to graphty's own address, except while you use one of the features listed above.</p>
     </div>
-    <div class="k-annot-note dl-an">The negatives, stated so they can be checked: a bank investigator in round 1 said she would believe "uploads nothing" only after watching the network tab, so the page tells every reader how to do exactly that. Telemetry is an owner decision (<i>framework-changes.md</i>, Open decisions for the owner). Mantine <b>List</b>; the check is a <b>Blockquote</b>.</div></div>
+    <div class="k-annot-note dl-an">The negatives, stated so they can be checked: a bank investigator in round 1 said she would believe "uploads nothing" only after watching the network tab, so the page tells every reader how to do exactly that. Usage data is the owner's decision of September 29, 2026 (<i>owner-feedback.md</i>): off until the person opts in at first use, graph content always masked, read only by graphty's author. Its row in the table above lists what is collected; the opt-in question itself is drawn in the first-run flow. Preferences &gt; Usage data, where it is turned off again, is a studio choice. Mantine <b>List</b>; the check is a <b>Blockquote</b>.</div></div>
 
     <div class="dl-row"><div>
       <h2>What this page does not promise</h2>
@@ -189,8 +192,8 @@ body:has(.dl-state:target) .dl-state { padding: 0; }
     <div class="dl-row"><div>
       <h2>For organizations</h2>
       <ul data-annot>
-        <li>Running your own copy of graphty, inside your network:<span class="dl-open"><b>Owner decision open:</b> whether graphty can be self-hosted, and under what terms. If yes, this line links to how.</span></li>
-        <li>Turning the Assistant off for everyone in an organization:<span class="dl-open"><b>Owner decision open:</b> whether an organization can switch the Assistant off centrally, and how (a setting of a self-hosted copy, a browser policy, or both). Until then the page says only what is true today: the Assistant is off until each person sets a provider and a key, and nothing turns it on by itself.</span></li>
+        <li>Running your own copy of graphty, inside your network: <span class="dl-tbd">Not decided yet.</span><span class="dl-open"><b>Owner decision open:</b> whether graphty can be self-hosted, and under what terms. If yes, this line links to how.</span></li>
+        <li>Turning the Assistant off for everyone in an organization: <span class="dl-tbd">Not decided yet.</span> Today it is off until each person sets a provider and a key, and nothing turns it on by itself.<span class="dl-open"><b>Owner decision open:</b> whether an organization can switch the Assistant off centrally, and how (a setting of a self-hosted copy, a browser policy, or both). Until then the page says only what is true today: the Assistant is off until each person sets a provider and a key, and nothing turns it on by itself.</span></li>
         <li>Questions this page does not answer: <span class="k-link">Contact</span><span class="dl-open"><b>Owner decision open:</b> who answers a reviewer's questions, and at what address.</span></li>
       </ul>
     </div>

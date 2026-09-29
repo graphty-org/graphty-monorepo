@@ -40,11 +40,14 @@ const pages = [];
 const typed = true;
 const strict = true;
 const tasksMode = process.argv.includes("--tasks");
-// --plant <page>@<from>@<to>: serve <page> with the first <from> replaced by <to>, to prove a check
-// fails on a planted mismatch (kit/README.md, "The kit check"). Nothing on disk changes.
+// --task=<id>[,<id>]: with --tasks, only these tasks (an id that is not a task checks nothing, and fails).
+const taskOnly = process.argv.find((a) => a.startsWith("--task="))?.slice(7).split(",") ?? null;
+// --plant <page>@<from>@<to>[@*]: serve <page> with the first <from> (every <from>, with @*) replaced by
+// <to>, to prove a check fails on a planted mismatch (kit/README.md, "The kit check"). Nothing on disk
+// changes. <page> can be any served file, kit/kit.js included.
 const plants = [];
-for (let i = 2; i < process.argv.length; i++) if (process.argv[i] === "--plant") { const [pg, from, to] = process.argv[i + 1].split("@"); plants.push({ pg, from, to }); process.argv.splice(i, 2); i--; }
-for (const a of process.argv.slice(2).filter((x) => !/^--(typed|strict|tasks)$/.test(x))) {
+for (let i = 2; i < process.argv.length; i++) if (process.argv[i] === "--plant") { const [pg, from, to, all] = process.argv[i + 1].split("@"); plants.push({ pg, from, to, all: all === "*" }); process.argv.splice(i, 2); i--; }
+for (const a of process.argv.slice(2).filter((x) => !/^--(typed|strict|tasks|task=.*)$/.test(x))) {
     if (a !== "--all") pages.push(a.replace(/^\.?\/?/, ""));
     else {
         for (const dir of ["storyboards", "flows", "screens", "study"]) {
@@ -59,6 +62,7 @@ if (!pages.length && !tasksMode) {
 }
 
 const problems = [];
+let taskScreens = 0;
 // Tasks: every one names a dataset and refs that resolve.
 const fixtures = JSON.parse(await readFile(join(here, "fixtures.json"), "utf8"));
 const get = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), fixtures);
@@ -79,7 +83,7 @@ const server = createServer(async (req, res) => {
         for (const pl of plants) if (path === pl.pg) {
             const t = body.toString("utf8");
             if (!t.includes(pl.from)) throw new Error(`--plant: ${pl.pg} has no "${pl.from}"`);
-            body = Buffer.from(t.replace(pl.from, pl.to));
+            body = Buffer.from(pl.all ? t.split(pl.from).join(pl.to) : t.replace(pl.from, pl.to));
         }
         res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
     } catch {
@@ -91,7 +95,7 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 
 // The old frame, which kit/shell.mjs replaces. The frame is: a rail of main menu, Graph, Data,
 // Results, Notes, Assistant; one right column; no avatar; no Export button in a header row; no
-// Styles section in the Graph panel. A frame kept on purpose sits in [data-frame="before"] (or the
+// Styles section in the Graph panel; no Note tool on the toolbar. A frame kept on purpose sits in [data-frame="before"] (or the
 // older [data-shell-keep]). Runs in the page.
 function oldChrome() {
     const out = new Set();
@@ -113,6 +117,8 @@ function oldChrome() {
         if (parseFloat(cs.borderTopLeftRadius) >= Math.min(el.offsetWidth, el.offsetHeight) / 2 - 1 && el.offsetWidth > 12) out.add(`an avatar letter "${el.textContent.trim()}" in a header`);
     }
     for (const b of document.querySelectorAll(".k-header1 .k-btn, .k-header2 .k-btn")) if (live(b) && /^Export\b/.test(b.textContent.trim())) out.add("an Export button in the header");
+    // There is no Note tool (decided 2026-09-28): a note starts from Add note... or the Notes panel.
+    for (const u of document.querySelectorAll('.k-toolbar .k-tool use[href$="#sticky-note"]')) if (live(u)) out.add("a Note tool on the toolbar (there is no Note tool; a note starts from Add note...)");
     for (const h of document.querySelectorAll(".k-panel .k-section-head")) if (live(h) && !h.closest(".k-section[data-shell-keep]") && /^Styles\b/.test(h.textContent.trim())) out.add("Styles in the Graph panel");
     return [...out];
 }
@@ -167,6 +173,59 @@ function termScan({ retired, required, state, exempt }) {
     if (prev) homes.add(`Previous selection beside the Ctrl+Z restore: "...${snip(prev)}..."`);
     return { found, lacking, homes: [...homes] };
 }
+// The scope formatter's rule (kit/README.md, "The scope formatter"): every count a participant reads
+// is written by the formatter. Read in the participant view, inside product frames (a frame kept as
+// "before" is skipped), a count is a number with a counted noun ("1,262 interactions", "56 of 300
+// proteins"), "N of M" on its own ("27 of 77"), or a statistic after its label ("modularity 0.716");
+// each number in it must sit inside an element the formatter wrote ([data-fx]). A threshold in
+// prose ("past about 2,000 accounts") is design, not data. Table cells are rows from the fixtures and
+// are not read here. Runs in the page; returns the counts it found unwritten.
+function countScan() {
+    const PRODUCT = "[data-kit-frame], .k-app, .k-menu, .k-popover, .k-modal, .k-toast, .k-tooltip, .k-canvas-card, .k-quick, .k-backdrop, .k-issue, .k-legend-card, .k-dock";
+    const NOUNS = "nodes?|edges?|proteins?|accounts?|transfers?|characters?|patents?|components?|isolates?|interactions?|citations?|communit(?:y|ies)|neighbou?rs?|co-appearances?|rows?|members?|genes?|alerts?|merchants?|ties";
+    const N = "\\d[\\d,]*(?:\\.\\d+)?";
+    const RE = new RegExp(`(?<![\\w.#$/:-])${N}(?:[ \\u00a0]+of[ \\u00a0]+${N})?[ \\u00a0]+(?:${NOUNS})\\b(?![ \\u00a0]+(?:pairs|names))|(?<![\\w.#$/:-])${N}[ \\u00a0]+of[ \\u00a0]+${N}\\b(?![ \\u00a0]*(?:steps?|routes?|runs?|pages?|results?|replayed|from)\\b)|\\b(?:modularity|density|average degree|mean degree|max(?:imum)? degree|reciprocity|clustering coefficient|diameter)\\b[ \\t:=]*${N}`, "gi");
+    // Design thresholds in prose; a range's upper end ("rows 1 to 7 of 1,863" is paging).
+    const PROSE = /(about|over|under|up to|past|than|~|at least|at most|every|each|top|first|last|\d to)\s*$/i;
+    const vis = (el) => el.checkVisibility?.() ?? !!el.offsetParent;
+    const roots = [...document.querySelectorAll(PRODUCT)].filter((el) => vis(el) && !el.parentElement.closest(PRODUCT) && !el.closest('[data-frame="before"], [inert]'));
+    const found = new Set();
+    for (const root of roots) {
+        const nodes = [];
+        let text = "";
+        let lastBlock = null;
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n; (n = w.nextNode()); ) {
+            const el = n.parentElement;
+            if (!el || el.closest('[data-kit], [data-frame="before"], [data-kit-note], table, svg, script, style, [aria-hidden="true"]') || !vis(el)) continue;
+            let b = el;
+            while (b !== root && /^(inline|inline-block|contents)$/.test(getComputedStyle(b).display)) b = b.parentElement;
+            if ((lastBlock && b !== lastBlock) || n.previousSibling?.nodeName === "BR") text += "\n";
+            lastBlock = b;
+            nodes.push({ n, at: text.length });
+            text += n.data;
+        }
+        const nodeAt = (i) => { let lo = 0, hi = nodes.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (nodes[m].at <= i) lo = m; else hi = m - 1; } return nodes[lo]?.n; };
+        for (const m of text.matchAll(RE)) {
+            if (PROSE.test(text.slice(Math.max(0, m.index - 14), m.index))) continue;
+            // A place in a list is not a count: "rank 247 of 300", "neighbor 2 of 6", "row 3 of 40".
+            if (/\b(rank|neighbou?r|row|item|selected|number)\s*$/i.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;
+            // 0 and 1 count nothing that can disagree between pages ("1 node", "0 rows dropped"), and a
+            // stepper's position ("4 of 10" beside its arrows) is a place in a list, not a count.
+            const lead = Number(m[0].match(/\d[\d,]*(?:\.\d+)?/)[0].replace(/,/g, ""));
+            if (!/^[a-z]/i.test(m[0]) && lead <= 1) continue;
+            if (nodeAt(m.index)?.parentElement?.closest('[class*="stepper"]')) continue;
+            let bad = false;
+            for (const d of m[0].matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
+                const tn = nodeAt(m.index + d.index);
+                // a parameter the reader set (a top-N length, a hop count) is typed, marked data-fx-param
+                if (!tn?.parentElement?.closest("[data-fx], [data-fx-param]")) bad = true;
+            }
+            if (bad) found.add(m[0].replace(/\s+/g, " "));
+        }
+    }
+    return [...found].slice(0, 40);
+}
 // The graph's own node and edge counts where the shell shows them, under `root`: the Graphs row,
 // the table's scope line, and a reading labelled nodes or edges (Overview, Statistics, a load
 // step's "What will load") while the filter chip reads Full graph (a filtered count only when it
@@ -177,7 +236,8 @@ function graphCounts(root) {
     // The graph's own counts, where the shell shows them: the Graphs row, the table's scope
     // line, and Overview or Statistics while the filter chip reads Full graph (a filtered
     // count only when it says "of" the whole).
-    const num = (s) => { const m = String(s).match(/(\d[\d,]*)(?!.*\d)/); return m ? Number(m[1].replace(/,/g, "")) : null; };
+    // the last number that stands alone (not a year inside a file name, "accounts-2026-04.csv")
+    const num = (s) => { const all = [...String(s).replace(/\([A-Z][a-z]+ \d{4} data\)/g, "").matchAll(/(?<![\w-])(\d[\d,]*)(?![\w-])/g)]; const m = all[all.length - 1]; return m ? Number(m[1].replace(/,/g, "")) : null; };
     const ofN = (s) => { const m = String(s).match(/\bof\s+(\d[\d,]*)/); return m ? Number(m[1].replace(/,/g, "")) : null; };
     const counts = [];
     const NODE = "nodes?|proteins?|accounts?|characters?|patents?|members?";
@@ -269,9 +329,22 @@ try {
                 }
             }
         }
+        // A count's bound markup written into an attribute (an alt, an aria-label) breaks the attribute.
+        for (const a of await page.evaluate(() => [...document.querySelectorAll("*")].flatMap((el) => [...el.attributes].filter((x) => /<span|data-fx=/.test(x.value) || (/^data-fx-(of|noun|unit|digits|version)$/.test(x.name) && !el.hasAttribute("data-fx"))).map((x) => `${el.tagName.toLowerCase()} ${x.name}="${x.value.slice(0, 60)}"`)).slice(0, 5))) problems.push(`${p}: markup inside an attribute: ${a}`);
         if (!fx) problems.push(`${p}: does not load kit/kit.js`);
         for (const e of errors) if (!/kit problem/.test(e)) problems.push(`${p}: script error: ${e}`);
         for (const pr of fx?.problems ?? []) problems.push(`${p}: ${pr.replace(/^kit: /, "")}`);
+        // A screen framed on the page (a storyboard's frames, a page that shows itself in frames) is a
+        // page too: its kit problems count, named by the frame's address. Lazy frames are loaded first.
+        if (await page.evaluate(() => { const l = [...document.querySelectorAll('iframe[loading="lazy"]')]; l.forEach((f) => (f.loading = "eager")); return l.length; })) {
+            await page.waitForLoadState("networkidle").catch(() => {});
+            await page.waitForTimeout(1500);
+        }
+        for (const fr of page.frames().slice(1)) {
+            const fp = await fr.evaluate(() => window.kitFx?.problems ?? []).catch(() => []);
+            const at = new URL(fr.url()).pathname.replace(/^\//, "") + new URL(fr.url()).search;
+            for (const pr of fp) problems.push(`${p} (in the frame ${at}): ${pr.replace(/^kit: /, "")}`);
+        }
         // Two pages, one fixture value, two texts: only possible when a page's own script rewrites a
         // bound number after kit.js, so this is the last line of defence.
         for (const b of fx?.bound ?? []) {
@@ -307,30 +380,123 @@ try {
         for (const el of document.querySelectorAll("[data-state]")) if (/^[\w-]+$/.test(el.dataset.state)) out.add(`#${el.dataset.state}`);
         return [...out].slice(0, 60);
     };
-    for (const p of pages) {
+    // The Esc rule (kit/README.md): in the participant view, Esc does one thing per press, innermost
+    // first, and leaves the view only when nothing is open. Checked two ways on every page: from rest,
+    // Esc pressed up to five times must leave (a page that uses the key with nothing to close traps the
+    // facilitator); and after each control that opens something (a chip, a menu button, anything with
+    // aria-haspopup or aria-expanded; at most six) is clicked, one Esc must not leave.
+    const escRule = async (p) => {
+        const url = p.includes("#") ? p.replace("#", `${p.split("#")[0].includes("?") ? "&" : "?"}study#`) : `${p}${p.includes("?") ? "&" : "?"}study`;
+        const inStudy = (pg) => pg.evaluate(() => document.documentElement.hasAttribute("data-study") && window.__escProbe === 1).catch(() => false);
+        const out = [];
+        const openers = await (async () => {
+            const pg = await load(url);
+            const n = await pg.evaluate(() => {
+                const vis = (el) => el.checkVisibility?.() ?? !!el.offsetParent;
+                const els = [...document.querySelectorAll('.k-app .k-chip, .k-app [aria-haspopup]:not([aria-haspopup="false"]), .k-app [aria-expanded="false"], [data-kit-frame] [aria-haspopup]:not([aria-haspopup="false"]), [data-kit-frame] [aria-expanded="false"]')]
+                    .filter((el) => vis(el) && !el.closest("a[href], [inert], [aria-disabled=true], [data-not-in-mock], [data-frame=before]"));
+                els.forEach((el, i) => el.setAttribute("data-esc-probe", i));
+                return els.map((el) => (el.getAttribute("aria-label") || el.textContent).replace(/\s+/g, " ").trim().slice(0, 40));
+            });
+            await pg.close();
+            return n;
+        })();
+        // from rest
+        {
+            const pg = await load(url);
+            await pg.evaluate(() => { window.__escProbe = 1; document.activeElement?.blur?.(); });
+            let left = false;
+            for (let i = 0; i < 5 && !left; i++) {
+                await pg.keyboard.press("Escape");
+                await pg.waitForTimeout(250);
+                left = !(await inStudy(pg));
+            }
+            if (!left) out.push("Esc, pressed five times from rest, never leaves the participant view (a handler uses the key with nothing open)");
+            await pg.close();
+        }
+        let tried = 0;
+        for (let i = 0; i < openers.length && tried < 6; i++) {
+            const pg = await load(url);
+            const opened = await pg.evaluate(async (i) => {
+                const el = [...document.querySelectorAll('.k-app .k-chip, .k-app [aria-haspopup]:not([aria-haspopup="false"]), .k-app [aria-expanded="false"], [data-kit-frame] [aria-haspopup]:not([aria-haspopup="false"]), [data-kit-frame] [aria-expanded="false"]')]
+                    .filter((el) => (el.checkVisibility?.() ?? !!el.offsetParent) && !el.closest("a[href], [inert], [aria-disabled=true], [data-not-in-mock], [data-frame=before]"))[i];
+                if (!el) return false;
+                const kit = (n) => (n.nodeType === 1 ? n : n.parentElement)?.closest?.("[data-kit]");
+                // What is open: expanded controls and shown overlays. A click that closes something (a
+                // chip drawn open at rest) is not an opener.
+                // (an inline disclosure, a "show list" button, is not an overlay: Esc does not close it)
+                const openCount = () => document.querySelectorAll('[aria-expanded="true"][aria-haspopup]:not([aria-haspopup="false"])').length + [...document.querySelectorAll('.k-menu, .k-popover, .k-modal, .k-quick, [role="dialog"], [role="menu"], [role="listbox"]')].filter((x) => !x.closest("[data-kit]") && (x.checkVisibility?.() ?? !!x.offsetParent)).length;
+                const before = openCount();
+                const got = [];
+                const mo = new MutationObserver((rs) => got.push(...rs));
+                mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+                el.click();
+                await new Promise((r) => setTimeout(r, 200));
+                const rec = [...got, ...mo.takeRecords()].filter((r) => !kit(r.target) && !(r.type === "attributes" && /^(data-kit|tabindex$|data-esc)/.test(r.attributeName)));
+                mo.disconnect();
+                window.__escProbe = 1;
+                return rec.length > 0 && openCount() > before && location.search.includes("study");
+            }, i).catch(() => false);
+            if (opened) {
+                tried++;
+                await pg.keyboard.press("Escape");
+                await pg.waitForTimeout(300);
+                if (!(await inStudy(pg))) out.push(`one Esc after opening "${openers[i]}" leaves the participant view: the handler that closed it did not call preventDefault()`);
+            }
+            await pg.close();
+        }
+        return out;
+    };
+    // One page's gate: the term sheet and two homes (every state, design prose included), the counts
+    // the formatter did not write (every state, as a participant sees it) and the Esc rule. Pages run
+    // six at a time; their problems are reported in page order.
+    const gatePage = async (p) => {
+        const out = [];
         const base0 = p.replace(/[?#].*$/, "");
         const first = await load(p);
         // A page that only redirects (a mock that moved) is read at its new address, on its own.
-        if (new URL(first.url()).pathname !== `/${base0}`) { await first.close(); continue; }
+        if (new URL(first.url()).pathname !== `/${base0}`) { await first.close(); return out; }
         const variants = [...new Set((await first.evaluate(statesOf)).map((v) => (v.startsWith("#") ? `${p.replace(/#.*$/, "")}${v}` : `${base0}${v}`)))];
         const seenMsg = new Map(); // message -> the states that show it
         const exempt = terms.exempt.includes(base0);
+        const note = (m, where) => (seenMsg.get(m) ?? seenMsg.set(m, []).get(m)).push(where);
         const scan = async (page, where) => {
             const r = await page.evaluate(termScan, { retired: terms.retired, exempt });
-            for (const m of [...r.found, ...r.homes.map((h) => `two homes: ${h}`)]) (seenMsg.get(m) ?? seenMsg.set(m, []).get(m)).push(where);
+            for (const m of [...r.found, ...r.homes.map((h) => `two homes: ${h}`)]) note(m, where);
+        };
+        const counts = async (url, where) => {
+            const [path, hash = ""] = url.split("#");
+            const page = await load(study(path, hash));
+            for (const c of await page.evaluate(countScan).catch(() => [])) note(`a count the formatter did not write: "${c}" (bind it: data-fx with data-fx-noun and data-fx-of, kit/README.md, "The scope formatter")`, where);
+            await page.close();
         };
         await scan(first, "");
         await first.close();
+        if (!exempt) await counts(p, "");
         for (const v of variants) {
             const [path, hash = ""] = v.split("#");
             const page = await load(hash ? `${path}#${hash}` : path);
             await scan(page, v.slice(base0.length));
             await page.close();
+            if (!exempt) await counts(v, v.slice(base0.length));
         }
+        for (const m of await escRule(p)) out.push(`${p}: Esc rule: ${m}`);
         for (const [m, where] of seenMsg) {
             const w = where.filter(Boolean);
-            problems.push(`${p}${where.includes("") ? "" : w[0]}: ${m}${w.length && where.includes("") ? "" : w.length > 1 ? ` (also in ${w.length - 1} more state${w.length > 2 ? "s" : ""})` : ""}`);
+            out.push(`${p}${where.includes("") ? "" : w[0]}: ${m}${w.length && where.includes("") ? "" : w.length > 1 ? ` (also in ${w.length - 1} more state${w.length > 2 ? "s" : ""})` : ""}`);
         }
+        return out;
+    };
+    {
+        const results = new Array(pages.length);
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(6, pages.length) }, async () => {
+            while (next < pages.length) {
+                const i = next++;
+                results[i] = await gatePage(pages[i]).catch((e) => [`${pages[i]}: the gate could not read the page: ${e.message.split("\n")[0]}`]);
+            }
+        }));
+        for (const r of results) problems.push(...(r ?? []));
     }
     const bare = new Set(pages.map((p) => p.replace(/[?#].*$/, "")));
     for (const t of terms.required) {
@@ -356,7 +522,8 @@ const warnings = [];
 if (typed) {
     const alerts = JSON.parse(await readFile(join(here, "alerts.json"), "utf8"));
     const numsOf = (o, out = new Set()) => {
-        if (typeof o === "number") out.add(String(o));
+        // a measure as the formatter writes it (3 significant figures) is the fixture's number too
+        if (typeof o === "number") out.add(String(o)).add(String(Number(o.toPrecision(3))));
         else if (typeof o === "string") for (const m of o.matchAll(/\d[\d,]*(?:\.\d+)?/g)) out.add(m[0].replace(/,/g, ""));
         else if (o && typeof o === "object") for (const v of Object.values(o)) numsOf(v, out);
         return out;
@@ -391,7 +558,8 @@ if (typed) {
 // (kit/canvas/<dataset>-..., screens/img/...), a bound number by its fixture key.
 async function checkTasks(context) {
     const numbersOf = (o, out = new Set()) => {
-        if (typeof o === "number") out.add(String(o));
+        // a measure as the formatter writes it (3 significant figures) is the fixture's number too
+        if (typeof o === "number") out.add(String(o)).add(String(Number(o.toPrecision(3))));
         else if (typeof o === "string") for (const m of o.matchAll(/\d[\d,]*(?:\.\d+)?/g)) out.add(m[0].replace(/,/g, ""));
         else if (o && typeof o === "object") for (const v of Object.values(o)) numbersOf(v, out);
         return out;
@@ -404,6 +572,7 @@ async function checkTasks(context) {
     const countSeen = {};
     let n = 0;
     for (const [id, t] of Object.entries(fixtures.tasks)) {
+        if (taskOnly && !taskOnly.includes(id)) continue;
         const ok = new Set([t.dataset, ...(SAME[t.dataset] ?? [])]);
         const known = numbersOf(fixtures.datasets[t.dataset]);
         for (const x of SAME[t.dataset] ?? []) numbersOf(fixtures.datasets[x], known);
@@ -428,7 +597,8 @@ async function checkTasks(context) {
                 const t = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
                 const root = (t && (t.matches('section, [class*="-state"]') ? t : t.closest('section[id], [class*="-state"]'))) || document.body;
                 const imgs = [...root.querySelectorAll("img")].filter((el) => vis(el) && !el.closest(".k-thumbs, .ss-thumbs, .k-start, [data-any-dataset]")).map((el) => new URL(el.src).pathname.replace(/^\//, ""));
-                const keys = [...root.querySelectorAll("[data-fx]")].filter(vis).map((el) => el.dataset.fx).filter((k) => !k.includes("{ds}")); // {ds} is the task's own dataset
+                // the start screen's samples show every dataset on purpose, their counts too
+                const keys = [...root.querySelectorAll("[data-fx]")].filter((el) => vis(el) && !el.closest(".k-thumbs, .ss-thumbs, .k-start, [data-any-dataset]")).map((el) => el.dataset.fx).filter((k) => !k.includes("{ds}")); // {ds} is the task's own dataset
                 for (const el of root.querySelectorAll(".k-thumbs, .ss-thumbs, [data-any-dataset]")) el.style.display = "none";
                 const own = !document.querySelector('[data-fx*="{ds}"]') && document.body.dataset.dataset;
                 const text = root.innerText;
@@ -444,7 +614,8 @@ async function checkTasks(context) {
             }
             for (const k of seenOnPage.keys) {
                 if ((t.refs ?? []).some((r) => k === r || k.startsWith(`${r}.`))) continue; // the task points there itself
-                const ds = k.match(/^datasets\.([A-Za-z]+)\./)?.[1];
+                // April's fixture keeps March's side of every comparison under a "march" key: that is March.
+                const ds = /^datasets\.transactionsApril\.(?:[\w.]*\.)?march(?:\.|$)/i.test(k) ? "transactions" : k.match(/^datasets\.([A-Za-z]+)\./)?.[1];
                 if (ds && !ok.has(ds) && !other.has(ds)) other.set(ds, k);
             }
             if (seenOnPage.own && !ok.has(seenOnPage.own)) other.set(seenOnPage.own, "the page holds one dataset, <body data-dataset>");
@@ -472,8 +643,13 @@ async function checkTasks(context) {
         const agree = [...(countSeen[`${c.id}|${c.what}`] ?? [])].filter((x) => x !== c.shown);
         problems.push(`task ${c.id}: ${c.shown} shows ${c.n.toLocaleString("en-US")} ${c.what} in ${c.where}; datasets.${c.ds}.${c.what} is ${c.want.toLocaleString("en-US")}${agree.length ? `, as ${agree[0]} shows` : ""}`);
     }
-    console.log(`checked ${n} task screens`);
+    console.log(`checked ${n} task screen${n === 1 ? "" : "s"} of ${Object.keys(fixtures.tasks ?? {}).length} tasks`);
+    // A gate that checked nothing passed nothing (round 6 ran on "0 problems on 0 pages").
+    if (!n) problems.push("--tasks checked 0 task screens: kit/fixtures.json lists no task pages, or none could be read");
+    taskScreens = n;
 }
 for (const pr of problems) console.log(pr);
-console.log(`${problems.length} problem${problems.length === 1 ? "" : "s"} on ${pages.length} page${pages.length === 1 ? "" : "s"}; ${seen.size} fixture value${seen.size === 1 ? "" : "s"} bound`);
+console.log(`${problems.length} problem${problems.length === 1 ? "" : "s"} on ${pages.length} page${pages.length === 1 ? "" : "s"}${tasksMode ? ` and ${taskScreens} task screen${taskScreens === 1 ? "" : "s"}` : ""}; ${seen.size} fixture value${seen.size === 1 ? "" : "s"} bound`);
+// A run that checked nothing is a failure, never a pass.
+if (!pages.length && !taskScreens) { console.log("checked nothing: exit 1"); process.exitCode = 1; }
 if (problems.length) process.exitCode = 1;

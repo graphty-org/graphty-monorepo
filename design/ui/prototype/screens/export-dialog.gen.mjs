@@ -134,7 +134,7 @@ function figure(look) {
     // the legend's footer: how each number was computed, and the weight answer
     L.push(`<line x1="${LX}" y1="${y - 7}" x2="${W - 4}" y2="${y - 7}" stroke="#bdbdbd" stroke-width="0.5"/>`);
     y += 2;
-    const foot = ["Degree: exact, not normalized, on the full graph (300 proteins, 1,262 interactions).", "Weight: confidence, not used yet; no measure here reads a weight.", print ? "Look: Print. Gray-safe: sign is shape." : "Look: Screen."];
+    const foot = ["Degree: exact, not normalized, on the full graph (300 proteins, 1,262 interactions).", "Weight: none; no measure here reads a weight.", print ? "Look: Print. Gray-safe: sign is shape." : "Look: Screen."];
     for (const para of foot) t(para, { c: "#333333" });
     const H = Math.ceil(Math.max(DH, y)) + 4;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}pt" height="${H}pt" viewBox="0 0 ${W} ${H}" font-family="Inter, Arial, sans-serif" font-size="${FS}" fill="#1a1a1a">

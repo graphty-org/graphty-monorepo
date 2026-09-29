@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study coverage</title>
+<link rel="stylesheet" href="../kit/cm.css">
+<link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
+<style>
+  .s-wrap { overflow-x: auto; }
+  .s-table { border-collapse: collapse; font-variant-numeric: tabular-nums; margin: 8px 0 20px; }
+  .s-table th, .s-table td { padding: 4px 10px; border-bottom: 1px solid var(--cm-border); text-align: start; vertical-align: top; }
+  .s-table td.n, .s-table th.n { text-align: end; white-space: nowrap; }
+  .s-note { color: var(--cm-text-secondary); }
+  .st { white-space: nowrap; font-weight: 550; }
+  .st-no { color: var(--cm-text-danger); }
+  .s-list { margin: 4px 0 0; padding-left: 20px; }
+  .s-list li { margin: 2px 0; }
+  code { font-size: 0.92em; }
+</style>
+</head>
+<body>
+<div class="k-doc">
+<h1>How much of graphty has been through the user study</h1>
+<p class="k-lede">Coverage of the simulated user study, rounds 1 to 6, measured four ways: functionality, workflows, flows, and storyboards with screens. As of 2026-09-29, with round 6's sessions finished and its revisions being drawn. Back to <a href="index.html">the user study</a> or <a href="../index.html#study">the gallery</a>.</p>
+<p><strong>Every participant is simulated.</strong> "Tested" here means a simulated participant used the thing to do a task on a mock. Nothing on this page has been through testing with real people.</p>
+
+<h2 id="summary">The answer</h2>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Measure</th><th class="n">Tested</th><th class="n">Share</th><th>The rest</th></tr></thead><tbody>
+<tr><td>Capabilities (designloom, 61)</td><td class="n">37 of 61</td><td class="n">61%</td><td>9 seen on a mock but never needed for a task; 15 have no mock at all. Two of the 37 are tested only in part (time)</td></tr>
+<tr><td>Top tasks (framework, 12 ranked tasks and 3 bookends)</td><td class="n">13 of 15</td><td class="n">87%</td><td>Layout (task 7) never tested; combining sets (task 9) only in part. The tail: 2 of 12 tested, 1 in part</td></tr>
+<tr><td>Workflows (designloom, 25)</td><td class="n">2 fully, 20 partly</td><td class="n">8% fully, 88% at least partly</td><td>3 never walked: Threat Hunting, Graph-Based Recommendation, Enrichment Map</td></tr>
+<tr><td>Flows (13 pages)</td><td class="n">9 end to end</td><td class="n">69% end to end, 100% at least partly</td><td>4 only partly: find and expand, load and characterize, narrow-hide-paint, sets and paths</td></tr>
+<tr><td>Storyboards (6)</td><td class="n">6 of 6</td><td class="n">100% (in the version round 6 saw)</td><td>None fully in its current version: three storyboard files (first-look, weekly-return, recipe-travels) and the screens all six walk changed after round 6. Branches never walked: first-look 6a-7, alert triage 22-25, failure-and-recovery E</td></tr>
+<tr><td>Screens (40 product screens)</td><td class="n">40 of 40</td><td class="n">100% (in the version round 6 saw)</td><td>2 of 40 in their current version (data-location, take-a-note); the other 38 changed after the round-6 sessions. 18 carry a round-6 design decision, drawn or not</td></tr>
+</tbody></table></div>
+<h3>What matters most among the gaps</h3><ul class="s-list">
+<li><strong>Almost nothing on the gallery today has been tested as it stands.</strong> Round 6 ran on pages whose round-5 decisions were partly undrawn (its precondition gate checked 0 pages), and 38 of 40 screens have changed since. Round 7 is the first chance to test the current design.</li>
+<li><strong>Layout is the one ranked everyday task with no test</strong> (top task 7, "make the layout readable"). The Layout row is on the mocks; no task asked anyone to run or tune it.</li>
+<li><strong>The ways a first file fails are mostly untested.</strong> The .xlsx refusal was tested once (round 6, 7 sessions). A file that cannot be parsed, a file refused for memory, and undoing a first load have mocks or flow text but no task.</li>
+<li><strong>The opt-in moment has never been tested.</strong> Turning on the Assistant is drawn (Preferences, the AI provider dialog: a refused key, a provider set), but no task has used it; participants saw only the "Assistant on" state afterwards, and round 6 found no screen for the app after a data-source query.</li>
+<li><strong>15 capabilities have no mock</strong>, including saved filters, computed attributes, anomaly detection, node merging and guided onboarding; three workflows (threat hunting, recommendation, enrichment map) were never walked.</li>
+</ul>
+<h2 id="first-use">First use</h2><p>The moments a new user meets first, where a flaw costs trust fastest. "Current version" means the page as it is today.</p>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Moment</th><th>Tested?</th><th>By what</th><th>Current version tested?</th><th>Trust risk if flawed</th></tr></thead><tbody>
+<tr><td>First launch: start screen, first run, &quot;where does the file go&quot;</td><td class="st st-ok">Tested</td><td>data-stays-here and worth-an-afternoon, every round (R1-R6)</td><td>No: start screen changed after R6</td><td>Medium</td></tr>
+<tr><td>&quot;Where your data goes&quot; page, read before loading</td><td class="st st-ok">Tested</td><td>data-stays-here, did-anything-leave (R2-R6)</td><td>Yes, the page is unchanged since R6; but its decided fix (&quot;Not decided yet&quot; in place of blank labels) is not drawn</td><td>High: hosting, usage statistics and the Assistant switch read as blanks; every regulated participant read them as &quot;no&quot; (round 6, finding 24)</td></tr>
+<tr><td>First file: Open, the load step, Load</td><td class="st st-ok">Tested</td><td>worth-an-afternoon (R1-R6), load-a-messy-export (R6, new)</td><td>No: load step changed after R6 (Weight role removed, &quot;What will load&quot; facts)</td><td>High: round 6 finding 16, the checks people use (money total, date range, top account) are hidden</td></tr>
+<tr><td>Error on load: a file graphty does not read (.xlsx)</td><td class="st st-part">Tested once</td><td>load-a-messy-export (R6, 7 sessions)</td><td>No</td><td>Medium</td></tr>
+<tr><td>Error on load: a column read as text, repeated pairs, currency text</td><td class="st st-ok">Tested</td><td>worth-an-afternoon (R2-R6), load-a-messy-export (R6)</td><td>No</td><td>Medium</td></tr>
+<tr><td>Error on load: a file that cannot be parsed, a file refused for memory</td><td class="st st-no">Not tested</td><td>Mocked (load step &quot;Refused&quot;, &quot;Could not open&quot; in the replace flow); no task</td><td>Never tested</td><td>High: the first file a new user tries is the likeliest to fail, and no session has seen it fail</td></tr>
+<tr><td>First graph: the frame after Load, Statistics, the Loaded line</td><td class="st st-ok">Tested</td><td>worth-an-afternoon, load-a-messy-export, read-the-numbers (R6)</td><td>No: the Loaded line is being redrawn</td><td>High: &quot;amount not used yet. Change...&quot; drew 15 of 16 wrong first clicks on the cheapest-route prompt (round 6, finding 2)</td></tr>
+<tr><td>First run that reads a weight: &quot;what does a bigger number mean&quot;</td><td class="st st-ok">Tested</td><td>weight-at-first-run (R2-R3), quiet-weight-trap (R1-R6), weight-end-to-end (R3-R6)</td><td>No: path editor prefill fix decided, not drawn</td><td>High: severity 4 in round 6 (finding 3), the path editor comes filled in with the wrong reading</td></tr>
+<tr><td>A colleague&#x27;s recipe dropped on the start screen as the first file</td><td class="st st-ok">Tested</td><td>use-colleagues-file (R1-R6)</td><td>No</td><td>Medium</td></tr>
+<tr><td>Opt-in: turning on the Assistant, or connecting a data source</td><td class="st st-no">Not tested</td><td>Drawn on the preferences page (the AI provider dialog, a refused key, a provider set) but never part of a task; only the resulting &quot;Assistant on&quot; state was seen (data-stays-here, R2-R3). No screen shows the app after a data-source query</td><td>Never tested</td><td>High: this is the moment data can leave the machine, and IT approvers ask about it first</td></tr>
+<tr><td>No WebGPU in this browser, on the first costly run</td><td class="st st-part">Seen only</td><td>Drawn on results, run-and-read and preferences; seen in groups-differ and too-big-to-draw, never a task</td><td>Never tested</td><td>Medium: a Safari or Firefox user meets it on day one</td></tr>
+<tr><td>Empty states: a blank project, empty notes, empty style stack, Find with no match</td><td class="st st-part">Partly</td><td>Notes empty (remember-why R1-R3), no style layers yet (figure-for-reviewer R3), Find no match (flagged-account and how-connected R2), blank project glimpsed in 3 sessions; undoing a first load (leaves an empty project) never</td><td>No</td><td>Medium</td></tr>
+<tr><td>Guided onboarding, picking a sample to learn on</td><td class="st st-no">Not tested</td><td>No onboarding mock; samples are on the start screen but no task picked one</td><td>No mock</td><td>Medium</td></tr>
+<tr><td>First save state: &quot;Not saved&quot;, a save that fails</td><td class="st st-part">Partly</td><td>&quot;Not saved&quot; seen in data-stays-here (R1); &quot;Save failed&quot; glimpsed in calculation-stopped (R5)</td><td>No</td><td>High: a failed autosave loses work</td></tr>
+</tbody></table></div>
+<h2 id="functionality">1. Functionality</h2><p>A capability counts as tested only when a session task needed the participant to use it on a mock; seeing it on a screen does not count. 37 tested, 9 seen only, 15 with no mock. Source: <code>design/designloom/capabilities/*.yaml</code>.</p>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Capability</th><th>Status</th><th>Tasks that used it, or why not</th></tr></thead><tbody>
+<tr><td><code>algorithm-progress</code></td><td class="st st-ok">Tested</td><td>costly-measure (R1-R3, R6), calculation-stopped (R5-R6): run, cancel, a lost GPU</td></tr>
+<tr><td><code>analysis-history</code></td><td class="st st-ok">Tested</td><td>two-runs-compared (R5-R6: how each run was made), get-back (undo history), this-weeks-export and weekly-update (version history)</td></tr>
+<tr><td><code>annotation</code></td><td class="st st-ok">Tested</td><td>remember-why and notes-with-names (notes on objects); print-ready-grey and gray-figure-signed (label the top N). Callouts drawn on a figure: no mock</td></tr>
+<tr><td><code>basic-statistics</code></td><td class="st st-ok">Tested</td><td>worth-an-afternoon (every round), read-the-numbers (R2-R3, R6), load-a-messy-export (R6)</td></tr>
+<tr><td><code>centrality-betweenness</code></td><td class="st st-ok">Tested</td><td>top-50-to-excel, costly-measure, top-200-past-limit, rankings-agree</td></tr>
+<tr><td><code>centrality-closeness</code></td><td class="st st-ok">Tested</td><td>who-matters (R1, R6): closeness on a graph in pieces, the variant named before the run</td></tr>
+<tr><td><code>centrality-degree</code></td><td class="st st-ok">Tested</td><td>narrow-or-paint (degree 5 or more), keyboard-walk (best-connected neighbour), who-matters</td></tr>
+<tr><td><code>centrality-pagerank</code></td><td class="st st-ok">Tested</td><td>weight-at-first-run (R2-R3), rankings-agree-scatter, calculation-stopped (R5-R6)</td></tr>
+<tr><td><code>community-detection</code></td><td class="st st-ok">Tested</td><td>groups-differ (every round), weekly-update, real-change-or-noise (R6)</td></tr>
+<tr><td><code>community-profiling</code></td><td class="st st-ok">Tested</td><td>groups-differ: how the biggest group differs from the rest</td></tr>
+<tr><td><code>comparison-view</code></td><td class="st st-ok">Tested</td><td>rankings-agree, two-runs-compared, real-change-or-noise, this-weeks-export</td></tr>
+<tr><td><code>component-analysis</code></td><td class="st st-ok">Tested</td><td>narrow-or-paint R1-R3 (largest connected piece), worth-an-afternoon and read-the-numbers (component counts)</td></tr>
+<tr><td><code>data-export</code></td><td class="st st-ok">Tested</td><td>top-50-to-excel, csv-to-reviewer (R3), how-connected-by-amount (R2-R3), money-in-and-out</td></tr>
+<tr><td><code>data-import</code></td><td class="st st-ok">Tested</td><td>worth-an-afternoon, load-a-messy-export, this-weeks-export, weekly-update</td></tr>
+<tr><td><code>data-preview</code></td><td class="st st-ok">Tested</td><td>worth-an-afternoon and load-a-messy-export: the load step before Load</td></tr>
+<tr><td><code>data-validation</code></td><td class="st st-ok">Tested</td><td>worth-an-afternoon (a column read as text, repeated pairs), load-a-messy-export (currency text, duplicates)</td></tr>
+<tr><td><code>degree-analysis</code></td><td class="st st-ok">Tested</td><td>worth-an-afternoon (degree distribution in Statistics), narrow-or-paint (a degree cut)</td></tr>
+<tr><td><code>details-on-demand</code></td><td class="st st-ok">Tested</td><td>who-matters, flagged-account, how-connected (the inspector)</td></tr>
+<tr><td><code>ego-network</code></td><td class="st st-ok">Tested</td><td>neighbors-two-sizes (R3), flagged-account-from-alert (R2-R3), top-200-past-limit (&quot;who surrounds the first one&quot;)</td></tr>
+<tr><td><code>export-image</code></td><td class="st st-ok">Tested</td><td>figure-for-reviewer, gray-figure-signed, print-ready-grey</td></tr>
+<tr><td><code>filtering</code></td><td class="st st-ok">Tested</td><td>narrow-or-paint, fix-wrong-middle-step, read-the-numbers, too-big-to-draw</td></tr>
+<tr><td><code>graph-rendering</code></td><td class="st st-ok">Tested</td><td>Read from still drawings in most tasks (read-size-key, figure tasks). Never live: the mocks do not draw</td></tr>
+<tr><td><code>keyboard-shortcuts</code></td><td class="st st-ok">Tested</td><td>keyboard-walk and keyboard-walk-shift-arrow (real key presses), get-back (Ctrl+Z)</td></tr>
+<tr><td><code>large-graph-rendering</code></td><td class="st st-ok">Tested</td><td>too-big-to-draw, top-200-past-limit, costly-measure (past the drawing limit)</td></tr>
+<tr><td><code>legend-display</code></td><td class="st st-ok">Tested</td><td>read-size-key (R3), restyle-two-groups (R5-R6), figure-for-reviewer</td></tr>
+<tr><td><code>neighborhood-expansion</code></td><td class="st st-ok">Tested</td><td>flagged-account-from-alert (Neighbors menu), how-connected (R6, find and expand), keyboard walks</td></tr>
+<tr><td><code>node-selection</code></td><td class="st st-ok">Tested</td><td>keyboard-walk-shift-arrow (select two), get-back (a cleared selection)</td></tr>
+<tr><td><code>path-highlighting</code></td><td class="st st-ok">Tested</td><td>how-connected, how-connected-by-amount, dated-trace</td></tr>
+<tr><td><code>report-generation</code></td><td class="st st-ok">Tested</td><td>flagged-account (the evidence file), gray-figure-signed (the methods file), did-anything-leave (a readable summary for IT)</td></tr>
+<tr><td><code>search</code></td><td class="st st-ok">Tested</td><td>how-connected, flagged-account, keyboard-walk-shift-arrow (Find)</td></tr>
+<tr><td><code>selection-statistics</code></td><td class="st st-ok">Tested</td><td>money-in-and-out (R6: the table footer totals the selection), groups-differ (compared with the rest)</td></tr>
+<tr><td><code>shortest-path</code></td><td class="st st-ok">Tested</td><td>how-connected, how-connected-by-amount, weight-end-to-end</td></tr>
+<tr><td><code>statistics-panel</code></td><td class="st st-ok">Tested</td><td>worth-an-afternoon, read-the-numbers, load-a-messy-export</td></tr>
+<tr><td><code>style-presets</code></td><td class="st st-ok">Tested</td><td>team-colors-file (R5-R6), figure-for-reviewer (the Print look), share-without-data</td></tr>
+<tr><td><code>temporal-analysis</code></td><td class="st st-ok">Tested</td><td>Partly: real-change-or-noise and weekly-update compare two monthly versions; no metric tracked over many periods</td></tr>
+<tr><td><code>temporal-navigation</code></td><td class="st st-ok">Tested</td><td>Partly: dated-trace uses a date window on neighbors; no time slider or playback</td></tr>
+<tr><td><code>visual-encoding-nodes</code></td><td class="st st-ok">Tested</td><td>figure-for-reviewer (color by fold change), restyle-two-groups, read-size-key</td></tr>
+<tr><td><code>centrality-eigenvector</code></td><td class="st st-part">Seen only</td><td>Listed in the catalog with its &quot;3 components&quot; warning; no participant ran it</td></tr>
+<tr><td><code>hover-highlight</code></td><td class="st st-part">Seen only</td><td>Hover states drawn as stills; no task needed one</td></tr>
+<tr><td><code>layout-force-directed</code></td><td class="st st-part">Seen only</td><td>The Layout row with Run is on the inspector, first-look and weekly-return mocks; no task asked anyone to lay out a graph (top task 7)</td></tr>
+<tr><td><code>metric-histograms</code></td><td class="st st-part">Seen only</td><td>Distribution histograms sit on results and the load step; participants skipped them and no task asked for a distribution</td></tr>
+<tr><td><code>sample-datasets</code></td><td class="st st-part">Seen only</td><td>Samples are on the start screen; no task asked anyone to pick one</td></tr>
+<tr><td><code>tooltip-display</code></td><td class="st st-part">Seen only</td><td>Tooltips drawn on stills (for example, the dropped node on a filter step); no task relied on one</td></tr>
+<tr><td><code>view-bookmarks</code></td><td class="st st-part">Seen only</td><td>Saved views appear inside the export dialog and the alert-triage flow; no task saved or reopened a view</td></tr>
+<tr><td><code>visual-encoding-edges</code></td><td class="st st-part">Seen only</td><td>Money edges and arrowheads are drawn; no task asked anyone to encode an edge attribute</td></tr>
+<tr><td><code>zoom-pan</code></td><td class="st st-part">Seen only</td><td>Static mocks; nobody zoomed or panned</td></tr>
+<tr><td><code>all-paths-finding</code></td><td class="st st-no">No mock</td><td>Only one path is drawn; the &quot;Route 1 of 2&quot; stepper for tied routes is decided (round 6) but not drawn</td></tr>
+<tr><td><code>animated-transitions</code></td><td class="st st-no">No mock</td><td>Static mocks; nothing animates</td></tr>
+<tr><td><code>anomaly-detection</code></td><td class="st st-no">No mock</td><td>Only an &quot;outlier fence&quot; shading in the table histogram; no detection run</td></tr>
+<tr><td><code>clustering-coefficient</code></td><td class="st st-no">No mock</td><td>Not on any mock</td></tr>
+<tr><td><code>computed-attributes</code></td><td class="st st-no">No mock</td><td>No formula or custom-score builder on any mock</td></tr>
+<tr><td><code>guided-onboarding</code></td><td class="st st-no">No mock</td><td>No hints, tour or suggested first steps on any mock</td></tr>
+<tr><td><code>layout-hierarchical</code></td><td class="st st-no">No mock</td><td>Not on any mock</td></tr>
+<tr><td><code>layout-radial</code></td><td class="st st-no">No mock</td><td>Not on any mock</td></tr>
+<tr><td><code>link-prediction</code></td><td class="st st-no">No mock</td><td>A catalog name only; no run, result or screen</td></tr>
+<tr><td><code>node-merging</code></td><td class="st st-no">No mock</td><td>&quot;Merge duplicate accounts&quot; is named in the sets-and-paths flow with no screen</td></tr>
+<tr><td><code>overview-minimap</code></td><td class="st st-no">No mock</td><td>Not on any mock</td></tr>
+<tr><td><code>pattern-search</code></td><td class="st st-no">No mock</td><td>Not on any mock</td></tr>
+<tr><td><code>progressive-loading</code></td><td class="st st-no">No mock</td><td>Not on any mock (&quot;Still measuring&quot; is statistics filling in, not loading)</td></tr>
+<tr><td><code>removal-impact-analysis</code></td><td class="st st-no">No mock</td><td>Not on any mock</td></tr>
+<tr><td><code>saved-filters</code></td><td class="st st-no">No mock</td><td>No named or saved filter; filter steps live only inside a project or a recipe</td></tr>
+</tbody></table></div>
+<h3>Top tasks</h3><p>From <code>design/ui/framework/top-tasks.md</code>.</p><div class="s-wrap"><table class="s-table"><thead><tr><th>Task</th><th>Status</th><th>Tasks</th></tr></thead><tbody>
+<tr><td>1. Characterize the whole graph</td><td class="st st-ok">Tested</td><td>worth-an-afternoon, read-the-numbers, load-a-messy-export</td></tr>
+<tr><td>2. Rank nodes by a centrality metric</td><td class="st st-ok">Tested</td><td>who-matters, top-50-to-excel, costly-measure</td></tr>
+<tr><td>3. Detect communities and characterize them</td><td class="st st-ok">Tested</td><td>groups-differ, groups-differ-finished. Retuning the resolution: never</td></tr>
+<tr><td>4. Find a node, inspect it, explore its neighborhood</td><td class="st st-ok">Tested</td><td>how-connected, flagged-account, neighbors-two-sizes, top-200-past-limit</td></tr>
+<tr><td>5. Take a note</td><td class="st st-ok">Tested</td><td>remember-why, notes-with-names</td></tr>
+<tr><td>6. Filter, then characterize what is left</td><td class="st st-ok">Tested</td><td>narrow-or-paint, read-the-numbers, fix-wrong-middle-step</td></tr>
+<tr><td>7. Make the layout readable</td><td class="st st-no">Not tested</td><td>No task. The Layout row exists on mocks; nobody was asked to run or tune a layout</td></tr>
+<tr><td>Bookend: Load a graph</td><td class="st st-ok">Tested</td><td>worth-an-afternoon, load-a-messy-export</td></tr>
+<tr><td>Bookend: Start from a recipe</td><td class="st st-ok">Tested</td><td>use-colleagues-file, recipe-missing-column (R3), team-colors-file</td></tr>
+<tr><td>Bookend: Export</td><td class="st st-ok">Tested</td><td>figure-for-reviewer, top-50-to-excel, share-without-data, flagged-account</td></tr>
+<tr><td>8. Color or size by a value</td><td class="st st-ok">Tested</td><td>figure-for-reviewer, gray-figure-signed, restyle-two-groups</td></tr>
+<tr><td>9. Create a named set, and combine sets</td><td class="st st-part">Partly</td><td>Sets are kept in the alert tasks; no task combined two sets (union, intersection)</td></tr>
+<tr><td>10. Compare with...</td><td class="st st-ok">Tested</td><td>rankings-agree, two-runs-compared, real-change-or-noise</td></tr>
+<tr><td>11. Find the shortest path</td><td class="st st-ok">Tested</td><td>how-connected, weight-end-to-end</td></tr>
+<tr><td>12. Reuse an analysis (Replace data)</td><td class="st st-ok">Tested</td><td>weekly-update, this-weeks-export, weekly-refresh-replace</td></tr>
+</tbody></table></div><h3>The tail</h3><div class="s-wrap"><table class="s-table"><thead><tr><th>Task</th><th>Status</th><th>Tasks</th></tr></thead><tbody>
+<tr><td>Share a recipe</td><td class="st st-ok">Tested</td><td>share-without-data</td></tr>
+<tr><td>Watch the graph change over time</td><td class="st st-part">Partly</td><td>dated-trace (a date window); real-change-or-noise (two versions)</td></tr>
+<tr><td>Combine two graphs</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Project a bipartite graph</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Choose a layout algorithm</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Test a result against a null model</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Check a partition&#x27;s stability across seeds</td><td class="st st-ok">Tested</td><td>real-change-or-noise (R6)</td></tr>
+<tr><td>Clean and edit data, merge duplicates</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Bridges and articulation points</td><td class="st st-no">Not tested</td><td>Tree test and first click only (findability, not use)</td></tr>
+<tr><td>Link prediction</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Save a view</td><td class="st st-no">Not tested</td><td></td></tr>
+<tr><td>Switch between 2D, 3D, VR and AR</td><td class="st st-no">Not tested</td><td></td></tr>
+</tbody></table></div>
+<h2 id="workflows">2. Workflows</h2><p>"Fully" means every phase of the workflow was exercised by at least one task, across tasks. 2 fully, 20 partly, 3 not walked. Source: <code>design/designloom/workflows/*.yaml</code>.</p>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Id</th><th>Workflow</th><th>Status</th><th>Walked by</th><th>Phases never walked</th></tr></thead><tbody>
+<tr><td>W01</td><td>First Exploration - Quick Data Assessment</td><td class="st st-ok">Fully</td><td>worth-an-afternoon, load-a-messy-export, read-the-numbers</td><td>Distribution scan only seen, never asked for</td></tr>
+<tr><td>W02</td><td>Visual Exploration - Overview to Detail</td><td class="st st-part">Partly</td><td>narrow-or-paint, who-matters (filter, details)</td><td>Overview, zoom, hover, minimap, bookmarks</td></tr>
+<tr><td>W03</td><td>Iterative Analysis Cycle</td><td class="st st-part">Partly</td><td>who-matters, two-runs-compared, remember-why</td><td>No task runs question to conclusion as one cycle</td></tr>
+<tr><td>W04</td><td>Community Analysis</td><td class="st st-part">Partly</td><td>groups-differ, real-change-or-noise</td><td>Boundary (bridge) nodes, structure between communities</td></tr>
+<tr><td>W05</td><td>Path Investigation</td><td class="st st-part">Partly</td><td>how-connected, how-connected-by-amount, dated-trace</td><td>Comparing several paths</td></tr>
+<tr><td>W06</td><td>Fraud Ring Investigation</td><td class="st st-part">Partly</td><td>flagged-account, flagged-account-from-alert, dated-trace, money-in-and-out</td><td>Risk scoring, pattern recognition</td></tr>
+<tr><td>W07</td><td>Threat Hunting</td><td class="st st-no">Not walked</td><td>Priya&#x27;s tasks touch Find and filters only</td><td>Hypothesis to pattern query, pattern search, triage of matches</td></tr>
+<tr><td>W08</td><td>Drug Target Discovery</td><td class="st st-part">Partly</td><td>groups-differ, who-matters, top-50-to-excel (Dr. Chen)</td><td>Building the disease network, validation</td></tr>
+<tr><td>W09</td><td>Criminal Network Analysis</td><td class="st st-part">Partly</td><td>who-matters, flagged-account, figure tasks</td><td>Merging records, network building, vulnerability (removal)</td></tr>
+<tr><td>W10</td><td>Influencer Identification</td><td class="st st-part">Partly</td><td>who-matters, rankings-agree</td><td>Segmenting influencers by type, validation</td></tr>
+<tr><td>W11</td><td>Supply Chain Risk Assessment</td><td class="st st-part">Partly</td><td>weight-end-to-end (chokepoint, lane cost)</td><td>Tiered map, what-if removal, mitigation</td></tr>
+<tr><td>W12</td><td>Anomaly Detection</td><td class="st st-part">Partly</td><td>worth-an-afternoon (baseline), too-big-to-draw</td><td>Statistical and structural detection, classification</td></tr>
+<tr><td>W13</td><td>Knowledge Graph Construction</td><td class="st st-part">Partly</td><td>load step validation only (load-a-messy-export)</td><td>Schema, extraction, entity resolution, deployment</td></tr>
+<tr><td>W14</td><td>First-Time User Onboarding</td><td class="st st-part">Partly</td><td>data-stays-here, worth-an-afternoon (arrival, loading, first view, a first analysis)</td><td>Guided exploration, next steps; nobody chose a sample</td></tr>
+<tr><td>W15</td><td>Findings Communication</td><td class="st st-part">Partly</td><td>figure-for-reviewer, gray-figure-signed, flagged-account</td><td>Narrative, callouts, a report for non-experts</td></tr>
+<tr><td>W16</td><td>Graph-Based Recommendation</td><td class="st st-no">Not walked</td><td></td><td>Everything: link prediction has no mock</td></tr>
+<tr><td>W17</td><td>Hub Investigation</td><td class="st st-part">Partly</td><td>top-200-past-limit, who-matters</td><td>Temporal growth of a hub, role classification</td></tr>
+<tr><td>W18</td><td>Data Import and Validation</td><td class="st st-ok">Fully</td><td>load-a-messy-export, worth-an-afternoon, read-the-numbers</td><td>A file that cannot be parsed at all</td></tr>
+<tr><td>W19</td><td>Network Evolution Analysis</td><td class="st st-part">Partly</td><td>weekly-update, real-change-or-noise</td><td>Time windows, metric tracking over many periods</td></tr>
+<tr><td>W20</td><td>Gene List to Interaction Network with Expression Overlay</td><td class="st st-part">Partly</td><td>use-colleagues-file, figure-for-reviewer, gray-figure-signed</td><td>Getting the network from a gene list, trimming, layout</td></tr>
+<tr><td>W21</td><td>Cluster and Functionally Annotate a Molecular Network</td><td class="st st-part">Partly</td><td>groups-differ, groups-differ-finished</td><td>Annotating clusters with terms, showing terms on the map</td></tr>
+<tr><td>W22</td><td>Enrichment Map - Pathway Similarity Network</td><td class="st st-no">Not walked</td><td></td><td>Everything</td></tr>
+<tr><td>W23</td><td>Hub Gene Identification and Ranking</td><td class="st st-part">Partly</td><td>rankings-agree, top-50-to-excel, who-matters</td><td>Combining rankings into one score</td></tr>
+<tr><td>W24</td><td>Condition Comparison - Disease vs Control Networks</td><td class="st st-part">Partly</td><td>only through two data versions (real-change-or-noise)</td><td>Two named networks, merge, rewired genes, side by side</td></tr>
+<tr><td>W25</td><td>Reproducible Session and Network Publication</td><td class="st st-part">Partly</td><td>share-without-data, figure-for-reviewer, two-runs-compared</td><td>Tidying and saving the session, publishing</td></tr>
+</tbody></table></div>
+<h2 id="flows">3. Flows</h2><p>A flow page is a diagram; participants who opened one skimmed it, and three rendered blank in the study view. A flow counts as walked when a task went through its screens in its order. "End to end" is the main route start to finish; the untested branches are listed. 9 end to end, 4 partly.</p>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Flow</th><th>Status</th><th>Walked by</th><th>Never walked</th></tr></thead><tbody>
+<tr><td><a href="../flows/alert-triage.html">Alert triage flow</a></td><td class="st st-ok">End to end</td><td>flagged-account-from-alert (R2-R3) walked the one-alert triage; flagged-account and dated-trace (R5-R6) the escalated case</td><td>Priya starting from a rule; a hop past the drawing limit</td></tr>
+<tr><td><a href="../flows/colour-by-value.html">Color or size by a value</a></td><td class="st st-ok">End to end</td><td>figure-for-reviewer, gray-figure-signed, restyle-two-groups</td><td>Binding a set to a value; keyboard</td></tr>
+<tr><td><a href="../flows/compare-versions.html">Compare data versions</a></td><td class="st st-ok">End to end</td><td>real-change-or-noise (R6 only)</td><td>No earlier run to compare</td></tr>
+<tr><td><a href="../flows/export.html">Export flow</a></td><td class="st st-ok">End to end</td><td>figure-for-reviewer, gray-figure-signed (all 8 steps); share-without-data; flagged-account (evidence file)</td><td>Save failed; export on a density drawing</td></tr>
+<tr><td><a href="../flows/find-and-expand.html">Find, inspect, expand, next seed</a></td><td class="st st-part">Partly</td><td>how-connected (R6), flagged-account-from-alert</td><td>Triage of the ranked list and &quot;next seed&quot;</td></tr>
+<tr><td><a href="../flows/keyboard-walk.html">Keyboard walk and leaving the canvas</a></td><td class="st st-ok">End to end</td><td>keyboard-walk, keyboard-walk-shift-arrow (real key presses)</td><td>Walking past the drawing limit</td></tr>
+<tr><td><a href="../flows/load-and-characterize.html">Load and characterize</a></td><td class="st st-part">Partly</td><td>Part 1, load and check: worth-an-afternoon, load-a-messy-export</td><td>Part 2, reopening the project a week later, only inside the weekly tasks</td></tr>
+<tr><td><a href="../flows/narrow-hide-paint.html">Narrow, hide or paint</a></td><td class="st st-part">Partly</td><td>narrow-or-paint: the Filter branch</td><td>Hide on canvas, paint a selection</td></tr>
+<tr><td><a href="../flows/replace-and-recipe.html">Update with new data, apply a recipe, compare</a></td><td class="st st-ok">End to end</td><td>weekly-update (steps 1-6), use-colleagues-file (7-9), recipe-missing-column (R3), team-colors-file (10-12), real-change-or-noise (13-15)</td><td>A replay that fails or is canceled</td></tr>
+<tr><td><a href="../flows/run-and-read.html">Run a measure and read it</a></td><td class="st st-ok">End to end</td><td>who-matters, costly-measure, quiet-weight-trap, weight-end-to-end, groups-differ</td><td>The layout side branch</td></tr>
+<tr><td><a href="../flows/sets-and-paths.html">Sets and paths between</a></td><td class="st st-part">Partly</td><td>how-connected (paths), how-connected-by-amount (rows), weight-end-to-end (what a length counted), dated-trace (date window)</td><td>Keeping and combining sets</td></tr>
+<tr><td><a href="../flows/take-a-note.html">Take a note</a></td><td class="st st-ok">End to end</td><td>remember-why, notes-with-names</td><td>Where a note leaves the project (export)</td></tr>
+<tr><td><a href="../flows/undo-and-ways-back.html">Undo and the other ways back</a></td><td class="st st-ok">End to end</td><td>get-back (every round), fix-wrong-middle-step, the two undo arms in R6</td><td></td></tr>
+</tbody></table></div>
+<h2 id="storyboards">4. Storyboards and screens</h2><h3>Storyboards</h3><p>A storyboard counts as tested when a task enacted its story through its screens. No storyboard was shown whole in a focus group.</p>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Storyboard</th><th>Enacted by</th><th>Frames covered</th><th>Last tested</th><th>Current version</th></tr></thead><tbody>
+<tr><td><a href="../storyboards/first-look.html">First look: a file arrives and is worth an afternoon (or not)</a></td><td>worth-an-afternoon (R1-R6)</td><td>Frames 1-5 (start screen, load step, statistics, a click); 6a-7 (Quick actions, a note) only shown as &quot;what a click leads to&quot;</td><td>R6</td><td>Storyboard and its screens changed after R6</td></tr>
+<tr><td><a href="../storyboards/alert-triage.html">Alert triage: from a flagged account to a decision and an evidence file</a></td><td>flagged-account-from-alert (R2-R3), flagged-account, dated-trace (R5-R6)</td><td>Frames 1-21; variants 22-25 (Priya from a rule, the whole month undrawn) never</td><td>R6</td><td>Storyboard unchanged since R6; its screen page changed after R6</td></tr>
+<tr><td><a href="../storyboards/weekly-return.html">The weekly return</a></td><td>this-weeks-export, weekly-refresh-replace, weekly-update, real-change-or-noise</td><td>All three days</td><td>R6</td><td>Storyboard rewritten after R6 (weekly-update counts, round-6 decision)</td></tr>
+<tr><td><a href="../storyboards/recipe-travels.html">A recipe travels</a></td><td>use-colleagues-file (R1-R6), recipe-missing-column (R3), share-without-data</td><td>All frames; branch B (no log2FC column) only in R3</td><td>R6</td><td>Storyboard and its screens changed after R6</td></tr>
+<tr><td><a href="../storyboards/keyboard-only.html">Keyboard and screen reader: walking the protein network</a></td><td>keyboard-walk, keyboard-walk-shift-arrow (screen-reader analyst)</td><td>The whole walk (Javert missing from the page for three rounds)</td><td>R6</td><td>Storyboard unchanged since R6; the walk page changed after R6</td></tr>
+<tr><td><a href="../storyboards/failure-and-recovery.html">Failure and recovery</a></td><td>quiet-weight-trap (A), who-matters (B), fix-wrong-middle-step (C), calculation-stopped (D)</td><td>A-D; branch E (select everything, then Ctrl+Z deletes the set) never by a task</td><td>R6</td><td>Storyboard unchanged since R6; the screens it links changed after R6</td></tr>
+</tbody></table></div>
+<h3>Screens</h3><p>Counts are think-aloud sessions whose screen list or renders name the page (round 4 is left out: its raw sessions were overwritten by round 5's, and its tasks all repeat in round 5). "Current version tested" is Yes only when the page was in round 6 and its file has not changed since.</p>
+<div class="s-wrap"><table class="s-table"><thead><tr><th>Screen</th><th class="n">R1</th><th class="n">R2</th><th class="n">R3</th><th class="n">R5</th><th class="n">R6</th><th class="n">Tasks</th><th>Focus groups</th><th>Current version tested?</th><th>Round-6 decision on it</th></tr></thead><tbody>
+<tr><td><a href="../screens/alert-triage.html">Alert triage on the August transfers</a></td><td class="n"></td><td class="n">4</td><td class="n">2</td><td class="n">9</td><td class="n">9</td><td class="n">3</td><td class="s-note">R1:investigators, R3:investigators, R4:fg-what-a-number-used, R5:fg-what-a-number-used, R6:fg-money-as-money</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/binding-step.html">Apply recipe: binding step</a></td><td class="n">3</td><td class="n">3</td><td class="n">11</td><td class="n">28</td><td class="n">11</td><td class="n">8</td><td class="s-note">R1:first-contact</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/closeness-variant.html">The variant trap: closeness on a graph in pieces</a><br><span class=s-note>R5 glanced; R6 who-matters used it</span></td><td class="n">1</td><td class="n"></td><td class="n"></td><td class="n">5</td><td class="n">5</td><td class="n">2</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/colour-by-value.html">Color or size by a value: screens</a></td><td class="n"></td><td class="n">2</td><td class="n">6</td><td class="n">13</td><td class="n">16</td><td class="n">4</td><td class="s-note">R4:fg-color-you-can-name, R5:fg-color-you-can-name</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/comparison.html">Comparison surface</a></td><td class="n">7</td><td class="n">7</td><td class="n">8</td><td class="n">19</td><td class="n">28</td><td class="n">11</td><td class="s-note">R1:code-first</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/data-location.html">Where your data goes</a></td><td class="n"></td><td class="n">14</td><td class="n">17</td><td class="n">23</td><td class="n">34</td><td class="n">7</td><td class="s-note">R2:code-first, R2:investigators, R3:code-first, R3:first-contact</td><td class="st st-ok">Yes</td><td>Yes</td></tr>
+<tr><td><a href="../screens/data-panel.html">Data panel, Payments network review</a></td><td class="n"></td><td class="n"></td><td class="n">1</td><td class="n">31</td><td class="n">56</td><td class="n">14</td><td class="s-note">R1:investigators, R4:fg-data-as-a-place, R4:fg-data-as-one-area, R5:fg-data-as-one-area</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/export-dialog.html">Export dialog</a></td><td class="n">11</td><td class="n">21</td><td class="n">24</td><td class="n">33</td><td class="n">39</td><td class="n">22</td><td class="s-note">R1:code-first, R1:investigators, R2:code-first, R2:investigators, R3:code-first, R3:investigators, R4:fg-color-you-can-name, R5:fg-color-you-can-name</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/filter-chip.html">Filter chip and its steps</a></td><td class="n">17</td><td class="n">27</td><td class="n">36</td><td class="n">21</td><td class="n">39</td><td class="n">24</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/filter-step-recovery.html">The wrong middle step: three ways back</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">2</td><td class="n">4</td><td class="n">1</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/filter-steps-and-undo.html">Filter steps and the ways back</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">7</td><td class="n">3</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/find.html">Find and Quick actions</a></td><td class="n">8</td><td class="n">13</td><td class="n">15</td><td class="n">10</td><td class="n">12</td><td class="n">8</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/find-and-expand.html">Find, inspect, expand, next seed</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">5</td><td class="n">1</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/first-look.html">First look: the screens</a><br><span class=s-note>Frames shown as &quot;what a click leads to&quot;</span></td><td class="n"></td><td class="n">1</td><td class="n"></td><td class="n">6</td><td class="n">4</td><td class="n">2</td><td class="s-note">R4:fg-color-you-can-name, R5:fg-color-you-can-name</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/frame-at-rest.html">Main frame at rest, Les Miserables</a></td><td class="n">17</td><td class="n">21</td><td class="n">23</td><td class="n">32</td><td class="n">57</td><td class="n">16</td><td class="s-note">R1:switchers, R2:switchers, R3:switchers, R4:fg-styles-beside-the-selection</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/gpu-lost-run.html">When the GPU is lost, and when a costly run is canceled</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">5</td><td class="n">6</td><td class="n">1</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/inspector.html">Inspector</a></td><td class="n">28</td><td class="n">36</td><td class="n">39</td><td class="n">58</td><td class="n">80</td><td class="n">29</td><td class="s-note">R1:code-first, R6:fg-runs-on-the-rail</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/keyboard-walk.html">Keyboard walk on the protein network</a></td><td class="n">3</td><td class="n">6</td><td class="n">8</td><td class="n">4</td><td class="n">5</td><td class="n">3</td><td class="s-note">R2:code-first, R3:code-first</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/load-step.html">The load step and its import report</a></td><td class="n">11</td><td class="n">16</td><td class="n">16</td><td class="n">20</td><td class="n">28</td><td class="n">8</td><td class="s-note">R1:code-first, R2:code-first, R2:switchers</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/load-transfers.html">Loading a transfer export</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">3</td><td class="n">1</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/navigation.html">The rebuilt navigation, before and after</a><br><span class=s-note>A before-and-after page; used as the frame for Results in R5-R6</span></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">9</td><td class="n">14</td><td class="n">6</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/notes-panel.html">Notes panel</a></td><td class="n">6</td><td class="n">6</td><td class="n">8</td><td class="n">9</td><td class="n">10</td><td class="n">4</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/notices-errors.html">Notices and errors</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">5</td><td class="n">6</td><td class="n">1</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/option-form-cost.html">Measure options with cost</a></td><td class="n">3</td><td class="n">6</td><td class="n">10</td><td class="n">6</td><td class="n">19</td><td class="n">6</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/past-drawing-limit.html">Frame past the drawing limit</a></td><td class="n">9</td><td class="n">10</td><td class="n">15</td><td class="n">6</td><td class="n">17</td><td class="n">9</td><td class="s-note">R3:investigators</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/preferences.html">Preferences</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">1</td><td class="n">3</td><td class="n">1</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/recipe-apply.html">Share and apply a recipe</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">9</td><td class="n">8</td><td class="n">2</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/replace-and-recipe.html">Update with new data and apply a recipe: screens</a></td><td class="n"></td><td class="n"></td><td class="n">4</td><td class="n">15</td><td class="n">10</td><td class="n">4</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/results-panel.html">Results place: 23 states</a></td><td class="n">28</td><td class="n">41</td><td class="n">45</td><td class="n">41</td><td class="n">78</td><td class="n">20</td><td class="s-note">R1:code-first, R1:switchers, R2:code-first, R4:fg-where-results-live, R5:fg-where-results-live</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/run-and-read.html">Run a measure and read it: every state</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">20</td><td class="n">21</td><td class="n">5</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/selection-over-cap.html">A selection past the cap</a><br><span class=s-note>Mostly glanced at; used in one R6 too-big-to-draw session</span></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">5</td><td class="n">9</td><td class="n">3</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/sets-and-paths.html">Sets, paths and dated neighbors</a></td><td class="n">12</td><td class="n">14</td><td class="n">16</td><td class="n">29</td><td class="n">30</td><td class="n">23</td><td class="s-note">R4:fg-styles-beside-the-selection, R4:fg-what-a-number-used, R4:fg-where-results-live, R5:fg-what-a-number-used, R5:fg-where-results-live, R6:fg-a-look-you-receive, R6:fg-money-as-money, R6:fg-runs-on-the-rail</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/start-screen.html">Start screen</a></td><td class="n">15</td><td class="n">25</td><td class="n">23</td><td class="n">27</td><td class="n">32</td><td class="n">13</td><td class="s-note">R1:code-first, R1:first-contact, R1:investigators, R2:code-first, R2:first-contact, R3:code-first, R3:first-contact, R3:investigators, R6:fg-a-look-you-receive</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/styles-list.html">Styles list, editor and legend</a></td><td class="n">9</td><td class="n">12</td><td class="n">17</td><td class="n">39</td><td class="n">48</td><td class="n">21</td><td class="s-note">R2:switchers, R4:fg-color-you-can-name, R4:fg-data-as-a-place, R4:fg-data-as-one-area, R4:fg-styles-beside-the-selection, R4:fg-where-results-live, R5:fg-color-you-can-name, R5:fg-data-as-one-area, R5:fg-where-results-live, R6:fg-a-look-you-receive, R6:fg-getting-back, R6:fg-money-as-money, R6:fg-runs-on-the-rail</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/table-dock.html">Bottom dock table</a></td><td class="n">3</td><td class="n">19</td><td class="n">29</td><td class="n">43</td><td class="n">67</td><td class="n">24</td><td class="s-note">R4:fg-color-you-can-name, R4:fg-what-a-number-used, R5:fg-color-you-can-name, R5:fg-what-a-number-used, R6:fg-a-look-you-receive, R6:fg-runs-on-the-rail</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/take-a-note.html">Take a note</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">6</td><td class="n">8</td><td class="n">2</td><td class="s-note">--</td><td class="st st-ok">Yes</td><td>Yes</td></tr>
+<tr><td><a href="../screens/undo.html">Undo and ways back</a></td><td class="n">5</td><td class="n">9</td><td class="n">11</td><td class="n">9</td><td class="n">10</td><td class="n">5</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/version-history.html">Data versions, Payments network review</a></td><td class="n">4</td><td class="n">5</td><td class="n">18</td><td class="n">14</td><td class="n">24</td><td class="n">18</td><td class="s-note">R4:fg-data-as-one-area, R5:fg-data-as-one-area</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+<tr><td><a href="../screens/weekly-return.html">The weekly return: screens</a></td><td class="n"></td><td class="n">2</td><td class="n">2</td><td class="n">6</td><td class="n">11</td><td class="n">3</td><td class="s-note">R1:switchers, R2:switchers, R3:switchers, R4:fg-data-as-one-area, R5:fg-data-as-one-area</td><td class="st st-no">No, changed after R6</td><td>Yes</td></tr>
+<tr><td><a href="../screens/weight-role-trap.html">The quiet trap: a weight read the wrong way</a></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">5</td><td class="n">12</td><td class="n">2</td><td class="s-note">--</td><td class="st st-no">No, changed after R6</td><td></td></tr>
+</tbody></table></div>
+<p class="s-note">Not counted as product screens: the two redirects (the old export form and the old data page, both forwarding to the pages above), the round-6 plan and the feedback-log correction.</p>
+<h2 id="method">How this was counted</h2><ul class="s-list">
+<li>Sessions: every <code>study/round-N/sessions/*.md</code> for rounds 1, 2, 3, 5 and 6 (658 files, 55 distinct task names). Round 4 is read from <code>round-4/insights.md</code>: 135 of its 136 session files are byte-identical copies of round 5's.</li>
+<li>A screen is linked to a session when the session names the page, its render, or its plain name ("the load step"). That match is automatic; the capability, workflow, flow and storyboard columns are a reader's judgment from each task's prompt and screens.</li>
+<li>Tree tests and first-click tests (rounds 4 to 6) measure where people look, not whether a feature works, so they never count as tested here.</li>
+<li>"Current version": page files were compared by modification time with the round-6 sessions (written 04:35 to 05:18 on 2026-09-29); 38 of 40 screen files, 5 of 13 flow files and three of six storyboard files changed after. Spot checks: the table's invented near-tie cells and some "Change..." links are gone; "Route 1 of 2", "Dates in order", weighted degree in the catalog and "Not decided yet" are not drawn yet.</li>
+</ul>
+</div>
+</body>
+</html>

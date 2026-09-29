@@ -99,7 +99,6 @@
   .bgsw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: none; background: linear-gradient(135deg, #F5F5F5 0 50%, #1E1E1E 50% 100%); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
 
   /* The legend, as screens/styles-list.html */
-  .k-ramp-measure { background: linear-gradient(90deg, #ef7818, #d85a09, #b84203, #8e3104, #662506); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
   .ticks { position: relative; height: 16px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
   .ticks span { position: absolute; top: 0; transform: translateX(-50%); }
   .ticks span:first-child { transform: none; }
@@ -163,7 +162,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -183,9 +182,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -286,7 +285,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -306,9 +305,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -418,7 +417,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -535,7 +534,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -555,9 +554,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -630,7 +629,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -650,9 +649,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -709,7 +708,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -729,9 +728,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -834,7 +833,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -854,9 +853,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -948,7 +947,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -968,7 +967,7 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">33</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">59</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">59</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
@@ -1066,7 +1065,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -1086,9 +1085,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span></div>
@@ -1153,7 +1152,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -1173,9 +1172,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
@@ -1271,7 +1270,7 @@
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
         <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
         <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
       </div></div>
       <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
@@ -1291,9 +1290,9 @@
         <div class="k-section-head">Statistics</div>
         <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
         <div class="sr"><span class="n">Nodes</span><span class="v">300</span></div>
-        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>, not used yet</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">1,262</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         <div class="sr"><span class="n">Density</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">0.0281</span></div>
-        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (2 isolates)</span></div>
+        <div class="sr"><span class="n">Connected components</span><svg class="k-i ii"><use href="../kit/icons.svg#info"/></svg><span class="v">3 (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">2 isolates</span>)</span></div>
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">6</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn" title="Add style layer"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>

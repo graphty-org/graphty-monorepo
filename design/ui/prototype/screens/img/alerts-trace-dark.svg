@@ -1,47 +1,69 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="Transfers out of ACC-365386 from Aug 6, two hops">
 <defs><marker id="ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#808080"/></marker></defs>
 <rect width="1200" height="800" fill="#1E1E1E"/>
-<line x1="165" y1="390" x2="435" y2="210" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="165" y1="410" x2="435" y2="590" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="167.6" y1="403.8" x2="1062.4" y2="596.2" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="467.9" y1="598.4" x2="762.1" y2="572.6" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="793.7" y1="354.7" x2="1066.3" y2="588.3" stroke="#808080" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#ah)"/>
-<g fill="#1E1E1E" stroke="#F0F0F0" stroke-width="1.5"><circle cx="930" cy="471.5" r="8"/><path d="M930,466.5 V471.5 H934" fill="none"/></g>
-<line x1="462" y1="586.6" x2="768" y2="242.4" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="467.4" y1="195.5" x2="762.6" y2="118.5" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="460.1" y1="214.9" x2="769.9" y2="671.1" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="465.2" y1="209.6" x2="1064.8" y2="590.4" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="464.2" y1="588.9" x2="765.8" y2="354.1" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="460.1" y1="585.1" x2="769.9" y2="128.9" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="797.3" y1="681" x2="1062.7" y2="605" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="468" y1="600" x2="1062" y2="600" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="464.2" y1="211.1" x2="765.8" y2="445.9" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="789.5" y1="129.3" x2="1070.5" y2="584.7" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
-<line x1="168" y1="400" x2="432" y2="400" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="166.3" y1="332.4" x2="433.7" y2="207.6" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="166.3" y1="347.6" x2="433.7" y2="472.4" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="167.6" y1="343.8" x2="1062.4" y2="536.2" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="468" y1="478.9" x2="762" y2="461.1" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="794.1" y1="311.2" x2="1065.9" y2="528.8" stroke="#808080" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#ah)"/>
+<g fill="#1E1E1E" stroke="#F0F0F0" stroke-width="1.5"><circle cx="1005" cy="480" r="8"/><path d="M1005,475 V480 H1009" fill="none"/></g>
+<line x1="464.1" y1="468.9" x2="765.9" y2="231.1" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="467.7" y1="196.8" x2="762.3" y2="143.2" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="462.5" y1="212.9" x2="767.5" y2="527.1" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="465.8" y1="208.5" x2="1064.2" y2="531.5" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="465.8" y1="471.4" x2="764.2" y2="308.6" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="462.5" y1="467.1" x2="767.5" y2="152.9" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="798" y1="540" x2="1062" y2="540" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="467.9" y1="481.7" x2="1062.1" y2="538.3" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="465.8" y1="208.6" x2="764.2" y2="371.4" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="790.8" y1="154.4" x2="1069.2" y2="525.6" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="168" y1="340" x2="432" y2="340" stroke="#808080" stroke-width="1.5" marker-end="url(#ah)"/>
 <g>
-<polygon points="150,385.5 164.5,400 150,414.5 135.5,400" fill="#D55E00"/>
-<circle cx="150" cy="400" r="15.5" fill="none" stroke="#1A1A1A" stroke-width="2"/><circle cx="150" cy="400" r="17.5" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+<polygon points="150,325.5 164.5,340 150,354.5 135.5,340" fill="#D55E00"/>
+<circle cx="150" cy="340" r="15.5" fill="none" stroke="#1A1A1A" stroke-width="2"/><circle cx="150" cy="340" r="17.5" fill="none" stroke="#FFFFFF" stroke-width="2"/>
 <polygon points="450,185.5 464.5,200 450,214.5 435.5,200" fill="#D55E00"/>
-<polygon points="450,585.5 464.5,600 450,614.5 435.5,600" fill="#D55E00"/>
-<circle cx="1080" cy="600" r="10" fill="#808080"/>
-<circle cx="450" cy="400" r="10" fill="#808080"/>
-<polygon points="780,671.5 794.5,686 780,700.5 765.5,686" fill="#D55E00"/>
-<circle cx="780" cy="114" r="10" fill="#808080"/>
-<circle cx="780" cy="457" r="10" fill="#808080"/>
-<circle cx="780" cy="343" r="10" fill="#808080"/>
-<circle cx="780" cy="229" r="10" fill="#808080"/>
-<circle cx="780" cy="571" r="10" fill="#808080"/>
+<polygon points="450,465.5 464.5,480 450,494.5 435.5,480" fill="#D55E00"/>
+<circle cx="1080" cy="540" r="10" fill="#808080"/>
+<circle cx="450" cy="340" r="10" fill="#808080"/>
+<polygon points="780,525.5 794.5,540 780,554.5 765.5,540" fill="#D55E00"/>
+<circle cx="780" cy="140" r="10" fill="#808080"/>
+<circle cx="780" cy="380" r="10" fill="#808080"/>
+<circle cx="780" cy="300" r="10" fill="#808080"/>
+<circle cx="780" cy="220" r="10" fill="#808080"/>
+<circle cx="780" cy="460" r="10" fill="#808080"/>
 </g>
 <g font-family="Inter Variable, Inter, system-ui, sans-serif" font-size="12" fill="#F0F0F0" stroke="#1E1E1E" stroke-width="3" stroke-linejoin="round" paint-order="stroke">
-<text x="170" y="386">ACC-365386</text>
+<text x="170" y="326">ACC-365386</text>
+<text x="170" y="341">Received 0.00 USD /</text>
+<text x="170" y="356">Sent 28,231.01 USD, this trace</text>
 <text x="470" y="186">ACC-274887</text>
-<text x="470" y="586">ACC-898028</text>
-<text x="1100" y="586">ACC-465572</text>
-<text x="470" y="386">ACC-512219</text>
-<text x="800" y="672">ACC-640034</text>
-<text x="800" y="100">ACC-140044</text>
-<text x="800" y="443">ACC-579763</text>
-<text x="800" y="329">ACC-556231</text>
-<text x="800" y="215">ACC-453831</text>
-<text x="800" y="557">ACC-597001</text>
+<text x="470" y="201">Received 9,260.78 USD /</text>
+<text x="470" y="216">Sent 29,130.16 USD, this trace</text>
+<text x="470" y="466">ACC-898028</text>
+<text x="470" y="481">Received 9,662.37 USD /</text>
+<text x="470" y="496">Sent 28,725.79 USD, this trace</text>
+<text x="1080" y="570" text-anchor="middle">ACC-465572</text>
+<text x="1080" y="585" text-anchor="middle">Received 54,558.20 USD /</text>
+<text x="1080" y="600" text-anchor="middle">Sent 0.00 USD, this trace</text>
+<text x="470" y="326">ACC-512219</text>
+<text x="470" y="341">Received 168.28 USD /</text>
+<text x="470" y="356">Sent 0.00 USD, this trace</text>
+<text x="800" y="526">ACC-640034</text>
+<text x="800" y="541">Received 9,788.51 USD /</text>
+<text x="800" y="556">Sent 9,199.75 USD, this trace</text>
+<text x="800" y="126">ACC-140044</text>
+<text x="800" y="141">Received 18,454.76 USD /</text>
+<text x="800" y="156">Sent 8,299.52 USD, this trace</text>
+<text x="800" y="366">ACC-579763</text>
+<text x="800" y="381">Received 171.85 USD /</text>
+<text x="800" y="396">Sent 0.00 USD, this trace</text>
+<text x="800" y="286">ACC-556231</text>
+<text x="800" y="301">Received 9,736.88 USD /</text>
+<text x="800" y="316">Sent 8,396.00 USD, this trace</text>
+<text x="800" y="206">ACC-453831</text>
+<text x="800" y="221">Received 22.88 USD /</text>
+<text x="800" y="236">Sent 0.00 USD, this trace</text>
+<text x="800" y="446">ACC-597001</text>
+<text x="800" y="461">Received 157.72 USD /</text>
+<text x="800" y="476">Sent 0.00 USD, this trace</text>
 </g></svg>

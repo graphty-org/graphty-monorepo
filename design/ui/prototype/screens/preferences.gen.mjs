@@ -123,7 +123,7 @@ const canvas = (drawing, alt) => `<main class="k-main"><div class="k-canvas">
       <div class="k-stage"><img class="k-light-only" src="../kit/canvas/${drawing}-light.svg" alt="${alt}"><img class="k-dark-only" src="../kit/canvas/${drawing}-dark.svg" alt="${alt}"></div>
       <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
         <span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span>
-        <span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i-lg")}</span>
+        <span class="k-tool">${I("route", "k-i-lg")}</span>
         <span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span>
       </div></div>
       <span class="k-help">${I("circle-help")}</span>

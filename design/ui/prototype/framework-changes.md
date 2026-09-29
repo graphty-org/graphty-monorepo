@@ -4595,3 +4595,67 @@ The entries below make the pages agree with the decisions above where they had d
 - **Document and section:** `interaction-pattern-entries.md`, the Note editor.
 - **New text:** "Enter starts a new line; Ctrl+Enter (Cmd+Enter on a Mac) adds the note, with both keys said under the box. Esc with text adds the note and closes the editor."
 - **Why:** the take-a-note flow and the weekly screens still said Enter adds; round 4 saw Enter post half a note.
+
+# After round 6
+
+The sixth simulated study round re-tested runs on the rail, undo with and without Ctrl+Z, and the tasks voided by undrawn decisions. The entries below are the framework changes it motivates. The findings they cite are in `study/round-6/insights.md` and `study/round-6/tree-test.md`; the reasons in full are under "Round 6" in `study/decision-log.md`. Where an entry here contradicts an earlier one, this one replaces it.
+
+## Every number states what it was counted on
+
+- **Document and section:** `content-design.md`, numbers; `message-catalog.md`; `visual-language.md`, data and colour (extends "Every value computed on a subset carries its scope").
+- **New text:** "Every count, rank and measure the reader sees states its measure, unit or counted noun, fixed precision, scope ('N of M') and data version, in the form 'N of M <noun>, on <data version>'. The wording comes from graphty-element's reader-message catalog, never composed per surface."
+- **Why:** at least eight findings were one defect: a number that did not say what it was counted on (degree 40 against 41, units dropped after a filter, a re-export with no data version). Fixing it page by page drifted for four rounds.
+
+## Whatever a run produces names the run and opens it
+
+- **Document and section:** `interaction-patterns.md`, results and runs; `objects.md`, run.
+- **New text:** "Anything a run produces (a style layer, a pinned rank line, a community row, a table sort) names that run by the title Results shows and opens it."
+- **Why:** 12 of 16 clicked a style layer made from a bridges run, the only "Bridges" on screen, and it led nowhere.
+
+## Loading data declares no meaning for a column
+
+- **Document and section:** `files-and-recipes.md`, loading data; `interaction-patterns.md`, choices in forms and dialogs (extends "The meaning of a weight is chosen for each run" and "Nothing is preselected where the reader must choose").
+- **New text:** "Loading data declares no meaning for a column. What a bigger amount means is asked in each run that uses it, with nothing preselected."
+- **Why:** a "Change..." link on the loaded column drew 27 wrong first clicks, and a load-time weight role led to four wrong answers on the tree test.
+
+## Ties come from the data, and exports keep rank numeric
+
+- **Document and section:** `options-and-encodings.md`, ranks and ties; `output-homes.md`, CSV. Replaces "A ranked table opens sorted by its result, and its CSV keeps tie marks" where they conflict.
+- **New text:** "Ties are marked only from exact equality at the shown precision or from the estimate's own error bound, never from a fixed percentage. Exports keep rank numeric, with ties in their own column; sampled estimates export as Rank low and Rank high."
+- **Why:** participants read a fixed 1% tie rule as rounding, and '4=' turns a rank column into text in Excel and pandas.
+
+## The too-close colour check covers every pair
+
+- **Document and section:** `visual-language.md`, data and colour; graphty-element's default palette.
+- **New text:** "The too-close color check covers every pair, the default palette included, and names the pair and the color vision it models."
+- **Why:** checking only the colours a reader picked hid that the default palette's orange (#E69F00) and vermilion (#D55E00) are too close for red-green colour blindness.
+
+## A file's styles replace only whole-graph layers that paint the same property
+
+- **Document and section:** graphty-element's StyleManager; `interface-specification.md`, the Apply dialog. Narrows "Using the styles from a recipe replaces only what they repaint".
+- **New text:** "A file-supplied style layer replaces only whole-graph layers that paint the same property, and keeps layers scoped to a set. The dialog lists by name each layer it will replace, with its match count; Apply acts at once and the notice says what was replaced and kept, with Undo."
+- **Why:** the earlier rule silently removed the reader's own set-scoped layers.
+
+## Every file intake recognizes a recipe
+
+- **Document and section:** `files-and-recipes.md`, recipes; `element-contract.md`; `information-architecture.md`, File.
+- **New text:** "Every file intake (File > Open..., Add a source, a drop) recognizes a recipe and opens the one Apply dialog. graphty-element owns recognizing the format."
+- **Why:** on the tree task for bringing in a recipe, all 16 opened File first and 5 ended on Add a source. Recognizing the format is something every consumer of graphty-element needs.
+
+## Esc does one thing per press
+
+- **Document and section:** `interaction-patterns.md`, keys; `interaction-pattern-entries.md`, Esc.
+- **New text:** "Esc does one thing per press, starting with the innermost open item."
+- **Why:** one Esc both closed a steps list and reset the page in four sessions, the defect the owner reported as the participant view being a trap.
+
+## Focus never falls to the page body
+
+- **Document and section:** `interaction-patterns.md`, focus; `interaction-pattern-entries.md`, announcements.
+- **New text:** "No action leaves keyboard focus on the page body. When a redraw replaces the control the reader was on, focus goes to the same control in the new drawing. When the control leaves with its action (Bring it back, a notice's Undo, a closed dialog's Cancel), focus returns to where the reader was before it: the drawing, the chip, the button that opened the dialog. An opened dialog takes focus on its first control. A link or chip that opens another place moves focus to what that place draws focused, or else to the place's heading."
+- **Why:** in the sixth study the simulated screen-reader participant lost her place after Ctrl+Z, after Bring it back and after the filter chip: each time focus fell to the top of the page and she had to find the drawing again. A sweep of every mock found the same drop after Export table... and after a Data chip that opens its source row. The mock kit now does this on every page, so the pages match the rule.
+
+## A legend swatch says its color
+
+- **Document and section:** `visual-language.md`, data and colour; `interaction-pattern-entries.md`, the legend; compact-mantine's color swatch.
+- **New text:** "Every color swatch a reader can meet (a legend row, a style layer's chip, a table swatch) has an accessible name that is its color in words, from the palette's own names for Okabe-Ito (orange, sky blue, bluish green, yellow, blue, red-orange, reddish purple, black) and 'gray, unstyled' and 'light gray' for the unstyled and Other grays, or a plain hue word for any other color. A multi-color chip says 'several colors'; a ramp says 'a color scale'."
+- **Why:** the simulated screen-reader participant could hear that the legend had groups 4, 3, 2 and 5 but not which color each was, so she could not follow a sighted colleague's "the orange ones" or match the legend to the drawing's description (WCAG 1.1.1). The names are the palette's, so they are the same words on every page and in every export.

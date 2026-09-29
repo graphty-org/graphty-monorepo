@@ -36,7 +36,7 @@
 .x-scope-label { color: var(--cm-text-secondary); width: 44px; }
 .x-scope-f { width: 220px; }
 .x-state { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 16px; border-bottom: 1px solid var(--cm-border); background: var(--cm-bg-secondary); flex: none; }
-.x-body { flex: 1 1 auto; display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+.x-body { flex: 1 1 auto; display: grid; grid-template-columns: 324px 1fr; min-height: 0; }
 .x-kinds { overflow: auto; border-right: 1px solid var(--cm-border); padding-bottom: 8px; }
 .x-sec { padding: 4px 0; border-bottom: 1px solid var(--cm-border); }
 .x-sec:last-child { border-bottom: 0; }
@@ -56,7 +56,6 @@
 .x-detail .x-full { grid-column: 1 / -1; }
 .x-detail .x-hint { grid-column: 2; color: var(--cm-text-tertiary); margin-top: -3px; }
 .x-lab { display: flex; gap: 6px; align-items: center; }
-.x-lab .k-field:first-child { flex: 1 1 auto; }
 .x-n { width: 40px; flex: none; }
 .x-hidden { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .x-hidden button { font: inherit; color: var(--cm-text-brand); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
@@ -130,9 +129,9 @@ body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey {
 <span id="annotated"></span>
 <header class="x-top">
   <h1>Export dialog</h1>
-  <p>Everything that leaves graphty is written by one Export dialog. There are three ways to open it: Export... in the project-name menu, the Export... button in the Data panel's header, and Export table... in the table, which opens it with Table already chosen. Ctrl+Shift+E opens it from anywhere. The dialog lists what can be written, each row named with its file type -- Figure (.svg), Image (.png), Table (.csv), Findings report (.html) -- and previews the checked row exactly as it will be written. A figure is previewed at its print size on a white ground, with its legend, the footer that says how the numbers were computed, and the text at 8 pt; in the Print look the preview shows the file beside the same file printed in gray. Every file that carries data is written with a methods file beside it.</p>
-  <p>Shown on Maren's stress-response study (300 proteins, colored by log2 fold change and sized by degree), on a bank's mule-ring case, and on a lab's shared setup. The route with its branches is <a href="../flows/export.html">the export flow</a>.</p>
-  <nav><a href="#ways-in">1. Three ways in</a><a href="#ways-in-menu">1b. The project-name menu</a><a href="#figure">2. A figure</a><a href="#figure-grey">3. The figure in the Print look</a><a href="#table">4. A table</a><a href="#recipe">5. The setup, without data</a><a href="#evidence">6. The evidence file</a><a href="#done">7. Written</a><a href="#first-release">8. The first release</a></nav>
+  <p>Everything that leaves graphty is written by one Export dialog. There are three ways to open it: Export... in the project-name menu, the Export... button in the Data panel's header, and Export table... in the table, which opens it with Table already chosen. Ctrl+Shift+E opens it from anywhere. The dialog lists what can be written, each row named with its file type -- Figure (.svg), Image (.png), Table (.csv), Findings report (.html) -- and previews the checked row exactly as it will be written. A figure is previewed at its print size on a white ground, with its legend, the footer that says how the numbers were computed, and the text at 8 pt; in the Print look the preview shows the file beside the same file printed in gray. Every file that carries data is written with a methods file beside it, and every file name and saved row names the data it was made from.</p>
+  <p>Shown on Maren's stress-response study (<span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, colored by log2 fold change and sized by degree), on a bank's mule-ring case, and on a lab's shared setup. The route with its branches is <a href="../flows/export.html">the export flow</a>.</p>
+  <nav><a href="#ways-in">1. Three ways in</a><a href="#ways-in-menu">1b. The project-name menu</a><a href="#figure">2. A figure</a><a href="#figure-grey">3. The figure in the Print look</a><a href="#table">4. A table</a><a href="#filter-step">4b. With a filter step open</a><a href="#recipe">5. The setup, without data</a><a href="#evidence">6. The evidence file</a><a href="#done">7. Written</a><a href="#again">7b. Export again, on April data</a><a href="#first-release">8. The first release</a></nav>
   <div class="x-ctl">
     <label><input type="checkbox" id="ann-toggle"> Show annotations (framework section and compact-mantine component for each numbered element; key at the bottom)</label>
     <label>Theme <select id="theme"><option value="">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
@@ -150,17 +149,24 @@ body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey {
 <div class="x-state-h" id="figure-grey"><h2>3. The same figure in the Print look</h2><p>After Use Print look. The preview now shows two things side by side: the file as it will be written, and the same file as a gray printer will print it. In Print, shape carries the sign (a triangle up for every value above 0, down for every value below) and darkness carries the size of the change in four gray steps, the same steps on both sides, so the largest decreases print as dark as the largest increases. Nothing is grouped as "no change": the counts are the Screen legend's, 148 below 0 and 152 above. The line under Look says what Print does to categories, none of which print alike, and the check prints the value each gray step stands for. The hidden-label list is open: MRE11 and RPL17. Each row selects its node, and the inspector's Show label anyway puts that label in the figure.</p></div>
 <div class="x-frame" data-kit-frame data-state="figure-grey"></div>
 
-<div class="x-state-h" id="table"><h2>4. A table, from the table's Export table...</h2><p>Sarah needs the mule ring's accounts as rows for the case system. In the table dock, filtered to the ring, she clicks Export table.... The same dialog opens with Table (.csv) checked and selected. It states the rows first, "14 of 3,000 rows, filtered", names the filter step, and previews the file's first lines with the file's own ids. The methods file beside it is always written, whichever way the dialog was opened.</p></div>
+<div class="x-state-h" id="table"><h2>4. A table, from the table's Export table...</h2><p>Sarah needs the mule ring's accounts as rows for the case system. In the table dock, filtered to the ring, she clicks Export table.... The same dialog opens with Table (.csv) checked and selected. It states the rows first, "<span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>, filtered", names the filter step, and previews the file's first lines with the file's own ids. PageRank's rank is written as a whole number, with a separate Tie column that says how many other accounts share the value, so the column stays numeric in Excel and pandas. A sampled measure writes Rank low and Rank high in place of the two. The file name carries the data's month, 2026-03. The methods file beside it is always written, whichever way the dialog was opened.</p></div>
 <div class="x-frame" data-kit-frame data-state="table"></div>
+
+<div class="x-state-h" id="filter-step"><h2>4b. Export with a filter step open</h2><p>Sarah has the filter step "in Mule ring suspects" open and presses Ctrl+Shift+E. The dialog starts with that step's transfers: Table (.csv) on the Edges tab, the <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> with both ends among the step's <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>. A line under the scope says why, and Nodes is one click away.</p></div>
+<div class="x-frame" data-kit-frame data-state="filter-step"></div>
 
 <div class="x-state-h" id="recipe"><h2>5. Share the setup, without data</h2><p>Maren Holt shares the lab's expression overlay with a partner lab. She checks Recipe. Every row that would carry her data turns off and is disabled, with one line saying why. The first thing the preview says is that no data is inside; then what travels (each run with its settings, the layout as its method and seed, the full text of a note that travels), what the recipient supplies, and what is not included.</p></div>
 <div class="x-frame" data-kit-frame data-state="recipe"></div>
 
-<div class="x-state-h" id="evidence"><h2>6. The evidence file</h2><p>Sarah refers the case. Findings report (.html), scoped to the filter step, is the case's evidence file: one HTML file that opens offline and prints to PDF from the browser. The boundary and its 14 accounts come first, then the saved views as pages with their notes, then the methods.</p></div>
+<div class="x-state-h" id="evidence"><h2>6. The evidence file</h2><p>Sarah refers the case. Findings report (.html), scoped to the filter step, is the case's evidence file: one HTML file that opens offline and prints to PDF from the browser. The boundary and its <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span> come first, then the saved views as pages with their notes, then the methods.</p></div>
 <div class="x-frame" data-kit-frame data-state="evidence"></div>
 
 <div class="x-state-h" id="done"><h2>7. Written</h2><p>After state 3. The dialog closes and focus returns to where it was opened from, here the project name. A toast names both files and the look. The Data panel's Sent and saved list gains the export at its top, so "what left this project, and when" has an answer. An export changes nothing in the project and has no undo entry.</p></div>
 <div class="x-frame" data-kit-frame data-state="done"></div>
+<div class="x-state-h" id="again"><h2>7b. Export again, on April data</h2><p>A month later April's transfers are in the case, and the Data panel lists both versions. Each saved export names the data it was made from ("Made from March 2026 data") and carries the month in its file name. Under each, a labeled button reads "Export again, on April data". Below, the dialog it opens: the March file's settings, run on April. The file name ends in 2026-04, the ranks are April's, of <span data-fx="datasets.transactionsApril.nodes" data-fx-noun="accounts">3,093 accounts</span>, and the March file is left as it is.</p></div>
+<div class="x-frame" data-kit-frame data-state="again-panel"></div>
+<div class="x-state-h" id="again-dialog"><h2>7c. The dialog it opens</h2><p>The March file's settings, run on April: the same step and columns, April's ranks, and a line at the top that names both the old file and the new data.</p></div>
+<div class="x-frame" data-kit-frame data-state="again"></div>
 
 <div class="x-state-h" id="first-release"><h2>8. The first release</h2><p>State 2 as the first release draws it: Graph file and Findings report are absent until graphty-element can write them. Figure (.svg) and Image (.png) are there from the start. Nothing is shown disabled for a format that does not exist yet.</p></div>
 <div class="x-frame" data-kit-frame data-state="first-release"></div>
@@ -181,12 +187,15 @@ body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey {
 <tr><td><span class="k-step">13</span></td><td>The gray check, computed by graphty-element: every pair of bins on opposite sides of the midpoint. Fail names what collides and offers Use Print look; pass says increases and decreases stay apart and prints the value each gray step stands for. No values are grouped as "no change"</td><td>framework-changes.md, "Message catalog: new published keys" (the gray check's verdicts)</td><td>DataRow with the warning or check glyph; Button (secondary)</td></tr>
 <tr><td><span class="k-step">14</span></td><td>The files the export writes, by name. Every file that carries data has a methods file beside it: scope, load choices, how each number was computed, the weight answer, labels hidden, the graphty-element version</td><td>files-and-recipes.md 3; output-homes.md 3.1; framework-changes.md, "Export: every data file gets its methods file"</td><td>DataRow list; CodeBlock (monospace ProseBlock)</td></tr>
 <tr><td><span class="k-step">15</span></td><td>The footer says where the files go and that nothing is uploaded; the commit counts the files</td><td>framework-changes.md, "Alert triage: the Export dialog's footer says where files go"; content-design.md (verbs name the result)</td><td>Text in ModalFooter's left slot; Button (filled)</td></tr>
-<tr><td><span class="k-step">16</span></td><td>A table states its rows first ("14 of 3,000 rows, filtered"), the tab and the filter step by name, then order and columns; the preview is the CSV's first lines with ids as written, no comment lines</td><td>interface-templates.md 16; content-design.md 5 (ids are not quantities); framework-changes.md, "File formats (one-way doors, proposed)"</td><td>DataRows; SegmentedControl for the tab; CodeBlock</td></tr>
+<tr><td><span class="k-step">16</span></td><td>A table states its rows first ("<span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>, filtered"), the tab and the filter step by name, then order and columns; the preview is the CSV's first lines with ids as written, no comment lines</td><td>interface-templates.md 16; content-design.md 5 (ids are not quantities); framework-changes.md, "File formats (one-way doors, proposed)"</td><td>DataRows; SegmentedControl for the tab; CodeBlock</td></tr>
 <tr><td><span class="k-step">17</span></td><td>Recipe: every row that carries data turns off and is disabled, with one line saying why; the preview's first line is "No data inside"</td><td>framework-changes.md, "Sharing the setup without data removes figures and tables" and "Export: Scope is disabled while only definition outputs are checked"</td><td>ToggleRows, disabled; DataRow with the lock glyph</td></tr>
 <tr><td><span class="k-step">18</span></td><td>Findings report (.html): one self-contained file, pages in order (boundary, views with their notes, methods), scoped to the filter step</td><td>files-and-recipes.md 3; output-homes.md 2; framework-changes.md, "Authorship on notes and recipes, and the other decisions now in force"</td><td>ToggleRow; the report preview is graphty-element's (proposed)</td></tr>
 <tr><td><span class="k-step">19</span></td><td>Scripting (writing these same files from code) is not yet available. The dialog draws no entry for it, as it draws no PDF row: a disabled control is a promise and a dead Tab stop. When graphty-element publishes the calls, the methods file ends with a line naming their documentation</td><td>framework-changes.md, "Where a scripting path starts (not in the Export dialog)"; output-homes.md 4</td><td>none (not drawn)</td></tr>
 <tr><td><span class="k-step">20</span></td><td>After a write: a toast names the files and the look; the Data panel's Sent and saved list gains the export at its top; no undo entry</td><td>interaction-pattern-entries.md 6.11 (feedback in the polite region); framework-changes.md, "Output homes: data's new homes, and export's starting places" (the sent-and-saved log)</td><td>Toast (Notification), polite; list row</td></tr>
 <tr><td><span class="k-step">21</span></td><td>A pink tag names the graphty-element capability a part waits on. It is a note for the builders, not UI: until the capability lands the part is absent (state 8)</td><td>interface-specification.md 7.4; implementation-mapping.md 7 (no fallbacks)</td><td>none</td></tr>
+<tr><td><span class="k-step">22</span></td><td>Rank columns: a whole-number rank and a separate Tie column (how many others share the value); a sampled measure writes Rank low and Rank high. No "=" or "near" in a cell, which would turn the column into text in Excel and pandas</td><td>framework-changes.md, "File formats (one-way doors, proposed)"; content-design.md 5</td><td>part of graphty-element's table export</td></tr>
+<tr><td><span class="k-step">23</span></td><td>With a filter step open, the export starts with that step's transfers (Edges tab), and a line says so</td><td>files-and-recipes.md 3 (each output takes a scope)</td><td>Alert (neutral) above the body; SegmentedControl for the tab</td></tr>
+<tr><td><span class="k-step">24</span></td><td>Export again, on April data: a labeled button under each saved export, which names the data it was made from; the new file is named for the new month and the old one is kept</td><td>framework-changes.md, "Output homes: data's new homes, and export's starting places" (the sent-and-saved log)</td><td>Button (secondary) under a list row</td></tr>
 </tbody></table></section>
 
 <script>
@@ -195,7 +204,7 @@ const A = (n) => `<span class="ann k-step">${n}</span>`;
 const caret = I("chevron-down", "k-i-sm k-caret");
 const sel = (v, c = "") => `<span class="k-field ${c}">${v}${caret}</span>`;
 const chk = (on, dis) => `<span class="k-check" aria-checked="${on}"${dis ? ' aria-disabled="true"' : ""}></span>`;
-const toolbar = `<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-tool">${I("sticky-note", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span></div>`;
+const toolbar = `<div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool">${I("route", "k-i-lg")}</span><span class="k-toolbar-sep"></span><span class="k-tool">${I("zap", "k-i-lg")}</span></div>`;
 let FIX, FIG, SVG = {};
 
 // ---- the app behind the dialog: rail Graph, Data, Notes, Assistant; no top-right Export button
@@ -203,11 +212,11 @@ function app(s) {
   const rb = (icon, label, on) => `<div class="k-rail-btn"${on ? ' aria-pressed="true"' : ""}><span class="k-rail-pill">${I(icon)}</span>${label}</div>`;
   const rail = `<nav class="k-rail" aria-label="Main">
     <div class="k-rail-btn" aria-label="Main menu"><span class="k-rail-pill">${I("menu")}</span></div><div class="k-rail-sep"></div>
-    ${rb("network", "Graph", s.panel !== "data")}${rb("database", "Data", s.panel === "data")}${rb("flask-conical", "Results")}${rb("sticky-note", "Notes")}
+    ${rb("network", "Graph", !s.panel?.startsWith("data"))}${rb("database", "Data", !!s.panel?.startsWith("data"))}${rb("flask-conical", "Results")}${rb("sticky-note", "Notes")}
     <div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>`;
   const head = `<div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div>
     <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>`;
-  const panel = s.panel === "data" ? dataPanel(s) : `<aside class="k-panel" aria-label="Graph">${head}
+  const panel = s.panel === "data-april" ? aprilPanel(s) : s.panel === "data" ? dataPanel(s) : `<aside class="k-panel" aria-label="Graph">${head}
     <div class="k-scroll">
       <section class="k-section"><div class="k-section-head">Graphs</div><ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">${s.graph}</span><span class="k-trail k-num">${s.count}</span></li></ul></section>
       <section class="k-section"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" aria-label="Add a set">${I("plus")}</span></div><ul class="k-list">${s.sets.map(([n, c]) => `<li class="k-item">${I("group")}<span class="k-ellipsis">${n}</span><span class="k-kind">frozen</span><span class="k-trail k-num">${c}</span></li>`).join("")}</ul></section>
@@ -256,28 +265,53 @@ function dataPanel(s) {
         <div class="x-srow">${I("file")}<span class="k-ellipsis k-id">ppi-core-300.graphml</span></div>
         <div class="x-sub2"><span data-fx="datasets.ppi.nodes">300</span> proteins, <span data-fx="datasets.ppi.edges">1,262</span> interactions</div>
         <div class="k-data"><span class="k-name">log2FoldChange</span><span class="k-value">nodes, number</span></div>
-        <div class="k-data"><span class="k-name">confidence</span><span class="k-value">not used yet</span></div>
+        <div class="k-data"><span class="k-name">confidence</span><span class="k-value">asked by each run</span></div>
         <div class="x-srow"><span class="k-btn k-btn-secondary">Update with new data...</span></div></section>
       <section class="k-section"><div class="k-section-head">Versions <span class="k-count k-num">1</span></div>
         <div class="x-srow">${I("history")}<span class="k-ellipsis">Loaded</span><span class="k-secondary k-num">2026-09-22</span></div></section>
       <section class="k-section"><div class="k-section-head">Sent and saved</div>
-        ${s.sent ? `<div class="x-srow x-new">${I("download")}<span class="k-ellipsis k-id">stress-response-study_figure.svg</span>${A(20)}</div><div class="x-sub2 x-new">and its methods file, Print look. Today 19:12, to Downloads</div>` : ""}
-        <div class="x-srow">${I("download")}<span class="k-ellipsis k-id">stress-response-study_nodes.csv</span></div><div class="x-sub2">and its methods file. 2026-09-24, to Downloads</div></section>
+        ${s.sent ? `<div class="x-srow x-new">${I("download")}<span class="k-ellipsis k-id">stress-response-study_figure.svg</span>${A(20)}</div><div class="x-sub2 x-new">and its methods file, Print look. From the data loaded 2026-09-22. Today 19:12, to Downloads</div>` : ""}
+        <div class="x-srow">${I("download")}<span class="k-ellipsis k-id">stress-response-study_nodes.csv</span></div><div class="x-sub2">and its methods file. From the data loaded 2026-09-22. 2026-09-24, to Downloads</div></section>
+    </div></aside>`;
+}
+
+// the Data panel of the case after April's data came in: two versions, and saved exports that each name the data they were made from
+function aprilPanel(s) {
+  return `<aside class="k-panel" aria-label="Data">
+    <div class="k-panel-head"><div class="k-title-line"><span class="k-project">${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}</div>
+      <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>
+    <div class="x-dhead">Data<span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Sources</div>
+        <div class="x-srow">${I("file")}<span class="k-ellipsis k-id">transfers-2026-04.csv</span></div>
+        <div class="x-sub2"><span data-fx="datasets.transactionsApril.nodes" data-fx-noun="accounts">3,093 accounts</span>, <span data-fx="datasets.transactionsApril.edges" data-fx-noun="transfers">8,370 transfers</span></div></section>
+      <section class="k-section"><div class="k-section-head">Versions <span class="k-count k-num">2</span></div>
+        <div class="x-srow">${I("history")}<span class="k-ellipsis">April 2026</span><span class="k-secondary">in use</span></div>
+        <div class="x-srow">${I("history")}<span class="k-ellipsis">March 2026</span></div></section>
+      <section class="k-section"><div class="k-section-head">Sent and saved</div>
+        <div class="x-srow">${I("download")}<span class="k-id" style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere">case-acc-233575_ring-pagerank_2026-03.csv</span></div>
+        <div class="x-sub2">Table and its methods file. Made from March 2026 data. To Downloads</div>
+        <div class="x-sub2" style="margin-top:4px"><span class="k-btn k-btn-secondary x-trigger" data-focus>Export again, on April data</span>${A(24)}</div>
+        <div class="x-srow">${I("download")}<span class="k-id" style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere">case-acc-233575_evidence_2026-03.html</span></div>
+        <div class="x-sub2">Findings report. Made from March 2026 data. To Downloads</div>
+        <div class="x-sub2" style="margin-top:4px"><span class="k-btn k-btn-secondary">Export again, on April data</span></div></section>
     </div></aside>`;
 }
 
 // ---- data behind the dialog
 const fcLegend = `<div class="k-lg-title">Fold change color <span class="k-secondary">log2FoldChange</span></div><span class="k-ramp k-ramp-wide" style="background:linear-gradient(90deg,#67001f,#fddbc7 40%,#f7f7f7 44.4%,#d1e5f0 50%,#2166ac)"></span><div class="k-lg-row k-secondary k-num">-2.52 to 3.15, 0 is white</div>`;
-const ppiApp = { project: "Stress response study", chip: "Full graph", graph: "Interactions", count: "300 nodes", n: "300", e: "1,262",
+const ppiApp = { project: "Stress response study", chip: "Full graph", graph: "Interactions", count: '<span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span>', n: "300", e: "1,262",
   sets: [["TP53 and neighbors", 33]], views: ["Stress response", "DNA repair close-up"],
   canvas: "ppi-foldchange-degree", alt: "300 proteins colored by log2 fold change, sized by degree", legend: fcLegend,
   styles: [[`<span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#b2182b,#f7f7f7,#2166ac)"></span>`, "Fold change color"], [`<svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>`, "Size: degree"]],
   results: [["Degree", "exact, full graph"]] };
-const txApp = { project: "Mule ring, case ACC-233575", chip: "Filtered: 14 nodes", graph: "Transfers, March 2026", count: "3,000 nodes", n: "3,000", e: "9,113",
+const txApp = { project: "Mule ring, case ACC-233575", chip: 'Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span>', graph: "Transfers, March 2026", count: '<span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>', n: "3,000", e: "9,113",
   sets: [["Mule ring suspects", 14]], views: ["Ring overview", "Cash-out route"],
   canvas: "transactions-flagged", alt: "3,000 accounts as density, 14 flagged accounts drawn over it",
-  legend: `<div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div><div class="k-notdrawn">2,986 nodes drawn as density. <a>Narrow the graph...</a></div>`,
+  legend: `<div class="k-lg-title">Flagged <span class="k-secondary">flagged</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div><div class="k-notdrawn"><span data-fx="datasets.transactions.attributes.4.values.false" data-fx-noun="nodes">2,986 nodes</span> drawn as density. <a>Narrow the graph...</a></div>`,
   styles: [[`<span class="k-chit" style="background:#D55E00"></span>`, "Flagged"]], results: [["PageRank", "exact, full graph"]] };
+
+const aprilLegend = txApp.legend.replace(/<span data-fx="datasets\.transactions\.attributes[^>]*>[^<]*<\/span>/, '<span data-fx="datasets.transactionsApril.ringOverDensity.density" data-fx-noun="nodes">3,079 nodes</span>');
 
 // ---- the list of outputs
 // rows: figure, png, table, report, graph, recipe, project; each { on, sel, dis }
@@ -320,7 +354,7 @@ const figDetail = (d) => {
     <span class="k-secondary">Background</span>${sel("White")}
     <span class="k-secondary">Legend</span>${sel("Beside, right")}
     <span class="k-secondary">Labels${A(8)}</span>${sel("Top N by this layer's value")}
-    <span class="k-secondary">N</span><span class="x-lab"><span class="k-field x-n k-num">${L.n}</span><span class="k-tertiary">by |log2 fold change|</span></span>
+    <span class="k-secondary">N</span><span class="x-lab"><span class="k-field x-n k-num">${L.n}</span><span class="k-tertiary">largest changes</span></span>
     <span class="x-hint">Also: Above a threshold</span>
     <div class="x-hidden" data-wired><span>${L.hidden.length} labels hidden to avoid overlap:</span><button type="button" data-labels aria-expanded="${!!open}">${open ? "hide list" : "show list"}</button>
       ${open ? `<ul>${L.hidden.map((h) => `<li><button type="button" class="x-hrow" title="Select ${h.id}"><span class="k-id">${h.id}</span><span class="k-num">${h.log2FoldChange > 0 ? "+" : ""}${h.log2FoldChange}</span><span class="k-grow"></span><span class="k-secondary">Select</span></button></li>`).join("")}</ul>
@@ -356,14 +390,14 @@ const lookRow = (look) => `<div class="x-look"><span class="k-secondary">Look, f
 const figMethods = (look) => {
   const L = FIG.labels;
   return `<div><div class="x-h5">stress-response-study_figure-methods.txt</div><pre class="x-pre">Figure: stress-response-study_figure.svg, 174 mm wide, text 8 pt, white ground.
-Data: ppi-core-300.graphml, 300 proteins, 1,262 interactions, undirected,
+Data: ppi-core-300.graphml, <span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, <span data-fx="datasets.ppi.edges" data-fx-noun="interactions">1,262 interactions</span>, undirected,
 loaded 2026-09-22. Scope: full graph.
 Color: log2FoldChange (from the file), linear, diverging at 0, -2.52 to +3.15;
 ${FIG.down} below 0, ${FIG.up} above. ${look === "print" ? `Print look: shape is the sign (a triangle up above 0,
 down below 0); darkness is the distance from 0 in ${FIG.steps.length} gray steps, the same steps
 for both sides: ${FIG.steps.slice().reverse().map((t) => `${t.from} to ${t.to}`).join(", ")}.` : "Screen look: red below 0, blue above."}
 Size: degree (number of interactions), exact, not normalized, full graph.
-Weight: confidence, not used yet; no measure in this figure reads a weight.
+Weight: none; no measure in this figure reads a weight.
 Labels: top ${L.n} by |log2FoldChange|; ${L.shown.length} drawn, ${L.hidden.length} hidden to avoid overlap
 (${L.hidden.map((h) => h.id).join(", ")}).
 Drawn with graphty-element 2.6.2.</pre></div>`;
@@ -383,34 +417,90 @@ const figurePreview = (d) => {
 };
 
 // ---- the table
+const RK = (month) => new Map(FIX.scenarios.exportDialog[month].map((r) => [r.id, r]));
+const rankHead = (of) => `"PageRank rank (1 = highest, of ${of})","PageRank tie (other accounts with the same value)"`;
 function tablePreview() {
-  const acc = [...FIX.datasets.transactions.flaggedAccounts].sort((a, b) => b.riskScore - a.riskScore || a.id.localeCompare(b.id));
-  const csv = [`id,kind,country,riskScore,"degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)"`, ...acc.slice(0, 6).map((a) => `${a.id},${a.kind},${a.country},${a.riskScore},${a.degree},${a.pagerank}`)].join("\n");
+  const acc = [...FIX.datasets.transactions.flaggedAccounts].sort((a, b) => b.riskScore - a.riskScore || a.id.localeCompare(b.id)), rk = RK("march");
+  const csv = [`id,kind,country,riskScore,"degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)",${rankHead("3,000")}`, ...acc.slice(0, 6).map((a) => `${a.id},${a.kind},${a.country},${a.riskScore},${a.degree},${a.pagerank},${rk.get(a.id).rank},${rk.get(a.id).tiedWith}`)].join("\n");
   return `<div class="x-p-title">Table, as it will be written${A(16)}</div>
-    <div class="x-lower" style="grid-template-columns:1fr 1fr">
-      <div><div class="x-h5">case-acc-233575_nodes.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
-        <p class="k-secondary" style="margin:6px 0 0">The first column is the file's own id, written as it came in. The CSV holds only the header and the rows.</p></div>
-      <div><div class="x-h5">Beside it: case-acc-233575_nodes-methods.txt</div><pre class="x-pre">Rows: 14 of 3,000 accounts (Nodes), filtered by 1 step:
-in Mule ring suspects, a frozen set of 14 accounts.
+    <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <div><div class="x-h5">case-acc-233575_nodes_2026-03.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+        <p class="k-secondary" style="margin:6px 0 0">The first column is the file's own id, written as it came in. The CSV holds only the header and the rows. The last two columns are "PageRank rank (1 = highest, of 3,000)" and "PageRank tie (other accounts with the same value)". Rank is a whole number in every row, so Excel and pandas read the column as numbers; accounts with the same value share a rank, and the Tie column says how many others share it.${A(22)}</p></div>
+      <div><div class="x-h5">Beside it: case-acc-233575_nodes_2026-03-methods.txt</div><pre class="x-pre">Rows: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="accounts">14 of 3,000 accounts</span> (Nodes), filtered by 1 step:
+in Mule ring suspects, a frozen set of <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>.
 Order: riskScore, highest first.
-Data: transfers-2026-03.csv, 3,000 accounts, 9,113 transfers,
+Data: transfers-2026-03.csv, <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>, <span data-fx="datasets.transactions.edges" data-fx-noun="transfers">9,113 transfers</span>,
 directed. Load: nodes from from_account and to_account;
 amount read as currency (USD); timestamp kept as text.
 riskScore: from accounts-2026-03.csv, not computed by graphty.
-Weight: amount, not used yet; no measure here reads a weight.
+Weight: none; no measure here reads a weight.
 degree: exact, full graph, not normalized.
 pagerank: exact (power iteration, damping 0.85), full graph,
 unweighted, normalized to sum to 1.
+PageRank rank: 1 = highest, of <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>; equal values (as written,
+6 decimals) share the lowest rank of their block. PageRank tie: how
+many other accounts share that value; 0 = none.
 graphty-element 2.6.2</pre></div></div>
-    ${files(["case-acc-233575_nodes.csv", "case-acc-233575_nodes-methods.txt"])}`;
+    ${files(["case-acc-233575_nodes_2026-03.csv", "case-acc-233575_nodes_2026-03-methods.txt"])}`;
 }
 const tableDetail = () => `<div class="x-detail" role="group" aria-label="Table settings">
   <span class="k-secondary">Tab</span><span class="k-seg k-seg-fill"><span aria-pressed="true">Nodes</span><span>Edges</span></span>
-  <span class="k-secondary">Rows</span><span class="k-fact k-num">14 of 3,000 rows, filtered</span>
+  <span class="k-secondary">Rows</span><span class="k-fact k-num"><span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>, filtered</span>
   <span class="k-secondary">From</span><span>1 filter step: in Mule ring suspects</span>
   <span class="k-secondary">Order</span><span>riskScore, highest first</span>
-  <span class="k-secondary">Columns</span><span class="k-num">6, hidden ones included</span>
+  <span class="k-secondary">Columns</span><span class="k-num">8, hidden ones included</span>
   <span class="k-secondary">Methods</span><span>Always written beside it</span></div>`;
+
+// ---- a filter step open: the export starts with that step's transfers
+function transfersPreview() {
+  const E = FIX.scenarios.exportDialog;
+  const csv = ["from_account,to_account,amount (USD)", ...E.ringTransferRows.map((r) => `${r.from_account},${r.to_account},${r.amount}`)].join("\n");
+  return `<div class="x-p-title">Table, as it will be written${A(23)}</div>
+    <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <div><div class="x-h5">case-acc-233575_transfers_2026-03.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+        <p class="k-secondary" style="margin:6px 0 0">Each row is one transfer with both ends inside the step. The ids are the file's own.</p></div>
+      <div><div class="x-h5">Beside it: case-acc-233575_transfers_2026-03-methods.txt</div><pre class="x-pre">Rows: <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> (Edges): those with both ends in
+filter step 1, in Mule ring suspects, a frozen set of <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>.
+Order: as in the file.
+Data: transfers-2026-03.csv (March 2026), <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>,
+<span data-fx="datasets.transactions.edges" data-fx-noun="transfers">9,113 transfers</span>, directed. amount read as currency (USD).
+Weight: none; no measure here reads a weight.
+graphty-element 2.6.2</pre></div></div>
+    ${files(["case-acc-233575_transfers_2026-03.csv", "case-acc-233575_transfers_2026-03-methods.txt"])}`;
+}
+const transfersDetail = () => `<div class="x-detail" role="group" aria-label="Table settings">
+  <span class="k-secondary">Tab</span><span class="k-seg k-seg-fill"><span>Nodes</span><span aria-pressed="true">Edges</span></span>
+  <span class="k-secondary">Rows</span><span class="k-fact k-num"><span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span>, inside the step</span>
+  <span class="k-secondary">From</span><span>The open filter step: in Mule ring suspects</span>
+  <span class="k-secondary">Columns</span><span>from_account, to_account, amount</span>
+  <span class="k-secondary">Methods</span><span>Always written beside it</span></div>`;
+
+function againPreview() {
+  const rows = FIX.scenarios.exportDialog.april;
+  const csv = [`id,"degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)",${rankHead("3,093")}`, ...rows.slice(0, 6).map((r) => `${r.id},${r.degree},${r.pagerank},${r.rank},${r.tiedWith}`)].join("\n");
+  return `<div class="x-p-title">Table, as it will be written${A(24)}</div>
+    <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <div><div class="x-h5">case-acc-233575_ring-pagerank_2026-04.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+        <p class="k-secondary" style="margin:6px 0 0">A new file, named for April. The last two columns are "PageRank rank (1 = highest, of 3,093)" and "PageRank tie (other accounts with the same value)", as in the March file, with April's values. The March file is not touched.</p></div>
+      <div><div class="x-h5">Beside it: case-acc-233575_ring-pagerank_2026-04-methods.txt</div><pre class="x-pre">Made again from the settings of
+case-acc-233575_ring-pagerank_2026-03.csv, on April data.
+Rows: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span> (Nodes), filtered by 1 step:
+in Mule ring suspects, a frozen set; all <span data-fx="scenarios.exportDialog.ringInApril">14</span> are in April.
+Order: PageRank rank, highest first.
+Data: transfers-2026-04.csv (April 2026), <span data-fx="datasets.transactionsApril.nodes" data-fx-noun="accounts">3,093 accounts</span>,
+<span data-fx="datasets.transactionsApril.edges" data-fx-noun="transfers">8,370 transfers</span>, directed.
+pagerank: exact (power iteration, damping 0.85), full graph,
+unweighted, normalized to sum to 1, re-run on April.
+PageRank rank: 1 = highest, of <span data-fx="datasets.transactionsApril.nodes" data-fx-noun="accounts">3,093 accounts</span>; ties as in March.
+graphty-element 2.6.2</pre></div></div>
+    ${files(["case-acc-233575_ring-pagerank_2026-04.csv", "case-acc-233575_ring-pagerank_2026-04-methods.txt"])}`;
+}
+const againDetail = () => `<div class="x-detail" role="group" aria-label="Table settings">
+  <span class="k-secondary">Tab</span><span class="k-seg k-seg-fill"><span aria-pressed="true">Nodes</span><span>Edges</span></span>
+  <span class="k-secondary">Rows</span><span class="k-fact k-num"><span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactionsApril.nodes" data-fx-noun="rows">14 of 3,093 rows</span>, filtered</span>
+  <span class="k-secondary">Data</span><span>transfers-2026-04.csv (April 2026)</span>
+  <span class="k-secondary">Order</span><span>PageRank rank, highest first</span>
+  <span class="k-secondary">Columns</span><span class="k-num">5, as in the March file</span></div>`;
 
 // ---- the recipe
 const recipePreview = () => `<div class="x-p-title">What the recipe holds</div>
@@ -432,7 +522,7 @@ const recipePreview = () => `<div class="x-p-title">What the recipe holds</div>
       <div class="k-data"><span class="k-name">a fold change, above and below 0</span><span class="k-value">signed</span></div>
       <div class="k-data"><span class="k-name">a confidence per interaction</span><span class="k-value">number</span></div></div>
     <div><div class="x-col-h">${I("lock", "k-i-sm")}Not included</div>
-      <div class="k-data"><span class="k-name">300 proteins, 1,262 interactions</span><span class="k-value">data</span></div>
+      <div class="k-data"><span class="k-name"><span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, <span data-fx="datasets.ppi.edges" data-fx-noun="interactions">1,262 interactions</span></span><span class="k-value">data</span></div>
       <div class="k-data"><span class="k-name">300 fold-change values</span><span class="k-value">data</span></div>
       <div class="k-data"><span class="k-name">Knockdown hits (38, frozen)</span><span class="k-value">set</span></div>
       <div class="k-data"><span class="k-name">positions (drawn again from the layout)</span><span class="k-value">layout</span></div>
@@ -447,39 +537,48 @@ function evidencePreview() {
   return `<div class="x-p-title">The evidence file, page by page${A(18)}</div>
   <div class="x-pages">
     <ol>
-      <li><b>Boundary</b><span>1 filter step and its 14 accounts</span></li>
+      <li><b>Boundary</b><span>1 filter step and its <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span></span></li>
       <li><b>Ring overview</b><span>view, its caption, 2 notes</span></li>
       <li><b>Cash-out route</b><span>view, the 4-account path with each transfer's date, 1 note</span></li>
       <li><b>Other notes</b><span>2 notes with their quotes and citations</span></li>
-      <li><b>Methods</b><span>transfers-2026-03.csv: 3,000 accounts, 9,113 transfers, directed. PageRank, exact, on the full graph</span></li>
+      <li><b>Methods</b><span>transfers-2026-03.csv: <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>, <span data-fx="datasets.transactions.edges" data-fx-noun="transfers">9,113 transfers</span>, directed. PageRank, exact, on the full graph</span></li>
     </ol>
-    <div class="x-sheet"><h3>Page 1. Boundary</h3><p>Filter step: in Mule ring suspects (a frozen set of 14 accounts), from transfers-2026-03.csv, written 2026-09-28 by Sarah Okafor.</p>
+    <div class="x-sheet"><h3>Page 1. Boundary</h3><p>Filter step: in Mule ring suspects (a frozen set of <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>), from transfers-2026-03.csv (March 2026 data), written 2026-09-28 by Sarah Okafor.</p>
       <table><thead><tr><th>account</th><th>kind</th><th>country</th><th class="n">riskScore<small>from the file</small></th><th class="n">degree</th><th class="n">PageRank<small>full graph</small></th></tr></thead><tbody>
       ${acc.map((a) => `<tr><td class="k-id">${a.id}</td><td>${a.kind}</td><td>${a.country}</td><td class="n">${a.riskScore}</td><td class="n">${a.degree}</td><td class="n">${a.pagerank.toFixed(6)}</td></tr>`).join("")}
       </tbody></table></div>
   </div>
-  ${files(["case-acc-233575_evidence_2026-09-28.html"])}`;
+  ${files(["case-acc-233575_evidence_2026-03.html"])}`;
 }
 
 // ---- states
-const figDlg = (look, extra = {}) => ({ scope: sel("Full graph: 300 nodes", "x-scope-f"), scopeNote: "The filter chip's scope, until you change it here",
+const figDlg = (look, extra = {}) => ({ scope: sel('Full graph: <span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span>', "x-scope-f"), scopeNote: "The filter chip's scope, until you change it here",
   look, rows: { figure: { on: true, sel: true, sum: "174 mm" } }, detail: figDetail, preview: figurePreview,
   files: ["figure.svg", "figure-methods.txt"], ...extra });
 const S = {
   "ways-in-menu": { app: { ...ppiApp, panel: "data", menu: true } },
-  "ways-in": { app: { ...ppiApp, panel: "data", ways: true, dock: { scope: "Full graph: 300 nodes. Sorted by |log2FoldChange|.", head: ["id", "log2FoldChange"], rows: [["CHEK1", "3.15"], ["WRN", "2.61"], ["SNRNP70", "2.58"], ["RPS6", "-2.52"], ["MAPK10", "-2.42"]] } } },
+  "ways-in": { app: { ...ppiApp, panel: "data", ways: true, dock: { scope: 'Full graph: <span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span>. Sorted by |log2FoldChange|.', head: ["id", "log2FoldChange"], rows: [["CHEK1", "3.15"], ["WRN", "2.61"], ["SNRNP70", "2.58"], ["RPS6", "-2.52"], ["MAPK10", "-2.42"]] } } },
   figure: { app: { ...ppiApp, focusProject: true }, dlg: figDlg("screen") },
   "figure-grey": { app: { ...ppiApp, focusProject: true }, dlg: figDlg("print", { labelsOpen: true }) },
-  table: { app: { ...txApp, focusTable: true, dock: { scope: "Filtered: 14 of 3,000 rows. Sorted by riskScore.", head: ["id", "kind", "riskScore", "degree"], rows: [] } },
-    dlg: { scope: sel("Filtered: 14 nodes", "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
+  table: { app: { ...txApp, focusTable: true, dock: { scope: 'Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>. Sorted by riskScore.', head: ["id", "kind", "riskScore", "degree"], rows: [] } },
+    dlg: { scope: sel('Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span>', "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
       rows: { table: { on: true, sel: true, sum: "Nodes" } }, detail: tableDetail, preview: tablePreview, files: [1, 2] } },
-  recipe: { app: { ...ppiApp, project: "Expression overlay", chip: "Filtered: 1,059 of 1,262 edges", sets: [["Knockdown hits", 38]], views: ["Hits by module"] },
+  "filter-step": { app: { ...txApp, chip: 'Filter step 1 open: in Mule ring suspects' },
+    dlg: { scope: sel('Filter step 1: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>', "x-scope-f"), scopeNote: "The open step, until you change it here",
+      stateLine: `<div class="x-state">${I("funnel")}<span class="k-fact">A filter step is open, so the export starts with its transfers: the <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> between its <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>. Tab Nodes writes the accounts instead.</span>${A(23)}</div>`,
+      rows: { table: { on: true, sel: true, sum: "Edges" } }, detail: transfersDetail, preview: transfersPreview, files: [1, 2] } },
+  "again-panel": { app: { ...txApp, panel: "data-april", graph: "Transfers, April 2026", count: '<span data-fx="datasets.transactionsApril.nodes" data-fx-noun="nodes">3,093 nodes</span>', n: "3,093", e: "8,370", canvas: "transactions-april-flagged", alt: "April transfers, the 14 flagged accounts drawn over them", legend: aprilLegend } },
+  again: { app: { ...txApp, panel: "data-april", graph: "Transfers, April 2026", count: '<span data-fx="datasets.transactionsApril.nodes" data-fx-noun="nodes">3,093 nodes</span>', n: "3,093", e: "8,370", canvas: "transactions-april-flagged", alt: "April transfers, the 14 flagged accounts drawn over them", legend: aprilLegend },
+    dlg: { scope: sel('Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span>', "x-scope-f"), scopeNote: "1 step: in Mule ring suspects, as in the March file",
+      stateLine: `<div class="x-state">${I("history")}<span class="k-fact">Export again, on April data: the settings of case-acc-233575_ring-pagerank_2026-03.csv, run on April 2026 (transfers-2026-04.csv). The March file stays as it is.</span></div>`,
+      rows: { table: { on: true, sel: true, sum: "Nodes" } }, detail: againDetail, preview: againPreview, files: [1, 2] } },
+  recipe: { app: { ...ppiApp, project: "Expression overlay", chip: 'Filtered: <span data-fx="datasets.ppi.expression.highConfidence.edgesKept" data-fx-of="datasets.ppi.edges" data-fx-noun="edges">1,059 of 1,262 edges</span>', sets: [["Knockdown hits", 38]], views: ["Hits by module"] },
     dlg: { scope: sel("Whole project", "x-scope-f").replace('class="k-field', 'data-disabled class="k-field'), scopeNote: "A recipe takes definitions, not a scope of data",
       stateLine: `<div class="x-state">${I("lock")}<span class="k-fact">Figures, images, tables, the report, graph data and the project file are off: they would carry your data.</span></div>`,
       noData: true, rows: { figure: { on: true }, recipe: { on: true, sel: true } }, detail: () => `<div class="x-detail"><span class="k-secondary">Name</span><span class="k-field">Expression overlay</span></div>`,
       preview: recipePreview, files: [1] } },
   evidence: { app: txApp,
-    dlg: { scope: sel("Filtered: 14 nodes", "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
+    dlg: { scope: sel('Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span>', "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
       rows: { report: { on: true, sel: true, ann: 18 } }, detail: () => `<div class="x-detail"><span class="k-secondary">Pages</span><span>Boundary, 2 saved views, notes, methods</span><span class="k-secondary">Methods</span><span>Inside the report</span></div>`,
       preview: evidencePreview, files: [1] } },
   done: { app: { ...ppiApp, panel: "data", sent: true, focusProject: true,

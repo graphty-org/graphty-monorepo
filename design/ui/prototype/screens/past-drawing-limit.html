@@ -115,7 +115,7 @@
 <body>
 <div class="page-head">
   <h1>Frame past the drawing limit</h1>
-  <p>A patent citation sample, <span class="k-num">124,318</span> patents and <span class="k-num">1,480,221</span> citations, opens in graphty. That is more than this browser draws at once (<span class="k-num">50,000</span> nodes), so the canvas draws nothing and says so in its middle, with the one way forward. The graph's Statistics, with the in-degree distribution a first look at a drawing would give, and the table stand in for the picture. The isolate and component counts open their rows in the table. The table lists every patent, read a page at a time in the order it is sorted by, and <b>Keep top rows...</b> on the table keeps its first rows as a plain filter step: the analyst types 200, sees where the cut falls and that the 200 will draw, and presses <b>Keep these 200 rows</b> (states 2b and 2c). <b>Narrow the graph...</b> opens the filter chip's list of steps, which offers the same step and the neighbors of one node. The analyst can write a rule instead, see whether its result will draw before committing it, and the canvas draws the <span class="k-num">612</span> patents that are left. The last state keeps the 3 most cited and then adds their neighbors, as two separate steps. The unsupported-browser case (no WebGPU) is the Layout row under state 4: the work runs on the CPU and the row says so plainly, not as an error. Each state is the whole app at 1440 by 900; every number comes from the kit's fixtures. The magenta markers and the notes under each frame cite the design framework and name the compact-mantine component; they are not product UI.</p>
+  <p>A patent citation sample, <span class="k-num">124,318</span> patents and <span class="k-num">1,480,221</span> citations, opens in graphty. That is more than this browser draws at once (<span class="k-num">50,000</span> nodes), so the canvas draws nothing and says so in its middle, with the one way forward. The graph's Statistics, with the in-degree distribution a first look at a drawing would give, and the table stand in for the picture. The isolate and component counts open their rows in the table. The table lists every patent, read a page at a time in the order it is sorted by, and <b>Keep top rows...</b> on the table keeps its first rows as a plain filter step: the analyst types 200, sees where the cut falls and that the 200 will draw, and presses <b>Keep these <span data-fx="scenarios.pastLimitTop200.n" data-fx-noun="rows">200 rows</span></b> (states 2b and 2c). <b>Narrow the graph...</b> opens the filter chip's list of steps, which offers the same step and the neighbors of one node. The analyst can write a rule instead, see whether its result will draw before committing it, and the canvas draws the <span class="k-num">612</span> patents that are left. The last state keeps the 3 most cited and then adds their neighbors, as two separate steps. The unsupported-browser case (no WebGPU) is the Layout row under state 4: the work runs on the CPU and the row says so plainly, not as an error. Each state is the whole app at 1440 by 900; every number comes from the kit's fixtures. The magenta markers and the notes under each frame cite the design framework and name the compact-mantine component; they are not product UI.</p>
   <label><input type="checkbox" id="annot" checked> Show annotations</label>
   <nav id="toc"></nav>
 </div>
@@ -137,6 +137,15 @@ const T2 = fx.scenarios.pastLimitTop200;
 const KEEP = `Keep top ${T2.n} by ${SORT}`;
 const HUB = SA.hubs[0].id, AROUND = SA.byN[0];
 const n = (x) => x.toLocaleString("en-US");
+// A count through the kit's scope formatter: the number bound to its fixture key, typed with the
+// formatter's text, so kit.js checks it (kit/README.md, "The scope formatter").
+const fxAt = (k) => k.split(".").reduce((o, p) => (o == null ? o : p === "length" && Array.isArray(o) ? o.length : o[p]), fx);
+const nk = (k) => `<span data-fx="${k}">${n(fxAt(k))}</span>`;
+// Every fixture object knows its own key, so a helper handed an object binds its fields: nf(NA, "nodes").
+const tagPaths = (o, p) => { if (o && typeof o === "object") { Object.defineProperty(o, "__fx", { value: p }); for (const [k, v] of Object.entries(o)) tagPaths(v, `${p}.${k}`); } };
+tagPaths(fx.datasets, "datasets");
+tagPaths(fx.scenarios, "scenarios");
+const nf = (o, f) => nk(`${o.__fx}.${f}`);
 const pct = (x) => x.toFixed(1) + "%";
 const compact = (x) => (x >= 1000 ? Math.round(x / 1000) + "K" : String(x));
 const [ruleOk, ruleBig, ruleNone] = C.ruleCounts;
@@ -155,7 +164,7 @@ const left = (chip, open) => `<aside class="k-panel" aria-label="Graph"><div cla
 <div class="k-title-line"><span class="k-project">Patent citations</span>${I("chevron-down", "k-i-sm k-secondary")}</div>
 <span class="k-chip" role="button"${open ? ' aria-expanded="true"' : ""}>${I("funnel", "k-i-sm")}<span class="k-num">${chip}</span></span></div>
 <div class="k-scroll" tabindex="0"><section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn">${I("search")}</span><span class="k-icon-btn">${I("plus")}</span></div>
-<ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Citations</span><span class="k-trail k-num">${n(C.nodes)} nodes</span></li></ul></section>
+<ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Citations</span><span class="k-trail k-num">${nk("datasets.citations.nodes")} nodes</span></li></ul></section>
 <section class="k-section" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn">${I("plus")}</span></div></section>
 <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">0</span></div></section></div></aside>`;
 
@@ -165,7 +174,7 @@ const toolbar = (drawn, toast = "") => {
   const off = drawn ? "" : ' aria-disabled="true"';
   return `<div class="k-toolbar-dock">${toast}<div class="k-toolbar" role="toolbar">
 <span class="k-tool" role="button" aria-label="Select" aria-pressed="true">${I("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span>
-<span class="k-tool" role="button" aria-label="Path"${off}>${I("route", "k-i-lg")}</span><span class="k-tool" role="button" aria-label="Note"${off}>${I("sticky-note", "k-i-lg")}</span>
+<span class="k-tool" role="button" aria-label="Path"${off}>${I("route", "k-i-lg")}</span>
 <span class="k-toolbar-sep"></span><span class="k-tool" role="button" aria-label="Quick actions">${I("zap", "k-i-lg")}</span>
 <span class="k-toolbar-sep"></span><span class="k-tool" role="button" aria-label="View mode">${I("square", "k-i-lg")}</span><span class="k-tool-caret">${I("chevron-down", "k-i-sm")}</span></div></div>`;
 };
@@ -205,7 +214,7 @@ const ddChart = (dd, kind = "in", zeroMeans = "") => {
   return `<div class="k-fieldrow p-dd-head"><span class="k-legend">Degree distribution</span><div class="k-fields"><span class="k-seg k-seg-fill k-span3" role="group" aria-label="Degree">${seg}</span></div></div>
 <div class="p-dd"><div class="p-dd-cap">Nodes with ${WORD[kind]} k or more, both axes log</div>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${WORD[kind]} distribution, complementary cumulative on log-log axes: ${n(d.ccdf[0][1])} nodes with ${WORD[kind]} 1 or more, falling to ${lc} at the maximum, ${lk}">${g}</svg>
-<div class="p-zero"><span class="k-fact">${WORD[kind][0].toUpperCase() + WORD[kind].slice(1)} 0, not on the log axis</span><span class="k-num k-fact">${n(d.zero)}</span>${zeroMeans ? `<span class="k-secondary">${zeroMeans}</span>` : ""}</div></div>`;
+<div class="p-zero"><span class="k-fact">${WORD[kind][0].toUpperCase() + WORD[kind].slice(1)} 0, not on the log axis</span><span class="k-num k-fact">${nf(d, "zero")}</span>${zeroMeans ? `<span class="k-secondary">${zeroMeans}</span>` : ""}</div></div>`;
 };
 
 const data = (k, v, strong) => `<div class="k-data"><span class="k-name${strong ? " k-strong" : ""}">${k}</span><span class="k-value k-num">${v}</span></div>`;
@@ -224,10 +233,10 @@ const stats = (s, { edgesOf, sample, dd, zeroMeans, ddKind } = {}) => {
   return `<section class="k-section"><div class="k-section-head">Statistics</div>
 <div class="k-row"><span class="k-grow" style="white-space:nowrap">Overview: General</span><span class="k-btn k-btn-ghost" style="padding-inline:4px">Change overview...</span></div>
 ${sample ? `<div class="p-sample">${sample}</div>` : ""}
-${data("nodes", n(s.nodes ?? C.nodes))}${data("edges", edgesOf ? `${n(s.edges)} of ${n(C.edges)}` : n(C.edges))}
+${data("nodes", n(s.nodes ?? C.nodes))}${data("edges", edgesOf ? `${nf(s, "edges")} of ${nk("datasets.citations.edges")}` : n(C.edges))}
 ${data("density", (sample ? '<span class="p-tag">reads high</span>' : "") + (s.density < 0.001 ? s.density.toFixed(7) : s.density.toFixed(5)))}
 ${data("average total degree", s.averageDegree.toFixed(1))}${data("isolates", s.isolates ? link(n(s.isolates), s === C.stats ? "#isolates" : "") : "0")}${data("weak components", link(n(s.components)), true)}
-${s.componentSizes.map((c, i) => `<div class="k-data p-comp"><span class="k-name k-num">${link(`${n(c)} nodes`)}</span><span class="k-value k-num">${i === 0 ? pct((c / (s.nodes ?? C.nodes)) * 100) : ""}</span></div>`).join("")}
+${s.componentSizes.map((c, i) => `<div class="k-data p-comp"><span class="k-name k-num">${link(`${nk(`${s.componentSizes.__fx}.${i}`)} nodes`)}</span><span class="k-value k-num">${i === 0 ? pct((c / (s.nodes ?? C.nodes)) * 100) : ""}</span></div>`).join("")}
 ${more ? `<div class="p-more k-num">${n(more)} more, each ${s.componentSizes.at(-1)} nodes or fewer</div>` : ""}
 ${dd ? ddChart(dd, ddKind || "in", zeroMeans) : ""}
 <div class="k-row">${I("file")}<span class="k-grow">Last import</span><span class="k-secondary k-ellipsis" style="max-width:112px">${C.file}</span></div>
@@ -241,7 +250,7 @@ const stack = `<section class="k-section"><div class="k-section-head">Style stac
 const right = (drawn, layout, st) => `<aside class="k-right" aria-label="Inspector">${head(drawn)}<div class="k-scroll" tabindex="0">${graphSection(layout)}${st}${stack}</div></aside>`;
 
 // graphty-element's not-drawn message, centered on the empty canvas: count, reason, and the one way on.
-const notDrawnCard = `<div class="p-nd-wrap"><div class="p-nd" role="status"><div class="p-nd-title"><span class="k-num">${n(C.nodes)}</span> nodes not drawn</div>
+const notDrawnCard = `<div class="p-nd-wrap"><div class="p-nd" role="status"><div class="p-nd-title"><span class="k-num">${nk("datasets.citations.nodes")}</span> nodes not drawn</div>
 <div class="k-fact">More than this browser draws at once (<span class="k-num">${LIMIT}</span>).<br>Every node is counted in Statistics and listed in the table.</div>
 <span class="k-btn">Narrow the graph...</span></div></div>`;
 const emptyCanvas = `<div class="k-canvas">${notDrawnCard}${toolbar(false)}<span class="k-help">${I("circle-help")}</span></div>`;
@@ -250,27 +259,27 @@ const drawnCanvas = (name, alt, toast = "", base = "../kit/canvas/citations-") =
 <img class="k-dark-only" src="${base}${name}-dark.svg" alt="${alt}"></div>${toolbar(true, toast)}<span class="k-help">${I("circle-help")}</span></div>`;
 
 const sortLine = "Sorted by citationsReceived, highest first.";
-const fullScope = `Full graph: ${n(C.nodes)} nodes. ${sortLine}`;
-const narrowScope = `Filtered graph: ${n(NA.nodes)} of ${n(C.nodes)} nodes. ${sortLine}`;
+const fullScope = `Full graph: ${nk("datasets.citations.nodes")} nodes. ${sortLine}`;
+const narrowScope = `Filtered graph: ${nk("datasets.citations.narrowed.nodes")} of ${nk("datasets.citations.nodes")} nodes. ${sortLine}`;
 const DD = C.degreeDistribution;
-const fullStats = stats(C.stats, { dd: DD, zeroMeans: `Never cited by a patent in this sample; the ${n(C.stats.isolates)} isolates are among them.` });
+const fullStats = stats(C.stats, { dd: DD, zeroMeans: `Never cited by a patent in this sample; the ${nk("datasets.citations.stats.isolates")} isolates are among them.` });
 const IS = C.isolates;
-const isoScope = `Selected: ${n(IS.nodes)} nodes, the isolates <a class="k-link" href="#not-drawn">Show full graph</a>`;
-const isoRight = `<aside class="k-right" aria-label="Inspector">${head(false).replace(/<div class="k-typerow">[\s\S]*$/, "")}<div class="k-typerow">${I("circle-dot")}<span class="k-name k-num">${n(IS.nodes)} nodes</span><span class="k-secondary">Selection</span></div>
+const isoScope = `Selected: ${nk("datasets.citations.isolates.nodes")} nodes, the isolates <a class="k-link" href="#not-drawn">Show full graph</a>`;
+const isoRight = `<aside class="k-right" aria-label="Inspector">${head(false).replace(/<div class="k-typerow">[\s\S]*$/, "")}<div class="k-typerow">${I("circle-dot")}<span class="k-name k-num">${nk("datasets.citations.isolates.nodes")} nodes</span><span class="k-secondary">Selection</span></div>
 <div class="k-scroll" tabindex="0"><section class="k-section"><div class="k-section-head">Selection<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Create set from selection">${I("group")}</span></div>
 <div class="k-row">${I("group")}<span class="k-grow">Create set from selection</span><span class="k-kbd">Ctrl+G</span></div></section>
 <section class="k-section"><div class="k-section-head">Statistics</div>
 ${data("nodes", n(IS.nodes))}${data("edges between them", "0")}${data("in-degree", "0")}${data("out-degree", "0")}
 <div class="k-prose">None of these patents cites or is cited by another patent in this sample. Their citationsReceived counts citations from patents outside it.</div></section></div></aside>`;
-const sampleScope = `Filtered graph: ${n(SA.nodes)} of ${n(C.nodes)} nodes. ${sortLine}`;
-const keepScope = `Filtered graph: ${n(T2.nodes)} of ${n(C.nodes)} nodes. ${sortLine}`;
+const sampleScope = `Filtered graph: ${nk("datasets.citations.degreeSample.nodes")} of ${nk("datasets.citations.nodes")} nodes. ${sortLine}`;
+const keepScope = `Filtered graph: ${nk("scenarios.pastLimitTop200.nodes")} of ${nk("datasets.citations.nodes")} nodes. ${sortLine}`;
 
 // ---- the filter steps popover, anchored to the chip: right of the left panel, top-aligned to the chip
 const popAt = `style="left:306px;top:36px"`;
 const offerRow = (hover) => `<div class="k-row p-row2 p-offer"${hover ? " data-hover" : ""}>${I("funnel")}<span class="k-grow">Keep top rows by ${SORT}...<span class="p-sub">the table's first rows, in its order; you set how many</span></span>${I("chevron-right", "k-i-sm k-secondary")}</div>
 <div class="k-row p-row2 p-offer">${I("funnel")}<span class="k-grow">Neighbors of a node...<span class="p-sub">a row you pick in the table, or find by name</span></span>${I("chevron-right", "k-i-sm k-secondary")}</div>`;
 const stepsList = (at = "") => `<div class="k-popover p-pop" ${at} role="dialog" aria-label="Filter steps"><div class="k-popover-head">Filter steps<span class="k-grow"></span><span class="k-btn k-btn-ghost" aria-disabled="true" style="background:transparent;color:var(--cm-text-disabled)">Create rule set</span></div>
-<div class="k-popover-body"><div class="p-empty">No filter steps. Every number reads the full graph: <span class="k-num">${n(C.nodes)}</span> nodes, more than this browser draws at once.</div>
+<div class="k-popover-body"><div class="p-empty">No filter steps. Every number reads the full graph: <span class="k-num">${nk("datasets.citations.nodes")}</span> nodes, more than this browser draws at once.</div>
 <div class="k-group-head">Suggested for this graph</div>${offerRow(true)}
 <div class="p-add">${I("plus")}Add step</div></div></div>`;
 
@@ -284,7 +293,7 @@ ${body}
 <div class="p-prop" style="padding:0;grid-template-columns:72px 1fr"><span class="k-legend">Scope</span><span class="k-secondary">${scope}</span></div>
 <div class="p-verdict">${verdict}</div></div>
 <div class="p-foot">${note}<span class="k-btn"${commit ? "" : ' aria-disabled="true"'}>${label}</span></div></div></div>`;
-const willDraw = (r) => `<span class="k-strong k-num">${n(r.nodes)} nodes, ${n(r.edges)} edges</span><span class="k-secondary">will draw</span>`;
+const willDraw = (r) => `<span class="k-strong k-num">${nf(r, "nodes")} nodes, ${nf(r, "edges")} edges</span><span class="k-secondary">will draw</span>`;
 
 const ruleBody = (a, b, join = "AND") => `${a}<div class="p-join"><span class="k-seg" role="group" aria-label="Join"><span role="button"${join === "AND" ? ' aria-pressed="true"' : ""}>AND</span><span role="button"${join === "OR" ? ' aria-pressed="true"' : ""}>OR</span></span></div>${b}<div class="p-add" style="padding:0;height:24px">${I("plus")}Add condition</div>`;
 const ruleEditor = (at) => editor({
@@ -295,16 +304,16 @@ const ruleEditor = (at) => editor({
 
 // Keep top rows: the table's first N rows in its order, nothing added. N is the reader's.
 const keepEditor = (at) => editor({
-  title: "Keep top rows", at, keep: false, label: `Keep these ${T2.n} rows`,
-  body: `<div class="p-topn">Keep the first<span class="k-field k-num" data-focus>${T2.n}</span>rows</div>
+  title: "Keep top rows", at, keep: false, label: `Keep these ${nf(T2, "n")} rows`,
+  body: `<div class="p-topn">Keep the first<span class="k-field k-num" data-focus>${nf(T2, "n")}</span>rows</div>
 <div class="p-cap">In the table's order</div><div class="p-op" style="grid-template-columns:1fr 104px">${field(SORT)}${field("Highest first")}</div>
-<div class="p-cap">Row ${T2.n} has ${SORT} ${T2.cutoff}; ${T2.tiedAtCutoff - T2.keptAtCutoff} more patent also has ${T2.cutoff} and is left out.</div>`,
+<div class="p-cap">Row ${nf(T2, "n")} has ${SORT} ${T2.cutoff}; ${T2.tiedAtCutoff - T2.keptAtCutoff} more patent also has ${T2.cutoff} and is left out.</div>`,
   verdict: willDraw(T2),
 });
 // Add their neighbors: a second step on what the step above keeps (here the top 3).
 const addNbrEditor = editor({
   title: "Add their neighbors", keep: false, label: "Add neighbors", scope: TOP,
-  body: `<div class="p-cap">Of the ${SA.n} patents the step above keeps</div><div class="p-op" style="grid-template-columns:1fr 1fr">${field("1 hop")}${field("Both directions")}</div>
+  body: `<div class="p-cap">Of the ${nf(SA, "n")} patents the step above keeps</div><div class="p-op" style="grid-template-columns:1fr 1fr">${field("1 hop")}${field("Both directions")}</div>
 <div class="p-cap" style="color:var(--cm-text)">Favors hubs, so density and clustering read high.</div>`,
   verdict: willDraw(SA),
 });
@@ -317,7 +326,7 @@ const aroundEditor = editor({
 const bigEditor = editor({
   title: "New rule",
   body: `${cond("citationsReceived", "&gt;=", "5", { num: true, focus: true })}<div class="p-add" style="padding:0;height:24px">${I("plus")}Add condition</div>`,
-  verdict: `<span class="k-strong k-num">${n(ruleBig.nodes)} nodes, ${n(ruleBig.edges)} edges</span><span class="p-err">will not draw: more than this browser draws at once (<span class="k-num">${LIMIT}</span>). Add a condition to narrow it further.</span>`,
+  verdict: `<span class="k-strong k-num">${nk("datasets.citations.ruleCounts.1.nodes")} nodes, ${nk("datasets.citations.ruleCounts.1.edges")} edges</span><span class="p-err">will not draw: more than this browser draws at once (<span class="k-num">${LIMIT}</span>). Add a condition to narrow it further.</span>`,
 });
 const noneEditor = editor({
   title: "New rule",
@@ -333,11 +342,11 @@ ${detail ? `<div class="p-l2">${detail}</div>` : ""}</div></div></div>
 ${next}<div class="p-add">${I("plus")}Add step</div>
 <div class="p-foot-note">Each count is what is left after that step; the small number is what the step took out.</div></div></div>`;
 const stepsAfter = stepsAfterOf("Filter to", ruleOk.rule, NA.nodes);
-const stepsAfterKeep = stepsAfterOf(KEEP, `the table's first ${T2.n} rows, ${SORT} ${T2.cutoff} to ${T2.rows[0].citationsReceived}`, T2.nodes,
+const stepsAfterKeep = stepsAfterOf(KEEP, `the table's first ${nf(T2, "n")} rows, ${SORT} ${T2.cutoff} to ${T2.rows[0].citationsReceived}`, T2.nodes,
   `<div class="k-group-head">Suggested next</div><div class="k-row p-row2 p-offer">${I("funnel")}<span class="k-grow">Add their neighbors...<span class="p-sub">1 hop, both directions; counted before it commits</span></span>${I("chevron-right", "k-i-sm k-secondary")}</div>`);
 
-const toastOf = (left) => `<div class="k-toast"><span>Filtered to <span class="k-num">${n(left)} of ${n(C.nodes)}</span> nodes</span><span class="k-toast-action">Undo</span></div>`;
-const toast = toastOf(NA.nodes);
+const toastOf = (r) => `<div class="k-toast"><span>Filtered to <span class="k-num">${nf(r, "nodes")} of ${nk("datasets.citations.nodes")}</span> nodes</span><span class="k-toast-action">Undo</span></div>`;
+const toast = toastOf(NA);
 
 const cpuPanel = `<div class="p-panel">${graphSection(layoutRow("Engine: CPU; WebGPU not available"))}</div>`;
 
@@ -350,7 +359,7 @@ const MARKS1B = mark(290, 344, 1) + mark(1060, 400, 2) + mark(1190, 100, 3);
 const states = [
   {
     id: "not-drawn", title: "1. Not drawn: everything counted, nothing drawn",
-    text: `The file loaded in full. In the middle of the empty canvas, graphty-element says what it did not draw and why, that nothing was lost, and gives the one way forward. The table below holds every patent, most cited first. The graph's Statistics give the numbers a first look at a drawing would: size, density, how the graph falls apart into components -- one of them holds ${pct(C.stats.largestShare)} of the patents -- and the in-degree distribution, the heavy tail of citations on log-log axes, with the ${n(DD.in.zero)} patents nobody in the sample cites counted beside it.`,
+    text: `The file loaded in full. In the middle of the empty canvas, graphty-element says what it did not draw and why, that nothing was lost, and gives the one way forward. The table below holds every patent, most cited first. The graph's Statistics give the numbers a first look at a drawing would: size, density, how the graph falls apart into components -- one of them holds ${pct(C.stats.largestShare)} of the patents -- and the in-degree distribution, the heavy tail of citations on log-log axes, with the ${nk("datasets.citations.degreeDistribution.in.zero")} patents nobody in the sample cites counted beside it.`,
     tall: true, chip: "Full graph", canvas: emptyCanvas, dock: dock(fullScope, C.rows, C.profiles, C.nodes),
     right: right(false, layoutRow("Waits for a narrower graph", true), fullStats),
     marks: MARKS1,
@@ -359,20 +368,20 @@ const states = [
       [`Path and Note are off while nothing is drawn: both act on drawn nodes. Select stays live (rows selected in the table are the selection), and so do Quick actions (Find and every command) and the view mode.`, `Framework: interface-templates.md 14 (five targets); proposed in framework-changes.md, "Canvas controls while nothing is drawn". Built with: compact-mantine ToolButton, ToolGroup, the view mode ToolButton with its flyout.`],
       [`The zoom menu is off and shows no level: there is no drawing to zoom. Once something draws it reads as a percentage, as in Figma.`, `Framework: interface-templates.md 6 (row 2, the zoom and view Menu shown as the zoom level); framework-changes.md, "Canvas controls while nothing is drawn". Built with: Mantine Menu with a ghost Button trigger.`],
       [`No whole-graph layout runs past the limit, so Run layout is off, and the row says why in place of the engine line.`, `Framework: state-matrix.md 4.2; framework-changes.md, "the graph's Layout row says why Run layout is off". Built with: compact-mantine ActionRow with Run layout as an ActionIcon in TrailingSlot.`],
-      [`Every degree says which: "average total degree" (in plus out). Isolates and each component count are links: a count selects what it counts and opens those rows in the table (state 1b). "Weak components", because on a directed graph components could be weak or strong. The size list stands in for the drawing: ${n(C.stats.componentSizes[0])} nodes in one component, the next three, then "${n(C.stats.componentsMore)} more", which counts the ${n(C.stats.isolates)} isolates too.`, `Framework: interaction-pattern-entries.md 4.3, "a count selects what it counts" (decided in framework-changes.md, "A count selects what it counts: decided"); content-design.md 5, degree on a directed graph is in, out or total (proposed in framework-changes.md, "A number names its set only when the set departs"). Built with: compact-mantine MetricRow, DataRow, Anchor.`],
-      [`The degree distribution, as options-and-encodings.md specifies it: complementary cumulative on log-log axes (nodes with in-degree k or more), so the heavy tail reads as a line instead of one tall bar; the ${n(DD.in.zero)} patents with in-degree 0 cannot sit on a log axis, so they are counted beside the chart, never dropped. In, Out and Total switch the degree; In comes first on a citation graph, where in-degree is "cited by". The maximum, ${DD.in.max}, is patent ${DD.in.maxId}.`, `Framework: options-and-encodings.md 5 ("The degree distribution, and any heavy-tailed count"); interface-templates.md 12 (the taller form, variant row on degree); interface-specification.md, Statistics (HistogramRow; its bins are blocked on graphty-element). Built with: compact-mantine SegmentedControl; HistogramRow in its taller form (implementation-mapping.md 10.1).`],
-      [`The table is the working surface at two thirds of the canvas column, and nothing about it waits on the drawing: every one of the ${n(C.nodes)} patents is a row, read from graphty-element a page at a time in the sort order (the scroll thumb is sized for all of them), so the top rows can be read, selected and exported with nothing drawn. After a run the table sorts by the run's result. Column widths are fixed, and each header's summary describes the rows in scope.`, `Framework: state-matrix.md 4.2 (dock at two thirds; "the table and inspector work unchanged"); interface-templates.md 16, whose block on rows past the drawing limit is lifted in framework-changes.md, "the table lists every row, and the offered steps are ...". Built with: compact-mantine DataTable (virtualized) in the bottom dock, over graphty-element's paged listing.`],
+      [`Every degree says which: "average total degree" (in plus out). Isolates and each component count are links: a count selects what it counts and opens those rows in the table (state 1b). "Weak components", because on a directed graph components could be weak or strong. The size list stands in for the drawing: ${nk("datasets.citations.stats.componentSizes.0")} nodes in one component, the next three, then "${nk("datasets.citations.stats.componentsMore")} more", which counts the ${nk("datasets.citations.stats.isolates")} isolates too.`, `Framework: interaction-pattern-entries.md 4.3, "a count selects what it counts" (decided in framework-changes.md, "A count selects what it counts: decided"); content-design.md 5, degree on a directed graph is in, out or total (proposed in framework-changes.md, "A number names its set only when the set departs"). Built with: compact-mantine MetricRow, DataRow, Anchor.`],
+      [`The degree distribution, as options-and-encodings.md specifies it: complementary cumulative on log-log axes (nodes with in-degree k or more), so the heavy tail reads as a line instead of one tall bar; the ${nk("datasets.citations.degreeDistribution.in.zero")} patents with in-degree 0 cannot sit on a log axis, so they are counted beside the chart, never dropped. In, Out and Total switch the degree; In comes first on a citation graph, where in-degree is "cited by". The maximum, ${DD.in.max}, is patent ${DD.in.maxId}.`, `Framework: options-and-encodings.md 5 ("The degree distribution, and any heavy-tailed count"); interface-templates.md 12 (the taller form, variant row on degree); interface-specification.md, Statistics (HistogramRow; its bins are blocked on graphty-element). Built with: compact-mantine SegmentedControl; HistogramRow in its taller form (implementation-mapping.md 10.1).`],
+      [`The table is the working surface at two thirds of the canvas column, and nothing about it waits on the drawing: every one of the ${nk("datasets.citations.nodes")} patents is a row, read from graphty-element a page at a time in the sort order (the scroll thumb is sized for all of them), so the top rows can be read, selected and exported with nothing drawn. After a run the table sorts by the run's result. Column widths are fixed, and each header's summary describes the rows in scope.`, `Framework: state-matrix.md 4.2 (dock at two thirds; "the table and inspector work unchanged"); interface-templates.md 16, whose block on rows past the drawing limit is lifted in framework-changes.md, "the table lists every row, and the offered steps are ...". Built with: compact-mantine DataTable (virtualized) in the bottom dock, over graphty-element's paged listing.`],
       [`Keep top rows... is labeled on the table itself, because keeping the first rows is a table operation: sort, then keep the first N. It opens the chip's popover at the Keep top rows editor (state 2b), so the step lands in the one list of filter steps.`, `Framework: proposed in framework-changes.md, "Past the drawing limit: Keep top rows, a plain step on the table's order". Built with: compact-mantine Button (subtle) in the dock's tab row; Popover.`],
     ],
   },
   {
     id: "isolates", title: "1b. Isolates opened in the table",
-    text: `A click on the isolates count in Statistics selects the ${n(IS.nodes)} patents it counts and opens them as rows in the table, most cited first. The chip still says Full graph: nothing is filtered, and the canvas still draws nothing. The inspector shows the selection. A component's count does the same for its members, and the components count opens a Components tab with one row per component. Show full graph returns the rows and keeps the selection.`,
+    text: `A click on the isolates count in Statistics selects the ${nk("datasets.citations.isolates.nodes")} patents it counts and opens them as rows in the table, most cited first. The chip still says Full graph: nothing is filtered, and the canvas still draws nothing. The inspector shows the selection. A component's count does the same for its members, and the components count opens a Components tab with one row per component. Show full graph returns the rows and keeps the selection.`,
     tall: true, chip: "Full graph", canvas: emptyCanvas, dock: dock(isoScope, IS.rows, IS.profiles, IS.nodes),
     right: isoRight,
     marks: MARKS1B,
     notes: [
-      [`The Selected scope: the rows are the selection, here the ${n(IS.nodes)} isolates. Show full graph returns the table to its default scope and leaves the selection as it is.`, `Framework: information-architecture.md 8.1, The table's scope; message-catalog.md graphty.table.scope; interaction-pattern-entries.md 4.3. Drawn the same way in screens/table-dock.html. Built with: compact-mantine ProseBlock and Anchor.`],
+      [`The Selected scope: the rows are the selection, here the ${nk("datasets.citations.isolates.nodes")} isolates. Show full graph returns the table to its default scope and leaves the selection as it is.`, `Framework: information-architecture.md 8.1, The table's scope; message-catalog.md graphty.table.scope; interaction-pattern-entries.md 4.3. Drawn the same way in screens/table-dock.html. Built with: compact-mantine ProseBlock and Anchor.`],
       [`Many isolates still have a citationsReceived above 0: that attribute counts citations from every later US patent, most of them outside this 1999 to 2001 sample, while in-degree counts only citations inside it.`, `Framework: output-homes.md 2, attribute. Built with: compact-mantine Table.`],
       [`The inspector reads the selection: the count, Create set from selection, and statistics that need no computing past the limit.`, `Framework: interface-specification.md, Statistics (selection.statistics()); interaction-pattern-entries.md 4.3. Built with: compact-mantine ActionRow, MetricRow, ProseBlock.`],
     ],
@@ -386,14 +395,14 @@ const states = [
     marks: box(68, 32, 96, 28) + mark(40, 36, 1) + mark(632, 186, 2) + mark(632, 276, 3) + mark(420, 318, 4),
     notes: [
       [`The chip is the trigger and the anchor: the popover opens right of the left panel, top-aligned to the chip, which shows as pressed. The canvas's Narrow the graph... opens this same popover. While open it covers part of the not-drawn message, so its first line repeats the count.`, `Framework: interface-templates.md 7 (its popover opens right of the left panel) and 10 ("A popover opens beside its trigger"); state-matrix.md 4.2. Built with: compact-mantine Pill as the Popover trigger; Popover.`],
-      [`Two offered filter steps, no new command. Keep top rows keeps the table's first N rows in the order it is sorted by -- here ${SORT}; after a run, that run's result -- and adds nothing: it is the list, not a neighborhood. It carries no count until N is set, so it has none here. Neighbors of a node is Filter to neighbors: it takes the selected row or a node found by name. Neighbors of what a step keeps is a second step, offered after the first (state 2c). Choosing a row opens its editor (states 2b and 3). Neither is called a sample: both are deliberate subsets. "Largest component" is not offered: at ${n(C.stats.componentSizes[0])} nodes it would not draw.`, `Framework: state-matrix.md 4.2, "Routes that need no prior knowledge"; element-needs.md, "Named filter steps offered past the drawing limit"; framework-changes.md, "offered steps are rows of the empty steps list", ""Top N, with neighbors" splits into "Keep top N" and "Add their neighbors"" and "Keep top rows, a plain step on the table's order". Built with: compact-mantine ActionRow in the Popover.`],
+      [`Two offered filter steps, no new command. Keep top rows keeps the table's first N rows in the order it is sorted by -- here ${SORT}; after a run, that run's result -- and adds nothing: it is the list, not a neighborhood. It carries no count until N is set, so it has none here. Neighbors of a node is Filter to neighbors: it takes the selected row or a node found by name. Neighbors of what a step keeps is a second step, offered after the first (state 2c). Choosing a row opens its editor (states 2b and 3). Neither is called a sample: both are deliberate subsets. "Largest component" is not offered: at ${nk("datasets.citations.stats.componentSizes.0")} nodes it would not draw.`, `Framework: state-matrix.md 4.2, "Routes that need no prior knowledge"; element-needs.md, "Named filter steps offered past the drawing limit"; framework-changes.md, "offered steps are rows of the empty steps list", ""Top N, with neighbors" splits into "Keep top N" and "Add their neighbors"" and "Keep top rows, a plain step on the table's order". Built with: compact-mantine ActionRow in the Popover.`],
       [`Add step opens the kinds of step (Largest component, k-core..., Rule...); Rule... opens an empty rule editor in place, under a back row.`, `Framework: interface-templates.md 7 ("+"; the rule editor takes the list's place) and 10 (Rule); framework-changes.md, "the chip stays a trigger when the last step is deleted". Built with: Mantine Menu.`],
       [`The other way down is not in this popover: select rows in the table, then Hide others (context menu or Quick actions). It draws them and changes no number, the route for a reader whose scores are the evidence. This analyst wants the narrowed graph's own numbers, so the page follows the filter step.`, `Framework: state-matrix.md 4.2, "Hide others draws a region and changes no number"; glossary.md, Hide others.`],
     ],
   },
   {
     id: "keep", title: "2b. Keep top rows: the table's first 200 rows, counted before the commit",
-    text: `Keep top rows... on the table, or the offered row in the list, opens this editor in the chip's popover. The analyst types ${T2.n}. The step keeps the table's first ${T2.n} rows in the order it is sorted by -- ${SORT}, highest first, the order already on screen -- and adds nothing to them. It says where the cut falls and what a tie at the cut leaves out, and before the commit, what it keeps and that it will draw. The button names what it does: Keep these ${T2.n} rows.`,
+    text: `Keep top rows... on the table, or the offered row in the list, opens this editor in the chip's popover. The analyst types ${nf(T2, "n")}. The step keeps the table's first ${nf(T2, "n")} rows in the order it is sorted by -- ${SORT}, highest first, the order already on screen -- and adds nothing to them. It says where the cut falls and what a tie at the cut leaves out, and before the commit, what it keeps and that it will draw. The button names what it does: Keep these ${nf(T2, "n")} rows.`,
     tall: true, chip: "Full graph", open: true, canvas: emptyCanvas, dock: dock(fullScope, C.rows, C.profiles, C.nodes),
     right: right(false, layoutRow("Waits for a narrower graph", true), fullStats),
     overlay: keepEditor(popAt),
@@ -401,22 +410,22 @@ const states = [
     notes: [
       [`The same editor whichever way it was opened, headed by a back row to the list. No Nodes or Edges switch: the step keeps table rows, and the table's tab says which.`, `Framework: interface-templates.md 7 (the rule editor takes the list's place, under a back row); proposed in framework-changes.md, "Keep top rows, a plain step on the table's order". Built with: compact-mantine Popover with PopoutHeaderConfig.`],
       [`N is the reader's, typed, never fixed by graphty. The order is the table's sort, shown as two controls, so changing either here re-sorts the table to match: the rows kept are always the rows the reader saw at the top.`, `Framework: framework-changes.md, ""Top N, with neighbors" splits into "Keep top N" and "Add their neighbors"" (N set by the reader). Built with: compact-mantine NumberInput, Select.`],
-      [`Where the cut falls: row ${T2.n}'s value, and how many rows with the same value it leaves out, so "the top ${T2.n}" is never silently arbitrary at the boundary.`, `Framework: content-design.md, numbers (a count says what it counts); proposed in the same framework-changes.md entry. Built with: compact-mantine Text.`],
-      [`The count line, before the commit: ${n(T2.nodes)} nodes and the ${n(T2.edges)} citations between them, and that they will draw. The commit names what it keeps; it is one ordinary, undoable Filter to step.`, `Framework: state-matrix.md 4.4 (a count names any capacity limit the result would cross); framework-changes.md, "the rule editor's count line". Built with: compact-mantine Text; Button.`],
+      [`Where the cut falls: row ${nf(T2, "n")}'s value, and how many rows with the same value it leaves out, so "the top ${nf(T2, "n")}" is never silently arbitrary at the boundary.`, `Framework: content-design.md, numbers (a count says what it counts); proposed in the same framework-changes.md entry. Built with: compact-mantine Text.`],
+      [`The count line, before the commit: ${nk("scenarios.pastLimitTop200.nodes")} nodes and the ${nk("scenarios.pastLimitTop200.edges")} citations between them, and that they will draw. The commit names what it keeps; it is one ordinary, undoable Filter to step.`, `Framework: state-matrix.md 4.4 (a count names any capacity limit the result would cross); framework-changes.md, "the rule editor's count line". Built with: compact-mantine Text; Button.`],
     ],
   },
   {
     id: "kept", title: "2c. The 200 most cited patents, kept and drawn",
-    text: `One step, one undo. The table is the list the analyst asked for: the ${n(T2.nodes)} rows, still sorted by ${SORT}, ${T2.profiles.citationsReceived[0]} to ${T2.profiles.citationsReceived[1]}, ready to read, check or export. Because ${n(T2.nodes)} patents fit the limit, the canvas now draws them too: most sit in one component of ${T2.componentSizes[0]}, and ${T2.isolates} cite none of the others and are cited by none. Statistics read the ${n(T2.nodes)} and say at the top what the step keeps. Below the frame: the chip's popover after the commit, which offers Add their neighbors as a separate next step.`,
-    chip: `Filtered: ${n(T2.nodes)} of ${compact(C.nodes)} nodes &middot; 1 step`,
-    canvas: drawnCanvas("pdl-top200", `The ${n(T2.nodes)} most cited patents and the ${n(T2.edges)} citations between them`, toastOf(T2.nodes), "img/"),
+    text: `One step, one undo. The table is the list the analyst asked for: the ${nk("scenarios.pastLimitTop200.nodes")} rows, still sorted by ${SORT}, ${T2.profiles.citationsReceived[0]} to ${T2.profiles.citationsReceived[1]}, ready to read, check or export. Because ${nk("scenarios.pastLimitTop200.nodes")} patents fit the limit, the canvas now draws them too: most sit in one component of ${T2.componentSizes[0]}, and ${T2.isolates} cite none of the others and are cited by none. Statistics read the ${nk("scenarios.pastLimitTop200.nodes")} and say at the top what the step keeps. Below the frame: the chip's popover after the commit, which offers Add their neighbors as a separate next step.`,
+    chip: `Filtered: ${nk("scenarios.pastLimitTop200.nodes")} of ${compact(C.nodes)} nodes &middot; 1 step`,
+    canvas: drawnCanvas("pdl-top200", `The ${n(fxAt("scenarios.pastLimitTop200.nodes"))} most cited patents and the ${n(fxAt("scenarios.pastLimitTop200.edges"))} citations between them`, toastOf(T2), "img/"),
     dock: dock(keepScope, T2.rows, T2.profiles, T2.nodes),
-    right: right(true, layoutRow("Engine: WebGPU"), stats(T2, { edgesOf: true, sample: `Describes the ${n(T2.nodes)} most cited patents, not a random sample. Density reads high: highly cited patents cite each other.`, dd: T2.degreeDistribution, zeroMeans: "Cited by none of the other patents the step keeps." })),
+    right: right(true, layoutRow("Engine: WebGPU"), stats(T2, { edgesOf: true, sample: `Describes the ${nk("scenarios.pastLimitTop200.nodes")} most cited patents, not a random sample. Density reads high: highly cited patents cite each other.`, dd: T2.degreeDistribution, zeroMeans: "Cited by none of the other patents the step keeps." })),
     marks: box(66, 32, 232, 28) + mark(40, 36, 1) + mark(1190, 272, 2) + mark(420, 606, 3) + mark(330, 20, 4),
     notes: [
       [`The chip reads Filtered, as for any step; the step's name in the list is "${KEEP}".`, `Framework: message-catalog.md filter.chip; interface-templates.md 7. Built with: compact-mantine Pill.`],
       [`What the step keeps, stated once at the top of Statistics, and the reading it inflates marked: density ${T2.density} here against ${C.stats.density.toFixed(7)} for the full graph.`, `Framework: state-matrix.md 4.2 (the caution travels with the step); framework-changes.md, "the table lists every row, and the offered steps are ...". Built with: compact-mantine ProseBlock, DataRow with a Badge.`],
-      [`The list is the table: the ${n(T2.nodes)} rows in the order they were kept, the scope line naming how many of the ${n(C.nodes)}. Exporting the table writes exactly these rows.`, `Framework: interface-templates.md 16; output-homes.md (Export table). Built with: compact-mantine DataTable.`],
+      [`The list is the table: the ${nk("scenarios.pastLimitTop200.nodes")} rows in the order they were kept, the scope line naming how many of the ${nk("datasets.citations.nodes")}. Exporting the table writes exactly these rows.`, `Framework: interface-templates.md 16; output-homes.md (Export table). Built with: compact-mantine DataTable.`],
       [`Drawn because the kept rows fit the limit, gray at first paint, with arrows; the ten most cited are labeled where they fit.`, `Framework: scale-levels.md 2; canvas-drawing.md 1. Drawing: screens/img/pdl-top200, from screens/past-drawing-limit-numbers.mjs.`],
     ],
     insets: [
@@ -443,9 +452,9 @@ const states = [
   },
   {
     id: "drawn", title: "4. Narrowed and drawn",
-    text: `One Filter to step, one undo step. The chip names the scope and how many steps make it; the canvas draws the ${n(NA.nodes)} patents and lays out only them, gray because no style layer is bound yet, with arrows and the most cited labels that fit; the not-drawn line is gone because nothing in scope is left undrawn; the dock goes back to its usual third, its header summaries describing the ${n(NA.nodes)}; and Statistics now read the filtered graph: ${NA.components} components, ${NA.isolates} isolates, because a rule on attributes does not follow citations. Below the frame: the chip's popover after the commit, and the same Layout row in a browser without WebGPU.`,
-    chip: `Filtered: ${n(NA.nodes)} of ${compact(C.nodes)} nodes &middot; 1 step`,
-    canvas: drawnCanvas("narrowed", `${n(NA.nodes)} drug and medical patents with 25 or more citations received, and the ${n(NA.edges)} citations between them`, toast),
+    text: `One Filter to step, one undo step. The chip names the scope and how many steps make it; the canvas draws the ${nk("datasets.citations.narrowed.nodes")} patents and lays out only them, gray because no style layer is bound yet, with arrows and the most cited labels that fit; the not-drawn line is gone because nothing in scope is left undrawn; the dock goes back to its usual third, its header summaries describing the ${nk("datasets.citations.narrowed.nodes")}; and Statistics now read the filtered graph: ${NA.components} components, ${NA.isolates} isolates, because a rule on attributes does not follow citations. Below the frame: the chip's popover after the commit, and the same Layout row in a browser without WebGPU.`,
+    chip: `Filtered: ${nk("datasets.citations.narrowed.nodes")} of ${compact(C.nodes)} nodes &middot; 1 step`,
+    canvas: drawnCanvas("narrowed", `${n(fxAt("datasets.citations.narrowed.nodes"))} drug and medical patents with 25 or more citations received, and the ${n(fxAt("datasets.citations.narrowed.edges"))} citations between them`, toast),
     dock: dock(narrowScope, NA.rows, NA.profiles, NA.nodes),
     right: right(true, layoutRow("Engine: WebGPU"), stats(NA, { edgesOf: true, dd: NA.degreeDistribution, zeroMeans: "Cited by none of the other patents the rule keeps." })),
     marks: box(66, 32, 232, 28) + mark(40, 36, 1) + mark(590, 496, 2) + mark(330, 20, 3) + mark(1190, 272, 4) + mark(1190, 218, 5) + mark(420, 606, 6),
@@ -455,7 +464,7 @@ const states = [
       [`First paint is gray: no style layer is bound, so there is no legend. Arrows are drawn (edge detail at this size); labels follow the label budget, most cited first, dropping any that would collide.`, `Framework: state-matrix.md 4.3; scale-levels.md 2 (Edge drawing, Labels); canvas-drawing.md 1. Drawing: kit/canvas/citations-narrowed.`],
       [`Statistics read the filtered graph with no scope line of their own: the chip marks the scope once. Edges carry their own "of", because the chip counts only nodes.`, `Framework: principles.md 1, "Scope is marked once" and "The chip alone marks the filtered node count". Built with: compact-mantine MetricRow, DataRow.`],
       [`The Layout row names the engine that ran, in graphty.capability.engine's words. Without WebGPU it names the CPU and the reason (inset below): secondary ink, no warning mark, nothing to dismiss.`, `Framework: state-matrix.md, Inspector / Layout editor / Ideal; message-catalog.md graphty.capability.engine, with the reason list proposed in framework-changes.md ("the engine report line names its reason from a fixed list"). Built with: compact-mantine ActionRow.`],
-      [`The dock is back at a third, and each header summary describes the ${n(NA.nodes)}: one category, citationsReceived 25 to 779.`, `Framework: framework-changes.md, "the dock goes back to one third once the scope draws"; interface-templates.md 16. Built with: compact-mantine Table.`],
+      [`The dock is back at a third, and each header summary describes the ${nk("datasets.citations.narrowed.nodes")}: one category, citationsReceived 25 to 779.`, `Framework: framework-changes.md, "the dock goes back to one third once the scope draws"; interface-templates.md 16. Built with: compact-mantine Table.`],
     ],
     insets: [
       ["The step, after the commit", `The chip's popover now lists the one step: its checkbox (turn off), what it took out and what is left, Edit rule (back into the editor) and its menu (Delete step). Deleting it or Undo returns to state 1.`, stepsAfter],
@@ -465,15 +474,15 @@ const states = [
   {
     id: "sample", title: "5. Two steps: the most cited patents, then their neighbors",
     text: `The other way down, for a reader who wants a neighborhood rather than a list: ${TOP}, then Add their neighbors, two ordinary steps that can each be turned off or undone alone. The chip says Filtered and 2 steps; Statistics say at their top what the steps keep and which readings they inflate. The degree chart shows Total here: each of the three patents keeps all of its neighbors, so its total degree is the same as in the full graph (max ${SA.degreeDistribution.total.max}). The drawing shows why the step favors hubs: three hubs and the patents around them.`,
-    chip: `Filtered: ${n(SA.nodes)} of ${compact(C.nodes)} nodes &middot; 2 steps`,
+    chip: `Filtered: ${nk("datasets.citations.degreeSample.nodes")} of ${compact(C.nodes)} nodes &middot; 2 steps`,
     canvas: drawnCanvas("sample", `The ${SA.n} most cited patents and their ${n(SA.nodes - SA.n)} neighbors`),
     dock: dock(sampleScope, SA.rows, SA.profiles, SA.nodes),
-    right: right(true, layoutRow("Engine: WebGPU"), stats(SA, { edgesOf: true, sample: `Describes the ${SA.n} most cited patents and all their neighbors, not a random sample. It favors hubs, so density and clustering read high.`, dd: SA.degreeDistribution, ddKind: "total" })),
+    right: right(true, layoutRow("Engine: WebGPU"), stats(SA, { edgesOf: true, sample: `Describes the ${nf(SA, "n")} most cited patents and all their neighbors, not a random sample. It favors hubs, so density and clustering read high.`, dd: SA.degreeDistribution, ddKind: "total" })),
     marks: box(66, 32, 232, 28) + mark(40, 36, 1) + mark(1190, 272, 2) + mark(330, 20, 3),
     notes: [
       [`Two ordinary filter steps, "${TOP}" and "Add their neighbors", so the chip reads "Filtered:" and counts 2 steps. Either can be turned off or undone alone, and each step's name says what it did.`, `Framework: state-matrix.md 4.2 ("Each is an ordinary, undoable Filter to step"); message-catalog.md filter.chip; framework-changes.md, "the table lists every row, and the offered steps are ..." (it withdraws "a sampled step names itself on the chip"). Built with: compact-mantine Pill.`],
       [`One line at the top of Statistics says what the step keeps and that it is not a random sample, and density, which it inflates, carries its own mark: ${SA.density.toFixed(5)} here against ${C.stats.density.toFixed(7)} for the full graph.`, `Framework: state-matrix.md 4.2 (the caution travels with the step); principles.md 1, "Scope is marked once". Built with: compact-mantine ProseBlock, DataRow with a Badge.`],
-      [`The ${SA.n} hubs and their neighbors, gray at first paint, with arrows; labels follow the budget. Most neighbors cite a hub; a few are cited by it.`, `Framework: scale-levels.md 2; canvas-drawing.md 1. Drawing: kit/canvas/citations-sample.`],
+      [`The ${nf(SA, "n")} hubs and their neighbors, gray at first paint, with arrows; labels follow the budget. Most neighbors cite a hub; a few are cited by it.`, `Framework: scale-levels.md 2; canvas-drawing.md 1. Drawing: kit/canvas/citations-sample.`],
     ],
     insets: [
       ["Add their neighbors, before the commit", `The second step, opened from Suggested next after ${TOP}: hops and direction are controls, and the count says what the two steps keep together.`, addNbrEditor],

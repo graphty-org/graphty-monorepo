@@ -109,7 +109,7 @@ def ppi_left():
 TOOLBAR = (
     '<div class="k-toolbar" role="toolbar">'
     f'<span class="k-tool" aria-pressed="true" aria-label="Select">{i("mouse-pointer-2", "k-i-lg")}</span><span class="k-tool-caret" aria-label="More tools">{i("chevron-down", "k-i-sm")}</span>'
-    f'<span class="k-tool" aria-label="Path">{i("route", "k-i-lg")}</span><span class="k-tool" aria-label="Note">{i("sticky-note", "k-i-lg")}</span><span class="k-toolbar-sep"></span>'
+    f'<span class="k-tool" aria-label="Path">{i("route", "k-i-lg")}</span><span class="k-toolbar-sep"></span>'
     f'<span class="k-tool" aria-label="Quick actions">{i("zap", "k-i-lg")}</span><span class="k-toolbar-sep"></span>'
     f'<span class="k-tool" aria-label="View mode">{i("square", "k-i-lg")}</span><span class="k-tool-caret" aria-label="View mode options">{i("chevron-down", "k-i-sm")}</span></div>'
 )
@@ -167,7 +167,7 @@ def cit_right(sampled=None):
 PPI_RIGHT = right(
     ppi["frame"]["graphRow"],
     [("nodes", fxn("datasets.ppi.nodes", ppi["nodes"])), ("edges", fxn("datasets.ppi.edges", ppi["edges"]))],
-    [("direction", "undirected"), ("weight", "confidence, not used yet")],
+    [("direction", "undirected"), ("weight", "confidence: each run that uses it asks what it means")],
     results(ppi_left()),
 )
 
@@ -241,7 +241,7 @@ QUESTION = (
     + radio("a longer or costlier step", "distance")
     + radio("more can pass through", "capacity")
     + radio(f"Don't use {WCOL}", "")
-    + f'<div class="of-hint k-secondary">Nothing runs until you answer. The answer is kept on {WCOL}: every measure and the Path tool read it.</div>'
+    + '<div class="of-hint k-secondary">Asked for this run. Nothing is chosen, so Enter and Run do nothing until you pick one.</div>'
     "</div>"
 )
 
@@ -369,13 +369,13 @@ def note(html):
 REFUSE_NOTES = (
     note("<b>A run that cannot use the chosen weight refuses before it starts</b>, with the same component, wording shape and focus order as the filtered-scope refusal: the error slot says what cannot happen and why, the field that causes it carries the warning mark, and the header's one primary button is the fix. Here the analyst set Weight by to confidence on a Betweenness that had run unweighted; nobody has said what a higher confidence means. framework-changes.md, &quot;Run options: a run that cannot use its weight refuses, like the filtered-scope refusal&quot;.")
     + note("<b>Nothing runs with the weight silently dropped</b>, and an unanswered meaning is &quot;not used&quot; by every measure, PageRank included, so the same column never means something in one result and nothing in another. Both are graphty-element behavior, proposed to it (framework-changes.md, &quot;graphty-element: an unanswered weight meaning is not used by every measure&quot;); the app only shows the refusal the element returns.")
-    + note("<b>Set up confidence</b>: the header <b>TrailingSlot</b> <b>Button</b> (primary), where Run was. Focus lands on it and the error slot is announced; Enter opens the weight question for this column. Tab then reaches Close, Scope and the marked Weight by field, where &quot;none&quot; is the other way forward. Esc closes with nothing run; the unweighted values stay. Statistics reads &quot;Weight: confidence, not used yet&quot;.")
+    + note("<b>Set up confidence</b>: the header <b>TrailingSlot</b> <b>Button</b> (primary), where Run was. Focus lands on it and the error slot is announced; Enter opens the weight question for this column. Tab then reaches Close, Scope and the marked Weight by field, where &quot;none&quot; is the other way forward. Esc closes with nothing run; the unweighted values stay. Statistics reads &quot;confidence: each run that uses it asks what it means&quot;.")
     + note("<b>Error slot</b>: warning glyph, the cause in bold, one secondary line; role alert. interaction-pattern-entries 8.1. Weight by is a <b>StyleSelect</b> listing the numeric edge columns and none, with the <b>FieldRow</b> warning mark.")
 )
 
 QUESTION_NOTES = (
     note("<b>The weight question, opened by the refusal's button</b>, under the Weight by field, focus on its first choice. The words are the column's, the technical term secondary (glossary 11); the examples are real values of confidence: its largest, a middle one (TP53 to DUSP6) and its smallest.")
-    + note("<b>Nothing runs until it is answered</b>: Run is off, its reason in the hint under the question. Answering writes the meaning to the column as its own undo entry and turns Run on; the run is still the analyst's click. A closer link or a costlier step can weight paths; more can pass through cannot, so Betweenness refuses again, naming the answer; Don't use confidence sets Weight by to none.")
+    + note("<b>Nothing runs until it is answered</b>: Run is off, its reason in the hint under the question. Answering sets this run's option and turns Run on; the run is still the analyst's click. Enter in the group does nothing until an answer is chosen. The answer belongs to this run, not to the column, as on screens/weight-role-trap.html and screens/sets-and-paths.html. A closer link or a costlier step can weight paths; more can pass through cannot, so Betweenness refuses again, naming the answer; Don't use confidence sets Weight by to none.")
     + note("<b>Mantine Radio</b> in a radio group (figma-spec 5.6). There is no &quot;decide later&quot; choice: leaving the question unanswered already means not used, and Don't use says so for good.")
 )
 

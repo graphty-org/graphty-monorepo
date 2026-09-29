@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds screens/take-a-note.html: writing and reading a note (task-flows.md 7) in eight states.
+// Builds screens/take-a-note.html: writing and reading a note (task-flows.md 7) in nine states.
 // Run from design/ui/prototype/: node screens/take-a-note.gen.mjs
 // Every number is from kit/fixtures.json: the March transfers (transactions), the mule ring's
 // accounts and their positions (transactions.anchors.flagged), and the same accounts' PageRank in
@@ -21,7 +21,7 @@ const GRAPH = M.graphName;
 const COLLECTOR = "ACC-753261";
 const TOP_NOTE = "Highest riskScore in the ring. Request the KYC file before the SAR goes out.";
 const TOP = "ACC-233575";
-const quote = `${COLLECTOR} pagerank ${acc(COLLECTOR).pagerank}`;
+const quote = `${COLLECTOR} PageRank ${acc(COLLECTOR).pagerank}`;
 const noteText = `Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ${COLLECTOR} ranks highest in the ring by PageRank: likely the collector.`;
 const riskRange = `${Math.min(...M.flaggedAccounts.map((r) => r.riskScore))} to ${Math.max(...M.flaggedAccounts.map((r) => r.riskScore))}`;
 if (riskRange !== "88 to 98") throw new Error("the note's text no longer matches the fixture: " + riskRange);
@@ -223,7 +223,7 @@ state("s1", "1 Add note", `${rail("graph")}
   ${canvas({ drawing: "transactions-flagged", alt: "3,000 accounts as density; the 14 accounts of Mule ring selected" })}
   ${setInspector({ overflowOpen: true })}`,
 `<div class="k-menu" style="left:1196px;top:132px;width:232px" role="menu">
-  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Compare with...</div>
+  <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Compare with the rest</div>
   <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Collapse</div>
   <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Hide on canvas</div>
   <div class="k-menu-item" role="menuitem"><span class="k-check-col"></span>Run layout</div>
@@ -262,7 +262,7 @@ state("s2", "2 Writing", `${rail("graph")}
 `  <div class="k-annot-note" style="left:330px;top:70px"><b>Written where it will be read.</b> The Note editor opens beside its targets, as Figma's comment composer opens at its pin and its thread opens in the same spot. It never covers them. interaction-patterns.md 2, note [c]; proposed for writing too (framework-changes.md). compact-mantine <b>PopoutPanel</b>.</div>
   <span class="k-annot-box" style="left:${298 + EX + 8}px;top:${150 + 44}px;width:256px;height:26px"></span>
   <div class="k-annot-note" style="left:330px;top:250px"><b>About line first.</b> "About Mule ring, 14 accounts" is on screen before a word is typed, so a note meant for the set cannot land on the graph unseen. The wording is the proposed message graphty.note.about.</div>
-  <div class="k-annot-note" style="left:1210px;top:236px"><b>Enter makes a new line; Ctrl+Enter adds</b> (Cmd+Enter on a Mac), said under the box, so a paragraph break never posts a half-written note. <b>Saving as: ${AUTHOR}</b> is the project's author setting as given, blank if none is set. It appears in the editor only; Change... opens the setting.</div>
+  <div class="k-annot-note" style="left:1210px;top:236px"><b>Enter makes a new line; Ctrl+Enter adds</b> (Cmd+Enter on a Mac), said under the box, so a paragraph break never posts a half-written note. <b>Saving as: ${AUTHOR}</b> is the author setting as given; with none set it reads "Saving as: no name". It is on every note being written or edited (states 2, 4 and 6), and only there. Change... opens the setting (state 9).</div>
   <div class="k-annot-note" style="left:1210px;top:420px"><b>The writer added this citation</b> with Cite a run... (states 4 and 6 show it unused); nothing is cited for him. Its chip carries the run's settings, so the note says which PageRank it means; a click opens the run's details.</div>
   <div class="k-annot-note" style="left:330px;top:390px"><b>Nothing exists yet.</b> No undo entry until the first text is committed; Esc on an empty note leaves nothing. interaction-pattern-entries.md 6.1. Mantine <b>Textarea</b>.</div>
   <div class="k-annot-note" style="left:1210px;top:580px"><b>The selection is untouched.</b> The inspector still shows Mule ring; the note has no Notes row until it is added. interface-specification.md 3.</div>
@@ -282,7 +282,7 @@ state("s3", "3 Added", `${rail("graph")}
   ${canvas({ drawing: "transactions-flagged", alt: "3,000 accounts as density; the 14 accounts of Mule ring selected, the new note open beside them with its marker", stage: ringMarker,
       over: editor({ x: EX, y: 150, tail: ring.y - 150 - 6, head: "Note", ...readNote(WHEN_RING) }) })}
   ${setInspector({ notes: [inspRow({ sel: true, when: WHEN_RING, text: noteText })] })}`, "",
-`  <div class="k-annot-note" style="left:330px;top:70px"><b>Added: one undo entry, "Add note".</b> Ctrl+Enter (Cmd+Enter on a Mac) or Add committed it; the editor stays open on the posted note. The note records Marcus as its author, but no row or byline names him: every note in this project is by one person. No notice: the note is already on screen. interaction-pattern-entries.md 6.1.</div>
+`  <div class="k-annot-note" style="left:330px;top:70px"><b>Added: one undo entry, "Add note".</b> Ctrl+Enter (Cmd+Enter on a Mac) or Add committed it; the editor stays open on the posted note. The note records Marcus as its author, but no row or byline names him: every note in this project is by one person. No notice: the note is already on screen. A screen reader is not left in silence: a polite announcement says "Note added to Mule ring. Ctrl+Z removes it.", as every other commit and undo is spoken, and focus stays in the editor on the posted note. interaction-pattern-entries.md 6.1.</div>
   <div class="k-annot-note" style="left:330px;top:190px"><b>Note marker</b> in note ink at its targets, drawn by graphty-element, never a data color. canvas-drawing.md 6 and 12. Shown while Note markers is on.</div>
   <span class="k-annot-box" style="left:1202px;top:572px;width:234px;height:108px"></span>
   <div class="k-annot-note" style="left:930px;top:640px"><b>Notes section:</b> appears once a note targets the set; rows clamped to two lines, and "+" opens a new note beside the set. It lists; it is not where a note is written. interface-specification.md 3. <b>Tree</b> rows.</div>`);
@@ -322,7 +322,7 @@ state("s6", "6 Graph note", `${rail("graph")}
   ${canvas({ drawing: "transactions-density", alt: "3,000 accounts as density, nothing selected; a new note about the graph open at the top right of the canvas", legendOther: null,
       over: editor({ x: CW - 272 - 12, y: 56, head: "New note", about: aboutLine("network", `About the graph ${GRAPH}`),
         body: typing("March export from the card platform. Transfers under $10 are cut upstream."), cites: citeAdd,
-        quotes: "", foot: hint }) })}
+        quotes: quoteRow(`<span class="nt-link">Quote a value...</span>`), foot: hint }) })}
   ${graphInspector({ overflowOpen: false })}`, "",
 `  <div class="k-annot-note" style="left:330px;top:70px"><b>Nothing selected, so the note is about the graph.</b> Started from the graph's type-row menu (Add note) or Quick actions. The graph has no place on the canvas, so the editor opens at the canvas's top right, next to the inspector that shows the graph.</div>
   <span class="k-annot-box" style="left:${298 + CW - 272 - 12 + 8}px;top:${56 + 44}px;width:256px;height:26px"></span>
@@ -365,6 +365,28 @@ state("s8", "8 After new data", `${rail("notes")}
   <div class="k-annot-note" style="left:330px;top:250px"><b>The cited run is from an earlier data version:</b> "Earlier data", with its one verb, Add current value, which re-cites the April run as one undo entry, "Edit note". glossary.md 10.</div>
   <div class="k-annot-note" style="left:330px;top:400px"><b>The quote is marked:</b> ${COLLECTOR} was ${acc(COLLECTOR).pagerank} when written and is ${collectorApril} now. In April ${topRingApril.id} ranks highest in the ring (${topRingApril.pagerank}), so the note's claim needs checking before the report goes out. The mark "now {value}" is proposed (framework-changes.md).</div>
   <div class="k-annot-note" style="left:930px;top:640px"><b>Needs graphty-element:</b> quoted values marked when the live value differs, and citation freshness. element-needs.md, "A notes collection with targets, citations and quoted values marked when the live value differs".</div>`);
+
+// 9. Change... from "Saving as": the author setting, which never reaches notes saved earlier
+const nameDialog = `<div class="k-backdrop" style="position:absolute"><div class="k-modal x-name" role="dialog" aria-label="Your name on notes and recipes">
+  <div class="k-modal-head">Your name on notes and recipes<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close">${I("x")}</span></div>
+  <div class="k-modal-body">
+    <div class="k-fieldrow"><span class="k-legend">Name</span><div class="k-fields"><span class="k-field k-span" data-focus>Marcus Webb<span class="nt-caret"></span></span></div></div>
+    <div class="k-prose x-name-help"><b>Applies to notes you save from now on.</b> Names are never added to earlier notes.</div>
+    <div class="k-prose k-secondary x-name-help">Recorded exactly as typed. Leave blank to record no name.</div>
+  </div>
+  <div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Save</span></div>
+</div></div>`;
+state("s9", "9 Your name", `${rail("graph")}
+  ${graphPanel({ setSelected: true })}
+  ${canvas({ drawing: "transactions-flagged", alt: `3,000 accounts as density; Mule ring still selected; a new note about ${TOP} open beside it, and the name dialog over the app`,
+      stage: ringMarker + hair,
+      over: editor({ x: EX, y: top.y - 40, tail: 34, head: "New note", about: aboutLine("circle-dot", `About ${TOP}`, true),
+        body: typing(TOP_NOTE), cites: citeAdd,
+        quotes: quoteRow(`<span class="k-pill">riskScore ${acc(TOP).riskScore}</span>`), foot: hint }) })}
+  ${setInspector({ notes: [inspRow({ when: WHEN_RING, text: noteText })] })}`, nameDialog,
+`  <div class="k-annot-note" style="left:330px;top:70px;z-index:80"><b>Change... in "Saving as: ${AUTHOR}"</b> opens the same dialog as Preferences, Your name on notes and recipes (screens/preferences.html). Marcus is adding his surname. The draft stays open behind it with its text.</div>
+  <div class="k-annot-note" style="left:1010px;top:70px;z-index:80"><b>Forward only.</b> Save changes the name on this note and every later one. The ring note Marcus added earlier keeps "${AUTHOR}"; a note saved before any name was set stays blank. Nothing offers to put a name on earlier notes. Owner decision (owner-feedback.md): the author is recorded as given, blank if none is set.</div>
+  <div class="k-annot-note" style="left:1010px;top:640px;z-index:80">compact-mantine <b>Modal</b> with a <b>FieldRow</b> + <b>TextInput</b> and <b>ModalFooter</b>, as in Preferences.</div>`);
 
 // ---------- the page ----------
 const sw = states.map((s) => `<a href="#${s.id}">${s.label}</a>`).join("");
@@ -437,6 +459,8 @@ ${swOn} { background: var(--k-annot); color: #fff; font-weight: 600; }
   .qp-group { padding: 6px 8px 2px; }
   .qp-opt { display: flex; gap: 8px; align-items: center; height: 24px; padding: 0 8px; }
   .qp-opt[aria-selected="true"] { background: var(--cm-bg-selected); }
+  .x-name { width: 400px; }
+  .x-name-help { padding: 4px 16px 0; font-size: 11px; line-height: 16px; }
   .qp-foot { padding: 4px 8px 2px; border-top: 1px solid var(--cm-border); margin-top: 4px; }
 
   /* Note marker on the canvas: a callout in note ink (the canvas ink), never a data color */

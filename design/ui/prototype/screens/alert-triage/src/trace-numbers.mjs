@@ -65,6 +65,11 @@ function injected() {
     const sum = (list) => round2(list.reduce((s, r) => s + r.amount, 0));
     const inOrder = rows.filter((r) => !r.earlierThanHopBefore);
     const nodes2 = [...d2.keys()];
+    // Each account's money inside the step: Received and Sent over the step's own transfers only
+    // (the weighted in- and out-degree on amount, on the filtered graph), drawn under its name.
+    const traceMoney = Object.fromEntries(nodes2.map((v) => [ids[v], {
+        received: sum(rows.filter((r) => r.target === ids[v])), sent: sum(rows.filter((r) => r.source === ids[v])) }]));
+    const money = (x) => x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     // The step footer's two sums for the selected account, split at the step's From date.
     // Read over the full graph: a dated Out step holds none of the money that came in before.
     const own = edges.map((e, k) => [e, k]).filter(([[a, b]]) => a === seed || b === seed);
@@ -84,9 +89,12 @@ function injected() {
     const inCount = (v) => rows.filter((r) => r.target === ids[v]).length;
     const hub = nodes2.filter((v) => v !== seed).sort((a, b) => inCount(b) - inCount(a))[0];
     const byHop = [0, 1, 2].map((h) => nodes2.filter((v) => d2.get(v) === h && v !== hub).sort((a, b) => (ids[a] < ids[b] ? -1 : 1)));
-    const pos = new Map([[hub, [1080, Math.round(H * 0.75)]]]);
+    // Every mark and its three label lines stay above y 620: below that the canvas holds the
+    // legend card, the undo notice and the toolbar, which would cover the lowest labels.
+    const TOP = 60, BOTTOM = 620;
+    const pos = new Map([[hub, [1080, 540]]]);
     const COLX = [150, 450, 780];
-    byHop.forEach((list, h) => list.forEach((v, j) => pos.set(v, [COLX[h], Math.round(((j + 1) * H) / (list.length + 1))])));
+    byHop.forEach((list, h) => list.forEach((v, j) => pos.set(v, [COLX[h], Math.round(TOP + ((j + 1) * (BOTTOM - TOP)) / (list.length + 1))])));
     const anchors = Object.fromEntries(nodes2.map((v) => [ids[v], { x: Math.round((pos.get(v)[0] / W) * 1000) / 10, y: Math.round((pos.get(v)[1] / H) * 1000) / 10 }]));
     const svg = (theme) => {
         const T = THEMES[theme];
@@ -99,7 +107,8 @@ function injected() {
             const dash = r.earlierThanHopBefore ? ' stroke-dasharray="6 5"' : "";
             o.push(`<line x1="${f1(x1 + ux * gap)}" y1="${f1(y1 + uy * gap)}" x2="${f1(x2 - ux * gap)}" y2="${f1(y2 - uy * gap)}" stroke="${T.edge}" stroke-width="1.5"${dash} marker-end="url(#ah)"/>`);
             if (r.earlierThanHopBefore) {
-                const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+                // The clock sits three quarters along, past the labels of the sender's column.
+                const mx = x1 + (x2 - x1) * 0.75, my = y1 + (y2 - y1) * 0.75;
                 o.push(`<g fill="${T.canvas}" stroke="${T.ink}" stroke-width="1.5"><circle cx="${f1(mx)}" cy="${f1(my)}" r="8"/><path d="M${f1(mx)},${f1(my - 5)} V${f1(my)} H${f1(mx + 4)}" fill="none"/></g>`);
             }
         }
@@ -112,7 +121,14 @@ function injected() {
         }
         o.push("</g>");
         o.push(`<g font-family="Inter Variable, Inter, system-ui, sans-serif" font-size="12" fill="${T.ink}" stroke="${T.halo}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">`);
-        for (const v of nodes2) { const [x, y] = pos.get(v); o.push(`<text x="${f1(x + 20)}" y="${f1(y - 14)}">${esc(ids[v])}</text>`); }
+        // Name, then "Received X USD / Sent Y USD, this trace" on two lines; the hub, at the right
+        // edge, carries its lines centred under the mark so they stay on the canvas.
+        for (const v of nodes2) {
+            const [x, y] = pos.get(v), m = traceMoney[ids[v]];
+            const lines = [ids[v], `Received ${money(m.received)} USD /`, `Sent ${money(m.sent)} USD, this trace`];
+            const [tx, ty, anchor] = v === hub ? [x, y + 30, ' text-anchor="middle"'] : [x + 20, y - 14, ""];
+            lines.forEach((t, i) => o.push(`<text x="${f1(tx)}" y="${f1(ty + i * 15)}"${anchor}>${esc(t)}</text>`));
+        }
         o.push("</g></svg>");
         return o.join("\n");
     };
@@ -125,7 +141,7 @@ function injected() {
             seed: ids[seed], direction: "out", from: FROM, fromLabel, hops,
             step: { hops: 2, nodes: d2.size, edges: rows.length, bySenderHop: [0, 1, 2].map((h) => ({ senderHop: h, transfers: rows.filter((r) => r.senderHop === h).length, total: sum(rows.filter((r) => r.senderHop === h)) })),
                     earlierThanHopBefore: rows.length - inOrder.length, total: sum(rows),
-                    totalInOrder: sum(inOrder), rows },
+                    totalInOrder: sum(inOrder), traceMoney, rows },
             footer, seedOwnRows,
             anchors,
             drawing: "screens/img/alerts-trace-{theme}.svg",

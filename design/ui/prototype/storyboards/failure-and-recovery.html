@@ -59,102 +59,102 @@
   <h2>The branches at a glance</h2>
   <div class="s-map">
     <div class="s-h">Branch</div><div class="s-h">Kind of failure</div><div class="s-h">The trap</div><div class="s-h">What gives it away</div><div class="s-h">The way back</div>
-    <div><a href="#branch-a">A. A weight read backwards</a></div><div>Right-looking wrong answer</div><div>Co-appearance counts read as lengths. Betweenness gives a believable, wrong ranking. No error.</div><div>The load question; the reading on the result's row and, bound to the column, in its editor.</div><div>Change the column's role once. Results that read it go Out of date at once, each marked on its row in the inspector's Results section; Re-run.</div>
+    <div><a href="#branch-a">A. A weight read backwards</a></div><div>Right-looking wrong answer</div><div>Co-appearance counts read as lengths. Betweenness gives a believable, wrong ranking. No error.</div><div>The run's own question, with nothing chosen; the conversion named on the run's row in Results.</div><div>Open the run and change the answer. The run goes Out of date at once, on its row in Results and in the table; Re-run keeps the old run beside the new one.</div>
     <div><a href="#branch-b">B. Closeness on a graph in pieces</a></div><div>Right-looking wrong answer</div><div>Without the correction, a cut-off group of 9 would top the ranking.</div><div>The result's name carries its formula, before and after the run.</div><div>The variant words offer Harmonic centrality.</div>
     <div><a href="#branch-c">C. The wrong middle step</a></div><div>Wrong-looking answer</div><div>Filter to Largest component, after Filter out label = Valjean, drops 15 characters, not 1. Every number changes.</div><div>The chip's count, and the count left after each step.</div><div>Turn the step off, delete it, or undo back to it.</div>
-    <div><a href="#branch-d">D. The GPU is lost, so a run becomes costly</a></div><div>No answer</div><div>A GPU run could quietly finish on the CPU; without WebGPU, exact betweenness takes hours.</div><div>A failed result naming its cause; a refusal before the costly run.</div><div>Re-run on CPU, on purpose. A cheaper route by default; Cancel leaves nothing and puts focus on the row.</div>
+    <div><a href="#branch-d">D. The GPU is lost, so a run becomes costly</a></div><div>No answer</div><div>A GPU run could quietly finish on the CPU; without WebGPU, exact betweenness takes hours.</div><div>A failed run in Results naming its cause and whose values are shown; a refusal before the costly run.</div><div>Re-run on CPU, on purpose, or Try WebGPU again. A cheaper route by default; Cancel leaves nothing and puts focus on the row.</div>
     <div><a href="#branch-e">E. Selecting everything</a></div><div>Wrong-looking answer</div><div>Ctrl+A selects 12,113 elements; Ctrl+Z then deletes the set just made.</div><div>One hull with a count; the set's row gone.</div><div>Redo, then Select members on the set.</div>
   </div>
 
   <h2 id="branch-a"><span class="k-step">A</span>The quiet trap: a weight read backwards <span class="s-kind">Right-looking wrong answer</span></h2>
-  <p>In Les Miserables the edge column <code>value</code> counts the scenes two characters share, so a bigger number means a closer tie. Betweenness needs lengths. If the counts are read as lengths, the strongest ties become the longest paths, and the ranking that comes out looks reasonable.</p>
+  <p>In Les Miserables the edge column <code>value</code> counts the scenes two characters share, so a higher number means a closer tie. Betweenness needs lengths. If the counts are read as lengths, the strongest ties become the longest paths, and the ranking that comes out looks reasonable.</p>
   <section class="s-fr" id="frame-a1">
-    <div><div class="s-pics"><div class="s-crop" style="--x:376;--y:364;--w:688;--h:264;--s:0.85"><iframe src="../screens/weight-role-trap.html#a1" scrolling="no" loading="lazy" title="The load step asks what value means" tabindex="-1"></iframe><b style="left:10px;top:105px;width:564px;height:27px"></b></div><div class="s-loc" style="--x:376;--y:364;--w:688;--h:264"><iframe src="../screens/weight-role-trap.html#a1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:360;--y:288;--w:720;--h:324;--s:0.85"><iframe src="../screens/weight-role-trap.html#a1" scrolling="no" loading="lazy" title="The load step shows value as data only" tabindex="-1"></iframe><b style="left:14px;top:129px;width:585px;height:95px"></b></div><div class="s-loc" style="--x:360;--y:288;--w:720;--h:324"><iframe src="../screens/weight-role-trap.html#a1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
-      <h3><span class="k-step">A1</span>The load step asks what value means</h3>
+      <h3><span class="k-step">A1</span>The load step shows value as data only</h3>
       <div class="s-who">Alex, operations analyst, the load step over a blank project.</div>
-      <p>He drops miserables.json on a blank project. The edge column value has no declared role, so the load step asks what it measures, with nothing pre-picked; the project still reads Untitled until Load commits. He thinks of a number on an edge as a length and picks a longer or costlier step.</p>
-      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"A number on an edge. Distance, I suppose."</p></div>
-      <p><b>Then:</b> the graph loads as Les Miserables, with value declared a distance.</p>
+      <p>He drops miserables.json on a blank project. The load step shows the edge column value as data only: whole numbers, 1 to 31, most edges 1 to 3. It says nothing about what a higher value means, because that is not a property of the column: each run that reads value asks it. The project keeps its blank name until Load commits.</p>
+      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Whole numbers on the edges. Fine."</p></div>
+      <p><b>Then:</b> the graph loads as Les Miserables.</p>
       <a class="s-link" href="../screens/weight-role-trap.html#a1">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-a2">
-    <div><div class="s-pics"><div class="s-crop" style="--x:1199;--y:300;--w:241;--h:100;--s:1.8"><iframe src="../screens/weight-role-trap.html#a2" scrolling="no" loading="lazy" title="A plausible ranking, and no error" tabindex="-1"></iframe><b style="left:59px;top:112px;width:342px;height:43px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:230;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-crop" style="--x:900;--y:655;--w:299;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-loc" style="--x:1199;--y:300;--w:241;--h:100"><iframe src="../screens/weight-role-trap.html#a2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:160;--w:650;--h:470;--s:1"><iframe src="../screens/weight-role-trap.html#a2" scrolling="no" loading="lazy" title="The run asks what a higher value means" tabindex="-1"></iframe><b style="left:0px;top:186px;width:240px;height:32px"></b><b style="left:261px;top:184px;width:284px;height:190px"></b></div><div class="s-loc" style="--x:57;--y:160;--w:650;--h:470"><iframe src="../screens/weight-role-trap.html#a2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
-      <h3><span class="k-step">A2</span>A plausible ranking, and no error</h3>
-      <div class="s-who">Alex, the inspector's Results and the table.</div>
-      <p>He runs Betweenness. It finishes at once and nothing warns. Valjean first, then Gavroche, Javert, Myriel, Thenardier; Marius 10th. Under the result's name the row reads "Weight: value, used as distance". The row has no fill, because its editor is not open.</p>
-      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Gavroche second, Javert third. Sounds about right."</p></div>
-      <p><b>Then:</b> the design bets he stops at the line under the name. If he reads past it, see the miss path below.</p>
+      <h3><span class="k-step">A2</span>The run asks what a higher value means</h3>
+      <div class="s-who">Alex, the Catalog in Results and Betweenness's run form.</div>
+      <p>Results is open on the rail. He clicks Betweenness in its Catalog. The run form reads the weight column value and asks "For value, a higher number means..." as four radio buttons with nothing chosen; Enter and Run do nothing until he answers. The graph's Statistics describe value only by its data: "value, shared scenes, 1 to 31".</p>
+      
+      <p><b>Then:</b> he reads the four answers.</p>
       <a class="s-link" href="../screens/weight-role-trap.html#a2">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-a3">
-    <div><div class="s-pics"><div class="s-crop" style="--x:930;--y:320;--w:510;--h:220;--s:1.05"><iframe src="../screens/weight-role-trap.html#a3" scrolling="no" loading="lazy" title="The trust check shows the reading, bound to the column" tabindex="-1"></iframe><b style="left:14px;top:111px;width:260px;height:92px"></b></div><div class="s-loc" style="--x:930;--y:320;--w:510;--h:220"><iframe src="../screens/weight-role-trap.html#a3" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:306;--y:200;--w:300;--h:420;--s:1.2"><iframe src="../screens/weight-role-trap.html#a3" scrolling="no" loading="lazy" title="Four answers, each naming its conversion" tabindex="-1"></iframe><b style="left:14px;top:173px;width:341px;height:228px"></b></div><div class="s-loc" style="--x:306;--y:200;--w:300;--h:420"><iframe src="../screens/weight-role-trap.html#a3" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
-      <h3><span class="k-step">A3</span>The trust check shows the reading, bound to the column</h3>
-      <div class="s-who">Alex, the result's editor.</div>
-      <p>He opens the result. The Weight row shows the reading as a value bound to the graph's column, "value, used as distance", headed "from Edges", with what that means under it: "Read as a distance: a bigger value is a longer step." He does not change it here: the role belongs to the column, and every weighted result reads it from there. Clicking the value opens the Edges editor; Detach, on hover, would change this one run only.</p>
-      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"A longer step? These are scene counts."</p></div>
-      <p><b>Then:</b> he clicks the value, and the Edges editor opens beside the graph's Statistics.</p>
+      <h3><span class="k-step">A3</span>Four answers, each naming its conversion</h3>
+      <div class="s-who">Alex, Betweenness's run form.</div>
+      <p>Each answer carries one line saying how the run will turn value into a length: a closer or stronger link, Distance = 1 / value; a longer or costlier step, Distance = value. More can pass through and Don't use value are there too, in the same order as everywhere the question is asked. Nothing is picked for him. He thinks of a number on an edge as a length and picks a longer or costlier step; Run turns on.</p>
+      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"A number on an edge. Distance, I suppose."</p></div>
+      <p><b>Then:</b> he presses Run.</p>
       <a class="s-link" href="../screens/weight-role-trap.html#a3">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-a4">
-    <div><div class="s-pics"><div class="s-crop" style="--x:944;--y:140;--w:496;--h:290;--s:1"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="Re-map the column; the result goes Out of date at once" tabindex="-1"></iframe><b style="left:14px;top:172px;width:188px;height:28px"></b><b style="left:436px;top:220px;width:52px;height:26px"></b></div><div class="s-crop" style="--x:1199;--y:300;--w:241;--h:100;--s:1.4"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:253px;top:84px;width:73px;height:36px"></b></div><div class="s-loc" style="--x:944;--y:140;--w:496;--h:290"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:215;--w:241;--h:100;--s:1.8"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="A plausible ranking, and no error" tabindex="-1"></iframe><b style="left:0px;top:61px;width:432px;height:101px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:236;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-crop" style="--x:920;--y:655;--w:279;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-loc" style="--x:57;--y:215;--w:241;--h:100"><iframe src="../screens/weight-role-trap.html#a4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
-      <h3><span class="k-step">A4</span>Re-map the column; the result goes Out of date at once</h3>
-      <div class="s-who">Alex, the Edges editor and the inspector's Results.</div>
-      <p>He changes the answer to a closer or stronger link (similarity); graphty converts it for path measures itself. The edit applies the moment the role commits: Betweenness read value, so its row says Out of date with Re-run, the table's column says it too, and its row in the inspector's Results section says so too.</p>
-      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"So that one's stale now."</p></div>
-      <p><b>Then:</b> one undo step, Change role of value.</p>
+      <h3><span class="k-step">A4</span>A plausible ranking, and no error</h3>
+      <div class="s-who">Alex, the run's row in Results, and the table.</div>
+      <p>Betweenness finishes at once and nothing warns. Valjean first, then Gavroche, Javert, Myriel, Thenardier; Marius 10th. Its row in Results names the run and the conversion it used: "Run 1. Distance = value". The row has no fill, because its record is not open.</p>
+      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Gavroche second, Javert third. Sounds about right."</p></div>
+      <p><b>Then:</b> the design bets he stops at the conversion on the row. If he reads past it, see the miss path below.</p>
       <a class="s-link" href="../screens/weight-role-trap.html#a4">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-a5">
-    <div><div class="s-pics"><div class="s-crop" style="--x:1199;--y:300;--w:241;--h:100;--s:1.4"><iframe src="../screens/weight-role-trap.html#a5" scrolling="no" loading="lazy" title="Nothing reruns by itself" tabindex="-1"></iframe><b style="left:253px;top:84px;width:73px;height:36px"></b></div><div class="s-loc" style="--x:1199;--y:300;--w:241;--h:100"><iframe src="../screens/weight-role-trap.html#a5" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:200;--w:560;--h:600;--s:1"><iframe src="../screens/weight-role-trap.html#a5" scrolling="no" loading="lazy" title="He changes the answer; Run 1 goes Out of date at once" tabindex="-1"></iframe><b style="left:0px;top:49px;width:240px;height:56px"></b><b style="left:261px;top:144px;width:284px;height:190px"></b><b style="left:386px;top:8px;width:127px;height:24px"></b></div><div class="s-loc" style="--x:57;--y:200;--w:560;--h:600"><iframe src="../screens/weight-role-trap.html#a5" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
-      <h3><span class="k-step">A5</span>Nothing reruns by itself</h3>
-      <div class="s-who">Alex, the inspector's Results.</div>
-      <p>The editor is closed. The old numbers stay, marked, until he asks. The inspector's Results section, read with nothing selected, is where a result like this is found.</p>
-      
-      <p><b>Then:</b> he presses Re-run.</p>
+      <h3><span class="k-step">A5</span>He changes the answer; Run 1 goes Out of date at once</h3>
+      <div class="s-who">Alex, Run 1's record, opened from its row in Results.</div>
+      <p>He opens Run 1 from its row. Its record shows the same question with his answer, and the top nodes it produced, headed "Run 1 (Distance = value)". He changes the answer to a closer or stronger link. This run's option changed, so Run 1 is Out of date at once, on its row and in the table's column header, with one verb, Re-run (keeps Run 1). Nothing reruns by itself: the old numbers stay, marked, until he asks. Nothing on the column changed, and no other result is touched.</p>
+      <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"So that one's stale now."</p></div>
+      <p><b>Then:</b> he presses Re-run (keeps Run 1).</p>
       <a class="s-link" href="../screens/weight-role-trap.html#a5">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-a6">
-    <div><div class="s-pics"><div class="s-crop" style="--x:1199;--y:300;--w:241;--h:100;--s:1.8"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="The ranking the data supports" tabindex="-1"></iframe><b style="left:59px;top:112px;width:342px;height:43px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:230;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:0px;top:31px;width:230px;height:64px"></b></div><div class="s-crop" style="--x:900;--y:655;--w:299;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:0px;top:31px;width:299px;height:64px"></b></div><div class="s-loc" style="--x:1199;--y:300;--w:241;--h:100"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:240;--w:241;--h:125;--s:1.8"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="The ranking the data supports" tabindex="-1"></iframe><b style="left:0px;top:16px;width:432px;height:101px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:236;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:0px;top:31px;width:236px;height:64px"></b></div><div class="s-crop" style="--x:920;--y:655;--w:279;--h:250;--s:1"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:0px;top:31px;width:279px;height:64px"></b></div><div class="s-loc" style="--x:57;--y:240;--w:241;--h:125"><iframe src="../screens/weight-role-trap.html#a6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">A6</span>The ranking the data supports</h3>
-      <div class="s-who">Alex, the inspector's Results and the table.</div>
-      <p>Valjean 0.795, Marius 0.499, Myriel 0.224, Fantine 0.193, Courfeyrac 0.177. Marius moved from 10th to 2nd, Javert from 3rd to 45th. The row now reads "Weight: value, used as similarity" in the inspector's Results section.</p>
+      <div class="s-who">Alex, the runs in Results, and the table.</div>
+      <p>Valjean 0.795, Marius 0.499, Myriel 0.224, Fantine 0.193, Courfeyrac 0.177. Marius moved from 10th to 2nd, Javert from 3rd to 45th. In Results, Run 2's row names the new conversion, "Distance = 1 / value", and Run 1 stays under it with its own, so both rankings can still be read.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Marius second. OK."</p></div>
       
       <a class="s-link" href="../screens/weight-role-trap.html#a6">Open the full screen</a>
     </div>
   </section>
-  <div class="s-outcome"><p><b>Outcome.</b> The wrong number never looked wrong. What can catch it is the question at load time and the reading the result names, on its row and in its editor. The fix is made once, on the column, and every result that read it is marked.</p><p><b>The bet the study tests.</b> The load question prevents the mistake for most analysts, and for those who answer it wrong, the reading line under the result's name (A2) or the editor's bound Weight value (A3) is noticed before a number is quoted. The reading line on the row is a proposal that stays pending until sessions show analysts catch the error from it; the load question is the main guard.</p><p><b>Pass.</b> Before quoting a ranking, the participant says which reading the run used, or changes the role on the column (not by detaching one run).</p><p><b>Fail, the miss path.</b> Alex reads past "Weight: value, used as distance" in A2, never opens the editor, and pastes Javert as the third most central character into his deck. Or he opens the editor and detaches the Weight for this one run, leaving every other weighted result wrong. Either one, seen in sessions, means the reading line and the bound value are not doing their job.</p></div>
+  <div class="s-outcome"><p><b>Outcome.</b> The wrong number never looked wrong. What can catch it is the question each weighted run asks, with nothing chosen for him, and the conversion the run names on its row in Results. The fix is made on the run: Run 1 goes Out of date the moment its answer changes, and Re-run keeps it beside Run 2.</p><p><b>The bet the study tests.</b> The run's question prevents the mistake for most analysts, and for those who answer it wrong, the conversion on the run's row (A4) is noticed before a number is quoted.</p><p><b>Pass.</b> Before quoting a ranking, the participant says which conversion the run used, or changes the answer in the run's record and re-runs.</p><p><b>Fail, the miss path.</b> Alex reads past "Distance = value" on the row in A4, never opens the run, and pastes Javert as the third most central character into his deck. Seen in sessions, that means the conversion on the row is not doing its job.</p></div>
 
   <h2 id="branch-b"><span class="k-step">B</span>The variant trap: closeness on a graph in pieces <span class="s-kind">Right-looking wrong answer</span></h2>
   <p>Alex filters out Valjean, and Les Miserables falls apart into 7 components. Plain closeness then rewards a node for being close to the few others it can reach. graphty uses the Wasserman-Faust correction, which scales each score by how much of the graph the node can reach, and says so in the name.</p>
   <section class="s-fr" id="frame-b1">
-    <div><div class="s-pics"><div class="s-crop" style="--x:676;--y:40;--w:520;--h:260;--s:1"><iframe src="../screens/closeness-variant.html#b1" scrolling="no" loading="lazy" title="Closeness names its formula before it runs" tabindex="-1"></iframe><b style="left:275px;top:112px;width:240px;height:32px"></b><b style="left:7px;top:110px;width:260px;height:72px"></b></div><div class="s-loc" style="--x:676;--y:40;--w:520;--h:260"><iframe src="../screens/closeness-variant.html#b1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:380;--w:241;--h:70;--s:1.6"><iframe src="../screens/closeness-variant.html#b1" scrolling="no" loading="lazy" title="Closeness names its formula before it runs" tabindex="-1"></iframe><b style="left:0px;top:54px;width:384px;height:51px"></b></div><div class="s-crop" style="--x:676;--y:140;--w:275;--h:100;--s:1.2"><iframe src="../screens/closeness-variant.html#b1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:8px;top:12px;width:312px;height:86px"></b></div><div class="s-loc" style="--x:57;--y:380;--w:241;--h:70"><iframe src="../screens/closeness-variant.html#b1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">B1</span>Closeness names its formula before it runs</h3>
-      <div class="s-who">Alex, the Results catalog, Les Miserables with Valjean filtered out.</div>
-      <p>Without Valjean the graph falls into 7 components: the bishop's household of 10 is cut off from everyone, and 5 characters are left alone. He points at Closeness. The row already carries the word WF-corrected, and its tooltip says why: 7 components, each score scaled by the share of the graph the node can reach.</p>
+      <div class="s-who">Alex, the Catalog in Results, Les Miserables with Valjean filtered out.</div>
+      <p>Without Valjean the graph falls into 7 components: the bishop's household of 10 is cut off from everyone, and 5 characters are left alone. He points at Closeness in the Catalog. The row already carries the word WF-corrected, and its tooltip says why: 7 components, each score scaled by the share of the graph the node can reach.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"WF? No idea what that is."</p></div>
       <p><b>Then:</b> he runs it.</p>
       <a class="s-link" href="../screens/closeness-variant.html#b1">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-b2">
-    <div><div class="s-pics"><div class="s-crop" style="--x:945;--y:330;--w:495;--h:140;--s:1.1"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="The result's name carries the variant" tabindex="-1"></iframe><b style="left:11px;top:77px;width:260px;height:70px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:230;--h:250;--s:1"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-crop" style="--x:900;--y:655;--w:299;--h:250;--s:1"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-loc" style="--x:945;--y:330;--w:495;--h:140"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:240;--w:241;--h:125;--s:1.6"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="The result's name carries the variant" tabindex="-1"></iframe><b style="left:0px;top:104px;width:384px;height:90px"></b></div><div class="s-crop" style="--x:955;--y:398;--w:238;--h:70;--s:1.3"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><b style="left:0px;top:3px;width:307px;height:83px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:200;--h:250;--s:1"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-crop" style="--x:1000;--y:655;--w:199;--h:250;--s:1"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-loc" style="--x:57;--y:240;--w:241;--h:125"><iframe src="../screens/closeness-variant.html#b2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">B2</span>The result's name carries the variant</h3>
-      <div class="s-who">Alex, the inspector's Results and the table.</div>
-      <p>The result and its column are named Closeness (WF-corrected): Javert 0.997, Enjolras 0.983, Courfeyrac 0.960, Marius 0.930, Combeferre 0.928. The bishop's household sits low; Myriel is 62nd. Clicking the variant words offers the one alternative that needs no correction, Harmonic centrality.</p>
+      <div class="s-who">Alex, the run's row in Results, and the table.</div>
+      <p>The run's row in Results and the table's column are both named Closeness (WF-corrected): Javert 0.997, Enjolras 0.983, Courfeyrac 0.960, Marius 0.930, Combeferre 0.928. The bishop's household sits low; Myriel is 62nd. Clicking the variant words offers the one alternative that needs no correction, Harmonic centrality, as a new run beside this one.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Javert first. And what's Harmonic?"</p></div>
       
       <a class="s-link" href="../screens/closeness-variant.html#b2">Open the full screen</a>
@@ -170,15 +170,15 @@
     <tr><td>5</td><td>Combeferre</td><td class="k-n">0.928</td><td>Courfeyrac</td><td class="k-n">1.200</td></tr>
   </tbody></table>
   <p class="k-secondary">Values near and above 1 are expected: lengths are 1 / value, under 1 for every tie of 2 or more shared scenes. Computed with NetworkX by <a href="../screens/failure-and-recovery-numbers.py">failure-and-recovery-numbers.py</a>.</p>
-  <div class="s-outcome"><p><b>Outcome.</b> graphty never runs the misleading form silently: the correction is chosen for a graph in pieces, named before the run on the Catalog row, and carried in the result's name and column header, so a number copied into a deck carries its formula.</p><p><b>The bet the study tests.</b> An analyst who meets an unfamiliar variant word asks what it means (the tooltip, the (i)) before comparing the numbers with another tool's closeness.</p><p><b>Pass.</b> Asked why Myriel is 62nd here but first in another tool's output, the participant points at the variant word, or opens its tooltip, and explains the difference in their own words.</p><p><b>Fail, the miss path.</b> The word reads as noise. The participant compares graphty's Javert first with another tool's Myriel first and decides one of them is broken. The probe: ask what "WF-corrected" means to them before showing the tooltip. If most Alex-type participants cannot say, the word needs plainer wording (a two-way door, for the owner).</p></div>
+  <div class="s-outcome"><p><b>Outcome.</b> graphty never runs the misleading form silently: the correction is chosen for a graph in pieces, named before the run on the Catalog row, and carried in the run's name and the column header, so a number copied into a deck carries its formula.</p><p><b>The bet the study tests.</b> An analyst who meets an unfamiliar variant word asks what it means (the tooltip, the (i)) before comparing the numbers with another tool's closeness.</p><p><b>Pass.</b> Asked why Myriel is 62nd here but first in another tool's output, the participant points at the variant word, or opens its tooltip, and explains the difference in their own words.</p><p><b>Fail, the miss path.</b> The word reads as noise. The participant compares graphty's Javert first with another tool's Myriel first and decides one of them is broken. The probe: ask what "WF-corrected" means to them before showing the tooltip. If most Alex-type participants cannot say, the word needs plainer wording (a two-way door, for the owner).</p></div>
 
   <h2 id="branch-c"><span class="k-step">C</span>The wrong middle step, and three ways back <span class="s-kind">Wrong-looking answer</span></h2>
   <p>Alex wants to know who holds the story together without its two protagonists. He built three filter steps, then re-ran betweenness. With Valjean gone, the bishop's household is its own island, and Filter to Largest component took all of it.</p>
   <section class="s-fr" id="frame-c1">
-    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:20;--w:300;--h:60;--s:1.8"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="Fewer characters than expected" tabindex="-1"></iframe><b style="left:23px;top:23px;width:331px;height:47px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:230;--h:250;--s:1"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-crop" style="--x:900;--y:655;--w:299;--h:250;--s:1"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-loc" style="--x:57;--y:20;--w:300;--h:60"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:50;--w:250;--h:45;--s:1.8"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="Fewer characters than expected" tabindex="-1"></iframe><b style="left:29px;top:18px;width:313px;height:43px"></b></div><div class="s-crop" style="--x:298;--y:655;--w:230;--h:250;--s:1"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-crop" style="--x:900;--y:655;--w:299;--h:250;--s:1"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe></div><div class="s-loc" style="--x:57;--y:50;--w:250;--h:45"><iframe src="../screens/filter-step-recovery.html#c1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">C1</span>Fewer characters than expected</h3>
-      <div class="s-who">Alex, the inspector's Results and the table.</div>
+      <div class="s-who">Alex, the filter chip and the table.</div>
       <p>He wanted to know who holds the story together without Valjean and Javert: Filter out label = Valjean, Filter to Largest component (meant to drop the five characters left alone once Valjean was gone), Filter out label = Javert, then Re-run betweenness. The chip reads 60 of 77 nodes, 3 steps. Betweenness puts Marius first and Mme.Thenardier second at 0.467, and Myriel is nowhere.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Sixty? I took out two people."</p></div>
       <p><b>Then:</b> he opens the chip.</p>
@@ -186,7 +186,7 @@
     </div>
   </section>
   <section class="s-fr" id="frame-c2">
-    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:40;--w:545;--h:180;--s:1.05"><iframe src="../screens/filter-step-recovery.html#c2" scrolling="no" loading="lazy" title="The steps say where the 15 went" tabindex="-1"></iframe><b style="left:18px;top:103px;width:235px;height:34px"></b><b style="left:268px;top:88px;width:294px;height:42px"></b></div><div class="s-loc" style="--x:57;--y:40;--w:545;--h:180"><iframe src="../screens/filter-step-recovery.html#c2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:45;--w:545;--h:205;--s:1.05"><iframe src="../screens/filter-step-recovery.html#c2" scrolling="no" loading="lazy" title="The steps say where the 15 went" tabindex="-1"></iframe><b style="left:18px;top:98px;width:235px;height:34px"></b><b style="left:268px;top:83px;width:294px;height:42px"></b></div><div class="s-loc" style="--x:57;--y:45;--w:545;--h:205"><iframe src="../screens/filter-step-recovery.html#c2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">C2</span>The steps say where the 15 went</h3>
       <div class="s-who">Alex, the filter steps.</div>
@@ -197,7 +197,7 @@
     </div>
   </section>
   <section class="s-fr" id="frame-c3">
-    <div><div class="s-pics"><div class="s-crop" style="--x:240;--y:40;--w:580;--h:200;--s:1"><iframe src="../screens/filter-step-recovery.html#c3" scrolling="no" loading="lazy" title="Undo walks back from the newest change" tabindex="-1"></iframe><b style="left:12px;top:16px;width:300px;height:24px"></b><b style="left:316px;top:56px;width:260px;height:136px"></b></div><div class="s-loc" style="--x:240;--y:40;--w:580;--h:200"><iframe src="../screens/filter-step-recovery.html#c3" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:240;--y:55;--w:580;--h:180;--s:1"><iframe src="../screens/filter-step-recovery.html#c3" scrolling="no" loading="lazy" title="Undo walks back from the newest change" tabindex="-1"></iframe><b style="left:12px;top:18px;width:300px;height:24px"></b><b style="left:316px;top:58px;width:260px;height:112px"></b></div><div class="s-loc" style="--x:240;--y:55;--w:580;--h:180"><iframe src="../screens/filter-step-recovery.html#c3" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">C3</span>Undo walks back from the newest change</h3>
       <div class="s-who">Alex, the Edit menu.</div>
@@ -208,18 +208,18 @@
     </div>
   </section>
   <section class="s-fr" id="frame-c4">
-    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:28;--w:260;--h:230;--s:1.3"><iframe src="../screens/filter-step-recovery.html#c4" scrolling="no" loading="lazy" title="Way back one: turn the step off" tabindex="-1"></iframe><b style="left:22px;top:143px;width:291px;height:42px"></b><b style="left:17px;top:7px;width:273px;height:34px"></b></div><div class="s-loc" style="--x:57;--y:28;--w:260;--h:230"><iframe src="../screens/filter-step-recovery.html#c4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:54;--w:260;--h:261;--s:1.3"><iframe src="../screens/filter-step-recovery.html#c4" scrolling="no" loading="lazy" title="Way back one: turn the step off" tabindex="-1"></iframe><b style="left:22px;top:109px;width:291px;height:42px"></b><b style="left:21px;top:8px;width:259px;height:31px"></b><b style="left:0px;top:254px;width:312px;height:73px"></b></div><div class="s-loc" style="--x:57;--y:54;--w:260;--h:261"><iframe src="../screens/filter-step-recovery.html#c4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">C4</span>Way back one: turn the step off</h3>
-      <div class="s-who">Alex, the filter steps.</div>
-      <p>He clears the step's checkbox. It stays in the list with -- for its count; the step below recounts and the chip reads 75 of 77 nodes, 2 of 3 steps, at once. Betweenness still describes the old scope, so its row reads "on: 60 nodes" with Re-run. That is scope, not staleness, so its row carries no mark.</p>
+      <div class="s-who">Alex, the filter steps and the run's row in Results.</div>
+      <p>He clears the step's checkbox. It stays in the list with -- for its count; the step below recounts and the chip reads 75 of 77 nodes, 2 of 3 steps, at once. Betweenness still describes the old scope, so its row in Results reads "on 60 of 77" with Re-run. That is scope, not staleness, so its row carries no mark.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Off. Seventy-five."</p></div>
       <p><b>Then:</b> one undo step, Turn off step Filter to Largest component.</p>
       <a class="s-link" href="../screens/filter-step-recovery.html#c4">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-c5">
-    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:28;--w:260;--h:230;--s:1.3"><iframe src="../screens/filter-step-recovery.html#c5" scrolling="no" loading="lazy" title="Way back two: delete the step" tabindex="-1"></iframe><b style="left:17px;top:7px;width:239px;height:34px"></b><b style="left:22px;top:101px;width:291px;height:83px"></b></div><div class="s-loc" style="--x:57;--y:28;--w:260;--h:230"><iframe src="../screens/filter-step-recovery.html#c5" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div><div class="s-pics"><div class="s-crop" style="--x:252;--y:48;--w:352;--h:56;--s:1"><iframe src="../screens/filter-step-recovery.html#c5e" scrolling="no" loading="lazy" title="Edit after the delete" tabindex="-1"></iframe><b style="left:0px;top:8px;width:352px;height:24px"></b></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:54;--w:260;--h:170;--s:1.3"><iframe src="../screens/filter-step-recovery.html#c5" scrolling="no" loading="lazy" title="Way back two: delete the step" tabindex="-1"></iframe><b style="left:21px;top:8px;width:226px;height:31px"></b><b style="left:12px;top:5px;width:312px;height:203px"></b></div><div class="s-loc" style="--x:57;--y:54;--w:260;--h:170"><iframe src="../screens/filter-step-recovery.html#c5" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div><div class="s-pics"><div class="s-crop" style="--x:252;--y:69;--w:356;--h:32;--s:1"><iframe src="../screens/filter-step-recovery.html#c5e" scrolling="no" loading="lazy" title="Edit after the delete" tabindex="-1"></iframe><b style="left:0px;top:4px;width:356px;height:24px"></b></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">C5</span>Way back two: delete the step</h3>
       <div class="s-who">The same moment, the other way: Alex, the filter steps.</div>
@@ -243,74 +243,85 @@
   <div class="s-outcome"><p><b>Outcome.</b> Three ways back, each with a different cost: turning the step off (one click, keeps it), deleting it (one key, undoable), and undo (walks back from the newest change, so it also takes the good step after it and the run). The chip's count gave the mistake away; the per-step counts said which step.</p><p><b>The bet the study tests.</b> An analyst who sees an unexpected count opens the chip, finds the step by its count, and turns it off or deletes it, rather than undoing.</p><p><b>Pass.</b> Within the session task, the participant names the step that removed 15 characters and removes its effect without losing Filter out label = Javert.</p><p><b>Fail, the miss path.</b> The participant presses Undo until the count looks right, losing Filter out label = Javert and the run, then rebuilds them; or never opens the chip and quotes the 60-node numbers.</p></div>
 
   <h2 id="branch-d"><span class="k-step">D</span>The GPU is lost, and a run becomes costly <span class="s-kind">No answer</span></h2>
-  <p>Past the drawing limit nothing is drawn, so the inspector's Results carries the work. graphty never finishes a GPU run on the CPU without saying so. Losing the GPU also changes what everything else costs: every later run goes to the CPU, which is why exact betweenness is refused at hours two frames later.</p>
+  <p>Past the drawing limit nothing is drawn, so Results on the rail, the inspector and the table carry the work. graphty never finishes a GPU run on the CPU without saying so. Losing the GPU also changes what everything else costs: every later run goes to the CPU, which is why exact betweenness is refused at hours two frames later.</p>
   <section class="s-fr" id="frame-d1">
-    <div><div class="s-pics"><div class="s-crop" style="--x:920;--y:100;--w:520;--h:290;--s:1"><iframe src="../screens/gpu-lost-run.html#d1" scrolling="no" loading="lazy" title="A re-run on WebGPU, the old values still shown" tabindex="-1"></iframe><b style="left:279px;top:230px;width:241px;height:48px"></b></div><div class="s-loc" style="--x:920;--y:100;--w:520;--h:290"><iframe src="../screens/gpu-lost-run.html#d1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:90;--w:241;--h:290;--s:1.5"><iframe src="../screens/gpu-lost-run.html#d1" scrolling="no" loading="lazy" title="A re-run on WebGPU, the old values still shown" tabindex="-1"></iframe><b style="left:0px;top:5px;width:360px;height:60px"></b><b style="left:0px;top:365px;width:360px;height:54px"></b></div><div class="s-loc" style="--x:57;--y:90;--w:241;--h:290"><iframe src="../screens/gpu-lost-run.html#d1" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div><div class="s-pics"><div class="s-crop" style="--x:592;--y:792;--w:313;--h:40;--s:1.3"><iframe src="../screens/gpu-lost-run.html#d1" scrolling="no" loading="lazy" title="The running notice" tabindex="-1"></iframe></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">D1</span>A re-run on WebGPU, the old values still shown</h3>
-      <div class="s-who">Emma, network scientist, the inspector's Results and the PageRank editor.</div>
-      <p>She changed damping from 0.85 to 0.5 and pressed Run. The row shows 62% and the engine, WebGPU; Cancel is in the editor's header. The editor says whose values are on screen until the new ones land: Showing the run before: damping 0.85.</p>
+      <div class="s-who">Emma, network scientist, the run's record in Results.</div>
+      <p>She changed damping from 0.85 to 0.5 and pressed Re-run. The run's record is open in place in Results, named PageRank, damping 0.5: 62%, the engine, WebGPU, and Cancel as its one verb. It says whose values are on screen until the new ones land: "Showing Run 1 (damping 0.85) until this run finishes." The running notice over the canvas repeats the run.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Let it cook."</p></div>
       <p><b>Then:</b> her laptop's graphics driver resets.</p>
       <a class="s-link" href="../screens/gpu-lost-run.html#d1">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-d2">
-    <div><div class="s-pics"><div class="s-crop" style="--x:920;--y:100;--w:520;--h:300;--s:1"><iframe src="../screens/gpu-lost-run.html#d2" scrolling="no" loading="lazy" title="The GPU is lost: a failed row, never a quiet CPU finish" tabindex="-1"></iframe><b style="left:279px;top:235px;width:241px;height:50px"></b><b style="left:139px;top:18px;width:96px;height:24px"></b><b style="left:27px;top:60px;width:230px;height:50px"></b></div><div class="s-loc" style="--x:920;--y:100;--w:520;--h:300"><iframe src="../screens/gpu-lost-run.html#d2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:90;--w:310;--h:430;--s:1.35"><iframe src="../screens/gpu-lost-run.html#d2" scrolling="no" loading="lazy" title="The GPU is lost: a failed run, never a quiet CPU finish" tabindex="-1"></iframe><b style="left:22px;top:101px;width:281px;height:65px"></b><b style="left:0px;top:177px;width:324px;height:49px"></b><b style="left:22px;top:231px;width:130px;height:32px"></b><b style="left:22px;top:274px;width:176px;height:32px"></b></div><div class="s-loc" style="--x:57;--y:90;--w:310;--h:430"><iframe src="../screens/gpu-lost-run.html#d2" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
-      <h3><span class="k-step">D2</span>The GPU is lost: a failed row, never a quiet CPU finish</h3>
-      <div class="s-who">Emma, the inspector's Results and the PageRank editor.</div>
-      <p>PageRank says Failed. The editor gives the cause, "Could not run PageRank: WebGPU lost; new runs use the CPU", and still shows the run before, damping 0.85. There is one Re-run on CPU, in the editor's header; its tooltip gives the cost, a few minutes on the CPU. The raw code is the last line of Details. Its row in the inspector's Results section carries the failure.</p>
+      <h3><span class="k-step">D2</span>The GPU is lost: a failed run, never a quiet CPU finish</h3>
+      <div class="s-who">Emma, the run's record in Results.</div>
+      <p>The run fails. Its record gives the cause, "Could not run PageRank: WebGPU lost; new runs use the CPU", and says whose values are on screen: "Showing Run 1 (damping 0.85). Run 2 wrote nothing." Two verbs follow. Re-run on CPU names where the next run goes; its tooltip gives the cost, a few minutes on the CPU. Try WebGPU again asks graphty-element to reach the GPU again: an explicit retry the element owns, not a fallback, and it re-runs nothing by itself. The raw code is the last line of Details.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Driver reset. So this is 0.85 still."</p></div>
-      <p><b>Then:</b> she presses Re-run on CPU. When WebGPU comes back, the same button reads plain Re-run.</p>
+      <p><b>Then:</b> she goes back to the list before deciding.</p>
       <a class="s-link" href="../screens/gpu-lost-run.html#d2">Open the full screen</a>
     </div>
   </section>
+  <section class="s-fr" id="frame-d2b">
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:90;--w:241;--h:390;--s:1.45"><iframe src="../screens/gpu-lost-run.html#d2b" scrolling="no" loading="lazy" title="Back in the list, the row alone says whose values are shown" tabindex="-1"></iframe><b style="left:0px;top:184px;width:348px;height:223px"></b></div><div class="s-loc" style="--x:57;--y:90;--w:241;--h:390"><iframe src="../screens/gpu-lost-run.html#d2b" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div class="s-cap">
+      <h3><span class="k-step">D2B</span>Back in the list, the row alone says whose values are shown</h3>
+      <div class="s-who">Emma, Results.</div>
+      <p>The failed run's row keeps its cause, Failed: WebGPU lost, and the same line, "Showing Run 1 (damping 0.85). Run 2 wrote nothing.", with Re-run on CPU and Try WebGPU again on the row, so the list answers the question without opening anything. Run 1, damping 0.85, is the row under it.</p>
+      
+      <p><b>Then:</b> she presses Re-run on CPU. Had Try WebGPU again reached the GPU, the graph's Statistics would read Engine: WebGPU and the next run would use it.</p>
+      <a class="s-link" href="../screens/gpu-lost-run.html#d2b">Open the full screen</a>
+    </div>
+  </section>
   <section class="s-fr" id="frame-d3">
-    <div><div class="s-pics"><div class="s-crop" style="--x:880;--y:140;--w:560;--h:300;--s:0.95"><iframe src="../screens/gpu-lost-run.html#d3" scrolling="no" loading="lazy" title="A costly run is refused before it starts" tabindex="-1"></iframe><b style="left:10px;top:143px;width:285px;height:30px"></b><b style="left:171px;top:17px;width:86px;height:27px"></b></div><div class="s-loc" style="--x:880;--y:140;--w:560;--h:300"><iframe src="../screens/gpu-lost-run.html#d3" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:90;--w:241;--h:410;--s:1.4"><iframe src="../screens/gpu-lost-run.html#d3" scrolling="no" loading="lazy" title="A costly run is refused before it starts" tabindex="-1"></iframe><b style="left:0px;top:344px;width:336px;height:43px"></b><b style="left:22px;top:265px;width:120px;height:34px"></b><b style="left:36px;top:203px;width:182px;height:34px"></b></div><div class="s-loc" style="--x:57;--y:90;--w:241;--h:410"><iframe src="../screens/gpu-lost-run.html#d3" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">D3</span>A costly run is refused before it starts</h3>
-      <div class="s-who">Emma, the inspector's Results and the Betweenness editor.</div>
-      <p>PageRank has re-run on the CPU. She asks for Betweenness. With WebGPU lost every run goes to the CPU, where the element estimates exact betweenness at hours, past the 30-second time limit. It arrives refused: its row in the error state with its band, hours; its editor lists the ways forward, cheapest first. Fits the time limit: Sampled, 101 sources, under a minute; Exact, on 5,318 nodes, under a minute. Past the time limit: Exact, on the full graph, hours. Sampled is the default: it is first and focused, the header's button reads Run sampled, and Enter runs it.</p>
+      <div class="s-who">Emma, the record of Betweenness in Results.</div>
+      <p>PageRank has re-run on the CPU as Run 3. She asks for Betweenness. With WebGPU lost every run goes to the CPU, where the element estimates exact betweenness at hours, past the 30-second time limit. It is not started: its record opens in place, reads "Not run: would take hours. The time limit is 30 seconds.", and lists the ways forward, cheapest first. Fits the time limit: Sampled, 101 sources, under a minute; Exact, on the 5,318 nodes in Drug patents granted in 2001, under a minute, marked "This is a different graph." Past the time limit: Exact, on the full graph, hours. Sampled is the default: it is first and focused, the one verb reads Run sampled, and Enter runs it. Try WebGPU again sits beside the cause, because the GPU is what made it hours.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"Sampled is fine for a first look."</p></div>
       <p><b>Then:</b> she presses Enter.</p>
       <a class="s-link" href="../screens/gpu-lost-run.html#d3">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-d4">
-    <div><div class="s-pics"><div class="s-crop" style="--x:1199;--y:395;--w:241;--h:60;--s:1.3"><iframe src="../screens/gpu-lost-run.html#d4" scrolling="no" loading="lazy" title="The sampled run starts; she cancels it from the notice" tabindex="-1"></iframe></div><div class="s-loc" style="--x:1199;--y:395;--w:241;--h:60"><iframe src="../screens/gpu-lost-run.html#d4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div><div class="s-pics"><div class="s-crop" style="--x:555;--y:780;--w:388;--h:110;--s:1"><iframe src="../screens/gpu-lost-run.html#d4" scrolling="no" loading="lazy" title="The running notice" tabindex="-1"></iframe><b style="left:325px;top:18px;width:56px;height:28px"></b></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:210;--w:241;--h:160;--s:1.5"><iframe src="../screens/gpu-lost-run.html#d4" scrolling="no" loading="lazy" title="The sampled run starts; she cancels it from the notice" tabindex="-1"></iframe><b style="left:0px;top:11px;width:360px;height:132px"></b></div><div class="s-loc" style="--x:57;--y:210;--w:241;--h:160"><iframe src="../screens/gpu-lost-run.html#d4" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div><div class="s-pics"><div class="s-crop" style="--x:555;--y:792;--w:388;--h:40;--s:1.3"><iframe src="../screens/gpu-lost-run.html#d4" scrolling="no" loading="lazy" title="The running notice" tabindex="-1"></iframe><b style="left:425px;top:10px;width:68px;height:31px"></b></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">D4</span>The sampled run starts; she cancels it from the notice</h3>
-      <div class="s-who">Emma, the running notice.</div>
-      <p>Betweenness (sampled) runs at once on the CPU, 101 sources, 18%. Her own baseline for this graph used 500 sources, and the refusal offered only the default size. She presses Cancel on the notice.</p>
+      <div class="s-who">Emma, Results and the running notice.</div>
+      <p>Enter ran the default. Betweenness (sampled) runs at once on the CPU, 101 sources, 18%, as a new row at the top of Results; the refused Betweenness stays under it, "Not run: would take hours." Her own baseline for this graph used 500 sources, and the refusal offered only the default sample size. She presses Cancel on the running notice.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"101 sources. My baseline is 500."</p></div>
       
       <a class="s-link" href="../screens/gpu-lost-run.html#d4">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-d5">
-    <div><div class="s-pics"><div class="s-crop" style="--x:1199;--y:385;--w:241;--h:80;--s:1.3"><iframe src="../screens/gpu-lost-run.html#d5" scrolling="no" loading="lazy" title="Canceled: nothing kept, focus on the row" tabindex="-1"></iframe><b style="left:3px;top:17px;width:309px;height:65px"></b></div><div class="s-loc" style="--x:1199;--y:385;--w:241;--h:80"><iframe src="../screens/gpu-lost-run.html#d5" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:210;--w:241;--h:145;--s:1.5"><iframe src="../screens/gpu-lost-run.html#d5" scrolling="no" loading="lazy" title="Canceled: nothing kept, focus on the row" tabindex="-1"></iframe><b style="left:0px;top:11px;width:360px;height:108px"></b></div><div class="s-loc" style="--x:57;--y:210;--w:241;--h:145"><iframe src="../screens/gpu-lost-run.html#d5" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">D5</span>Canceled: nothing kept, focus on the row</h3>
-      <div class="s-who">Emma, the inspector's Results, keyboard in hand.</div>
-      <p>The notice is gone and nothing of the canceled run is kept. It was the result's first run, so the row reads Not run, with Run. Keyboard focus is on the row, with its ring visible, not lost to the page, so Enter opens its editor. (The page also announces "Betweenness (sampled) canceled. Run".)</p>
+      <div class="s-who">Emma, Results, keyboard in hand.</div>
+      <p>The notice is gone and nothing of the canceled run is kept. It was the run's first attempt, so the row reads Not run, with Run, as a result created unrun does. Keyboard focus is on the row, with its ring visible, not lost to the page, so Enter opens its record. (The page also announces "Betweenness (sampled) canceled. Run".)</p>
       
       <p><b>Then:</b> she presses Enter.</p>
       <a class="s-link" href="../screens/gpu-lost-run.html#d5">Open the full screen</a>
     </div>
   </section>
   <section class="s-fr" id="frame-d6">
-    <div><div class="s-pics"><div class="s-crop" style="--x:920;--y:240;--w:520;--h:250;--s:1.1"><iframe src="../screens/gpu-lost-run.html#d6" scrolling="no" loading="lazy" title="Set the sample, and run" tabindex="-1"></iframe><b style="left:26px;top:130px;width:70px;height:26px"></b></div><div class="s-loc" style="--x:920;--y:240;--w:520;--h:250"><iframe src="../screens/gpu-lost-run.html#d6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
+    <div><div class="s-pics"><div class="s-crop" style="--x:57;--y:90;--w:241;--h:290;--s:1.5"><iframe src="../screens/gpu-lost-run.html#d6" scrolling="no" loading="lazy" title="Set the sample, and run" tabindex="-1"></iframe><b style="left:24px;top:311px;width:132px;height:36px"></b></div><div class="s-loc" style="--x:57;--y:90;--w:241;--h:290"><iframe src="../screens/gpu-lost-run.html#d6" scrolling="no" loading="lazy" title="" tabindex="-1"></iframe><i></i></div></div></div>
     <div class="s-cap">
       <h3><span class="k-step">D6</span>Set the sample, and run</h3>
-      <div class="s-who">Emma, the editor of Betweenness (sampled).</div>
-      <p>She tabs to Sample size and types 500. Under the field: about 101 fits the time limit; 500 takes a few minutes and runs in the background. Run, in the header, starts it.</p>
+      <div class="s-who">Emma, the record of Betweenness (sampled) in Results.</div>
+      <p>Enter opens the run's record in place. She tabs to Sample size and types 500. Under the field: about 101 fits the time limit; 500 takes a few minutes and runs in the background. Run starts it.</p>
       <div class="s-hyp"><span class="s-lab">Expected reaction (a hypothesis, not a finding)</span><p class="s-expect">"A few minutes is fine. Go."</p></div>
       
       <a class="s-link" href="../screens/gpu-lost-run.html#d6">Open the full screen</a>
     </div>
   </section>
-  <div class="s-outcome"><p><b>Outcome.</b> Nothing ran on a path Emma did not see named first. The lost GPU showed as one failed result with its cause, the old values kept and named, and a button that says where the next run goes. The costly run was refused before it started with the ways forward listed, the default was the cheap one, and the cancel left nothing behind and put focus where she could act.</p><p><b>The bet the study tests.</b> After a failure the analyst can say whose values are on screen; at a refusal she chooses a route knowing its cost.</p><p><b>Pass.</b> Asked after D2 which damping the shown PageRank used, the participant says 0.85. At D3 she can say, before choosing, what each route costs.</p><p><b>Fail, the miss path.</b> She reads the D2 numbers as the 0.5 run and reports them; or at D3 presses Enter without reading and later quotes the sampled scores as exact. The row's (sampled) name and the scores' estimate marks are the net for the second.</p></div>
+  <div class="s-outcome"><p><b>Outcome.</b> Nothing ran on a path Emma did not see named first. The lost GPU showed as one failed run with its cause, the old values kept and named ("Showing Run 1 (damping 0.85). Run 2 wrote nothing."), a button that says where the next run goes, and Try WebGPU again, a retry graphty-element performs only when asked. The costly run was refused before it started with the ways forward listed, the default was the cheap one, and the cancel left nothing behind and put focus where she could act.</p><p><b>The bet the study tests.</b> After a failure the analyst can say whose values are on screen; at a refusal she chooses a route knowing its cost.</p><p><b>Pass.</b> Asked after D2 or D2B which damping the shown PageRank used, the participant says 0.85. At D3 she can say, before choosing, what each route costs.</p><p><b>Fail, the miss path.</b> She reads the D2 numbers as the 0.5 run and reports them; or at D3 presses Enter without reading and later quotes the sampled scores as exact. The row's (sampled) name and the scores' estimate marks are the net for the second.</p></div>
 
   <h2 id="branch-e"><span class="k-step">E</span>Selecting everything <span class="s-kind">Wrong-looking answer</span></h2>
   <p>graphty-element marks up to 5,000 selected elements one by one. Past that it keeps every id but draws the selection as one outline with a count, because thousands of rings would hide the drawing they sit on. Selecting is not an undo step, so the undo chord does something else.</p>
@@ -374,14 +385,15 @@
   <h2>What this storyboard decides</h2>
   <p>Where the design documents were silent or unclear, these frames make a choice. Each is proposed in <a href="../framework-changes.md">framework-changes.md</a> with its evidence, and none is final until the study tests it.</p>
   <ul>
-    <li>A result's Weight row shows the reading as a value bound to the graph's column, which opens the Edges editor, with Detach for a deliberate override of one run (A3).</li>
-    <li>A weighted result names its reading on its row (A2, A6). Pending the study: not promoted from Details until sessions show analysts catch the error from the row.</li>
-    <li>The Weight row counts edges read as length 0 (A3).</li>
-    <li>In Statistics, the weight's meaning has its own row, Weight, beside Edges and Direction, so two rows are not both labeled Edges.</li>
-    <li>A result row takes the selected fill only while its editor is open (A2, A3).</li>
+    <li>Runs have one home, Results on the rail: every run of a measure, with its settings and date. Opening a run shows its record in place. Values are still read on the node, in the inspector and in the table.</li>
+    <li>Each weighted run asks what a higher value means, with nothing chosen, and Run stays disabled until it is answered (A2, A3). The column describes only its data.</li>
+    <li>A weighted run names the conversion it used on its row in Results (A4, A6).</li>
+    <li>In Statistics, the weight has its own row, Weight, beside Edges and Direction, so two rows are not both labeled Edges.</li>
+    <li>A run's row takes the selected fill only while its record is open (A4, A5).</li>
     <li>Each filter step shows the count left after it, and pointing at a step names whom it took out (C2), as the filter-chip work already proposes.</li>
-    <li>While a result's editor is open, its one verb (Cancel, Re-run on CPU, Run) sits in the editor's header, not on the row as well (D1, D2).</li>
-    <li>A failed or running result says whose values are on screen: "Showing the run before: damping 0.85" (D1, D2).</li>
+    <li>While a run's record is open its verbs are in the record, and once it is closed they are on the run's row (D1, D2, D2B).</li>
+    <li>A running or failed run says whose values are on screen: "Showing Run 1 (damping 0.85) until this run finishes" while it runs, and "Showing Run 1 (damping 0.85). Run 2 wrote nothing." once it has failed, in its record and on its row (D1, D2, D2B).</li>
+    <li>A run that failed because WebGPU was lost offers Try WebGPU again: an explicit retry that graphty-element performs, not a fallback, and it re-runs nothing by itself (D2, D2B, D3).</li>
     <li>The over-budget refusal lists the routes cheapest first, grouped by whether they fit the time limit, with the first focused and named on the one button: the sampled method is the default (D3), as already proposed for the run-and-read work.</li>
     <li>Canceling from the running notice puts keyboard focus on the result's row (D5), as already proposed for the run-and-read work.</li>
   </ul>
@@ -391,7 +403,7 @@
     <li><a href="../screens/weight-role-trap.html">The quiet trap: a weight read the wrong way</a>: six states.</li>
     <li><a href="../screens/closeness-variant.html">The variant trap: closeness on a graph in pieces</a>: two states.</li>
     <li><a href="../screens/filter-step-recovery.html">The wrong middle step: three ways back</a>: seven states.</li>
-    <li><a href="../screens/gpu-lost-run.html">When the GPU is lost, and when a costly run is canceled</a>: six states.</li>
+    <li><a href="../screens/gpu-lost-run.html">When the GPU is lost, and when a costly run is canceled</a>: seven states.</li>
     <li><a href="../screens/selection-over-cap.html">A selection past the cap</a>: five states.</li>
   </ul>
   <p class="k-secondary">Every screen has a light and dark switch and an annotation layer naming the design section and the compact-mantine component behind each element. Numbers come from the kit's fixtures; the weighted and filtered runs were computed from the same Les Miserables file by <a href="../screens/failure-and-recovery-numbers.py">failure-and-recovery-numbers.py</a>.</p>

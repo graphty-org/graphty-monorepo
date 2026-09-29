@@ -22,6 +22,325 @@
   <h1>graphty user study</h1>
   <p class="k-lede">A simulated usability study of the graphty mocks: task sessions and focus groups with personas built from real users' forum posts, videos and reviews. Every participant is simulated, so each finding is a hypothesis to confirm with real people. Newest round first. Back to the <a href="../index.html">gallery</a>.</p>
 
+  <h2>Round 6 (2026-09-29)</h2>
+  <p>The design as decided after round 5, tested four ways: a tree test (16 personas, 16 tasks; Results as a place on the rail, against a &quot;Runs&quot; label), a first-click test (16 personas, 14 prompts), 211 think-aloud sessions across 36 tasks (25 repeated from round 5 with get back in two undo arms, 1 flagged, 7 regressions from round 3, 2 new), and 4 focus groups. <strong>Every participant is simulated from the persona files: a failed task is a strong signal, a passed one weak until real people confirm it.</strong> Read first: <a href="round-6/insights.md"><strong>round-6/insights.md</strong></a>.</p>
+  <h3>Headline</h3>
+  <ul class="s-list">
+    <li>The round does not pass. Only the ease bar is met. The kit gate that had to pass before any first click or session did not: the Note tool is still on the toolbar, the navigation page still reads &quot;on no bridge&quot; and &quot;Re-run&quot;, there are still two right panels, the catalog has no weighted degree, and the task check checked 0 pages. The sessions ran anyway.</li>
+    <li>Undo, studio decision: keep the notice plus Ctrl+Z restore. With the notice alone, 5 of 8 lost their hand-picked selection for good after one Ctrl+Z; with the restore, 0 of 8. Mean ease 3.62 against 5.12.</li>
+    <li>Label: stays &quot;Results&quot;. Each persona took only one tree, so the frozen paired rule could not run, but the variant is behind (16 of 20 direct on tasks 1 to 4, against 39 of 44). Runs on the rail work: how a calculation was set up went from 25% to 100% direct.</li>
+    <li>Ease on the 25 repeated tasks rose from 4.13 to 4.78; money in against money out went from 2.00 (4 failures in 5) to 5.00 (none), now that the screens name money.</li>
+    <li>Most severe: the Loaded line&#x27;s &quot;amount not used yet. Change...&quot; drew 15 of 16 first clicks for the cheapest route, against the decision that a weight&#x27;s meaning is chosen in each run; the path&#x27;s weight editor comes filled in with the wrong reading (7 of 7); stacked degree filters silently give 40 where the answer is 41; the same run says directed and undirected (a mock defect, third round unfixed).</li>
+    <li>Nine session summaries carried a higher ease than their transcripts; the transcripts are used.</li>
+  </ul>
+  <h3>Tree test (all 16 personas; 11 took the main tree, 5 the &quot;Runs&quot; variant)</h3>
+  <p class="s-note">Simulated participants. Correct: the final pick is a right place. Direct: correct without going back up the tree. Bar: 70% correct and 55% direct on every task. Tasks 5, 10, 12 and 13 changed key since round 5; both keys are in the insights page. Answer key and tree: <a href="round-6/tree-test.md">round-6/tree-test.md</a>. Answers: <a href="round-6/tree-test/alert-reviewer.md">alert-reviewer</a>, <a href="round-6/tree-test/analyst-alex.md">analyst-alex</a>, <a href="round-6/tree-test/bioinformatics-researcher.md">bioinformatics-researcher</a>, <a href="round-6/tree-test/cybersecurity-analyst.md">cybersecurity-analyst</a>, <a href="round-6/tree-test/expert-emma.md">expert-emma</a>, <a href="round-6/tree-test/explorer-elena.md">explorer-elena</a>, <a href="round-6/tree-test/fraud-analyst.md">fraud-analyst</a>, <a href="round-6/tree-test/genomics-cytoscape-user.md">genomics-cytoscape-user</a>, <a href="round-6/tree-test/gephi-holdout.md">gephi-holdout</a>, <a href="round-6/tree-test/intelligence-analyst.md">intelligence-analyst</a>, <a href="round-6/tree-test/knowledge-engineer.md">knowledge-engineer</a>, <a href="round-6/tree-test/marketing-analyst.md">marketing-analyst</a>, <a href="round-6/tree-test/ml-engineer-recsys.md">ml-engineer-recsys</a>, <a href="round-6/tree-test/recipe-recipient.md">recipe-recipient</a>, <a href="round-6/tree-test/screen-reader-analyst.md">screen-reader-analyst</a>, <a href="round-6/tree-test/supply-chain-analyst.md">supply-chain-analyst</a>.</p>
+  <div class="s-wrap"><table class="s-table">
+    <tr><th class="n">#</th><th>Task</th><th class="n">Correct</th><th class="n">Direct</th><th class="n">Round 5 (arm A)</th></tr>
+    <tr><td class="n">1</td><td>Start a second ranking</td><td class="n">16 (100%)</td><td class="n">16 (100%)</td><td class="n">100% / 75%</td></tr>
+    <tr><td class="n">2</td><td>Where Valjean scored and places</td><td class="n">13 (81%)</td><td class="n">7 (44%)</td><td class="n">100% / 94%</td></tr>
+    <tr><td class="n">3</td><td>How an earlier calculation was set up</td><td class="n">16 (100%)</td><td class="n">16 (100%)</td><td class="n">88% / 25%</td></tr>
+    <tr><td class="n">4</td><td>Every score in one list, highest first</td><td class="n">16 (100%)</td><td class="n">16 (100%)</td><td class="n">100% / 100%</td></tr>
+    <tr><td class="n">5</td><td>A bigger transfer counts as more expensive</td><td class="n">12 (75%)</td><td class="n">5 (31%)</td><td class="n">100% / 62%</td></tr>
+    <tr><td class="n">6</td><td>A picture for the paper</td><td class="n">16 (100%)</td><td class="n">16 (100%)</td><td class="n">100% / 100%</td></tr>
+    <tr><td class="n">7</td><td>Bring in a team&#x27;s colors-and-sizes file</td><td class="n">11 (69%)</td><td class="n">0 (0%)</td><td class="n">19% / 0%</td></tr>
+    <tr><td class="n">8</td><td>Next month&#x27;s file, keeping the setup</td><td class="n">16 (100%)</td><td class="n">16 (100%)</td><td class="n">100% / 100%</td></tr>
+    <tr><td class="n">9</td><td>Change one of two colors you cannot tell apart</td><td class="n">16 (100%)</td><td class="n">13 (81%)</td><td class="n">100% / 94%</td></tr>
+    <tr><td class="n">10</td><td>Accounts that take in far more than they send</td><td class="n">16 (100%)</td><td class="n">15 (94%)</td><td class="n">81% / 50%</td></tr>
+    <tr><td class="n">11</td><td>Money moved along a selected route</td><td class="n">16 (100%)</td><td class="n">4 (25%)</td><td class="n">100% / 69%</td></tr>
+    <tr><td class="n">12</td><td>How the biggest group differs from the rest</td><td class="n">16 (100%)</td><td class="n">6 (38%)</td><td class="n">94% / 0%</td></tr>
+    <tr><td class="n">13</td><td>Get back a cleared selection</td><td class="n">16 (100%)</td><td class="n">16 (100%)</td><td class="n">69% / 69%</td></tr>
+    <tr><td class="n">14</td><td>Take out only the wrong second filter step</td><td class="n">13 (81%)</td><td class="n">11 (69%)</td><td class="n">100% / 81%</td></tr>
+    <tr><td class="n">15</td><td>Make a hidden name always show (new)</td><td class="n">16 (100%)</td><td class="n">8 (50%)</td><td class="n">--</td></tr>
+    <tr><td class="n">16</td><td>Where money went next in early August</td><td class="n">13 (81%)</td><td class="n">5 (31%)</td><td class="n">88% / 56%</td></tr>
+    <tr class="total"><td></td><td>All tasks</td><td class="n">238 of 256 (93%)</td><td class="n">170 (66%)</td><td class="n">90% / 67%</td></tr>
+  </table></div>
+  <h3>First click</h3>
+  <p class="s-note">Simulated participants. Bar: 70% on every prompt. Prompt 4 is scored on the kept undo design (13 of 16 under the notice-only key). Answers: <a href="round-6/first-click/alert-reviewer.md">alert-reviewer</a>, <a href="round-6/first-click/analyst-alex.md">analyst-alex</a>, <a href="round-6/first-click/bioinformatics-researcher.md">bioinformatics-researcher</a>, <a href="round-6/first-click/cybersecurity-analyst.md">cybersecurity-analyst</a>, <a href="round-6/first-click/expert-emma.md">expert-emma</a>, <a href="round-6/first-click/explorer-elena.md">explorer-elena</a>, <a href="round-6/first-click/fraud-analyst.md">fraud-analyst</a>, <a href="round-6/first-click/genomics-cytoscape-user.md">genomics-cytoscape-user</a>, <a href="round-6/first-click/gephi-holdout.md">gephi-holdout</a>, <a href="round-6/first-click/intelligence-analyst.md">intelligence-analyst</a>, <a href="round-6/first-click/knowledge-engineer.md">knowledge-engineer</a>, <a href="round-6/first-click/marketing-analyst.md">marketing-analyst</a>, <a href="round-6/first-click/ml-engineer-recsys.md">ml-engineer-recsys</a>, <a href="round-6/first-click/recipe-recipient.md">recipe-recipient</a>, <a href="round-6/first-click/screen-reader-analyst.md">screen-reader-analyst</a>, <a href="round-6/first-click/supply-chain-analyst.md">supply-chain-analyst</a>.</p>
+  <div class="s-wrap"><table class="s-table">
+    <tr><th class="n">#</th><th>Prompt</th><th class="n">Correct</th><th class="n">Round 5</th></tr>
+    <tr><td class="n">1</td><td>A picture for the paper</td><td class="n">13 (81%)</td><td class="n">88%</td></tr>
+    <tr><td class="n">2</td><td>How the bridges calculation was set up</td><td class="n">4 (25%)</td><td class="n">100%</td></tr>
+    <tr><td class="n">3</td><td>Rank the characters a second way</td><td class="n">9 (56%)</td><td class="n">62%</td></tr>
+    <tr><td class="n">4</td><td>Get back a cleared selection</td><td class="n">16 (100%)</td><td class="n">50%</td></tr>
+    <tr><td class="n">5</td><td>Where Valjean&#x27;s betweenness comes from</td><td class="n">16 (100%)</td><td class="n">100%</td></tr>
+    <tr><td class="n">6</td><td>Bring in next month&#x27;s file</td><td class="n">7 (44%)</td><td class="n">31%</td></tr>
+    <tr><td class="n">7</td><td>Accounts that take in far more than they send</td><td class="n">13 (81%)</td><td class="n">25%</td></tr>
+    <tr><td class="n">8</td><td>Cheapest route, a bigger transfer costs more</td><td class="n">1 (6%)</td><td class="n">44%</td></tr>
+    <tr><td class="n">9</td><td>Has anything left the computer?</td><td class="n">16 (100%)</td><td class="n">100%</td></tr>
+    <tr><td class="n">10</td><td>Recolor Ribosome or Spliceosome</td><td class="n">16 (100%)</td><td class="n">100%</td></tr>
+    <tr><td class="n">11</td><td>Bring in the lab&#x27;s colors-and-sizes file</td><td class="n">11 (69%)</td><td class="n">31%</td></tr>
+    <tr><td class="n">12</td><td>How Ribosome differs from the rest</td><td class="n">12 (75%)</td><td class="n">81%</td></tr>
+    <tr><td class="n">13</td><td>Make a hidden name always show (new)</td><td class="n">9 (56%)</td><td class="n">--</td></tr>
+    <tr><td class="n">14</td><td>Re-run with one setting changed, keep this one (new)</td><td class="n">11 (69%)</td><td class="n">--</td></tr>
+    <tr class="total"><td></td><td>All prompts</td><td class="n">154 of 224 (69%)</td><td class="n">72%</td></tr>
+  </table></div>
+  <h3>Task success and ease: think-aloud sessions</h3>
+  <p class="s-note">Simulated participants. Ease is the Single Ease Question, 1 (very hard) to 7 (very easy), taken from each transcript. Not calibrated against real users; compare tasks and rounds with each other.</p>
+  <div class="s-wrap"><table class="s-table">
+    <tr><th>Task</th><th class="n">Sessions</th><th class="n">Success</th><th class="n">With difficulty</th><th class="n">Failed</th><th class="n">Mean ease</th><th class="n">Before</th></tr>
+    <tr><td>Who matters most, and how sure are you?</td><td class="n">8</td><td class="n">0</td><td class="n">8</td><td class="n">0</td><td class="n">5.00</td><td class="n">4.50</td></tr>
+    <tr><td>What groups are there, and how does the biggest differ?</td><td class="n">7</td><td class="n">0</td><td class="n">7</td><td class="n">0</td><td class="n">5.00</td><td class="n">4.80</td></tr>
+    <tr><td>The edges carry a number: rank, and trust it?</td><td class="n">7</td><td class="n">4</td><td class="n">3</td><td class="n">0</td><td class="n">5.14</td><td class="n">3.67</td></tr>
+    <tr><td>Amount: cheapest route and most central</td><td class="n">7</td><td class="n">0</td><td class="n">6</td><td class="n">1</td><td class="n">4.00</td><td class="n">3.14</td></tr>
+    <tr><td>Follow money forward from early August</td><td class="n">5</td><td class="n">0</td><td class="n">5</td><td class="n">0</td><td class="n">5.00</td><td class="n">3.80</td></tr>
+    <tr><td>Clear or refer a flagged account</td><td class="n">4</td><td class="n">1</td><td class="n">3</td><td class="n">0</td><td class="n">5.25</td><td class="n">4.75</td></tr>
+    <tr><td>A figure a reviewer can read in gray</td><td class="n">6</td><td class="n">1</td><td class="n">5</td><td class="n">0</td><td class="n">5.00</td><td class="n">5.00</td></tr>
+    <tr><td>A black-and-white fold-change figure</td><td class="n">5</td><td class="n">0</td><td class="n">5</td><td class="n">0</td><td class="n">5.00</td><td class="n">4.20</td></tr>
+    <tr><td>Two groups in colors you cannot tell apart</td><td class="n">7</td><td class="n">0</td><td class="n">7</td><td class="n">0</td><td class="n">4.71</td><td class="n">3.00</td></tr>
+    <tr><td>Update with this month&#x27;s file; why did the group count change?</td><td class="n">6</td><td class="n">3</td><td class="n">3</td><td class="n">0</td><td class="n">5.33</td><td class="n">4.33</td></tr>
+    <tr><td>Top 200 by betweenness past the drawing limit</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">3.83</td><td class="n">3.60</td></tr>
+    <tr><td>Get back: notice alone</td><td class="n">8</td><td class="n">0</td><td class="n">3</td><td class="n">5</td><td class="n">3.62</td><td class="n">4.17</td></tr>
+    <tr><td>Get back: notice plus Ctrl+Z restore</td><td class="n">8</td><td class="n">2</td><td class="n">5</td><td class="n">1</td><td class="n">5.12</td><td class="n">4.17</td></tr>
+    <tr><td>Fix the wrong middle filter step</td><td class="n">6</td><td class="n">4</td><td class="n">2</td><td class="n">0</td><td class="n">5.67</td><td class="n">5.25</td></tr>
+    <tr><td>Keyboard only: find Javert, walk, select two</td><td class="n">5</td><td class="n">0</td><td class="n">2</td><td class="n">3</td><td class="n">3.60</td><td class="n">3.75</td></tr>
+    <tr><td>Leave yourself a note on why</td><td class="n">5</td><td class="n">3</td><td class="n">2</td><td class="n">0</td><td class="n">5.40</td><td class="n">4.80</td></tr>
+    <tr><td>Make sure a colleague can tell which notes are yours</td><td class="n">5</td><td class="n">1</td><td class="n">4</td><td class="n">0</td><td class="n">4.80</td><td class="n">4.00</td></tr>
+    <tr><td>Is it OK to use with our data?</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">4.83</td><td class="n">4.67</td></tr>
+    <tr><td>A colleague&#x27;s file: worth an afternoon?</td><td class="n">6</td><td class="n">2</td><td class="n">4</td><td class="n">0</td><td class="n">4.83</td><td class="n">4.33</td></tr>
+    <tr><td>Top 50 by betweenness into Excel or pandas</td><td class="n">6</td><td class="n">1</td><td class="n">5</td><td class="n">0</td><td class="n">5.00</td><td class="n">4.00</td></tr>
+    <tr><td>Share your setup without your data</td><td class="n">5</td><td class="n">1</td><td class="n">4</td><td class="n">0</td><td class="n">5.00</td><td class="n">5.25</td></tr>
+    <tr><td>Answer IT: did anything leave?</td><td class="n">5</td><td class="n">0</td><td class="n">5</td><td class="n">0</td><td class="n">4.40</td><td class="n">4.75</td></tr>
+    <tr><td>Money in against money out</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">5.00</td><td class="n">2.00</td></tr>
+    <tr><td>Make this project look like the team&#x27;s</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">4.00</td><td class="n">3.17</td></tr>
+    <tr><td>Rank again with one thing changed, and compare</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">4.50</td><td class="n">3.83</td></tr>
+    <tr><td>A long calculation stopped partway</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">4.67</td><td class="n">4.40</td></tr>
+    <tr class="total"><td>Repeated from round 5 (25 tasks, get back pooled, unweighted mean)</td><td class="n">153</td><td class="n">23</td><td class="n">120</td><td class="n">10</td><td class="n">4.78</td><td class="n">4.13</td></tr>
+    <tr><td>Use a colleague&#x27;s recipe on your gene list (flagged)</td><td class="n">5</td><td class="n">0</td><td class="n">5</td><td class="n">0</td><td class="n">5.00</td><td class="n">4.80</td></tr>
+    <tr><td>Narrow or paint (round 3)</td><td class="n">5</td><td class="n">1</td><td class="n">3</td><td class="n">1</td><td class="n">4.60</td><td class="n">4.8</td></tr>
+    <tr><td>How is one account connected to another (round 3)</td><td class="n">5</td><td class="n">0</td><td class="n">5</td><td class="n">0</td><td class="n">4.60</td><td class="n">4.2</td></tr>
+    <tr><td>Too big to draw (round 3)</td><td class="n">5</td><td class="n">2</td><td class="n">3</td><td class="n">0</td><td class="n">5.40</td><td class="n">5.0</td></tr>
+    <tr><td>Who bridges groups, costly measure (round 3)</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">4.17</td><td class="n">4.2</td></tr>
+    <tr><td>Do two rankings agree (round 3)</td><td class="n">5</td><td class="n">2</td><td class="n">3</td><td class="n">0</td><td class="n">5.40</td><td class="n">5.5</td></tr>
+    <tr><td>Redo last week&#x27;s export (round 3)</td><td class="n">5</td><td class="n">0</td><td class="n">4</td><td class="n">1</td><td class="n">4.20</td><td class="n">4.0</td></tr>
+    <tr><td>Explain every count (round 3)</td><td class="n">5</td><td class="n">0</td><td class="n">5</td><td class="n">0</td><td class="n">4.60</td><td class="n">3.7</td></tr>
+    <tr><td>Load a messy export (new)</td><td class="n">7</td><td class="n">0</td><td class="n">7</td><td class="n">0</td><td class="n">4.43</td><td class="n">--</td></tr>
+    <tr><td>Real change or noise (new)</td><td class="n">6</td><td class="n">0</td><td class="n">6</td><td class="n">0</td><td class="n">4.17</td><td class="n">--</td></tr>
+    <tr class="total"><td>All of round 6 (per session)</td><td class="n">211</td><td class="n">28</td><td class="n">171</td><td class="n">12</td><td class="n">4.72</td><td class="n">4.10</td></tr>
+  </table></div>
+  <h3>Focus groups</h3>
+  <ul class="s-list">
+    <li><a href="round-6/focus-groups/fg-runs-on-the-rail.md">Runs on the rail</a> -- all six expected values behind &quot;Results&quot;, but the tree test shows the label works; a re-run must never overwrite; every computed column should name its run.</li>
+    <li><a href="round-6/focus-groups/fg-getting-back.md">Getting back</a> -- a fading notice is missed by everyone; it must say what was lost and what was kept. Discount: primed against Ctrl+Z.</li>
+    <li><a href="round-6/focus-groups/fg-money-as-money.md">Money as money</a> -- set a weight&#x27;s meaning once and stamp it on every result (4 of 5); totals must reconcile to the penny with a row count and date window.</li>
+    <li><a href="round-6/focus-groups/fg-a-look-you-receive.md">A look you receive</a> -- fear that a received file overwrites your own colors; show the effect before Apply. Discount: the fear was seeded by one participant.</li>
+  </ul>
+  <h3>Sessions</h3>
+  <p class="s-note">Each file is one simulated participant doing one task, with the transcript, problems and what they liked.</p>
+  <ul class="s-list">
+      <li><a href="round-6/sessions/calculation-stopped--analyst-alex.md">Session: a long calculation stopped partway -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/calculation-stopped--bioinformatics-researcher.md">Session: a calculation that stopped partway -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/calculation-stopped--expert-emma.md">Session: a long calculation stopped partway -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/calculation-stopped--gephi-holdout.md">Session: a calculation stopped partway -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/calculation-stopped--knowledge-engineer.md">Session: a long calculation stopped partway -- Dr. Min-ji Kim</a></li>
+      <li><a href="round-6/sessions/calculation-stopped--ml-engineer-recsys.md">Session: a long calculation stopped partway -- Chris, ML engineer, recommendations</a></li>
+      <li><a href="round-6/sessions/costly-measure--analyst-alex.md">Session: measure who bridges groups on the whole citation graph -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/costly-measure--bioinformatics-researcher.md">Costly measure: who bridges groups on the whole citation graph -- Dr. Chen (computational biologist)</a></li>
+      <li><a href="round-6/sessions/costly-measure--expert-emma.md">Session: a measure too costly to run exactly -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/costly-measure--gephi-holdout.md">Session: &quot;who bridges groups on the whole citation graph&quot; -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/costly-measure--knowledge-engineer.md">Session: measuring who bridges the groups in a large citation graph -- knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/costly-measure--ml-engineer-recsys.md">Session: a costly measure on a large graph -- Chris, ML engineer (recommendation systems)</a></li>
+      <li><a href="round-6/sessions/data-stays-here--analyst-alex.md">Session: may I use this on company data? -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/data-stays-here--bioinformatics-researcher.md">Session: may I use this on my data, and what do I tell IT -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/data-stays-here--cybersecurity-analyst.md">Session: may I use this on our data? -- Priya, threat hunter at a regional bank</a></li>
+      <li><a href="round-6/sessions/data-stays-here--fraud-analyst.md">Session: may I use this on bank data? -- Sarah, fraud investigator</a></li>
+      <li><a href="round-6/sessions/data-stays-here--intelligence-analyst.md">Session: may I put case data in this, and what do I tell IT? -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/data-stays-here--supply-chain-analyst.md">Session: may I use this on our supplier data? -- supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/dated-trace--alert-reviewer.md">Session: dated trace -- alert reviewer (Nadia)</a></li>
+      <li><a href="round-6/sessions/dated-trace--cybersecurity-analyst.md">Session: follow the money forward in time -- Priya, threat hunter</a></li>
+      <li><a href="round-6/sessions/dated-trace--fraud-analyst.md">Dated trace -- Fraud analyst (Sarah)</a></li>
+      <li><a href="round-6/sessions/dated-trace--intelligence-analyst.md">Where did the August money go, and does the order make sense -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/dated-trace--supply-chain-analyst.md">Where did the money go next, and does the order make sense -- Dana, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/did-anything-leave--alert-reviewer.md">Did anything leave? -- Nadia, level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/did-anything-leave--cybersecurity-analyst.md">Did anything leave? -- Priya, threat hunter (round 6)</a></li>
+      <li><a href="round-6/sessions/did-anything-leave--fraud-analyst.md">Session: does this tool send data anywhere? -- Sarah, fraud investigator</a></li>
+      <li><a href="round-6/sessions/did-anything-leave--intelligence-analyst.md">Did anything leave? -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/did-anything-leave--supply-chain-analyst.md">Session: Did anything leave? -- Dana Okafor, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/figure-for-reviewer--analyst-alex.md">Session: a figure a reviewer can read in gray -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/figure-for-reviewer--expert-emma.md">Figure for a reviewer, readable in gray -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/figure-for-reviewer--explorer-elena.md">Session: a figure a reviewer can read in gray -- Elena, first-time graph user</a></li>
+      <li><a href="round-6/sessions/figure-for-reviewer--genomics-cytoscape-user.md">Session: a figure a reviewer can read in gray -- Maren (genomics, Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/figure-for-reviewer--gephi-holdout.md">Session: a figure a reviewer can read in gray -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/figure-for-reviewer--marketing-analyst.md">Session: a figure a reviewer can read in gray -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/fix-wrong-middle-step--alert-reviewer.md">Session: fix the wrong middle step without losing the third -- Nadia, level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/fix-wrong-middle-step--analyst-alex.md">Fix the wrong middle filter step -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/fix-wrong-middle-step--explorer-elena.md">Fix the wrong middle step -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/fix-wrong-middle-step--intelligence-analyst.md">Fix the wrong middle step -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/fix-wrong-middle-step--knowledge-engineer.md">Fix the wrong middle step -- Dr. Min-ji Kim, knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/fix-wrong-middle-step--supply-chain-analyst.md">Fix the wrong middle filter step -- Dana Okafor, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/flagged-account--alert-reviewer.md">Session: a flagged account -- level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/flagged-account--cybersecurity-analyst.md">Session: a flagged account, clear or refer -- Priya, threat hunter</a></li>
+      <li><a href="round-6/sessions/flagged-account--fraud-analyst.md">Session: a flagged account, clear or refer -- Sarah, level-2 fraud investigator</a></li>
+      <li><a href="round-6/sessions/flagged-account--intelligence-analyst.md">Session: flagged account -- intelligence analyst (Marcus)</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--analyst-alex.md">Get back to where you were, the one-line notice version -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--expert-emma.md">Get back to where you were (the notice-only version) -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--explorer-elena.md">Get back to where you were, notice version -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--gephi-holdout.md">Get back, notice-line arm -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--intelligence-analyst.md">Get back to where you were -- Marcus, the line-only version</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--marketing-analyst.md">Get back to where you were, the one-line notice version -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--screen-reader-analyst.md">Get back to where you were, the line-only version -- Morgan, screen-reader analyst</a></li>
+      <li><a href="round-6/sessions/get-back-notice-arm--supply-chain-analyst.md">Session: &quot;The numbers changed -- get back to where you were&quot; -- Dana Okafor, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--analyst-alex.md">Get back to where you were, the version where Ctrl+Z restores the selection -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--expert-emma.md">Get back to where you were, the Ctrl+Z-restores version -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--explorer-elena.md">Get back to where you were, the Ctrl+Z-restores version -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--gephi-holdout.md">Get back to where you were, the version where Ctrl+Z restores the selection -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--intelligence-analyst.md">Get back to where you were, the Ctrl+Z-restores version -- Marcus, intelligence analyst</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--marketing-analyst.md">Get back to where you were, the Cmd+Z-restores version -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--screen-reader-analyst.md">Get back to where you were, the Ctrl+Z-restores version -- Morgan, screen-reader analyst</a></li>
+      <li><a href="round-6/sessions/get-back-restore-arm--supply-chain-analyst.md">Get back to where you were -- Dana Okafor, supply chain risk analyst (Ctrl+Z restores the selection)</a></li>
+      <li><a href="round-6/sessions/gray-figure-signed--bioinformatics-researcher.md">Session: &quot;A gray figure of the fold changes, and which genes went up the most&quot; -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/gray-figure-signed--expert-emma.md">Session: a gray-print figure of fold changes, and which genes went up most -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/gray-figure-signed--genomics-cytoscape-user.md">Session: a black-and-white fold-change figure, and which genes went up the most -- Maren, genomics postdoc</a></li>
+      <li><a href="round-6/sessions/gray-figure-signed--gephi-holdout.md">Session: &quot;A black-and-white figure of the fold changes, and which genes went up the most&quot; -- Mara, Gephi holdout</a></li>
+      <li><a href="round-6/sessions/gray-figure-signed--marketing-analyst.md">Session: &quot;A black-and-white figure of the fold changes, and which genes went up the most&quot; -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/groups-differ--bioinformatics-researcher.md">Session: &quot;What groups are there, and how is the biggest one different?&quot; -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/groups-differ--expert-emma.md">Session: what groups are there, and how is the biggest different -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/groups-differ--explorer-elena.md">Session: what groups are there, and how is the biggest one different -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/groups-differ--genomics-cytoscape-user.md">Session: what groups are there, and how is the biggest one different?</a></li>
+      <li><a href="round-6/sessions/groups-differ--gephi-holdout.md">Session: what groups are there, and how is the biggest different -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/groups-differ--marketing-analyst.md">Session: what groups are there, and how is the biggest one different -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/groups-differ--supply-chain-analyst.md">What groups are there, and how is the biggest different -- Dana, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/how-connected--alert-reviewer.md">Session: &quot;How is ACC-271813 connected to ACC-233575?&quot; -- Nadia, level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/how-connected--cybersecurity-analyst.md">Session: how is one account connected to another -- Priya, threat hunter at a regional bank</a></li>
+      <li><a href="round-6/sessions/how-connected--fraud-analyst.md">Session: how is one account connected to another -- Sarah, level-2 fraud investigator</a></li>
+      <li><a href="round-6/sessions/how-connected--intelligence-analyst.md">How is ACC-271813 connected to ACC-233575? -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/how-connected--supply-chain-analyst.md">How is ACC-271813 connected to ACC-233575? -- Dana, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/keyboard-walk-shift-arrow--analyst-alex.md">Keyboard walk, Shift+Arrow -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/keyboard-walk-shift-arrow--expert-emma.md">Session: keyboard walk -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/keyboard-walk-shift-arrow--knowledge-engineer.md">Keyboard walk with Shift+Arrow -- Knowledge Engineer Min-ji</a></li>
+      <li><a href="round-6/sessions/keyboard-walk-shift-arrow--ml-engineer-recsys.md">Keyboard walk with Shift+Arrow -- Chris, ML engineer (recommendation systems)</a></li>
+      <li><a href="round-6/sessions/keyboard-walk-shift-arrow--screen-reader-analyst.md">Keyboard walk: find Javert, move through his neighbors, select two -- Morgan Reyes (screen-reader analyst)</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--alert-reviewer.md">Session: load a messy export -- Nadia, level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--analyst-alex.md">Session: bring in a messy transfer export and say whether it is what you think -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--cybersecurity-analyst.md">Session: bring in a messy export and check it -- Priya, threat hunter</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--fraud-analyst.md">Session: load a messy export -- Sarah, fraud investigator</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--intelligence-analyst.md">Loading a messy bank export -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--knowledge-engineer.md">Session: load a messy export -- Min-ji, knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/load-a-messy-export--supply-chain-analyst.md">Session: bring in March&#x27;s transfer export and say whether it is what you think -- Dana, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/money-in-and-out--alert-reviewer.md">Money in, money out -- Nadia, level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/money-in-and-out--analyst-alex.md">Session: &quot;Which accounts take in far more than they send?&quot; -- Alex, operations data analyst</a></li>
+      <li><a href="round-6/sessions/money-in-and-out--cybersecurity-analyst.md">Session: ten accounts that take in far more than they send out -- Priya, SOC threat hunter</a></li>
+      <li><a href="round-6/sessions/money-in-and-out--fraud-analyst.md">Session: money in against money out -- Sarah, fraud investigator</a></li>
+      <li><a href="round-6/sessions/money-in-and-out--intelligence-analyst.md">Session: money in against money out -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/money-in-and-out--supply-chain-analyst.md">Session: the ten accounts that take in far more than they send out -- Dana, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/narrow-or-paint--analyst-alex.md">Narrow, hide or paint -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/narrow-or-paint--explorer-elena.md">Narrow, hide or paint -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/narrow-or-paint--gephi-holdout.md">Session: characters with 5 or more partners -- Gephi holdout</a></li>
+      <li><a href="round-6/sessions/narrow-or-paint--knowledge-engineer.md">Session: narrow, hide or paint -- Dr. Min-ji Kim, knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/narrow-or-paint--marketing-analyst.md">Narrow, hide or paint -- Jordan (marketing network analyst)</a></li>
+      <li><a href="round-6/sessions/notes-with-names--alert-reviewer.md">Session: notes with names -- Nadia, level-1 alert reviewer</a></li>
+      <li><a href="round-6/sessions/notes-with-names--analyst-alex.md">Notes with names -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/notes-with-names--bioinformatics-researcher.md">Session: &quot;A colleague reads your notes beside her own; make sure she can tell which are yours&quot; -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/notes-with-names--fraud-analyst.md">Session: notes with names -- Sarah, fraud analyst</a></li>
+      <li><a href="round-6/sessions/notes-with-names--intelligence-analyst.md">Notes with names -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--analyst-alex.md">Session: a weight read the wrong way -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--expert-emma.md">Session: &quot;The Les Miserables edges carry a number. Rank the characters, then tell me whether you trust the ranking.&quot; -- Emma, network scientist</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--explorer-elena.md">Rank the characters by a number on the lines -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--gephi-holdout.md">Session: a weight read the wrong way -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--knowledge-engineer.md">Session: rank the Les Miserables characters when the edges carry a number -- knowledge engineer (Min-ji)</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--marketing-analyst.md">Session: the quiet weight trap -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/quiet-weight-trap--ml-engineer-recsys.md">Session: rank the Les Miserables characters and say whether to trust it -- Chris (ML engineer, recommendations)</a></li>
+      <li><a href="round-6/sessions/rankings-agree--analyst-alex.md">Do these two ways of scoring agree on who matters? -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/rankings-agree--expert-emma.md">Do two rankings agree? -- Expert Emma, round 6</a></li>
+      <li><a href="round-6/sessions/rankings-agree--fraud-analyst.md">Session: do two ways of scoring agree on who matters -- Sarah, level-2 fraud investigator</a></li>
+      <li><a href="round-6/sessions/rankings-agree--gephi-holdout.md">Session: do two scorings agree on who matters? -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/rankings-agree--marketing-analyst.md">Do these two ways of scoring agree on who matters? -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/read-the-numbers--analyst-alex.md">Read the numbers -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/read-the-numbers--bioinformatics-researcher.md">Session: read every number -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/read-the-numbers--explorer-elena.md">Read the numbers -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/read-the-numbers--genomics-cytoscape-user.md">Session: read every count after filtering to one module -- Maren (genomics, Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/read-the-numbers--recipe-recipient.md">Read the numbers -- Tom, the recipe recipient</a></li>
+      <li><a href="round-6/sessions/real-change-or-noise--analyst-alex.md">Real change or noise -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/real-change-or-noise--expert-emma.md">Session: real change or a different Louvain draw -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/real-change-or-noise--fraud-analyst.md">Session: did the ring really change, or did the tool just group it differently? -- Sarah, fraud investigator</a></li>
+      <li><a href="round-6/sessions/real-change-or-noise--intelligence-analyst.md">Did the ring really change, or did it just come out differently -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/real-change-or-noise--knowledge-engineer.md">Real change or noise -- Dr. Min-ji Kim, knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/real-change-or-noise--supply-chain-analyst.md">Session: did the group really change, or did it only come out differently?</a></li>
+      <li><a href="round-6/sessions/remember-why--analyst-alex.md">Leave yourself a note on why you kept these accounts -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/remember-why--bioinformatics-researcher.md">Leave yourself a note on why you kept these accounts -- Dr. Chen</a></li>
+      <li><a href="round-6/sessions/remember-why--fraud-analyst.md">Remember why -- Sarah, fraud investigator</a></li>
+      <li><a href="round-6/sessions/remember-why--intelligence-analyst.md">Leave yourself a note on why you kept these accounts -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/remember-why--screen-reader-analyst.md">Remember why -- Screen-Reader Analyst (Morgan)</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--bioinformatics-researcher.md">Session: restyle two groups -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--explorer-elena.md">Restyle two groups -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--genomics-cytoscape-user.md">Session: two groups in colors you cannot tell apart -- Maren (genomics, Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--gephi-holdout.md">Session: two groups drawn in colors you cannot tell apart -- Mara (Gephi holdout)</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--marketing-analyst.md">Session: fix two groups drawn in colors you cannot tell apart -- Jordan (marketing network analyst)</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--recipe-recipient.md">Session: two groups in colors he cannot tell apart -- Tom, the recipe recipient</a></li>
+      <li><a href="round-6/sessions/restyle-two-groups--screen-reader-analyst.md">Session: restyle two groups -- Morgan Reyes, screen-reader analyst</a></li>
+      <li><a href="round-6/sessions/share-without-data--bioinformatics-researcher.md">Share the setup without the data -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/share-without-data--expert-emma.md">Share the setup without the data -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/share-without-data--genomics-cytoscape-user.md">Session: share the setup without the data -- Maren (genomics postdoc, Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/share-without-data--marketing-analyst.md">Share your setup with a partner, without your data -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/share-without-data--supply-chain-analyst.md">Session: share the setup without the data -- Dana Okafor, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/team-colors-file--explorer-elena.md">Session: make this project look like the team&#x27;s -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/team-colors-file--genomics-cytoscape-user.md">Team colors from a mailed file -- Maren, genomics postdoc (Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/team-colors-file--gephi-holdout.md">Session: make this project look like the team&#x27;s -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/team-colors-file--marketing-analyst.md">Session: make this project look like the team&#x27;s -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/team-colors-file--recipe-recipient.md">Session: the team&#x27;s colors file -- Tom, the recipe recipient</a></li>
+      <li><a href="round-6/sessions/team-colors-file--supply-chain-analyst.md">Session: make the project look like the team&#x27;s -- Dana Okafor, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/this-weeks-export--alert-reviewer.md">Session: this week&#x27;s export -- alert reviewer (Nadia)</a></li>
+      <li><a href="round-6/sessions/this-weeks-export--analyst-alex.md">Session: redo last week&#x27;s export on this week&#x27;s data -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/this-weeks-export--fraud-analyst.md">Session: redo last week&#x27;s export on this week&#x27;s data, and show what changed -- Sarah, fraud analyst</a></li>
+      <li><a href="round-6/sessions/this-weeks-export--intelligence-analyst.md">Session: this week&#x27;s export -- the criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/this-weeks-export--supply-chain-analyst.md">Session: this week&#x27;s export -- Dana Okafor, supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/too-big-to-draw--bioinformatics-researcher.md">Session: a graph too big to draw -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/too-big-to-draw--expert-emma.md">Session: too big to draw -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/too-big-to-draw--gephi-holdout.md">Session: a graph too big to draw -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/too-big-to-draw--knowledge-engineer.md">Session: a graph too big to draw -- the knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/too-big-to-draw--ml-engineer-recsys.md">Session: &quot;This citation data is too big to draw. Is anything here worth a look?&quot;</a></li>
+      <li><a href="round-6/sessions/top-200-past-limit--bioinformatics-researcher.md">Session: &quot;Find the 200 patents that sit most in between, then look at who surrounds the first one&quot; -- Dr. Chen, computational biologist</a></li>
+      <li><a href="round-6/sessions/top-200-past-limit--cybersecurity-analyst.md">Session: the 200 most in-between patents, past the drawing limit -- Priya</a></li>
+      <li><a href="round-6/sessions/top-200-past-limit--expert-emma.md">Session: the 200 most in-between patents, past the drawing limit -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/top-200-past-limit--gephi-holdout.md">Session: top 200 past the drawing limit -- Gephi holdout (Mara)</a></li>
+      <li><a href="round-6/sessions/top-200-past-limit--knowledge-engineer.md">Session: the 200 most in-between patents, past the drawing limit -- Dr. Min-ji Kim</a></li>
+      <li><a href="round-6/sessions/top-200-past-limit--ml-engineer-recsys.md">Session: the 200 patents most in between, and who surrounds the first -- the recommendations ML engineer</a></li>
+      <li><a href="round-6/sessions/top-50-to-excel--analyst-alex.md">Top 50 by betweenness into Excel or pandas -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/top-50-to-excel--bioinformatics-researcher.md">Session: top 50 by betweenness into Excel or pandas -- Dr. Chen (computational biologist)</a></li>
+      <li><a href="round-6/sessions/top-50-to-excel--expert-emma.md">Session: top 50 by betweenness into Excel or pandas -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/top-50-to-excel--gephi-holdout.md">Top 50 by betweenness, into pandas -- Dr. Mara Lindqvist (the Gephi holdout)</a></li>
+      <li><a href="round-6/sessions/top-50-to-excel--knowledge-engineer.md">Session: top 50 by betweenness into pandas, with original ids -- knowledge engineer</a></li>
+      <li><a href="round-6/sessions/top-50-to-excel--ml-engineer-recsys.md">Top 50 by betweenness into pandas -- Chris, ML engineer (recommendation systems)</a></li>
+      <li><a href="round-6/sessions/two-runs-compared--analyst-alex.md">Two rankings compared -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/two-runs-compared--explorer-elena.md">Session: rank the same characters twice and say what differs -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/two-runs-compared--gephi-holdout.md">Session: rank again with one thing changed, and say what differs -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/two-runs-compared--knowledge-engineer.md">Two runs of one ranking, compared -- Dr. Min-ji Kim, knowledge graph engineer</a></li>
+      <li><a href="round-6/sessions/two-runs-compared--marketing-analyst.md">Session: rank the same characters again with one thing changed, and say what differs -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/two-runs-compared--ml-engineer-recsys.md">Two runs of one measure, compared -- Chris (ML engineer, recommendation systems)</a></li>
+      <li><a href="round-6/sessions/use-colleagues-file--analyst-alex.md">Session: use a colleague&#x27;s analysis on your own gene list -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/use-colleagues-file--bioinformatics-researcher.md">Session: using a colleague&#x27;s analysis on your own gene list -- Dr. Chen (computational biologist)</a></li>
+      <li><a href="round-6/sessions/use-colleagues-file--explorer-elena.md">Use a colleague&#x27;s file -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/use-colleagues-file--genomics-cytoscape-user.md">Session: use a colleague&#x27;s file -- Maren (genomics postdoc, Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/use-colleagues-file--recipe-recipient.md">Session: use a colleague&#x27;s file -- recipe recipient (Tom)</a></li>
+      <li><a href="round-6/sessions/weekly-update--alert-reviewer.md">Session: monthly update, played by the level-1 alert reviewer (Nadia)</a></li>
+      <li><a href="round-6/sessions/weekly-update--analyst-alex.md">Session: monthly update of the transfers project -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/weekly-update--fraud-analyst.md">Session: monthly update of the transfers project -- Sarah, fraud analyst</a></li>
+      <li><a href="round-6/sessions/weekly-update--intelligence-analyst.md">Monthly update: bring April&#x27;s file into March&#x27;s project and explain the group count</a></li>
+      <li><a href="round-6/sessions/weekly-update--knowledge-engineer.md">Session: this month&#x27;s file into last month&#x27;s project, and why the groups changed -- knowledge engineer (Min-ji)</a></li>
+      <li><a href="round-6/sessions/weekly-update--supply-chain-analyst.md">Session: monthly update and &quot;why did the groups change&quot; -- supply chain risk analyst</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--analyst-alex.md">Session: weight end to end -- analyst Alex</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--cybersecurity-analyst.md">Weight end to end -- Priya, threat hunter (cybersecurity analyst)</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--expert-emma.md">Weighted path and centrality, end to end -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--fraud-analyst.md">Session: cheapest route and most central accounts, using the transfer amounts -- Sarah, fraud analyst</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--intelligence-analyst.md">Session: the cheapest route and the most central accounts, with an amount on every transfer -- Marcus, criminal intelligence analyst</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--ml-engineer-recsys.md">Session: cheapest route and most central accounts, on the March transfers</a></li>
+      <li><a href="round-6/sessions/weight-end-to-end--supply-chain-analyst.md">Cheapest route and most central accounts -- Dana, supply chain risk analyst (round 6)</a></li>
+      <li><a href="round-6/sessions/who-matters--analyst-alex.md">Who matters -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/who-matters--bioinformatics-researcher.md">Session: who matters most in Les Miserables, and how sure</a></li>
+      <li><a href="round-6/sessions/who-matters--expert-emma.md">Session: who matters most to how the story hangs together -- Expert Emma</a></li>
+      <li><a href="round-6/sessions/who-matters--explorer-elena.md">Session: &quot;who matters most to the story, and how sure&quot; -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/who-matters--genomics-cytoscape-user.md">Session: who matters most in Les Miserables, and how sure</a></li>
+      <li><a href="round-6/sessions/who-matters--gephi-holdout.md">Session: &quot;who matters most to the story, and how sure&quot; -- the Gephi holdout</a></li>
+      <li><a href="round-6/sessions/who-matters--knowledge-engineer.md">Who matters -- Knowledge Engineer (Min-ji)</a></li>
+      <li><a href="round-6/sessions/who-matters--marketing-analyst.md">Who matters in Les Miserables -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/worth-an-afternoon--analyst-alex.md">Is this file worth an afternoon? -- Analyst Alex</a></li>
+      <li><a href="round-6/sessions/worth-an-afternoon--explorer-elena.md">Is this file worth an afternoon? -- Explorer Elena</a></li>
+      <li><a href="round-6/sessions/worth-an-afternoon--genomics-cytoscape-user.md">Session: &quot;A colleague sent this file. Is it worth an afternoon?&quot; -- Maren, genomics postdoc (Cytoscape user)</a></li>
+      <li><a href="round-6/sessions/worth-an-afternoon--marketing-analyst.md">Is this file worth an afternoon? -- Jordan, marketing network analyst</a></li>
+      <li><a href="round-6/sessions/worth-an-afternoon--recipe-recipient.md">Is this file worth an afternoon? -- Tom, the recipe recipient</a></li>
+      <li><a href="round-6/sessions/worth-an-afternoon--supply-chain-analyst.md">Is this file worth an afternoon? -- Dana Okafor, supply chain risk analyst</a></li>
+  </ul>
+
   <h2>Round 5 (2026-09-28)</h2>
   <p>The design as decided after round 4, tested four ways: a two-arm tree test (16 personas, 16 tasks; arm A keeps Results in the right panel, arm B makes them a place on the rail), a first-click test (16 personas, 14 prompts), 135 think-aloud sessions across 26 tasks (18 repeated from round 4, 3 regressions from round 3, 5 new), and 4 focus groups. Read first: <a href="round-5/insights.md"><strong>what round 5 found</strong></a> -- whether the round met its bars, where Results live, 21 design findings with severity, evidence and a recommendation each, the problems caused by the mocks, and what to keep.</p>
   <h3>Headline</h3>

@@ -76,7 +76,7 @@ import {
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
-import { buildExportSnapshot, type ExportGraphOptions, type ExportResult, exportSnapshot } from "./data/export";
+import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
@@ -5488,18 +5488,20 @@ export class Graph implements GraphContext {
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`.
      * @returns The loss notes, and the document as text or as UTF-8 chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
-     * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option a registered writer does not accept,
-     * `E_UNSUPPORTED` when the writer refuses this graph under these options.
+     * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not
+     * accept, `E_UNSUPPORTED` when the writer's up-front check refuses this graph under these
+     * options. A refusal found only while writing rejects `text()` or `bytes` instead.
      */
     async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
         await this.operationQueue.waitForCompletion();
         const painter = this.getStylePainter();
-        const { snapshot, notes } = buildExportSnapshot(this.session, {
+        return exportSession(this.session, format, options, {
             nodeStyle: (row) => {
                 const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
                 return {
                     color: paint.color ?? toColorValue(paint.style.texture?.color as string | undefined),
                     size: paint.style.shape?.size,
+                    shape: paint.style.shape?.type,
                 };
             },
             edgeStyle: (row) => {
@@ -5507,7 +5509,6 @@ export class Graph implements GraphContext {
                 return { color: toColorValue(style.line?.color), width: style.line?.width };
             },
         });
-        return exportSnapshot(snapshot, format, options, notes);
     }
 
     /**

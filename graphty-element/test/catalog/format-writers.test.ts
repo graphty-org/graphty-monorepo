@@ -19,8 +19,9 @@ import {
     clearRegisteredFormatWritersForTesting,
     registerFormatWriter,
 } from "../../src/catalog/writerRegistry";
+import { DataConfig } from "../../src/config/DataConfig";
 import { DataSource, type DataSourceChunk } from "../../src/data/DataSource";
-import { buildExportSnapshot, exportSnapshot } from "../../src/data/export";
+import { buildExportSnapshot, exportSession, exportSnapshot } from "../../src/data/export";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -269,6 +270,117 @@ describe("the export snapshot", () => {
         const { snapshot } = buildExportSnapshot(harness.session);
         const error = refusal(() => exportSnapshot(snapshot, "acme-lines", { colour: "red" }));
         assert.strictEqual(error.code, "E_UNKNOWN_OPTION");
+        harness.session.dispose();
+    });
+});
+
+describe("what an export writes", () => {
+    it("writes the weight the element stores: the legacy value key, a custom weight path and a folded repeat", async () => {
+        const legacy = makeSession();
+        legacy.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", weight: 7 }]);
+        // The record carries its weight under the legacy key only, as every weighted fixture here does.
+        legacy.edgeAttributes.set(0, { value: 7 });
+        legacy.touch();
+        const legacyText = await exportSession(legacy.session, "pajek").text();
+        assert.match(legacyText, /1 2 7/, "the legacy value is the weight");
+        legacy.session.dispose();
+
+        const custom = makeSession({ config: DataConfig.parse({ knownFields: { edgeWeightPath: "w" } }) });
+        custom.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", weight: 3, w: 3 }]);
+        custom.edgeAttributes.set(0, { w: 3 });
+        custom.touch();
+        const edge = exportSession(custom.session, "json");
+        const customText = await edge.text();
+        assert.include(customText, '"weight":3', "the stored weight is the weight");
+        assert.include(customText, '"w":3', "and the record's own key stays, where a reload reads it");
+        custom.session.dispose();
+
+        const folded = makeSession();
+        folded.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", weight: 5 }]);
+        // A sum-folded pair: the store holds the folded weight, the record keeps the first weight.
+        folded.edgeAttributes.set(0, { weight: 1 });
+        folded.touch();
+        const { snapshot } = buildExportSnapshot(folded.session);
+        assert.deepEqual(Array.from(snapshot.weights ?? []), [5], "the stored weight, not the record's");
+        folded.session.dispose();
+    });
+
+    it("exports again a graph read back from its own export, style columns and all", () => {
+        const harness = makeSession();
+        harness.add(
+            [{ id: "a", "style.color": [1, 0, 0, 1], "style.size": 2 }, { id: "b" }],
+            [{ src: "a", dst: "b", "style.thickness": 3 }],
+        );
+        const view = {
+            nodeStyle: () => ({ color: { r: 255, g: 0, b: 0, a: 1 }, size: 2, shape: "box" }),
+            edgeStyle: () => ({ color: null, width: 3 }),
+        };
+        const result = exportSession(harness.session, "json", {}, view);
+        assert.strictEqual(result.format, "json");
+        harness.session.dispose();
+    });
+
+    it("writes positions in file units, dividing by positionScale", () => {
+        const harness = makeSession({ config: DataConfig.parse({ knownFields: { positionScale: 2 } }) });
+        harness.add([{ id: "a" }]);
+        harness.session.snapshot();
+        harness.store.positions.write(0, 2, 4, 6);
+        const { snapshot } = buildExportSnapshot(harness.session);
+        const position = snapshot.nodes.get("position");
+        assert.deepEqual(Array.from((position as { data: Float64Array }).data.slice(0, 3)), [1, 2, 3]);
+        harness.session.dispose();
+    });
+
+    it("writes the drawn node shape where the format has a place for it", async () => {
+        const harness = makeSession();
+        harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);
+        const text = await exportSession(
+            harness.session,
+            "gexf",
+            {},
+            {
+                nodeStyle: () => ({ color: null, size: 1, shape: "box" }),
+            },
+        ).text();
+        assert.include(text, 'viz:shape value="box"');
+        harness.session.dispose();
+    });
+
+    it("neutralises CSV formula cells by default, leaves numbers alone, and turns off on request", async () => {
+        const harness = makeSession();
+        harness.add([
+            { id: "a", note: "=HYPERLINK(1)", "=key": "x", fold: -2.31, text: "-2.31" },
+            { id: "@b", note: "plain" },
+        ]);
+        const text = await exportSession(harness.session, "csv", { table: "nodes" }).text();
+        assert.include(text, "'=HYPERLINK(1)");
+        assert.include(text, "'=key");
+        assert.include(text, "'@b");
+        assert.include(text, "-2.31");
+        assert.notInclude(text, "'-2.31", "neither a number nor a text that is a number is touched");
+
+        const raw = await exportSession(harness.session, "csv", { table: "nodes", neutraliseFormulas: false }).text();
+        assert.notInclude(raw, "'=");
+        harness.session.dispose();
+    });
+
+    it("checks a built-in writer's options as it checks a registered one's, and publishes them", () => {
+        const harness = makeSession();
+        harness.add([{ id: "a" }]);
+        assert.strictEqual(
+            refusal(() => exportSession(harness.session, "json", { colour: 1 })).code,
+            "E_UNKNOWN_OPTION",
+        );
+        assert.strictEqual(
+            refusal(() => exportSession(harness.session, "csv", { variant: "gephi" })).code,
+            "E_OPTION_RANGE",
+        );
+        const names = formatDescriptor("csv")?.writerOptions?.map((option) => option.name) ?? [];
+        assert.includeMembers(names, ["variant", "dialect", "neutraliseFormulas", "sanitizeIds"]);
+
+        registerFormatWriter({ descriptor: DESCRIPTOR, exporter: exporterFor("acme-lines") });
+        const listed = catalogFormatDescriptors().find((descriptor) => descriptor.id === "acme-lines");
+        assert.include(listed?.writerOptions?.map((option) => option.name) ?? [], "sanitizeIds");
         harness.session.dispose();
     });
 });

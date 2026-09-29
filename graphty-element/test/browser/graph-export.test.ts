@@ -115,16 +115,11 @@ describe("exportGraph round trip", () => {
                 nodes.map((node) => node.id),
                 "node ids, in order",
             );
-            assert.deepEqual(
-                unreported(keysOf(nodes), keysOf(again.data.nodes()), result.lossNotes),
-                [],
-                "node keys",
-            );
-            assert.deepEqual(
-                unreported(keysOf(edges), keysOf(again.data.edges()), result.lossNotes),
-                [],
-                "edge keys",
-            );
+            const ends = (records: readonly { source: unknown; target: unknown }[]): string[] =>
+                records.map((edge) => `${String(edge.source)}->${String(edge.target)}`).sort();
+            assert.deepEqual(ends(again.data.edges()), ends(edges), "edge endpoints");
+            assert.deepEqual(unreported(keysOf(nodes), keysOf(again.data.nodes()), result.lossNotes), [], "node keys");
+            assert.deepEqual(unreported(keysOf(edges), keysOf(again.data.edges()), result.lossNotes), [], "edge keys");
 
             const chunks: Uint8Array[] = [];
             for await (const chunk of result.bytes) {
@@ -140,6 +135,10 @@ describe("exportGraph round trip", () => {
                 }, new Uint8Array()),
             );
             assert.strictEqual(decoded, text, "the byte stream is the same document");
+
+            // A file the element wrote exports again: its style columns come back as attributes.
+            const twice = await graphs[graphs.length - 1].exportGraph(entry.format, entry.options);
+            assert.isAbove((await twice.text()).length, 0, "a reloaded export exports again");
         });
     }
 });

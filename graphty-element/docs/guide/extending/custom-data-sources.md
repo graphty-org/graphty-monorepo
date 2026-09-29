@@ -305,13 +305,14 @@ What the element does around it:
   detection.
 - The snapshot you are handed carries the node and edge attributes, the current positions (the
   `position` role column), every published algorithm result as columns named
-  `results.<runId>.<field>`, and the drawn colour, size and edge width (`color`, `size`,
-  `thickness` role columns). Write what your format has a place for; report the rest from
+  `results.<runId>.<field>`, and the drawn colour, size, shape and edge width (`color`, `size`,
+  `shape`, `thickness` role columns). Write what your format has a place for; report the rest from
   `check()` as loss notes, which `exportGraph` returns with the document. The element's own
   bookkeeping columns are never in it.
 - `writerOptions` declares the options your writer takes, as `OptionDescriptor`s. An export that
-  names any other option is refused with `E_UNKNOWN_OPTION`; graph-io's `sanitizeIds` and
-  `onMixedDirection` always pass through.
+  names any other option is refused with `E_UNKNOWN_OPTION`, exactly as for the built-in
+  writers; graph-io's `sanitizeIds` and `onMixedDirection` are always accepted. The catalogue
+  entry publishes the whole list as `writerOptions`, so a "Save as" dialog can offer them.
 - A throw from your writer reaches the caller as a `GraphtyError`: `E_UNSUPPORTED` when it carries
   a string `code` (you refused this graph under these options), `E_INTERNAL` otherwise, with your
   error as `cause`.

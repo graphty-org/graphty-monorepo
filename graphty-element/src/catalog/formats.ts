@@ -14,7 +14,7 @@
 import type { CSVVariant } from "../data/CSVDataSource";
 import { registeredFormatDescriptors } from "./formatRegistry";
 import type { FormatDescriptor, KNOWN_FORMAT_IDS, OptionDescriptor } from "./types";
-import { catalogFormatDescriptors } from "./writerRegistry";
+import { catalogFormatDescriptors, COMMON_WRITER_OPTIONS } from "./writerRegistry";
 
 /** A built-in format name no registered data source reads. */
 export interface UnservedFormat {
@@ -102,6 +102,155 @@ const jsonOptions: readonly OptionDescriptor[] = [
     },
 ];
 
+/**
+ * Choices for an option, each value its own label.
+ * @param values - The values.
+ * @returns The choices.
+ */
+function choices(...values: string[]): { value: string; label: string }[] {
+    return values.map((value) => ({ value, label: value }));
+}
+
+/** What `exportGraph` accepts per built-in format, beside the common options. */
+const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
+    json: [
+        {
+            name: "dialect",
+            plainName: "JSON Shape",
+            technicalName: "dialect",
+            type: "enum",
+            values: choices("node-link", "d3", "jgf", "cytoscape", "graphology", "vis"),
+            description: "Which JSON graph shape to write. Left unset, graph-io writes node-link.",
+        },
+        { name: "indent", plainName: "Indent", technicalName: "indent", type: "integer", min: 0 },
+    ],
+    csv: [
+        {
+            name: "variant",
+            plainName: "File Shape",
+            technicalName: "variant",
+            type: "enum",
+            values: [
+                { value: "generic", label: "Generic" },
+                { value: "neo4j", label: "Neo4j Export" },
+            ],
+            description: "A Neo4j admin-import file, or a plain table (the default).",
+        },
+        {
+            name: "dialect",
+            plainName: "Header Names",
+            technicalName: "dialect",
+            type: "enum",
+            values: choices("generic", "gephi"),
+            default: "generic",
+            description: "source,target,weight headers, or Gephi's Source,Target,Type,Weight.",
+        },
+        {
+            name: "table",
+            plainName: "Table",
+            technicalName: "table",
+            type: "enum",
+            values: choices("edges", "nodes", "adjacency"),
+            description: "Which table to write. Left unset, the edge table.",
+        },
+        { name: "delimiter", plainName: "Column Separator", technicalName: "delimiter", type: "string" },
+        {
+            name: "newline",
+            plainName: "Line Ending",
+            technicalName: "newline",
+            type: "enum",
+            values: [
+                { value: "\n", label: "LF" },
+                { value: "\r\n", label: "CRLF" },
+            ],
+        },
+        { name: "header", plainName: "Header Row", technicalName: "header", type: "boolean" },
+        {
+            name: "neutraliseFormulas",
+            plainName: "Neutralise Formulas",
+            technicalName: "neutraliseFormulas",
+            type: "boolean",
+            default: true,
+            description:
+                "Prefix a text cell that starts with =, +, -, @, a tab or a carriage return with an " +
+                "apostrophe, so a spreadsheet does not run it as a formula. Numbers are never touched. " +
+                "Turn it off for a pipeline that reads the file with a CSV parser.",
+        },
+    ],
+    graphml: [
+        { name: "pretty", plainName: "Indent", technicalName: "pretty", type: "boolean" },
+        {
+            name: "edgedefault",
+            plainName: "Default Edge Direction",
+            technicalName: "edgedefault",
+            type: "enum",
+            values: choices("directed", "undirected"),
+        },
+    ],
+    gexf: [
+        {
+            name: "version",
+            plainName: "GEXF Version",
+            technicalName: "version",
+            type: "enum",
+            values: choices("1.2", "1.3"),
+        },
+    ],
+    gml: [
+        { name: "weightKey", plainName: "Weight Key", technicalName: "weightKey", type: "string" },
+        {
+            name: "sanitizeKeys",
+            plainName: "Unwritable Keys",
+            technicalName: "sanitizeKeys",
+            type: "enum",
+            values: choices("error", "mangle"),
+        },
+    ],
+    dot: [
+        { name: "indent", plainName: "Indent", technicalName: "indent", type: "string" },
+        { name: "name", plainName: "Graph Name", technicalName: "name", type: "string" },
+        { name: "strict", plainName: "Strict Graph", technicalName: "strict", type: "boolean" },
+    ],
+    pajek: [{ name: "networkHeader", plainName: "Network Header", technicalName: "networkHeader", type: "boolean" }],
+};
+
+/**
+ * The options of a Neo4j admin-import export, `csv` with `{ variant: "neo4j" }`: graph-io's Neo4j
+ * writer takes its own set, not the plain CSV writer's.
+ */
+export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
+    writerOptions.csv[0],
+    {
+        name: "part",
+        plainName: "Tables",
+        technicalName: "part",
+        type: "enum",
+        values: choices("all", "nodes", "relationships"),
+    },
+    { name: "delimiter", plainName: "Column Separator", technicalName: "delimiter", type: "string" },
+    {
+        name: "arrayDelimiter",
+        plainName: "List Separator",
+        technicalName: "arrayDelimiter",
+        type: "enum",
+        values: choices(";", ",", "|"),
+    },
+    { name: "quote", plainName: "Quote Character", technicalName: "quote", type: "string" },
+    { name: "weightColumn", plainName: "Weight Property", technicalName: "weightColumn", type: "string" },
+    { name: "idColumn", plainName: "Id Property", technicalName: "idColumn", type: "string" },
+    ...writerOptions.csv.filter((option) => option.name === "neutraliseFormulas"),
+    ...COMMON_WRITER_OPTIONS,
+];
+
+/**
+ * The options `exportGraph` accepts for a built-in format.
+ * @param id - The format.
+ * @returns Its writer options, the common ones included.
+ */
+function writerOptionsOf(id: string): readonly OptionDescriptor[] {
+    return [...(writerOptions[id] ?? []), ...COMMON_WRITER_OPTIONS];
+}
+
 /** Every file format the element can read or write. */
 export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
     {
@@ -112,6 +261,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: [...jsonOptions, ...endpointOptions],
+        writerOptions: writerOptionsOf("json"),
     },
     {
         id: "csv",
@@ -121,6 +271,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: [...csvOptions, ...endpointOptions],
+        writerOptions: writerOptionsOf("csv"),
     },
     {
         id: "graphml",
@@ -130,6 +281,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: endpointOptions,
+        writerOptions: writerOptionsOf("graphml"),
     },
     {
         id: "gexf",
@@ -144,6 +296,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: endpointOptions,
+        writerOptions: writerOptionsOf("gexf"),
     },
     {
         id: "gml",
@@ -153,6 +306,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: endpointOptions,
+        writerOptions: writerOptionsOf("gml"),
     },
     {
         id: "dot",
@@ -162,6 +316,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: endpointOptions,
+        writerOptions: writerOptionsOf("dot"),
     },
     {
         id: "pajek",
@@ -171,6 +326,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: true,
         options: endpointOptions,
+        writerOptions: writerOptionsOf("pajek"),
     },
 ];
 

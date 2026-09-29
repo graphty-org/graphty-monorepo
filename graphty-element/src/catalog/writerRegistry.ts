@@ -37,10 +37,43 @@ export interface FormatWriterRegistration {
     readonly exporter: GraphExporter<Record<string, unknown> & CommonExportOptions>;
 }
 
+/** The options every writer takes from graph-io, whatever the format. */
+export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
+    {
+        name: "sanitizeIds",
+        plainName: "Unwritable Ids",
+        technicalName: "sanitizeIds",
+        type: "enum",
+        values: [
+            { value: "error", label: "Refuse the export" },
+            { value: "mangle", label: "Rewrite them, keeping the original" },
+        ],
+        description:
+            "What to do with a node id the format cannot hold, such as a text id in GML or GraphML. " +
+            "Left unset, the export is refused with E_UNSUPPORTED.",
+    },
+    {
+        name: "onMixedDirection",
+        plainName: "Mixed Directions",
+        technicalName: "onMixedDirection",
+        type: "enum",
+        values: [
+            { value: "error", label: "Refuse the export" },
+            { value: "directed", label: "Write every edge as directed" },
+            { value: "undirected", label: "Write every edge as undirected" },
+        ],
+        description: "What to do with a graph of directed and undirected edges in a format that holds one kind.",
+    },
+];
+
 const registry = createPluginRegistry<FormatWriterRegistration, FormatDescriptor>({
     kind: "writer",
     idOf: (entry) => entry.descriptor.id,
-    descriptorOf: (entry) => entry.descriptor,
+    descriptorOf: (entry) =>
+        Object.freeze({
+            ...entry.descriptor,
+            writerOptions: [...(entry.writerOptions ?? []), ...COMMON_WRITER_OPTIONS],
+        }),
     implementationOf: (entry) => entry.exporter,
     builtInIds: () => KNOWN_FORMAT_IDS,
 });
@@ -110,7 +143,10 @@ export function registerFormatWriter(registration: FormatWriterRegistration, opt
         typeof exporter.export !== "function" ||
         typeof exporter.exportToString !== "function"
     ) {
-        refuse("exporter", `the writer for "${descriptor.id}" needs a graph-io exporter: check, export and exportToString`);
+        refuse(
+            "exporter",
+            `the writer for "${descriptor.id}" needs a graph-io exporter: check, export and exportToString`,
+        );
     }
 
     if (exporter.format !== descriptor.id) {
@@ -174,9 +210,16 @@ export function catalogFormatDescriptors(): readonly FormatDescriptor[] {
     if (merged?.readers !== readers || merged.writers !== writers) {
         const readerIds = new Set(readers.map((descriptor) => descriptor.id));
         const writerIds = new Set(writers.map((descriptor) => descriptor.id));
+        const writerOptionsById = new Map(writers.map((descriptor) => [descriptor.id, descriptor.writerOptions]));
         const list = [
             ...readers.map((descriptor) =>
-                writerIds.has(descriptor.id) ? Object.freeze({ ...descriptor, canExport: true }) : descriptor,
+                writerIds.has(descriptor.id)
+                    ? Object.freeze({
+                          ...descriptor,
+                          canExport: true,
+                          writerOptions: writerOptionsById.get(descriptor.id),
+                      })
+                    : descriptor,
             ),
             ...writers
                 .filter((descriptor) => !readerIds.has(descriptor.id))

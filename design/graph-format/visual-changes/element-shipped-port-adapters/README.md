@@ -26,7 +26,7 @@ Community.
 - No node moved and the camera did not move in any of the three changed stories (largest node
   move 0, camera move 0). `pixel-diff.mjs` reads each change as local: only node colours changed.
 
-## Why the colours changed: Louvain finds a better partition
+## Why the colours changed: Louvain finds a different partition
 
 The cat network (20 nodes, 29 edges) is the data every algorithm story loads. The legacy `louvain`
 function stops in a local optimum there; the snapshot port keeps moving nodes and merging
@@ -35,9 +35,12 @@ groups until modularity stops rising, and lands on four communities.
 Scored by one function (`indexed.modularity`, over the same undirected snapshot the run reads,
 edges unweighted), the port's four-community partition has modularity 0.462, and the partition
 the legacy function returns has 0.402. A higher modularity is the better answer to the question
-Louvain asks, so the new picture is the more correct one. The Leiden story, which also maximises
-modularity, already drew these four communities, so the Leiden story no longer asserts that its
-colours differ from Louvain's.
+Louvain asks, so on this data the new picture is the more correct one. That is not true of every
+graph: the port is not move-for-move identical to the legacy function, and on some graphs it
+stops lower (the six-node path n1-n2-n3-n0-n4-n5 gets three pairs, modularity 0.26, where the
+legacy function found two triples, 0.30). The Leiden story, which also maximises modularity,
+already drew these four communities, so the Leiden story no longer asserts that its colours
+differ from Louvain's.
 
 The Combined stories apply Louvain last, so Louvain's colours are the ones they show; their
 sizes (PageRank) and the highlighted path (Dijkstra) are unchanged.

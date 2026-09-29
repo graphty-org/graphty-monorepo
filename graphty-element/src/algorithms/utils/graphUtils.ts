@@ -81,9 +81,9 @@ export function requireNodeOption(
 /**
  * Refuse `endpoints: true` for a method that walks no paths.
  *
- * HITS and Katz carry an `endpoints` option in their schemas, where it has always been accepted
- * and read by nothing: whether a path's two ends count is a question for betweenness, and neither
- * method has an answer to it. A reader who switched it on was told nothing, so the run now says so
+ * HITS, Katz and eigenvector centrality carry an `endpoints` option in their schemas, where it
+ * has always been accepted and read by nothing: whether a path's two ends count is a question for
+ * betweenness, and none of these methods has an answer to it. A reader who switched it on was told nothing, so the run now says so
  * rather than publishing a result that looks as though the option was honoured. `false`, the
  * default, is accepted, so a saved document that carries the default still loads and runs.
  * @param algorithm - The method, for the message.

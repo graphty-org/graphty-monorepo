@@ -13,6 +13,7 @@ import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
 import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
+import { refuseEndpoints } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Eigenvector Centrality algorithm
@@ -46,7 +47,8 @@ const eigenvectorCentralityOptionsSchema = defineOptions({
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description:
+                "On a directed graph, score a node by the nodes pointing at it (in), the nodes it points at (out), or ignore direction (total)",
             advanced: true,
         },
     },
@@ -54,7 +56,8 @@ const eigenvectorCentralityOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description:
+                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     },
@@ -70,9 +73,9 @@ interface EigenvectorCentralityOptions extends Record<string, unknown> {
     tolerance: number;
     /** Whether to normalize the final scores */
     normalized: boolean;
-    /** Direction mode for directed graphs: "in", "out", or "total" */
+    /** On a directed graph: score by the nodes pointing in ("in"), out ("out"), or either ("total") */
     mode: "in" | "out" | "total";
-    /** Whether to include endpoints in path calculations */
+    /** Not supported: this method walks no paths, so `true` is refused */
     endpoints: boolean;
     /** Custom initial vector for power iteration (programmatic only, not in schema) */
     startVector: Map<string, number> | null;
@@ -127,7 +130,8 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             type: "select",
             default: "total",
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description:
+                "On a directed graph, score a node by the nodes pointing at it (in), the nodes it points at (out), or ignore direction (total)",
             options: [
                 { value: "total", label: "Total (both directions)" },
                 { value: "in", label: "In-degree (incoming edges)" },
@@ -139,7 +143,8 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             type: "boolean",
             default: false,
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description:
+                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
         // Note: startVector is a Map type - programmatic only, not in schema
@@ -160,7 +165,8 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
      * @returns One score per node, scaled as the options asked for.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        const { maxIterations, tolerance, normalized, mode } = this.schemaOptions;
+        const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        refuseEndpoints("Eigenvector centrality", endpoints);
         // Map types are programmatic-only (not in schema)
         const startVector = this._schemaOptions.startVector ?? undefined;
 
@@ -177,8 +183,6 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             total: nodeIds.length,
             message: `Power iteration, up to ${String(maxIterations)} passes.`,
         });
-        // `endpoints` is accepted and has no meaning for eigenvector centrality, which counts no
-        // paths; the legacy function never read it either.
         let scores: ArrayLike<number>;
         let precision: AccelerationPrecision;
         try {

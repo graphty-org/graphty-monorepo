@@ -3457,7 +3457,10 @@ export class Graph implements GraphContext {
             this.enterDimension(twoD);
         }
 
-        const signal = opening === undefined || how.signal === undefined ? (how.signal ?? opening) : AbortSignal.any([how.signal, opening]);
+        const signal =
+            opening === undefined || how.signal === undefined
+                ? (how.signal ?? opening)
+                : AbortSignal.any([how.signal, opening]);
         try {
             await layoutManagerInternals.apply(this.layoutManager, choice, {
                 ...how,

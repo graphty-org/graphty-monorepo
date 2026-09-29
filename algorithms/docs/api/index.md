@@ -38,6 +38,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 
 ## Centrality
 
+- `degrees()` - Each node's in- and out-degree as counted from the edge list, by the orientation each edge was declared with (on an undirected snapshot too, so in plus out is the degree counted once); also a member of the `accelerated()` dispatcher
 - `degreeCentrality()` - In-, out- or total degree, optionally normalised
 - `betweennessCentrality()`, `edgeBetweennessCentrality()` - Brandes betweenness, exact or sampled
 - `closenessCentrality()`, `nodeClosenessCentrality()` - Closeness or harmonic closeness, by hops or by weight
